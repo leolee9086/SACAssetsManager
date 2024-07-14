@@ -68,20 +68,38 @@ app.get('/webPageThumbnail', async (req, res) => {
                 offscreen: true
             }
         });
-
+    
         win.webContents.on('did-finish-load', async () => {
             const image = await win.webContents.capturePage();
-            const buffer = await image.toJPEG(100);
-            cache[cacheKey] = Buffer.from(buffer);
-            saveToCache(cacheKey, Buffer.from(buffer));
-            res.type('jpeg').send(Buffer.from(buffer));
+            const screenBuffer = await image.toJPEG(100);
+    
+            // Generate 512px thumbnail
+            const thumbnailBuffer = await sharp(screenBuffer)
+                .resize(512, 512, {
+                    fit: 'inside',
+                    withoutEnlargement: true
+                })
+                .toBuffer();
+    
+            // Store both thumbnails in cache
+            cache[`${cacheKey}_screen`] = Buffer.from(screenBuffer);
+            cache[`${cacheKey}`] = Buffer.from(thumbnailBuffer);
+    
+            // Save both thumbnails to cache
+            saveToCache(`${cacheKey}_screen`, Buffer.from(screenBuffer));
+            saveToCache(`${cacheKey}`, Buffer.from(thumbnailBuffer));
+    
+            // Send the 512px thumbnail as response
+            res.type('jpeg').send(Buffer.from(thumbnailBuffer));
+    
             setTimeout(() => win.close(), 500);
         });
-
+    
         setTimeout(() => win.close(), 1000);
         await win.loadURL(req.query.path);
-        win.show();
+        //win.show();
     });
+    
 
     if (requestQueue[domain].length === 1) {
         processQueue(domain);

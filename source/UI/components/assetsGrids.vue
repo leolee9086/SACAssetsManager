@@ -63,6 +63,7 @@
                                         :style="`min-width: 100%;width:100% ;height: ${parseInt(size) + 36}px;border-radius:${size / 12}px`">
                                         <iframe :id="`frame-${asset.path}`" width="100%" :height="parseInt(size)"
                                             :style="`border-radius:${size / 12}px;border: none`"
+                                            seamless
                                             :data-asset='`${asset.path}`' :data-path="`${asset.path}`"
                                             :onload="(e)=>{
                                                 e.target.contentDocument.write(asset.frameContent)
