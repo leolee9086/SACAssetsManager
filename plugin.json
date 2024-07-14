@@ -1,0 +1,43 @@
+{
+  "name": "SACAssetsManager",
+  "author": "椽承设计",
+  "url": "https://github.com/leolee9086/SAC",
+  "version": "0.0.1",
+  "minAppVersion": "3.0.12",
+
+  "backends": [
+    "windows",
+    "linux",
+    "darwin",
+    "ios",
+    "android"
+  ],
+  "frontends": [
+    "desktop",
+    "mobile",
+    "browser-desktop",
+    "browser-mobile",
+    "desktop-window"
+  ],
+  "displayName": {
+    "default": "SACAssetsManager",
+    "zh_CN": "SAC资源管理器"
+  },
+  "description": {
+    "default": "",
+    "zh_CN": ""
+  },
+  "readme": {
+    "default": "README.md",
+    "zh_CN": "README_zh_CN.md"
+  },
+  "funding": {
+    "openCollective": "b3log",
+    "patreon": "",
+    "github": "",
+    "custom": [
+      "https://afdian.net/a/leolee9086"
+    ]
+  },
+  "keywords":["ai","ChatGPT","聊天助手","样式","椽承设计"]
+}

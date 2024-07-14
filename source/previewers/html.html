@@ -1,0 +1,15 @@
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+    }
+</style>
+<div style='position:relative;width:100%;height:100%;'>
+    <iframe style="border: none" id="previewer" loading="lazy" decoding=async />
+</div>
+<script>
+    window.onload = () => {
+        document.getElementById('previewer').src = window.frameElement.getAttribute('data-path')
+    }
+</script>

@@ -1,0 +1,83 @@
+{
+  "name": "pdf2pic",
+  "version": "3.1.1",
+  "description": "A utility for converting pdf to image formats. Supports different outputs: directly to file, base64 or buffer.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "gm": "^1.25.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-alias": "^4.0.4",
+    "@rollup/plugin-terser": "^0.4.3",
+    "@rollup/plugin-typescript": "^11.1.2",
+    "@types/chai": "^4.3.5",
+    "@types/gm": "^1.25.1",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^16.18.39",
+    "@types/rimraf": "^4.0.5",
+    "@typescript-eslint/eslint-plugin": "^6.2.1",
+    "@typescript-eslint/parser": "^6.2.1",
+    "chai": "^4.3.7",
+    "eslint": "^8.46.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "mocha": "^10.2.0",
+    "nyc": "^15.1.0",
+    "prettier": "^3.1.1",
+    "rimraf": "^5.0.1",
+    "rollup": "^3.27.2",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0",
+    "tslib": "^2.6.1",
+    "typescript": "^5.1.6"
+  },
+  "scripts": {
+    "mocha": "mocha test/**/*.test.ts",
+    "test": "nyc --reporter=lcov npm run mocha",
+    "test:text": "nyc --reporter=text npm run mocha",
+    "test:watch": "npm run mocha -- --watch",
+    "rollup": "rollup -c",
+    "clean": "rimraf ./dist",
+    "lint": "eslint --ext .ts .",
+    "build": "npm run test && npm run clean && npm run rollup",
+    "prepare": "husky install"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yakovmeister/pdf2image.git"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "keywords": [
+    "pdf-to-image",
+    "pdf-to-jpg",
+    "pdf-to-png",
+    "pdf",
+    "convert",
+    "image",
+    "pdf2img",
+    "pdf2pic",
+    "pdf2image",
+    "imagemagick",
+    "graphicsmagick",
+    "gm"
+  ],
+  "funding": {
+    "type": "paypal",
+    "url": "https://www.paypal.me/yakovmeister"
+  },
+  "author": "Jacob Baring <owari@waifu.club>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yakovmeister/pdf2image/issues"
+  },
+  "homepage": "https://github.com/yakovmeister/pdf2image#readme",
+  "lint-staged": {
+    "*.{js,ts}": ["prettier --write", "eslint --fix"]
+  }
+}
