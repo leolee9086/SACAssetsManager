@@ -2,15 +2,18 @@
     <div class="fn__flex fn__flex-column scroll-column" ref="columnContainer"
         :style="`max-height: 100%;overflow:scroll;width:${parseInt(size)}px;`" @scroll="更新可见区域">
         <div class=""
-            :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${平均高度 * props.data.length}px`">
-            <template v-for="(cardData, i) in data.slice(0,30)" :key="'container_'+cardData.asset.id+i">
+            :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${总高度}px`">
+            <template v-for="(cardData, i) in 可见素材" :key="'container_'+cardData.asset.id+i">
                 <div v-if="cardData.asset"
                     :style="`position:absolute;width:100%;height:${cardData.height}px;transform:translate(0,${cardData.position.y}px)`">
                     <div style="position:abosolute;height:10ox">{{ cardData.index }}</div>
-                    <iframe :data-path="`${cardData.asset.path}`" loding="eager"
+                    <!--<iframe :data-path="`${cardData.asset.path}`" loding="eager"
                         style="width:100%;height:100%;border:none" seamless="true"
                         :onload="(e) => 初始化素材页面(e, data[cardData.index])">
-                    </iframe>
+                    </iframe>-->
+                    <img :style="`width:100%;height:100%;border:none; 
+                    border-radius: ${size / 12}px;`" :onload="(e) => 更新图片尺寸(e, cardData)"
+                        :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(cardData.asset.path)}`">
                 </div>
             </template>
         </div>
@@ -19,35 +22,65 @@
 <script setup>
 import { ref, watch, toRef, defineEmits, reactive } from 'vue'
 import { 创建思源附件预览页面内容 } from "../../previewers/previewerFactor.js"
-const props = defineProps(['data', 'scrollTop'])
-const { data } = props
+const props = defineProps(['data', 'scrollTop', 'dataFetcher'])
+const data = toRef(props, 'data')
 const scrollTop = toRef(props, 'scrollTop')
+const { dataFetcher } = props
 const size = ref(200)
 const columnContainer = ref(null)
 const 待渲染素材 = ref([])
 const emit = defineEmits()
 const 总高度 = ref(0)
 const 平均高度 = ref(size.value)
-const 可见素材 = reactive( [] )
+const 可见素材 = ref([])
 初始化布局高度()
 watch(
     data, (newVal, oldval) => {
         if (oldval !== newVal) { 初始化布局高度() }
     }, {}
 )
+function 更新图片尺寸(e, cardData) {
+    const previewer = e.target
+    const dimensions = {
+        width: previewer.naturalWidth,
+        height: previewer.naturalHeight
+    };
+    let 缩放因子 = dimensions.width / parseInt(size.value)
+    更新素材高度(cardData, dimensions.height / 缩放因子)
+
+}
 function 初始化布局高度() {
-    for (let i = 0; i < props.data.length; i++) {
-        let cardData = props.data[i]
-        cardData.index = i
-        let pre = props.data[i - 1]
-        pre && (cardData.position.y = (pre.height + pre.position.y))
+    for (let i = 0; i < data.value.length; i++) {
+        let cardData = data.value[i]
+        初始化卡片位置(cardData, i)
         待渲染素材.value.push(cardData)
         if (i <= 10) {
-            可见素材.push(cardData)
+            可见素材.value.push(cardData)
         }
     }
-    let _totalHeight = props.data.length * size.value
+    let _totalHeight = data.value.length * size.value
     总高度.value = _totalHeight
+}
+function 请求更多素材() {
+    let 新素材数据 = dataFetcher(0)
+    let 卡片数据 = 创建卡片(新素材数据)
+    初始化卡片位置(卡片数据, data.value.length)
+    data.value.push(卡片数据)
+    总高度.value += 卡片数据.height
+    emit('assetsNeedMore', data); // Emit an event when assets are loaded
+}
+function 创建卡片(asset) {
+    return {
+        position: { x: 0, y: 0 },
+        height: asset.height,
+        asset
+    }
+}
+function 初始化卡片位置(cardData, i) {
+    cardData.index = i
+    cardData.ready = false
+    let pre = data.value[i - 1]
+    pre && (cardData.position.y = (pre.height + pre.position.y))
 }
 watch(
     总高度, () => {
@@ -63,7 +96,6 @@ watch(
 )
 
 
-const 已卸载高度 = ref(0)
 const startIndex = ref(0)
 const endIndex = ref(100)
 async function 更新素材高度(cardData, height) {
@@ -72,14 +104,13 @@ async function 更新素材高度(cardData, height) {
         cardData.ready = true;
         cardData.height = parseInt(height);
         总高度.value += cardData.height - oldHeight;
-        data.forEach(
+        data.value.forEach(
             _asset => {
                 if (cardData.index < _asset.index) {
                     _asset.position.y += cardData.height - oldHeight;
                 }
             }
         );
-        cardData.已移除 ? 已卸载高度.value += cardData.height - oldHeight : null;
         更新可见区域();
     }
 }
@@ -132,21 +163,17 @@ function 更新可见区域() {
         startIndex.value = start
         endIndex.value = end + 10
         // 使用 splice 方法删除 visibleMaterials 数组中的所有元素
-        可见素材.splice(0, 可见素材.length);
-
-        // 然后使用 splice 方法在 visibleMaterials 数组中插入新的元素
-        可见素材.splice(0, 0, ...data.slice(start, end + 1));
-
-        if (end === props.data.length - 1) {
-            // Trigger loading event when end reaches the last element
-            请求更多素材();
+        可见素材.value = data.value.slice(start, end + 1);
+        if (end >= props.data.length - 10) {
+            // 触发加载事件，直到最后一个元素
+            for (let i = 0; i < end - props.data.length + 10; i++) {
+                请求更多素材();
+            }
         }
     }
 }
 
-function 请求更多素材() {
-    emit('assetsNeedMore', props.data); // Emit an event when assets are loaded
-}
+
 
 function 初始化素材页面(e, cardData) {
     cardData.iframe = e.target;

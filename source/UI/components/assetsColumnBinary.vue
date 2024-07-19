@@ -27,7 +27,7 @@ import { 创建思源附件预览页面内容 } from "../../previewers/previewer
 const assetsMetas = ref([])
 const 当前可见素材 = ref([])
 const appData = toRef(inject('appData'))
-const size = ref(200)
+const size = ref(50)
 const columnContainer = ref(null)
 const 待渲染素材 = ref([])
 const 已卸载素材 = ref([])
