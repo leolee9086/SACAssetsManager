@@ -85,7 +85,6 @@ const endIndex = ref(100)
         let high = assets.length - 1;
         let start = -1;
         let end = -1;
-
         // Find the start index
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
@@ -101,17 +100,14 @@ const endIndex = ref(100)
                 high = mid - 1;
             }
         }
-
         // Reset low and high for end index search
         low = 0;
         high = assets.length - 1;
-
         // Find the end index
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const asset = assets[mid];
             const assetBottom = asset.position.y + asset.height;
-
             if (asset.position.y > scrollTop + clientHeight) {
                 high = mid - 1;
             } else if (assetBottom < scrollTop) {
@@ -123,7 +119,6 @@ const endIndex = ref(100)
         }
         return { start, end };
     }
-
     const { start, end } = 二分查找可见素材(assetsMetas.value, scrollTop, clientHeight);
     if (start !== -1 && end !== -1) {
         startIndex.value = start
