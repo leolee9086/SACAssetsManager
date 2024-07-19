@@ -4,7 +4,7 @@
         padding: 0;
         height: 100%;
         overflow: hidden;
-        border:none
+        border: none
     }
 </style>
 <div style='position:relative;width:100%;height:100%;'>
@@ -15,11 +15,13 @@
     <img id="previewer" loading="eager" style="object-fit: contain; width: 100%; height: 100%;" />
 </div>
 <script>
-    let fn = async () => {
+
+    window.fn = async () => {
         // document.getElementById(title).innerHTML= asset.index + asset.path.split('.').pop() 
         if (!window.frameElement) {
             return
         }
+
         let path = window.frameElement.getAttribute('data-path')
         let isUrl
         let url
@@ -45,24 +47,54 @@
 
             url = `http://127.0.0.1/webPageThumbnail/?path=${encodeURIComponent(url.href)}`
         }
-        const preloadImage = (url) => {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.src = url;
-                img.onload = () => resolve(url);
-                img.onerror = reject;
-            });
-        };
-        const loadPreviewer = async (url) => {
-            try {
-                const preloadedUrl = await preloadImage(url);
-                document.getElementById('previewer').src = preloadedUrl;
-            } catch (error) {
-                //console.error('Failed to preload image:', error);
+        async function fetchImage(url, signal) {
+            const response = await fetch(url, { signal });
+
+            if (!response.ok) {
+                return ""
             }
-        };
-        loadPreviewer ( url || `http://127.0.0.1/thumbnail/?path=${encodeURIComponent(path)}`)
-        window.frameElement.parentElement.previousElementSibling.addEventListener(
+
+            return url;
+        }
+
+        const loadPreviewer = async (url) => {
+            const previewer = document.getElementById('previewer');
+            previewer.src = url;
+            previewer.onload =  () => {
+                const dimensions = {
+                    width: previewer.naturalWidth,
+
+                    height: previewer.naturalHeight
+                };
+                const frameElement = window.frameElement;
+                window.postMessage(dimensions)
+                /*  window.parent.postMessage('ready')
+                 if (!frameElement.asset.rect) {
+                      const dimensions = {
+                          width: previewer.naturalWidth,
+  
+                          height: previewer.naturalHeight
+                      };
+                      const frameElement = window.frameElement;
+                      frameElement.asset.oldHeight = frameElement.asset.height;
+                      const rect = frameElement.getBoundingClientRect();
+                      if (rect.width > 0) {
+                          frameElement.height = (dimensions.height * rect.width) / dimensions.width || rect.width;
+                          frameElement.asset.height = parseInt(frameElement.height);
+                          frameElement.asset.rect = rect;
+                      } else {
+                          frameElement.height = rect.width;
+                          frameElement.asset.height = parseInt(frameElement.height);
+                          frameElement.asset.rect = rect;
+  
+                      }
+                      frameElement.asset.updateLayout && frameElement.asset.updateLayout(frameElement.asset.height);
+                  }*/
+            };
+        }
+
+        loadPreviewer(url || `http://127.0.0.1/thumbnail/?path=${encodeURIComponent(path)}`)
+        window.frameElement.parentElement.previousElementSibling?.addEventListener(
             'dblclick', () => {
                 if (path.startsWith('assets')) {
                     window.parent.siyuan.ws.app.plugins.find(plugin => {
@@ -76,16 +108,14 @@
         )
         const checkSizeAndUpdate = () => {
             if (window.innerWidth > 1024 || window.innerHeight > 1024) {
-                loadPreviewer( `http://127.0.0.1/raw/?path=${encodeURIComponent(path)}`)
+                loadPreviewer(`http://127.0.0.1/raw/?path=${encodeURIComponent(path)}`)
             } else {
-                 loadPreviewer(url || `http://127.0.0.1/thumbnail/?path=${encodeURIComponent(path)}`)
+                loadPreviewer(url || `http://127.0.0.1/thumbnail/?path=${encodeURIComponent(path)}`)
             }
         };
 
         window.addEventListener('resize', checkSizeAndUpdate);
         checkSizeAndUpdate();
-
     }
-    window.onload = fn
     setTimeout(() => requestIdleCallback(fn, { deadline: 10 }))
 </script>

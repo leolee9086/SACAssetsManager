@@ -5,10 +5,87 @@ const app = express();
 const path = require('path')
 const { PDFDocument } = require('pdf-lib');
 const pdf2pic = require('pdf2pic')
+const fastGlob = require('fast-glob')
+const compression = require('compression');
+const cors = require('cors'); // 引入 cors 中间件
+
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { getBase64Thumbnail } from './internalLoaders/systermThumbnail.js';
-// Define the C# code to get the Base64 thumbnail
+import { loadCsharpFile } from './utils/CSharpLoader.js';
+const glob = loadCsharpFile('D:/思源主库/data/plugins/SACAssetsManager/source/server/utils/glob/glob.cs');
+
 const cache = {}
+const globCache = {}
+app.use(cors());
+
+app.use(compression({
+    level: 6, // 设置压缩级别，范围是 0-9，默认值是 6
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+            // 如果请求头包含 'x-no-compression'，则不进行压缩
+            return false;
+        }
+        // 其他情况下进行压缩
+        return compression.filter(req, res);
+    }
+}));
+app.get('/glob', async (req, res) => {
+    const folderPath = req.query.path;
+    if (globCache[folderPath]) {
+        res.json(globCache[folderPath])
+        return
+    }
+    if (!folderPath) {
+        return res.status(400).send('Path query parameter is required');
+    }
+    try {
+        await glob(folderPath, async function (error, result) {
+            if (error) throw error;
+            globCache[folderPath] = await buildFileTree(result)
+            res.json(globCache[folderPath])
+        });
+        return
+        const result = await fastGlob([`${folderPath}/**/*`], {
+            suppressErrors: true, // Suppress errors to avoid breaking the process
+        });
+
+        const filesWithStats = result
+        globCache[folderPath] = filesWithStats
+        res.json(filesWithStats);
+    } catch (error) {
+        console.error('Error processing glob request:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+async function buildFileTree(files) {
+    const root = {};
+
+    await Promise.all(files.map(async (filePath) => {
+        // Normalize the file path to use the current platform's separator
+        const normalizedPath = path.normalize(filePath);
+        const parts = normalizedPath.split(path.sep);
+        let current = root;
+
+        for (let index = 0; index < parts.length; index++) {
+            const part = parts[index];
+            if (!current[part]) {
+                current[part] = {
+                    path: parts.slice(0, index + 1).join(path.sep),
+                    children: {}
+                };
+            }
+
+            if (index === parts.length - 1) {
+                current[part].isFile = true;
+            }
+
+            current = current[part].children;
+        }
+    }));
+
+    return root;
+}
+
 
 app.get('/thumbnail', async (req, res) => {
     const imagePath = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
@@ -32,9 +109,9 @@ app.get('/thumbnail', async (req, res) => {
     handleImageFile(imagePath, req, res);
 });
 app.get(
-    '/raw',async(req,res)=>{
-        const path=req.query.path
-        if(path.startsWith('assets')){
+    '/raw', async (req, res) => {
+        const path = req.query.path
+        if (path.startsWith('assets')) {
             res.sendFile(require('path').join(siyuanConfig.system.workspaceDir, 'data', req.query.path))
         }
     }
@@ -68,11 +145,11 @@ app.get('/webPageThumbnail', async (req, res) => {
                 offscreen: true
             }
         });
-    
+
         win.webContents.on('did-finish-load', async () => {
             const image = await win.webContents.capturePage();
             const screenBuffer = await image.toJPEG(100);
-    
+
             // Generate 512px thumbnail
             const thumbnailBuffer = await sharp(screenBuffer)
                 .resize(512, 512, {
@@ -80,26 +157,26 @@ app.get('/webPageThumbnail', async (req, res) => {
                     withoutEnlargement: true
                 })
                 .toBuffer();
-    
+
             // Store both thumbnails in cache
             cache[`${cacheKey}_screen`] = Buffer.from(screenBuffer);
             cache[`${cacheKey}`] = Buffer.from(thumbnailBuffer);
-    
+
             // Save both thumbnails to cache
             saveToCache(`${cacheKey}_screen`, Buffer.from(screenBuffer));
             saveToCache(`${cacheKey}`, Buffer.from(thumbnailBuffer));
-    
+
             // Send the 512px thumbnail as response
             res.type('jpeg').send(Buffer.from(thumbnailBuffer));
-    
+
             setTimeout(() => win.close(), 500);
         });
-    
+
         setTimeout(() => win.close(), 1000);
         await win.loadURL(req.query.path);
         //win.show();
     });
-    
+
 
     if (requestQueue[domain].length === 1) {
         processQueue(domain);
@@ -181,11 +258,10 @@ async function handlePdfFile(imagePath, req, res) {
          throw (err)
      }*/
 }
-
 // Updated handleImageFile function with cache check and save
 async function handleImageFile(imagePath, req, res) {
     const cacheKey = generateCacheKey(imagePath);
-   // if (await serveFromCache(cacheKey, res)) return;
+    // if (await serveFromCache(cacheKey, res)) return;
 
     if (!imagePath.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
         // Handle non-image files
@@ -197,7 +273,6 @@ async function handleImageFile(imagePath, req, res) {
                 return;
             }
             try {
-                console.log(result)
                 const iconBuffer = Buffer.from(result, 'base64');
                 saveToCache(cacheKey, iconBuffer);
                 cache[cacheKey] = iconBuffer
@@ -211,7 +286,6 @@ async function handleImageFile(imagePath, req, res) {
     } else {
         // Existing image handling code
         fs.readFile(imagePath, (err, data) => {
-            console.log(data)
             if (err) {
                 res.status(404).send(`File not found ${req.query.path}`);
                 return;
