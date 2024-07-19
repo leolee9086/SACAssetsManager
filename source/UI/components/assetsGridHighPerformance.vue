@@ -5,8 +5,12 @@
                 <div class="fn__flex-column fn__flex-1">
                     <div class="fn__flex-1 fn__flex">
                         <template v-for="(data, i) in columnDatas">
-                            <assetsColumnBinary @scrollSyncNeed="handlerColumnScroll" :scrollTop="scrollTop"
-                                :value="data" @assetsNeedMore="pushNewAsset(column1Data)"
+                            <assetsColumnBinary  
+                            v-if=(data[0])
+                                @scrollSyncNeed="handlerColumnScroll" 
+                                :scrollTop="scrollTop"
+                                :data="columnDatas[i]" 
+                                @assetsNeedMore="pushNewAsset(column1Data)"
                                 @heightChange="handlerColumnHeightChange">
                             </assetsColumnBinary>
                         </template>
@@ -17,30 +21,29 @@
     </div>
 </template>
 <script setup>
-import assetsColumnBinary from './assetsColumn.vue';
+import assetsColumnBinary from './assetsColumnBinary.vue';
 import { 获取tab附件数据 } from "../../data/siyuanAssets.js"
-import { ref, onMounted, inject, computed, toRef, nextTick } from 'vue'
+import { ref, onMounted, inject, reactive, toRef, nextTick } from 'vue'
 import { 创建思源附件预览页面内容 } from "../../previewers/previewerFactor.js"
 
 let assetsMetas = ref([])
 const appData = toRef(inject('appData'))
 const size = ref(200)
-let columnDatas = ref([ref([]), ref([]), ref([]), ref([])])
+let columnDatas = reactive([[],[],[],[]])
 const scrollTop = ref(0)
 const pushNewAsset = (columnData) => {
     //console.log(columnData)
-    columnDatas.value.forEach(
-        item => item.value.push(assetsMetas.value[100])
-    )
+ 
 }
 const handlerColumnScroll = (_scrollTop) => {
-    // console.log(_scrollTop)
     scrollTop.value = _scrollTop
 }
-const handlerColumnHeightChange = (height) => {
-    //   console.log(height)
+//用于实现瀑布流布局的插入定位
+//每次将新的卡片插入最低的序列
+const columnHeights=ref([])
+const handlerColumnHeightChange = (height,index) => {
+    columnHeights[index] = height
 }
-
 onMounted(async () => {
     // Fetch assets data
     let assets = await 获取tab附件数据(appData.value.tab, 102400);
@@ -48,17 +51,22 @@ onMounted(async () => {
         ...item,
         index: i,
         height: parseInt(size.value),
-        position: { x: 0, y: 0 },
         frameContent: 创建思源附件预览页面内容(item, true),
     }));
     assetsMetas.value=assetsMetas.value.concat(assetsMetas.value).concat(assetsMetas.value).concat(assetsMetas.value)
-    columnDatas.value.forEach(item => {
+    columnDatas.forEach(data => {
         const totalLength = assetsMetas.value.length;
-        const chunkSize = Math.ceil(totalLength / columnDatas.value.length); // 计算每个子数组的长度
+        const chunkSize = Math.ceil(totalLength / columnDatas.length); // 计算每个子数组的长度
         const startIndex = Math.floor(Math.random() * (totalLength - chunkSize + 1)); // 随机选择起始索引
         const endIndex = startIndex + chunkSize; // 计算结束索引
-
-        item.value = JSON.parse(JSON.stringify(assetsMetas.value)).slice(startIndex, endIndex);
+        for(let i=startIndex;i<endIndex;i++){
+            let asset = assetsMetas.value[i]
+            data.push({
+                position:{x:0,y:0},
+                height:asset.height,
+                asset
+            })
+        }
     });
 }
 )
