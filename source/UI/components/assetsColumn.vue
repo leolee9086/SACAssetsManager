@@ -1,19 +1,22 @@
 <template>
-    <div class="fn__flex fn__flex-column scroll-column" ref="columnContainer"
+    <div :class="{'fn__flex':1, 'fn__flex-column':1,'scroll-column':1,show_scroll:showScroll}" ref="columnContainer"
         :style="`max-height: 100%;overflow:scroll;width:${parseInt(size)}px;`" @scroll="更新可见区域">
         <div class=""
-            :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${总高度}px`">
+            :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${Math.max(总高度,containerHeight)}px`">
             <template v-for="(cardData, i) in 可见素材" :key="'container_'+cardData.asset.id+i">
                 <div v-if="cardData.asset"
                     :style="`position:absolute;width:100%;height:${cardData.height}px;transform:translate(0,${cardData.position.y}px)`">
-                    <div style="position:abosolute;height:10ox">{{ cardData.index }}</div>
-                    <!--<iframe :data-path="`${cardData.asset.path}`" loding="eager"
+                    <div style="position:absolute;height:10ox;top:15px">{{ cardData.index }}</div>
+                    <!--                    <iframe :data-path="`${cardData.asset.path}`" loding="eager"
                         style="width:100%;height:100%;border:none" seamless="true"
                         :onload="(e) => 初始化素材页面(e, data[cardData.index])">
-                    </iframe>-->
-                    <img :style="`width:100%;height:100%;border:none; 
+                    </iframe>
+                        -->
+                    
+                        <img :style="`width:100%;height:100%;border:none; 
                     border-radius: ${size / 12}px;`" :onload="(e) => 更新图片尺寸(e, cardData)"
                         :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(cardData.asset.path)}`">
+                        
                 </div>
             </template>
         </div>
@@ -22,17 +25,20 @@
 <script setup>
 import { ref, watch, toRef, defineEmits, reactive } from 'vue'
 import { 创建思源附件预览页面内容 } from "../../previewers/previewerFactor.js"
-const props = defineProps(['data', 'scrollTop', 'dataFetcher'])
+const props = defineProps(['data', 'scrollTop', 'dataFetcher','containerHeight','showScroll'])
+const showScroll =toRef(props, 'showScroll')
 const data = toRef(props, 'data')
 const scrollTop = toRef(props, 'scrollTop')
+const containerHeight = toRef(props,'containerHeight')
 const { dataFetcher } = props
-const size = ref(200)
+const size = ref(100)
 const columnContainer = ref(null)
 const 待渲染素材 = ref([])
 const emit = defineEmits()
 const 总高度 = ref(0)
 const 平均高度 = ref(size.value)
 const 可见素材 = ref([])
+
 初始化布局高度()
 watch(
     data, (newVal, oldval) => {
@@ -98,19 +104,16 @@ watch(
 
 const startIndex = ref(0)
 const endIndex = ref(100)
-async function 更新素材高度(cardData, height) {
+function 更新素材高度(cardData, height) {
     const oldHeight = cardData.height
     if (Math.abs(height - oldHeight) >= oldHeight * 0.1 && !cardData.ready) {
         cardData.ready = true;
         cardData.height = parseInt(height);
-        总高度.value += cardData.height - oldHeight;
-        data.value.forEach(
-            _asset => {
-                if (cardData.index < _asset.index) {
-                    _asset.position.y += cardData.height - oldHeight;
-                }
-            }
-        );
+        const heightChange = cardData.height - oldHeight
+        总高度.value += heightChange;
+        for (let i = cardData.index + 1; i < data.value.length; i++) {
+             data.value[i].position.y += heightChange;
+        }
         更新可见区域();
     }
 }
@@ -170,6 +173,13 @@ function 更新可见区域() {
                 请求更多素材();
             }
         }
+        
+
+    }
+    let i=0
+    while(总高度.value<=scrollTop+clientHeight&&i<=10){
+            i++
+            请求更多素材();
     }
 }
 
@@ -188,8 +198,8 @@ function 初始化素材页面(e, cardData) {
     cardData.iframe.asset = cardData.asset;
 }
 </script>
-<style>
-.scroll-column::-webkit-scrollbar {
+<style scope>
+.scroll-column:not(.show_scroll)::-webkit-scrollbar {
     display: none;
 }
 </style>

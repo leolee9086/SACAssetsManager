@@ -4,17 +4,33 @@
             <div class="fn__flex-column fn__flex-1">
                 <div class="fn__flex-column fn__flex-1">
                     <div class="fn__flex-1 fn__flex">
+                        <div 
+                            class="fn__flex-column fn__flex-1"
+                            :style="`min-width:${gutterV}px`"
+                            ></div>
                         <template v-for="(data, i) in columnDatas">
+                            <div 
+                            class="fn__flex-column fn__space"
+                            :style="`min-width:${gutterV}px`"
+                            >
+
+                            </div>
                             <assetsColumn v-if=(data[0]) 
                             :scrollTop="scrollTop"
                             :data="columnDatas[i]" 
                             :dataFetcher="fetchNewData"
+                            :containerHeight="containerHeight"
                             @scrollSyncNeed="handlerColumnScroll" 
-                         
                             @assetsNeedMore="pushNewAsset(column1Data)"
-                            @heightChange="handlerColumnHeightChange">
+                            @heightChange="handlerColumnHeightChange"
+                            :showScroll="i===columnDatas.length-1"
+                            >
                             </assetsColumn>
                         </template>
+                        <div 
+                            class="fn__flex-column fn__flex-1"
+                            :style="`min-width:${gutterV}px`"
+                            ></div>
                     </div>
                 </div>
             </div>
@@ -33,6 +49,8 @@ const appData = toRef(inject('appData'))
 const size = ref(50)
 let columnDatas = ref([[], [], [], []])
 const scrollTop = ref(0)
+const containerHeight = ref(0)
+const gutterV=ref(10)
 const fetchNewData = (index)=>{
     if(index===0){
         const randomIndex = Math.floor(Math.random() * assetsMetas.value.length);
@@ -49,6 +67,9 @@ const handlerColumnScroll = (_scrollTop) => {
 const columnHeights = ref([])
 const handlerColumnHeightChange = (height, index) => {
     columnHeights[index] = height
+    if(height>=containerHeight.value){
+        containerHeight.value= height
+    }
 }
 onMounted(async () => {
     // Fetch assets data
