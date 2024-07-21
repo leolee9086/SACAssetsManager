@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const sharp = require('sharp');
 const app = express();
 const path = require('path')
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, utf8Encode } = require('pdf-lib');
 const pdf2pic = require('pdf2pic')
 const fastGlob = require('fast-glob')
 const compression = require('compression');
@@ -12,12 +12,18 @@ const cors = require('cors'); // 引入 cors 中间件
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { getBase64Thumbnail } from './internalLoaders/systermThumbnail.js';
 import { loadCsharpFile } from './utils/CSharpLoader.js';
+import "./licenseChecker.js"
 const glob = loadCsharpFile('D:/思源主库/data/plugins/SACAssetsManager/source/server/utils/glob/glob.cs');
-
 const cache = {}
 const globCache = {}
 app.use(cors());
-
+require('fs').watch('D:\\',{encoding:"utf8",recursive:true},(type,name)=>{
+    console.log(type,name)
+    const filePath=  require('path').join('D:\\',name)
+    fs.stat(filePath,(err,stat)=>{
+        console.log(stat)
+    })
+})
 app.use(compression({
     level: 6, // 设置压缩级别，范围是 0-9，默认值是 6
     filter: (req, res) => {
@@ -41,7 +47,7 @@ app.get('/glob', async (req, res) => {
     try {
         await glob(folderPath, async function (error, result) {
             if (error) throw error;
-            globCache[folderPath] = await buildFileTree(result)
+            globCache[folderPath] = result
             res.json(globCache[folderPath])
         });
         return

@@ -1,37 +1,38 @@
 <template>
-    <div :class="{'fn__flex':1, 'fn__flex-column':1,'scroll-column':1,show_scroll:showScroll}" ref="columnContainer"
-        :style="`max-height: 100%;overflow:scroll;width:${parseInt(size)}px;`" @scroll="更新可见区域">
+    <div :class="{ 'fn__flex': 1, 'fn__flex-column': 1, 'scroll-column': 1, show_scroll: showScroll }"
+        ref="columnContainer" :style="`max-height: 100%;overflow-y:scroll;width:${parseInt(size)}px;`" @scroll="更新可见区域">
         <div class=""
-            :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${Math.max(总高度,containerHeight)}px`">
-            <template v-for="(cardData, i) in 可见素材" :key="'container_'+cardData.asset.id+i">
+            :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${Math.max(总高度, containerHeight)}px`">
+            <template v-for="(cardData, i) in 可见素材" :key="cardData.indexInColumn">
                 <div v-if="cardData.asset"
                     :style="`position:absolute;width:100%;height:${cardData.height}px;transform:translate(0,${cardData.position.y}px)`">
-                    <div style="position:absolute;height:10ox;top:15px">{{ cardData.index }}</div>
+                    <div style="position:absolute;height:10ox;top:15px">{{ cardData.indexInColumn }}</div>
                     <!--                    <iframe :data-path="`${cardData.asset.path}`" loding="eager"
                         style="width:100%;height:100%;border:none" seamless="true"
-                        :onload="(e) => 初始化素材页面(e, data[cardData.index])">
+                        :onload="(e) => 初始化素材页面(e, data[cardData.indexInColumn])">
                     </iframe>
                         -->
-                    
-                        <img :style="`width:100%;height:100%;border:none; 
+
+                    <img :style="`width:100%;height:100%;border:none; 
                     border-radius: ${size / 12}px;`" :onload="(e) => 更新图片尺寸(e, cardData)"
                         :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(cardData.asset.path)}`">
-                        
+
                 </div>
             </template>
         </div>
     </div>
 </template>
 <script setup>
-import { ref, watch, toRef, defineEmits, reactive } from 'vue'
+import { ref, watch, toRef, defineEmits, nextTick } from 'vue'
 import { 创建思源附件预览页面内容 } from "../../previewers/previewerFactor.js"
-const props = defineProps(['data', 'scrollTop', 'dataFetcher','containerHeight','showScroll'])
-const showScroll =toRef(props, 'showScroll')
+import { 二分查找可见素材 } from '../utils/layoutComputer/masonry/layout.js'
+const props = defineProps(['size', 'data', 'scrollTop', 'dataFetcher', 'containerHeight', 'showScroll'])
+const showScroll = toRef(props, 'showScroll')
+const size = toRef(props, 'size')
 const data = toRef(props, 'data')
 const scrollTop = toRef(props, 'scrollTop')
-const containerHeight = toRef(props,'containerHeight')
+const containerHeight = toRef(props, 'containerHeight')
 const { dataFetcher } = props
-const size = ref(100)
 const columnContainer = ref(null)
 const 待渲染素材 = ref([])
 const emit = defineEmits()
@@ -63,17 +64,19 @@ function 初始化布局高度() {
         if (i <= 10) {
             可见素材.value.push(cardData)
         }
+        总高度.value += cardData.height
     }
-    let _totalHeight = data.value.length * size.value
-    总高度.value = _totalHeight
 }
 function 请求更多素材() {
     let 新素材数据 = dataFetcher(0)
-    let 卡片数据 = 创建卡片(新素材数据)
-    初始化卡片位置(卡片数据, data.value.length)
-    data.value.push(卡片数据)
-    总高度.value += 卡片数据.height
-    emit('assetsNeedMore', data); // Emit an event when assets are loaded
+    if (新素材数据) {
+        let 卡片数据 = 创建卡片(新素材数据)
+        初始化卡片位置(卡片数据, data.value.length)
+        data.value.push(卡片数据)
+        总高度.value += 卡片数据.height
+        emit('assetsNeedMore', 111);
+        return 新素材数据
+    } // Emit an event when assets are loaded
 }
 function 创建卡片(asset) {
     return {
@@ -83,7 +86,7 @@ function 创建卡片(asset) {
     }
 }
 function 初始化卡片位置(cardData, i) {
-    cardData.index = i
+    cardData.indexInColumn = i
     cardData.ready = false
     let pre = data.value[i - 1]
     pre && (cardData.position.y = (pre.height + pre.position.y))
@@ -104,60 +107,112 @@ watch(
 
 const startIndex = ref(0)
 const endIndex = ref(100)
+
+// 更新队列，记录源卡片的索引和高度差以及更新时间
+let updateQueue = [];
+// 处理更新的函数
+function processUpdates() {
+    // 按源卡片索引升序排序
+    updateQueue.sort((a, b) => a.index - b.index);
+
+    // 计算每个分段的高度变化
+    let segmentHeightChanges = [];
+    let currentHeightChange = 0;
+    for (let i = 0; i < updateQueue.length; i++) {
+        const heightChange = updateQueue[i].heightChange;
+        currentHeightChange += heightChange;
+        segmentHeightChanges.push({ index: updateQueue[i].index, heightChange: currentHeightChange });
+    }
+
+    // 更新总高度
+    总高度.value += currentHeightChange;
+
+    // 分段更新受影响的卡片
+    for (let i = 0; i < segmentHeightChanges.length; i++) {
+        const segment = segmentHeightChanges[i];
+        updateCardsFromIndex(segment.index, segment.heightChange, i === segmentHeightChanges.length - 1 ? null : segmentHeightChanges[i + 1].index);
+    }
+    nextTick(
+        () => {
+             timeStep = 30
+
+            更新可见区域()
+        }
+    )
+    // 清空队列
+    updateQueue = [];
+}
+
+// 更新从指定索引开始的所有卡片的高度，直到下一个更新分片的索引
+function updateCardsFromIndex(startIndex, heightChange, nextIndex) {
+    for (let i = startIndex + 1; i < data.value.length; i++) {
+        if (nextIndex !== null && i > nextIndex) {
+            break; // 停止更新，因为我们已经到达了下一个更新分片
+        }
+        if (i >= startIndex.value && i < endIndex.value) {
+            data.value[i].position.y += heightChange;
+        } else {
+            nextTick(() => {
+                data.value[i].position.y += heightChange;
+            });
+        }
+    }
+}
+
+// 设置定时器来处理更新
+let updateTimer = null;
+let timeStep = 30
+// 更新卡片高度的函数
 function 更新素材高度(cardData, height) {
+    const oldHeight = cardData.height;
+    const heightChange = parseInt(height) - oldHeight;
+
+    // 检查是否需要更新
+    if (Math.abs(heightChange) >= oldHeight * 0.1 && !cardData.ready) {
+        cardData.ready = true;
+        cardData.height = parseInt(height);
+        // 更新总高度
+        总高度.value += heightChange;
+
+        // 添加到更新队列
+        updateQueue.push({
+            index: cardData.indexInColumn,
+            heightChange: heightChange,
+            timestamp: Date.now() // 记录更新的时间戳
+        });
+
+        // 如果定时器未设置，设置一个定时器来处理更新
+        if (!updateTimer) {
+            updateTimer = setTimeout(() => {
+                processUpdates();
+                updateTimer = null; // 处理完毕后重置定时器
+            }, timeStep); // 假设处理间隔为100毫秒
+        }
+    }
+}
+/*function 更新素材高度(cardData, height) {
     const oldHeight = cardData.height
     if (Math.abs(height - oldHeight) >= oldHeight * 0.1 && !cardData.ready) {
         cardData.ready = true;
         cardData.height = parseInt(height);
         const heightChange = cardData.height - oldHeight
         总高度.value += heightChange;
-        for (let i = cardData.index + 1; i < data.value.length; i++) {
-             data.value[i].position.y += heightChange;
-        }
         更新可见区域();
-    }
-}
+        for (let i = cardData.indexInColumn + 1; i < data.value.length; i++) {
+            if (i >= startIndex.value && i < endIndex.value) {
+                data.value[i].position.y += heightChange;
+            } else {
+                nextTick(() => {
+                    data.value[i].position.y += heightChange;
+                })
+            }
+        }
 
-function 二分查找可见素材(assets, scrollTop, clientHeight) {
-    let low = 0;
-    let high = assets.length - 1;
-    let start = -1;
-    let end = -1;
-    // Find the start index
-    while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        const asset = assets[mid];
-        const assetBottom = asset.position.y + asset.height;
-        if (asset.position.y > scrollTop + clientHeight) {
-            high = mid - 1;
-        } else if (assetBottom < scrollTop) {
-            low = mid + 1;
-        } else {
-            start = mid;
-            high = mid - 1;
-        }
     }
-    // Reset low and high for end index search
-    low = 0;
-    high = assets.length - 1;
-    // Find the end index
-    while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        const asset = assets[mid];
-        const assetBottom = asset.position.y + asset.height;
-        if (asset.position.y > scrollTop + clientHeight) {
-            high = mid - 1;
-        } else if (assetBottom < scrollTop) {
-            low = mid + 1;
-        } else {
-            end = mid;
-            low = mid + 1;
-        }
-    }
-    return { start, end };
-}
+}*/
 
 function 更新可见区域() {
+    timeStep+=5
     const scrollTop = columnContainer.value.scrollTop;
     const clientHeight = columnContainer.value.clientHeight;
     emit('scrollSyncNeed', scrollTop)
@@ -173,17 +228,16 @@ function 更新可见区域() {
                 请求更多素材();
             }
         }
-        
-
-    }
-    let i=0
-    while(总高度.value<=scrollTop+clientHeight&&i<=10){
-            i++
-            请求更多素材();
+    } else (
+        endIndex.value = data.value.length
+    )
+    let i = 0
+    while (总高度.value <= scrollTop + clientHeight + clientHeight + clientHeight && i <= 1000) {
+        if (!请求更多素材()) {
+            break
+        };
     }
 }
-
-
 
 function 初始化素材页面(e, cardData) {
     cardData.iframe = e.target;

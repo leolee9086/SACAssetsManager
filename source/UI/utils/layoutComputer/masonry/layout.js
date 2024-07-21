@@ -1,121 +1,216 @@
-import {ref,watch,compute} from '../../../../../static/vue.esm-browser.js'
-function 初始化空布局(元素数量,布局列数, 列宽度,预期高度) {
-    const layout = {
-        顺序索引: [],
-        列索引: [],
-        高度索引: [],
-        列总高度: [],
-        每列可用索引: Array(布局列数).fill(0).map(() => []),  // 每列的可用索引区间数组
-        总可用索引: []  // 总的可用索引区间数组
-    };
-    const columnWidth = 列宽度 / 布局列数;
-    for (let i = 0; i < 元素数量; i++) {
-        const 当前列 = Math.floor(i / 布局列数);
-        const indexInColumn = i % 布局列数;
-        const x = indexInColumn * columnWidth;
-        const y = layout.列总高度[当前列] || 0; // 使用列的当前总高度
+import Rbush from '../../../../../static/rbush.js';
 
-        const element = {
-            column: 当前列,
-            indexInColumn,
-            x,
-            y,
-            width: columnWidth,
-            height: 预期高度,
-            meta: null  // 初始化为null表示未使用
-        };
-        layout.顺序索引.push(element);
-        layout.列索引[当前列] = layout.列索引[当前列] || [];
-        layout.列索引[当前列].push(element);
-        // 更新列的总高度
-        layout.列总高度[当前列] = y + 预期高度;
-        // 更新每列的可用索引区间
-        const 当前列当前可用索引区间表 = layout.每列可用索引[当前列];
-        const startIndex = indexInColumn + 1;
-        const endIndex = 布局列数 - 1;
-        if (当前列当前可用索引区间表.length === 0 || startIndex > 当前列当前可用索引区间表[当前列当前可用索引区间表.length - 1].end + 1) {
-            // 如果没有可用区间或新的可用区间不与最后一个区间相邻，则添加新的区间
-            当前列当前可用索引区间表.push({ start: startIndex, end: endIndex });
+export function 二分查找可见素材(位置序列, 查找起点, 窗口高度) {
+    let 当前起始索引 = 0;
+    let 当前截止索引 = 位置序列.length - 1;
+    let 起始索引 = -1;
+    let 截止索引 = -1;
+    // Find the start index
+    while (当前起始索引 <= 当前截止索引) {
+        const 中位索引 = Math.floor((当前起始索引 + 当前截止索引) / 2);
+        const 当前布局项 = 位置序列[中位索引];
+        const 布局项底部 = 当前布局项.position.y + 当前布局项.height;
+        if (当前布局项.position.y > 查找起点 + 窗口高度) {
+            当前截止索引 = 中位索引 - 1;
+        } else if (布局项底部 < 查找起点) {
+            当前起始索引 = 中位索引 + 1;
         } else {
-            // 如果新的可用区间与最后一个区间相邻，则合并它们
-            当前列当前可用索引区间表[当前列当前可用索引区间表.length - 1].end = endIndex;
+            起始索引 = 中位索引;
+            当前截止索引 = 中位索引 - 1;
         }
-        // 更新总的可用索引区间
-        const 总可用索引 = layout.总可用索引;
-        const 最后区间 = 总可用索引.length > 0 ? 总可用索引[总可用索引.length - 1] : null;
-        if (最后区间 && startIndex <= 最后区间.end + 1) {
-            // 如果新的可用区间与最后一个区间相邻，则合并它们
-            最后区间.end = endIndex;
-        } else {
-            // 否则添加新的区间
-            总可用索引.push({ start: startIndex, end: endIndex });
-        }
-        layout.高度索引.push({ y, element });
     }
-    // Sort the height index by y value
-    layout.高度索引.sort((a, b) => a.y - b.y);
-    return layout;
+    // Reset low and high for end index search
+    当前起始索引 = 0;
+    当前截止索引 = 位置序列.length - 1;
+    // Find the end index
+    while (当前起始索引 <= 当前截止索引) {
+        const 中位索引 = Math.floor((当前起始索引 + 当前截止索引) / 2);
+        const 当前布局项 = 位置序列[中位索引];
+        const 布局项底部 = 当前布局项.position.y + 当前布局项.height;
+        if (当前布局项.position.y > 查找起点 + 窗口高度) {
+            当前截止索引 = 中位索引 - 1;
+        } else if (布局项底部 < 查找起点) {
+            当前起始索引 = 中位索引 + 1;
+        } else {
+            截止索引 = 中位索引;
+            当前起始索引 = 中位索引 + 1;
+        }
+    }
+    return { start: 起始索引, end: 截止索引 };
 }
 
-function 添加元素(layout, 新元素数量, 布局列数, 列宽度, 预期高度, 指定高度) {
-    const columnWidth = 列宽度 / 布局列数;
-    const availableColumns = layout.每列可用索引.map((ranges, column) => ({ column, ranges }));
-    const sortedAvailableColumns = availableColumns.sort((a, b) => a.ranges[0].start - b.ranges[0].start);
 
-    for (let i = 0; i < 新元素数量; i++) {
-        const { column, ranges } = sortedAvailableColumns.find(col => col.ranges.length > 0);
-        const { start } = ranges.shift(); // 取出第一个可用区间的起始索引
+export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
+    const layout = [];
+    const columns = [];
+    const tree = new Rbush()
+    const pendingUpdates = new Set();
+    let updateQueue = []
+    let isUpdating
+    // 设置定时器来处理更新
+    let updateTimer = null;
+    let timeStep = 30
 
-        const indexInColumn = start;
-        const x = indexInColumn * columnWidth;
-        const y = layout.列总高度[column] || 0; // 使用列的当前总高度
-
-        const element = {
-            column,
-            indexInColumn,
-            x,
-            y,
-            width: columnWidth,
-            height: 预期高度,
-            meta: null  // 初始化为null表示未使用
-        };
-
-        layout.顺序索引.push(element);
-        layout.列索引[column] = layout.列索引[column] || [];
-        layout.列索引[column].push(element);
-
-        // 更新列的总高度
-        layout.列总高度[column] = y + 预期高度;
-
-        // 更新每列的可用索引区间
-        const currentColumnAvailable = layout.每列可用索引[column];
-        const endIndex = indexInColumn;
-
-        if (currentColumnAvailable.length === 0 || endIndex > currentColumnAvailable[currentColumnAvailable.length - 1].end + 1) {
-            // 如果没有可用区间或新的可用区间不与最后一个区间相邻，则添加新的区间
-            currentColumnAvailable.push({ start: endIndex + 1, end: 布局列数 - 1 });
-        } else {
-            // 如果新的可用区间与最后一个区间相邻，则合并它们
-            currentColumnAvailable[currentColumnAvailable.length - 1].end = endIndex;
+    // 初始化列
+    for (let i = 0; i < columnCount; i++) {
+        columns.push({ x: i * (columnWidth + gutter), y: 0, items: [] });
+    }
+    // 添加数据的方法
+    function add(data) {
+        let item = {}
+        let shortestColumn = columns[0];
+        let shortestColumnIndex = 0
+        for (let i = 1; i < columns.length; i++) {
+            if (columns[i].y < shortestColumn.y) {
+                shortestColumn = columns[i];
+                shortestColumnIndex = i; // 更新索引
+            }
         }
+        shortestColumn.items.push(item);
+        item.columnIndex = shortestColumnIndex
+        item.indexInColumn = shortestColumn.items.length - 1
+        item.x = shortestColumn.x;
+        item.y = shortestColumn.y;
+        item.minX = item.x
+        item.minY = item.y
+        //初始化的时候直接按照方形
+        item.height = columnWidth
+        item.width = columnWidth
+        item.maxX = item.x + item.width
+        item.maxY = item.y + item.height
+        shortestColumn.y += item.height + gutter;
+        item.data = data
+        layout.push(item);
+        item.index = layout.length - 1
+        // 插入到 Rbush
+        tree.insert(item);
+    }
+    // 更新数据高度的方法
+    function processUpdates() {
+        // 按源卡片索引升序排序
+        let columnQueues =Array(columns.length)
+        updateQueue.forEach(
+            update=>{
+                columnQueues[update.columnIndex]=columnQueues[update.columnIndex]||[]
+                columnQueues[update.columnIndex].push(update)
+            }
+        )
+        columnQueues.forEach(
+            (_updateQueue,columnIndex)=>{
 
-        // 更新总的可用索引区间
-        const totalAvailable = layout.总可用索引;
-        const lastRange = totalAvailable.length > 0 ? totalAvailable[totalAvailable.length - 1] : null;
+                _updateQueue.sort((a, b) => a.indexInColumn - b.indexInColumn);
+                // 计算每个分段的高度变化
+                let segmentHeightChanges = [];
+                let currentHeightChange = 0;
+                for (let i = 0; i < _updateQueue.length; i++) {
+                    const heightChange = _updateQueue[i].heightChange;
+                    currentHeightChange += heightChange;
+                    segmentHeightChanges.push({ indexInColumn: _updateQueue[i].indexInColumn, heightChange: currentHeightChange });
+                }
+                // 分段更新受影响的卡片
+                for (let i = 0; i < segmentHeightChanges.length; i++) {
+                    const segment = segmentHeightChanges[i];
+                    updateCardsFromIndex(segment.indexInColumn, segment.heightChange, i === segmentHeightChanges.length - 1 ? null : segmentHeightChanges[i + 1].indexInColumn,columns[columnIndex]);
+                }
+                // 清空队列
+            }
+        )
+        batchUpdateIndex()
+        updateQueue = [];
 
-        if (lastRange && endIndex <= lastRange.end + 1) {
-            // 如果新的可用区间与最后一个区间相邻，则合并它们
-            lastRange.end = endIndex;
-        } else {
-            // 否则添加新的区间
-            totalAvailable.push({ start: endIndex + 1, end: 布局列数 - 1 });
+    }
+    // 更新从指定索引开始的所有卡片的高度，直到下一个更新分片的索引
+    function updateCardsFromIndex(startIndex, heightChange, nextIndex, column) {
+
+        for (let i = startIndex+1 ; i < column.items.length; i++) {
+            if (nextIndex !== null && i > nextIndex) {
+                break; // 停止更新，因为我们已经到达了下一个更新分片
+            }
+            column.items[i].y += heightChange;
+            column.items[i].minY = column.items[i].y;
+            column.items[i].maxY = column.items[i].y + column.items[i].height;
+            pendingUpdates.add(column.items[i])
         }
+    }
+    // 更新数据高度的方法
+     function update(index, newHeight) {
+        const oldHeight = layout[index].height;
+        const heightDifference = parseInt(newHeight) - oldHeight;
+           
+        if (index >= 0 && index < layout.length&&Math.abs(heightDifference) >= oldHeight * 0.1 ) {
+            const item = layout[index];
+            if (item.ready) {
+                return
+            }
+            item.ready = true;
+            // 从 Rbush 中移除旧的项
+            // 更新项的高度和位置
+            tree.remove(item)
+            item.height = newHeight;
+            item.maxY = item.y + item.height;
+            let columnIndex = item.columnIndex;
+            let currentColumn = columns[columnIndex];
+            currentColumn.y += heightDifference;
+            //添加到更新队列
+            updateQueue.push({
+                indexInColumn: item.indexInColumn,
+                heightChange: heightDifference,
+                columnIndex: columnIndex,
+                timestamp: Date.now() // 记录更新的时间戳
+            });
+            // 重新插入到 Rbush
+            tree.insert(item)
+            // 如果定时器未设置，设置一个定时器来处理更新
+           // if (!updateTimer) {
+            //    updateTimer = setTimeout(() => {
+                    processUpdates();
+             //       updateTimer = null; // 处理完毕后重置定时器
+             //   }, timeStep); // 假设处理间隔为100毫秒
+         //   }
 
-        layout.高度索引.push({ y, element });
+            /*  for (let i = item.indexInColumn + 1; i < currentColumn.items.length; i++) {
+                  let _item = currentColumn.items[i];
+                  _item.y += heightDifference;
+                  _item.minY = _item.y;
+                  _item.maxY = _item.y + _item.height;
+                  pendingUpdates.add(_item)
+              }
+              requestIdleCallback(batchUpdateIndex)*/
+        }
+    }
+    function batchUpdateIndex() {
+        const updates = Array.from(pendingUpdates);
+        updates.forEach(
+            item => tree.remove(item)
+        )
+        tree.load(updates)
+        pendingUpdates.clear()
+    }
+    function rebuild(columnCount, columnWidth, gutter) {
+        const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter)
+        layout.forEach(
+            item => {
+                newLayoutObj.add(item.data)
+            }
+        )
+        return newLayoutObj
     }
 
-    // Sort the height index by y value
-    layout.高度索引.sort((a, b) => a.y - b.y);
-
-    return layout;
+    if (datas) {
+        datas.forEach(
+            data => {
+                add(data)
+            }
+        )
+    }
+    return {
+        layout: layout,
+        columns: columns,
+        add: add,
+        update: (...args) => update(...args),
+        rebuild: rebuild,
+        //这里会有this指向问题
+        search: (...args) => tree.search(...args),
+        tree
+    };
 }
