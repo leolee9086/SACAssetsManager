@@ -39,7 +39,6 @@ const emit = defineEmits()
 const 总高度 = ref(0)
 const 平均高度 = ref(size.value)
 const 可见素材 = ref([])
-
 初始化布局高度()
 watch(
     data, (newVal, oldval) => {
@@ -103,11 +102,8 @@ watch(
         }
     }
 )
-
-
 const startIndex = ref(0)
 const endIndex = ref(100)
-
 // 更新队列，记录源卡片的索引和高度差以及更新时间
 let updateQueue = [];
 // 处理更新的函数
@@ -123,10 +119,8 @@ function processUpdates() {
         currentHeightChange += heightChange;
         segmentHeightChanges.push({ index: updateQueue[i].index, heightChange: currentHeightChange });
     }
-
     // 更新总高度
     总高度.value += currentHeightChange;
-
     // 分段更新受影响的卡片
     for (let i = 0; i < segmentHeightChanges.length; i++) {
         const segment = segmentHeightChanges[i];
@@ -135,7 +129,6 @@ function processUpdates() {
     nextTick(
         () => {
              timeStep = 30
-
             更新可见区域()
         }
     )
@@ -190,26 +183,6 @@ function 更新素材高度(cardData, height) {
         }
     }
 }
-/*function 更新素材高度(cardData, height) {
-    const oldHeight = cardData.height
-    if (Math.abs(height - oldHeight) >= oldHeight * 0.1 && !cardData.ready) {
-        cardData.ready = true;
-        cardData.height = parseInt(height);
-        const heightChange = cardData.height - oldHeight
-        总高度.value += heightChange;
-        更新可见区域();
-        for (let i = cardData.indexInColumn + 1; i < data.value.length; i++) {
-            if (i >= startIndex.value && i < endIndex.value) {
-                data.value[i].position.y += heightChange;
-            } else {
-                nextTick(() => {
-                    data.value[i].position.y += heightChange;
-                })
-            }
-        }
-
-    }
-}*/
 
 function 更新可见区域() {
     timeStep+=5
@@ -239,18 +212,6 @@ function 更新可见区域() {
     }
 }
 
-function 初始化素材页面(e, cardData) {
-    cardData.iframe = e.target;
-    e.target.contentWindow.document.write(创建思源附件预览页面内容(cardData.asset, true));
-    cardData.iframe.contentWindow.addEventListener(
-        'message', (event) => {
-            let 图片尺寸 = event.data
-            let 缩放因子 = 图片尺寸.width / parseInt(size.value)
-            更新素材高度(cardData, 图片尺寸.height / 缩放因子)
-        }
-    )
-    cardData.iframe.asset = cardData.asset;
-}
 </script>
 <style scope>
 .scroll-column:not(.show_scroll)::-webkit-scrollbar {
