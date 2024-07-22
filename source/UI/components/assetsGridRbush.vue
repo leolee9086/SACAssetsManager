@@ -5,15 +5,24 @@
                 <div class="fn__flex-column fn__flex-1">
 
                     <div class="fn__flex-1 fn__flex" ref="scrollContainer" @scroll="更新可见区域" style="position: relative;">
-                        <div class="fn__flex-column fn__flex-1" style="min-height: 102400px;height:102400px">
-                            <template v-for="(卡片数据, i) in 可见卡片组" :key="卡片数据&&卡片数据.data?卡片数据.data.id:Date.now()+'_'+i">
-                                
-                                <div :style="计算卡片样式(卡片数据)" v-if="卡片数据&&卡片数据.data" :data-indexInColumn="卡片数据&&卡片数据.indexInColumn">
-                                    <img :data-columnIndex="卡片数据.columnIndex" :data-indexInColumn="卡片数据.indexInColumn"
-                                        :style="`width:100%;height:100%;border:none; `" :onload="(e) => 更新图片尺寸(e, 卡片数据)"
-                                        loading="lazy"
-                                        :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(卡片数据.data.path)}`">
+                        <div class="fn__flex-column fn__flex-1" :style="
+                        `min-height: 102400px;
+                        height:102400px;
+                        padding-left:${paddingLR}px;
+                        padding-right:${paddingLR}px`
+                        ">
+                            
+                            <template v-for="(卡片数据, i) in 可见卡片组"
+                                :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
 
+                                <div :style="计算卡片样式(卡片数据)" v-if="卡片数据 && 卡片数据.data"
+                                    :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn">
+
+                                    <!--<img :data-columnIndex="卡片数据.columnIndex" :data-indexInColumn="卡片数据.indexInColumn"
+                                        :style="`width:100%;height:100%;border:none; `" :onload="(e) => 更新图片尺寸(e, 卡片数据)"
+                                        loading="eager"
+                                        :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(卡片数据.data.path)}`">-->
+                                        <assetsThumbnailCard @updateSize="(data)=>更新图片尺寸(data,可见卡片组[i])" :cardData="卡片数据"></assetsThumbnailCard>
                                 </div>
                             </template>
                         </div>
@@ -25,81 +34,69 @@
 </template>
 <script setup>
 import { 获取tab附件数据 } from "../../data/siyuanAssets.js"
-import { ref, onMounted, inject, reactive, toRef, nextTick } from 'vue'
+import { ref, onMounted, inject, reactive, toRef,watch, computed, nextTick } from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
+import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
 const root = ref(null)
 const scrollContainer = ref(null)
 const appData = toRef(inject('appData'))
 let 布局对象
-const { Lute } = window
-const { NewNodeID } = Lute
-const columnCount = ref(14)
+const size=ref(200)
+const columnCount = ref(1)
+const paddingLR=ref(100)
 const 计算卡片样式 = (卡片数据) => {
     return {
         transform: `translate(${卡片数据.x}px,${卡片数据.y}px)`,
         height: 卡片数据.height + 'px',
         width: 卡片数据.width + 'px',
-        position: 'absolute'
+        position: 'absolute',
+        backgroundColor: 'var(--b3-theme-background-light)',
+
     }
 }
 const resizeObserver = new ResizeObserver(entries => {
     for (let entry of entries) {
-        console.log(entry)
+        columnCount.value = Math.floor(scrollContainer.value.clientWidth/size.value)-1
+        paddingLR.value=(scrollContainer.value.clientWidth-(size.value/6*(columnCount.value-1)+size.value*columnCount.value))/2
+
     }
 });
 const 可见卡片组 = ref([])
-function 更新图片尺寸(e, cardData) {
-    const previewer = e.target
-    const dimensions = {
-        width: previewer.naturalWidth||100,
-        height: previewer.naturalHeight||100
-    };
-    let 缩放因子 = dimensions.width / 100
-     更新素材高度(cardData, dimensions.height / 缩放因子)
+function 更新图片尺寸(dimensions, cardData) {
+    console.log(dimensions,cardData.data.id,cardData.ready)
+    更新素材高度(cardData, dimensions.height )
 }
- function 更新素材高度(cardData, height) {
+function 更新素材高度(cardData, height) {
     const oldHeight = cardData.height
     if (Math.abs(height - oldHeight) >= oldHeight * 0.1 && !cardData.ready) {
+
         布局对象.update(cardData.index, height)
-        更新可见区域()
+        更新可见区域(true)
     }
 }
 let oldScrollTop
 let isUpdating
-const 更新可见区域 = async (flag) => {
+const 更新可见区域 = (flag) => {
     const { scrollTop, clientWidth, clientHeight } = scrollContainer.value
-    if (oldScrollTop === scrollTop && !flag) {
+    if (oldScrollTop === scrollTop&&scrollTop!==0 && !flag) {
         return
     }
-
+    if (isUpdating) {
+        return
+    }
     try {
         oldScrollTop = scrollTop
         let 可见框 = {
             minX: 0,
-            minY: scrollTop-clientHeight,
-            maxY: scrollTop + clientHeight,
+            minY: scrollTop,
+            maxY: scrollTop + clientHeight + clientHeight,
             maxX: clientWidth
         }
-        let result = 布局对象.search(可见框)
-        可见卡片组.value
-        result.forEach(
-            item => {
-                if (!可见卡片组.value.find(_item => { return _item && _item.index === item.index })) {
-                    可见卡片组.value.push(item)
-                }
-            }
-        )
-        可见卡片组.value.forEach(
-            (_item, i) => {
-                if (_item && !result.find(item => { return _item.index === item.index })) {
-                    可见卡片组.value[i] = null
-                }
-            }
-        )
-        if (可见卡片组.value.length > columnCount.value*50) {
-            可见卡片组.value = 可见卡片组.value.filter(item => item)
-        }
+
+        let result = Array.from(new Set(布局对象.search(可见框)))
+        可见卡片组.value.length = 0
+        可见卡片组.value.splice(0, 可见卡片组.value.length, ...result);
         let _flag = true
         while (_flag) {
             try {
@@ -112,37 +109,56 @@ const 更新可见区域 = async (flag) => {
                         shortestColumnIndex = i; // 更新索引
                     }
                 }
-                if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight) {
+                if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight && 附件数据组.length) {
                     布局对象.add(附件数据组.shift())
+
                 } else {
                     _flag = false
                 }
             } catch (e) {
-                console.warn(e)
                 _flag = false
             }
         }
     } catch (e) {
         console.warn(e)
     }
+    isUpdating = false
 }
 
 let 附件数据组
+watch(
+    columnCount,()=>{
 
+        columnCount.value&&布局对象&&(布局对象=布局对象.rebuild(columnCount.value, size.value, size.value/6, [], reactive))
+        更新可见区域(true)
+    }
+)
+watch(
+    [columnCount,size],()=>{
+        paddingLR.value=(scrollContainer.value.clientWidth-(size.value/6*(columnCount.value-1)+size.value*columnCount.value))/2
+    }
+)
 onMounted(async () => {
     resizeObserver.observe(
         root.value
     )
     附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
-    附件数据组=附件数据组.concat(附件数据组).concat(附件数据组).concat(附件数据组).concat(附件数据组).concat(附件数据组)
-    布局对象 = 创建瀑布流布局(columnCount.value, 100, 10)
-    for(
-         let i=0;i<3;i++
-    ){
-        let item=附件数据组.shift()
-        item&&布局对象.add(item)
-    }
-    更新可见区域()
+    附件数据组.map(
+        (item, index) => {
+            return ref({
+                ...item,
+                index
+            })
+        }
+    )
+    nextTick(
+
+        () =>{ 
+            布局对象 = 创建瀑布流布局(columnCount.value, size.value, size.value/6, [], reactive)
+            resizeObserver.observe(scrollContainer.value)
+            更新可见区域(true)
+        }
+    )
 })
 
 </script>

@@ -1,10 +1,13 @@
 <template>
     <div :class="{ 'fn__flex': 1, 'fn__flex-column': 1, 'scroll-column': 1, show_scroll: showScroll }"
-        ref="columnContainer" :style="`max-height: 100%;overflow-y:scroll;width:${parseInt(size)}px;`" @scroll="更新可见区域">
+        ref="columnContainer" :style="`max-height: 100%;overflow-y:scroll;width:${parseInt(size)}px;`" @scroll="handlerScroll">
         <div class=""
             :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${Math.max(总高度, containerHeight)}px`">
             <template v-for="(cardData, i) in 可见素材" :key="cardData.indexInColumn">
-                <div v-if="cardData.asset"
+                <div v-if="cardData&&cardData.asset" class="assetCard" 
+                :data-height="cardData.height" 
+                :data-y="cardData.position.y"
+                :data-bottom="cardData.height+cardData.position.y"
                     :style="`position:absolute;width:100%;min-height:${cardData.height}px;max-height:${cardData.height}px;height:${cardData.height}px;transform:translate(0,${cardData.position.y}px)`">
                     <div style="position:absolute;height:10ox;top:15px">{{ cardData.indexInColumn }}</div>
                     <!--                    <iframe :data-path="`${cardData.asset.path}`" loding="eager"
@@ -116,7 +119,7 @@ const endIndex = ref(100)
 // 更新队列，记录源卡片的索引和高度差以及更新时间
 let updateQueue = [];
 // 处理更新的函数
-function processUpdates() {
+ function processUpdates() {
     // 按源卡片索引升序排序
     updateQueue.sort((a, b) => a.index - b.index);
     // 计算每个分段的高度变化
@@ -127,8 +130,6 @@ function processUpdates() {
         currentHeightChange += heightChange;
         segmentHeightChanges.push({ index: updateQueue[i].index, heightChange: currentHeightChange });
     }
-    // 更新总高度
-    总高度.value += currentHeightChange;
     // 分段更新受影响的卡片
     for (let i = 0; i < segmentHeightChanges.length; i++) {
         const segment = segmentHeightChanges[i];
@@ -150,14 +151,11 @@ function updateCardsFromIndex(startIndex, heightChange, nextIndex) {
         if (nextIndex !== null && i > nextIndex) {
             break; // 停止更新，因为我们已经到达了下一个更新分片
         }
-
         if (i >= startIndex.value && i < endIndex.value) {
             data.value[i].position.y += heightChange;
         } else {
             let item = data.value[i]
-
             item.position.y += heightChange;
-
         }
     }
 }
@@ -182,50 +180,63 @@ let timeStep = 30
             heightChange: heightChange,
             timestamp: Date.now() // 记录更新的时间戳
         });
-        // 如果定时器未设置，设置一个定时器来处理更新
-        if (!updateTimer) {
-            updateTimer = setTimeout(() => {
-                processUpdates();
-                updateTimer = null; // 处理完毕后重置定时器
-            }, timeStep); // 假设处理间隔为100毫秒
-        }
+        processUpdates();
+
+         //如果定时器未设置，设置一个定时器来处理更新
+        //if (!updateTimer) {
+          // updateTimer = setTimeout(() => {
+          //      processUpdates();
+          //      updateTimer = null; // 处理完毕后重置定时器
+         // }, timeStep); // 假设处理间隔为100毫秒
+        //}
     }
 }
 let isUpdating
-function 更新可见区域() {
+function handlerScroll() {
     timeStep += 5
-    if(isUpdating){
-        return
-    }
-    isUpdating=true
+ 
     const scrollTop = columnContainer.value.scrollTop;
     const clientHeight = columnContainer.value.clientHeight;
+    let cardElements = columnContainer.value.querySelectorAll('.assetCard')
+    let firstCard =cardElements[0]
+    let lastCard = cardElements[cardElements.length-1]
+    if(parseInt(lastCard.dataset.bottom) <= scrollTop + clientHeight||parseInt(firstCard.dataset.y)>=scrollTop+10){
+        总高度.value=parseInt(lastCard.dataset.bottom)
+        console.log(1)
+        更新可见区域()
+    }
     emit('scrollSyncNeed', scrollTop)
+}
+function 更新可见区域(){
+
+    const scrollTop = columnContainer.value.scrollTop;
+    const clientHeight = columnContainer.value.clientHeight;
+
     const { start, end } = 二分查找可见素材(props.data, scrollTop, clientHeight);
     if (start !== -1 && end !== -1) {
         startIndex.value = start
-        endIndex.value = end + 10
+        endIndex.value = end 
         // 使用 splice 方法删除 visibleMaterials 数组中的所有元素
         可见素材.value = data.value.slice(start, end + 1);
         if (end >= props.data.length - 10) {
             // 触发加载事件，直到最后一个元素
-            for (let i = 0; i < end - props.data.length + 10; i++) {
-                请求更多素材();
+            for (let i = 0; i < end - props.data.length ; i++) {
+             (async()=>   请求更多素材())();
             }
         }
     } else {
-        endIndex.value = data.value.length
-        请求更多素材()
+        endIndex.value = data.value.length;
+        (async()=>   请求更多素材())();
     }
     let i = 0
-    while (总高度.value <= scrollTop + clientHeight && i <= 1000) {
-        if (!请求更多素材(true)) {
-            break
-        };
-    }
-    isUpdating=false
-}
+    while (总高度.value < scrollTop + clientHeight && i <= 2) {
 
+        (async()=>   请求更多素材(true))();
+
+        i+=1
+   }
+
+}
 </script>
 <style scope>
 .scroll-column:not(.show_scroll)::-webkit-scrollbar {

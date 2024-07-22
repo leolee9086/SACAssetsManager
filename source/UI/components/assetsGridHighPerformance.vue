@@ -30,11 +30,12 @@ import assetsThumbnailCard from './common/assetsThumbnailCard.vue';
 let assetsMetas = ref([])
 const appData = toRef(inject('appData'))
 const size = ref(100)
-let columnDatas = ref([[], [], [], [], []])
+let columnDatas = ref([[],[],[],[],[],[],[],[],[],[],[],[]])
 const scrollTop = ref(0)
 const containerHeight = ref(0)
 const gutterV = ref(10)
 const root = ref(null)
+let 待渲染素材
 const fetchNewData = (index, force) => {
     const minHeight = Math.min(...columnHeights.value);
     const minIndex = columnHeights.value.indexOf(minHeight)
@@ -42,11 +43,9 @@ const fetchNewData = (index, force) => {
     if (index === minIndex || force) {
         //const randomIndex = Math.floor(Math.random() * assetsMetas.value.length);
         //return JSON.parse(JSON.stringify(assetsMetas.value[randomIndex]));
-        return assetsMetas.value.shift()
+        return 待渲染素材.pop()
     }
 }
-
-
 
 const pushNewAsset = (columnData) => {
     // console.log(columnData)
@@ -70,13 +69,12 @@ const handlerColumnHeightChange = (data) => {
     const maxHeight = Math.max(...columnHeights.value);
 
     containerHeight.value=maxHeight+root.value.clientHeight/2
-    return
 
-    const totalHeight = columnHeights.value.reduce(
-        (acc, item) => { return (acc || 0) + (item || 0) },0
-    )
-    let  _containerHeight = totalHeight / assetsMetas.value.length * Math.max(...columnDatas.value.map(column => column.length))
-    containerHeight.value=_containerHeight===Infinity ?containerHeight.value:_containerHeight
+ //   const totalHeight = columnHeights.value.reduce(
+  //      (acc, item) => { return (acc || 0) + (item || 0) },0
+  //  )
+   // let  _containerHeight = totalHeight  * Math.max(...columnDatas.value.map(column => column.length))/columnDatas.value.length
+   // containerHeight.value=_containerHeight===Infinity ?containerHeight.value:_containerHeight
 }
 onMounted(async () => {
     // Fetch assets data
@@ -86,13 +84,15 @@ onMounted(async () => {
         index: i,
         height: parseInt(size.value),
     }));
-    // assetsMetas.value = assetsMetas.value.concat(assetsMetas.value).concat(assetsMetas.value).concat(assetsMetas.value)
+    //assetsMetas.value = assetsMetas.value.concat(assetsMetas.value).concat(assetsMetas.value).concat(assetsMetas.value).concat(assetsMetas.value).concat(assetsMetas.value).concat(assetsMetas.value).concat(assetsMetas.value)
     // 假设 columnDatas.value 和 assetsMetas.value 已经初始化且有相应的数据
+    待渲染素材=assetsMetas.value.reverse()
+
     for (let i = 0; i < 100; i++) {
         // 计算分配给当前索引的列索引
         const columnIndex = i % columnDatas.value.length;
         // 计算当前索引对应的 assetsMetas.value 中的索引
-            const asset = assetsMetas.value.shift();
+            const asset = 待渲染素材.pop();
             // 将 assetsMetas.value 中的数据分配到 columnDatas.value 中的相应列
             columnDatas.value[columnIndex].push({
                 position: { x: 0, y: 0 },

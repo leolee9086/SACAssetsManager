@@ -9,8 +9,8 @@ export function 二分查找可见素材(位置序列, 查找起点, 窗口高�
     while (当前起始索引 <= 当前截止索引) {
         const 中位索引 = Math.floor((当前起始索引 + 当前截止索引) / 2);
         const 当前布局项 = 位置序列[中位索引];
-        const 布局项底部 = 当前布局项.position.y + 当前布局项.height;
-        if (当前布局项.position.y > 查找起点 + 窗口高度) {
+        const 布局项底部 = 当前布局项.y + 当前布局项.height;
+        if (当前布局项.y > 查找起点 + 窗口高度) {
             当前截止索引 = 中位索引 - 1;
         } else if (布局项底部 < 查找起点) {
             当前起始索引 = 中位索引 + 1;
@@ -26,8 +26,8 @@ export function 二分查找可见素材(位置序列, 查找起点, 窗口高�
     while (当前起始索引 <= 当前截止索引) {
         const 中位索引 = Math.floor((当前起始索引 + 当前截止索引) / 2);
         const 当前布局项 = 位置序列[中位索引];
-        const 布局项底部 = 当前布局项.position.y + 当前布局项.height;
-        if (当前布局项.position.y > 查找起点 + 窗口高度) {
+        const 布局项底部 = 当前布局项.y + 当前布局项.height;
+        if (当前布局项.y > 查找起点 + 窗口高度) {
             当前截止索引 = 中位索引 - 1;
         } else if (布局项底部 < 查找起点) {
             当前起始索引 = 中位索引 + 1;
@@ -40,7 +40,7 @@ export function 二分查找可见素材(位置序列, 查找起点, 窗口高�
 }
 
 
-export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
+export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,reactive) {
     const layout = [];
     const columns = [];
     const tree = new Rbush()
@@ -57,7 +57,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
     }
     // 添加数据的方法
     function add(data) {
-        let item = {}
+        let item = reactive?reactive({}):{}
         let shortestColumn = columns[0];
         let shortestColumnIndex = 0
         for (let i = 1; i < columns.length; i++) {
@@ -121,7 +121,6 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
     }
     // 更新从指定索引开始的所有卡片的高度，直到下一个更新分片的索引
     function updateCardsFromIndex(startIndex, heightChange, nextIndex, column) {
-
         for (let i = startIndex+1 ; i < column.items.length; i++) {
             if (nextIndex !== null && i > nextIndex) {
                 break; // 停止更新，因为我们已经到达了下一个更新分片
@@ -135,8 +134,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
     // 更新数据高度的方法
      function update(index, newHeight) {
         const oldHeight = layout[index].height;
-        const heightDifference = parseInt(newHeight) - oldHeight;
-           
+        const heightDifference = parseInt(newHeight) - oldHeight; 
         if (index >= 0 && index < layout.length&&Math.abs(heightDifference) >= oldHeight * 0.1 ) {
             const item = layout[index];
             if (item.ready) {
@@ -145,7 +143,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
             item.ready = true;
             // 从 Rbush 中移除旧的项
             // 更新项的高度和位置
-            tree.remove(item)
+           tree.remove(item)
             item.height = newHeight;
             item.maxY = item.y + item.height;
             let columnIndex = item.columnIndex;
@@ -161,12 +159,12 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
             // 重新插入到 Rbush
             tree.insert(item)
             // 如果定时器未设置，设置一个定时器来处理更新
-            if (!updateTimer) {
-               updateTimer = setTimeout(() => {
+           // if (!updateTimer) {
+             //  updateTimer = setTimeout(() => {
                     processUpdates();
-                   updateTimer = null; // 处理完毕后重置定时器
-                }, timeStep); // 假设处理间隔为100毫秒
-           }
+               //    updateTimer = null; // 处理完毕后重置定时器
+                //}, timeStep); // 假设处理间隔为100毫秒
+           //}
 
             /*  for (let i = item.indexInColumn + 1; i < currentColumn.items.length; i++) {
                   let _item = currentColumn.items[i];
@@ -186,8 +184,8 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
         tree.load(updates)
         pendingUpdates.clear()
     }
-    function rebuild(columnCount, columnWidth, gutter) {
-        const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter)
+    function rebuild(columnCount, columnWidth, gutter, datas,reactive) {
+        const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter, [],reactive)
         layout.forEach(
             item => {
                 newLayoutObj.add(item.data)
