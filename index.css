@@ -1,7 +1,7 @@
 .thumbnail-card {
     transition: box-shadow 0.3s ease;
 }
-.thumbnail-card:hover {
+.thumbnail-card:hover,.asset-selected {
     box-shadow: 0 10px 16px var(--b3-theme-primary) ;
     transform: scale(1.05);
 

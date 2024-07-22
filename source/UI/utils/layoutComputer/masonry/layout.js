@@ -188,6 +188,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,re
         const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter, [],reactive)
         layout.forEach(
             item => {
+                item.height=item.height*columnWidth/item.width
                 newLayoutObj.add(item.data)
             }
         )
