@@ -5,17 +5,19 @@
             :style="`transform:translate(0,${0 - columnContainer ? columnContainer.scrollTop : 0}px);min-height:${Math.max(总高度, containerHeight)}px`">
             <template v-for="(cardData, i) in 可见素材" :key="cardData.indexInColumn">
                 <div v-if="cardData.asset"
-                    :style="`position:absolute;width:100%;height:${cardData.height}px;transform:translate(0,${cardData.position.y}px)`">
+                    :style="`position:absolute;width:100%;min-height:${cardData.height}px;max-height:${cardData.height}px;height:${cardData.height}px;transform:translate(0,${cardData.position.y}px)`">
                     <div style="position:absolute;height:10ox;top:15px">{{ cardData.indexInColumn }}</div>
                     <!--                    <iframe :data-path="`${cardData.asset.path}`" loding="eager"
                         style="width:100%;height:100%;border:none" seamless="true"
                         :onload="(e) => 初始化素材页面(e, data[cardData.indexInColumn])">
                     </iframe>
                         -->
-
-                    <img :style="`width:100%;height:100%;border:none; 
+                    <component @updateSize="(data) => 更新卡片尺寸(data, cardData)" :cardData="cardData" v-if="component"
+                        :is="component"></component>
+                    <!--  <img :style="`width:100%;height:100%;border:none; 
                     border-radius: ${size / 12}px;`" :onload="(e) => 更新图片尺寸(e, cardData)"
                         :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(cardData.asset.path)}`">
+                        -->
 
                 </div>
             </template>
@@ -26,7 +28,20 @@
 import { ref, watch, toRef, defineEmits, nextTick } from 'vue'
 import { 创建思源附件预览页面内容 } from "../../previewers/previewerFactor.js"
 import { 二分查找可见素材 } from '../utils/layoutComputer/masonry/layout.js'
-const props = defineProps(['size', 'data', 'scrollTop', 'dataFetcher', 'containerHeight', 'showScroll'])
+const props = defineProps([
+    'size',
+    'data',
+    'scrollTop',
+    'dataFetcher',
+    'containerHeight',
+    'showScroll',
+    'render',
+    'component',
+    'columnIndex'
+])
+const render = toRef(props, 'render')
+const columnIndex = toRef(props, 'columnIndex')
+const component = toRef(props, 'component')
 const showScroll = toRef(props, 'showScroll')
 const size = toRef(props, 'size')
 const data = toRef(props, 'data')
@@ -45,15 +60,8 @@ watch(
         if (oldval !== newVal) { 初始化布局高度() }
     }, {}
 )
-function 更新图片尺寸(e, cardData) {
-    const previewer = e.target
-    const dimensions = {
-        width: previewer.naturalWidth,
-        height: previewer.naturalHeight
-    };
-    let 缩放因子 = dimensions.width / parseInt(size.value)
-    更新素材高度(cardData, dimensions.height / 缩放因子)
-
+function 更新卡片尺寸(dimensions, cardData) {
+    更新素材高度(cardData, dimensions.height)
 }
 function 初始化布局高度() {
     for (let i = 0; i < data.value.length; i++) {
@@ -66,8 +74,8 @@ function 初始化布局高度() {
         总高度.value += cardData.height
     }
 }
-function 请求更多素材() {
-    let 新素材数据 = dataFetcher(0)
+function 请求更多素材(force) {
+    let 新素材数据 = dataFetcher(columnIndex.value, force)
     if (新素材数据) {
         let 卡片数据 = 创建卡片(新素材数据)
         初始化卡片位置(卡片数据, data.value.length)
@@ -81,6 +89,7 @@ function 创建卡片(asset) {
     return {
         position: { x: 0, y: 0 },
         height: asset.height,
+        width: parseInt(size.value),
         asset
     }
 }
@@ -92,7 +101,7 @@ function 初始化卡片位置(cardData, i) {
 }
 watch(
     总高度, () => {
-        emit('heightChange', 总高度.value)
+        emit('heightChange', { height: 总高度.value, index: columnIndex.value })
     }
 )
 watch(
@@ -110,7 +119,6 @@ let updateQueue = [];
 function processUpdates() {
     // 按源卡片索引升序排序
     updateQueue.sort((a, b) => a.index - b.index);
-
     // 计算每个分段的高度变化
     let segmentHeightChanges = [];
     let currentHeightChange = 0;
@@ -126,10 +134,10 @@ function processUpdates() {
         const segment = segmentHeightChanges[i];
         updateCardsFromIndex(segment.index, segment.heightChange, i === segmentHeightChanges.length - 1 ? null : segmentHeightChanges[i + 1].index);
     }
+    更新可见区域()
     nextTick(
         () => {
-             timeStep = 30
-            更新可见区域()
+            timeStep = 30
         }
     )
     // 清空队列
@@ -142,12 +150,14 @@ function updateCardsFromIndex(startIndex, heightChange, nextIndex) {
         if (nextIndex !== null && i > nextIndex) {
             break; // 停止更新，因为我们已经到达了下一个更新分片
         }
+
         if (i >= startIndex.value && i < endIndex.value) {
             data.value[i].position.y += heightChange;
         } else {
-            nextTick(() => {
-                data.value[i].position.y += heightChange;
-            });
+            let item = data.value[i]
+
+            item.position.y += heightChange;
+
         }
     }
 }
@@ -156,24 +166,22 @@ function updateCardsFromIndex(startIndex, heightChange, nextIndex) {
 let updateTimer = null;
 let timeStep = 30
 // 更新卡片高度的函数
-function 更新素材高度(cardData, height) {
+ function 更新素材高度(cardData, height) {
     const oldHeight = cardData.height;
     const heightChange = parseInt(height) - oldHeight;
-
     // 检查是否需要更新
-    if (Math.abs(heightChange) >= oldHeight * 0.1 && !cardData.ready) {
+    // if (Math.abs(heightChange) >= oldHeight * 0.1 && !cardData.ready) {
+    if (!cardData.ready) {
         cardData.ready = true;
         cardData.height = parseInt(height);
         // 更新总高度
         总高度.value += heightChange;
-
         // 添加到更新队列
         updateQueue.push({
             index: cardData.indexInColumn,
             heightChange: heightChange,
             timestamp: Date.now() // 记录更新的时间戳
         });
-
         // 如果定时器未设置，设置一个定时器来处理更新
         if (!updateTimer) {
             updateTimer = setTimeout(() => {
@@ -183,9 +191,13 @@ function 更新素材高度(cardData, height) {
         }
     }
 }
-
+let isUpdating
 function 更新可见区域() {
-    timeStep+=5
+    timeStep += 5
+    if(isUpdating){
+        return
+    }
+    isUpdating=true
     const scrollTop = columnContainer.value.scrollTop;
     const clientHeight = columnContainer.value.clientHeight;
     emit('scrollSyncNeed', scrollTop)
@@ -201,15 +213,17 @@ function 更新可见区域() {
                 请求更多素材();
             }
         }
-    } else (
+    } else {
         endIndex.value = data.value.length
-    )
+        请求更多素材()
+    }
     let i = 0
-    while (总高度.value <= scrollTop + clientHeight + clientHeight + clientHeight && i <= 1000) {
-        if (!请求更多素材()) {
+    while (总高度.value <= scrollTop + clientHeight && i <= 1000) {
+        if (!请求更多素材(true)) {
             break
         };
     }
+    isUpdating=false
 }
 
 </script>

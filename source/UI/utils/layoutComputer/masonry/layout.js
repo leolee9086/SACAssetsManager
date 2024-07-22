@@ -161,12 +161,12 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
             // 重新插入到 Rbush
             tree.insert(item)
             // 如果定时器未设置，设置一个定时器来处理更新
-           // if (!updateTimer) {
-            //    updateTimer = setTimeout(() => {
+            if (!updateTimer) {
+               updateTimer = setTimeout(() => {
                     processUpdates();
-             //       updateTimer = null; // 处理完毕后重置定时器
-             //   }, timeStep); // 假设处理间隔为100毫秒
-         //   }
+                   updateTimer = null; // 处理完毕后重置定时器
+                }, timeStep); // 假设处理间隔为100毫秒
+           }
 
             /*  for (let i = item.indexInColumn + 1; i < currentColumn.items.length; i++) {
                   let _item = currentColumn.items[i];
@@ -195,7 +195,6 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas) {
         )
         return newLayoutObj
     }
-
     if (datas) {
         datas.forEach(
             data => {
