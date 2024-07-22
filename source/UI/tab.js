@@ -4,22 +4,11 @@ import {智能防抖} from '../utils/functionTools.js'
 const size = { value: 100 }
 export function 创建图库界面(tab) {
   console.log(tab)
-  const app = initVueApp(import.meta.resolve('./components/assetsGridRbush.vue'), 'assetsColumn', {}, undefined, {
+  const app = initVueApp(import.meta.resolve('./components/assetGalleryPanel.vue'), 'assetsColumn', {}, undefined, {
     tab
   })
-
   app.mount(tab.element)
   return
-  fetchAssets(tab).then(
-    assets => {
-      tab.element.innerHTML=''
-      const iframes = createIframes(assets)
-      
-      const container = createContainer(iframes)
-      tab.element.insertAdjacentHTML('beforeend', container)
-      setupScrollListener(tab.element, assets)
-    }
-  )
 }
 
 function fetchAssets(tab) {

@@ -17,7 +17,7 @@
 </template>
 <script setup>
 import { ref, computed, defineEmits, } from 'vue';
-const { cardData } = defineProps(['cardData'])
+const { cardData,size } = defineProps(['cardData'])
 const emit = defineEmits()
 const cardHeight = ref(cardData.width+0)
 const imageHeight = ref(cardData.width+0)
@@ -32,8 +32,6 @@ function 更新图片尺寸(e, cardData) {
     cardHeight.value = 新高度 + 36
     imageHeight.value=新高度
     emit('updateSize', { width: cardData.width, height: 新高度 + 36 })
-
-    
 }
 </script>
 <style scoped>

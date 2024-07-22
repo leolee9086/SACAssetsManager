@@ -3,9 +3,10 @@
         <div class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">
             <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active" @click="打开笔记本资源视图"
                 :data-box="blockData.meta && blockData.meta.box">
-                <svg class="popover__block" data-id="20210805000546-behj8io">
+                🗃
+                <!--<svg class="popover__block" data-id="20210805000546-behj8io">
                     <use xlink:href="#iconFolder"></use>
-                </svg>
+                </svg>-->
                 {{ blockData.fullHPath[0] }}:
             </span>
 
