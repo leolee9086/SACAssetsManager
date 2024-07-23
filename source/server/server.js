@@ -10,7 +10,7 @@ const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
 
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
-import { getBase64Thumbnail } from './internalLoaders/systermThumbnail.js';
+import { getBase64Thumbnail, getLargeIcon } from './internalLoaders/systermThumbnail.js';
 import { loadCsharpFile } from './utils/CSharpLoader.js';
 import "./licenseChecker.js"
 import { globStream } from './handlers/stream-glob.js';
@@ -92,9 +92,14 @@ app.get('/thumbnail', async (req, res) => {
     let imagePath = ''
     if (req.query.localPath) {
         imagePath = req.query.localPath
+        console.log(imagePath)
     } else {
+
         imagePath = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+        console.log(imagePath)
+
     }
+    imagePath = imagePath.replace(/\//g,'\\')
 
     const cacheKey = generateCacheKey(imagePath);
 
@@ -239,28 +244,47 @@ async function handlePdfFile(imagePath, req, res) {
 // Updated handleImageFile function with cache check and save
 async function handleImageFile(imagePath, req, res) {
     const cacheKey = generateCacheKey(imagePath);
-    // if (await serveFromCache(cacheKey, res)) return;
+    //if (await serveFromCache(cacheKey, res)) return;
 
     if (!imagePath.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
         // Handle non-image files
         const encodedPath = Buffer.from(imagePath).toString('base64');
+        let fn = (callback, force) => {
+            return (error, result) => {
+                try {
+                    if (error) {
+                        force && res.status(500).send('Error extracting icon: ' + error.message);
+                        callback && callback()
+                        return;
+                    }
+                    try {
+                        const iconBuffer = Buffer.from(result, 'base64');
+                        saveToCache(cacheKey, iconBuffer);
+                        cache[cacheKey] = iconBuffer
 
-        getBase64Thumbnail(encodedPath, (error, result) => {
-            if (error) {
-                res.status(500).send('Error extracting icon: ' + error.message);
-                return;
+                        res.type('png').send(iconBuffer);
+                    } catch (error) {
+
+                        force && res.status(500).send('Error extracting icon: ' + error.message);
+                        callback && callback()
+                        return
+                    }
+                } catch (e) {
+
+                    console.warn(e)
+                    return
+                }
             }
-            try {
-                const iconBuffer = Buffer.from(result, 'base64');
-                saveToCache(cacheKey, iconBuffer);
-                cache[cacheKey] = iconBuffer
+        }
+        getBase64Thumbnail(encodedPath, fn(() => getLargeIcon(encodedPath, fn('', true))));
 
-                res.type('jpeg').send(iconBuffer);
-            } catch (error) {
-                res.status(500).send('Error extracting icon: ' + error.message);
+        /*if (imagePath.match(/\.(skp|skb|zip)$/i)) {
+            getLargeIcon(encodedPath, fn(() => getBase64Thumbnail(encodedPath, fn('', true))));
 
-            }
-        });
+        } else {
+            getBase64Thumbnail(encodedPath, fn(() => getLargeIcon(encodedPath, fn('', true))));
+        }*/
+
     } else {
         // Existing image handling code
         fs.readFile(imagePath, (err, data) => {

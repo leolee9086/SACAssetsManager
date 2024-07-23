@@ -14,6 +14,7 @@ export const globStream= async (req, res) => {
         objectMode: true,
         async transform(file, encoding, callback) {
             try {
+                
                 const stats = await fs.promises.stat(file);
                 const fileInfo = {
                     path: file,
@@ -25,8 +26,15 @@ export const globStream= async (req, res) => {
                 callback(null, JSON.stringify(fileInfo)+'\n');
             } catch (err) {
                 console.log(err)
+                const fileInfo = {
+                    path: file,
+                    id:`localEntrie_${file}`,
+                    type:'local',
+                    size: null,
+                    mtime: ''
+                  };
 
-                callback(err);
+                callback(null,JSON.stringify(fileInfo)+'\n');
             }
         }
     });

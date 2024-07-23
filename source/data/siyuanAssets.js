@@ -27,9 +27,9 @@ export async function 获取tab附件数据(tab, limit, offset) {
     )
     return data
 }
-export async function 获取本地文件夹数据(tab,layout,callback) {
+export async function 获取本地文件夹数据(tab,target,callback,step) {
     let { localPath } = tab.data
-
+    let _step =0
     fetch(`http://localhost/glob-stream?path=${localPath}\\`)
         .then(response => {
             if (response.ok) {
@@ -60,20 +60,26 @@ export async function 获取本地文件夹数据(tab,layout,callback) {
         })
         .then(stream => {
             // 使用流式处理读取数据
+
             const reader = stream.getReader();
             read()
             let splitedChunk
             function read() {
                 reader.read().then(({ value, done }) => {
                     if (done) {
+                        callback&&callback()
+
                         console.log('Stream complete');
                         return;
                     }
                     value.split('\n').forEach(chunk => {
                         try{
-                            splitedChunk?layout.value.add(JSON.parse(splitedChunk+chunk)):layout.value.add(JSON.parse(chunk))
+                            splitedChunk?target.push(JSON.parse(splitedChunk+chunk)):target.push(JSON.parse(chunk))
+                            if(_step>=step){
+                                 callback&&callback()
+                                 _step=0
+                            }
                             splitedChunk=undefined
-                            callback()
                         }catch(e){
                             splitedChunk=chunk
                         }

@@ -67,10 +67,8 @@ function 更新素材高度(cardData, height) {
 let oldScrollTop
 let isUpdating
 const 更新可见区域 = (flag) => {
-
     let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
     emit('scrollTopChange', scrollTop)
-    布局对象.value.timeStep+=1
     clientHeight = Math.min(clientHeight, window.innerHeight)
     clientWidth = Math.min(clientWidth, window.innerWidth)
     if (oldScrollTop === scrollTop && scrollTop !== 0 && !flag) {
@@ -79,6 +77,8 @@ const 更新可见区域 = (flag) => {
     if (isUpdating && !flag) {
         return
     }
+    布局对象.value.timeStep+=5
+
     try {
         containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y))
     } catch (e) {
@@ -88,7 +88,7 @@ const 更新可见区域 = (flag) => {
         oldScrollTop = scrollTop
         let 可见框 = {
             minX: 0,
-            minY: scrollTop,
+            minY: scrollTop - clientHeight - clientHeight,
             maxY: scrollTop + clientHeight + clientHeight,
             maxX: clientWidth
         }
@@ -108,7 +108,8 @@ const 更新可见区域 = (flag) => {
                     }
                 }
                 if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight && 附件数据组.length) {
-                    附件数据组.shift() ? 布局对象.value.add(附件数据组.shift()) : _flag = false
+                    let data =附件数据组.shift&&附件数据组.shift()
+                    data.id ? 布局对象.value.add(data) : _flag = false
 
                 } else {
                     _flag = false
@@ -142,9 +143,8 @@ watch(
         columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
         paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
         可见卡片组.value = []
-        nextTick(() => {
-            更新可见区域(true)
-        });
+        更新可见区域(true)
+        
     }
 )
 const emit = defineEmits()
@@ -161,14 +161,14 @@ watch(
 onMounted(async () => {
     if (appData.value.tab.data.localPath) {
         布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-        await 获取本地文件夹数据(appData.value.tab, 布局对象, 更新可见区域)
+        附件数据组=[]
+        await 获取本地文件夹数据(appData.value.tab, 附件数据组, ()=>requestIdleCallback(更新可见区域),100)
         nextTick(() => {
             resizeObserver.observe(scrollContainer.value)
             resizeObserver.observe(
                 root.value
             )
             更新可见区域(true)
-
         })
     } else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
