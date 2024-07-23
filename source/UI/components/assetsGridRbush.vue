@@ -70,6 +70,7 @@ const 更新可见区域 = (flag) => {
 
     let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
     emit('scrollTopChange', scrollTop)
+    布局对象.value.timeStep+=5
     clientHeight = Math.min(clientHeight, window.innerHeight)
     clientWidth = Math.min(clientWidth, window.innerWidth)
     if (oldScrollTop === scrollTop && scrollTop !== 0 && !flag) {

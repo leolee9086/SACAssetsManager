@@ -50,7 +50,6 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,re
     // 设置定时器来处理更新
     let updateTimer = null;
     let timeStep = 30
-
     // 初始化列
     for (let i = 0; i < columnCount; i++) {
         columns.push({ x: i * (columnWidth + gutter), y: 0, items: [] });
@@ -117,7 +116,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,re
         )
         batchUpdateIndex()
         updateQueue = [];
-
+        timeStep=30
     }
     // 更新从指定索引开始的所有卡片的高度，直到下一个更新分片的索引
     function updateCardsFromIndex(startIndex, heightChange, nextIndex, column) {
@@ -133,6 +132,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,re
     }
     // 更新数据高度的方法
      function update(index, newHeight) {
+        timeStep+=5
         const oldHeight = layout[index].height;
         const heightDifference = parseInt(newHeight) - oldHeight; 
         if (index >= 0 && index < layout.length&&Math.abs(heightDifference) >= oldHeight * 0.1 ) {
@@ -159,12 +159,12 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,re
             // 重新插入到 Rbush
             tree.insert(item)
             // 如果定时器未设置，设置一个定时器来处理更新
-           // if (!updateTimer) {
-             //  updateTimer = setTimeout(() => {
+            if (!updateTimer) {
+               updateTimer = setTimeout(() => {
                     processUpdates();
-               //    updateTimer = null; // 处理完毕后重置定时器
-                //}, timeStep); // 假设处理间隔为100毫秒
-           //}
+                   updateTimer = null; // 处理完毕后重置定时器
+                }, timeStep); // 假设处理间隔为100毫秒
+           }
 
             /*  for (let i = item.indexInColumn + 1; i < currentColumn.items.length; i++) {
                   let _item = currentColumn.items[i];
@@ -209,6 +209,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,re
         rebuild: rebuild,
         //这里会有this指向问题
         search: (...args) => tree.search(...args),
-        tree
+        tree,
+        timeStep
     };
 }
