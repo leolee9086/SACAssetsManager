@@ -132,7 +132,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas,re
     }
     // 更新数据高度的方法
      function update(index, newHeight) {
-        timeStep+=5
+        timeStep+=1
         const oldHeight = layout[index].height;
         const heightDifference = parseInt(newHeight) - oldHeight; 
         if (index >= 0 && index < layout.length&&Math.abs(heightDifference) >= oldHeight * 0.1 ) {
