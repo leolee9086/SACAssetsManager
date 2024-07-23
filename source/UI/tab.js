@@ -3,7 +3,7 @@ import {智能防抖} from '../utils/functionTools.js'
 
 const size = { value: 100 }
 export function 创建图库界面(tab) {
-  console.log(tab)
+
   const app = initVueApp(import.meta.resolve('./components/assetGalleryPanel.vue'), 'assetsColumn', {}, undefined, {
     tab
   })

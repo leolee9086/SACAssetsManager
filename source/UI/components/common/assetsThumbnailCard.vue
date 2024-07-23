@@ -9,7 +9,7 @@
         border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`"
         loading="lazy"
         :onload="(e)=>更新图片尺寸(e, cardData)"
-            :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(cardData.data.path)}`">
+            :src="!cardData.data.type?`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(cardData.data.path)}`:`http://127.0.0.1/thumbnail/?localPath=${encodeURIComponent(cardData.data.path)}`">
         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;background-color:none">
             {{ cardData.data.path }}
         </div>
@@ -24,7 +24,6 @@ const emit = defineEmits()
 const cardHeight = ref(cardData.width+0)
 const imageHeight = ref(cardData.width+0)
 const image= ref(null)
-
 function 更新图片尺寸(e, cardData) {
     const previewer = e.target
     const dimensions = {

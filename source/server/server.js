@@ -13,17 +13,11 @@ import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { getBase64Thumbnail } from './internalLoaders/systermThumbnail.js';
 import { loadCsharpFile } from './utils/CSharpLoader.js';
 import "./licenseChecker.js"
+import { globStream } from './handlers/stream-glob.js';
 const glob = loadCsharpFile('D:/思源主库/data/plugins/SACAssetsManager/source/server/utils/glob/glob.cs');
 const cache = {}
 const globCache = {}
 app.use(cors());
-require('fs').watch('D:\\',{encoding:"utf8",recursive:true},(type,name)=>{
-    console.log(type,name)
-    const filePath=  require('path').join('D:\\',name)
-    fs.stat(filePath,(err,stat)=>{
-        console.log(stat)
-    })
-})
 app.use(compression({
     level: 6, // 设置压缩级别，范围是 0-9，默认值是 6
     filter: (req, res) => {
@@ -35,6 +29,7 @@ app.use(compression({
         return compression.filter(req, res);
     }
 }));
+app.get('/glob-stream', globStream)
 app.get('/glob', async (req, res) => {
     const folderPath = req.query.path;
     if (globCache[folderPath]) {
@@ -94,7 +89,13 @@ async function buildFileTree(files) {
 
 
 app.get('/thumbnail', async (req, res) => {
-    const imagePath = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+    let imagePath = ''
+    if (req.query.localPath) {
+        imagePath = req.query.localPath
+    } else {
+        imagePath = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+    }
+
     const cacheKey = generateCacheKey(imagePath);
 
     const cachedData = cache[cacheKey];
@@ -102,15 +103,9 @@ app.get('/thumbnail', async (req, res) => {
         res.type('jpeg').send(cachedData);
         return;
     }
-
-    if (imagePath.endsWith('.pdf')) {
-        try {
-            handlePdfFile(imagePath, req, res);
-
-        } catch (e) {
-            console.warn(e)
-            handleImageFile(imagePath, req, res);
-        }
+    if (imagePath.endsWith('.sy')) {
+        res.sendFile("C:/Users/al765/AppData/Local/Programs/SiYuan/resources/stage/icon.png")
+        return
     }
     handleImageFile(imagePath, req, res);
 });
@@ -239,30 +234,7 @@ async function handlePdfFile(imagePath, req, res) {
     } catch (err) {
         console.error(err, err.stack)
         throw (err)
-        //res.status(500).send('Error processing PDF: ' + err.message);
     }
-
-    /* try {
-         const pdfBuffer = fs.readFileSync(imagePath);
-          const pdfDoc = await PDFDocument.load(pdfBuffer);
-         // const [firstPage] = await pdfDoc.copyPages(pdfDoc, [0]);
-         // const firstPagePdf = await PDFDocument.create();
-          //pdfDocfirstPagePdf.addPage(firstPage,{width: 512,height: 512});
-          const pdfBytes = await pdfDoc.saveAsBase64({ dataUri: true });
-  
-         let images = await pdf2image.convertPDF(pdfBytes, {
-             format: 'jpeg',
-             width: 512,
-             height: 512
-         })
-             console.log(images)
-             cache[cacheKey]=images[0]
-         res.type('jpeg').send(images[0]);
- 
-     } catch (err) {
-         console.warn(err)
-         throw (err)
-     }*/
 }
 // Updated handleImageFile function with cache check and save
 async function handleImageFile(imagePath, req, res) {

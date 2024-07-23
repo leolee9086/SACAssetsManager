@@ -1,6 +1,13 @@
 <template>
     <div class="protyle-breadcrumb">
         <div class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">
+            <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active">
+                <img src="/stage/icon.png" style="    height: 14px;
+    width: 14px;
+    flex-shrink: 0;
+    color: var(--b3-theme-on-surface);">
+                工作空间
+            </span>
             <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active" @click="打开笔记本资源视图"
                 :data-box="blockData.meta && blockData.meta.box">
                 🗃
@@ -26,6 +33,7 @@
         </div>
         <span class="fn__space fn__flex-1 protyle-breadcrumb__space">
         </span>
+        <input class="b3-switch fn__flex-center ariaLabel" aria-label="显示子路径" id="uploadErrLog" type="checkbox">
 
         <button class="b3-tooltips b3-tooltips__w block__icon fn__flex-center" style="opacity: 1;" data-menu="true"
             aria-label="更多">
@@ -79,7 +87,6 @@ onMounted(() => {
         )
     }
     else {
-        console.log(box)
         kernelApi.lsNotebooks({
             flashcard: false
         }).then(
