@@ -40,7 +40,7 @@ export function 二分查找可见素材(位置序列, 查找起点, 窗口高�
 }
 
 
-export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, reactive) {
+export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, reactive,staticSize) {
     const layout = [];
     const columns = [];
     const tree = new Rbush()
@@ -55,7 +55,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         columns.push({ x: i * (columnWidth + gutter), y: 0, items: [] });
     }
     // 添加数据的方法
-    function add(data, height, width) {
+    function add(data,height,width) {
         let item = reactive ? reactive({}) : {}
         let shortestColumn = columns[0];
         let shortestColumnIndex = 0
@@ -65,6 +65,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
                 shortestColumnIndex = i; // 更新索引
             }
         }
+        console.log(columnWidth)
         shortestColumn.items.push(item);
         item.columnIndex = shortestColumnIndex
         item.indexInColumn = shortestColumn.items.length - 1
@@ -73,12 +74,15 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         item.minX = item.x
         item.minY = item.y
         //初始化的时候直接按照方形,36是卡片的信息框高度,这里之后要修改为参数
-        if (height && width) {
-            item.height = data.height * (columnWidth / width)
+        if (!!height&&!!width) {
+            item.height = height * (columnWidth / width)
         } else {
             item.height = columnWidth + 36
         }
+
         item.width = columnWidth
+        console.log(item.width,item.height,height,width)
+
         item.maxX = item.x + item.width
         item.maxY = item.y + item.height
         shortestColumn.y += item.height + gutter;
@@ -86,7 +90,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         layout.push(item);
         item.index = layout.length - 1
         // 插入到 Rbush
-        tree.insert(item);
+        staticSize&& tree.insert(item);
     }
     // 更新数据高度的方法
     function processUpdates() {
@@ -120,10 +124,11 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             }
         )
         console.time('batchUpdateIndex')
-
-        //batchUpdateIndex()
+        /**
+         * 只有基本上不会有高度变化的情况下使用Rbush会有优势
+         */
+        staticSize&&batchUpdateIndex()
         console.timeEnd('batchUpdateIndex')
-
         updateQueue = [];
         timeStep = 30
         console.timeEnd('processUpdates')
@@ -154,7 +159,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             item.ready = true;
             // 从 Rbush 中移除旧的项
             // 更新项的高度和位置
-            tree.remove(item)
+            staticSize&&tree.remove(item)
             item.height = newHeight;
             item.maxY = item.y + item.height;
             let columnIndex = item.columnIndex;
@@ -168,7 +173,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
                 timestamp: Date.now() // 记录更新的时间戳
             });
             // 重新插入到 Rbush
-            tree.insert(item)
+            staticSize&& tree.insert(item)
             // 如果定时器未设置，设置一个定时器来处理更新
             if (layout.length <= 5000) {
                 processUpdates();
@@ -179,10 +184,10 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
              * 这里的批处理函数可能会在有大量文件时出错
              */
             if (!updateTimer) {
-                //  updateTimer = setTimeout(async() => {
+                  updateTimer = setTimeout(async() => {
                 processUpdates();
-                //     updateTimer = null; // 处理完毕后重置定时器
-                //  }, timeStep); // 假设处理间隔为100毫秒
+                    updateTimer = null; // 处理完毕后重置定时器
+                 }, timeStep); // 假设处理间隔为100毫秒
             }
 
             /*  for (let i = item.indexInColumn + 1; i < currentColumn.items.length; i++) {
@@ -207,8 +212,8 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter, [], reactive)
         layout.forEach(
             item => {
-
-                newLayoutObj.add(item.data, item.height, item.width)
+                 
+                newLayoutObj.add(item.data,item.height,item.width)
             }
         )
         return newLayoutObj
@@ -220,16 +225,17 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             }
         )
     }
-    function search(可见框) {
-        let { minX, minY, maxX, maxY } = 可见框
+    function search(可见框){
+        let {minX,minY,maxX,maxY} =可见框
         let 查找起点 = minY
-        let 窗口高度 = maxY - minY
-        let result = []
-        for (let i = 0; i < columns.length; i++) {
-            let items = column[i].items
-            let range = 二分查找可见素材(items, 查找起点, 窗口高度)
-            let data = items.slice(range.start, range.end)
-            result = result.concat(data)
+        let 窗口高度 = maxY-minY
+        let result =[]
+        for(let i=0;i<columns.length;i++){
+            let items =columns[i].items
+            let range = 二分查找可见素材(items,查找起点,窗口高度)
+            for(let i=range.start;i<range.end;i++){
+                result.push(items[i])
+            }
         }
         return result
     }
@@ -240,8 +246,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         update: (...args) => update(...args),
         rebuild: rebuild,
         //这里会有this指向问题
-        // search: (...args) => tree.search(...args),
-        search,
+        search: (...args) => search(...args),
         tree,
         timeStep
     };

@@ -1,8 +1,8 @@
 <template>
     <div class="fn__flex-column fn__flex-1" style="max-height:100%;height: 100%;" ref="root">
-
         <div class="fn__flex-1 fn__flex gallery_container" ref="scrollContainer" @scroll="更新可见区域"
             style="position: relative;">
+
             <div class="fn__flex-column fn__flex-1" :style="`min-height: ${containerHeight}px;
                         height:${containerHeight}px;
                         padding-left:${paddingLR}px;
@@ -77,7 +77,7 @@ const 更新可见区域 = (flag) => {
     if (isUpdating && !flag) {
         return
     }
-    布局对象.value.timeStep+=5
+    布局对象.value.timeStep += 5
 
     try {
         containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y))
@@ -108,7 +108,7 @@ const 更新可见区域 = (flag) => {
                     }
                 }
                 if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight && 附件数据组.length) {
-                    let data =附件数据组.shift&&附件数据组.shift()
+                    let data = 附件数据组.shift && 附件数据组.shift()
                     data.id ? 布局对象.value.add(data) : _flag = false
 
                 } else {
@@ -127,24 +127,38 @@ const 更新可见区域 = (flag) => {
 let 附件数据组
 let oldWith
 const resizeObserver = new ResizeObserver(entries => {
-    if (scrollContainer.value.clientWidth !== oldWith) {
+    if (scrollContainer.value && scrollContainer.value.clientWidth !== oldWith) {
         oldWith = scrollContainer.value.clientWidth
         columnCount.value = Math.max(Math.floor(scrollContainer.value.clientWidth / size.value) - 1, 1)
         paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
     }
 });
+
 watch(
-    [columnCount, size], () => {
+    [columnCount, size], async() => {
+
         if (!scrollContainer.value) {
+            return
+        }
+        if (!scrollContainer.value.clientWidth) {
+            return
+        }
+        if (!columnCount.value) {
             return
         }
         columnCount.value = Math.max(Math.floor(scrollContainer.value.clientWidth / size.value) - 1, 1)
         paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
         columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
+        emit('layoutChange', {
+            layout: 布局对象.value,
+            element: scrollContainer.value
+        })
         paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
         可见卡片组.value = []
-        更新可见区域(true)
-        
+        nextTick(
+           ()=> 更新可见区域(true)
+
+        )
     }
 )
 const emit = defineEmits()
@@ -157,19 +171,37 @@ watch(
         })
     }
 )
-
-onMounted(async () => {
-    if (appData.value.tab.data.localPath) {
+const mounted=ref(null)
+watch(
+    mounted,()=>{
         布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-        附件数据组=[]
-        await 获取本地文件夹数据(appData.value.tab, 附件数据组, ()=>requestIdleCallback(更新可见区域),100)
         nextTick(() => {
+          
             resizeObserver.observe(scrollContainer.value)
             resizeObserver.observe(
                 root.value
             )
-            更新可见区域(true)
+            for (let i = 0; i < 100; i++) {
+                let data = 附件数据组.shift && 附件数据组.shift()
+                data && data.id ? 布局对象.value.add(data) : null
+                更新可见区域(true)
+
+            }
+            /**
+             * 内容是流式更新的所以需要这样
+             */
+
+
         })
+
+    }
+)
+onMounted(async () => {
+    if (appData.value.tab.data.localPath) {
+        附件数据组 = []
+
+        await 获取本地文件夹数据(appData.value.tab, 附件数据组, ()=>  mounted.value=true, 300)
+
     } else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
         附件数据组.map(
@@ -187,6 +219,11 @@ onMounted(async () => {
                 resizeObserver.observe(
                     root.value
                 )
+                for (let i = 0; i < 100; i++) {
+                    let data = 附件数据组.shift && 附件数据组.shift()
+                    data && data.id ? 布局对象.value.add(data) : null
+
+                }
                 更新可见区域(true)
             }
         )
