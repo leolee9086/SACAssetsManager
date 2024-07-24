@@ -1,4 +1,6 @@
-import { getBase64Thumbnail, getLargeIcon } from './internalLoaders/systermThumbnail.js';
+import { getBase64Thumbnail, getLargeIcon } from '../internalLoaders/systermThumbnail.js';
+const sharp =require('sharp')
+const fs=require('fs')
 export async function handlerImageFile(imagePath, req, res) {
     //if (await serveFromCache(cacheKey, res)) return;
     if (!imagePath.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
@@ -16,7 +18,6 @@ export async function handlerImageFile(imagePath, req, res) {
                         const iconBuffer = Buffer.from(result, 'base64');
                         res.type('png').send(iconBuffer);
                     } catch (error) {
-
                         force && res.status(500).send('Error extracting icon: ' + error.message);
                         callback && callback()
                         return

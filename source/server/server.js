@@ -8,7 +8,6 @@ const pdf2pic = require('pdf2pic')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
-import { getBase64Thumbnail, getLargeIcon } from './internalLoaders/systermThumbnail.js';
 import { handlerImageFile } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream } from './handlers/stream-glob.js';
