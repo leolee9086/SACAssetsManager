@@ -38,62 +38,7 @@ app.use(compression({
  * 流式遍历文件夹
  */
 app.get('/glob-stream', globStream)
-app.get('/glob', async (req, res) => {
-    const folderPath = req.query.path;
-    if (globCache[folderPath]) {
-        res.json(globCache[folderPath])
-        return
-    }
-    if (!folderPath) {
-        return res.status(400).send('Path query parameter is required');
-    }
-    try {
-        await glob(folderPath, async function (error, result) {
-            if (error) throw error;
-            globCache[folderPath] = result
-            res.json(globCache[folderPath])
-        });
-        return
-        const result = await fastGlob([`${folderPath}/**/*`], {
-            suppressErrors: true, // Suppress errors to avoid breaking the process
-        });
 
-        const filesWithStats = result
-        globCache[folderPath] = filesWithStats
-        res.json(filesWithStats);
-    } catch (error) {
-        console.error('Error processing glob request:', error);
-        res.status(500).send('Internal Server Error');
-    }
-});
-async function buildFileTree(files) {
-    const root = {};
-
-    await Promise.all(files.map(async (filePath) => {
-        // Normalize the file path to use the current platform's separator
-        const normalizedPath = path.normalize(filePath);
-        const parts = normalizedPath.split(path.sep);
-        let current = root;
-
-        for (let index = 0; index < parts.length; index++) {
-            const part = parts[index];
-            if (!current[part]) {
-                current[part] = {
-                    path: parts.slice(0, index + 1).join(path.sep),
-                    children: {}
-                };
-            }
-
-            if (index === parts.length - 1) {
-                current[part].isFile = true;
-            }
-
-            current = current[part].children;
-        }
-    }));
-
-    return root;
-}
 
 
 app.get('/thumbnail', async (req, res) => {
