@@ -198,7 +198,7 @@ let oldsize
 let lastSort=Date.now()
 function sortLocalStream(){
     mounted.value=true
-   if(布局对象.value.layout.length!==oldsize&&Date.now()-lastSort>=100){
+   if(布局对象.value&&布局对象.value.layout.length!==oldsize&&Date.now()-lastSort>=100){
     oldsize = 布局对象.value.layout.length
 
     布局对象.value=布局对象.value.sort(sorter.value.fn)
