@@ -3,19 +3,15 @@ const fs = require('fs-extra');
 const sharp = require('sharp');
 const app = express();
 const path = require('path')
-const { PDFDocument, utf8Encode } = require('pdf-lib');
+const { PDFDocument } = require('pdf-lib');
 const pdf2pic = require('pdf2pic')
-const fastGlob = require('fast-glob')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { getBase64Thumbnail, getLargeIcon } from './internalLoaders/systermThumbnail.js';
-import { loadCsharpFile } from './utils/CSharpLoader.js';
 import "./licenseChecker.js"
 import { globStream } from './handlers/stream-glob.js';
-const glob = loadCsharpFile('D:/思源主库/data/plugins/SACAssetsManager/source/server/utils/glob/glob.cs');
 const cache = {}
-const globCache = {}
 /**
  * 启用跨域支持
  */
