@@ -140,7 +140,7 @@ const getSelectedItems = (event) => {
     const maxX = Math.max(startX, endX) - layoutRect.x - currentLayoutContainer.style.paddingLeft;
     const minY = Math.min(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
     const maxY = Math.max(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
-     result = result.concat(currentLayout.search({
+     result = result.concat(currentLayout.searchByRect({
         minX,
         minY,
         maxY,

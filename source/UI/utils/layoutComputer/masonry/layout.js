@@ -43,10 +43,9 @@ export function 二分查找可见素材(位置序列, 查找起点, 窗口高�
 export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, reactive,staticSize) {
     const layout = [];
     const columns = [];
-    const tree = new Rbush()
     const pendingUpdates = new Set();
     let updateQueue = []
-    let isUpdating
+    let updatedFromLastSearch =false
     // 设置定时器来处理更新
     let updateTimer = null;
     let timeStep = 30
@@ -56,6 +55,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
     }
     // 添加数据的方法
     function add(data,height,width) {
+        updatedFromLastSearch=true
         let item = reactive ? reactive({}) : {}
         let shortestColumn = columns[0];
         let shortestColumnIndex = 0
@@ -146,6 +146,8 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
     // 更新数据高度的方法
     function update(index, newHeight) {
         timeStep += 1
+        updatedFromLastSearch=true
+
         const oldHeight = layout[index].height;
         const heightDifference = parseInt(newHeight) - oldHeight;
         if (index >= 0 && index < layout.length && Math.abs(heightDifference) >= oldHeight * 0.1) {
@@ -232,6 +234,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         )
     }
     function search(可见框){
+
         let {minX,minY,maxX,maxY} =可见框
         let 查找起点 = minY
         let 窗口高度 = maxY-minY
@@ -245,6 +248,19 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         }
         return result
     }
+
+    let tree= new Rbush()
+    function searchByRect(可见框){
+        if(updatedFromLastSearch){
+            tree= new Rbush()
+            updatedFromLastSearch=false
+        }
+        console.time('load')
+        tree.load(layout)
+        console.log(layout.length)
+        console.timeEnd('load')
+        return tree.search(可见框)
+    }
     return {
         layout: layout,
         columns: columns,
@@ -253,7 +269,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         rebuild: rebuild,
         //这里会有this指向问题
         search: (...args) => search(...args),
-        tree,
+        searchByRect,
         timeStep,
         sort:(...args)=>sort(...args)
     };

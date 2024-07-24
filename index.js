@@ -66,6 +66,27 @@ module.exports = class SACAssetsManager extends Plugin {
         )
       },
     })
+    this.addDock({
+      config: {
+        icon: "iconCollectionPannel",
+        position: "RightBottom",
+        size: { width: 200, height: 0 },
+        title: "SACAssetsCollectionPanel",
+      },
+      data: {
+        text: "",
+      },
+      type: "Collection",
+      init() {
+        const UI容器父元素 = this.element
+        const UI容器 = 插入UI面板容器(UI容器父元素)
+        import('/plugins/SACAssetsManager/source/UI/tab.js').then(
+          module => {
+            module.创建收藏夹面板(UI容器)
+          }
+        )
+      },
+    })
   }
   async 创建web服务() {
     const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
