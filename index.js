@@ -66,11 +66,10 @@ module.exports = class SACAssetsManager extends Plugin {
 
   }
   async 创建web服务() {
-    await import(`${this.插件自身伺服地址}/source/server/main.js`)
     const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
-    this.http服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_http", 80)
-    this.https服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_https", 443)
-    console.log(this.http服务端口号, this.https服务端口号)
+    this.http服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_http", 6992)
+    this.https服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_https",6993)
+    await import(`${this.插件自身伺服地址}/source/server/main.js`)
   }
   /**
    * 移动到menus.js中

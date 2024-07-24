@@ -201,8 +201,9 @@
                 window.siyuanConfig = e.data.data
                 window.require.setExternalBase(path.join(siyuanConfig.system.workspaceDir, '/data/plugins/SACAssetsManager/node_modules/'))
                 window.require.setExternalDeps(path.join(siyuanConfig.system.workspaceDir, '/data/plugins/SACAssetsManager/node_modules/'))
-                console.log(siyuanConfig.system.workspaceDir)
+                console.log(siyuanConfig.system.workspaceDir,e.data)
                 window.workspaceDir = siyuanConfig.system.workspaceDir
+                window.port=e.data.port
                 if (window.require) {
                     import("./server.js")
                 }

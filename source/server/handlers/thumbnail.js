@@ -1,11 +1,13 @@
 import { getBase64Thumbnail, getLargeIcon } from '../internalLoaders/systermThumbnail.js';
+import { generateCacheKey } from '../cache/index.js';
 const sharp =require('sharp')
 const fs=require('fs')
-export async function handlerImageFile(imagePath, req, res) {
-    //if (await serveFromCache(cacheKey, res)) return;
-    if (!imagePath.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
+export async function handlerImageFile(ctx,next) {
+    let {req,res,缓存对象}=ctx
+    let {源文件地址, 缓存键}= ctx.stats
+    if (!源文件地址.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
         // Handle non-image files
-        const encodedPath = Buffer.from(imagePath).toString('base64');
+        const encodedPath = Buffer.from(源文件地址).toString('base64');
         let fn = (callback, force) => {
             return (error, result) => {
                 try {
@@ -16,6 +18,7 @@ export async function handlerImageFile(imagePath, req, res) {
                     }
                     try {
                         const iconBuffer = Buffer.from(result, 'base64');
+                        缓存对象[缓存键]=iconBuffer
                         res.type('png').send(iconBuffer);
                     } catch (error) {
                         force && res.status(500).send('Error extracting icon: ' + error.message);
@@ -31,7 +34,7 @@ export async function handlerImageFile(imagePath, req, res) {
         getBase64Thumbnail(encodedPath, fn(() => getLargeIcon(encodedPath, fn('', true))));
     } else {
         // Existing image handling code
-        fs.readFile(imagePath, (err, data) => {
+        fs.readFile(源文件地址, (err, data) => {
             if (err) {
                 res.status(404).send(`File not found ${req.query.path}`);
                 return;
@@ -43,6 +46,7 @@ export async function handlerImageFile(imagePath, req, res) {
                 })
                 .toBuffer()
                 .then(buffer => {
+                    缓存对象[缓存键]=buffer
                     res.type('jpeg').send(buffer);
                 })
                 .catch(err => {

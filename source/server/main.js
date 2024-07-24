@@ -4,7 +4,8 @@ const channel = new BroadcastChannel('SACAssets')
 
 setInterval(() => channel.postMessage({
     type:'siyuanConfig',
-    data:window.siyuan.config
+    data:window.siyuan.config,
+    port:plugin.http服务端口号
 }), 1000)
 channel.addEventListener(
     'message',(e)=>{

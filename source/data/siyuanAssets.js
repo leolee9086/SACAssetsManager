@@ -1,4 +1,5 @@
 import { cleanAssetPath } from "./utils/assetsName.js"
+import {plugin } from '../asyncModules.js'
 export async function 获取tab附件数据(tab, limit, offset) {
     let query = `select * from assets limit ${limit || 100} offset ${offset || 0} `
     if (tab && tab.data && tab.data.block_id) {
@@ -30,7 +31,7 @@ export async function 获取tab附件数据(tab, limit, offset) {
 export async function 获取本地文件夹数据(tab, target, callback, step) {
     let { localPath } = tab.data
     let _step = 0
-    fetch(`http://localhost/glob-stream?path=${localPath}\\`)
+    fetch(`http://localhost:${plugin.http服务端口号}/glob-stream?path=${localPath}\\`)
 
         .then(response => {
             console.log(response)
