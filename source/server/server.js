@@ -150,10 +150,7 @@ async function handlePdfFile(imagePath, req, res) {
     if (await serveFromCache(cacheKey, res)) return;
     try {
         const pdfBuffer = fs.readFileSync(imagePath.replace(/\\/g, '/'));
-        console.log(pdfBuffer)
         const pdfDoc = await PDFDocument.load(pdfBuffer);
-        console.log(pdfDoc)
-
         const [firstPage] = await pdfDoc.getPages();
         const { width, height } = await firstPage.getSize()
         const options = {
@@ -163,7 +160,6 @@ async function handlePdfFile(imagePath, req, res) {
             savePath: 'D:/temp/sac'
         }
         const data = await pdf2pic.fromBuffer(pdfBuffer, options).bulk([1, 2, 3, 4, 5, 6, 7, 8], { responseType: 'buffer' })
-        console.log(data)
         sharp(data[0].buffer)
             .resize(512, 512, {
                 fit: 'inside',
@@ -171,16 +167,11 @@ async function handlePdfFile(imagePath, req, res) {
             })
             .toBuffer()
             .then(buffer => {
-                console.log(images)
                 cache[cacheKey] = images[0]
-
                 res.type('jpeg').send(buffer);
             })
             .catch(err => {
-
                 throw (err)
-
-                //   res.status(500).send('Error processing image: ' + err.message);
             });
     } catch (err) {
         console.error(err, err.stack)
@@ -191,7 +182,6 @@ async function handlePdfFile(imagePath, req, res) {
 async function handleImageFile(imagePath, req, res) {
     const cacheKey = generateCacheKey(imagePath);
     //if (await serveFromCache(cacheKey, res)) return;
-
     if (!imagePath.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
         // Handle non-image files
         const encodedPath = Buffer.from(imagePath).toString('base64');
