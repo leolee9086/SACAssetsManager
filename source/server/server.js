@@ -8,7 +8,6 @@ const pdf2pic = require('pdf2pic')
 const fastGlob = require('fast-glob')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
-
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { getBase64Thumbnail, getLargeIcon } from './internalLoaders/systermThumbnail.js';
 import { loadCsharpFile } from './utils/CSharpLoader.js';
@@ -17,7 +16,13 @@ import { globStream } from './handlers/stream-glob.js';
 const glob = loadCsharpFile('D:/思源主库/data/plugins/SACAssetsManager/source/server/utils/glob/glob.cs');
 const cache = {}
 const globCache = {}
+/**
+ * 启用跨域支持
+ */
 app.use(cors());
+/**
+ * 启用响应压缩
+ */
 app.use(compression({
     level: 6, // 设置压缩级别，范围是 0-9，默认值是 6
     filter: (req, res) => {
@@ -29,6 +34,9 @@ app.use(compression({
         return compression.filter(req, res);
     }
 }));
+/**
+ * 流式遍历文件夹
+ */
 app.get('/glob-stream', globStream)
 app.get('/glob', async (req, res) => {
     const folderPath = req.query.path;
