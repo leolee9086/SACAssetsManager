@@ -45,17 +45,11 @@ app.get('/thumbnail', async (req, res) => {
     let imagePath = ''
     if (req.query.localPath) {
         imagePath = req.query.localPath
-        console.log(imagePath)
     } else {
-
         imagePath = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
-        console.log(imagePath)
-
     }
     imagePath = imagePath.replace(/\//g,'\\')
-
     const cacheKey = generateCacheKey(imagePath);
-
     const cachedData = cache[cacheKey];
     if (cachedData) {
         res.type('jpeg').send(cachedData);
@@ -77,7 +71,6 @@ app.get(
 )
 const requestQueue = {};
 const requestInterval = 500; // 500ms interval
-
 app.get('/webPageThumbnail', async (req, res) => {
     const cacheKey = generateCacheKey(req.query.path);
     const cachedData = cache[cacheKey];
@@ -230,14 +223,6 @@ async function handleImageFile(imagePath, req, res) {
             }
         }
         getBase64Thumbnail(encodedPath, fn(() => getLargeIcon(encodedPath, fn('', true))));
-
-        /*if (imagePath.match(/\.(skp|skb|zip)$/i)) {
-            getLargeIcon(encodedPath, fn(() => getBase64Thumbnail(encodedPath, fn('', true))));
-
-        } else {
-            getBase64Thumbnail(encodedPath, fn(() => getLargeIcon(encodedPath, fn('', true))));
-        }*/
-
     } else {
         // Existing image handling code
         fs.readFile(imagePath, (err, data) => {
