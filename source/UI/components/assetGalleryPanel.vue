@@ -25,8 +25,12 @@
         @click.right.stop.prevent.capture="clearSelection" 
          @dragover.prevent>
             <!--选择框的容器-->
-            <assetsGridRbush @ready="size=300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
-                :size="parseInt(size)"></assetsGridRbush>
+            <assetsGridRbush 
+            @ready="size=300" 
+            @layoutChange="handlerLayoutChange" 
+            @scrollTopChange="handlerScrollTopChange"
+            :sorter="sorter"
+            :size="parseInt(size)"></assetsGridRbush>
             <div v-if="isSelecting" :style="selectionBoxStyle" class="selection-box"></div>
         </div>
     </div>
@@ -279,6 +283,9 @@ const selectionBoxStyle = computed(() => {
 
     };
 });
+const sorter = ref({fn:(a,b)=>{
+    return -(a.data.mtimems-b.data.mtimems)
+}})
 const openMenu = (event) => {
     let assets = currentLayout.layout.filter(item => item.selected).map(item => item.data).filter(item=>item)
     assets[0]&&plugin.eventBus.emit(plugin.events.资源界面项目右键, { event, assets }, { stack: true })

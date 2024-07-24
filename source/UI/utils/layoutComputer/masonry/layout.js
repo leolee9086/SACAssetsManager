@@ -65,7 +65,6 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
                 shortestColumnIndex = i; // 更新索引
             }
         }
-        console.log(columnWidth)
         shortestColumn.items.push(item);
         item.columnIndex = shortestColumnIndex
         item.indexInColumn = shortestColumn.items.length - 1
@@ -81,8 +80,6 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         }
 
         item.width = columnWidth
-        console.log(item.width,item.height,height,width)
-
         item.maxX = item.x + item.width
         item.maxY = item.y + item.height
         shortestColumn.y += item.height + gutter;
@@ -95,7 +92,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
     // 更新数据高度的方法
     function processUpdates() {
         // 按源卡片索引升序排序
-        console.time('processUpdates')
+       // console.time('processUpdates')
         let columnQueues = Array(columns.length)
         updateQueue.forEach(
             update => {
@@ -123,15 +120,15 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
                 // 清空队列
             }
         )
-        console.time('batchUpdateIndex')
+       // console.time('batchUpdateIndex')
         /**
          * 只有基本上不会有高度变化的情况下使用Rbush会有优势
          */
         staticSize&&batchUpdateIndex()
-        console.timeEnd('batchUpdateIndex')
+       // console.timeEnd('batchUpdateIndex')
         updateQueue = [];
         timeStep = 30
-        console.timeEnd('processUpdates')
+       // console.timeEnd('processUpdates')
 
     }
     // 更新从指定索引开始的所有卡片的高度，直到下一个更新分片的索引
@@ -208,8 +205,17 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         tree.load(updates)
         pendingUpdates.clear()
     }
+    function sort(sorter){
+        const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter, [], reactive,staticSize)
+        layout.sort(sorter).forEach(
+            item =>{
+                newLayoutObj.add(item.data,item.height,item.width)
+            }
+        )
+        return newLayoutObj
+    }   
     function rebuild(columnCount, columnWidth, gutter, datas, reactive) {
-        const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter, [], reactive)
+        const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter, [], reactive,staticSize)
         layout.forEach(
             item => {
                  
@@ -248,6 +254,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         //这里会有this指向问题
         search: (...args) => search(...args),
         tree,
-        timeStep
+        timeStep,
+        sort:(...args)=>sort(...args)
     };
 }

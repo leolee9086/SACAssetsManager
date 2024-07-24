@@ -34,8 +34,9 @@ import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, 
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size'])
+const props = defineProps(['size','sorter'])
 const size = toRef(props, 'size')
+const sorter = toRef(props,'sorter')
 const root = ref(null)
 const scrollContainer = ref(null)
 const appData = toRef(inject('appData'))
@@ -44,6 +45,7 @@ const columnCount = ref(1)
 const paddingLR = ref(100)
 const containerHeight = ref(102400)
 const showCard = ref(true)
+
 const 计算卡片样式 = (卡片数据) => {
     return {
         transform: `translate(${卡片数据.x}px,${卡片数据.y}px)`,
@@ -189,19 +191,25 @@ watch(
                 data && data.id ? 布局对象.value.add(data) : null
                 更新可见区域(true)
             }
-            /**
-             * 内容是流式更新的所以需要这样
-             */
-
-
         })
-
     }
 )
+let oldsize
+let lastSort=Date.now()
+function sortLocalStream(){
+    mounted.value=true
+   if(布局对象.value.layout.length!==oldsize&&Date.now()-lastSort>=100){
+    oldsize = 布局对象.value.layout.length
+
+    布局对象.value=布局对象.value.sort(sorter.value.fn)
+    console.log("sorted")
+    更新可见区域(true)
+   } 
+}
 onMounted(async () => {
     if (appData.value.tab.data.localPath) {
         附件数据组 = []
-        await 获取本地文件夹数据(appData.value.tab, 附件数据组,async()=>{mounted.value=true}, 1)
+        await 获取本地文件夹数据(appData.value.tab, 附件数据组,sortLocalStream, 1)
 
     } else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);

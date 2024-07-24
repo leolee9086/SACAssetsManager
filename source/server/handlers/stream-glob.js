@@ -20,7 +20,8 @@ export const globStream= async (req, res) => {
                     id:`localEntrie_${file}`,
                     type:'local',
                     size: stats.size,
-                    mtime: new Date(stats.mtime).toLocaleString()
+                    mtime:stats.mtime,
+                    mtimems: stats.mtime.getTime(),
                   };
                 callback(null, JSON.stringify(fileInfo)+'\n');
             } catch (err) {
@@ -29,7 +30,9 @@ export const globStream= async (req, res) => {
                     id:`localEntrie_${file}`,
                     type:'local',
                     size: null,
-                    mtime: ''
+                    mtime: '',
+                    mtimems:'',
+                    error:err
                   };
                 callback(null,JSON.stringify(fileInfo)+'\n');
             }
