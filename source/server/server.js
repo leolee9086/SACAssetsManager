@@ -9,6 +9,7 @@ const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { getBase64Thumbnail, getLargeIcon } from './internalLoaders/systermThumbnail.js';
+import { handlerImageFile } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream } from './handlers/stream-glob.js';
 const cache = {}
@@ -55,7 +56,7 @@ app.get('/thumbnail', async (req, res) => {
         res.sendFile("C:/Users/al765/AppData/Local/Programs/SiYuan/resources/stage/icon.png")
         return
     }
-    handleImageFile(imagePath, req, res);
+    handlerImageFile(imagePath, req, res);
 });
 app.get(
     '/raw', async (req, res) => {
@@ -175,7 +176,7 @@ async function handlePdfFile(imagePath, req, res) {
     }
 }
 // Updated handleImageFile function with cache check and save
-async function handleImageFile(imagePath, req, res) {
+/*async function handleImageFile(imagePath, req, res) {
     const cacheKey = generateCacheKey(imagePath);
     //if (await serveFromCache(cacheKey, res)) return;
     if (!imagePath.match(/\.(jpg|jpeg|png|gif|svg)$/i)) {
@@ -233,7 +234,7 @@ async function handleImageFile(imagePath, req, res) {
                 });
         });
     }
-}
+}*/
 
 app.listen(80, () => {
     console.log(`Server running at http://localhost:${80}`);
