@@ -165,7 +165,7 @@ const emit = defineEmits()
 
 watch(
     [布局对象, columnCount, size], () => {
-        emit('layoutChange', {
+        布局对象.value&&emit('layoutChange', {
             layout: 布局对象.value,
             element: scrollContainer.value
         })
@@ -173,19 +173,21 @@ watch(
 )
 const mounted=ref(null)
 watch(
-    mounted,()=>{
+    mounted,(newVal,oldVal)=>{
+        if(newVal===oldVal){
+            return
+        }
         布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
         nextTick(() => {
-          
             resizeObserver.observe(scrollContainer.value)
             resizeObserver.observe(
                 root.value
             )
             for (let i = 0; i < 100; i++) {
+
                 let data = 附件数据组.shift && 附件数据组.shift()
                 data && data.id ? 布局对象.value.add(data) : null
                 更新可见区域(true)
-
             }
             /**
              * 内容是流式更新的所以需要这样
@@ -199,8 +201,7 @@ watch(
 onMounted(async () => {
     if (appData.value.tab.data.localPath) {
         附件数据组 = []
-
-        await 获取本地文件夹数据(appData.value.tab, 附件数据组, ()=>  mounted.value=true, 300)
+        await 获取本地文件夹数据(appData.value.tab, 附件数据组,async()=>{mounted.value=true}, 1)
 
     } else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);

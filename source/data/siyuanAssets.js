@@ -27,11 +27,14 @@ export async function 获取tab附件数据(tab, limit, offset) {
     )
     return data
 }
-export async function 获取本地文件夹数据(tab,target,callback,step) {
+export async function 获取本地文件夹数据(tab, target, callback, step) {
     let { localPath } = tab.data
-    let _step =0
+    let _step = 0
     fetch(`http://localhost/glob-stream?path=${localPath}\\`)
+
         .then(response => {
+            console.log(response)
+
             if (response.ok) {
                 // 获取响应的可读流
                 const reader = response.body.getReader();
@@ -67,24 +70,24 @@ export async function 获取本地文件夹数据(tab,target,callback,step) {
             function read() {
                 reader.read().then(({ value, done }) => {
                     if (done) {
-                        callback&&callback()
-
+                        callback && callback()
                         console.log('Stream complete');
                         return;
                     }
                     value.split('\n').forEach(chunk => {
-                        try{
-                            splitedChunk?target.push(JSON.parse(splitedChunk+chunk)):target.push(JSON.parse(chunk))
-                            if(_step>=step){
-                                 callback&&callback()
-                                 _step=0
+                        try {
+                            splitedChunk ? target.push(JSON.parse(splitedChunk + chunk)) : target.push(JSON.parse(chunk))
+                            _step+=1
+                            if (_step >= step) {
+                                callback && callback()
+                                _step = 0
                             }
-                            splitedChunk=undefined
-                        }catch(e){
-                            splitedChunk=chunk
+                            splitedChunk = undefined
+                        } catch (e) {
+                            splitedChunk = chunk
                         }
                     });
-                    
+
                     // 处理文件信息
                     // 继续读取
                     read();
