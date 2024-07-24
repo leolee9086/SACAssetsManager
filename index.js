@@ -45,7 +45,6 @@ module.exports = class SACAssetsManager extends Plugin {
     }
   }
   添加资源信息边栏() {
-    let that = this
     this.addDock({
       config: {
         icon: "iconAssetsPannel",
@@ -60,10 +59,13 @@ module.exports = class SACAssetsManager extends Plugin {
       init() {
         const UI容器父元素 = this.element
         const UI容器 = 插入UI面板容器(UI容器父元素)
-        创建资源信息面板(UI容器)
+        import('/plugins/SACAssetsManager/source/UI/tab.js').then(
+          module => {
+            module.创建资源信息面板(UI容器)
+          }
+        )
       },
     })
-
   }
   async 创建web服务() {
     const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
@@ -108,9 +110,4 @@ module.exports = class SACAssetsManager extends Plugin {
 function 插入UI面板容器(UI容器父元素) {
   UI容器父元素.innerHTML = `<div class="fn__flex-1 fn__flex-column cc_ui-container"></div>`
   return UI容器父元素.querySelector(".fn__flex-1.fn__flex-column")
-}
-async function 创建资源信息面板(UI容器) {
-  const vue组件加载器 = await import('/plugins/SACAssetsManager/source/UI/Utils/componentsLoader.js')
-  const 颜色管理器主面板 = await vue组件加载器.initVueApp("/plugins/SACAssetsManager/source/UI/components/assestInfoPanel.vue")
-  颜色管理器主面板.mount(UI容器);
 }

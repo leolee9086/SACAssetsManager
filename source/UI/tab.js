@@ -7,3 +7,8 @@ export function 创建图库界面(tab) {
   return
 }
 
+export function 创建资源信息面板(UI容器){
+  const 资源信息面板 =  initVueApp(import.meta.resolve('./components/assestInfoPanel.vue'))
+  资源信息面板.mount(UI容器);
+
+}

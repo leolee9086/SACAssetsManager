@@ -7,7 +7,6 @@
     using System.Threading.Tasks;
     using System.Runtime.InteropServices;
     using System.Runtime.InteropServices.ComTypes;
-    
     public class Startup
     {
         public async Task<object> Invoke(dynamic input)
