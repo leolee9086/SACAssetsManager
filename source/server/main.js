@@ -11,6 +11,8 @@ channel.addEventListener(
     'message',(e)=>{
         if(e.data&&e.data.type==='serverError'){
             console.error(e.data.data)
+        }else{
+            plugin.eventBus.emit('serverReady')
         }
     }
 )

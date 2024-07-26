@@ -54,7 +54,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         columns.push({ x: i * (columnWidth + gutter), y: 0, items: [] });
     }
     // 添加数据的方法
-    function add(data,height,width) {
+    function add(data,height,width,selected) {
         updatedFromLastSearch=true
         let item = reactive ? reactive({}) : {}
         let shortestColumn = columns[0];
@@ -66,6 +66,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             }
         }
         shortestColumn.items.push(item);
+        item.selected=selected
         item.columnIndex = shortestColumnIndex
         item.indexInColumn = shortestColumn.items.length - 1
         item.x = shortestColumn.x;
@@ -211,7 +212,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         const newLayoutObj = 创建瀑布流布局(columnCount, columnWidth, gutter, [], reactive,staticSize)
         layout.sort(sorter).forEach(
             item =>{
-                newLayoutObj.add(item.data,item.height,item.width)
+                newLayoutObj.add(item.data,item.height,item.width,item.selected)
             }
         )
         return newLayoutObj
@@ -221,7 +222,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         layout.forEach(
             item => {
                  
-                newLayoutObj.add(item.data,item.height,item.width)
+                newLayoutObj.add(item.data,item.height,item.width,item.selected)
             }
         )
         return newLayoutObj

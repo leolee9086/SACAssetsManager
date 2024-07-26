@@ -5,10 +5,17 @@ const { pipeline } = require('stream');
 
 export const globStream= async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    const folderPath = req.query.path.replace(/\\/g,'/').replace('//','/')
-    console.log(folderPath)
+    const scheme = JSON.parse(req.query.setting)
     // 创建一个可读流，逐步读取文件路径
-    const fileStream =await fastGlob.stream(folderPath+'**/*',{suppressErrors:true});
+       // 创建一个 AbortController 实例
+       const controller = new AbortController();
+       const { signal } = controller;
+   
+       // 当请求关闭时，触发中止信号
+       req.on('close', () => {
+           controller.abort();
+       });
+    const fileStream =await fastGlob.stream(scheme.pattern,{...scheme.options,suppressErrors:true,dot:false},signal);
     // 使用管道将文件流通过一个转换流发送到响应中
     const transformStream = new (require('stream').Transform)({
         objectMode: true,

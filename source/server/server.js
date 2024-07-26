@@ -7,6 +7,8 @@ import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { handlerImageFile } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream } from './handlers/stream-glob.js';
+import { entryCounter } from './handlers/entry-counter.js';
+
 const port = window.port
 const cache = {}
 /**
@@ -31,6 +33,8 @@ app.use(compression({
  * 流式遍历文件夹
  */
 app.get('/glob-stream', globStream)
+app.get('/count-etries', entryCounter)
+
 app.get('/thumbnail', async (req, res) => {
     let 源文件地址 = ''
     if (req.query.localPath) {
@@ -70,5 +74,6 @@ app.get(
     }
 )
 app.listen(port, () => {
+    window.channel.postMessage('serverReady')
     console.log(`Server running at http://localhost:${port}`);
 });

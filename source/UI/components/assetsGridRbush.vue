@@ -30,13 +30,15 @@
 </template>
 <script setup>
 import { 获取tab附件数据, 获取本地文件夹数据 } from "../../data/siyuanAssets.js"
-import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef } from 'vue'
+import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef,onUnmounted } from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size','sorter'])
+const props = defineProps(['size','sorter','globSetting'])
 const size = toRef(props, 'size')
 const sorter = toRef(props,'sorter')
+const globSetting = toRef(props,'globSetting')
+
 const root = ref(null)
 const scrollContainer = ref(null)
 const appData = toRef(inject('appData'))
@@ -45,7 +47,6 @@ const columnCount = ref(1)
 const paddingLR = ref(100)
 const containerHeight = ref(102400)
 const showCard = ref(true)
-
 const 计算卡片样式 = (卡片数据) => {
     return {
         transform: `translate(${卡片数据.x}px,${卡片数据.y}px)`,
@@ -138,7 +139,6 @@ const resizeObserver = new ResizeObserver(entries => {
 
 watch(
     [columnCount, size], async() => {
-
         if (!scrollContainer.value) {
             return
         }
@@ -206,11 +206,19 @@ function sortLocalStream(){
     更新可见区域(true)
    } 
 }
+const controller = new AbortController();
+const signal = controller.signal;
+
+onUnmounted(
+    ()=>{
+        controller.abort();
+    }
+)
 onMounted(async () => {
     if (appData.value.tab.data.localPath) {
+        console.log(globSetting.value)
         附件数据组 = []
-        await 获取本地文件夹数据(appData.value.tab, 附件数据组,sortLocalStream, 1)
-
+        await 获取本地文件夹数据(globSetting.value, 附件数据组,sortLocalStream, 1,signal)
     } else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
         附件数据组.map(

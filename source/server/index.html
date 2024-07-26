@@ -196,6 +196,7 @@
             }
         };
         const channel = new BroadcastChannel('SACAssets')
+        window.channel=channel
         channel.onmessage = (e) => {
             if (!window.siyuanConfig && e.data && e.data.type && e.data.type === 'siyuanConfig') {
                 window.siyuanConfig = e.data.data

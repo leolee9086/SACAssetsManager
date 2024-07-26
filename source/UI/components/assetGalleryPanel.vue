@@ -9,48 +9,55 @@
             <div class="fn__space fn__flex-1"></div>
         </div>
         <DocBreadCrumb v-if="block_id || box" :block_id="block_id" :box="box"></DocBreadCrumb>
-        <LocalBreadCrumb v-if="localPath" :localPath="localPath" ></LocalBreadCrumb>
+        <LocalBreadCrumb @globChange="(e)=>globSetting=e" v-if="localPath" :localPath="localPath"></LocalBreadCrumb>
 
         <div class=" fn__flex " style="align-items: center;">
             <div class="fn__space fn__flex-1"></div>
         </div>
         <div class="fn__space"></div>
-        <div class="fn__flex-column fn__flex-1" 
-        @dragstart.prevent.stop="onDragStart" style="width:100%" 
-        @mousedown.left="startSelection"
-        @click="endSelection" 
-        @dblclick="openMenu" 
-        @mousedup="endSelection" 
-        @mousemove="updateSelection"
-        @click.right.stop.prevent.capture="clearSelection" 
-         @dragover.prevent>
+        <div class="fn__flex-column fn__flex-1"  @dragstart.stop="onDragStart" style="width:100%"
+            @mousedown.left="startSelection" @click="endSelection" @dblclick="openMenu" @mousedup="endSelection"
+            @mousemove="updateSelection" @drop="handlerDrop" @click.right.stop.prevent.capture="clearSelection"
+            @dragover.prevent
+            >
+            <assetsGridRbush             :globSetting=globSetting
+ v-if="showPanel&&globSetting" @ready="size = 300" @layoutChange="handlerLayoutChange"
+                @scrollTopChange="handlerScrollTopChange" :sorter="sorter" :size="parseInt(size)"></assetsGridRbush>
             <!--选择框的容器-->
-            <assetsGridRbush 
-            @ready="size=300" 
-            @layoutChange="handlerLayoutChange" 
-            @scrollTopChange="handlerScrollTopChange"
-            :sorter="sorter"
-            :size="parseInt(size)"></assetsGridRbush>
             <div v-if="isSelecting" :style="selectionBoxStyle" class="selection-box"></div>
         </div>
     </div>
 </template>
 <script setup>
-import { ref, inject, toRef, computed } from 'vue'
+import { ref, inject, toRef, computed, nextTick,watch } from 'vue'
 import DocBreadCrumb from './docbreadCrumb.vue'
 import LocalBreadCrumb from './localBreadCrumb.vue'
-
+import dropzone from './common/dropzone.vue';
 import assetsGridRbush from './assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
+const globSetting=ref({})
+watch(
+    ()=>globSetting.value,()=>{
+        console.log(globSetting.value)
+        refreshPanel()
+    }
+)
 const path = _path.default
 const appData = inject('appData')
-const { block_id, box,localPath } = appData.tab.data
+const { block_id, box, localPath } = appData.tab.data
 const size = ref(100)
 const root = ref('null')
 let currentLayout = null
 let currentLayoutOffsetTop = 0
 let currentLayoutContainer
+const showPanel = ref(true)
+const refreshPanel = () => {
+    showPanel.value = false
+    nextTick(() => {
+        showPanel.value = true
+    })
+}
 const handlerLayoutChange = (data) => {
     currentLayout = data.layout
     currentLayoutContainer = data.element
@@ -59,7 +66,6 @@ const handlerLayoutChange = (data) => {
 const handlerScrollTopChange = (scrollTop) => {
     currentLayoutOffsetTop = scrollTop
 }
-
 /**
  * 缩放相关
  */
@@ -77,12 +83,8 @@ function scaleListener(event) {
         size.value = value
         event.preventDefault()
         event.stopPropagation()
-
     }
 }
-
-
-
 /***
 * 选择相关逻辑
 */
@@ -120,17 +122,17 @@ const endSelection = (event) => {
 
 const getSelectedItems = (event) => {
     const galleryContainer = root.value.querySelector('.gallery_container')
-    let result=[]
+    let result = []
     //处理单选
-    let cardElement =event.target
-    while(!cardElement.getAttribute('data-id')){
-        cardElement=cardElement.parentElement
-        if(cardElement===galleryContainer){
+    let cardElement = event.target
+    while (!cardElement.getAttribute('data-id')) {
+        cardElement = cardElement.parentElement
+        if (cardElement === galleryContainer) {
             break
         }
     }
-    if(cardElement.getAttribute('data-id')){
-        result.push(currentLayout.layout.find(item=>{return item.data&&item.data.id===cardElement.getAttribute('data-id')}))
+    if (cardElement.getAttribute('data-id')) {
+        result.push(currentLayout.layout.find(item => { return item.data && item.data.id === cardElement.getAttribute('data-id') }))
     }
     //处理多选
     const layoutRect = galleryContainer.getBoundingClientRect()
@@ -140,13 +142,13 @@ const getSelectedItems = (event) => {
     const maxX = Math.max(startX, endX) - layoutRect.x - currentLayoutContainer.style.paddingLeft;
     const minY = Math.min(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
     const maxY = Math.max(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
-     result = result.concat(currentLayout.searchByRect({
+    result = result.concat(currentLayout.searchByRect({
         minX,
         minY,
         maxY,
         maxX,
     }))
-    result[0]&&result.forEach(data => {
+    result[0] && result.forEach(data => {
         if (event && event.shiftKey) {
             data.selected = undefined
             return
@@ -157,116 +159,89 @@ const getSelectedItems = (event) => {
 /**
  * 拖放相关逻辑
  */
- const imgeWithConut = (count) => {
-    return new Promise((resolve, reject) => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        // Load the base image
-        const baseImage = new Image();
-        baseImage.src = 'D:/思源主库/data/plugins/SACAssetsManager/icon.png'; // Replace with your image path
-
-        baseImage.onload = () => {
-            // Set canvas dimensions to match the image dimensions
-            canvas.width = 128;
-            canvas.height = 128;
-
-            // Draw the base image
-            ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
-
-            // Set the font properties for the number
-            ctx.font = '24px serif';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'top';
-
-            // Draw a speech bubble in the top right corner
-            const padding = 2;
-            const bubbleX = canvas.width/2;
-            const bubbleY = padding;
-            const radius =5;
-
-            const bubbleWidth = canvas.width/2-2*padding;
-            const bubbleHeight = 42;
-
-            // Draw the bubble background
-            ctx.fillStyle = 'rgba(247, 255, 209, 1)';
-            ctx.beginPath();
-            ctx.moveTo(bubbleX + radius, bubbleY);
-            ctx.lineTo(bubbleX + bubbleWidth - radius, bubbleY);
-            ctx.quadraticCurveTo(bubbleX + bubbleWidth, bubbleY, bubbleX + bubbleWidth, bubbleY + radius);
-            ctx.lineTo(bubbleX + bubbleWidth, bubbleY + bubbleHeight - radius);
-            ctx.quadraticCurveTo(bubbleX + bubbleWidth, bubbleY + bubbleHeight, bubbleX + bubbleWidth - radius, bubbleY + bubbleHeight);
-            ctx.lineTo(bubbleX + radius, bubbleY + bubbleHeight);
-            ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleHeight, bubbleX, bubbleY + bubbleHeight - radius);
-            ctx.lineTo(bubbleX, bubbleY + radius);
-            ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + radius, bubbleY);
-            ctx.closePath();
-            ctx.fill();
-
-            // Draw the bubble border
-            ctx.strokeStyle = 'black';
-            ctx.stroke();
-
-            // Draw the number inside the bubble
-            const number = `${count}个文件\n小心操作`; // Replace with your desired number
-            ctx.font = '13px black';
-
-            ctx.fillStyle = 'red';
-            // Split the text into two lines
-            const lines = number.split('\n');
-            lines.forEach((line, index) => {
-                ctx.fillText(line, bubbleX + padding, bubbleY + padding + index * 20);
-            });
-
-            // Convert canvas to PNG image and return as data URL
-            const dataURL = canvas.toDataURL('image/png');
-            const fs = window.require('fs');
-            const base64Data = dataURL.replace(/^data:image\/png;base64,/, "");
-            fs.writeFile('D:/思源主库/temp/sac/imgeWithConut.png', base64Data, 'base64', (err) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve('D:/思源主库/temp/sac/imgeWithConut.png');
-                }
-            });
-        };
-
-        baseImage.onerror = (error) => {
-            reject(error);
-        };
-    });
-};
-const onDragStart = async(event) => {
+import { imgeWithConut } from '../utils/decorations/iconGenerator.js'
+const onDragStart = async (event) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
-    const remote = window.require('@electron/remote');
-    let webContents = remote.getCurrentWindow().webContents;
     let files = []
     selectedData.forEach(data => {
-        let filePath =data.type==='local'?data.path:path.join(window.siyuan.config.system.workspaceDir,'data', data.path)
-        filePath=filePath.replace(/\\/g,'/')
-        if(window.require('fs').existsSync(filePath)){
+        let filePath = data.type === 'local' ? data.path : path.join(window.siyuan.config.system.workspaceDir, 'data', data.path)
+        filePath = filePath.replace(/\\/g, '/')
+        if (window.require('fs').existsSync(filePath)) {
             files.push(filePath)
         }
     });
-    files[0]&&webContents.startDrag(
-        {
-            files,
-            icon:await imgeWithConut(files.length)
-        }
-    )
+    if (window.require) {
+        event.preventDefault();
+
+        const remote = window.require('@electron/remote');
+        let webContents = remote.getCurrentWindow().webContents;
+
+        files[0] && webContents.startDrag(
+            {
+                files,
+                icon: await imgeWithConut(files.length),
+                options: {
+                    dragOperation: 'all',
+                    delay: 100 // 100毫秒的拖拽延迟
+                }
+
+            }
+        )
+
+    }
+
+    event.dataTransfer.setData('application/x-electron-drag-data', JSON.stringify(files.join('\n')));
+
+    event.dataTransfer.setData('files', files.join('\n'));
+    event.dataTransfer.setData('text/plain', files.join('\n'));
+    event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
+
+    event.dataTransfer.setData('text/uri-list', files.join('\n'));
+    event.dataTransfer.effectAllowed = 'copyLink';
+
+    // 自定义拖拽图标
+    const iconPath = await imgeWithConut(files.length, true);
+    event.dataTransfer.setDragImage(iconPath, 64, 64);
+    //window.blur()
 }
 
 const onDragOver = (event) => {
     event.preventDefault();
 };
 
-const onDrop = (event) => {
+const handlerDrop = (event) => {
     event.preventDefault();
+    console.log(event.dataTransfer.types)
     const data = event.dataTransfer.files;
-    const droppedItems = Array.from(data).map(file => file.path);
-    console.log('Dropped items:', droppedItems);
-    // 处理放置的项目
+    const droppedItems = Array.from(data).map(file => file.path.replace(/\\/g, '/'));
+    if (window.require) {
+        let { localPath } = appData.tab.data
+        console.log(localPath)
+        if (localPath) {
+            const fs = window.require('node:fs/promises');
+            const copyPromises = droppedItems.map(file => {
+                const destinationPath = path.join(localPath, path.basename(file));
+                return fs.copyFile(file, destinationPath)
+                    .then(() => {
+                        console.log(`Copied ${file} to ${destinationPath}`);
+                    })
+                    .catch(err => {
+                        console.error(`Error copying ${file} to ${destinationPath}:`, err);
+                    });
+            });
+
+            Promise.all(copyPromises)
+                .then(() => {
+                    refreshPanel();
+                })
+                .catch(err => {
+                    refreshPanel()
+
+                    console.error('Error during file copy:', err);
+                });
+
+        }
+    }
 };
 
 const selectionBoxStyle = computed(() => {
@@ -283,11 +258,13 @@ const selectionBoxStyle = computed(() => {
 
     };
 });
-const sorter = ref({fn:(a,b)=>{
-    return -(a.data.mtimems-b.data.mtimems)
-}})
+const sorter = ref({
+    fn: (a, b) => {
+        return -(a.data.mtimems - b.data.mtimems)
+    }
+})
 const openMenu = (event) => {
-    let assets = currentLayout.layout.filter(item => item.selected).map(item => item.data).filter(item=>item)
-    assets[0]&&plugin.eventBus.emit(plugin.events.资源界面项目右键, { event, assets }, { stack: true })
+    let assets = currentLayout.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
+    assets[0] && plugin.eventBus.emit(plugin.events.资源界面项目右键, { event, assets }, { stack: true })
 }
 </script>

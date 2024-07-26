@@ -29,7 +29,50 @@ function fixURL(url) {
  * @returns {Object} - 初始化的Vue应用程序实例。
  */
 
+export const cc = (props) => {
+    return (string) => {
+        function useAllProps(props, context, Vue) {
+            const _props = Object.entries(props).reduce((refs, [key, value]) => {
+                refs[key] = Vue.toRef(props, key);
+                return refs;
+            }, {});
+            return _props
+        }
 
+        let mixinOptions = {
+            moduleCache: {
+                ...moduleCache
+            },
+            getFile(url) {
+                if (url === '/myComponent.vue')
+                    return Promise.resolve(`<template>${string}</template><script setup>
+            import {defineProps} from 'vue'
+            const  props = defineProps(${JSON.stringify(props)})
+            ${useAllProps.toString()}
+            </script>`);
+            },
+            handleModule(type, source, path, options) {
+                if (type === '.json') {
+                    return JSON.parse(source);
+                }
+                if (type === '.js') {
+                    return asyncModules[path]
+                }
+
+            },
+
+            addStyle(textContent) {
+                const style = Object.assign(document.createElement('style'), { textContent });
+                const ref = document.head.getElementsByTagName('style')[0] || null;
+                document.head.insertBefore(style, ref);
+                styleElements.push(style)
+            },
+
+        };
+        let component = Vue.defineAsyncComponent(() => loadModule('/myComponent.vue', mixinOptions))
+        return component;
+    }
+}
 export const initVueApp = (appURL, name, mixinOptions = {}, directory = `${siyuan.config.system.workspaceDir}/data/plugins/${runtime.plugin.name}/source/UI/components`, data) => {
     const asyncModules = {}
     const styleElements = []
@@ -38,8 +81,6 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = `${siyua
             ...moduleCache
         },
         async getFile(url) {
-            console.log(url)
-
             const res = await fetch(fixURL(url));
             if (!res.ok) {
                 throw Object.assign(new Error(res.statusText + ' ' + url), { res });
@@ -61,6 +102,7 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = `${siyua
             if (type === '.js') {
                 return asyncModules[path]
             }
+
         },
 
         addStyle(textContent) {

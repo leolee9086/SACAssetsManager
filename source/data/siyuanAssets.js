@@ -28,10 +28,9 @@ export async function 获取tab附件数据(tab, limit, offset) {
     )
     return data
 }
-export async function 获取本地文件夹数据(tab, target, callback, step) {
-    let { localPath } = tab.data
+export async function 获取本地文件夹数据(globSetting, target, callback, step,signal) {
     let _step = 0
-    fetch(`http://localhost:${plugin.http服务端口号}/glob-stream?path=${localPath}\\`)
+    fetch(`http://localhost:${plugin.http服务端口号}/glob-stream?setting=${encodeURIComponent(JSON.stringify(globSetting))}`,{signal})
 
         .then(response => {
             console.log(response)

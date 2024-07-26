@@ -6,6 +6,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import fileListItem from './common/fileListItem.vue';
+import {initVueApp} from '../utils/componentsLoader.js'
 const fileList = ref([])
 onMounted(async() => {
     // 读取测试数据文件
