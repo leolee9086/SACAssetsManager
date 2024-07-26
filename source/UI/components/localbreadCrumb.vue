@@ -22,18 +22,16 @@
             </div>
             <span class="fn__space fn__flex-1 protyle-breadcrumb__space">
             </span>
-            <input class="b3-switch fn__flex-center ariaLabel" aria-label="显示子路径" id="uploadErrLog" type="checkbox">
+            <input class="b3-switch fn__flex-center ariaLabel" aria-label="显示子路径" v-model="IncludeSubfolders" type="checkbox">
             <button class="b3-tooltips b3-tooltips__w block__icon fn__flex-center" style="opacity: 1;" data-menu="true"
                 aria-label="更多">
                 <svg>
                     <use xlink:href="#iconMore"></use>
                 </svg>
             </button>
-
         </div>
-        <div v-if="showSubfolder" @wheel="horizontalScroll" class="fn__flex subFolders">
+        <div v-if="showSubfolder&&IncludeSubfolders" @wheel="horizontalScroll" class="fn__flex subFolders">
             <div class="fn__space"></div>
-
             <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i">
                 <div @click.stop="() => { toggleShow(子文件夹信息, i) }" :class="{ 'subfolderShown': 子文件夹信息.show }"
                     style="border-radius:15px;min-width:80px;width:80px;height:80px;background-color: var(--b3-theme-background-light);">
@@ -41,7 +39,6 @@
                     <div style="font-size: small;text-align: center;">{{ 子文件夹信息.name }}</div>
                     <div style="font-size: x-small;text-align: center;">{{ 子文件夹信息.fileCount }}个文件</div>
                     <div style="font-size: x-small;text-align: center;">{{ 子文件夹信息.folderCount }}个目录</div>
-
                 </div>
                 <div class="fn__space"></div>
             </template>
@@ -50,39 +47,15 @@
 </template>
 <script setup>
 import { defineProps, defineEmits, ref, onMounted, reactive } from 'vue'
-import { kernelApi, plugin } from 'runtime'
+import { getFilePatternsWithExtensions } from '../../utils/globBuilder.js';
+import {  plugin } from 'runtime'
 import {horizontalScroll} from '../utils/scroll.js'
+const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 function toggleShow(子文件夹信息, i) {
     子文件夹信息.show = !子文件夹信息.show
-    let scheme = getGlobPatternsIncludingParent(子文件夹数组.value, localPath.replace(/\\/g, '/') + '/')
-    console.log(scheme)
+    let scheme = getFilePatternsWithExtensions(子文件夹数组.value, localPath.replace(/\\/g, '/') + '/')
     emit('globChange', scheme)
-}
-function getGlobPatternsIncludingParent(topLevelFolders, parentDir) {
-    // 构建用于遍历的pattern
-    const pattern = `${parentDir}**`;
-
-    // 构建排除模式列表
-    const ignorePatterns = topLevelFolders
-        .filter(folder => !folder.show) // 选择show为false的项
-        .map(folder => `${parentDir}${folder.name}/**`);
-
-    // 创建glob对象
-    const globObject = {
-        pattern: pattern,
-        options: {
-            // 排除show为false的文件夹
-            ignore: ignorePatterns,
-            // 其他glob选项...
-            nodir: true, // 排除目录，只匹配文件
-            dot: true, // 包括以点(.)开头的文件和目录
-            // ... 其他选项
-        }
-    };
-
-    return globObject;
-
 }
 const 子文件夹数组 = ref([])
 const showSubfolder = ref(false)
@@ -99,23 +72,19 @@ const { localPath } = defineProps(
         'localPath',
     ]
 )
-
 let fetching=false
 const fetchSUbFolders = async () => {
     if(子文件夹数组.value[0]||fetching){
         return
     }
     fetching=true
-
     try {
         子文件夹数组.value = await (await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(localPath)}`)).json()
-        console.log(子文件夹数组.value)
     } catch (e) {
         子文件夹数组.value = []
     }
     fetching=false
 }
-
 onMounted(async () => {
     if (localPath) {
         localPath.replace(/\\/g, '/').split('/').forEach(
@@ -145,11 +114,9 @@ onMounted(async () => {
     border-width: 1px;
     border-style: ridge
 }
-
 .subFolders {
     overflow-x: scroll;
     overflow-y: hidden;
-
     height: 140px;
     min-height: 140px;
     display: flex;

@@ -23,12 +23,13 @@
         :onload="(e)=>更新图片尺寸(e, cardData)"
         :src="!cardData.data.type?`${serverHost}/thumbnail/?path=${encodeURIComponent(cardData.data.path)}`:`${serverHost}/thumbnail/?localPath=${encodeURIComponent(cardData.data.path)}`">
         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;background-color:none">
-            {{ cardData.data.path }}
+            {{ cleanAssetPath(cardData.data.path) }}
         </div>
     </div>
 </template>
 <script setup>
 import { ref,toRef,onMounted, onBeforeUnmount  , defineEmits,watch } from 'vue';
+import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import {plugin} from 'runtime'
 const props= defineProps(['cardData','size'])
 const  { cardData } = props
