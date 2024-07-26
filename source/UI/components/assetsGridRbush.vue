@@ -10,15 +10,9 @@
             ">
 
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
-
                     <div :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-id="卡片数据.data.id">
-
-                        <!--<img :data-columnIndex="卡片数据.columnIndex" :data-indexInColumn="卡片数据.indexInColumn"
-                                        :style="`width:100%;height:100%;border:none; `" :onload="(e) => 更新图片尺寸(e, 卡片数据)"
-                                        loading="eager"
-                                        :src="`http://127.0.0.1/thumbnail/?path=${encodeURIComponent(卡片数据.data.path)}`">-->
                         <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
                             :cardData="卡片数据">
                         </assetsThumbnailCard>
