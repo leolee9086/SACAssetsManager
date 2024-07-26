@@ -6,3 +6,6 @@
     transform: scale(1.05);
 
 }
+.cc_ui-container{
+    max-height: 100%;
+}
