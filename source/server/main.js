@@ -49,3 +49,4 @@ function createInvisibleWebview(entryURL) {
 }
 // 调用函数创建webview
 plugin.serverContainer=await createInvisibleWebview(entryURL);
+

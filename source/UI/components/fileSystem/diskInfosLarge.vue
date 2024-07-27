@@ -41,8 +41,6 @@ onMounted(async () => {
     console.log(diskInfos.value)
 
 })
-
-
 </script>
 <style scoped>
 .disk-info {

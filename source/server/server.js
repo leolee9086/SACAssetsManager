@@ -8,7 +8,7 @@ import { handlerImageFile } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
-
+import { listDisk } from './handlers/listDisk.js';
 const port = window.port
 const cache = {}
 /**
@@ -34,7 +34,7 @@ app.use(compression({
  */
 app.get('/glob-stream', globStream)
 app.get('/count-etries', entryCounter)
-
+app.get('/listDisk',listDisk)
 app.get('/thumbnail', async (req, res) => {
     let 源文件地址 = ''
     if (req.query.localPath) {
@@ -77,3 +77,19 @@ app.listen(port, () => {
     window.channel.postMessage('serverReady')
     console.log(`Server running at http://localhost:${port}`);
 });
+
+
+
+const remote = require('@electron/remote');
+const {ipcRenderer} = require('electron')
+const { webContents } = remote
+
+ipcRenderer.on('startDrag',(e,arg)=>{
+
+    console.log(e,arg)
+    if(arg.id){
+        const webContentsId = arg.id
+        const webviewWebContents = webContents.fromId(webContentsId)
+        webviewWebContents.startDrag(arg.data)
+    }
+})

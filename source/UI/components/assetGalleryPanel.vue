@@ -14,29 +14,16 @@
             <div class="fn__space fn__flex-1"></div>
         </div>
         <div class="fn__space"></div>
-        <div class="fn__flex-column fn__flex-1" 
-        @dragstart.stop="onDragStart" 
-        style="width:100%;overflow: hidden;"
-        @mousedown.left="startSelection" 
-        @click="endSelection" 
-        @dblclick="openMenu" 
-        @mousedup="endSelection"
-        @mousemove="updateSelection"
-        @drop="handlerDrop" 
-        @click.right.stop.prevent.capture="clearSelection"
-        @dragover.prevent>
-        <assetsGridRbush 
-        :globSetting=globSetting 
-        v-if="showPanel && globSetting" 
-        @ready="size = 300"
-        @layoutChange="handlerLayoutChange" 
-        @scrollTopChange="handlerScrollTopChange" 
-        :sorter="sorter"
-        @layoutCount="(e)=>{layoutCount.found=e}"
-        @layoutLoadedCount="(e)=>{layoutCount.loaded=e}"
-
-        :size="parseInt(size)"></assetsGridRbush>
-            <div class="assetsStatusBar" style="min-height: 18px;">{{ layoutCount.found+layoutCount.loaded+'个文件发现,'+layoutCount.loaded+'个文件已经加载' }}</div>
+        <div class="fn__flex-column fn__flex-1" @dragstart.stop="onDragStart" style="width:100%;overflow: hidden;"
+            @mousedown.left="startSelection" @click="endSelection" @dblclick="openMenu" @mousedup="endSelection"
+            @mousemove="updateSelection" @drop="handlerDrop" @click.right.stop.prevent.capture="clearSelection"
+            @dragover.prevent>
+            <assetsGridRbush :globSetting=globSetting v-if="showPanel && globSetting" @ready="size = 300"
+                @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
+                @layoutCount="(e) => { layoutCount.found = e }" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
+                :size="parseInt(size)"></assetsGridRbush>
+            <div class="assetsStatusBar" style="min-height: 18px;">{{
+                layoutCount.found + layoutCount.loaded + '个文件发现,' + layoutCount.loaded + '个文件已经加载' }}</div>
             <!--选择框的容器-->
             <div v-if="isSelecting" :style="selectionBoxStyle" class="selection-box"></div>
         </div>
@@ -60,7 +47,7 @@ const appData = inject('appData')
 const { block_id, box, localPath } = appData.tab.data
 const size = ref(100)
 const root = ref('null')
-const layoutCount = reactive({found:0,loaded:0})
+const layoutCount = reactive({ found: 0, loaded: 0 })
 let currentLayout = null
 let currentLayoutOffsetTop = 0
 let currentLayoutContainer
@@ -187,19 +174,25 @@ const onDragStart = async (event) => {
     if (window.require) {
         event.preventDefault();
         const remote = window.require('@electron/remote');
-        let webContents = remote.getCurrentWindow().webContents;
-        files[0] && webContents.startDrag(
-            {
-                files,
-                icon: await imgeWithConut(files.length),
-                options: {
-                    dragOperation: 'all',
-                    delay: 100 // 100毫秒的拖拽延迟
-                }
+        const { webContents } = remote
+        const webContentsId = plugin.serverContainer.getWebContentsId();
+        const webviewWebContents = webContents.fromId(webContentsId)
+        let _webContents = remote.getCurrentWindow().webContents
 
+        //    let webContents = remote.getCurrentWindow().webContents;
+        files[0] && webviewWebContents.send('startDrag',
+            {
+                id: _webContents.id,
+                data: {
+                    files,
+                    icon: await imgeWithConut(files.length),
+                    options: {
+                        dragOperation: 'all',
+                        delay: 100 // 100毫秒的拖拽延迟
+                    }
+                }
             }
         )
-
     }
     event.dataTransfer.setData('application/x-electron-drag-data', JSON.stringify(files.join('\n')));
     event.dataTransfer.setData('files', files.join('\n'));
@@ -207,6 +200,8 @@ const onDragStart = async (event) => {
     event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
     event.dataTransfer.setData('text/uri-list', files.join('\n'));
     event.dataTransfer.effectAllowed = 'copyLink';
+
+
     // 自定义拖拽图标
     const iconPath = await imgeWithConut(files.length, true);
     event.dataTransfer.setDragImage(iconPath, 64, 64);
