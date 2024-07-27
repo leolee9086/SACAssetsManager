@@ -50,6 +50,7 @@ import { defineProps, defineEmits, ref, onMounted, reactive } from 'vue'
 import { getFilePatternsWithExtensions } from '../../utils/globBuilder.js';
 import {  plugin } from 'runtime'
 import {horizontalScroll} from '../utils/scroll.js'
+import {commonIcon} from './common/icons.js'
 const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 function toggleShow(子文件夹信息, i) {

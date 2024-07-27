@@ -1,5 +1,5 @@
 import { cleanAssetPath } from "./utils/assetsName.js"
-import {plugin } from '../asyncModules.js'
+import { plugin } from '../asyncModules.js'
 export async function 获取tab附件数据(tab, limit, offset) {
     let query = `select * from assets limit ${limit || 100} offset ${offset || 0} `
     if (tab && tab.data && tab.data.block_id) {
@@ -28,10 +28,9 @@ export async function 获取tab附件数据(tab, limit, offset) {
     )
     return data
 }
-export async function 获取本地文件夹数据(globSetting, target, callback, step,signal) {
+export async function 获取本地文件夹数据(globSetting, target, callback, step, signal) {
     let _step = 0
-    fetch(`http://localhost:${plugin.http服务端口号}/glob-stream?setting=${encodeURIComponent(JSON.stringify(globSetting))}`,{signal})
-
+    fetch(`http://localhost:${plugin.http服务端口号}/glob-stream?setting=${encodeURIComponent(JSON.stringify(globSetting))}`, { signal })
         .then(response => {
             if (response.ok) {
                 // 获取响应的可读流
@@ -40,7 +39,6 @@ export async function 获取本地文件夹数据(globSetting, target, callback,
                     start(controller) {
                         function push() {
                             reader.read().then(({ value, done }) => {
-
                                 if (done) {
                                     controller.close();
                                     return;
@@ -72,7 +70,7 @@ export async function 获取本地文件夹数据(globSetting, target, callback,
                     value.split('\n').forEach(chunk => {
                         try {
                             splitedChunk ? target.push(JSON.parse(splitedChunk + chunk)) : target.push(JSON.parse(chunk))
-                            _step+=1
+                            _step += 1
                             if (_step >= step) {
                                 callback && callback()
                                 _step = 0

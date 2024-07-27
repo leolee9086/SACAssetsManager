@@ -24,14 +24,14 @@
 </template>
 <script setup>
 import { 获取tab附件数据, 获取本地文件夹数据 } from "../../data/siyuanAssets.js"
-import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef,onUnmounted } from 'vue'
+import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted } from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size','sorter','globSetting'])
+const props = defineProps(['size', 'sorter', 'globSetting'])
 const size = toRef(props, 'size')
-const sorter = toRef(props,'sorter')
-const globSetting = toRef(props,'globSetting')
+const sorter = toRef(props, 'sorter')
+const globSetting = toRef(props, 'globSetting')
 
 const root = ref(null)
 const scrollContainer = ref(null)
@@ -64,6 +64,8 @@ function 更新素材高度(cardData, height) {
 let oldScrollTop
 let isUpdating
 const 更新可见区域 = (flag) => {
+    emit("layoutCount",附件数据组.length)
+
     let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
     emit('scrollTopChange', scrollTop)
     clientHeight = Math.min(clientHeight, window.innerHeight)
@@ -105,8 +107,9 @@ const 更新可见区域 = (flag) => {
                     }
                 }
                 if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight && 附件数据组.length) {
-                    let data = 附件数据组.shift && 附件数据组.shift()
+                    let data = 附件数据组.shift &&附件数据组.shift()
                     data.id ? 布局对象.value.add(data) : _flag = false
+                    emit("layoutLoadedCount",布局对象.value.layout.length)
 
                 } else {
                     _flag = false
@@ -132,7 +135,7 @@ const resizeObserver = new ResizeObserver(entries => {
 });
 
 watch(
-    [columnCount, size], async() => {
+    [columnCount, size], async () => {
         if (!scrollContainer.value) {
             return
         }
@@ -152,7 +155,7 @@ watch(
         paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
         可见卡片组.value = []
         nextTick(
-           ()=> 更新可见区域(true)
+            () => 更新可见区域(true)
 
         )
     }
@@ -161,16 +164,19 @@ const emit = defineEmits()
 
 watch(
     [布局对象, columnCount, size], () => {
-        布局对象.value&&emit('layoutChange', {
+       if(布局对象.value){emit('layoutChange', {
             layout: 布局对象.value,
             element: scrollContainer.value
         })
+        emit("layoutLoadedCount",布局对象.value.layout.length)
+
+        }
     }
 )
-const mounted=ref(null)
+const mounted = ref(null)
 watch(
-    mounted,(newVal,oldVal)=>{
-        if(newVal===oldVal){
+    mounted, (newVal, oldVal) => {
+        if (newVal === oldVal) {
             return
         }
         布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
@@ -189,30 +195,30 @@ watch(
     }
 )
 let oldsize
-let lastSort=Date.now()
-function sortLocalStream(){
-    mounted.value=true
-   if(布局对象.value&&布局对象.value.layout.length!==oldsize&&Date.now()-lastSort>=100){
-    oldsize = 布局对象.value.layout.length
+let lastSort = Date.now()
+function sortLocalStream() {
+     emit("layoutCount",附件数据组.length)
+     布局对象.value&& emit("layoutLoadedCount",布局对象.value.layout.length)
 
-    布局对象.value=布局对象.value.sort(sorter.value.fn)
-    console.log("sorted")
-    更新可见区域(true)
-   } 
+    mounted.value = true
+    if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 100) {
+        oldsize = 布局对象.value.layout.length
+        布局对象.value = 布局对象.value.sort(sorter.value.fn)
+        更新可见区域(true)
+    }
 }
 const controller = new AbortController();
 const signal = controller.signal;
 
 onUnmounted(
-    ()=>{
+    () => {
         controller.abort();
     }
 )
 onMounted(async () => {
     if (appData.value.tab.data.localPath) {
-        console.log(globSetting.value)
         附件数据组 = []
-        await 获取本地文件夹数据(globSetting.value, 附件数据组,sortLocalStream, 1,signal)
+        await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
     } else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
         附件数据组.map(

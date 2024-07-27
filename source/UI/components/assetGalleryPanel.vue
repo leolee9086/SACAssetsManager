@@ -9,37 +9,49 @@
             <div class="fn__space fn__flex-1"></div>
         </div>
         <DocBreadCrumb v-if="block_id || box" :block_id="block_id" :box="box"></DocBreadCrumb>
-        <LocalBreadCrumb @globChange="(e)=>globSetting=e" v-if="localPath" :localPath="localPath"></LocalBreadCrumb>
-
+        <LocalBreadCrumb @globChange="(e) => globSetting = e" v-if="localPath" :localPath="localPath"></LocalBreadCrumb>
         <div class=" fn__flex " style="align-items: center;">
             <div class="fn__space fn__flex-1"></div>
         </div>
         <div class="fn__space"></div>
-        <div class="fn__flex-column fn__flex-1"  @dragstart.stop="onDragStart" style="width:100%"
-            @mousedown.left="startSelection" @click="endSelection" @dblclick="openMenu" @mousedup="endSelection"
-            @mousemove="updateSelection" @drop="handlerDrop" @click.right.stop.prevent.capture="clearSelection"
-            @dragover.prevent
-            >
-            <assetsGridRbush             :globSetting=globSetting
- v-if="showPanel&&globSetting" @ready="size = 300" @layoutChange="handlerLayoutChange"
-                @scrollTopChange="handlerScrollTopChange" :sorter="sorter" :size="parseInt(size)"></assetsGridRbush>
+        <div class="fn__flex-column fn__flex-1" 
+        @dragstart.stop="onDragStart" 
+        style="width:100%;overflow: hidden;"
+        @mousedown.left="startSelection" 
+        @click="endSelection" 
+        @dblclick="openMenu" 
+        @mousedup="endSelection"
+        @mousemove="updateSelection"
+        @drop="handlerDrop" 
+        @click.right.stop.prevent.capture="clearSelection"
+        @dragover.prevent>
+        <assetsGridRbush 
+        :globSetting=globSetting 
+        v-if="showPanel && globSetting" 
+        @ready="size = 300"
+        @layoutChange="handlerLayoutChange" 
+        @scrollTopChange="handlerScrollTopChange" 
+        :sorter="sorter"
+        @layoutCount="(e)=>{layoutCount.found=e}"
+        @layoutLoadedCount="(e)=>{layoutCount.loaded=e}"
+
+        :size="parseInt(size)"></assetsGridRbush>
+            <div class="assetsStatusBar" style="min-height: 18px;">{{ layoutCount.found+layoutCount.loaded+'个文件发现,'+layoutCount.loaded+'个文件已经加载' }}</div>
             <!--选择框的容器-->
             <div v-if="isSelecting" :style="selectionBoxStyle" class="selection-box"></div>
         </div>
     </div>
 </template>
 <script setup>
-import { ref, inject, toRef, computed, nextTick,watch } from 'vue'
+import { ref, inject, computed, nextTick, watch } from 'vue'
 import DocBreadCrumb from './docbreadCrumb.vue'
 import LocalBreadCrumb from './localBreadCrumb.vue'
-import dropzone from './common/dropzone.vue';
 import assetsGridRbush from './assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
-const globSetting=ref({})
+const globSetting = ref({})
 watch(
-    ()=>globSetting.value,()=>{
-        console.log(globSetting.value)
+    () => globSetting.value, () => {
         refreshPanel()
     }
 )
@@ -48,6 +60,7 @@ const appData = inject('appData')
 const { block_id, box, localPath } = appData.tab.data
 const size = ref(100)
 const root = ref('null')
+const layoutCount = reactive({found:0,loaded:0})
 let currentLayout = null
 let currentLayoutOffsetTop = 0
 let currentLayoutContainer
@@ -160,6 +173,7 @@ const getSelectedItems = (event) => {
  * 拖放相关逻辑
  */
 import { imgeWithConut } from '../utils/decorations/iconGenerator.js'
+import { reactive } from '../../../static/vue.esm-browser.js';
 const onDragStart = async (event) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
     let files = []
@@ -172,10 +186,8 @@ const onDragStart = async (event) => {
     });
     if (window.require) {
         event.preventDefault();
-
         const remote = window.require('@electron/remote');
         let webContents = remote.getCurrentWindow().webContents;
-
         files[0] && webContents.startDrag(
             {
                 files,
@@ -189,16 +201,12 @@ const onDragStart = async (event) => {
         )
 
     }
-
     event.dataTransfer.setData('application/x-electron-drag-data', JSON.stringify(files.join('\n')));
-
     event.dataTransfer.setData('files', files.join('\n'));
     event.dataTransfer.setData('text/plain', files.join('\n'));
     event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
-
     event.dataTransfer.setData('text/uri-list', files.join('\n'));
     event.dataTransfer.effectAllowed = 'copyLink';
-
     // 自定义拖拽图标
     const iconPath = await imgeWithConut(files.length, true);
     event.dataTransfer.setDragImage(iconPath, 64, 64);

@@ -10,7 +10,6 @@ export const globStream= async (req, res) => {
        // 创建一个 AbortController 实例
        const controller = new AbortController();
        const { signal } = controller;
-   
        // 当请求关闭时，触发中止信号
        req.on('close', () => {
            controller.abort();
