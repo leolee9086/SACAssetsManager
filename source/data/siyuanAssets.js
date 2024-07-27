@@ -1,5 +1,7 @@
 import { cleanAssetPath } from "./utils/assetsName.js"
 import { plugin } from '../asyncModules.js'
+window[Symbol.for('$pathCache')]=window[Symbol.for('$pathCache')]||{}
+export const pathCache =window[Symbol.for('$pathCache')]
 export async function 获取tab附件数据(tab, limit, offset) {
     let query = `select * from assets limit ${limit || 100} offset ${offset || 0} `
     if (tab && tab.data && tab.data.block_id) {
@@ -15,7 +17,6 @@ export async function 获取tab附件数据(tab, limit, offset) {
     })
         .then(data => data.json())
     let mock = await json.data
-    //mock=mock.concat(mock).concat(mock).concat(mock).concat(mock).concat(mock)
     let data = mock.map(
         (item, i) => {
             return {

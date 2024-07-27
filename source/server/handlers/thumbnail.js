@@ -19,7 +19,7 @@ export async function handlerImageFile(ctx,next) {
                     try {
                         const iconBuffer = Buffer.from(result, 'base64');
                         缓存对象[缓存键]=iconBuffer
-                        res.type('png').send(iconBuffer);
+                        res.type('webp').send(iconBuffer);
                     } catch (error) {
                         force && res.status(500).send('Error extracting icon: ' + error.message);
                         callback && callback()
@@ -33,6 +33,18 @@ export async function handlerImageFile(ctx,next) {
         }
         getBase64Thumbnail(encodedPath, fn(() => getLargeIcon(encodedPath, fn('', true))));
     } else {
+        if (源文件地址.toLowerCase().endsWith('.svg')) {
+            // 直接返回SVG文件
+            fs.readFile(源文件地址, (err, data) => {
+                if (err) {
+                    res.status(404).send(`文件未找到 ${req.query.path}`);
+                    return;
+                }
+                缓存对象[缓存键] = data;
+                res.type('svg').send(data);
+            });
+            return
+        }
         // Existing image handling code
         fs.readFile(源文件地址, (err, data) => {
             if (err) {
@@ -47,7 +59,7 @@ export async function handlerImageFile(ctx,next) {
                 .toBuffer()
                 .then(buffer => {
                     缓存对象[缓存键]=buffer
-                    res.type('jpeg').send(buffer);
+                    res.type('webp').send(buffer);
                 })
                 .catch(err => {
                     res.status(500).send('Error processing image: ' + err.message);

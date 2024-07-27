@@ -254,10 +254,11 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
     function searchByRect(可见框){
         if(updatedFromLastSearch){
             tree= new Rbush()
+            tree.load(layout)
+
             updatedFromLastSearch=false
         }
         console.time('load')
-        tree.load(layout)
         console.log(layout.length)
         console.timeEnd('load')
         return tree.search(可见框)

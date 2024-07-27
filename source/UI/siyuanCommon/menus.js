@@ -4,7 +4,7 @@ const { eventBus, events, app } = plugin
 eventBus.on(events.打开附件, (e) => {
     const assetPath = e.detail
     const { shell } = window.require('@electron/remote');
-    shell.openPath(siyuan.config.system.workspaceDir + '\\data\\' + assetPath).then((result) => {
+    shell.openPath(assetPath).then((result) => {
         if (result) {
             console.error('Failed to open asset:', result);
         }
@@ -13,7 +13,7 @@ eventBus.on(events.打开附件, (e) => {
 eventBus.on(events.打开附件所在路径, (e) => {
     const assetPath = e.detail
     const { shell } = window.require('@electron/remote');
-    shell.showItemInFolder(siyuan.config.system.workspaceDir + '\\data\\' + assetPath);
+    shell.showItemInFolder(assetPath);
 })
 eventBus.on(
     'click-galleryboxicon', (event) => {
