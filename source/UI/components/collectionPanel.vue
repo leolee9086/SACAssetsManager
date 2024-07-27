@@ -114,8 +114,6 @@ const { statfsSync, existsSync } = window.require('fs');
 
 function listLocalDisks() {
     return new Promise((resolve, reject) => {
-
-
         let disks = [];
         let diskInfos = []
         const platform = process.platform;
