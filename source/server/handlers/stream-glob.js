@@ -8,6 +8,7 @@ export const globStream= async (req, res) => {
     const scheme = JSON.parse(req.query.setting)
     // 创建一个可读流，逐步读取文件路径
        // 创建一个 AbortController 实例
+       console.log(scheme)
        const controller = new AbortController();
        const { signal } = controller;
        // 当请求关闭时，触发中止信号
@@ -31,6 +32,7 @@ export const globStream= async (req, res) => {
                   };
                 callback(null, JSON.stringify(fileInfo)+'\n');
             } catch (err) {
+                console.warn(err)
                 const fileInfo = {
                     path: file,
                     id:`localEntrie_${file}`,

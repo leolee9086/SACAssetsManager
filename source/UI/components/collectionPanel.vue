@@ -62,11 +62,11 @@
                     <use xlink:href="#iconMin"></use>
                 </svg></span>
         </div>
-        <diskInfosLarge></diskInfosLarge>
+        <diskInfosTiny></diskInfosTiny>
     </div>
 </template>
 <script setup>
-import diskInfosLarge from './fileSystem/diskInfosLarge.vue';
+import diskInfosTiny from './fileSystem/diskInfosTiny.vue';
 const 默认收藏夹组 = [
     {
         id: '000',

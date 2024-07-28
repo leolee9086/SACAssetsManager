@@ -74,11 +74,13 @@ const { localPath } = defineProps(
     ]
 )
 let fetching=false
+let retry=0
 const fetchSUbFolders = async () => {
-    if(子文件夹数组.value[0]||fetching){
+    if(子文件夹数组.value[0]||fetching||retry>8){
         return
     }
     fetching=true
+    retry+=1
     try {
         子文件夹数组.value = await (await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(localPath)}`)).json()
     } catch (e) {

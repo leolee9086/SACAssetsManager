@@ -7,7 +7,7 @@
                         height:${containerHeight}px;
                         padding-left:${paddingLR}px;
                         padding-right:${paddingLR}px`
-            ">
+                ">
 
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
                     <div :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
@@ -64,7 +64,7 @@ function 更新素材高度(cardData, height) {
 let oldScrollTop
 let isUpdating
 const 更新可见区域 = (flag) => {
-    emit("layoutCount",附件数据组.length)
+    emit("layoutCount", 附件数据组.length)
 
     let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
     emit('scrollTopChange', scrollTop)
@@ -107,9 +107,9 @@ const 更新可见区域 = (flag) => {
                     }
                 }
                 if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight && 附件数据组.length) {
-                    let data = 附件数据组.shift &&附件数据组.shift()
+                    let data = 附件数据组.shift && 附件数据组.shift()
                     data.id ? 布局对象.value.add(data) : _flag = false
-                    emit("layoutLoadedCount",布局对象.value.layout.length)
+                    emit("layoutLoadedCount", 布局对象.value.layout.length)
 
                 } else {
                     _flag = false
@@ -164,11 +164,12 @@ const emit = defineEmits()
 
 watch(
     [布局对象, columnCount, size], () => {
-       if(布局对象.value){emit('layoutChange', {
-            layout: 布局对象.value,
-            element: scrollContainer.value
-        })
-        emit("layoutLoadedCount",布局对象.value.layout.length)
+        if (布局对象.value) {
+            emit('layoutChange', {
+                layout: 布局对象.value,
+                element: scrollContainer.value
+            })
+            emit("layoutLoadedCount", 布局对象.value.layout.length)
 
         }
     }
@@ -186,7 +187,6 @@ watch(
                 root.value
             )
             for (let i = 0; i < 100; i++) {
-
                 let data = 附件数据组.shift && 附件数据组.shift()
                 data && data.id ? 布局对象.value.add(data) : null
                 更新可见区域(true)
@@ -197,8 +197,8 @@ watch(
 let oldsize
 let lastSort = Date.now()
 function sortLocalStream() {
-     emit("layoutCount",附件数据组.length)
-     布局对象.value&& emit("layoutLoadedCount",布局对象.value.layout.length)
+    emit("layoutCount", 附件数据组.length)
+    布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
 
     mounted.value = true
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 100) {

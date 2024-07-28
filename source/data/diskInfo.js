@@ -1,5 +1,6 @@
 const { exec } = window.require('child_process');
 const { statfsSync, existsSync } = window.require('fs');
+const outputFilePath = require('path').join(siyuan.config.system.workspaceDir, 'temp','sac','wmic_output.txt');
 
 export function listLocalDisks() {
     return new Promise((resolve, reject) => {
@@ -8,32 +9,38 @@ export function listLocalDisks() {
         const platform = process.platform;
         if (platform === 'win32') {
             // Windows平台
-            const command = 'wmic logicaldisk get name';
-            exec(command, (error, stdout) => {
+            const command = `chcp 65001 && wmic logicaldisk get DeviceID,VolumeName,FileSystem,Size,FreeSpace >${outputFilePath} `;
+            exec(command, { encoding: 'utf8' }, (error, stdout) => {
                 if (error) {
                     console.error(`exec error: ${error}`);
                     reject(error)
                 }
                 // 获取输出中每个磁盘名称，通常是C:, D: 等
-                disks = stdout.split('\n').filter(Boolean).map(disk => disk.trim()).filter(letter => { return existsSync(letter + "/") })
-                disks.forEach(disk => {
-                    try {
-                        let stats = statfsSync(`\\\\.\\${disk}`)
-                        stats && diskInfos.push(
-                            {
-                                name: disk,
-                                Filesystem: stats.type,
-                                /**MB */
-                                total: stats.blocks * stats.bsize / 1024 / 1024,
-                                free: stats.bfree * stats.bsize / 1024 / 1024,
-                                usedPercentage:stats.bfree/stats.blocks*100
-                            }
-                        )
-                    } catch (e) {
-                        console.error(e)
+                const output = fs.readFileSync(outputFilePath,'utf16le')
+                const lines = output.trim().split('\n').slice(1);
+
+                lines.forEach(line => {
+                    const [deviceId,  fileSystem, freeSpace,size, volumeName] = line.trim().split(/\s+/);
+                    console.log(deviceId,  fileSystem, size, freeSpace,volumeName)
+                    if (existsSync(deviceId + "/")) {
+                        try {
+                            const totalMB = parseInt(size) / (1024 * 1024);
+                            const freeMB = parseInt(freeSpace) / (1024 * 1024);
+                            diskInfos.push({
+                                name: deviceId.trim(),
+                                volumeName: volumeName&&volumeName.trim() || '本地磁盘', // 如果没有卷标，使用默认名称
+                                Filesystem: fileSystem,
+                                total: totalMB,
+                                free: freeMB,
+                                usedPercentage: ((totalMB - freeMB) / totalMB) * 100
+                            });
+                            console.log(diskInfos)
+                        } catch (e) {
+                            console.error(e);
+                        }
                     }
                 });
-                resolve(diskInfos)
+                resolve(diskInfos);
             });
         } else {
             // Unix-like平台
@@ -68,6 +75,5 @@ export function listLocalDisks() {
                 });
             });
         }
-
     })
 }

@@ -17,6 +17,7 @@ async function countEntries(dir) {
 }
 
 async function getTopLevelFoldersInfo(rootDir) {
+    console.log(rootDir)
     const topLevelFolders = await fastGlob(['*'], { cwd: rootDir, onlyDirectories: true, absolute: true ,suppressErrors:true,dot:false});
 
     const folderInfoPromises = topLevelFolders.map(folderPath => {

@@ -43,45 +43,5 @@ onMounted(async () => {
 })
 </script>
 <style scoped>
-.disk-info {
-    display: flex;
-    flex-wrap: wrap;
-    width: 100%;
-}
 
-.disk {
-    width: 100%;
-    margin: 10px;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-}
-
-.disk-header {
-    display: flex;
-    justify-content: space-between;
-    font-weight: bold;
-}
-
-.disk-body {
-    margin-top: 10px;
-}
-
-.disk-progress {
-    width: 100%;
-    height: 20px;
-    background-color: #f0f0f0;
-    border-radius: 5px;
-    overflow: hidden;
-}
-
-.disk-progress-bar {
-    height: 100%;
-    background-color: #4caf50;
-}
-
-.disk-space {
-    margin-top: 5px;
-    text-align: right;
-}
 </style>

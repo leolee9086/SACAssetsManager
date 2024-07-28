@@ -235,7 +235,6 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         )
     }
     function search(可见框){
-
         let {minX,minY,maxX,maxY} =可见框
         let 查找起点 = minY
         let 窗口高度 = maxY-minY
@@ -243,7 +242,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         for(let i=0;i<columns.length;i++){
             let items =columns[i].items
             let range = 二分查找可见素材(items,查找起点,窗口高度)
-            for(let i=range.start;i<range.end;i++){
+            for(let i=range.start;i<=range.end;i++){
                 result.push(items[i])
             }
         }
