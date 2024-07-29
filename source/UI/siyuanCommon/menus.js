@@ -16,6 +16,21 @@ eventBus.on(events.打开附件所在路径, (e) => {
     shell.showItemInFolder(assetPath);
 })
 eventBus.on(
+    'open-gallery-data', (event) => {
+        clientApi.openTab({
+            app: app,
+            custom: {
+                icon: "iconAssets",
+                title: event.detail.title||"资源",
+                data: event.detail.data,
+                id: plugin.name + 'AssetsTab'
+            },
+            position: 'right'
+        })
+    }
+)
+
+eventBus.on(
     'click-galleryboxicon', (event) => {
         clientApi.openTab({
             app: app,

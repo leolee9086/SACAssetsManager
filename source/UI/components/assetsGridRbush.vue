@@ -219,7 +219,35 @@ onMounted(async () => {
     if (appData.value.tab.data.localPath) {
         附件数据组 = []
         await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
-    } else {
+    } 
+    else if(appData.value.tab.data.type==='sql'){
+        附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
+        附件数据组.map(
+            (item, index) => {
+                return ref({
+                    ...item,
+                    index
+                })
+            }
+        )
+        nextTick(
+            () => {
+                布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+                resizeObserver.observe(scrollContainer.value)
+                resizeObserver.observe(
+                    root.value
+                )
+                for (let i = 0; i < 100; i++) {
+                    let data = 附件数据组.shift && 附件数据组.shift()
+                    data && data.id ? 布局对象.value.add(data) : null
+
+                }
+                更新可见区域(true)
+            }
+        )
+
+    }
+    else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
         附件数据组.map(
             (item, index) => {

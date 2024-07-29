@@ -1,7 +1,9 @@
 <template>
     <div class="protyle-breadcrumb">
         <div class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">
-            <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active">
+            <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active"
+            @click="打开全工作空间视图"
+            >
                 <img src="/stage/icon.png" style="    height: 14px;
     width: 14px;
     flex-shrink: 0;
@@ -11,9 +13,6 @@
             <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active" @click="打开笔记本资源视图"
                 :data-box="blockData.meta && blockData.meta.box">
                 🗃
-                <!--<svg class="popover__block" data-id="20210805000546-behj8io">
-                    <use xlink:href="#iconFolder"></use>
-                </svg>-->
                 {{ blockData.fullHPath[0] }}:
             </span>
 
@@ -46,6 +45,17 @@
 <script setup>
 import { defineProps, ref, onMounted } from 'vue'
 import { kernelApi, plugin } from 'runtime'
+const 打开全工作空间视图 =()=>{
+    plugin.eventBus.emit(
+        'open-gallery-data', {
+        title:"全部资源",
+        data: {
+            type:'sql',
+            stmt:'select * from assets limit 102400'
+        }
+    }
+    )
+}
 const 打开笔记本资源视图 = () => {
     (box || (blockData.value.meta && blockData.value.meta.box)) && plugin.eventBus.emit(
         'click-galleryboxicon', {

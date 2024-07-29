@@ -8,7 +8,10 @@ export async function 获取tab附件数据(tab, limit, offset) {
         query = `select * from assets where docpath like '%${tab.data.block_id}%' limit ${limit || 100} offset ${offset || 0}  `
     } else if (tab && tab.data.box) {
         query = `select * from assets where box = '${tab.data.box}' limit ${limit || 100} offset ${offset || 0}  `
+    } else if(tab && tab.data.type ==='sql'){
+        query = tab.data.stmt
     }
+    console.log(query,tab)
     const json = await fetch('/api/query/sql', {
         method: "POST",
         body: JSON.stringify({

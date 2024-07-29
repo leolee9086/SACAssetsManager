@@ -1,11 +1,41 @@
 <template>
+    <div class="block__icons">
+        <div class="block__logo">
+            <svg class="block__logoicon">
+                <use xlink:href="#iconFiles"></use>
+            </svg>本地磁盘
+        </div>
+        <span class="fn__flex-1 fn__space"></span>
+        <span data-type="focus" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="定位打开的文档 "><svg>
+                <use xlink:href="#iconFocus"></use>
+            </svg></span>
+        <span class="fn__space"></span>
+        <span data-type="collapse" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="折叠 Ctrl+↑">
+            <svg>
+                <use xlink:href="#iconContract"></use>
+            </svg>
+        </span>
+        <div class="fn__space"></div>
+
+        <div data-type="more" class="b3-tooltips b3-tooltips__sw block__icon" aria-label="更多">
+            <svg>
+                <use xlink:href="#iconMore"></use>
+            </svg>
+        </div>
+        <span class="fn__space"></span>
+        <span data-type="layout" class="block__icon b3-tooltips b3-tooltips__nw" aria-label="上">
+            <svg>
+                <use xlink:href="#iconUp"></use>
+            </svg>
+        </span>
+    </div>
     <div class="fn__flex fn__flex-1">
         <div class="fn__flex-column fn__flex-1 file_tree_container">
             <template v-for="disk in diskInfos">
                 <div class="fn__flex">
                     <div class="fn__flex-column fn__flex-1">
                         <div class="fn__flex  disk-tiny" @dblclick="() => { openFolder(disk.name + '/') }"
-                            @click.stop="fetchSUbFolders(disk.name + '/')">
+                            @click.stop="toggleSUbFolders(disk.name + '/')">
                             <commonIcon class="block__logoicon" icon="iconDatabase"></commonIcon>
                             <div :key="disk.name" class=" fn__flex fn__flex-1">
                                 <div class="disk-body-tiny fn__flex-1">
@@ -24,32 +54,42 @@
                             </div>
                         </div>
                         <div class="fn__flex fn__flex-1" v-if="folderInfos.length > 0">
-                            <div class="fn__flex-column fn__flex-1"
-                                style="margin-left: 15px;">
+                            <div class="fn__flex-column fn__flex-1" style="margin-left: 15px;" @scroll="handleScroll">
                                 <template v-for="(folder, i) in folderInfos">
-                                    <div class="fn__flex" v-if="folder.parentPath.startsWith(disk.name + '/')"
-                                        @click="() => fetchSUbFolders(folder.path)"
+                                    <div class="fn__flex  disk-tiny-item"
+                                        v-if="folder && folder.parentPath.startsWith(disk.name + '/')"
+                                        :class="{ 'stripe': i % 2 === 0, 'disk-tiny-item-selected': folder.selected }"
+                                        @click="() => toggleSUbFolders(folder.path)"
                                         @dblclick="() => { openFolder(folder.path) }">
-                                        
                                         <span :style="{
-                                            marginLeft:(folder.depth-1)*14+'px',
-                                            marginTop:0-calcMargin(folder)-7+'px',
+                                            marginLeft: (folder.depth - 1) * 14 + 'px',
+                                            marginTop: 0 - calcMargin(folder) - 7 + 'px',
                                             marginBottom: 7 + 'px',
-                                            width: (folder.depth-1)*14 + 'px',
-                                            borderLeft: '1px solid var(--b3-theme-primary)',
-                                            borderBottom: '1px solid var(--b3-theme-primary)'
+                                            width: (folder.depth - 1) * 14 + 'px',
+                                            borderLeft: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
+                                            borderBottom: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
+                                            zIndex: genVisible(folder) ? 1 : ''
                                         }"></span>
                                         <span :style="{
                                             marginBottom: 7 + 'px',
-                                            width: 14 +'px',
-                                            borderBottom: '1px solid var(--b3-theme-primary)'
+                                            width: 14 + 'px',
+                                            borderBottom: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
+                                            zIndex: genVisible(folder) ? 1 : ''
                                         }"></span>
                                         <span :style="{
                                             marginBottom: 7 + 'px',
-                                            width: 14+'px',
-                                            borderBottom: '1px solid var(--b3-theme-primary)'
+                                            width: 14 + 'px',
+                                            borderBottom: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
+                                            zIndex: genVisible(folder) ? 1 : ''
                                         }"></span>
-                                        <div class="disk-tiny-item">{{ folderInfos[i].name }}</div>
+                                        <div class="disk-tiny-item-text fn__flex fn__flex-1">{{ folderInfos[i].name }}
+                                            <div class="fn__space fn__flex-1" style="">
+                                            </div>
+
+                                            <span>{{ folder.fileCount }}</span>
+                                            <span class="fn__space"></span>
+                                            <span>{{ folder.folderCount }}</span>
+                                        </div>
                                     </div>
                                 </template>
                             </div>
@@ -67,18 +107,40 @@ import { plugin } from 'runtime'
 import { commonIcon } from '../common/icons.js'
 const diskInfos = ref([])
 const folderInfos = reactive([])
+const scrollTop = ref(0)
+const scrollHeight = ref(0)
+const scrollBottom = ref(0)
+const genVisible = (folder, disk) => {
+    let flag
+    if (!folder) { return false }
+    folder.selected && (flag = true)
+    //  !folderInfos.find(item=>item.path===folder.parentPath)&&(flag=true)
+    folderInfos.find(item => item.selected && item.path.indexOf(folder.path) === 0) && (flag = true)
+    folderInfos.find(item => item.selected && folder.path.indexOf(item.path) === 0) && !folderInfos.find(item => item.selected && item.parentPath === folder.parentPath) && (flag = true)
+    !folderInfos.find(item => item.selected) && (flag = true)
+    folder.visible = flag
+    return flag
+}
+const scrollHandler = (event) => {
+    scrollTop.value = event.target.scrollTop
+    scrollHeight.value = event.target.scrollHeight
+    scrollBottom.value = event.target.scrollTop + event.target.clientHeight
+    let target = event.target
+    let items = target.querySelectorAll('.disk-tiny-item')
+
+}
 const openFolder = (folder) => {
     plugin.eventBus.emit(
         'click-galleryLocalFIleicon',
         folder,
     )
 }
-const calcMargin=(folder)=>{
-    const index=folderInfos.findIndex(item=>{return item.path===folder.path})
+const calcMargin = (folder) => {
+    const index = folderInfos.findIndex(item => { return item.path === folder.path })
     console.log(folder)
-    let parentIndex = folderInfos.findIndex(item=>{return item.parentPath===folder.parentPath})
-    console.log(index,parentIndex)
-    return (index-parentIndex)*19
+    let parentIndex = folderInfos.findIndex(item => { return item.parentPath === folder.parentPath })
+    console.log(index, parentIndex)
+    return (index - parentIndex) * 19
 
 }
 function sortDocuments(a, b) {
@@ -96,23 +158,42 @@ function sortDocuments(a, b) {
 }
 
 // 调用函数
-const fetchSUbFolders = async (root) => {
-    let res = await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(root)}`)
-    let 子文件夹数组 = await res.json()
-    子文件夹数组.filter(item => {
-        console.log(item)
-        return !JSON.parse(JSON.stringify(folderInfos)).find(_item => { return _item.path === root + item.name + '/' })
-    }).forEach(
-        item => {
-            folderInfos.push({
-                ...item,
-                name: item.name,
-                parentPath: root,
-                path: root + item.name + '/',
-                depth: root.split('/').length - 1
-            })
-        }
-    )
+const toggleSUbFolders = async (root) => {
+    if (folderInfos.find(item => item.parentPath === root) || folderInfos.find(item => item.path === root && item.selected)?.folderCount === 0) {
+        let rootItem = folderInfos.find(item => item.path === root)
+        rootItem && (rootItem.selected = false)
+        let subItems = folderInfos.filter(item => item.parentPath.indexOf(root) === 0 && item.path !== root)
+        subItems.forEach(_item => {
+            folderInfos.splice(folderInfos.findIndex(item => item.path === _item.path), 1)
+        })
+    } else {
+        let res = await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(root)}&&maxCount=100`)
+        let 子文件夹数组 = await res.json()
+        子文件夹数组.filter(item => {
+            return !JSON.parse(JSON.stringify(folderInfos)).find(_item => { return _item.path === root + item.name + '/' })
+        }).forEach(
+            item => {
+                folderInfos.push({
+                    ...item,
+                    name: item.name,
+                    parentPath: root,
+                    path: root + item.name + '/',
+                    depth: root.split('/').length - 1
+                })
+            }
+        )
+        folderInfos.forEach(item => {
+            item.selected = false
+        })
+        folderInfos.filter(_item => root.startsWith(_item.path)).forEach(
+            ancestor => {
+                ancestor.selected = true
+            }
+        )
+
+        let rootItem = folderInfos.find(item => item.path === root)
+        子文件夹数组[0] && rootItem && (rootItem.selected = true)
+    }
     folderInfos.sort(sortDocuments)
 }
 onMounted(async () => {
@@ -133,11 +214,13 @@ onMounted(async () => {
     padding-right: 5px;
 }
 
-.disk-tiny-item::before {
-    content: ' ';
-    display: inline;
-    width: 14px;
-    height: 14px;
+.disk-tiny-item-selected .disk-tiny-item-text {
     background-color: var(--b3-theme-primary);
+    color: var(--b3-theme-on-primary);
+}
+
+
+.stripe {
+    background-color: var(--b3-theme-background-light);
 }
 </style>
