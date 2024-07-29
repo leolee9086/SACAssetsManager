@@ -28,18 +28,18 @@
                     <use xlink:href="#iconMin"></use>
                 </svg></span>
         </div>
-        <div class="fn__flex fn__flex-1">
-            <div class="fn__flex fn__flex-column" style="padding-left:14px">
-                <div >默认收藏夹</div>
+        <div class="fn__flex">
+            <div class="fn__flex fn__flex-column fn__flex-1" style="padding-left:14px">
+                <div>默认收藏夹</div>
                 <template v-for="收藏夹定义 in 默认收藏夹组">
-                    <div>
-                        {{ 收藏夹定义.name }}
+                    <div class="fn__flex fn__flex-1">
+                        <div>
+                            {{ 收藏夹定义.name }}
+                        </div>
+                        <div class="fn__flex fn__flex-1"></div>
+                        <div>{{ 收藏夹定义.content ? 收藏夹定义.content.length : 0 }}</div>
                     </div>
-                    <template v-for="资产定义 in 收藏夹定义.content">
-                        <div>{{ 资产定义.path }}</div>
-                    </template>
                 </template>
-                <div>自定义1</div>
             </div>
         </div>
         <diskInfosTiny></diskInfosTiny>
@@ -52,16 +52,12 @@ const 默认收藏夹组 = [
         id: '000',
         name: "思源附件引用",
         parent: null,
-        ruler: {
-            type: 'siyuanSql',
-            content: 'select * from assets limit 102400'
+        getter: ()=>{
+            return []
         },
-        content:[
-            {
-                name:'测试',
-                path:'/test'
-            }
-        ]
+        conuter:()=>{
+            return this.content.length
+        }
     },
     {
         id: '001',

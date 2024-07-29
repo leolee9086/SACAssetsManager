@@ -1,5 +1,6 @@
 import { cleanAssetPath } from "./utils/assetsName.js"
 import { plugin } from '../asyncModules.js'
+import { applyStmt } from './galleryDefine.js'
 window[Symbol.for('$pathCache')]=window[Symbol.for('$pathCache')]||{}
 export const pathCache =window[Symbol.for('$pathCache')]
 export async function 获取tab附件数据(tab, limit, offset) {
@@ -11,25 +12,7 @@ export async function 获取tab附件数据(tab, limit, offset) {
     } else if(tab && tab.data.type ==='sql'){
         query = tab.data.stmt
     }
-    console.log(query,tab)
-    const json = await fetch('/api/query/sql', {
-        method: "POST",
-        body: JSON.stringify({
-            stmt: query// 获取前300个
-        })
-    })
-        .then(data => data.json())
-    let mock = await json.data
-    let data = mock.map(
-        (item, i) => {
-            return {
-                index: i,
-                format: item.path.split('.').pop(),
-                cleanPath: cleanAssetPath(item.path),
-                ...item
-            }
-        }
-    )
+    let data = await applyStmt({query})
     return data
 }
 export async function 获取本地文件夹数据(globSetting, target, callback, step, signal) {
