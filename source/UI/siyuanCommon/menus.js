@@ -127,7 +127,8 @@ eventBus.on(
                     menuItems.打开资源文件所在笔记(e),
                     menuItems.使用默认应用打开附件(e),
                     menuItems.在文件管理器打开附件(e),
-                    menuItems.在新页签打开文件所在路径(e)
+                    menuItems.在新页签打开文件所在路径(e),
+                    menuItems.使用TEColors插件分析图像颜色(e)
                 ]
             },
         )

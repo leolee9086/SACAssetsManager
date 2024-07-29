@@ -18,7 +18,6 @@ module.exports = class SACAssetsManager extends Plugin {
     this.添加资源信息边栏()
     this.创建资源Tab类型()
     this.添加菜单()
-
   }
   /**
    * 只有getter,避免被不小心改掉

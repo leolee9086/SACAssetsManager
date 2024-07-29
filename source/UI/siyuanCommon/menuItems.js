@@ -69,3 +69,28 @@ export const 在新页签打开文件所在路径 = (e) => {
         }
     }
 }
+export const 使用TEColors插件分析图像颜色 = (e)=>{
+    return {
+        label:"使用TEColors插件分析图像颜色",
+        click:()=>{
+            const { assets } = e.detail 
+            assets.forEach(asset=>{
+                const image = new Image()
+                const serverHost=`${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号}`
+                image.src = `${serverHost}/thumbnail/?localPath=${encodeURIComponent(asset.path)}`
+                image.onload=()=>{
+                    siyuan.ws.app.plugins.forEach(
+                        item=>{
+                            item.eventBus.emit(
+                                'open-imageColors-palatte',
+                                image
+                            )
+                        }
+                    )
+        
+                }
+    
+            })
+        }
+    }
+}
