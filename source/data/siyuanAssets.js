@@ -1,4 +1,3 @@
-import { cleanAssetPath } from "./utils/assetsName.js"
 import { plugin } from '../asyncModules.js'
 import { applyStmt,applyURIStreamJson } from './galleryDefine.js'
 window[Symbol.for('$pathCache')]=window[Symbol.for('$pathCache')]||{}
