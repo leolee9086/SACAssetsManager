@@ -204,7 +204,10 @@ input {
 .basic-info div {
   margin: 5px 0;
 }
-
+input[disabled] {
+  background-color: #333;
+  color: #ccc;
+}
 button {
   width: 100%;
   padding: 10px;
