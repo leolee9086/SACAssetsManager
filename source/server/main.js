@@ -35,6 +35,14 @@ function createInvisibleWebview(entryURL) {
                 const { webContents } = require('@electron/remote');
                 const webContentsId = webview.getWebContentsId();
                 const webviewWebContents = webContents.fromId(webContentsId)
+                webviewWebContents.session.clearCache(() => {
+                    console.log('缓存已清除');
+                  });
+                  
+                  // 每次加载页面时禁用缓存
+                  webviewWebContents.on('did-finish-load', () => {
+                    webviewWebContents.session.clearCache(() => {});
+                  });
                 require("@electron/remote")
                     .require("@electron/remote/main")
                     .enable(webviewWebContents);

@@ -73,6 +73,9 @@ export async function getTagAssets(tags) {
         if (item.children) {
             delete item.children;
         }
+        if(item.assets){
+            item.assets = Array.from(new Set(item.assets))
+        }
     });
     // 保存更新后的data
     await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify(data));

@@ -90,6 +90,7 @@ const { webContents } = remote
 ipcRenderer.on('startDrag',(e,arg)=>{
 
     console.log(e,arg)
+    
     if(arg.id){
         const webContentsId = arg.id
         const webviewWebContents = webContents.fromId(webContentsId)
