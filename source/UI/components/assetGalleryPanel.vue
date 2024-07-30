@@ -104,7 +104,6 @@ const updateSelection = (event) => {
         selectionBox.value.endX = event.x;
         selectionBox.value.endY = event.y;
         selectedItems.value = getSelectedItems(event)
-
     }
 
 };
@@ -114,10 +113,13 @@ const clearSelection = (event) => {
             item.selected = false
         }
     )
+    plugin.eventBus.emit('assets-select',[])
+
 }
 const endSelection = (event) => {
     isSelecting.value = false;
     selectedItems.value = getSelectedItems(event);
+    plugin.eventBus.emit('assets-select',selectedItems.value)
 };
 
 const getSelectedItems = (event) => {
@@ -151,10 +153,12 @@ const getSelectedItems = (event) => {
     result[0] && result.forEach(data => {
         if (event && event.shiftKey) {
             data.selected = undefined
-            return
+        }else{
+            data.selected = true
         }
-        data.selected = true
     });
+
+    return currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
 };
 /**
  * 拖放相关逻辑
@@ -200,8 +204,6 @@ const onDragStart = async (event) => {
     event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
     event.dataTransfer.setData('text/uri-list', files.join('\n'));
     event.dataTransfer.effectAllowed = 'copyLink';
-
-
     // 自定义拖拽图标
     const iconPath = await imgeWithConut(files.length, true);
     event.dataTransfer.setDragImage(iconPath, 64, 64);

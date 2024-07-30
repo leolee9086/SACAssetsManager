@@ -3,9 +3,8 @@
     <div class="image-details fn__flex-column fn__flex-1">
       <div class="image-preview fn__flex">
         <div class="fn__space fn__flex-1"></div>
-        <multiSrcImage
-          :src="['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg', '/stage/icon.png']"
-          alt="Image Preview" style="width: 256px;height:256px;object-fit: contain" />
+        <multiSrcImage :multiple="true" :src="imageSrc" alt="Image Preview"
+          style="width: 256px;height:256px;object-fit: contain" />
         <div class="fn__space fn__flex-1"></div>
 
       </div>
@@ -22,8 +21,12 @@
           <input v-model="tags" placeholder="添加标签" />
         </div>
         <div class="folder-info">
-          <label>文件夹</label>
-          <input v-model="folder" placeholder="文件夹" />
+          <label>本地文件夹</label>
+          <input v-model="folder" disabled placeholder="文件夹" />
+        </div>
+        <div class="folder-info">
+          <label>所在笔记</label>
+          <input v-model="doc" disabled placeholder="文件夹" />
         </div>
         <div class="basic-info">
           <div>评分: <span>{{ rating }}</span></div>
@@ -35,6 +38,8 @@
           <div>修改日期: <span>{{ modifiedDate }}</span></div>
         </div>
         <button @click="exportImage">导出</button>
+        <button @click="importEagleMetas" v-if="eagleMetas[0]">导入{{eagleMetas.length}}个eagle元数据</button>
+
       </div>
     </div>
   </div>
@@ -43,9 +48,14 @@
 <script setup>
 import { ref } from 'vue';
 import multiSrcImage from './common/multiSrcImage.vue';
+import { plugin } from 'runtime'
+import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
+import  _path from '../../polyfills/path.js'
+import { kernelApi } from '../../asyncModules.js';
+const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
-const name = ref('浮雕灰度图 (11)');
+const name = ref('无选择');
 const note = ref('');
 const link = ref('');
 const tags = ref('');
@@ -60,6 +70,91 @@ const modifiedDate = ref('2017/04/18 19:37');
 const exportImage = () => {
   console.log('导出图片');
 };
+const eagleMetas = ref([])
+const doc=ref('')
+
+plugin.eventBus.on('assets-select', async(e) => {
+  const assets = Array.from(new Set(e.detail))
+  assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item => item)))
+  getLabel(assets)
+  format.value = 获取文件格式(assets)
+  folder.value = 获取本地文件夹(assets)
+  eagleMetas.value = await 搜集eagle元数据(assets)
+  doc.value =(await 获取所在笔记(assets)).map(item=>item.root_id).join(',')
+})
+const 获取所在笔记  = async (assets)=>{
+  const assetPaths = []
+  for (const asset of assets) {
+    assetPaths.push(asset.path)
+  }
+  const sql = `select * from assets where path in ('${assetPaths.join("','")}')`
+  const result = await kernelApi.sql({stmt:sql})
+  console.log(result)
+  return result
+}
+const 搜集eagle元数据 = async (assets) => {
+  const results = [];
+  for (const asset of assets) {
+    const assetDir = path.dirname(asset.path);
+    const metadataPath = path.join(assetDir, 'metadata.json').replace(/\\/g,'/')
+    try {
+      // 检查 metadata.json 文件是否存在
+      if( window.require('fs').existsSync(metadataPath)){
+        results.push({
+          path: asset.path,
+          metaPath: metadataPath
+        });
+      }
+
+    } catch (error) {
+      console.log(`未找到 ${asset.path} 的元数据文件`);
+    }
+  }
+
+  return results;
+}
+
+const getNames = (asset) => {
+  return asset.path.split('/').pop()
+}
+const 获取文件格式 = (assets) => {
+  if (assets.length === 0) return '';
+  const formats = new Set(assets.map(asset => asset.path.split('.').pop().toUpperCase()));
+  if (formats.size === 1) {
+    return Array.from(formats)[0];
+  } else {
+    return '多种';
+  }
+}
+const 获取本地文件夹 = (assets) => {
+  if (assets.length === 0) return '';
+
+  const paths = new Set(assets.map(asset => {
+    console.log(asset.path)
+    if (asset.path.startsWith('assets/')) {
+      const parts = path.dirname(siyuan.config.system.workspaceDir + '/data/' + asset.path).replace(/\\/g,'/')
+      return parts
+    } else {
+      const parts = path.dirname(asset.path).replace(/\\/g,'/')
+      return parts
+    }
+  }));
+
+  if (paths.size === 1) {
+    return Array.from(paths)[0];
+  } else {
+    return '多个目录';
+  }
+}
+const getLabel = (assets) => {
+  if (assets.length > 0) {
+    if (assets.length <= 3) {
+      name.value = assets.map(item => getNames(item)).join(', ');
+    } else {
+      name.value = `${getNames(assets[0])} 等 ${assets.length} 个文件`;
+    }
+  }
+}
 </script>
 
 <style scoped>
