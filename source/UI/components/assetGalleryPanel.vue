@@ -30,7 +30,7 @@
     </div>
 </template>
 <script setup>
-import { ref, inject, computed, nextTick, watch } from 'vue'
+import { ref, inject, computed, nextTick, watch, toRef } from 'vue'
 import DocBreadCrumb from './docbreadCrumb.vue'
 import LocalBreadCrumb from './localBreadCrumb.vue'
 import assetsGridRbush from './assetsGridRbush.vue';
@@ -43,8 +43,8 @@ watch(
     }
 )
 const path = _path.default
-const appData = inject('appData')
-const { block_id, box, localPath } = appData.tab.data
+const appData = toRef(inject('appData'))
+const { block_id, box, localPath } = appData.value.tab.data
 const size = ref(100)
 const root = ref('null')
 const layoutCount = reactive({ found: 0, loaded: 0 })
@@ -165,6 +165,7 @@ const getSelectedItems = (event) => {
  */
 import { imgeWithConut } from '../utils/decorations/iconGenerator.js'
 import { reactive } from '../../../static/vue.esm-browser.js';
+import { queryTags, saveTags } from '../../data/tags.js';
 const onDragStart = async (event) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
     let files = []
@@ -203,6 +204,8 @@ const onDragStart = async (event) => {
     event.dataTransfer.setData('text/plain', files.join('\n'));
     event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
     event.dataTransfer.setData('text/uri-list', files.join('\n'));
+    event.dataTransfer.setData('sac/data-assets', JSON.stringify(files.join('\n')));
+
     event.dataTransfer.effectAllowed = 'copyLink';
     // 自定义拖拽图标
     const iconPath = await imgeWithConut(files.length, true);
@@ -213,15 +216,19 @@ const onDragStart = async (event) => {
 const onDragOver = (event) => {
     event.preventDefault();
 };
-
+plugin.eventBus.on('update-tag',(event)=>{
+    console.log('update-tag',event.detail)
+    if(event.detail.label === appData.value.tab.data.tagLabel){
+        refreshPanel()
+    }
+})
 const handlerDrop = (event) => {
     event.preventDefault();
     console.log(event.dataTransfer.types)
     const data = event.dataTransfer.files;
     const droppedItems = Array.from(data).map(file => file.path.replace(/\\/g, '/'));
     if (window.require) {
-        let { localPath } = appData.tab.data
-        console.log(localPath)
+        let { localPath,tagLabel } = appData.value.tab.data
         if (localPath) {
             const fs = window.require('node:fs/promises');
             const copyPromises = droppedItems.map(file => {
@@ -245,6 +252,19 @@ const handlerDrop = (event) => {
                     console.error('Error during file copy:', err);
                 });
 
+        }else if(tagLabel){
+            (async()=>{
+
+            const tag =await queryTags(tagLabel)
+            console.log(tag)
+            droppedItems.forEach(
+                file=>{
+                    tag.assets.push(file)
+                }
+            );
+                await saveTags(plugin.tags)
+                plugin.eventBus.emit('update-tag',tag)
+            })()
         }
     }
 };

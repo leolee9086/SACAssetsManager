@@ -23,7 +23,7 @@
     </div>
 </template>
 <script setup>
-import { 获取tab附件数据, 获取本地文件夹数据 } from "../../data/siyuanAssets.js"
+import { 获取tab附件数据, 获取本地文件夹数据,获取标签列表数据 } from "../../data/siyuanAssets.js"
 import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted } from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
@@ -220,6 +220,10 @@ onMounted(async () => {
         附件数据组 = []
         await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
     } 
+    else if (appData.value.tab.data.tagLabel){
+        附件数据组 = []
+        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal)
+    }
     else if(appData.value.tab.data.type==='sql'){
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
         附件数据组.map(

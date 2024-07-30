@@ -257,9 +257,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
 
             updatedFromLastSearch=false
         }
-        console.time('load')
-        console.log(layout.length)
-        console.timeEnd('load')
+
         return tree.search(可见框)
     }
     return {

@@ -59,6 +59,23 @@ eventBus.on(
     }
 )
 eventBus.on(
+    'click-tag-item', (event) => {
+        clientApi.openTab({
+            app: app,
+            custom: {
+                icon: "iconAssets",
+                title: "资源",
+                data: {
+                    tagLabel: event.detail
+                },
+                id: plugin.name + 'AssetsTab'
+            },
+            position: 'right'
+        })
+    }
+)
+
+eventBus.on(
     'click-galleryLocalFIleicon',(event)=>{
         console.log(event.detail)
         clientApi.openTab(

@@ -126,9 +126,9 @@ const 获取文件格式 = (assets) => {
     return '多种';
   }
 }
+
 const 获取本地文件夹 = (assets) => {
   if (assets.length === 0) return '';
-
   const paths = new Set(assets.map(asset => {
     console.log(asset.path)
     if (asset.path.startsWith('assets/')) {

@@ -77,9 +77,9 @@ export  async function applyStmt(stmt) {
         }
     )
 }
-export async function applyURIStreamJson(uri, target, callback, step, signal) {
+export async function applyURIStreamJson(uri, target, callback, step, signal,options={}   ) {
     let _step = 0;
-    fetch(uri, { signal })
+    fetch(uri, { signal, ...options })
     .then(response => {
         if (response.ok) {
             // 获取响应的可读流

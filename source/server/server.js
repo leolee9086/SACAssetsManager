@@ -6,7 +6,7 @@ const cors = require('cors'); // 引入 cors 中间件
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { handlerImageFile } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
-import { globStream } from './handlers/stream-glob.js';
+import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
 const port = window.port
@@ -33,6 +33,9 @@ app.use(compression({
  * 流式遍历文件夹
  */
 app.get('/glob-stream', globStream)
+app.get('/file-list-stream', fileListStream)
+app.post('/file-list-stream', fileListStream)
+
 app.get('/count-etries', entryCounter)
 app.get('/listDisk',listDisk)
 app.get('/thumbnail', async (req, res) => {
