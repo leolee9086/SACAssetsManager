@@ -61,11 +61,11 @@ const link = ref('');
 const tags = ref('');
 const folder = ref('浮雕');
 const rating = ref('★★★★★');
-const dimensions = ref('1021 x 1024');
-const fileSize = ref('180.60 KB');
-const addedDate = ref('2023/10/11 21:00');
-const createdDate = ref('2023/01/16 18:25');
-const modifiedDate = ref('2017/04/18 19:37');
+const dimensions = ref('多种');
+const fileSize = ref('多种');
+const addedDate = ref('多种');
+const createdDate = ref('多种');
+const modifiedDate = ref('多种');
 
 const exportImage = () => {
   console.log('导出图片');
