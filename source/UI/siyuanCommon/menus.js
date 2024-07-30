@@ -1,6 +1,18 @@
-import { plugin, clientApi } from '../../asyncModules.js'
+import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
+import { applyStmt } from '../../data/galleryDefine.js'
 import * as menuItems from './menuItems.js'
 const { eventBus, events, app } = plugin
+eventBus.on('click-editorcontent',async(e)=>{
+    const {protyle,event} = e.detail
+    if(event.target.tagName==='IMG'){
+        const span = event.target.parentElement.parentElement
+        const path = event.target.getAttribute('data-src')
+        const assets =await applyStmt({
+            query:`select * from assets where path='${path}'`
+        })
+        plugin.eventBus.emit('assets-select',assets)
+    }
+})
 eventBus.on(events.打开附件, (e) => {
     const assetPath = e.detail
     const { shell } = window.require('@electron/remote');
