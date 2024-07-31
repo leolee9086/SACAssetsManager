@@ -108,7 +108,7 @@ export const 复制文件链接 = (e) => {
         label: "复制文件链接(markdown)",
         click: () => {
             const { assets } = e.detail
-            navigator.clipboard.writeText(assets.map(asset => `![${asset.name}](file:///${asset.path})`).join('\n'))
+            navigator.clipboard.writeText(assets.map(asset => `![${asset.name}](file:///${asset.path})`).join('\n\n'))
         }
     }
 }
