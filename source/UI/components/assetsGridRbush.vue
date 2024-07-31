@@ -10,8 +10,10 @@
                 ">
 
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
-                    <div :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
+                    <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
+                        :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
+                        :data-index="卡片数据.index"
                         :data-id="卡片数据.data.id">
                         <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
                             :cardData="卡片数据">
@@ -23,7 +25,7 @@
     </div>
 </template>
 <script setup>
-import { 获取tab附件数据, 获取本地文件夹数据,获取标签列表数据 } from "../../data/siyuanAssets.js"
+import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../data/siyuanAssets.js"
 import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted } from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
@@ -41,6 +43,68 @@ const columnCount = ref(1)
 const paddingLR = ref(100)
 const containerHeight = ref(102400)
 const showCard = ref(true)
+/**
+ * 
+ * 处理聚焦和切换等逻辑
+ */
+const handleClick = (e) => {
+    e.currentTarget.focus()
+}
+/**
+ * 
+ * @param e 
+ * 使用方向键来确定聚焦的元素
+ * 需要处理循环的情况
+ * 上下元素可以根据index和column来确定
+ * 左右元素可以根据index来确定
+ */
+const handleKeyDown = (e) => {
+    const index =parseInt( e.target.dataset.index)
+    let element
+    let layoutPre
+    let layoutNext
+    const isCtrl=e.ctrlKey
+    const isShift=e.shiftKey
+    switch (e.key) {
+        case 'ArrowUp':
+            layoutPre = 布局对象.value.layout.find(item =>item&& item.index === index - columnCount.value)
+            element = scrollContainer.value.querySelector(`[tabindex="${layoutPre.index}"]`)
+            if(isShift){
+                
+            }
+            element.focus()
+            break;
+        case 'ArrowDown':
+             layoutNext = 布局对象.value.layout.find(item => item && item.index === index + columnCount.value)
+            element = scrollContainer.value.querySelector(`[tabindex="${layoutNext.index}"]`)
+            element.focus()
+            break;
+        case 'ArrowLeft':
+             layoutPre = 布局对象.value.layout.find(item => item && item.index === index - 1)
+            element = scrollContainer.value.querySelector(`[tabindex="${layoutPre.index}"]`)
+            element.focus()
+            break;
+        case 'ArrowRight':
+             layoutNext = 布局对象.value.layout.find(item => item && item.index === index + 1)
+            element = scrollContainer.value.querySelector(`[tabindex="${layoutNext.index}"]`)
+            element.focus()
+            break;
+        case 'Enter':
+            const asset =布局对象.value.layout.find(item => item && item.index === index)
+            asset.selected=!asset.selected
+            break;
+        case 'Escape':
+            布局对象.value.layout.forEach(item => {
+                item.selected = false
+            })
+        break;
+    }
+}
+
+
+
+
+
 const 计算卡片样式 = (卡片数据) => {
     return {
         transform: `translate(${卡片数据.x}px,${卡片数据.y}px)`,
@@ -219,12 +283,12 @@ onMounted(async () => {
     if (appData.value.tab.data.localPath) {
         附件数据组 = []
         await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
-    } 
-    else if (appData.value.tab.data.tagLabel){
+    }
+    else if (appData.value.tab.data.tagLabel) {
         附件数据组 = []
         await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal)
     }
-    else if(appData.value.tab.data.type==='sql'){
+    else if (appData.value.tab.data.type === 'sql') {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
         附件数据组.map(
             (item, index) => {
@@ -279,3 +343,10 @@ onMounted(async () => {
     }
 })
 </script>
+<style scoped>
+.thumbnail-card:focus {
+    border-color: var(--b3-theme-secondary);
+    border-width: 1px;
+    border-style: solid;
+}
+</style>

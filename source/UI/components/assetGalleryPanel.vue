@@ -1,5 +1,5 @@
 <template>
-    <div @wheel="scaleListener" class=" fn__flex-column" style="max-height: 100%;" ref="root">
+    <div @wheel="scaleListener"  class=" fn__flex-column" style="max-height: 100%;" ref="root">
         <div class=" fn__flex " style="min-height:36px;align-items: center;">
             <div class="fn__space fn__flex-1"></div>
             <div class=" fn__flex ">
@@ -15,8 +15,8 @@
         </div>
         <div class="fn__space"></div>
         <div class="fn__flex-column fn__flex-1" @dragstart.stop="onDragStart" style="width:100%;overflow: hidden;"
-            @mousedown.left="startSelection" @click="endSelection" @dblclick="openMenu" @mousedup="endSelection"
-            @mousemove="updateSelection" @drop="handlerDrop" @click.right.stop.prevent.capture="clearSelection"
+            @mousedown.left="startSelection" @click.left="endSelection" @click.right.stop="openMenu" @mousedup="endSelection"
+            @mousemove="updateSelection" @drop="handlerDrop" 
             @dragover.prevent>
             <assetsGridRbush :globSetting=globSetting v-if="showPanel && globSetting" @ready="size = 300"
                 @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
@@ -30,7 +30,7 @@
     </div>
 </template>
 <script setup>
-import { ref, inject, computed, nextTick, watch, toRef } from 'vue'
+import { ref, inject, computed, nextTick, watch, toRef,onMounted } from 'vue'
 import DocBreadCrumb from './docbreadCrumb.vue'
 import LocalBreadCrumb from './localBreadCrumb.vue'
 import assetsGridRbush from './assetsGridRbush.vue';
@@ -85,6 +85,17 @@ function scaleListener(event) {
         event.stopPropagation()
     }
 }
+/**
+ * 键盘相关逻辑
+ */
+ onMounted(() => {
+    window.addEventListener('keydown', handleKeyDown);
+});
+const handleKeyDown = (event) => {
+    if(event.key === 'Escape'){
+        clearSelection()
+    }
+}
 /***
 * 选择相关逻辑
 */
@@ -117,6 +128,7 @@ const clearSelection = (event) => {
 
 }
 const endSelection = (event) => {
+    console.log(event.target)
     isSelecting.value = false;
     selectedItems.value = getSelectedItems(event);
     plugin.eventBus.emit('assets-select',selectedItems.value)

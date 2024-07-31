@@ -72,26 +72,37 @@ const exportImage = () => {
 };
 const eagleMetas = ref([])
 const doc=ref('')
+const lastAssetPaths = ref([]);
 
 plugin.eventBus.on('assets-select', async(e) => {
   const assets = Array.from(new Set(e.detail))
+  const assetPaths = assets.map(asset => asset.path);
+  
+  // 检查是否与上次的路径列表相同
+  if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
+    console.log('路径列表未变化，跳过查询');
+    return 
+  }
+  lastAssetPaths.value = assetPaths;
+
   assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item => item)))
   getLabel(assets)
   format.value = 获取文件格式(assets)
   folder.value = 获取本地文件夹(assets)
   eagleMetas.value = await 搜集eagle元数据(assets)
-  doc.value =(await 获取所在笔记(assets)).map(item=>item.root_id).join(',')
+  doc.value =(await 获取所在笔记(lastAssetPaths.value)).map(item=>item.root_id).join(',')
 })
-const 获取所在笔记  = async (assets)=>{
-  const assetPaths = []
-  for (const asset of assets) {
-    assetPaths.push(asset.path)
-  }
+
+const 获取所在笔记 = async (assetPaths) => {
+
+  // 更新最后处理的路径列表
+
   const sql = `select * from assets where path in ('${assetPaths.join("','")}')`
   const result = await kernelApi.sql({stmt:sql})
   console.log(result)
   return result
 }
+
 const 搜集eagle元数据 = async (assets) => {
   const results = [];
   for (const asset of assets) {

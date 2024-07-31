@@ -54,7 +54,7 @@ export const 在新页签打开文件所在路径 = (e) => {
         click: () => {
             const { assets } = e.detail
             assets.forEach(asset => {
-                if(asset.type==='local'){
+                if (asset.type === 'local') {
                     plugin.eventBus.emit(
                         'open-localfoldertab',
                         asset.path
@@ -69,28 +69,111 @@ export const 在新页签打开文件所在路径 = (e) => {
         }
     }
 }
-export const 使用TEColors插件分析图像颜色 = (e)=>{
+export const 使用TEColors插件分析图像颜色 = (e) => {
     return {
-        label:"使用TEColors插件分析图像颜色",
-        click:()=>{
-            const { assets } = e.detail 
-            assets.forEach(asset=>{
+        label: "使用TEColors插件分析图像颜色",
+        click: () => {
+            const { assets } = e.detail
+            assets.forEach(asset => {
                 const image = new Image()
-                const serverHost=`${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号}`
+                const serverHost = `${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号}`
                 image.src = `${serverHost}/thumbnail/?localPath=${encodeURIComponent(asset.path)}`
-                image.onload=()=>{
+                image.onload = () => {
                     siyuan.ws.app.plugins.forEach(
-                        item=>{
+                        item => {
                             item.eventBus.emit(
                                 'open-imageColors-palatte',
                                 image
                             )
                         }
                     )
-        
+
                 }
-    
+
             })
+        }
+    }
+}
+export const 复制文件地址 = (e) => {
+    return {
+        label: "复制文件地址",
+        click: () => {
+            const { assets } = e.detail
+            navigator.clipboard.writeText(assets.map(asset => asset.path).join('\n\n'))
+        }
+    }
+}
+export const 复制文件链接 = (e) => {
+    return {
+        label: "复制文件链接(markdown)",
+        click: () => {
+            const { assets } = e.detail
+            navigator.clipboard.writeText(assets.map(asset => `![${asset.name}](file:///${asset.path})`).join('\n'))
+        }
+    }
+}
+
+
+
+/**
+ * 
+ * @param {/api/asset/upload}
+
+The parameter is an HTTP Multipart form
+
+assetsDirPath: The folder path where assets are stored, with the data folder as the root path, for example:
+
+"/assets/": workspace/data/assets/ folder
+"/assets/sub/": workspace/data/assets/sub/ folder
+Under normal circumstances, it is recommended to use the first method, which is stored in the assets folder of the workspace, putting in a subdirectory has some side effects, please refer to the assets chapter of the user guide.
+
+file[]: Uploaded file list
+
+Return value
+
+{
+  "code": 0,
+  "msg": "",
+  "data": {
+    "errFiles": [""],
+    "succMap": {
+      "foo.png": "assets/foo-20210719092549-9j5y79r.png"
+    }
+  }
+}
+} e 
+ * @returns 
+ */
+
+export const 上传到assets并复制链接 = (e) => {
+    return {
+        label: "上传到assets并复制链接",
+        click: async () => {
+            const { assets } = e.detail
+            const assetsDirPath = '/assets/'
+            const formData = new FormData()
+            /**
+             * 这里应该是一个文件列表对象而不是路径数组
+             * 使用for循环避免异步问题
+             */
+            // 读取文件并添加到 FormData
+            for (let i = 0; i < assets.length; i++) {
+                const asset = assets[i]
+                // 读取文件
+                let fileData = require('fs').readFileSync(asset.path)
+                // 转换为 Blob 对象
+                let fileBlob = new Blob([fileData.buffer], { type: 'application/octet-stream' });
+                // 添加到 FormData，使用索引作为字段名，或者使用统一的字段名如 'files[]'
+                let fileObj=new File([fileData],require('path').basename(asset.path))
+                formData.append(`file[${i}]`, fileObj);
+
+            }
+            formData.append('assetsDirPath', assetsDirPath)
+            const res = await fetch('/api/asset/upload', {
+                method: 'POST',
+                body: formData
+            })
+            navigator.clipboard.writeText(assets.map(asset => `![${asset.name}](file:///${asset.path})`).join('\n'))
         }
     }
 }

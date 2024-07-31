@@ -1,12 +1,13 @@
 <template>
-    <div class="tagItem"
+    <div class="tagItem fn__flex"
      @click.ctrl.stop="openTagNotes" 
      @drop="handleDrop" 
      @dragover="handleDragover" 
      @dragleave="handleDragLeave"
      @click.stop="openTagAssets"     
+     style="line-height: 28px;min-height: 28px;padding:0 4px;"
      >
-        <div  class="fn__flex fn__flex-1 tag-item-content" :style="{ paddingLeft: (tag.depth + 1) * 16 + 'px' }">
+        <div  class="fn__flex fn__flex-1 tag-item-content" :style="{ paddingLeft: (tag.depth + 1) * 16 + 'px',alignItems:'baseline',borderRadius: '15px' }">
             <svg class="b3-list-item__graphic">
                 <use xlink:href="#iconTags"></use>
             </svg>
@@ -68,8 +69,8 @@ const tag=toRef(props.tag)
 .dragover{
     background-color: #f0f0f0;
 }
-.tag-item-content:hover{
+.tag-item-content:hover,.tag-item-content:hover *{
     background-color:var(--b3-theme-secondary);
-    color: var(--b3-theme-on-secondary);
+    color: var(--b3-theme-primary);
 }
 </style>

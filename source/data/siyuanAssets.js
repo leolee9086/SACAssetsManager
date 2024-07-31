@@ -19,6 +19,8 @@ export async function 获取本地文件夹数据(globSetting, target, callback,
 }
 export async function 获取标签列表数据(tagLabel, target, callback, step, signal) {
     let tag = await queryTags(tagLabel)
+    console.log(tagLabel,tag)
+
     let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream`
     applyURIStreamJson(uri, target, callback, step, signal,{method:'POST',body:tag.assets.join('\n')},)
 }

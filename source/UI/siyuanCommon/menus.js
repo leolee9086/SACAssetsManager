@@ -41,7 +41,57 @@ eventBus.on(
         })
     }
 )
-
+eventBus.on('open-menu-tag',(event)=>{
+    console.log(event.detail)
+    const tagLabel=event.detail.element.textContent
+    console.log(tagLabel)
+    event.detail.menu.addItem({
+        label: "打开附件管理视图",
+        click: () => {
+            clientApi.openTab({
+                app: app,
+                custom: {
+                    icon: "iconAssets",
+                    title: tagLabel,
+                    data: {
+                        tagLabel: tagLabel.trim()
+                    },
+                    id: plugin.name + 'AssetsTab'
+                },
+            })
+        }
+    })
+    event.detail.menu.addItem(
+        {
+            label: "列出标签下本地文件",
+            click: () => {
+                clientApi.openTab({
+                    app: app,
+                })
+            }
+        }
+    )
+    event.detail.menu.addItem(
+        {
+            label: "列出标签下附件",
+            click: () => {
+                clientApi.openTab({
+                    app: app,
+                })
+            }
+        }
+    )
+    event.detail.menu.addItem(
+        {
+            label: "列出标签下所有文件",
+            click: () => {
+                clientApi.openTab({
+                    app: app,
+                })
+            }
+        }
+    )
+})
 eventBus.on(
     'click-galleryboxicon', (event) => {
         clientApi.openTab({
@@ -149,18 +199,15 @@ eventBus.on(
             }
         )
         menu.addSeparator();
-        menu.addItem(
-            {
-                label: '打开',
-                submenu: [
-                    menuItems.打开资源文件所在笔记(e),
-                    menuItems.使用默认应用打开附件(e),
-                    menuItems.在文件管理器打开附件(e),
-                    menuItems.在新页签打开文件所在路径(e),
-                    menuItems.使用TEColors插件分析图像颜色(e)
-                ]
-            },
-        )
+        menu.addItem(menuItems.打开资源文件所在笔记(e))
+
+        menu.addItem(menuItems.使用默认应用打开附件(e))
+        menu.addItem(menuItems.在文件管理器打开附件(e))
+        menu.addItem(menuItems.在新页签打开文件所在路径(e))
+        menu.addSeparator();
+        menu.addItem(menuItems.复制文件地址(e))
+        menu.addItem(menuItems.复制文件链接(e))
+        menu.addItem(menuItems.上传到assets并复制链接(e))
         menu.addSeparator();
         menu.addItem(
             {
@@ -173,6 +220,15 @@ eventBus.on(
                     }
                 ]
             },
+        )
+        menu.addSeparator();
+        menu.addItem(
+            {
+                label: "插件",
+                submenu:[
+                    menuItems.使用TEColors插件分析图像颜色(e),
+                ]
+            }
         )
         eventBus.emit(
             'contextmenu-galleryitem', { event, assets, menu }
