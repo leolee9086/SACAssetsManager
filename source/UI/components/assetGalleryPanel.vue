@@ -93,12 +93,13 @@ function scaleListener(event) {
 });
 const handleKeyDown = (event) => {
     if(event.key === 'Escape'){
-        clearSelection()
+        clearSelectionWithLayout()
     }
 }
 /***
 * 选择相关逻辑
 */
+import { clearSelectionWithLayout } from '../utils/selection.js'
 const isSelecting = ref(false);
 const selectionBox = ref({ startX: 0, startY: 0, endX: 0, endY: 0 });
 const selectedItems = ref([])
@@ -118,12 +119,7 @@ const updateSelection = (event) => {
     }
 };
 const clearSelection = (event) => {
-    currentLayout.layout.forEach(
-        item => {
-            item.selected = false
-        }
-    )
-    plugin.eventBus.emit('assets-select',[])
+    clearSelectionWithLayout(currentLayout)
 }
 const endSelection = (event) => {
     console.log(event.target)

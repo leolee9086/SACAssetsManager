@@ -307,8 +307,6 @@ onMounted(async () => {
     border-color: var(--b3-theme-primary)!important;
     border-width: 1px;
     border-style: solid;
-    box-shadow: 0 10px 16px var(--b3-theme-primary) ;
-    transform: scale(1.05);
 
 }
 </style>
