@@ -64,11 +64,6 @@ const handleKeyDown = (e) => {
     return
 
 }
-
-
-
-
-
 const 计算卡片样式 = (卡片数据) => {
     return {
         transform: `translate(${卡片数据.x}px,${卡片数据.y}px)`,
