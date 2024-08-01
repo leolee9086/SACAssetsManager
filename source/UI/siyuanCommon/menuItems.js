@@ -112,9 +112,21 @@ export const 复制文件链接 = (e) => {
         }
     }
 }
-
-
-
+export const 复制文件缩略图地址 = (e) => {
+    return {
+        label: "复制文件缩略图",
+        click: () => {
+            const serverHost = `${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号}`
+            const { assets } = e.detail
+            let text = ''
+            assets.forEach(asset => {
+                const thumbnailSrc = `${serverHost}/thumbnail/?localPath=${encodeURIComponent(asset.path)}`
+                text+=`![${asset.name}](${thumbnailSrc})\n\n`
+            });
+            navigator.clipboard.writeText(text)
+        }
+    }
+}
 /**
  * 
  * @param {/api/asset/upload}

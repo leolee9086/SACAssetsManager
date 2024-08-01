@@ -14,7 +14,7 @@
             <div class="fn__space fn__flex-1"></div>
         </div>
         <div class="fn__space"></div>
-        <div class="fn__flex-column fn__flex-1" @dragstart.stop="onDragStart" style="width:100%;overflow: hidden;"
+        <div class="fn__flex-column fn__flex-1" @dragstart.stop="(e)=>onDragStart(e,currentLayout)" style="width:100%;overflow: hidden;"
             @mousedown.left="startSelection" @click.left="endSelection" @click.right.stop="openMenu" @mousedup="endSelection"
             @mousemove="updateSelection" @drop="handlerDrop" 
             @dragover.prevent>
@@ -48,7 +48,7 @@ const { block_id, box, localPath } = appData.value.tab.data
 const size = ref(100)
 const root = ref('null')
 const layoutCount = reactive({ found: 0, loaded: 0 })
-let currentLayout = null
+let currentLayout = reactive({})
 let currentLayoutOffsetTop = 0
 let currentLayoutContainer
 const showPanel = ref(true)
@@ -178,56 +178,12 @@ const getSelectedItems = (event) => {
 import { imgeWithConut } from '../utils/decorations/iconGenerator.js'
 import { reactive } from '../../../static/vue.esm-browser.js';
 import { queryTags, saveTags } from '../../data/tags.js';
-const onDragStart = async (event) => {
-    const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
-    let files = []
-    selectedData.forEach(data => {
-        let filePath = data.type === 'local' ? data.path : path.join(window.siyuan.config.system.workspaceDir, 'data', data.path)
-        filePath = filePath.replace(/\\/g, '/')
-        if (window.require('fs').existsSync(filePath)) {
-            files.push(filePath)
-        }
-    });
-    if (window.require) {
-        event.preventDefault();
-        const remote = window.require('@electron/remote');
-        const { webContents } = remote
-        const webContentsId = plugin.serverContainer.getWebContentsId();
-        const webviewWebContents = webContents.fromId(webContentsId)
-        let _webContents = remote.getCurrentWindow().webContents
-
-        //    let webContents = remote.getCurrentWindow().webContents;
-        files[0] && webviewWebContents.send('startDrag',
-            {
-                id: _webContents.id,
-                data: {
-                    files,
-                    icon: await imgeWithConut(files.length),
-                    options: {
-                        dragOperation: 'all',
-                        delay: 100 // 100毫秒的拖拽延迟
-                    }
-                }
-            }
-        )
-    }
-    event.dataTransfer.setData('application/x-electron-drag-data', JSON.stringify(files.join('\n')));
-    event.dataTransfer.setData('files', files.join('\n'));
-    event.dataTransfer.setData('text/plain', files.join('\n'));
-    event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
-    event.dataTransfer.setData('text/uri-list', files.join('\n'));
-    event.dataTransfer.setData('sac/data-assets', JSON.stringify(files.join('\n')));
-
-    event.dataTransfer.effectAllowed = 'copyLink';
-    // 自定义拖拽图标
-    const iconPath = await imgeWithConut(files.length, true);
-    event.dataTransfer.setDragImage(iconPath, 64, 64);
-    //window.blur()
+import { onDragOver,onDragStartWithLayout as dragStart } from '../utils/drag.js'
+const onDragStart = async(event)=>{
+    dragStart(event,currentLayout)
 }
 
-const onDragOver = (event) => {
-    event.preventDefault();
-};
+
 plugin.eventBus.on('update-tag',(event)=>{
     console.log('update-tag',event.detail)
     if(event.detail.label === appData.value.tab.data.tagLabel){

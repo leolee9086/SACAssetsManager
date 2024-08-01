@@ -207,6 +207,7 @@ eventBus.on(
         menu.addSeparator();
         menu.addItem(menuItems.复制文件地址(e))
         menu.addItem(menuItems.复制文件链接(e))
+        menu.addItem(menuItems.复制文件缩略图地址(e))
         menu.addItem(menuItems.上传到assets并复制链接(e))
         menu.addSeparator();
         menu.addItem(
