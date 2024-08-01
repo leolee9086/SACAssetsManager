@@ -35,7 +35,6 @@ app.use(compression({
 app.get('/glob-stream', globStream)
 app.get('/file-list-stream', fileListStream)
 app.post('/file-list-stream', fileListStream)
-
 app.get('/count-etries', entryCounter)
 app.get('/listDisk',listDisk)
 app.get('/thumbnail', async (req, res) => {
@@ -49,7 +48,7 @@ app.get('/thumbnail', async (req, res) => {
     const 缓存键 = generateCacheKey(源文件地址);
     const cachedData = cache[缓存键];
     if (cachedData) {
-        res.type('jpeg').send(cachedData);
+        res.type('png').send(cachedData);
         return;
     }
     if (源文件地址.endsWith('.sy')) {
@@ -82,15 +81,13 @@ app.listen(port, () => {
 });
 
 
-
+/**
+ * 这里是为了让主窗口的拖拽事件能够被其自身响应
+ */
 const remote = require('@electron/remote');
 const {ipcRenderer} = require('electron')
 const { webContents } = remote
-
-ipcRenderer.on('startDrag',(e,arg)=>{
-
-    console.log(e,arg)
-    
+ipcRenderer.on('startDrag',(e,arg)=>{    
     if(arg.id){
         const webContentsId = arg.id
         const webviewWebContents = webContents.fromId(webContentsId)

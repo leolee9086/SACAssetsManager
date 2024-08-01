@@ -116,7 +116,6 @@ const updateSelection = (event) => {
         selectionBox.value.endY = event.y;
         selectedItems.value = getSelectedItems(event)
     }
-
 };
 const clearSelection = (event) => {
     currentLayout.layout.forEach(
@@ -125,7 +124,6 @@ const clearSelection = (event) => {
         }
     )
     plugin.eventBus.emit('assets-select',[])
-
 }
 const endSelection = (event) => {
     console.log(event.target)
@@ -133,59 +131,19 @@ const endSelection = (event) => {
     selectedItems.value = getSelectedItems(event);
     plugin.eventBus.emit('assets-select',selectedItems.value)
 };
-
+import { getSelectionStatus } from '../utils/selection.js'
 const getSelectedItems = (event) => {
-    const galleryContainer = root.value.querySelector('.gallery_container')
-    let result = []
-    //处理单选
-    let cardElement = event.target
-    while (!cardElement.getAttribute('data-id')) {
-        cardElement = cardElement.parentElement
-        if (cardElement === galleryContainer) {
-            break
-        }
-    }
-    if (cardElement.getAttribute('data-id')) {
-        result.push(currentLayout.layout.find(item => { return item.data && item.data.id === cardElement.getAttribute('data-id') }))
-    }
-    //处理多选
-    const layoutRect = galleryContainer.getBoundingClientRect()
-
-    const { startX, startY, endX, endY } = selectionBox.value;
-    const minX = Math.min(startX, endX) - layoutRect.x - currentLayoutContainer.style.paddingLeft;
-    const maxX = Math.max(startX, endX) - layoutRect.x - currentLayoutContainer.style.paddingLeft;
-    const minY = Math.min(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
-    const maxY = Math.max(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
-    result = result.concat(currentLayout.searchByRect({
-        minX,
-        minY,
-        maxY,
-        maxX,
-    }))
-    result[0] && result.forEach(data => {
-        if (event && event.shiftKey) {
-            data.selected = undefined
-        }else{
-            data.selected = true
-        }
-    });
-
-    return currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
+    return getSelectionStatus(event,root,currentLayout,currentLayoutOffsetTop,selectionBox,currentLayoutContainer)
 };
 /**
  * 拖放相关逻辑
  */
-import { imgeWithConut } from '../utils/decorations/iconGenerator.js'
 import { reactive } from '../../../static/vue.esm-browser.js';
-import { queryTags, saveTags } from '../../data/tags.js';
 import { onDragOver,onDragStartWithLayout ,handlerDropWithTab } from '../utils/drag.js'
 const onDragStart = async(event)=>{
     onDragStartWithLayout(event,currentLayout)
 }
-
-
 plugin.eventBus.on('update-tag',(event)=>{
-    console.log('update-tag',event.detail)
     if(event.detail.label === appData.value.tab.data.tagLabel){
         refreshPanel()
     }
@@ -193,7 +151,6 @@ plugin.eventBus.on('update-tag',(event)=>{
 const handlerDrop = (event) => {
     handlerDropWithTab(event,appData.value.tab)
 };
-
 const selectionBoxStyle = computed(() => {
     const { startX, startY, endX, endY } = selectionBox.value;
     return {

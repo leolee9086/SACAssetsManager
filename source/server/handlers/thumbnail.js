@@ -19,7 +19,7 @@ export async function handlerImageFile(ctx,next) {
                     try {
                         const iconBuffer = Buffer.from(result, 'base64');
                         缓存对象[缓存键]=iconBuffer
-                        res.type('webp').send(iconBuffer);
+                        res.type('png').send(iconBuffer);
                     } catch (error) {
                         force && res.status(500).send('Error extracting icon: ' + error.message);
                         callback && callback()
@@ -59,7 +59,7 @@ export async function handlerImageFile(ctx,next) {
                 .toBuffer()
                 .then(buffer => {
                     缓存对象[缓存键]=buffer
-                    res.type('webp').send(buffer);
+                    res.type('png').send(buffer);
                 })
                 .catch(err => {
                     res.status(500).send('Error processing image: ' + err.message);

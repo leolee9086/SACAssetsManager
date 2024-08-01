@@ -58,47 +58,11 @@ const handleClick = (e) => {
  * 上下元素可以根据index和column来确定
  * 左右元素可以根据index来确定
  */
+import { handlerKeyDownWithLayout } from "../utils/selection.js";
 const handleKeyDown = (e) => {
-    const index =parseInt( e.target.dataset.index)
-    let element
-    let layoutPre
-    let layoutNext
-    const isCtrl=e.ctrlKey
-    const isShift=e.shiftKey
-    switch (e.key) {
-        case 'ArrowUp':
-            layoutPre = 布局对象.value.layout.find(item =>item&& item.index === index - columnCount.value)
-            element = scrollContainer.value.querySelector(`[tabindex="${layoutPre.index}"]`)
-            if(isShift){
-                
-            }
-            element.focus()
-            break;
-        case 'ArrowDown':
-             layoutNext = 布局对象.value.layout.find(item => item && item.index === index + columnCount.value)
-            element = scrollContainer.value.querySelector(`[tabindex="${layoutNext.index}"]`)
-            element.focus()
-            break;
-        case 'ArrowLeft':
-             layoutPre = 布局对象.value.layout.find(item => item && item.index === index - 1)
-            element = scrollContainer.value.querySelector(`[tabindex="${layoutPre.index}"]`)
-            element.focus()
-            break;
-        case 'ArrowRight':
-             layoutNext = 布局对象.value.layout.find(item => item && item.index === index + 1)
-            element = scrollContainer.value.querySelector(`[tabindex="${layoutNext.index}"]`)
-            element.focus()
-            break;
-        case 'Enter':
-            const asset =布局对象.value.layout.find(item => item && item.index === index)
-            asset.selected=!asset.selected
-            break;
-        case 'Escape':
-            布局对象.value.layout.forEach(item => {
-                item.selected = false
-            })
-        break;
-    }
+    handlerKeyDownWithLayout(e,布局对象.value,columnCount.value,scrollContainer.value)
+    return
+
 }
 
 
@@ -345,8 +309,11 @@ onMounted(async () => {
 </script>
 <style scoped>
 .thumbnail-card:focus {
-    border-color: var(--b3-theme-secondary);
+    border-color: var(--b3-theme-primary)!important;
     border-width: 1px;
     border-style: solid;
+    box-shadow: 0 10px 16px var(--b3-theme-primary) ;
+    transform: scale(1.05);
+
 }
 </style>
