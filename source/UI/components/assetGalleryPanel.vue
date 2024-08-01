@@ -178,9 +178,9 @@ const getSelectedItems = (event) => {
 import { imgeWithConut } from '../utils/decorations/iconGenerator.js'
 import { reactive } from '../../../static/vue.esm-browser.js';
 import { queryTags, saveTags } from '../../data/tags.js';
-import { onDragOver,onDragStartWithLayout as dragStart } from '../utils/drag.js'
+import { onDragOver,onDragStartWithLayout ,handlerDropWithTab } from '../utils/drag.js'
 const onDragStart = async(event)=>{
-    dragStart(event,currentLayout)
+    onDragStartWithLayout(event,currentLayout)
 }
 
 
@@ -191,50 +191,7 @@ plugin.eventBus.on('update-tag',(event)=>{
     }
 })
 const handlerDrop = (event) => {
-    event.preventDefault();
-    console.log(event.dataTransfer.types)
-    const data = event.dataTransfer.files;
-    const droppedItems = Array.from(data).map(file => file.path.replace(/\\/g, '/'));
-    if (window.require) {
-        let { localPath,tagLabel } = appData.value.tab.data
-        if (localPath) {
-            const fs = window.require('node:fs/promises');
-            const copyPromises = droppedItems.map(file => {
-                const destinationPath = path.join(localPath, path.basename(file));
-                return fs.copyFile(file, destinationPath)
-                    .then(() => {
-                        console.log(`Copied ${file} to ${destinationPath}`);
-                    })
-                    .catch(err => {
-                        console.error(`Error copying ${file} to ${destinationPath}:`, err);
-                    });
-            });
-
-            Promise.all(copyPromises)
-                .then(() => {
-                    refreshPanel();
-                })
-                .catch(err => {
-                    refreshPanel()
-
-                    console.error('Error during file copy:', err);
-                });
-
-        }else if(tagLabel){
-            (async()=>{
-
-            const tag =await queryTags(tagLabel)
-            console.log(tag)
-            droppedItems.forEach(
-                file=>{
-                    tag.assets.push(file)
-                }
-            );
-                await saveTags(plugin.tags)
-                plugin.eventBus.emit('update-tag',tag)
-            })()
-        }
-    }
+    handlerDropWithTab(event,appData.value.tab)
 };
 
 const selectionBoxStyle = computed(() => {

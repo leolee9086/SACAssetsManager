@@ -1,9 +1,9 @@
 import {imgeWithConut} from './decorations/iconGenerator.js'
 import {plugin} from '../../asyncModules.js'
+import { queryTags,saveTags } from '../../data/tags.js'
 export const onDragOver = (e) => {
     e.preventDefault()
 }
-
 export const onDragStartWithLayout =async (event,currentLayout) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
     let files = []
@@ -48,4 +48,52 @@ export const onDragStartWithLayout =async (event,currentLayout) => {
     const iconPath = await imgeWithConut(files.length, true);
     event.dataTransfer.setDragImage(iconPath, 64, 64);
     //window.blur()
+}
+
+
+
+export const handlerDropWithTab = (event,tab) => {
+    event.preventDefault();
+    const data = event.dataTransfer.files;
+    const droppedItems = Array.from(data).map(file => file.path.replace(/\\/g, '/'));
+    if (window.require) {
+        let { localPath,tagLabel } = tab.data
+        if (localPath) {
+            const fs = window.require('node:fs/promises');
+            const copyPromises = droppedItems.map(file => {
+                const destinationPath = path.join(localPath, path.basename(file));
+                return fs.copyFile(file, destinationPath)
+                    .then(() => {
+                        console.log(`Copied ${file} to ${destinationPath}`);
+                    })
+                    .catch(err => {
+                        console.error(`Error copying ${file} to ${destinationPath}:`, err);
+                    });
+            });
+
+            Promise.all(copyPromises)
+                .then(() => {
+                    refreshPanel();
+                })
+                .catch(err => {
+                    refreshPanel()
+
+                    console.error('Error during file copy:', err);
+                });
+
+        }else if(tagLabel){
+            (async()=>{
+
+            const tag =await queryTags(tagLabel)
+            droppedItems.forEach(
+                file=>{
+                    tag.assets.push(file)
+                }
+            );
+                await saveTags(plugin.tags)
+                plugin.eventBus.emit('update-tag',tag)
+            })()
+        }
+    }
+
 }
