@@ -234,7 +234,7 @@ eventBus.on(
         eventBus.emit(
             'contextmenu-galleryitem', { event, assets, menu }
         )
-        menu.open({ y: event.y, x: event.x })
+        menu.open({ y: event.y||e.detail.y, x: event.x||e.detail.x })
         document.addEventListener('mousedown', () => { menu.close }, { once: true })
     }
 )

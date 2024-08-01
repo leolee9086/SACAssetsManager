@@ -1,7 +1,7 @@
 import {plugin} from '../../asyncModules.js'
 window[Symbol.for('sacAssetsStatus')] = window[Symbol.for('sacAssetsStatus')] || {}
 const 全局选择状态 = window[Symbol.for('sacAssetsStatus')]
-export const getSelectionStatus = (envet, root, currentLayout, currentLayoutOffsetTop, selectionBox, currentLayoutContainer) => {
+export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffsetTop, selectionBox, currentLayoutContainer) => {
     const galleryContainer = root.value.querySelector('.gallery_container')
     let result = []
     //处理单选
@@ -28,6 +28,7 @@ export const getSelectionStatus = (envet, root, currentLayout, currentLayoutOffs
         maxY,
         maxX,
     }))
+    console.log(result)
     result[0] && result.forEach(data => {
         if (event && event.shiftKey) {
             data.selected = undefined
@@ -48,12 +49,11 @@ export const clearSelectionWithLayout = (currentLayout) => {
 export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollContainer) => {
     const index = parseInt(e.target.dataset.index)
     const currentItem = currentLayout.layout.find(item => item && item.index === index)
-    let element
-    let targetItem
-    let targetIndex
+    let element=scrollContainer.querySelector(`[tabindex="${index}"]`)
+    let targetItem=currentItem
+    let targetIndex=index
     const isCtrl = e.ctrlKey
     const isShift = e.shiftKey
-
     switch (e.key) {
         case 'ArrowUp':
              targetIndex = index - columnCount
@@ -92,7 +92,14 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
             break;
         case 'Enter':
             const asset = currentLayout.layout.find(item => item && item.index === index)
-            asset.selected = !asset.selected
+            element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
+
+            plugin.eventBus.emit(plugin.events.资源界面项目右键,{
+                event:e,
+                assets:currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data),
+                x:element.getBoundingClientRect().left+element.offsetWidth/2,
+                y:element.getBoundingClientRect().top+element.offsetHeight/2
+            })
             break;
         case 'Escape':
             currentLayout.layout.forEach(item => {

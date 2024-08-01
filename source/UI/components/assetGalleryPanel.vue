@@ -10,6 +10,7 @@
         </div>
         <DocBreadCrumb v-if="block_id || box" :block_id="block_id" :box="box"></DocBreadCrumb>
         <LocalBreadCrumb @globChange="(e) => globSetting = e" v-if="localPath" :localPath="localPath"></LocalBreadCrumb>
+        <TagCrumb v-if="tagLabel" :tagLabel="tagLabel"></TagCrumb>
         <div class=" fn__flex " style="align-items: center;">
             <div class="fn__space fn__flex-1"></div>
         </div>
@@ -33,6 +34,7 @@
 import { ref, inject, computed, nextTick, watch, toRef,onMounted } from 'vue'
 import DocBreadCrumb from './docbreadCrumb.vue'
 import LocalBreadCrumb from './localBreadCrumb.vue'
+import TagCrumb from './tagCrumb.vue'
 import assetsGridRbush from './assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
@@ -44,7 +46,7 @@ watch(
 )
 const path = _path.default
 const appData = toRef(inject('appData'))
-const { block_id, box, localPath } = appData.value.tab.data
+const { block_id, box, localPath,tagLabel } = appData.value.tab.data
 const size = ref(100)
 const root = ref('null')
 const layoutCount = reactive({ found: 0, loaded: 0 })
@@ -129,7 +131,7 @@ const endSelection = (event) => {
 };
 import { getSelectionStatus } from '../utils/selection.js'
 const getSelectedItems = (event) => {
-    return getSelectionStatus(event,root,currentLayout,currentLayoutOffsetTop,selectionBox,currentLayoutContainer)
+    return getSelectionStatus(event,root,currentLayout,currentLayoutOffsetTop,selectionBox.value,currentLayoutContainer)
 };
 /**
  * 拖放相关逻辑

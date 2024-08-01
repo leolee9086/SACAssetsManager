@@ -19,8 +19,8 @@
             <template v-for="(hpathItem, i) in blockData.fullHPath">
                 <span v-if="blockData.fullHPath[i + 1]"
                     class="protyle-breadcrumb__item protyle-breadcrumb__item--active"
-                    data-node-id="20210805000546-behj8io">
-                    <svg class="popover__block" data-id="20210805000546-behj8io">
+                    >
+                    <svg class="popover__block" >
                         <use xlink:href="#iconFile"></use>
                     </svg>
                     {{ blockData.fullHPath[i + 1] }}
