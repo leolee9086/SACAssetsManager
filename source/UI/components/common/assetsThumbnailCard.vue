@@ -16,7 +16,10 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;background-color:none`">
             {{ cardData.data.path.split('.').pop() }}
         </div>
-        <img v-bind="$attrs" ref="image" v-if="showImage" :style="`width:100%;border:none; 
+        <template v-if="showIframe">
+            <div v-html="buildFrame(cardData)"></div>
+        </template>
+        <img  v-bind="$attrs" ref="image" v-if="showImage" :style="`width:100%;border:none; 
         border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`"
         loading="lazy"
         draggable ='true'
@@ -38,6 +41,7 @@ const emit = defineEmits()
 const cardHeight = ref(cardData.width+0)
 const imageHeight = ref(cardData.width+0)
 const image= ref(null)
+const showIframe=ref(false)
 const showImage=ref('')
 const serverHost=`${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号}`
 let idleCallbackId;
@@ -46,11 +50,17 @@ let fn = () => showImage.value = true;
 onMounted(() => {
     idleCallbackId = requestIdleCallback(fn, { timeout : 300 });
 });
+const buildFrame=()=>{
+    return `<iframe  
+            style="position:absolute;width:100%;height:calc(100% - 36px);border:none;border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;" 
+        src="http://127.0.0.1:61728/stage/build/mobile?id=${cardData.data.id}"></iframe>`
 
+}
 onBeforeUnmount(() => {
     cancelIdleCallback(idleCallbackId);
 });
 function 更新图片尺寸(e, cardData) {
+    showIframe.value=true
     const previewer = e.target
     const dimensions = {
         width: previewer.naturalWidth,

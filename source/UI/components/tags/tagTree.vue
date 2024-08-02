@@ -35,7 +35,7 @@
     </div>
     <div class="fn__flex-1" style="margin-bottom: 8px;max-height: 30vh;">
         <div class="fn__flex-column fn__flex-1 file_tree_container" >
-            <TagItem  v-for="tag in tags" :key="tag.label" :tag="tag" @update:tag="updateTag" />
+            <TagItem  v-for="tag in tags" @delete:tag="deleteTag" :key="tag.label" :tag="tag" @update:tag="updateTag" />
         </div>
     </div>
 </template>
@@ -50,6 +50,10 @@ const updateTag=(tag)=>{
     saveTags(tags.value)
     plugin.eventBus.emit('update-tag',tag)
 
+}
+const deleteTag=(tag)=>{
+    tags.value=tags.value.filter(item=>item.label!==tag.label)
+    saveTags(tags.value)
 }
 const sorters = ref(
     [
@@ -88,7 +92,6 @@ onUnmounted(
 )
 onMounted(async () => {
     tags.value = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
-
     plugin.eventBus.on('ws-main', async (e) => {
         if (e.detail.cmd === 'transactions') {
             const data = e.detail.data
@@ -105,6 +108,6 @@ onMounted(async () => {
             tags.value = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
             autoRefreshFlag = false
         }
-    },3000)
+    },1000)
 })
 </script>

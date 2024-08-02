@@ -1,4 +1,4 @@
-import { plugin } from '../asyncModules.js'
+import { kernelApi, plugin } from '../asyncModules.js'
 import { applyStmt,applyURIStreamJson } from './galleryDefine.js'
 import  {getTagAssets, queryTags} from './tags.js'
 export async function 获取tab附件数据(tab, limit, offset) {
@@ -20,7 +20,21 @@ export async function 获取本地文件夹数据(globSetting, target, callback,
 export async function 获取标签列表数据(tagLabel, target, callback, step, signal) {
     let tag = await queryTags(tagLabel)
     console.log(tagLabel,tag)
-
+    let tagNotes = await kernelApi.fullTextSearchBlock({query:`#${tagLabel}#`})
+    tagNotes=tagNotes.blocks.map(item=>
+    {return{
+        id:item.id,
+        box:item.box,
+        type:'note',
+        created:item.created,
+        updated:item.updated,
+        path:item.path,
+        name:item.content
+    }}
+    )
+    for(let note of tagNotes){
+        target.push(note)
+    }
     let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream`
     applyURIStreamJson(uri, target, callback, step, signal,{method:'POST',body:tag.assets.join('\n')},)
 }

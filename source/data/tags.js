@@ -8,6 +8,7 @@ function traverseTags(tags, callback) {
         }
     });
 }
+
 export async function saveTags(tags){
     await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify(tags));
     plugin.tags = tags
@@ -25,16 +26,14 @@ export async function queryTags(tagLabel){
 }
 export async function getTagAssets(tags) {
     let data = [];
-    if(!tags){
         tags = await kernelApi.getTag({sort:0})
-    }
+    
     if (await workspace.exists(`/data/storage/petal/${plugin.name}/tags.json`)) {
         console.log('tag assets', await workspace.readFile(`/data/storage/petal/${plugin.name}/tags.json`));
         data = JSON.parse(await workspace.readFile(`/data/storage/petal/${plugin.name}/tags.json`));
     } else {
         await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify([]));
     }
-
     /***
      * 遍历tags的逻辑
      * 如果data里面存在tags中不存在的内容记录,删除它
@@ -50,14 +49,13 @@ export async function getTagAssets(tags) {
             existingLabels.add(item.label);
             let dataItem = data.find(d => d.label === item.label);
             if (dataItem) {
-                item.assets = dataItem.assets;
                 // 移除removed标记（如果存在）
                 if (dataItem.removed) {
                     delete dataItem.removed;
                 }
+                dataItem.count = item.count
+
             } else {
-                item.assets = [];
-                console.log('item', item);
                 data.push({ label: item.label, assets: [], ...item });
             }
         });
@@ -70,6 +68,9 @@ export async function getTagAssets(tags) {
         if (!existingLabels.has(item.label) && !item.removed) {
             item.removed = true;
         }
+        if(item.removed){
+            item.count = 0
+        }
         if (item.children) {
             delete item.children;
         }
@@ -80,6 +81,5 @@ export async function getTagAssets(tags) {
     // 保存更新后的data
     await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify(data));
     plugin.tags = data
-
     return data;
 }
