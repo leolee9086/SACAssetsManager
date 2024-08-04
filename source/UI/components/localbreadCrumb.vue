@@ -2,21 +2,11 @@
     <div @mouseover="showSubfolder = true" @mouseleave="showSubfolder = false">
         <div class="protyle-breadcrumb">
             <div class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">
-                <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active" data-node-path="">
-                    <svg class="popover__block" data-id="">
-                        <use :xlink:href="'#iconFolder'"></use>
-                    </svg>
-                    本地文件夹
-                </span>
+                <breadCrumbItem icon="iconFolder" label="本地文件夹"></breadCrumbItem>
+             
                 <span class="fn__space"></span>
                 <template v-for="(pathPttern, i) in localPathArray">
-                    <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active" @click="() => 打开本地资源视图(i)">
-                        <svg class="popover__block" data-id="">
-                            <use :xlink:href="i === 0 ? '#iconDatabase' : '#iconFolder'"></use>
-                        </svg>
-                        {{ pathPttern }}
-                    </span>
-                    <span class="fn__space"></span>
+                    <breadCrumbItem :icon="i === 0 ? '#iconDatabase' : '#iconFolder'" :label="pathPttern" @click="() => {打开本地资源视图(i)}"></breadCrumbItem>
                 </template>
                 <commonIcon class="protyle-breadcrumb__arrow" icon="iconRight"></commonIcon>
             </div>
@@ -46,7 +36,8 @@
     </div>
 </template>
 <script setup>
-import { defineProps, defineEmits, ref, onMounted, reactive } from 'vue'
+import { defineProps, defineEmits, ref, onMounted } from 'vue'
+import breadCrumbItem from './siyuan/breadCrumbItem.vue'
 import { getFilePatternsWithExtensions } from '../../utils/globBuilder.js';
 import {  plugin } from 'runtime'
 import {horizontalScroll} from '../utils/scroll.js'
@@ -55,7 +46,7 @@ const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 function toggleShow(子文件夹信息, i) {
     子文件夹信息.show = !子文件夹信息.show
-    let scheme = getFilePatternsWithExtensions(子文件夹数组.value, localPath.replace(/\\/g, '/') + '/')
+    let scheme = getFilePatternsWithExtensions(子文件夹数组.value, localPath.replace(/\\/g, '/') )
     emit('globChange', scheme)
 }
 const 子文件夹数组 = ref([])
@@ -82,8 +73,9 @@ const fetchSUbFolders = async () => {
     fetching=true
     retry+=1
     try {
-        子文件夹数组.value = await (await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(localPath)}`)).json()
+        子文件夹数组.value = await (await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(localPath.trim())}`)).json()
     } catch (e) {
+        console.warn(e)
         子文件夹数组.value = []
     }
     fetching=false

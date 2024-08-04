@@ -1,40 +1,28 @@
-const fs = require('fs');
-const path = require('path');
-
-const { Readable } = require('stream');
 const fastGlob = require('fast-glob');
-const { pipeline } = require('stream');
 
 async function countEntries(dir) {
-    console.log(dir)
     const files = await fastGlob(['*'], { cwd: dir + '/', absolute: true, onlyFiles: true, suppressErrors: true, dot: false });
     const folders = await fastGlob(['*'], { cwd: dir + '/', absolute: true, onlyDirectories: true, suppressErrors: true, dot: false });
-
+    console.log(dir,files,folders)
     return {
+        name: dir.split('/').pop(),
         fileCount: files.length,
-        folderCount: folders.length
+        folderCount: folders.length,
+        show: true
+
     };
 }
 
-async function getTopLevelFoldersInfo(rootDir, maxCount) {
-    console.log(rootDir)
+async function getTopLevelFoldersInfo(rootDir, maxCount=1000) {
     const topLevelFolders = await fastGlob(['*'], { cwd: rootDir, onlyDirectories: true, absolute: true, suppressErrors: true, dot: false });
     let folderInfoPromises = []
     for (let i = 0; i < maxCount; i++) {
         let folderPath = topLevelFolders[i]
         folderPath&&folderInfoPromises.push(
-            countEntries(folderPath).then(counts => ({
-                name: folderPath.split('/').pop(),
-                fileCount: counts.fileCount,
-                folderCount: counts.folderCount,
-                show: true
-            }))
+            countEntries(folderPath)
         )
     }
-
-
     const topLevelFoldersInfo = (await Promise.all(folderInfoPromises)).filter(item => item);
-
     return topLevelFoldersInfo;
 }
 export const entryCounter = async (req, res) => {
