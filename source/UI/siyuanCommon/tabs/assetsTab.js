@@ -38,6 +38,9 @@ export const 打开标签资源视图 = (tagLabel) => {
 
 }
 export const 打开本地资源视图 = (localPath) => {
+    if(!localPath.endsWith('/')){
+        localPath+='/'
+    }
     打开附件面板({
         icon: "iconAssets",
         title: "资源:本地",

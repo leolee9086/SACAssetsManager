@@ -84,7 +84,7 @@ onMounted(async () => {
     if (localPath) {
         localPath.replace(/\\/g, '/').split('/').forEach(
             item => {
-                localPathArray.value.push(item)
+                item&&localPathArray.value.push(item)
             }
         )
         setInterval(fetchSUbFolders,100)
