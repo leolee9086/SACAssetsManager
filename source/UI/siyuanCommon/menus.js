@@ -1,25 +1,14 @@
 import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
 import { applyStmt } from '../../data/galleryDefine.js'
 import * as menuItems from './menuItems.js'
+import { tabEvents } from './tabs/events.js'
 const { eventBus, events, app } = plugin
 eventBus.on(
     'click-editortitleicon', (event) => {
         event.detail.menu.addItem({
             label: "打开附件管理视图",
             click: () => {
-                clientApi.openTab({
-                    app: app,
-                    custom: {
-                        icon: "iconAssets",
-                        title: "资源",
-                        data: {
-                            block_id: event.detail.data.id
-                        },
-                        id: plugin.name + 'AssetsTab'
-                    },
-                    position: 'right'
-
-                })
+                eventBus.emit(tabEvents.打开笔记资源视图,event.detail.data.id)
             }
         })
     })
