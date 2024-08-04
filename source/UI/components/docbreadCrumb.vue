@@ -111,7 +111,6 @@ onMounted(() => {
                         return item.name
                     }
                 )
-                console.log(blockData.value)
             }
         )
     }
