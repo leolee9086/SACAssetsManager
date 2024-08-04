@@ -1,9 +1,11 @@
 import { imgeWithConut } from './decorations/iconGenerator.js'
 import { plugin } from '../../asyncModules.js'
 import { queryTags, saveTags } from '../../data/tags.js'
+import path from '../../polyfills/path.js'
 export const onDragOver = (e) => {
     e.preventDefault()
 }
+
 export const onDragStartWithLayout = async (event, currentLayout) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
     let files = []
