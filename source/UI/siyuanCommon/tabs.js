@@ -1,26 +1,14 @@
 import { clientApi,plugin } from "../../asyncModules.js";
 import {tabEvents} from './tabs/events.js'
-import {打开笔记本资源视图,打开标签资源视图} from './tabs/assetsTab.js'
+import {打开笔记本资源视图,打开标签资源视图,打开本地资源视图,打开附件面板} from './tabs/assetsTab.js'
 export {tabEvents}
 const {eventBus} = plugin
-const {openTab} = clientApi
 /**
  * 打开gallery数据
  */
-const assetsTabID=plugin.name+'AssetsTab'
-const {app}=plugin
 eventBus.on(
     tabEvents.打开附件面板, (event) => {
-        openTab({
-            app: app,
-            custom: {
-                icon: "iconAssets",
-                title: event.detail.title||"资源",
-                data: event.detail.data,
-                id: assetsTabID
-            },
-            position: 'right'
-        })
+        打开附件面板({icon:"iconAssets",title:event.detail.title||"资源",data:event.detail.data},event.detail.options)
     }
 )
 eventBus.on(
