@@ -1,24 +1,13 @@
 <template>
     <div class="protyle-breadcrumb">
         <div class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">
-            <breadCrumbItem 
-            label="工作空间" 
-            @click="打开全工作空间视图"
-            icon="/stage/icon.png" />
-            <breadCrumbItem 
-            :label="`🗃${blockData.fullHPath[0]}:`" 
-            @click="打开笔记本资源视图"
-            :data-box="blockData.meta && blockData.meta.box"
-            />
+            <breadCrumbItem label="工作空间" @click="打开全工作空间视图" icon="/stage/icon.png" />
+            <breadCrumbItem :label="`🗃${blockData.fullHPath[0]}:`" @click="打开笔记本资源视图"
+                :data-box="blockData.meta && blockData.meta.box" />
             <template v-for="(hpathItem, i) in blockData.fullHPath">
-                <breadCrumbItem 
-                @click="打开笔记资源视图(i)"
-                v-if="i<=blockData.fullHPath.length-2"
-                :label="blockData.fullHPath[i + 1]"
-                :data-box="blockData.meta && blockData.meta.box"
-                :isLast="i === blockData.fullHPath.length - 1"
-                icon="#iconFile"
-                />
+                <breadCrumbItem @click="打开笔记资源视图(i)" v-if="i <= blockData.fullHPath.length - 2"
+                    :label="blockData.fullHPath[i + 1]" :data-box="blockData.meta && blockData.meta.box"
+                    :isLast="i === blockData.fullHPath.length - 1" icon="#iconFile" />
             </template>
             <svg class="protyle-breadcrumb__arrow">
                 <use xlink:href="#iconRight"></use>
@@ -40,13 +29,25 @@ import { defineProps, ref, onMounted } from 'vue'
 import { kernelApi, plugin } from 'runtime'
 import { tabEvents } from '../siyuanCommon/tabs.js';
 import breadCrumbItem from './siyuan/breadCrumbItem.vue';
-const 打开全工作空间视图 =()=>{
+const 打开全工作空间视图 = () => {
     plugin.eventBus.emit(
         'open-gallery-data', {
-        title:"全部资源",
+        title: "全部资源",
         data: {
-            type:'sql',
-            stmt:'select * from assets limit 102400'
+            type: 'sql',
+            stmt: 'select * from assets limit 102400',
+            breadCrumbItems: [{
+                icon: '/stage/icon.png',
+                label: '工作空间',
+                gallery: {
+                    type: 'sql',
+                    stmt: 'select * from assets limit 102400',
+                }
+            }],
+            subPath: {
+                type: 'js',
+                content: '()=>{return window.siyuan.notebooks}'
+            }
         }
     }
     )
@@ -61,7 +62,7 @@ const 打开笔记本资源视图 = () => {
     )
 }
 const 打开笔记资源视图 = (index) => {
-    const pathArray = blockData.value.meta.path.split('.')[0].split('/').filter(item=>item)
+    const pathArray = blockData.value.meta.path.split('.')[0].split('/').filter(item => item)
     console.log(pathArray)
     plugin.eventBus.emit(tabEvents.打开笔记资源视图, pathArray[index])
 }
