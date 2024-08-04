@@ -45,6 +45,7 @@
 <script setup>
 import { defineProps, ref, onMounted } from 'vue'
 import { kernelApi, plugin } from 'runtime'
+import { tabEvents } from '../siyuanCommon/tabs.js';
 const 打开全工作空间视图 =()=>{
     plugin.eventBus.emit(
         'open-gallery-data', {
@@ -58,7 +59,7 @@ const 打开全工作空间视图 =()=>{
 }
 const 打开笔记本资源视图 = () => {
     (box || (blockData.value.meta && blockData.value.meta.box)) && plugin.eventBus.emit(
-        'click-galleryboxicon', {
+        tabEvents.打开笔记本资源视图, {
         data: {
             box: box || blockData.value.meta.box,
         }

@@ -1,21 +1,38 @@
 import { clientApi,plugin } from "../../asyncModules.js";
+import {tabEvents} from './tabs/events.js'
+export {tabEvents}
 const {eventBus} = plugin
 const {openTab} = clientApi
 /**
  * 打开gallery数据
  */
-plugin.events.打开附件面板 = 'open-gallery-data'
+const assetsTabID=plugin.name+'AssetsTab'
+const {app}=plugin
 eventBus.on(
-    'open-gallery-data', (event) => {
+    tabEvents.打开附件面板, (event) => {
         openTab({
             app: app,
             custom: {
                 icon: "iconAssets",
                 title: event.detail.title||"资源",
                 data: event.detail.data,
-                id: plugin.name + 'AssetsTab'
+                id: assetsTabID
             },
             position: 'right'
+        })
+    }
+)
+eventBus.on(
+    tabEvents.打开笔记本资源视图, (event) => {
+        clientApi.openTab({
+            app: app,
+            custom: {
+                icon: "iconAssets",
+                title: "资源",
+                data: {
+                    box: event.detail.data.box
+                },
+            },
         })
     }
 )
@@ -29,7 +46,7 @@ eventBus.on(
                 data: {
                     tagLabel: event.detail
                 },
-                id: plugin.name + 'AssetsTab'
+                id: assetsTabID
             },
             position: 'right'
         })
@@ -47,7 +64,7 @@ eventBus.on(
                     data: {
                         localPath: event.detail
                     },
-                    id: plugin.name + 'AssetsTab'
+                    id: assetsTabID
                 },
                 position: 'right'
     
@@ -67,7 +84,7 @@ eventBus.on(
                     data: {
                         localPath: require('path').dirname(event.detail)
                     },
-                    id: plugin.name + 'AssetsTab'
+                    id: assetsTabID
                 },
                 position: 'right'
     
