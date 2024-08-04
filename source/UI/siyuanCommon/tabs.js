@@ -1,6 +1,6 @@
 import { clientApi,plugin } from "../../asyncModules.js";
 import {tabEvents} from './tabs/events.js'
-import {打开笔记本资源视图,打开标签资源视图,打开本地资源视图,打开附件面板} from './tabs/assetsTab.js'
+import {打开笔记本资源视图,打开标签资源视图,打开笔记资源视图,打开本地资源视图,打开附件面板} from './tabs/assetsTab.js'
 export {tabEvents}
 const {eventBus} = plugin
 /**
@@ -14,6 +14,11 @@ eventBus.on(
 eventBus.on(
     tabEvents.打开笔记本资源视图, (event) => {
         打开笔记本资源视图(event.detail.data.box)
+    }
+)   
+eventBus.on(
+    tabEvents.打开笔记资源视图, (event) => {
+        打开笔记资源视图(event.detail)
     }
 )
 eventBus.on(
