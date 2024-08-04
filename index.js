@@ -97,7 +97,7 @@ module.exports = class SACAssetsManager extends Plugin {
    * 移动到menus.js中
    */
   添加菜单() {
-    import(`/plugins/${this.name}/source/UI/siyuanCommon/menus.js`)
+    import(`/plugins/${this.name}/source/UI/siyuanCommon/index.js`)
 
   }
   创建资源Tab类型() {

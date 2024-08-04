@@ -2,6 +2,31 @@ import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
 import { applyStmt } from '../../data/galleryDefine.js'
 import * as menuItems from './menuItems.js'
 const { eventBus, events, app } = plugin
+eventBus.on(
+    'click-editortitleicon', (event) => {
+        event.detail.menu.addItem({
+            label: "打开附件管理视图",
+            click: () => {
+                clientApi.openTab({
+                    app: app,
+                    custom: {
+                        icon: "iconAssets",
+                        title: "资源",
+                        data: {
+                            block_id: event.detail.data.id
+                        },
+                        id: plugin.name + 'AssetsTab'
+                    },
+                    position: 'right'
+
+                })
+            }
+        })
+    })
+
+/**
+ * 点击笔记内容中的图片
+ */
 eventBus.on('click-editorcontent',async(e)=>{
     const {protyle,event} = e.detail
     if(event.target.tagName==='IMG'){
@@ -13,6 +38,9 @@ eventBus.on('click-editorcontent',async(e)=>{
         plugin.eventBus.emit('assets-select',assets)
     }
 })
+/**
+ * 打开附件
+ */
 eventBus.on(events.打开附件, (e) => {
     const assetPath = e.detail
     const { shell } = window.require('@electron/remote');
@@ -22,29 +50,20 @@ eventBus.on(events.打开附件, (e) => {
         }
     });
 })
+/**
+ * 打开附件所在路径
+ */
 eventBus.on(events.打开附件所在路径, (e) => {
     const assetPath = e.detail
     const { shell } = window.require('@electron/remote');
     shell.showItemInFolder(assetPath);
 })
-eventBus.on(
-    'open-gallery-data', (event) => {
-        clientApi.openTab({
-            app: app,
-            custom: {
-                icon: "iconAssets",
-                title: event.detail.title||"资源",
-                data: event.detail.data,
-                id: plugin.name + 'AssetsTab'
-            },
-            position: 'right'
-        })
-    }
-)
+
+/**
+ * 打开菜单标签
+ */
 eventBus.on('open-menu-tag',(event)=>{
-    console.log(event.detail)
     const tagLabel=event.detail.element.textContent
-    console.log(tagLabel)
     event.detail.menu.addItem({
         label: "打开附件管理视图",
         click: () => {
@@ -92,101 +111,7 @@ eventBus.on('open-menu-tag',(event)=>{
         }
     )
 })
-eventBus.on(
-    'click-galleryboxicon', (event) => {
-        clientApi.openTab({
-            app: app,
-            custom: {
-                icon: "iconAssets",
-                title: "资源",
-                data: {
-                    box: event.detail.data.box
-                },
-                id: plugin.name + 'AssetsTab'
-            },
-            position: 'right'
-        })
-    }
-)
-eventBus.on(
-    'click-tag-item', (event) => {
-        clientApi.openTab({
-            app: app,
-            custom: {
-                icon: "iconAssets",
-                title: "资源",
-                data: {
-                    tagLabel: event.detail
-                },
-                id: plugin.name + 'AssetsTab'
-            },
-            position: 'right'
-        })
-    }
-)
 
-eventBus.on(
-    'click-galleryLocalFIleicon',(event)=>{
-        console.log(event.detail)
-        clientApi.openTab(
-            {
-                app:app,
-                custom: {
-                    icon: "iconAssets",
-                    title: "本地文件夹",
-                    data: {
-                        localPath: event.detail
-                    },
-                    id: plugin.name + 'AssetsTab'
-                },
-                position: 'right'
-    
-            }
-        )
-    }
-)
-
-eventBus.on(
-    'open-localfoldertab',(event)=>{
-        console.log(event.detail)
-        clientApi.openTab(
-            {
-                app:app,
-                custom: {
-                    icon: "iconAssets",
-                    title: "本地文件夹",
-                    data: {
-                        localPath: require('path').dirname(event.detail)
-                    },
-                    id: plugin.name + 'AssetsTab'
-                },
-                position: 'right'
-    
-            }
-        )
-    }
-)
-eventBus.on(
-    'click-editortitleicon', (event) => {
-        event.detail.menu.addItem({
-            label: "打开附件管理视图",
-            click: () => {
-                clientApi.openTab({
-                    app: app,
-                    custom: {
-                        icon: "iconAssets",
-                        title: "资源",
-                        data: {
-                            block_id: event.detail.data.id
-                        },
-                        id: plugin.name + 'AssetsTab'
-                    },
-                    position: 'right'
-
-                })
-            }
-        })
-    })
 eventBus.on(
     'rightclick-galleryitem', (e) => {
         const { event, assets } = e.detail
@@ -200,7 +125,6 @@ eventBus.on(
         )
         menu.addSeparator();
         menu.addItem(menuItems.打开资源文件所在笔记(e))
-
         menu.addItem(menuItems.使用默认应用打开附件(e))
         menu.addItem(menuItems.在文件管理器打开附件(e))
         menu.addItem(menuItems.在新页签打开文件所在路径(e))
