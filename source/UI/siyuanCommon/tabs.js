@@ -29,7 +29,6 @@ eventBus.on(
 
 eventBus.on(
     'open-localfoldertab',(event)=>{
-
         打开本地资源视图(require('path').dirname(event.detail))
     }
 )
