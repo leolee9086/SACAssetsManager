@@ -1,30 +1,25 @@
 <template>
     <div class="protyle-breadcrumb">
         <div class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">
-            <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active"
+            <breadCrumbItem 
+            label="工作空间" 
             @click="打开全工作空间视图"
-            >
-                <img src="/stage/icon.png" style="    height: 14px;
-    width: 14px;
-    flex-shrink: 0;
-    color: var(--b3-theme-on-surface);">
-                工作空间
-            </span>
-            <span class="protyle-breadcrumb__item protyle-breadcrumb__item--active" @click="打开笔记本资源视图"
-                :data-box="blockData.meta && blockData.meta.box">
-                🗃
-                {{ blockData.fullHPath[0] }}:
-            </span>
+            icon="/stage/icon.png" />
+            <breadCrumbItem 
+            :label="`🗃${blockData.fullHPath[0]}:`" 
+            @click="打开笔记本资源视图"
+            :data-box="blockData.meta && blockData.meta.box"
+            />
+  
 
             <template v-for="(hpathItem, i) in blockData.fullHPath">
-                <span v-if="blockData.fullHPath[i + 1]"
-                    class="protyle-breadcrumb__item protyle-breadcrumb__item--active"
-                    >
-                    <svg class="popover__block" >
-                        <use xlink:href="#iconFile"></use>
-                    </svg>
-                    {{ blockData.fullHPath[i + 1] }}
-                </span>
+                <breadCrumbItem 
+                v-if="i<=blockData.fullHPath.length-2"
+                :label="blockData.fullHPath[i + 1]"
+                :data-box="blockData.meta && blockData.meta.box"
+                :isLast="i === blockData.fullHPath.length - 1"
+                icon="#iconFile"
+                />
             </template>
             <svg class="protyle-breadcrumb__arrow">
                 <use xlink:href="#iconRight"></use>
@@ -46,6 +41,7 @@
 import { defineProps, ref, onMounted } from 'vue'
 import { kernelApi, plugin } from 'runtime'
 import { tabEvents } from '../siyuanCommon/tabs.js';
+import breadCrumbItem from './siyuan/breadCrumbItem.vue';
 const 打开全工作空间视图 =()=>{
     plugin.eventBus.emit(
         'open-gallery-data', {
@@ -60,6 +56,15 @@ const 打开全工作空间视图 =()=>{
 const 打开笔记本资源视图 = () => {
     (box || (blockData.value.meta && blockData.value.meta.box)) && plugin.eventBus.emit(
         tabEvents.打开笔记本资源视图, {
+        data: {
+            box: box || blockData.value.meta.box,
+        }
+    }
+    )
+}
+const 打开笔记资源视图 = (block_id) => {
+    plugin.eventBus.emit(
+        tabEvents.打开笔记资源视图, {
         data: {
             box: box || blockData.value.meta.box,
         }
