@@ -13,8 +13,7 @@
                     <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
                         :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
-                        :data-index="卡片数据.index"
-                        :data-id="卡片数据.data.id">
+                        :data-index="卡片数据.index" :data-id="卡片数据.data.id">
                         <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
                             :cardData="卡片数据">
                         </assetsThumbnailCard>
@@ -47,8 +46,10 @@ const showCard = ref(true)
  * 
  * 处理聚焦和切换等逻辑
  */
+ import { handlerKeyDownWithLayout, setFocus } from "../utils/selection.js";
+
 const handleClick = (e) => {
-    e.currentTarget.focus()
+    setFocus(e.currentTarget)
 }
 /**
  * 
@@ -58,15 +59,16 @@ const handleClick = (e) => {
  * 上下元素可以根据index和column来确定
  * 左右元素可以根据index来确定
  */
-import { handlerKeyDownWithLayout } from "../utils/selection.js";
 const handleKeyDown = (e) => {
-    handlerKeyDownWithLayout(e,布局对象.value,columnCount.value,scrollContainer.value)
+    handlerKeyDownWithLayout(e, 布局对象.value, columnCount.value, scrollContainer.value)
     return
 
 }
 const 计算卡片样式 = (卡片数据) => {
     return {
-        transform: `translate(${卡片数据.x}px,${卡片数据.y}px)`,
+        transform: 'none',
+        top: `${卡片数据.y}px`,
+        left: `${卡片数据.x+paddingLR.value}px`,
         height: 卡片数据.height + 'px',
         width: 卡片数据.width + 'px',
         position: 'absolute',
@@ -304,7 +306,7 @@ onMounted(async () => {
 </script>
 <style scoped>
 .thumbnail-card:focus {
-    border-color: var(--b3-theme-primary)!important;
+    border-color: var(--b3-theme-primary) !important;
     border-width: 1px;
     border-style: solid;
 

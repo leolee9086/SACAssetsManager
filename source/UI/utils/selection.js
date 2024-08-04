@@ -47,6 +47,7 @@ export const clearSelectionWithLayout = (currentLayout) => {
 
 
 export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollContainer) => {
+    if(e.target.dataset&&e.target.dataset.index>=0){
     const index = parseInt(e.target.dataset.index)
     const currentItem = currentLayout.layout.find(item => item && item.index === index)
     let element=scrollContainer.querySelector(`[tabindex="${index}"]`)
@@ -108,7 +109,8 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
             break;
     }
     if(element){
-        element.focus()
+            setFocus(element)
+        
     }
     if (targetItem) {
         if (isShift) {
@@ -125,4 +127,20 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
         }
     }
     plugin.eventBus.emit('assets-select', currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data))
+}
+}
+export function setFocus(element) {
+    if(!element.classList.contains('focused')){
+
+    element.focus()
+
+    // 移除所有元素的焦点样式
+    document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
+    
+    // 为目标元素添加焦点样式
+    element.classList.add('focused');
+    
+    // 确保元素在视图中可见
+    element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 }
