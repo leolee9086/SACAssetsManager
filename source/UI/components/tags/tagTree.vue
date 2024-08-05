@@ -41,7 +41,7 @@
 </template>
 <script setup>
 import { onMounted, ref,onUnmounted } from 'vue';
-import { kernelApi, plugin } from '../../../asyncModules.js';
+import { kernelApi, plugin,clientApi } from '../../../asyncModules.js';
 import TagItem from './tagItem.vue'
 import {getTagAssets,saveTags} from '../../../data/tags.js'
 const tags = ref([])
@@ -52,8 +52,15 @@ const updateTag=(tag)=>{
 
 }
 const deleteTag=(tag)=>{
-    tags.value=tags.value.filter(item=>item.label!==tag.label)
-    saveTags(tags.value)
+    if(tag.assets.length){
+        clientApi.confirm('确认删除标签',`标签下仍有${tag.assets.length}个资源，确认删除吗？`,()=>{
+            tags.value=tags.value.filter(item=>item.label!==tag.label)
+            saveTags(tags.value)
+        })
+    }else{
+        tags.value=tags.value.filter(item=>item.label!==tag.label)
+        saveTags(tags.value)
+    }
 }
 const sorters = ref(
     [

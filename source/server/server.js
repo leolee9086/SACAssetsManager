@@ -9,6 +9,7 @@ import "./licenseChecker.js"
 import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
+import db  from './dataBase/index.js';
 const port = window.port
 const cache = {}
 /**
