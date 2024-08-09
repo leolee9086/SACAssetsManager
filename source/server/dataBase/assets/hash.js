@@ -1,13 +1,3 @@
-export const createHashFromUri = (db, uri) => {
-    db.prepare(
-        `CREATE TABLE IF NOT EXISTS hash (
-            id TEXT NOT NULL,
-            hash TEXT NOT NULL,
-            UNIQUE(id,hash)
-        )`
-    ).run();
-}
-
 /**
  * 判断一个uri是否是本地文件
  * @param {string} uri 
@@ -17,22 +7,46 @@ export const isLocal = (uri) => {
     return uri.startsWith('file://') 
 }
 
+
 /**
- * 判断一个uri是否是远程文件
+ * 判断一个uri是否是本地文件
  * @param {string} uri 
  * @returns {boolean}
  */
-export const isRemote = (uri) => {
-    return !isLocal(uri);
-}
+export const isLocalFileUri = (uri) => {
+    // 检查是否以 file:// 开头
+    if (!uri.startsWith('file://')) {
+        return false;
+    }
+    // 移除 file:// 前缀并解码
+    const filePath = decodeURIComponent(uri.substring('file://'.length));
+    // 检查路径是否为绝对路径
+    if (!path.isAbsolute(filePath)) {
+        return false;
+    }
+    return true;
+};
 
 /**
- * 对于远程文件,使用fetch获取文件内容,然后生成hash
+ * 对于远程文件,直接使用uri创建hash
  * @param {string} uri 
  * @returns {Promise<string>} 哈希值
  */
 export const createHashFromRemote = (uri) => {
-    return fetch(uri).then(res => res.text()).then(text => createHash(text));
+    const hash = crypto.createHash('sha256');
+    hash.update(uri);
+
+    // 返回哈希值的Promise
+    return new Promise((resolve, reject) => {
+        hash.digest((err, buffer) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(buffer.toString('hex'));
+            }
+        });
+    });
+
 }
 
 /**
@@ -71,11 +85,18 @@ export const createHashFromLocal = (uri) => {
 };
 /**
  * 生成种子
- * @param {string} uri 
- * @param {number} size 
- * @returns {string}
+ * @param {string} uri 文件的URI
+ * @param {number} size 文件的大小，对于远程或未知大小的文件使用-1
+ * @returns {string} 种子字符串
  */
 export const genSeed = (uri, size) => {
-    return `${uri}-${size}`;
-}
+    // 如果文件大小未知，使用-1作为特殊标记
+    const effectiveSize = size === -1 ? 'unknown' : size.toString();
 
+    // 使用文件URI和文件大小（或特殊标记）作为输入，创建一个哈希值
+    const hash = crypto.createHash('sha256');
+    hash.update(uri + effectiveSize);
+
+    // 返回哈希值的十六进制字符串
+    return hash.digest('hex');
+};

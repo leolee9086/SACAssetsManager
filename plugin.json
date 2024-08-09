@@ -1,5 +1,5 @@
 {
-  "name": "SACAssetsManager",
+  "name": "SACSearch",
   "author": "椽承设计",
   "url": "https://github.com/leolee9086/SAC",
   "version": "0.0.1",
@@ -20,8 +20,8 @@
     "desktop-window"
   ],
   "displayName": {
-    "default": "SACAssetsManager",
-    "zh_CN": "SAC资源管理器"
+    "default": "SACSearch",
+    "zh_CN": "SAC搜索增强"
   },
   "description": {
     "default": "",

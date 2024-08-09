@@ -3,13 +3,23 @@ const app = express();
 const path = require('path')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
+const {fdir} = require('fdir')
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { handlerImageFile } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
-import db  from './dataBase/index.js';
+console.log(fdir)
+console.time('fdir')
+// create the builder
+const api = new fdir().withFullPaths().crawl("D:/");
+
+// get all files in a directory synchronously
+const files = api.sync();
+console.timeEnd('fdir')
+console.log(files,api)
+
 const port = window.port
 const cache = {}
 /**

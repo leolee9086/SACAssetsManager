@@ -6,9 +6,8 @@
     "electron-edge-js": "^31.0.0",
     "express": "^4.19.2",
     "fast-glob": "^3.3.2",
+    "fdir": "^6.2.0",
     "fs-extra": "^11.2.0",
-    "sharp": "^0.33.4",
-    "sqlite-vec": "^0.1.0",
-    "sqlite-vec-windows-x64": "^0.1.0"
+    "sharp": "^0.33.4"
   }
 }

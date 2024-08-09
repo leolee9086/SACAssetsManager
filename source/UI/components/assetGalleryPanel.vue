@@ -8,7 +8,7 @@
             </div>
             <div class="fn__space fn__flex-1"></div>
         </div>
-        <commonBreadCrumb></commonBreadCrumb>
+       <!-- <commonBreadCrumb></commonBreadCrumb>-->
         <DocBreadCrumb v-if="block_id || box" :block_id="block_id" :box="box"></DocBreadCrumb>
         <LocalBreadCrumb @globChange="(e) => globSetting = e" v-if="localPath" :localPath="localPath"></LocalBreadCrumb>
         <TagCrumb v-if="tagLabel" :tagLabel="tagLabel"></TagCrumb>

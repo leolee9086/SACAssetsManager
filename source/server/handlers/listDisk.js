@@ -3,13 +3,11 @@ const { statfs } = require('fs');
 export async function listDisk(req,res,next){
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     let data=await listLocalDisks()
-    console.log(data)
     res.end(JSON.stringify(data))
 }
 async function listLocalDisks() {
   let disks = [];
   const platform = process.platform;
-
   // 根据平台执行不同的命令获取磁盘列表
   let command;
   if (platform === 'darwin') {
@@ -22,7 +20,6 @@ async function listLocalDisks() {
     // Unix-like平台
     command = 'df -P | tail -n +2 | awk \'{print $1}\'';
   }
-
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout) => {
       if (error) {
@@ -38,7 +35,6 @@ async function listLocalDisks() {
         // Windows 和 Linux 直接使用 stdout 分割获取磁盘列表
         disks = stdout.split('\n').filter(Boolean).map(disk => disk.trim());
       }
-
       Promise.all(disks.map(disk => {
         return new Promise((resolveDisk, rejectDisk) => {
           statfs(disk, (err, stats) => {
