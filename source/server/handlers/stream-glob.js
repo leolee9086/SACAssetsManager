@@ -8,9 +8,7 @@ export const globStream = async (req, res) => {
     const scheme = JSON.parse(req.query.setting)
     // 创建一个可读流，逐步读取文件路径
     // 创建一个 AbortController 实例
-    console.log(scheme)
     scheme.pattern = scheme.pattern.replace(/\\/g, '/').replace(/\/\//g, '/')
-    console.log(scheme)
 
     const controller = new AbortController();
     const { signal } = controller;
@@ -23,7 +21,6 @@ export const globStream = async (req, res) => {
     const transformStream = new (require('stream').Transform)({
         objectMode: true,
         async transform(file, encoding, callback) {
-            console.log(file)
             try {
                 const stats = await fs.promises.stat(file);
                 const fileInfo = {
@@ -83,11 +80,9 @@ export const fileListStream = async (req, res) => {
         transform(chunk, encoding, callback) {
             buffer += chunk.toString();
             const lines = buffer.split('\n');
-            console.log(lines)
             for (const line of lines) {
                 try {
                     const file = line
-                    console.log(file)
                     this.push(file);
                 } catch (err) {
                     console.warn('Invalid JSON:', line);
