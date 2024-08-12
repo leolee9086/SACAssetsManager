@@ -1,6 +1,7 @@
 import SvgLoader from './svg.js'
 import SharpLoader from './sharp.js'
 import SystemThumbnailLoader from './systermThumbnail.js'
+import commonLoader from './onlyName.js'
 const loaders = [
     new SvgLoader(),
     new SharpLoader()
@@ -13,7 +14,8 @@ export function getLoader(imagePath) {
             loader = _loader
         }
     }
-    loader = loader || new SystemThumbnailLoader()
+    //如果都没有匹配到,则使用commonLoader,返回一个svg图标
+    loader = loader || new commonLoader()
     return loader
 }
 const loaderRegister = new Map()
