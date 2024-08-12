@@ -1,6 +1,3 @@
-export {SystemThumbnailLoader} from './systermThumbnail.js'
-export {SvgLoader} from './svg.js'
-export {SharpLoader} from './sharp.js'
 import {SvgLoader} from './svg.js'
 import {SharpLoader} from './sharp.js'
 import {SystemThumbnailLoader} from './systermThumbnail.js'
