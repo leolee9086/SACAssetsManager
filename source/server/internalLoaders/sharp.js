@@ -3,6 +3,8 @@
  * 需要返回一个png文件对象
  * 
  */
+const sharp = require('sharp')
+const fs = require('fs')
 export class SharpLoader {
     /**
      * 主要函数，用于生成缩略图数据
@@ -13,10 +15,28 @@ export class SharpLoader {
      * @param {*} height 
      * @returns 
      */
-    generateThumbnail(imagePath, thumbnailPath, width=512, height=512) {
-        const sharp = require('sharp');
-        const file = sharp(imagePath).resize(width, height).toFile(thumbnailPath);
-        return file;
+    generateThumbnail(源文件地址, width = 512, height = 512) {
+        return new Promise((resolve, reject) => {
+            fs.readFile(源文件地址, (err, data) => {
+                if (err) {
+                    res.status(404).send(`File not found ${req.query.path}`);
+                    return;
+                }
+                sharp(data)
+                    .resize(width, height, {
+                        fit: 'inside',
+                        withoutEnlargement: true // 防止放大图像
+                    })
+                    .toBuffer()
+                    .then(buffer => {
+                        resolve(buffer)
+                    })
+                    .catch(err => {
+                        reject(err)
+                    });
+            });
+    
+        })
     }
     /**
      * 匹配图片格式

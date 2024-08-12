@@ -1,5 +1,5 @@
 import { getBase64Thumbnail, getLargeIcon } from '../internalLoaders/systermThumbnail.js';
-import { generateCacheKey } from '../cache/index.js';
+import { SharpLoader } from '../internalLoaders/sharp.js';
 const sharp =require('sharp')
 const fs=require('fs')
 export async function handlerImageFile(ctx,next) {
@@ -48,6 +48,19 @@ export async function handlerImageFile(ctx,next) {
         /***
          * 对于普通图片，使用sharp进行处理生成缩略图
          */
+        new SharpLoader().generateThumbnail(源文件地址, 512, 512)
+            .then(buffer => {
+                缓存对象[缓存键] = buffer;
+                res.type('png').send(buffer);
+            })
+            .catch(err => {
+                res.status(500).send('Error processing image: ' + err.message);
+            });
+
+
+        return
+
+
         fs.readFile(源文件地址, (err, data) => {
             if (err) {
                 res.status(404).send(`File not found ${req.query.path}`);
