@@ -4,7 +4,7 @@ const path = require('path')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
-import { handlerImageFile } from './handlers/thumbnail.js';
+import { genThumbnail } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
@@ -65,7 +65,7 @@ app.get('/thumbnail', async (req, res) => {
         }
     }
     let next=()=>{}
-    handlerImageFile( ctx,next);
+    genThumbnail( ctx,next);
 });
 app.get(
     '/raw', async (req, res) => {

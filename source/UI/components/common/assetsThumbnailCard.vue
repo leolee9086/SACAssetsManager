@@ -1,6 +1,5 @@
 <template>
-    <div class="thumbnail-card-content" :style="
-    `width:100%;
+    <div class="thumbnail-card-content" :style="`width:100%;
     border:none;
     border-radius: ${cardData.width / 24}px;
     height:${cardHeight}px;
@@ -48,41 +47,40 @@ const protyleContainer = ref(null)
 let idleCallbackId;
 let fn = () => {
     showImage.value = true
-    if(cardData.data.type==='note'&&cardData.width > 300){
-    showIframe.value =  true
-    nextTick(() => {
-        const protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
-        showImage.value = false
-        const resizeObserver = new ResizeObserver((entries) => {
-            cardHeight.value = protyle.protyle.contentElement.scrollHeight+36+18 
-            emit('updateSize', { width: cardData.width, height: cardHeight.value})
-        });
-        resizeObserver.observe(protyleContainer.value);
-    })
+    if (cardData.data.type === 'note' && cardData.width > 300) {
+        showIframe.value = true
+        nextTick(() => {
+            const protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
+            showImage.value = false
+            const resizeObserver = new ResizeObserver((entries) => {
+                cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
+                emit('updateSize', { width: cardData.width, height: cardHeight.value })
+            });
+            resizeObserver.observe(protyleContainer.value);
+        })
+    }
 }
-}
-
 onMounted(() => {
     idleCallbackId = requestIdleCallback(fn, { timeout: 300 });
 });
-
+onBeforeUnmount(() => {
+    cancelIdleCallback(idleCallbackId);
+});
 const buildCardProtyle = (element) => {
     return new clientApi.Protyle(
         plugin.app,
         element,
         {
             blockId: cardData.data.id,
-            render:{
-            breadcrumb:true,
-            background:true,
-            title:true
+            render: {
+                breadcrumb: true,
+                background: true,
+                title: true
             }
         }
     )
 }
-onBeforeUnmount(() => {
-    cancelIdleCallback(idleCallbackId);
-});
+
 function 更新图片尺寸(e, cardData) {
     const previewer = e.target
     const dimensions = {

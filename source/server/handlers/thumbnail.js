@@ -1,5 +1,5 @@
 import { getLoader } from '../internalLoaders/loader.js '
-export async function handlerImageFile(ctx, next) {
+export async function genThumbnail(ctx, next) {
     let { req, res, 缓存对象 } = ctx
     let { 源文件地址, 缓存键 } = ctx.stats
     if (!源文件地址) {
@@ -11,7 +11,6 @@ export async function handlerImageFile(ctx, next) {
         let generateThumbnail = loader.generateThumbnail
         let result = await generateThumbnail(源文件地址,512,512)
         const type = result.type 
-        console.log(type,result)
         if (type) {
             res.type(type).send(result.data)
         } else {
