@@ -45,7 +45,9 @@ export async function handlerImageFile(ctx,next) {
             });
             return
         }
-        // Existing image handling code
+        /***
+         * 对于普通图片，使用sharp进行处理生成缩略图
+         */
         fs.readFile(源文件地址, (err, data) => {
             if (err) {
                 res.status(404).send(`File not found ${req.query.path}`);
