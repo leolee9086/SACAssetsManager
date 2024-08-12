@@ -1,7 +1,6 @@
 import { SharpLoader } from '../internalLoaders/sharp.js';
 import { SystemThumbnailLoader } from '../internalLoaders/systermThumbnail.js';
 import { SvgLoader } from '../internalLoaders/svg.js';
-const fs=require('fs')
 export async function handlerImageFile(ctx,next) {
     let {req,res,缓存对象}=ctx
     let {源文件地址, 缓存键}= ctx.stats
