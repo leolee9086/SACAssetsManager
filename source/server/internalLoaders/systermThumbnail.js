@@ -142,7 +142,7 @@ const callBackPromise = (fun)=>{
         });
     }
 }
-export class SystemThumbnailLoader {
+export default class SystemThumbnailLoader {
     constructor() {
     }
     async generateThumbnail(filePath) {

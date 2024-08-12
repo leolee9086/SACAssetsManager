@@ -1,6 +1,6 @@
-import {SvgLoader} from './svg.js'
-import {SharpLoader} from './sharp.js'
-import {SystemThumbnailLoader} from './systermThumbnail.js'
+import SvgLoader from './svg.js'
+import SharpLoader from './sharp.js'
+import SystemThumbnailLoader from './systermThumbnail.js'
 const loaders = [
     new SvgLoader(),
     new SharpLoader()

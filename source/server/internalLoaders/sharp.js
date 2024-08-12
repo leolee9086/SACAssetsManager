@@ -5,7 +5,7 @@
  */
 const sharp = require('sharp')
 const fs = require('fs')
-export class SharpLoader {
+export default class SharpLoader {
     /**
      * 主要函数，用于生成缩略图数据
      * 需要返回一个png文件对象

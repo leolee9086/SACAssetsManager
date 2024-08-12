@@ -1,5 +1,5 @@
 const fs = require('fs')
-export class SvgLoader {
+export default class SvgLoader {
     constructor() {
     }
     async generateThumbnail(path) {
