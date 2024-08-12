@@ -144,8 +144,6 @@ const callBackPromise = (fun)=>{
 }
 export class SystemThumbnailLoader {
     constructor() {
-        this.getLargeIcon = getLargeIcon
-        this.getBase64Thumbnail = getBase64Thumbnail
     }
     async generateThumbnail(filePath) {
         const encodedPath = Buffer.from(filePath).toString('base64');
@@ -153,13 +151,13 @@ export class SystemThumbnailLoader {
         let resultBuffer = null
         let error = null
         try{
-            resultBuffer = Buffer.from(await callBackPromise(this.getBase64Thumbnail)(encodedPath), 'base64')
+            resultBuffer = Buffer.from(await callBackPromise(getBase64Thumbnail)(encodedPath), 'base64')
         }catch(e){
             error = e
         }
         if(!resultBuffer){
             try{
-                resultBuffer = Buffer.from(await callBackPromise(this.getLargeIcon)(encodedPath), 'base64')
+                resultBuffer = Buffer.from(await callBackPromise(getLargeIcon)(encodedPath), 'base64')
             }catch(e){
                 error = e
             }

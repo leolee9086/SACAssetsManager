@@ -1,7 +1,24 @@
 export {SystemThumbnailLoader} from './systermThumbnail.js'
 export {SvgLoader} from './svg.js'
 export {SharpLoader} from './sharp.js'
+import {SvgLoader} from './svg.js'
+import {SharpLoader} from './sharp.js'
+import {SystemThumbnailLoader} from './systermThumbnail.js'
+const loaders = [
+    new SvgLoader(),
+    new SharpLoader()
+]
 
+export function getLoader(imagePath) {
+    let loader = null
+    for (const _loader of loaders) {
+        if (imagePath.match(_loader.match(imagePath))) {
+            loader = _loader
+        }
+    }
+    loader = loader || new SystemThumbnailLoader()
+    return loader
+}
 const loaderRegister = new Map()
 
 
