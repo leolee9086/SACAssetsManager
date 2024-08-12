@@ -14,4 +14,7 @@ export class SvgLoader {
             throw new Error('Failed to generate thumbnail:' + e.message)
         }
     }
+    match(path){
+        return /\.(svg|svgz)$/i
+    }
 }

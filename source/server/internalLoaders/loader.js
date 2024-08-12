@@ -1,46 +1,8 @@
-/**
- * 用于加载loader
- * loader全部运行于独立的webview中
- * 通过广播图片路径给loader所在的webview，loader处理后，webview容器的preload脚本将处理后的图片返回给主进程
- */
-const loaderRegister = new Map()
-function createLoaderWebview(loaderPath) {
-    loaderRegister.set(loaderPath, {
-        path: loaderPath,
-        matchRules: [],
-        webview: null,
-        meta: null
-    })
+export {SystemThumbnailLoader} from './systermThumbnail.js'
+export {SvgLoader} from './svg.js'
+export {SharpLoader} from './sharp.js'
 
-    const webview = new Webview()
-    loaderRegister.get(loaderPath).webview = webview
-    //webview可以使用node环境
-    webview.nodeIntegration = true
-    //webview可以使用remote
-    webview.enableRemoteModule = true
-    webview.preload = workspaceLoaderURL2Local(import.meta.resolve('./preload.js'))
-    //当webview加载完成后，执行回调函数
-    //向webview发送消息，消息内容为loaderPath
-    webview.onDidFinishLoad(() => {
-        webview.send('loaderPath', loaderPath)
-    })
-    //webview会通过消息返回一个正则规则序列
-    //根据这个序列，长度越短的正则规则优先级越高
-    //同样长度的正则序列，匹配越严格的优先级越高
-    webview.on('message', (event, message) => {
-        if (message.type === 'matchRules') {
-            //校验matchRules是否为数组
-            if (!Array.isArray(message.matchRules)) {
-                return
-            }
-            //将message.matchRules转换为正则表达式,这里需要避免xss
-            const matchRules = message.matchRules.map(rule => new RegExp(rule))
-            //将matchRules注册到loaderRegister中
-            loaderRegister.get(loaderPath).matchRules = matchRules
-        }
-    })
-    return webview
-}
+const loaderRegister = new Map()
 
 
 
