@@ -1,4 +1,4 @@
-import { loadCsharpFunc } from "../utils/CSharpLoader.js";
+import { loadCsharpFunc } from "../../utils/CSharpLoader.js";
 export const getLargeIcon = loadCsharpFunc(
     `
     #r "System.Drawing.dll"

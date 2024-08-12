@@ -1,4 +1,4 @@
-import { getLoader } from '../internalLoaders/loader.js '
+import { getLoader } from '../processors/thumbnail/loader.js '
 export async function genThumbnail(ctx, next) {
     let { req, res, 缓存对象 } = ctx
     let { 源文件地址, 缓存键 } = ctx.stats
