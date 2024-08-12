@@ -15,6 +15,6 @@ export class SvgLoader {
         }
     }
     match(path){
-        return /\.(svg|svgz)$/i
+        return /\.(svg)$/i
     }
 }

@@ -8,7 +8,7 @@ export async function handlerImageFile(ctx, next) {
         return
     }
     const svgLoader = new SvgLoader()
-    if (源文件地址.match(svgLoader.match)) {
+    if (源文件地址.match(svgLoader.match(源文件地址))) {
         try {
             const result = await svgLoader.generateThumbnail(源文件地址)
             const type = result.type || 'png'
@@ -23,7 +23,7 @@ export async function handlerImageFile(ctx, next) {
         return
     }
     const sharpLoader = new SharpLoader()
-    if (源文件地址.match(sharpLoader.match)) {
+    if (源文件地址.match(sharpLoader.match(源文件地址))) {
         /***
                * 对于普通图片，使用sharp进行处理生成缩略图
                */
