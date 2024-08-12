@@ -15,7 +15,7 @@ function loadFilters(galleryDefine) {
         }
     )
 }
-function loadBreadCrumb(galleryDefine){
+function loadBreadCrumb(galleryDefine) {
     return galleryDefine.breadCrumb
 }
 function loadGetter(galleryDefine) {
@@ -54,14 +54,14 @@ function siyuanSqlParser(query, params) {
         return params.shift(); // 从参数数组中取出第一个元素并替换占位符
     });
 }
-export  async function applyStmt(stmt) {
+export async function applyStmt(stmt) {
     let query = stmt.query;
     let params = stmt.params;
     let sql = query;
     if (params) {
         sql = siyuanSqlParser(query, params)
     }
-    let data =  await kernelApi.sql(
+    let data = await kernelApi.sql(
         {
             stmt: sql,
         }
@@ -79,4 +79,4 @@ export  async function applyStmt(stmt) {
     )
 }
 
-export {applyURIStreamJson}
+export { applyURIStreamJson }
