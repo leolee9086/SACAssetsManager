@@ -50,9 +50,6 @@ export async function genThumbnail(ctx, next) {
         res.status(500).send('Error processing image: ' + e.message);
     }
     return
-
-
-
 }
 export function listLoaders(req, res) {
     res.json(listThumbnailLoaders())
