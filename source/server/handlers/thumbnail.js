@@ -6,20 +6,24 @@ export async function genThumbnail(ctx, next) {
         res.status(400).send('Invalid request: missing source file address');
         return
     }
+    let result = null
+    let type = null
     try {
         let loader = await getLoader(源文件地址)
         let generateThumbnail = loader.generateThumbnail
-        let result = await generateThumbnail(源文件地址,512,512)
-        const type = result.type 
-        if (type) {
-            res.type(type).send(result.data)
-        } else {
-            res.type('png').send(result)
+        result = await generateThumbnail(源文件地址, 512, 512)
+        if (result) {
+            type = result.type
+            if (type) {
+                res.type(type).send(result.data)
+            } else {
+                res.type('png').send(result)
+            }
         }
         return
-    }catch(e){
+    } catch (e) {
         console.warn(e)
         res.status(500).send('Error processing image: ' + e.message);
         return
-    }    
+    }
 }

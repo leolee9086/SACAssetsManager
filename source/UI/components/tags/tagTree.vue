@@ -62,34 +62,6 @@ const deleteTag=(tag)=>{
         saveTags(tags.value)
     }
 }
-const sorters = ref(
-    [
-        {
-            name: '名称字母升序',
-            value: '0'
-        },
-        {
-            name: '名称字母降序',
-            value: '1'
-        },
-        {
-            name: '名称自然升序',
-            value: '2'
-        },
-        {
-            name: '名称自然降序',
-            value: '3'
-        },
-        {
-            name: '笔记引用数升序',
-            value: '4'
-        },
-        {
-            name: '笔记引用数降序',
-            value: '5'
-        }
-    ]
-)
 let autoRefreshFlag=false
 let intervalId
 onUnmounted(

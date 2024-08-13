@@ -177,6 +177,5 @@ export default class SystemThumbnailLoader {
         return /.*/
     }
     sys=['win32 x64']
-    
 }
 
