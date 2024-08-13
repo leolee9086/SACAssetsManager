@@ -8,8 +8,12 @@ export async function genThumbnail(ctx, next) {
     }
     let result = null
     let type = null
+    /**
+     * 参数中可以指定loaderID
+     */
+    let loaderID = ctx.query.loaderID
     try {
-        let loader = await getLoader(源文件地址)
+        let loader = await getLoader(源文件地址,loaderID)
         let generateThumbnail =(...args)=> loader.generateThumbnail(...args)
         result = await generateThumbnail(源文件地址, 512, 512)
         if (result) {

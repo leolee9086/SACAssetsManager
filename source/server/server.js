@@ -54,6 +54,7 @@ app.get('/thumbnail', async (req, res) => {
     let ctx = {
         req,
         res,
+        query:req.query,
         缓存对象:cache,
         stats:{
             源文件地址,

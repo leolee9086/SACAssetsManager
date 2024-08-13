@@ -6,22 +6,6 @@
             </svg>资源收藏夹
         </div>
         <span class="fn__flex-1 fn__space"></span>
-        <span data-type="focus" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="定位打开的文档 "><svg>
-                <use xlink:href="#iconFocus"></use>
-            </svg></span>
-        <span class="fn__space"></span>
-        <span data-type="collapse" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="折叠 Ctrl+↑">
-            <svg>
-                <use xlink:href="#iconContract"></use>
-            </svg>
-        </span>
-        <div class="fn__space"></div>
-        <div data-type="more" class="b3-tooltips b3-tooltips__sw block__icon" aria-label="更多">
-            <svg>
-                <use xlink:href="#iconMore"></use>
-            </svg>
-        </div>
-        <span class="fn__space"></span>
         <span data-type="min" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="最小化 Ctrl+W"><svg>
                 <use xlink:href="#iconMin"></use>
             </svg></span>
@@ -40,7 +24,6 @@
             </template>
         </div>
     </div>
-
 </template>
 <script setup>
 const 默认收藏夹组 = [
@@ -48,7 +31,7 @@ const 默认收藏夹组 = [
         id: '000',
         name: "全部索引",
         parent: null,
-        getter: ()=>{
+        getter: () => {
             return []
         },
     },
@@ -56,10 +39,10 @@ const 默认收藏夹组 = [
         id: '000',
         name: "思源附件引用",
         parent: null,
-        getter: ()=>{
+        getter: () => {
             return []
         },
-        conuter:()=>{
+        conuter: () => {
             return this.content.length
         }
     },

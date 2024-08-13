@@ -38,7 +38,22 @@ function isSupport(loader) {
         return loader.sys.indexOf(process.platform + " " + process.arch) !== -1
     }
 }
-export function getLoader(imagePath) {
+export function getLoader(imagePath,loaderID) {
+    let loader = null
+    if(loaderID){
+        loader = getLoaderByID(loaderID)
+    }
+    else{
+        loader = getLoaderByMatch(imagePath)
+    }
+    //如果都没有匹配到,则使用commonLoader,返回一个svg图标
+    loader = loader || new commonLoader()
+    return loader
+}
+function getLoaderByID(loaderID) {
+    return loaders.find(item => item.id === loaderID)
+}
+function getLoaderByMatch(imagePath) {
     let loader = null
     loaders = sortLoaderByRegexComplexity(loaders)
     for (const _loader of loaders) {
@@ -46,8 +61,6 @@ export function getLoader(imagePath) {
             loader = _loader
         }
     }
-    //如果都没有匹配到,则使用commonLoader,返回一个svg图标
-    loader = loader || new commonLoader()
     return loader
 }
 
