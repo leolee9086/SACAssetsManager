@@ -51,10 +51,7 @@ app.get('/thumbnail', async (req, res) => {
         res.type('png').send(cachedData);
         return;
     }
-    if (源文件地址.endsWith('.sy')) {
-        res.sendFile("C:/Users/al765/AppData/Local/Programs/SiYuan/resources/stage/icon.png")
-        return
-    }
+
     let ctx = {
         req,
         res,

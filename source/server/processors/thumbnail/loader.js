@@ -1,6 +1,11 @@
 import commonLoader from './internalGeneraters/onlyName.js'
 import { sortLoaderByRegexComplexity } from './sorter.js'
-let loderPaths = ['./internalGeneraters/svg.js', './internalGeneraters/sharp.js', './internalGeneraters/systermThumbnailWin64.js']
+let loderPaths = [
+    './internalGeneraters/svg.js', 
+    './internalGeneraters/sharp.js', 
+    './internalGeneraters/systermThumbnailWin64.js',
+    './internalGeneraters/sy.js'
+]
 async function initLoadersFromPaths(loderPaths) {
     let loaders = []
     for (const path of loderPaths) {
