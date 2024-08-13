@@ -16,20 +16,19 @@
             </svg>
         </span>
         <div class="fn__space"></div>
-
         <div data-type="more" class="b3-tooltips b3-tooltips__sw block__icon" aria-label="更多">
             <svg>
                 <use xlink:href="#iconMore"></use>
             </svg>
         </div>
         <span class="fn__space"></span>
-        <span data-type="layout" class="block__icon b3-tooltips b3-tooltips__nw" aria-label="上">
+        <span data-type="layout" class="block__icon b3-tooltips b3-tooltips__nw" aria-label="上" @click="foldUp=!foldUp">
             <svg>
-                <use xlink:href="#iconUp"></use>
+                <use :xlink:href="foldUp?'#iconUp':'#iconRight'"></use>
             </svg>
         </span>
     </div>
-    <div class="fn__flex fn__flex-1">
+    <div class="fn__flex fn__flex-1" v-if="foldUp">
         <div class="fn__flex-column fn__flex-1 file_tree_container">
             <template v-for="disk in diskInfos">
                 <div class="fn__flex">
@@ -105,6 +104,7 @@ import { ref, onMounted, reactive, nextTick } from 'vue'
 import { listLocalDisks } from '../../../data/diskInfo.js';
 import { plugin } from 'runtime'
 import { commonIcon } from '../common/icons.js'
+const foldUp = ref(true)
 const diskInfos = ref([])
 const folderInfos = reactive([])
 const scrollTop = ref(0)

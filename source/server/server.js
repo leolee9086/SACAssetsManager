@@ -51,7 +51,6 @@ app.get('/thumbnail', async (req, res) => {
         res.type('png').send(cachedData);
         return;
     }
-
     let ctx = {
         req,
         res,
