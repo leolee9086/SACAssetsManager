@@ -1,6 +1,6 @@
 import commonLoader from './internalGeneraters/onlyName.js'
 let loderPaths=['./internalGeneraters/svg.js','./internalGeneraters/sharp.js','./internalGeneraters/systermThumbnailWin64.js']
-async function initLoaders(){
+async function initLoadersFromPaths(loderPaths){
     let loaders=[]
     for(const path of loderPaths){
         try{
@@ -12,7 +12,7 @@ async function initLoaders(){
     }
     return loaders
 }
-let loaders = await initLoaders()
+let loaders = await initLoadersFromPaths(loderPaths)
 loaders=loaders.filter(
     item=>{
         return isSupport(item)
