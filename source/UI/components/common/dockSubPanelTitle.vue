@@ -9,11 +9,11 @@
         <template v-for="(item,i) in data.titleActions" :key="`icon_${i}_item.label`">
             <span class="fn__space"></span>
             <span 
-            class="block__icon b3--tooltips b3--tooltips__sw" 
+            class="block__icon b3-tooltips b3-tooltips__sw" 
             @click="(e)=>item.click(e,item)"
             :aria-label="item.label"
             >
-                <svg class="block__logoicon">
+                <svg >
                     <use :xlink:href="item.icon"></use>
                 </svg>
             </span>
