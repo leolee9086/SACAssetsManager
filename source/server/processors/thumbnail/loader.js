@@ -1,12 +1,18 @@
-import SvgLoader from './internalGeneraters/svg.js'
-import SharpLoader from './internalGeneraters/sharp.js'
-import systermThumbnailWin64 from './internalGeneraters/systermThumbnailWin64.js'
 import commonLoader from './internalGeneraters/onlyName.js'
-let loaders = [
-    new SvgLoader(),
-    new SharpLoader(),
-    new systermThumbnailWin64()
-]
+let loderPaths=['./internalGeneraters/svg.js','./internalGeneraters/sharp.js','./internalGeneraters/systermThumbnailWin64.js']
+async function initLoaders(){
+    let loaders=[]
+    for(const path of loderPaths){
+        try{
+            const loader = await import(path)
+            loaders.push(new loader.default())
+        }catch(e){
+            console.error(e)
+        }
+    }
+    return loaders
+}
+let loaders = await initLoaders()
 loaders=loaders.filter(
     item=>{
         return isSupport(item)
@@ -36,7 +42,7 @@ export function getLoader(imagePath) {
     loader = loader || new commonLoader()
     return loader
 }
-const loaderRegister = new Map()
+
 
 
 
@@ -81,3 +87,50 @@ function useMatchRules(matchRules, imagePath) {
     //否则返回false
     return false
 }
+
+
+
+function measureRegexComplexity(regexString) {
+    const regex = new RegExp('^' + regexString + '$');
+    const complexity = {
+      totalLength: regexString.length,
+      specialChars: (regexString.match(/[\(\)\[\]\{\}\^\$\.\?\*\+\-\|]/g) || []).length,
+      quantifiers: (regexString.match(/(\?|\{[^}]+\})[+*?]?/g) || []).length,
+      groups: (regexString.match(/\((?!\?)/g) || []).length,
+      alternations: (regexString.match(/\|/g) || []).length,
+      lookarounds: (regexString.match(/(?<=\()(?:\\[1-9]+\|\\b|\\B)/g) || []).length,
+      flags: (regex.flags.length > 0) ? 1 : 0,
+      namedGroups: (regexString.match(/(?<=\()\?<[^>]+>/g) || []).length,
+      comments: (regexString.match(/(?<=\()\?#[^*]*\*\//g) || []).length,
+      nestedDepth: 0,
+      complexityScore: 0
+    };
+  
+    // 计算嵌套深度
+    let stack = [];
+    for (let i = 0; i < regexString.length; i++) {
+      if (regexString[i] === '(') {
+        stack.push(i);
+      } else if (regexString[i] === ')' && stack.length > 0) {
+        complexity.nestedDepth = Math.max(complexity.nestedDepth, stack.length);
+        stack.pop();
+      }
+    }
+  
+    // 计算复杂度得分
+    complexity.complexityScore = (
+      complexity.totalLength +
+      complexity.specialChars * 2 +
+      complexity.quantifiers * 3 +
+      complexity.groups * 2 +
+      complexity.alternations * 2 +
+      complexity.lookarounds * 5 +
+      complexity.flags +
+      complexity.namedGroups * 2 +
+      complexity.comments * 1 +
+      complexity.nestedDepth * 4
+    );
+  
+    return complexity;
+  }
+  
