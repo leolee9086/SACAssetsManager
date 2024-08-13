@@ -4,7 +4,7 @@ const path = require('path')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
 import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
-import { genThumbnail } from './handlers/thumbnail.js';
+import { genThumbnail,listLoaders } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
@@ -37,6 +37,7 @@ app.get('/file-list-stream', fileListStream)
 app.post('/file-list-stream', fileListStream)
 app.get('/count-etries', entryCounter)
 app.get('/listDisk',listDisk)
+app.get('/loaders',listLoaders)
 app.get('/thumbnail', async (req, res) => {
     let 源文件地址 = ''
     if (req.query.localPath) {
@@ -46,11 +47,6 @@ app.get('/thumbnail', async (req, res) => {
     }
     源文件地址 = 源文件地址.replace(/\//g,'\\')
     const 缓存键 = generateCacheKey(源文件地址);
-    const cachedData = cache[缓存键];
-    if (cachedData) {
-        res.type('png').send(cachedData);
-        return;
-    }
     let ctx = {
         req,
         res,
@@ -58,7 +54,8 @@ app.get('/thumbnail', async (req, res) => {
         缓存对象:cache,
         stats:{
             源文件地址,
-            缓存键
+            缓存键,
+            缓存对象:cache
         }
     }
     let next=()=>{}

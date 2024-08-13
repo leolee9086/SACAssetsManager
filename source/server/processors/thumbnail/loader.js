@@ -63,6 +63,18 @@ function getLoaderByMatch(imagePath) {
     }
     return loader
 }
+export function listLoaders(){
+    return loaders.map(item => {
+        return {
+            id: item.id,
+            name: item.name,
+            match: item.match,
+            sys: item.sys,
+            support: item.support,
+            description: item.description
+        }
+    })
+}
 
 
 
