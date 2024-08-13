@@ -2,7 +2,7 @@
     <DockSubPanelTitle :data="data" />
     <div class="fn__flex-1" style="margin-bottom: 8px;max-height: 30vh;" v-if="!data.foldUp">
         <div class="fn__flex-column fn__flex-1 file_tree_container" >
-            <TagItem  v-for="tag in tags" @delete:tag="deleteTag" :key="tag.label" :tag="tag" @update:tag="updateTag" />
+            <TagItem  v-for="tag in data.tags" @delete:tag="deleteTag" :key="tag.label" :tag="tag" @update:tag="updateTag" />
         </div>
     </div>
 </template>
@@ -20,9 +20,9 @@ const data = ref({
             label:'刷新',
             icon:'#iconRefresh',
             click:()=>{
-                tags.value=[]
+                data.value.tags=[]
                 nextTick(async()=>{
-                    tags.value = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
+                    data.value.tags = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
                 })
             }
         },
@@ -35,25 +35,24 @@ const data = ref({
             }
         }
     ],
-    foldUp:true
-   
+    foldUp:true,
+    tags:[]
 })
-const tags = ref([])
 const updateTag=(tag)=>{
-    tags.value.find(item=>item.label===tag.label).assets=tag.assets
-    saveTags(tags.value)
+    data.value.tags.find(item=>item.label===tag.label).assets=tag.assets
+    saveTags(data.value.tags)
     plugin.eventBus.emit('update-tag',tag)
 
 }
 const deleteTag=(tag)=>{
     if(tag.assets.length){
         clientApi.confirm('确认删除标签',`标签下仍有${tag.assets.length}个资源，确认删除吗？`,()=>{
-            tags.value=tags.value.filter(item=>item.label!==tag.label)
-            saveTags(tags.value)
+            data.value.tags=data.value.tags.filter(item=>item.label!==tag.label)
+            saveTags(data.value.tags)
         })
     }else{
-        tags.value=tags.value.filter(item=>item.label!==tag.label)
-        saveTags(tags.value)
+        data.value.tags=data.value.tags.filter(item=>item.label!==tag.label)
+        saveTags(data.value.tags)
     }
 }
 let autoRefreshFlag=false
@@ -64,7 +63,7 @@ onUnmounted(
     }
 )
 onMounted(async () => {
-    tags.value = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
+    data.value.tags = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
     plugin.eventBus.on('ws-main', async (e) => {
         if (e.detail.cmd === 'transactions') {
             const data = e.detail.data
@@ -78,7 +77,7 @@ onMounted(async () => {
     })
     intervalId = setInterval(async()=>{
         if(autoRefreshFlag){
-            tags.value = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
+            data.value.tags = await getTagAssets(await kernelApi.getTag({ sort: 0 }))
             autoRefreshFlag = false
         }
     },1000)
