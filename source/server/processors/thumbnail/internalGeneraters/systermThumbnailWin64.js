@@ -165,8 +165,18 @@ export default class SystemThumbnailLoader {
         if(!resultBuffer){
             throw new Error('Failed to generate thumbnail:'+error.message)
         }
-        console.log(resultBuffer, error)
         return resultBuffer
     }
+    /**
+     * 返回一个正则表达式，用于匹配文件路径
+     * 这里返回一个匹配全部的正则表达式
+     * @param {*} filePath 
+     * @returns 
+     */
+    match(filePath){
+        return /.*/
+    }
+    sys=['win32 x64']
+    
 }
 

@@ -23,4 +23,3 @@ export async function genThumbnail(ctx, next) {
         return
     }    
 }
-

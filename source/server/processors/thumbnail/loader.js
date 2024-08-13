@@ -1,12 +1,30 @@
 import SvgLoader from './internalGeneraters/svg.js'
 import SharpLoader from './internalGeneraters/sharp.js'
-import SystemThumbnailLoader from './internalGeneraters/systermThumbnail.js'
+import systermThumbnailWin64 from './internalGeneraters/systermThumbnailWin64.js'
 import commonLoader from './internalGeneraters/onlyName.js'
-const loaders = [
+let loaders = [
     new SvgLoader(),
-    new SharpLoader()
+    new SharpLoader(),
+    new systermThumbnailWin64()
 ]
-
+loaders=loaders.filter(
+    item=>{
+        return isSupport(item)
+    }
+)
+/**
+ * 判断item的系统是否支持
+ * @param {*} loader 
+ * @returns 
+ */
+function isSupport(loader){
+    if(!loader.sys){
+        return true
+    }
+    else{
+        return loader.sys.indexOf(process.platform+" "+process.arch) !== -1
+    }
+}
 export function getLoader(imagePath) {
     let loader = null
     for (const _loader of loaders) {
