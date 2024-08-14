@@ -27,11 +27,6 @@ const statWithCatch=(path)=>{
 }
 export function walk(root,glob,filter) {
     const files = [];
-    /**
-     * 使用更加暴力的遍历方式,能够用readdir读取的就是文件夹,不必stat
-     * 首先考虑完成遍历,再考虑stat的问题
-     * @param {*} dir 
-     */
     function readDir(dir) {
         let entries = []
         try {
@@ -42,6 +37,10 @@ export function walk(root,glob,filter) {
             const entry = entries[i]
             const isDir = entry.isDirectory()
             if (isDir) {
+                /**
+                 * 这里不要使用pah.join,因为join会自动将路径中的'/'转换为'\\'
+                 * 而且性能较差
+                 */
                 readDir(dir.replace(/\\/g, '/') + '/' + entry.name)
             } else {
                 if(glob&&!entry.name.match(glob))continue
@@ -71,12 +70,17 @@ export function walk(root,glob,filter) {
 console.time('walk')
 console.log(walk('D:/'))
 console.timeEnd('walk')
-const { fdir } = require('D:/思源主库/data/plugins/SACAssetsManager/source/server/utils/fdir/dist/index.js')
-const dir = new fdir().withStats().crawl('D:/')
-console.time('walk')
-let stream = dir.sync()
-console.timeEnd('walk')
-console.log(stream)
+/**
+ * 从头自己实现可能更好,fdir库目前看起来短期内不会提供流式接口以及对遍历过程的控制
+ * 作为参考使用就可以了
+ */
+
+//const { fdir } = require('D:/思源主库/data/plugins/SACAssetsManager/source/server/utils/fdir/dist/index.js')
+//const dir = new fdir().withStats().crawl('D:/')
+//console.time('walk')
+//let stream = dir.sync()
+//console.timeEnd('walk')
+//console.log(stream)
 /**
  * 进行一次搜索,找到c开头的所有结果
  
