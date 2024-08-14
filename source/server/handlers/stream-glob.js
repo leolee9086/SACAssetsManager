@@ -70,35 +70,6 @@ function buidStatFun(cwd){
             }
             callback(null, JSON.stringify(fileInfo) + '\n');
         } catch (err) {
-            /**
-             * 这似乎是fast-glob的bug
-             * 在windows下,如果路径中包含应用自身所在目录,且没有指定cwd,fast-glob会将其视为相对路径,导致路径错误
-             * 这里尝试将路径中的应用自身所在目录替换为应用所在目录
-             * 目前未知其他系统是否有相同问题
-             */
-            /*try{
-                filePath=filePath.replace(`${appDisk}:/`,appPath)
-                const stats = await fs.promises.stat(filePath);
-                const fileInfo = {
-                    path: filePath,
-                    id: `localEntrie_${filePath}`,
-                    type: 'local',
-                    size: stats.size,
-                    mtime: stats.mtime,
-                    mtimems: stats.mtime.getTime(),
-                };
-                try{
-                    watchFileStat(filePath);
-                    statCache.set(filePath, fileInfo);
-                }catch(err){
-                    statCache.delete(filePath);
-                    console.warn(err,filePath)
-                }
-                callback(null, JSON.stringify(fileInfo) + '\n');    
-                return
-            }catch(err){
-                console.warn(err,filePath)
-            }*/
             console.warn(err)
             const fileInfo = {
                 path: filePath,
