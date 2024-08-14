@@ -1,3 +1,5 @@
+import {walk} from '../processors/fs/walk.js'
+
 const fs = require('fs');
 const fastGlob = require('fast-glob');
 const { pipeline } = require('stream');
@@ -70,7 +72,6 @@ function buidStatFun(cwd){
             }
             callback(null, JSON.stringify(fileInfo) + '\n');
         } catch (err) {
-            console.warn(err)
             const fileInfo = {
                 path: filePath,
                 id: `localEntrie_${filePath}`,
@@ -82,12 +83,10 @@ function buidStatFun(cwd){
             };
             callback(null, JSON.stringify(fileInfo) + '\n');
         }
-    }
-    
+    }   
 }
 export const globStream = async (req, res) => {
     const scheme = JSON.parse(req.query.setting)
-    console.log(scheme)
     // 创建一个可读流，逐步读取文件路径
     // 创建一个 AbortController 实例
     try {
