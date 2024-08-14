@@ -28,7 +28,6 @@ async function statWithCatch(filePath,encoding,callback){
     }
 }
 export const globStream = async (req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     const scheme = JSON.parse(req.query.setting)
     // 创建一个可读流，逐步读取文件路径
     // 创建一个 AbortController 实例
@@ -60,7 +59,6 @@ export const globStream = async (req, res) => {
     );
 }
 export const fileListStream = async (req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     // 当请求关闭时，触发中止信号
     req.on('close', () => {
         controller.abort();
