@@ -2,6 +2,32 @@ const fs = require('fs');
 const { Readable } = require('stream');
 const fastGlob = require('fast-glob');
 const { pipeline } = require('stream');
+async function statWithCatch(filePath,encoding,callback){
+    try {
+        const stats = await fs.promises.stat(filePath);
+        const fileInfo = {
+            path: filePath,
+            id: `localEntrie_${filePath}`,
+            type: 'local',
+            size: stats.size,
+            mtime: stats.mtime,
+            mtimems: stats.mtime.getTime(),
+        };
+        callback(null, JSON.stringify(fileInfo) + '\n');
+    } catch (err) {
+        console.warn(err)
+        const fileInfo = {
+            path: filePath,
+            id: `localEntrie_${filePath}`,
+            type: 'local',
+            size: null,
+            mtime: '',
+            mtimems: '',
+            error: err
+        };
+        callback(null, JSON.stringify(fileInfo) + '\n');
+    }
+}
 export const globStream = async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     const scheme = JSON.parse(req.query.setting)
@@ -18,32 +44,7 @@ export const globStream = async (req, res) => {
     // 使用管道将文件流通过一个转换流发送到响应中
     const transformStream = new (require('stream').Transform)({
         objectMode: true,
-        async transform(file, encoding, callback) {
-            try {
-                const stats = await fs.promises.stat(file);
-                const fileInfo = {
-                    path: file,
-                    id: `localEntrie_${file}`,
-                    type: 'local',
-                    size: stats.size,
-                    mtime: stats.mtime,
-                    mtimems: stats.mtime.getTime(),
-                };
-                callback(null, JSON.stringify(fileInfo) + '\n');
-            } catch (err) {
-                console.warn(err)
-                const fileInfo = {
-                    path: file,
-                    id: `localEntrie_${file}`,
-                    type: 'local',
-                    size: null,
-                    mtime: '',
-                    mtimems: '',
-                    error: err
-                };
-                callback(null, JSON.stringify(fileInfo) + '\n');
-            }
-        }
+        transform: statWithCatch
     });
     pipeline(
         fileStream,

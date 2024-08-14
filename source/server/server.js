@@ -3,14 +3,13 @@ const app = express();
 const path = require('path')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
-import { generateCacheKey, serveFromCache, saveToCache } from './cache/index.js'
 import { genThumbnail,listLoaders } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
 const port = window.port
-import { memoryCache } from './utils/cache.js';
+import { memoryCache,generateCacheKey } from './utils/cache.js';
 /**
  * 启用跨域支持
  */

@@ -1,3 +1,12 @@
+const crypto = require('crypto');
+
+// 生成缓存键的函数保持不变
+export function generateCacheKey(filePath) {
+    return crypto.createHash('md5').update(filePath).digest('hex');
+}
+
+
+
 class loacalJsonAdapter{
     constructor(path){
         this.path = path
