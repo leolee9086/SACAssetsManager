@@ -1,7 +1,47 @@
 const fs = require('fs');
 const fastGlob = require('fast-glob');
 const { pipeline } = require('stream');
-async function statWithCatch(filePath,encoding,callback){
+/**
+ * 监听文件路径,有变化时进行处理
+ */
+function watchFile(filePath, encoding, callback) {
+    fs.watch(filePath, (eventType, filename) => {
+        if (eventType === 'change') {
+            callback(filePath, filename, encoding, callback);
+        }
+    });
+}
+/**
+ * 监听文件,有变化时更新缓存中的stat
+ * 如果出错,说明文件被删除?删除缓存中的stat
+ */
+const statCache = new Map();
+function watchFileStat(filePath) {
+    const callback = (filePath, filename, encoding, callback) => {
+        fs.stat(filePath, (err, stats) => {
+            if (err) {
+                console.warn(err)
+                statCache.delete(filePath);
+            } else {
+                statCache.set(filePath, stats);
+            }
+        });
+    }
+    watchFile(filePath, 'utf-8', callback);
+}
+/**
+ * 
+ * @param {*} filePath 
+ * @param {*} encoding 
+ * @param {*} callback 
+ */
+async function statWithCatch(filePath, encoding, callback) {
+    watchFileStat(filePath);
+    if(statCache.has(filePath)){
+        const stats = statCache.get(filePath);
+        callback(null, JSON.stringify(stats) + '\n');
+        return;
+    }
     try {
         const stats = await fs.promises.stat(filePath);
         const fileInfo = {
@@ -12,6 +52,7 @@ async function statWithCatch(filePath,encoding,callback){
             mtime: stats.mtime,
             mtimems: stats.mtime.getTime(),
         };
+        statCache.set(filePath, stats);
         callback(null, JSON.stringify(fileInfo) + '\n');
     } catch (err) {
         console.warn(err)
@@ -31,7 +72,11 @@ export const globStream = async (req, res) => {
     const scheme = JSON.parse(req.query.setting)
     // 创建一个可读流，逐步读取文件路径
     // 创建一个 AbortController 实例
+    try{
     scheme.pattern = scheme.pattern.replace(/\\/g, '/').replace(/\/\//g, '/')
+    }catch(err){
+        console.warn(err,scheme)
+    }
     const controller = new AbortController();
     const { signal } = controller;
     // 当请求关闭时，触发中止信号

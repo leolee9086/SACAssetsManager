@@ -32,9 +32,9 @@ app.use(compression({
 /**
  * 流式遍历文件夹
  */
-app.get('/glob-stream', headers.types.json,globStream)
-app.get('/file-list-stream', headers.types.json,fileListStream)
-app.post('/file-list-stream', headers.types.json,fileListStream)
+app.get('/glob-stream', headers.types.textPlain,globStream)
+app.get('/file-list-stream', headers.types.textPlain,fileListStream)
+app.post('/file-list-stream', headers.types.textPlain,fileListStream)
 app.get('/count-etries', entryCounter)
 app.get('/listDisk',listDisk)
 app.get('/loaders',listLoaders)
