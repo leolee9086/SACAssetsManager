@@ -87,32 +87,7 @@ export const fileListStream = async (req, res) => {
     // 创建转换流，处理文件信息
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
-        async transform(file, encoding, callback) {
-            try {
-                const stats = await fs.promises.stat(file);
-                const fileInfo = {
-                    path: file,
-                    id: `localEntrie_${file}`,
-                    type: 'local',
-                    size: stats.size,
-                    mtime: stats.mtime,
-                    mtimems: stats.mtime.getTime(),
-                };
-                callback(null, JSON.stringify(fileInfo) + '\n');
-            } catch (err) {
-                console.warn(err);
-                const fileInfo = {
-                    path: file,
-                    id: `localEntrie_${file}`,
-                    type: 'local',
-                    size: null,
-                    mtime: '',
-                    mtimems: '',
-                    error: err.message,
-                };
-                callback(null, JSON.stringify(fileInfo) + '\n');
-            }
-        }
+        transform: statWithCatch
     });
     pipeline(
         req,
