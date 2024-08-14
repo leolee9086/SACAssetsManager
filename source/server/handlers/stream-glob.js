@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { Readable } = require('stream');
 const fastGlob = require('fast-glob');
 const { pipeline } = require('stream');
 async function statWithCatch(filePath,encoding,callback){
