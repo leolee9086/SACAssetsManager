@@ -63,16 +63,10 @@ export const globStream = async (req, res) => {
 }
 export const fileListStream = async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-
-    // 创建一个 AbortController 实例
-    const controller = new AbortController();
-    const { signal } = controller;
-
     // 当请求关闭时，触发中止信号
     req.on('close', () => {
         controller.abort();
     });
-
     // 创建一个转换流，用于解析请求体中的JSON数据
     let buffer = '';
     const jsonParserStream = new (require('stream')).Transform({
@@ -90,14 +84,11 @@ export const fileListStream = async (req, res) => {
             }
             callback();
         },
-       
     });
-
     // 创建转换流，处理文件信息
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
         async transform(file, encoding, callback) {
-            console.log(file)
             try {
                 const stats = await fs.promises.stat(file);
                 const fileInfo = {
@@ -124,7 +115,6 @@ export const fileListStream = async (req, res) => {
             }
         }
     });
-
     pipeline(
         req,
         jsonParserStream,
