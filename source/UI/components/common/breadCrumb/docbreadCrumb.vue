@@ -27,8 +27,8 @@
 <script setup>
 import { defineProps, ref, onMounted } from 'vue'
 import { kernelApi, plugin } from 'runtime'
-import { tabEvents } from '../siyuanCommon/tabs.js';
-import breadCrumbItem from './siyuan/breadCrumbItem.vue';
+import { tabEvents } from '../../../siyuanCommon/tabs.js';
+import breadCrumbItem from './breadCrumbItem.vue';
 const 打开全工作空间视图 = () => {
     plugin.eventBus.emit(
         'open-gallery-data', {

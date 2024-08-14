@@ -37,11 +37,11 @@
 </template>
 <script setup>
 import { defineProps, defineEmits, ref, onMounted } from 'vue'
-import breadCrumbItem from './siyuan/breadCrumbItem.vue'
-import { getFilePatternsWithExtensions } from '../../utils/globBuilder.js';
+import breadCrumbItem from './breadCrumbItem.vue'
+import { getFilePatternsWithExtensions } from '../../../../utils/globBuilder.js';
 import {  plugin } from 'runtime'
-import {horizontalScroll} from '../utils/scroll.js'
-import {commonIcon} from './common/icons.js'
+import {horizontalScroll} from '../../../utils/scroll.js'
+import {commonIcon} from '../icons.js'
 const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 function toggleShow(子文件夹信息, i) {

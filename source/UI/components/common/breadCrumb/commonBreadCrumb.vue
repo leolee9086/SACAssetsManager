@@ -1,6 +1,5 @@
 <template>
     <component
-    
     :is="breadCrumbType" :block_id="block_id" :box="box" :localPath="localPath" :tagLabel="tagLabel"></component>
 </template>
 <script setup>

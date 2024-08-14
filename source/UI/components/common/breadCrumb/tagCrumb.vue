@@ -10,7 +10,6 @@
                 </span>
             </div>
             <span v-if="index !== labelArr.length - 1">/</span>
-
         </template>
     </div>
 </template>

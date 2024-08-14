@@ -134,7 +134,7 @@ const getSelectedItems = (event) => {
  */
 import { reactive } from '../../../static/vue.esm-browser.js';
 import { onDragOver,onDragStartWithLayout ,handlerDropWithTab } from '../utils/drag.js'
-import CommonBreadCrumb from './commonBreadCrumb.vue';
+import CommonBreadCrumb from './common/breadCrumb/commonBreadCrumb.vue';
 const onDragStart = async(event)=>{
     onDragStartWithLayout(event,currentLayout)
 }
