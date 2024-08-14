@@ -90,17 +90,7 @@ export const fileListStream = async (req, res) => {
             }
             callback();
         },
-        /*flush(callback) {
-            if (buffer) {
-                try {
-                    const file = buffer
-                    this.push(file);
-                } catch (err) {
-                    console.warn('Invalid JSON:', buffer);
-                }
-            }
-            callback();
-        }*/
+       
     });
 
     // 创建转换流，处理文件信息
