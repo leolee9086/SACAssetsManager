@@ -42,39 +42,16 @@ function watchFileStat(filePath) {
  */
 const appPath = require('@electron/remote').app.getPath('exe').replace(/\\/g, '/').replace(/\/\//g, '/').replace(/SiYuan.exe/g, '')
 const appDisk=appPath.split(':')[0]
-async function statWithCatch(filePath, encoding, callback,) {
-    if (statCache.has(filePath)) {
-        const stats = statCache.get(filePath);
-        callback(null, JSON.stringify(stats) + '\n');
-        return;
-    }
-    try {
-        const stats = await fs.promises.stat(filePath);
-        const fileInfo = {
-            path: filePath,
-            id: `localEntrie_${filePath}`,
-            type: 'local',
-            size: stats.size,
-            mtime: stats.mtime,
-            mtimems: stats.mtime.getTime(),
-        };
-        try{
-            watchFileStat(filePath);
-            statCache.set(filePath, fileInfo);
-        }catch(err){
-            statCache.delete(filePath);
-            console.warn(err,filePath)
+function buidStatFun(cwd){
+    cwd&&(cwd=cwd.replace(/\\/g, '/').replace(/\/\//g, '/'));
+    return async function statWithCatch(filePath, encoding, callback,) {
+        cwd&&(filePath=cwd+filePath);
+        if (statCache.has(filePath)) {
+            const stats = statCache.get(filePath);
+            callback(null, JSON.stringify(stats) + '\n');
+            return;
         }
-        callback(null, JSON.stringify(fileInfo) + '\n');
-    } catch (err) {
-        /**
-         * 这似乎是fast-glob的bug
-         * 在windows下,如果路径中包含应用自身所在目录,fast-glob会将其视为相对路径,导致路径错误
-         * 这里尝试将路径中的应用自身所在目录替换为应用所在目录
-         * 目前未知其他系统是否有相同问题
-         */
-        try{
-            filePath=filePath.replace(`${appDisk}:/`,appPath)
+        try {
             const stats = await fs.promises.stat(filePath);
             const fileInfo = {
                 path: filePath,
@@ -91,23 +68,51 @@ async function statWithCatch(filePath, encoding, callback,) {
                 statCache.delete(filePath);
                 console.warn(err,filePath)
             }
-            callback(null, JSON.stringify(fileInfo) + '\n');    
-            return
-        }catch(err){
-            console.warn(err,filePath)
+            callback(null, JSON.stringify(fileInfo) + '\n');
+        } catch (err) {
+            /**
+             * 这似乎是fast-glob的bug
+             * 在windows下,如果路径中包含应用自身所在目录,且没有指定cwd,fast-glob会将其视为相对路径,导致路径错误
+             * 这里尝试将路径中的应用自身所在目录替换为应用所在目录
+             * 目前未知其他系统是否有相同问题
+             */
+            /*try{
+                filePath=filePath.replace(`${appDisk}:/`,appPath)
+                const stats = await fs.promises.stat(filePath);
+                const fileInfo = {
+                    path: filePath,
+                    id: `localEntrie_${filePath}`,
+                    type: 'local',
+                    size: stats.size,
+                    mtime: stats.mtime,
+                    mtimems: stats.mtime.getTime(),
+                };
+                try{
+                    watchFileStat(filePath);
+                    statCache.set(filePath, fileInfo);
+                }catch(err){
+                    statCache.delete(filePath);
+                    console.warn(err,filePath)
+                }
+                callback(null, JSON.stringify(fileInfo) + '\n');    
+                return
+            }catch(err){
+                console.warn(err,filePath)
+            }*/
+            console.warn(err)
+            const fileInfo = {
+                path: filePath,
+                id: `localEntrie_${filePath}`,
+                type: 'local',
+                size: null,
+                mtime: '',
+                mtimems: '',
+                error: err
+            };
+            callback(null, JSON.stringify(fileInfo) + '\n');
         }
-        console.warn(err)
-        const fileInfo = {
-            path: filePath,
-            id: `localEntrie_${filePath}`,
-            type: 'local',
-            size: null,
-            mtime: '',
-            mtimems: '',
-            error: err
-        };
-        callback(null, JSON.stringify(fileInfo) + '\n');
     }
+    
 }
 export const globStream = async (req, res) => {
     const scheme = JSON.parse(req.query.setting)
@@ -127,11 +132,11 @@ export const globStream = async (req, res) => {
     req.on('close', () => {
         controller.abort();
     });
-    const fileStream = await fastGlob.stream(scheme.pattern, { ...scheme.options, suppressErrors: true, dot: false }, signal);
+    const fileStream =  fastGlob.stream(scheme.pattern, { ...scheme.options, suppressErrors: true, dot: false }, signal);
     // 使用管道将文件流通过一个转换流发送到响应中
     const transformStream = new (require('stream').Transform)({
         objectMode: true,
-        transform: statWithCatch
+        transform: buidStatFun(scheme.options.cwd)
     });
     pipeline(
         fileStream,
@@ -173,7 +178,7 @@ export const fileListStream = async (req, res) => {
     // 创建转换流，处理文件信息
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
-        transform: statWithCatch
+        transform: buidStatFun(scheme.options.cwd)
     });
     pipeline(
         req,

@@ -247,7 +247,6 @@ onUnmounted(
 onMounted(async () => {
     if (appData.value.tab.data.localPath) {
         附件数据组 = []
-        console.log(globSetting.value)
         try{
              获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
         }catch(e){
