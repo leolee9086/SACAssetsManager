@@ -1,7 +1,7 @@
 import { getLoader, listLoaders as listThumbnailLoaders } from '../processors/thumbnail/loader.js '
 let cacheLoader = (ctx) => {
     let { 缓存对象, 缓存键, 缓存时间 } = ctx
-    let result = 缓存对象[缓存键]
+    let result = 缓存对象.get[缓存键]
     if (result) {
         return result
     }
@@ -36,7 +36,7 @@ export async function genThumbnail(ctx, next) {
     try {
         if (result) {
             type = result.type
-            缓存对象[缓存键] = result
+            缓存对象.set(缓存键,result)
             if (type) {
                 res.type(type).send(result.data)
             } else {

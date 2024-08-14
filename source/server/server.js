@@ -10,7 +10,7 @@ import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
 const port = window.port
-const cache = {}
+import { memoryCache } from './utils/cache.js';
 /**
  * 启用跨域支持
  */
@@ -51,11 +51,11 @@ app.get('/thumbnail', async (req, res) => {
         req,
         res,
         query:req.query,
-        缓存对象:cache,
+        缓存对象:memoryCache,
         stats:{
             源文件地址,
             缓存键,
-            缓存对象:cache
+            缓存对象:memoryCache
         }
     }
     let next=()=>{}

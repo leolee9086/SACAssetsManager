@@ -2,14 +2,12 @@ const fs = require('fs');
 const { Readable } = require('stream');
 const fastGlob = require('fast-glob');
 const { pipeline } = require('stream');
-
 export const globStream = async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     const scheme = JSON.parse(req.query.setting)
     // 创建一个可读流，逐步读取文件路径
     // 创建一个 AbortController 实例
     scheme.pattern = scheme.pattern.replace(/\\/g, '/').replace(/\/\//g, '/')
-
     const controller = new AbortController();
     const { signal } = controller;
     // 当请求关闭时，触发中止信号
