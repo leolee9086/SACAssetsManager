@@ -156,6 +156,6 @@ export async function applyURIStreamJson(uri, target, callback, step, signal,opt
                 read();
             })
         }
-    }).catch(error => { console.error(error) })
+    }).catch(error => { console.warn(error) })
 }
 

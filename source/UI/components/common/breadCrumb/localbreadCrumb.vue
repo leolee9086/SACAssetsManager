@@ -88,6 +88,17 @@ onMounted(async () => {
             }
         )
         setInterval(fetchSUbFolders,100)
+        emit('globChange',
+            {
+                pattern: localPath.replace(/\\/g, '/') + '/**',
+                options: {
+                    // 其他glob选项...
+                    nodir: true, // 排除目录，只匹配文件
+                    dot: true, // 包括以点(.)开头的文件和目录
+                    // ... 其他选项
+                }
+            }
+        )
     }
 })
 </script>

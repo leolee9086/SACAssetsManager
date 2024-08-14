@@ -17,7 +17,7 @@
             @mousedown.left="startSelection" @click.left="endSelection" @click.right.stop="openMenu" @mousedup="endSelection"
             @mousemove="updateSelection" @drop="handlerDrop" 
             @dragover.prevent>
-            <assetsGridRbush :globSetting=globSetting v-if="showPanel && globSetting" @ready="size = 300"
+            <assetsGridRbush :globSetting="globSetting" v-if="showPanel && globSetting" @ready="size = 300"
                 @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
                 @layoutCount="(e) => { layoutCount.found = e }" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
                 :size="parseInt(size)"></assetsGridRbush>
@@ -53,6 +53,7 @@ const showPanel = ref(true)
 const refreshPanel = () => {
     showPanel.value = false
     nextTick(() => {
+        console.log(globSetting.value)
         showPanel.value = true
     })
 }

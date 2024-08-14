@@ -33,7 +33,6 @@ const props = defineProps(['size', 'sorter', 'globSetting'])
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
-
 const root = ref(null)
 const scrollContainer = ref(null)
 const appData = toRef(inject('appData'))
@@ -237,13 +236,23 @@ const signal = controller.signal;
 
 onUnmounted(
     () => {
-        controller.abort();
+        try{
+            controller.abort('unmounted');
+        }catch(e){
+            console.warn(e)
+        }
     }
 )
+
 onMounted(async () => {
     if (appData.value.tab.data.localPath) {
         附件数据组 = []
-        await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
+        console.log(globSetting.value)
+        try{
+             获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
+        }catch(e){
+            console.warn(e)
+        }
     }
     else if (appData.value.tab.data.tagLabel) {
         附件数据组 = []

@@ -27,7 +27,12 @@ function watchFileStat(filePath) {
             }
         });
     }
-    watchFile(filePath, 'utf-8', callback);
+    try {
+        watchFile(filePath, 'utf-8', callback);
+    } catch (err) {
+        console.warn(err, filePath)
+        throw err
+    }
 }
 /**
  * 
@@ -35,9 +40,10 @@ function watchFileStat(filePath) {
  * @param {*} encoding 
  * @param {*} callback 
  */
-async function statWithCatch(filePath, encoding, callback) {
-    watchFileStat(filePath);
-    if(statCache.has(filePath)){
+const appPath = require('@electron/remote').app.getPath('exe').replace(/\\/g, '/').replace(/\/\//g, '/').replace(/SiYuan.exe/g, '')
+const appDisk=appPath.split(':')[0]
+async function statWithCatch(filePath, encoding, callback,) {
+    if (statCache.has(filePath)) {
         const stats = statCache.get(filePath);
         callback(null, JSON.stringify(stats) + '\n');
         return;
@@ -52,9 +58,44 @@ async function statWithCatch(filePath, encoding, callback) {
             mtime: stats.mtime,
             mtimems: stats.mtime.getTime(),
         };
-        statCache.set(filePath, stats);
+        try{
+            watchFileStat(filePath);
+            statCache.set(filePath, fileInfo);
+        }catch(err){
+            statCache.delete(filePath);
+            console.warn(err,filePath)
+        }
         callback(null, JSON.stringify(fileInfo) + '\n');
     } catch (err) {
+        /**
+         * 这似乎是fast-glob的bug
+         * 在windows下,如果路径中包含应用自身所在目录,fast-glob会将其视为相对路径,导致路径错误
+         * 这里尝试将路径中的应用自身所在目录替换为应用所在目录
+         * 目前未知其他系统是否有相同问题
+         */
+        try{
+            filePath=filePath.replace(`${appDisk}:/`,appPath)
+            const stats = await fs.promises.stat(filePath);
+            const fileInfo = {
+                path: filePath,
+                id: `localEntrie_${filePath}`,
+                type: 'local',
+                size: stats.size,
+                mtime: stats.mtime,
+                mtimems: stats.mtime.getTime(),
+            };
+            try{
+                watchFileStat(filePath);
+                statCache.set(filePath, fileInfo);
+            }catch(err){
+                statCache.delete(filePath);
+                console.warn(err,filePath)
+            }
+            callback(null, JSON.stringify(fileInfo) + '\n');    
+            return
+        }catch(err){
+            console.warn(err,filePath)
+        }
         console.warn(err)
         const fileInfo = {
             path: filePath,
@@ -70,12 +111,15 @@ async function statWithCatch(filePath, encoding, callback) {
 }
 export const globStream = async (req, res) => {
     const scheme = JSON.parse(req.query.setting)
+    console.log(scheme)
     // 创建一个可读流，逐步读取文件路径
     // 创建一个 AbortController 实例
-    try{
-    scheme.pattern = scheme.pattern.replace(/\\/g, '/').replace(/\/\//g, '/')
-    }catch(err){
-        console.warn(err,scheme)
+    try {
+        scheme.pattern = scheme.pattern.replace(/\\/g, '/').replace(/\/\//g, '/')
+    } catch (err) {
+        console.warn(err, scheme)
+        res.status(400).send('Invalid pattern')
+        return;
     }
     const controller = new AbortController();
     const { signal } = controller;
