@@ -21,43 +21,23 @@ export const globStream = async (req, res) => {
         objectMode: true,
         transform(chunk, encoding, callback) {
             try {
-                if(Array.isArray(chunk)){
-                    const stringifyData=[]
-                    for(const item of chunk){
-                        const { name, path, type, size, mtime, mtimems, error } = item;
-                        const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-                        stringifyData.push(data)
-                    }
-                    this.push(stringifyData.join(''));
-                }else{
                     const { name, path, type, size, mtime, mtimems, error } = chunk;
                     const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-                    this.push(data);
-    
-                }
+                    this.push(data); 
             } catch (err) {
                 console.warn(err, chunk);
             }
             callback();
         }
     });
-    const chunkSize = 10
-    let chunkData=[]
     const walkStream = new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
             walk(options.cwd, null, null, {
                 ifFile: (statProxy) => {   
-                    if(chunkData.length<chunkSize){
-                        chunkData.push(statProxy)
-                    }
-                    else{
-                        this.push(chunkData);
-                        chunkData=[]
-                    }
+                        this.push(statProxy);
                 },
                 end: () => {
-                    this.push(chunkData);
                     this.push(null);
                 }
             }, false, signal);
