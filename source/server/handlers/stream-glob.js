@@ -33,8 +33,6 @@ function watchFileStat(filePath) {
  * @param {*} encoding 
  * @param {*} callback 
  */
-const appPath = require('@electron/remote').app.getPath('exe').replace(/\\/g, '/').replace(/\/\//g, '/').replace(/SiYuan.exe/g, '')
-const appDisk = appPath.split(':')[0]
 function buidStatFun(cwd) {
     cwd && (cwd = cwd.replace(/\\/g, '/').replace(/\/\//g, '/'));
     return async function statWithCatch(filePath, encoding, callback,) {
