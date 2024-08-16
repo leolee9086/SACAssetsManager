@@ -59,10 +59,6 @@ export const globStream = async (req, res) => {
     );
     walkStream.write({});  // 触发walk开始
 };
-
-
-
-
 export const fileListStream = async (req, res) => {
     // 当请求关闭时，触发中止信号
     req.on('close', () => {

@@ -79,9 +79,9 @@ const buildStatProxy = (entry, dir, useProxy) => {
  * 使用代理对象,避免重复读取
  * 每一步遍历都会执行stepCallback
  * 使用signal取消操作
- * @param {string} root 
- * @param {string} glob 
- * @param {function} filter 
+ * @param {string} root //需要遍历的文件夹
+ * @param {string} glob //需要匹配的文件名
+ * @param {function} filter //匹配函数
  * @param {function|object{ifFile:function,ifDir:function,ifLink:function}} stepCallback 
  * @param {AbortSignal} signal 用于取消操作
  * @returns 
