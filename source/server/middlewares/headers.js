@@ -1,10 +1,10 @@
 export const types = {
     textPlain:(req,res,next)=>{
-        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Content-Type', 'text/plain;charset=utf-8');
         next();
     },
     json:(req,res,next)=>{
-        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Type', 'application/json;charset=utf-8');
         next();
     }
 }
