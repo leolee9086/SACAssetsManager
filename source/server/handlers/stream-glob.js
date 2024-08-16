@@ -1,6 +1,7 @@
 
 import { walk } from '../processors/fs/walk.js'
 import { watchFile } from '../processors/fs/watch.js'
+import { buidStatFun } from '../processors/fs/stat.js'
 const fs = require('fs');
 const fastGlob = require('fast-glob');
 const { pipeline } = require('stream');
@@ -28,60 +29,12 @@ function watchFileStat(filePath) {
     }
 }
 /**
- * 
- * @param {*} filePath 
- * @param {*} encoding 
- * @param {*} callback 
- */
-function buidStatFun(cwd) {
-    cwd && (cwd = cwd.replace(/\\/g, '/').replace(/\/\//g, '/'));
-    return async function statWithCatch(filePath, encoding, callback,) {
-        cwd && (filePath = cwd + filePath);
-        if (statCache.has(filePath)) {
-            const stats = statCache.get(filePath);
-            callback(null, JSON.stringify(stats) + '\n');
-            return;
-        }
-        try {
-            const stats = await fs.promises.stat(filePath);
-            const fileInfo = {
-                path: filePath,
-                id: `localEntrie_${filePath}`,
-                type: 'local',
-                size: stats.size,
-                mtime: stats.mtime,
-                mtimems: stats.mtime.getTime(),
-            };
-            try {
-                watchFileStat(filePath);
-                statCache.set(filePath, fileInfo);
-            } catch (err) {
-                statCache.delete(filePath);
-                console.warn(err, filePath)
-            }
-            callback(null, JSON.stringify(fileInfo) + '\n');
-        } catch (err) {
-            const fileInfo = {
-                path: filePath,
-                id: `localEntrie_${filePath}`,
-                type: 'local',
-                size: null,
-                mtime: '',
-                mtimems: '',
-                error: err
-            };
-            callback(null, JSON.stringify(fileInfo) + '\n');
-        }
-    }
-}
-/**
  * 为了避免背压过大,使用流式写入时,需要手动控制写入速度
  * @param {*} req 
  * @param {*} res 
  * 
  */
 function writeWithinSpeed(res, speed = 100) {
-
     const cache = []
     return function (chunk, encoding, callback) {
         cache.push(chunk)
@@ -97,9 +50,7 @@ export const globStream = async (req, res) => {
     const { pipeline, Transform } = require('stream')
     const scheme = JSON.parse(req.query.setting);
     const options = scheme.options;
-
     res.writeHead(200, { 'Content-Type': 'application/text;charset=utf-8' });
-
     const transformStream = new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
@@ -130,8 +81,7 @@ export const globStream = async (req, res) => {
         objectMode: true,
         transform(chunk, encoding, callback) {
             walk(options.cwd, null, null, {
-                ifFile: (statProxy) => {
-    
+                ifFile: (statProxy) => {   
                     if(chunkData.length<chunkSize){
                         chunkData.push(statProxy)
                     }
@@ -148,7 +98,6 @@ export const globStream = async (req, res) => {
             callback();
         }
     });
-
     pipeline(
         walkStream,
         transformStream,
@@ -162,7 +111,6 @@ export const globStream = async (req, res) => {
             }
         }
     );
-
     walkStream.write({});  // 触发walk开始
 };
 

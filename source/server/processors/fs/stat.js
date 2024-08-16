@@ -40,3 +40,54 @@ export const buildStepCallback = (stepCallback) => {
     return callback
 }
 
+
+
+
+/**
+ * 
+ * @param {*} filePath 
+ * @param {*} encoding 
+ * @param {*} callback 
+ */
+export function buidStatFun(cwd) {
+    const fs = require('fs')
+    cwd && (cwd = cwd.replace(/\\/g, '/').replace(/\/\//g, '/'));
+    return async function statWithCatch(filePath, encoding, callback,) {
+        cwd && (filePath = cwd + filePath);
+        if (statCache.has(filePath)) {
+            const stats = statCache.get(filePath);
+            callback(null, JSON.stringify(stats) + '\n');
+            return;
+        }
+        try {
+            const stats = await fs.promises.stat(filePath);
+            const fileInfo = {
+                path: filePath,
+                id: `localEntrie_${filePath}`,
+                type: 'local',
+                size: stats.size,
+                mtime: stats.mtime,
+                mtimems: stats.mtime.getTime(),
+            };
+            try {
+                watchFileStat(filePath);
+                statCache.set(filePath, fileInfo);
+            } catch (err) {
+                statCache.delete(filePath);
+                console.warn(err, filePath)
+            }
+            callback(null, JSON.stringify(fileInfo) + '\n');
+        } catch (err) {
+            const fileInfo = {
+                path: filePath,
+                id: `localEntrie_${filePath}`,
+                type: 'local',
+                size: null,
+                mtime: '',
+                mtimems: '',
+                error: err
+            };
+            callback(null, JSON.stringify(fileInfo) + '\n');
+        }
+    }
+}

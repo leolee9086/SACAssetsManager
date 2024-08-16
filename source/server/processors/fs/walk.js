@@ -1,6 +1,5 @@
 import {buildStepCallback} from './stat.js'
 const fs = require('fs')
-const path = require('path')
 /**
  * 每个函数单独实现,避免多功能函数
  * 以保证简单性和功能单一
@@ -32,9 +31,7 @@ const statWithCatch = (path) => {
  * 创建一个代理对象,只有获取value时才会懒执行,节约性能
  * 使用缓存,避免重复读取
  */
-
 const buildStatProxy = (entry, dir,useProxy) => {
-
     return new Proxy({}, {
         get(target, prop) {
             if (prop === 'name') {
@@ -68,7 +65,9 @@ const buildStatProxy = (entry, dir,useProxy) => {
                 }
             }
             if(prop==='path'){
-                return dir.replace(/\\/g, '/') + '/' + entry.name
+                let normalizedPath=dir.replace(/\\/g, '/') + '/' + entry.name
+                normalizedPath=normalizedPath.replace(/\/\//g, '/')
+                return normalizedPath
             }
             cache[dir.replace(/\\/g, '/') + '/' + entry.name] = stats
             return stats[prop]
@@ -85,7 +84,6 @@ const buildStatProxy = (entry, dir,useProxy) => {
  */
 export  function walk(root, glob, filter, _stepCallback,useProxy=true) {
     const files = [];
-
     const stepCallback = buildStepCallback(_stepCallback)
      function readDir(dir) {
         let entries = []
@@ -96,10 +94,6 @@ export  function walk(root, glob, filter, _stepCallback,useProxy=true) {
          for  (let entry of entries) {
             const isDir = entry.isDirectory()
             if (isDir) {
-                /**
-                 * 这里不要使用pah.join,因为join会自动将路径中的'/'转换为'\\'
-                 * 而且性能较差
-                 */
                 stepCallback && stepCallback(buildStatProxy(entry,dir,useProxy))
                  readDir(dir.replace(/\\/g, '/') + '/' + entry.name)
             } else {
@@ -110,32 +104,7 @@ export  function walk(root, glob, filter, _stepCallback,useProxy=true) {
             }
         }
     }
-     readDir(root);
+    readDir(root);
     stepCallback&&stepCallback.end()
     return files;
 }
-/*
-const _stream = require('stream')
-const stream =new _stream.Readable({
-    objectMode:true,
-    read(){
-    
-    }
-})
-const stepCallback={
-    ifFile:(statProxy)=>{
-            stream.push(statProxy.name)
-    }
-}
-let chunk=[]
-stream.on('data',(data)=>{
-    chunk.push(data)
-    if(chunk.length>100){
-        console.log(chunk)
-        chunk=[]
-    }
-})
-console.time('walk')
-console.log(walk('D:/', /.*\.md$/,null,stepCallback))
-console.timeEnd('walk')
-*/
