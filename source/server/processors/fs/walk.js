@@ -1,4 +1,4 @@
-import {buildStepCallback} from './stat.js'
+import { buildStepCallback } from './stat.js'
 const fs = require('fs')
 /**
  * 每个函数单独实现,避免多功能函数
@@ -31,7 +31,7 @@ const statWithCatch = (path) => {
  * 创建一个代理对象,只有获取value时才会懒执行,节约性能
  * 使用缓存,避免重复读取
  */
-const buildStatProxy = (entry, dir,useProxy) => {
+const buildStatProxy = (entry, dir, useProxy) => {
     return new Proxy({}, {
         get(target, prop) {
             if (prop === 'name') {
@@ -48,25 +48,25 @@ const buildStatProxy = (entry, dir,useProxy) => {
             }
             const stats = cache[dir.replace(/\\/g, '/') + '/' + entry.name] || statWithCatch(dir.replace(/\\/g, '/') + '/' + entry.name)
             if (prop === 'toString') {
-                const {path,id,type,size,mtime,mtimems,error}=stats
-                return JSON.stringify({path,id,type,size,mtime,mtimems,error})
+                const { path, id, type, size, mtime, mtimems, error } = stats
+                return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
             }
-  
-            if(prop==='type'){
+
+            if (prop === 'type') {
                 //type是文件类型,dir表示目录,file表示文件,link表示符号链接
-                if(entry.isDirectory()){
+                if (entry.isDirectory()) {
                     return 'dir'
                 }
-                if(entry.isFile()){
+                if (entry.isFile()) {
                     return 'file'
                 }
-                if(entry.isSymbolicLink()){
+                if (entry.isSymbolicLink()) {
                     return 'link'
                 }
             }
-            if(prop==='path'){
-                let normalizedPath=dir.replace(/\\/g, '/') + '/' + entry.name
-                normalizedPath=normalizedPath.replace(/\/\//g, '/')
+            if (prop === 'path') {
+                let normalizedPath = dir.replace(/\\/g, '/') + '/' + entry.name
+                normalizedPath = normalizedPath.replace(/\/\//g, '/')
                 return normalizedPath
             }
             cache[dir.replace(/\\/g, '/') + '/' + entry.name] = stats
@@ -75,36 +75,48 @@ const buildStatProxy = (entry, dir,useProxy) => {
     })
 }
 /**
- * 
+ * 按照给定路径,递归遍历所有文件和目录
+ * 使用代理对象,避免重复读取
+ * 每一步遍历都会执行stepCallback
+ * 使用signal取消操作
  * @param {string} root 
  * @param {string} glob 
  * @param {function} filter 
  * @param {function|object{ifFile:function,ifDir:function,ifLink:function}} stepCallback 
+ * @param {AbortSignal} signal 用于取消操作
  * @returns 
  */
-export  function walk(root, glob, filter, _stepCallback,useProxy=true) {
+export function walk(root, glob, filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
-     function readDir(dir) {
+    function readDir(dir) {
+        if (signal.aborted) {
+            stepCallback && stepCallback.end()
+            return
+        }
         let entries = []
         try {
             entries = fs.readdirSync(dir, { withFileTypes: true });
         } catch (error) {
         }
-         for  (let entry of entries) {
+        for (let entry of entries) {
+            if (signal.aborted) {
+                stepCallback && stepCallback.end()
+                return
+            }
             const isDir = entry.isDirectory()
             if (isDir) {
-                stepCallback && stepCallback(buildStatProxy(entry,dir,useProxy))
-                 readDir(dir.replace(/\\/g, '/') + '/' + entry.name)
+                stepCallback && stepCallback(buildStatProxy(entry, dir, useProxy))
+                readDir(dir.replace(/\\/g, '/') + '/' + entry.name)
             } else {
                 if (glob && !entry.name.match(glob)) continue
-                const statProxy=buildStatProxy(entry,dir,useProxy)
+                const statProxy = buildStatProxy(entry, dir, useProxy)
                 files.push(statProxy)
-                stepCallback&&stepCallback(statProxy)
+                stepCallback && stepCallback(statProxy)
             }
         }
     }
     readDir(root);
-    stepCallback&&stepCallback.end()
+    stepCallback && stepCallback.end()
     return files;
 }
