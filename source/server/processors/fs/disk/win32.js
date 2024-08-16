@@ -1,11 +1,18 @@
 const { exec } = window.require('child_process');
-const { statfsSync, existsSync } = window.require('fs');
+const { existsSync } = window.require('fs');
 
 /**
  * windows平台下调用这个函数
  * 调用wmic命令获取磁盘信息
  * @param {string} outputFilePath 输出文件路径
- * @returns {Array} 磁盘信息
+ * @returns {Array<Object{
+ *          name:string,
+ *          volumeName:string,
+ *          Filesystem:string,
+ *          total:number,
+ *          free:number,
+ *          usedPercentage:number
+ * }>} 磁盘信息
  */
 export function listLocalDisksWin32(outputFilePath){
     let diskInfos = []

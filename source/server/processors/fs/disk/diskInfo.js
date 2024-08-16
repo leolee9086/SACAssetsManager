@@ -1,5 +1,5 @@
 const { exec } = window.require('child_process');
-const { statfsSync, existsSync } = window.require('fs');
+const { statfsSync } = window.require('fs');
 const outputFilePath = require('path').join(siyuan.config.system.workspaceDir, 'temp','sac','wmic_output.txt');
 
 
