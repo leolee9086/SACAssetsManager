@@ -74,6 +74,27 @@ const buildStatProxy = (entry, dir, useProxy) => {
         }
     })
 }
+
+/**
+ * 构建过滤函数
+ * @param {function} filter 
+ * @returns 
+ */
+function buildFilter(filter){
+    if(typeof filter === 'function'){
+        return (statProxy)=>{
+            try{
+                return filter(statProxy)
+            }catch(e){
+                console.error(e,statProxy)
+                return false
+            }
+        }
+    }
+}
+
+
+
 /**
  * 按照给定路径,递归遍历所有文件和目录
  * 使用代理对象,避免重复读取
@@ -86,9 +107,10 @@ const buildStatProxy = (entry, dir, useProxy) => {
  * @param {AbortSignal} signal 用于取消操作
  * @returns 
  */
-export function walk(root, glob, filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
+export function walk(root,  _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
+    const filter = buildFilter(_filter)
     function readDir(dir) {
         if (signal.aborted) {
             stepCallback && stepCallback.end()
@@ -109,8 +131,10 @@ export function walk(root, glob, filter, _stepCallback, useProxy = true, signal 
                 stepCallback && stepCallback(buildStatProxy(entry, dir, useProxy))
                 readDir(dir.replace(/\\/g, '/') + '/' + entry.name)
             } else {
-                if (glob && !entry.name.match(glob)) continue
                 const statProxy = buildStatProxy(entry, dir, useProxy)
+                if(filter && !filter(buildStatProxy(entry, dir, useProxy))){
+                    continue
+                }
                 files.push(statProxy)
                 stepCallback && stepCallback(statProxy)
             }

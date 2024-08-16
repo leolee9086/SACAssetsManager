@@ -33,7 +33,7 @@ export const globStream = async (req, res) => {
     const walkStream = new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
-            walk(options.cwd, null, null, {
+            walk(options.cwd, null, {
                 ifFile: (statProxy) => {   
                         this.push(statProxy);
                 },
