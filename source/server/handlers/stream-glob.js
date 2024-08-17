@@ -17,7 +17,7 @@ const createWalkStream = (options, signal,controller) => {
         transform(chunk, encoding, callback) {
             walkAsync(options.cwd, null, {
                 ifFile: (statProxy) => { 
-                    if(count>10000){
+                    if(count>100000){
                         controller.abort()
                     }
                     this.push(statProxy);
