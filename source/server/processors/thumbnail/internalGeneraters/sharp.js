@@ -4,6 +4,7 @@
  * 
  */
 const sharp = require('sharp')
+
 const fs = require('fs')
 export default class SharpLoader {
     /**
@@ -22,6 +23,7 @@ export default class SharpLoader {
                     res.status(404).send(`File not found ${req.query.path}`);
                     return;
                 }
+
                 sharp(data)
                     .resize(width, height, {
                         fit: 'inside',
@@ -34,8 +36,10 @@ export default class SharpLoader {
                     .catch(err => {
                         reject(err)
                     });
+         
+
             });
-    
+
         })
     }
     /**

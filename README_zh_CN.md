@@ -1,13 +1,46 @@
-## Usage
+## 使用
 
-After installation, you will find an item "Export Multiple Images" in the plugin section of the title menu in the editor. Simply click on it. The usage is similar to the built-in image export feature of the software.
+安装后将会出现本地文件等侧边栏面板
 
-## Notes
+## 设计思路
 
-The exported images contain the logos of "siyuan" and "ccds" (Chuancheng Design), which are located in the plugin source code (`data\plugins\modemkiller\source\index.js`) at line 31. You can modify the plugin source code to remove them if desired.
+这个插件的主要用途是"搜索符合条件的文件",而不是"列出所有文件".
 
-This plugin uses source code distribution. You are free to modify its code to create a new plugin or for any other purpose, as long as you comply with the AGPL 3.0 or later license.
+因此它并不会像"素材管理软件"那样,要求建立专门的"素材库"或者文件库,而是直接实时地遍历并过滤出符合条件的文件.
 
-PS:The name of the "modemkiller" plugin originates from an inside joke from the early days of the internet in China. At that time, modems were nicknamed "cats" in Chinese due to the similarity in pronunciation. When a webpage contained many images, loading all of them could take a long time due to the slow speed of modems. Therefore, people would warn that "many images kill the cat". This plugin can  export multiple images, so I named it "modemkiller"。
+这个设计基于以下几个事实:
 
-PPS：Due to the browser's caching mechanism, you may need to "clear cache and hard refresh" each time after updating the plugin to load the latest plugin code (I know this is troublesome for you, but it's simpler for me to write it this way XDD).
+1. 现在固态硬盘的读写速度已经非常快
+
+2. 文件系统遍历并不需要读取所有文件内容,操作系统本身已经对文件系统遍历进行了优化,例如Linux的`find`命令,Windows的`dir`命令等.
+
+3. 文件的读取和写入以及某些元数据的获取操作,在大多数情况下,都是可以缓存的.
+
+4. 个人电脑上的文件存放往往相当随意而且经常面临各种奇怪的需求,所以专门设计的文件结构往往难以满足需求,直接从高速遍历开始,然后过滤出符合条件的文件,反而更加灵活.
+
+5. 绝大多数情况下,用户并不需要瞬间列出所有合适的文件,而是可以接受一定时间内的延迟,然后得到符合条件的文件,所以实时遍历是可能的.
+
+6. 基于测试,一个一百万文件的固态硬盘,简单遍历并列出所有文件,耗时大约在5秒左右,如果加上stats操作,耗时大约在10秒左右.
+
+7. 用户可以实时地观察遍历结果,并调整搜索条件,所以并不一定需要保证单次遍历一定可以得到合适的结果,而是可以多次遍历,直到得到满意的结果为止.
+
+8. 这个插件注定不能介入系统底层,因此无法保证在软件关闭期间,文件系统操作能被合适地记录,所以建立数据库映射文件系统可能需要相当复杂的机制,而且不一定可靠,不如更直接地在运行时进行处理.
+
+9. 市面上已经有很多相当优秀的文件管理软件,例如eagle,filezilla,total commander等,它们都有自己的文件管理方式,本插件并不打算与它们竞争,而是提供一个简单易用的文件搜索和收藏工具.
+
+### 关于"收藏"和"管理"
+
+本插件的"收藏"功能,仅仅只是为了能够快速找到符合条件的文件,而不是为了"管理"文件,这是资源管理器的任务.
+
+
+
+因此,本插件的设计思路是尽可能地减少文件的读取和写入操作,以及尽可能地减少元数据的获取操作.
+
+
+
+## 说明
+
+导出的图片包含“思源”和“川成设计”的logo，位于插件源码(`data\plugins\modemkiller\source\index.js`)的第31行。如果您不希望包含这些logo，可以修改插件源码来移除它们。
+
+本插件使用源码分发。您可以自由修改其代码以创建新的插件或用于任何其他目的，只要您遵守AGPL 3.0或更高版本许可证即可。
+

@@ -1,11 +1,37 @@
 
-import { walk } from '../processors/fs/walk.js'
+import { walk, walkAsync } from '../processors/fs/walk.js'
 import { buidStatFun } from '../processors/fs/stat.js'
 const { pipeline } = require('stream');
 /**
- * 监听文件,有变化时更新缓存中的stat
- * 如果出错,说明文件被删除?删除缓存中的stat
+ * 创建一个walk流
+ * @param {object} options 
+ * @param {AbortSignal} signal 
+ * @returns 
  */
+const createWalkStream = (options, signal,controller) => {
+    let count = 0
+
+    const Transform = require('stream').Transform
+    return new Transform({
+        objectMode: true,
+        transform(chunk, encoding, callback) {
+            walkAsync(options.cwd, null, {
+                ifFile: (statProxy) => { 
+                    if(count>10000){
+                        controller.abort()
+                    }
+                    this.push(statProxy);
+                    count++
+
+                },
+                end: () => {
+                    this.push(null);
+                }
+            }, false, signal);
+            callback();
+        }
+    });
+};
 export const globStream = async (req, res) => {
     const { pipeline, Transform } = require('stream')
     const scheme = JSON.parse(req.query.setting);
@@ -30,20 +56,7 @@ export const globStream = async (req, res) => {
             callback();
         }
     });
-    const walkStream = new Transform({
-        objectMode: true,
-        transform(chunk, encoding, callback) {
-            walk(options.cwd, null, {
-                ifFile: (statProxy) => {   
-                        this.push(statProxy);
-                },
-                end: () => {
-                    this.push(null);
-                }
-            }, false, signal);
-            callback();
-        }
-    });
+    const walkStream = createWalkStream(options,signal,controller)
     pipeline(
         walkStream,
         transformStream,

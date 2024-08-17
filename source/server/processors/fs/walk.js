@@ -1,3 +1,4 @@
+import { 拼接文件名 } from './utils/JoinFilePath.js'
 import { buildStepCallback } from './stat.js'
 const fs = require('fs')
 /**
@@ -35,7 +36,7 @@ const buildStatProxy = (entry, dir, useProxy) => {
     return new Proxy({}, {
         get(target, prop) {
             if (prop === 'name') {
-                return dir.replace(/\\/g, '/') + '/' + entry.name
+                return 拼接文件名(dir,entry.name)
             }
             if (prop === 'isDirectory') {
                 return entry.isDirectory()
@@ -46,7 +47,7 @@ const buildStatProxy = (entry, dir, useProxy) => {
             if (prop === 'isSymbolicLink') {
                 return entry.isSymbolicLink()
             }
-            const stats = cache[dir.replace(/\\/g, '/') + '/' + entry.name] || statWithCatch(dir.replace(/\\/g, '/') + '/' + entry.name)
+            const stats = cache[拼接文件名(dir,entry.name)] || statWithCatch(拼接文件名(dir,entry.name))
             if (prop === 'toString') {
                 const { path, id, type, size, mtime, mtimems, error } = stats
                 return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
@@ -65,11 +66,11 @@ const buildStatProxy = (entry, dir, useProxy) => {
                 }
             }
             if (prop === 'path') {
-                let normalizedPath = dir.replace(/\\/g, '/') + '/' + entry.name
+                let normalizedPath = 拼接文件名(dir,entry.name)
                 normalizedPath = normalizedPath.replace(/\/\//g, '/')
                 return normalizedPath
             }
-            cache[dir.replace(/\\/g, '/') + '/' + entry.name] = stats
+            cache[拼接文件名(dir,entry.name)] = stats
             return stats[prop]
         }
     })
@@ -92,8 +93,6 @@ function buildFilter(filter){
         }
     }
 }
-
-
 
 /**
  * 按照给定路径,递归遍历所有文件和目录
@@ -129,7 +128,7 @@ export function walk(root,  _filter, _stepCallback, useProxy = true, signal = { 
             const isDir = entry.isDirectory()
             if (isDir) {
                 stepCallback && stepCallback(buildStatProxy(entry, dir, useProxy))
-                readDir(dir.replace(/\\/g, '/') + '/' + entry.name)
+                readDir(拼接文件名(dir,entry.name))
             } else {
                 const statProxy = buildStatProxy(entry, dir, useProxy)
                 if(filter && !filter(buildStatProxy(entry, dir, useProxy))){
@@ -143,4 +142,42 @@ export function walk(root,  _filter, _stepCallback, useProxy = true, signal = { 
     readDir(root);
     stepCallback && stepCallback.end()
     return files;
+}
+export async function walkAsync(root,  _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
+    const files = [];
+    const stepCallback = buildStepCallback(_stepCallback)
+    const filter = buildFilter(_filter)
+    async function readDir(dir) {
+        if (signal.aborted) {
+            stepCallback && stepCallback.end()
+            return
+        }
+        let entries = []
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch (error) {
+        }
+        for await (let entry of entries) {
+            if (signal.aborted) {
+                stepCallback && stepCallback.end()
+                return
+            }
+            const isDir = entry.isDirectory()
+            if (isDir) {
+                stepCallback && stepCallback(buildStatProxy(entry, dir, useProxy))
+                await readDir(拼接文件名(dir,entry.name))
+            } else {
+                const statProxy = buildStatProxy(entry, dir, useProxy)
+                if(filter && !filter(buildStatProxy(entry, dir, useProxy))){
+                    continue
+                }
+                files.push(statProxy)
+                stepCallback && stepCallback(statProxy)
+            }
+        }
+    }
+    await readDir(root);
+    stepCallback && stepCallback.end()
+    return files;
+
 }
