@@ -62,9 +62,7 @@ watch(() => IncludeSubfolders.value, () => {
                     
                     },
                     //正则要使用字符串形式,所以需要转义
-                    {path: { $regex: '\\.jpg$' }}
-                    
-
+                 //   {path: { $regex: '\\.jpg$' }}
                 ]
             }
 

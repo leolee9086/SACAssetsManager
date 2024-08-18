@@ -10,8 +10,12 @@ const fs = require('fs')
 const cache = {}
 const statWithCatch = (path) => {
     try {
-
-        return fs.statSync(path)
+        if (cache[path]) {
+       
+            return cache[path]
+        }
+        cache[path] = fs.statSync(path)
+        return cache[path]
     } catch (e) {
         return {
             path,
@@ -88,11 +92,13 @@ function buildFilter(filter) {
                 let proxy = new Proxy({}, {
                     get(target, prop) {
                         if (prop === 'depth') {
+                            console.log('depth',depth)
                             return depth
                         }
                         return statProxy[prop]
                     }
                 })
+                console.log(filter,filter(proxy))
                 return filter(proxy)
 
             } catch (e) {
@@ -119,8 +125,8 @@ export function walk(root, _filter, _stepCallback, useProxy = true, signal = { a
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter)
+    console.log('filter',_filter)
     let depth = 1
-
     function readDir(dir, depth) {
         if (signal.aborted) {
             stepCallback && stepCallback.end()
@@ -159,12 +165,17 @@ export function walk(root, _filter, _stepCallback, useProxy = true, signal = { a
     stepCallback && stepCallback.end()
     return files;
 }
+
+
+
+const globFileCache = {}
+
 export async function walkAsync(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
     let depth = 1
     const filter = buildFilter(_filter)
-    async function readDir(dir, depth) {
+    async function readDir(dir, depth,) {
         if (signal.aborted) {
             stepCallback && stepCallback.end()
             return
@@ -173,6 +184,7 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
         try {
             entries = fs.readdirSync(dir, { withFileTypes: true });
         } catch (error) {
+            console.error(error)
         }
         for await (let entry of entries) {
             if (signal.aborted) {
