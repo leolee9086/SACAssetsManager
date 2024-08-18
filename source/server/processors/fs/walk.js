@@ -36,7 +36,7 @@ const buildStatProxy = (entry, dir, useProxy) => {
     return new Proxy({}, {
         get(target, prop) {
             if (prop === 'name') {
-                return 拼接文件名(dir,entry.name)
+                return 拼接文件名(dir, entry.name)
             }
             if (prop === 'isDirectory') {
                 return entry.isDirectory()
@@ -47,7 +47,7 @@ const buildStatProxy = (entry, dir, useProxy) => {
             if (prop === 'isSymbolicLink') {
                 return entry.isSymbolicLink()
             }
-            const stats = cache[拼接文件名(dir,entry.name)] || statWithCatch(拼接文件名(dir,entry.name))
+            const stats = cache[拼接文件名(dir, entry.name)] || statWithCatch(拼接文件名(dir, entry.name))
             if (prop === 'toString') {
                 const { path, id, type, size, mtime, mtimems, error } = stats
                 return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
@@ -66,11 +66,11 @@ const buildStatProxy = (entry, dir, useProxy) => {
                 }
             }
             if (prop === 'path') {
-                let normalizedPath = 拼接文件名(dir,entry.name)
+                let normalizedPath = 拼接文件名(dir, entry.name)
                 normalizedPath = normalizedPath.replace(/\/\//g, '/')
                 return normalizedPath
             }
-            cache[拼接文件名(dir,entry.name)] = stats
+            cache[拼接文件名(dir, entry.name)] = stats
             return stats[prop]
         }
     })
@@ -81,13 +81,22 @@ const buildStatProxy = (entry, dir, useProxy) => {
  * @param {function} filter 
  * @returns 
  */
-function buildFilter(filter){
-    if(typeof filter === 'function'){
-        return (statProxy)=>{
-            try{
-                return filter(statProxy)
-            }catch(e){
-                console.error(e,statProxy)
+function buildFilter(filter) {
+    if (typeof filter === 'function') {
+        return (statProxy, depth) => {
+            try {
+                let proxy = new Proxy({}, {
+                    get(target, prop) {
+                        if (prop === 'depth') {
+                            return depth
+                        }
+                        return statProxy[prop]
+                    }
+                })
+                return filter(proxy)
+
+            } catch (e) {
+                console.error(e, statProxy)
                 return false
             }
         }
@@ -106,15 +115,18 @@ function buildFilter(filter){
  * @param {AbortSignal} signal 用于取消操作
  * @returns 
  */
-export function walk(root,  _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
+export function walk(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter)
-    function readDir(dir) {
+    let depth = 1
+
+    function readDir(dir, depth) {
         if (signal.aborted) {
             stepCallback && stepCallback.end()
             return
         }
+        depth++
         let entries = []
         try {
             entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -128,10 +140,14 @@ export function walk(root,  _filter, _stepCallback, useProxy = true, signal = { 
             const isDir = entry.isDirectory()
             if (isDir) {
                 stepCallback && stepCallback(buildStatProxy(entry, dir, useProxy))
-                readDir(拼接文件名(dir,entry.name))
+                if (filter && !filter(buildStatProxy(entry, dir, useProxy), depth)) {
+                    continue
+                }
+
+                readDir(拼接文件名(dir, entry.name), depth)
             } else {
                 const statProxy = buildStatProxy(entry, dir, useProxy)
-                if(filter && !filter(buildStatProxy(entry, dir, useProxy))){
+                if (filter && !filter(buildStatProxy(entry, dir, useProxy), depth)) {
                     continue
                 }
                 files.push(statProxy)
@@ -139,15 +155,16 @@ export function walk(root,  _filter, _stepCallback, useProxy = true, signal = { 
             }
         }
     }
-    readDir(root);
+    readDir(root, depth);
     stepCallback && stepCallback.end()
     return files;
 }
-export async function walkAsync(root,  _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
+export async function walkAsync(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
+    let depth = 1
     const filter = buildFilter(_filter)
-    async function readDir(dir) {
+    async function readDir(dir, depth) {
         if (signal.aborted) {
             stepCallback && stepCallback.end()
             return
@@ -165,18 +182,23 @@ export async function walkAsync(root,  _filter, _stepCallback, useProxy = true, 
             const isDir = entry.isDirectory()
             if (isDir) {
                 stepCallback && stepCallback(buildStatProxy(entry, dir, useProxy))
-                await readDir(拼接文件名(dir,entry.name))
+                if (filter && !filter(buildStatProxy(entry, dir, useProxy), depth)) {
+                    continue
+                } else {
+                    await readDir(拼接文件名(dir, entry.name), depth + 1)
+                }
             } else {
                 const statProxy = buildStatProxy(entry, dir, useProxy)
-                if(filter && !filter(buildStatProxy(entry, dir, useProxy))){
+                if (filter && !filter(buildStatProxy(entry, dir, useProxy), depth)) {
                     continue
+                } else {
+                    files.push(statProxy)
+                    stepCallback && stepCallback(statProxy)
                 }
-                files.push(statProxy)
-                stepCallback && stepCallback(statProxy)
             }
         }
     }
-    await readDir(root);
+    await readDir(root, depth);
     stepCallback && stepCallback.end()
     return files;
 
