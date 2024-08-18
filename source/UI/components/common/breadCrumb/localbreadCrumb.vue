@@ -48,7 +48,6 @@ import { commonIcon } from '../icons.js'
 const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 watch(() => IncludeSubfolders.value, () => {
-    console.log('IncludeSubfolders', IncludeSubfolders.value)
     fetchSUbFolders()
     if (!IncludeSubfolders.value) {
         emit('globChange', {
@@ -56,13 +55,8 @@ watch(() => IncludeSubfolders.value, () => {
             query: {
                 $and: [
                 {
-                    // 排除子文件夹,也就是说文件夹深度为1
                     depth: { $eq: 1 },
-                    // 以.jpg结尾的文件
-                    
                     },
-                    //正则要使用字符串形式,所以需要转义
-                 //   {path: { $regex: '\\.jpg$' }}
                 ]
             }
 

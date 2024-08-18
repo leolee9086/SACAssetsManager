@@ -81,3 +81,14 @@ export function listLoaders(){
 
 
 
+export const 生成缩略图 = async (imagePath,loaderID=null) => {
+    let loader =await getLoader(imagePath,loaderID)
+    if(!loader){
+        return null
+    }
+    return await loader.generateThumbnail(imagePath)
+}
+
+
+
+

@@ -1,84 +1,8 @@
 import { 拼接文件名 } from './utils/JoinFilePath.js'
 import { buildStepCallback } from './stat.js'
+import { buildStatProxy } from './stat.js'
 const fs = require('fs')
-/**
- * 每个函数单独实现,避免多功能函数
- * 以保证简单性和功能单一
- * @param {*} root 
- * @returns 
- */
-const cache = {}
-const statWithCatch = (path) => {
-    try {
-        if (cache[path]) {
-       
-            return cache[path]
-        }
-        cache[path] = fs.statSync(path)
-        return cache[path]
-    } catch (e) {
-        return {
-            path,
-            isDirectory: () => false,
-            isFile: () => false,
-            isSymbolicLink: () => false,
-            error: e,
-            mode: 0,
-            size: 0,
-            atime: new Date(),
-            mtime: new Date(),
-            birthtime: new Date()
-        }
-    }
-}
 
-/**
- * 创建一个代理对象,只有获取value时才会懒执行,节约性能
- * 使用缓存,避免重复读取
- */
-const buildStatProxy = (entry, dir, useProxy) => {
-    return new Proxy({}, {
-        get(target, prop) {
-            if (prop === 'name') {
-                return 拼接文件名(dir, entry.name)
-            }
-            if (prop === 'isDirectory') {
-                return entry.isDirectory()
-            }
-            if (prop === 'isFile') {
-                return entry.isFile()
-            }
-            if (prop === 'isSymbolicLink') {
-                return entry.isSymbolicLink()
-            }
-            const stats = cache[拼接文件名(dir, entry.name)] || statWithCatch(拼接文件名(dir, entry.name))
-            if (prop === 'toString') {
-                const { path, id, type, size, mtime, mtimems, error } = stats
-                return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
-            }
-
-            if (prop === 'type') {
-                //type是文件类型,dir表示目录,file表示文件,link表示符号链接
-                if (entry.isDirectory()) {
-                    return 'dir'
-                }
-                if (entry.isFile()) {
-                    return 'file'
-                }
-                if (entry.isSymbolicLink()) {
-                    return 'link'
-                }
-            }
-            if (prop === 'path') {
-                let normalizedPath = 拼接文件名(dir, entry.name)
-                normalizedPath = normalizedPath.replace(/\/\//g, '/')
-                return normalizedPath
-            }
-            cache[拼接文件名(dir, entry.name)] = stats
-            return stats[prop]
-        }
-    })
-}
 
 /**
  * 构建过滤函数
@@ -92,15 +16,12 @@ function buildFilter(filter) {
                 let proxy = new Proxy({}, {
                     get(target, prop) {
                         if (prop === 'depth') {
-                            console.log('depth',depth)
                             return depth
                         }
                         return statProxy[prop]
                     }
                 })
-                console.log(filter,filter(proxy))
                 return filter(proxy)
-
             } catch (e) {
                 console.error(e, statProxy)
                 return false

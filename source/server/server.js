@@ -9,8 +9,10 @@ import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
 const port = window.port
-import { memoryCache,generateCacheKey } from './utils/cache.js';
+import { buildCache } from './processors/cache/cache.js';
+import { statWithCatch } from './processors/fs/stat.js';
 import * as headers from './middlewares/headers.js';
+import { genColor } from './handlers/get-color.js'
 /**
  * 启用跨域支持
  */
@@ -38,7 +40,23 @@ app.post('/file-list-stream', headers.types.textPlain,fileListStream)
 app.get('/count-etries', entryCounter)
 app.get('/listDisk',listDisk)
 app.get('/loaders',listLoaders)
-app.get('/thumbnail', async (req, res) => {
+app.get('/color',async (req,res)=>{
+    let 源文件地址 = req.query.localPath
+    源文件地址 = 源文件地址.replace(/\//g,'\\')
+    let stat = statWithCatch(源文件地址)
+    let 缓存键 = JSON.stringify({stat})
+    let ctx = {
+        req,
+        res,
+        stats:{
+            源文件地址,
+            缓存键
+        }
+    }
+    const colors = await genColor(ctx)
+    res.json(colors)
+})
+app.get('/thumbnail',  (req, res) => {
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
@@ -46,16 +64,18 @@ app.get('/thumbnail', async (req, res) => {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
     源文件地址 = 源文件地址.replace(/\//g,'\\')
-    const 缓存键 = generateCacheKey(源文件地址);
+    const stat = statWithCatch(源文件地址)
+    const 缓存键 = JSON.stringify({stat})
+    const thumbnailCache = buildCache('thumbnailCache')
     let ctx = {
         req,
         res,
         query:req.query,
-        缓存对象:memoryCache,
+        缓存对象:thumbnailCache,
         stats:{
             源文件地址,
             缓存键,
-            缓存对象:memoryCache
+            缓存对象:thumbnailCache
         }
     }
     let next=()=>{}

@@ -1,12 +1,9 @@
 const crypto = require('crypto');
 
 // 生成缓存键的函数保持不变
-export function generateCacheKey(filePath) {
-    return crypto.createHash('md5').update(filePath).digest('hex');
+export function generateCacheKey(raw) {
+    return crypto.createHash('md5').update(raw).digest('hex');
 }
-
-
-
 class loacalJsonAdapter{
     constructor(path){
         this.path = path
@@ -87,7 +84,6 @@ export class BaseCacheProvider{
     get(key){
         const item = this.cache.get(key)
         if(!item) return null
-        if(item.timestamp + this.ttl < Date.now()) return null
         return item.value
     }
     /**
@@ -129,7 +125,11 @@ export class BaseCacheProvider{
         this.adapter&&this.adapter.restore(this.cache)
     }
 }
-export const adapters =[loacalJsonAdapter]
-// 内存缓存
-export const memoryCache = new BaseCacheProvider('memoryCache')
+export function buildCache(name,adapter){
+    const globalCache = globalThis[Symbol.for('cache')] || {}
+    globalThis[Symbol.for('cache')] = globalCache
+    const symbol = Symbol.for(name)
+    globalCache[symbol] = globalCache[symbol] || new BaseCacheProvider(name,adapter)    
+    return globalCache[symbol]
+}
 

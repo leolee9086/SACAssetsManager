@@ -9,28 +9,28 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter,signal,controller) => {
+const createWalkStream = (cwd, filter, signal, controller) => {
     let count = 0
 
     const Transform = require('stream').Transform
-    const filterFun=(entry)=>{
-        if(filter){
-           return filter.test(entry)
+    const filterFun = (entry) => {
+        if (filter) {
+            return filter.test(entry)
         }
     }
     return new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
             walkAsync(cwd, filterFun, {
-                ifFile: (statProxy) => { 
-                    if(count>10000){
+                ifFile: (statProxy) => {
+                    if (count > 10000) {
                         controller.abort()
                     }
                     this.push(statProxy);
                     count++
                 },
-                filter:(entry)=>{
-                    if(filter){
+                filter: (entry) => {
+                    if (filter) {
                         return filter.test(entry)
                     }
                 },
@@ -46,13 +46,13 @@ export const globStream = async (req, res) => {
     const { pipeline, Transform } = require('stream')
     const scheme = JSON.parse(req.query.setting)
     console.log(scheme)
-    const filter=scheme.query?new Query(scheme.query):null
+    const filter = scheme.query ? new Query(scheme.query) : null
     console.log(filter)
-    const cwd=scheme.cwd
+    const cwd = scheme.cwd
     res.writeHead(200, { 'Content-Type': 'application/text;charset=utf-8' });
     const controller = new AbortController();
     const { signal } = controller;
-    const walkStream = createWalkStream(cwd,filter,signal,controller)
+    const walkStream = createWalkStream(cwd, filter, signal, controller)
 
     //前端请求关闭时,触发中止信号
     req.on('close', () => {
@@ -61,20 +61,24 @@ export const globStream = async (req, res) => {
     const transformStream = new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
-            try {
+            let that = this
+            requestIdleCallback(() => {
+                try {
                     const { name, path, type, size, mtime, mtimems, error } = chunk;
                     const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-                    this.push(data); 
-            } catch (err) {
-                console.warn(err, chunk);
-            }
+                    res.write(data);
+                } catch (err) {
+                    console.warn(err, chunk);
+                }
+
+            }, { timeout: 1000 })
             callback();
         }
     });
     pipeline(
         walkStream,
         transformStream,
-        res,
+        
         (err) => {
             if (err) {
                 console.error('Streaming error:', err);

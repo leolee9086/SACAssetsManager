@@ -1,3 +1,4 @@
+import { 拼接文件名 } from './utils/JoinFilePath.js'
 /**
  * 如果stepCallback是一个函数,直接使用它
  * 如果stepCallback是一个对象,使用它的两个回调函数分别构建
@@ -5,11 +6,11 @@
  * @returns 
  */
 export const buildStepCallback = (stepCallback) => {
-    if(!stepCallback)return
-    if(typeof stepCallback === 'function'){
-        let callback =  (statProxy) => {
+    if (!stepCallback) return
+    if (typeof stepCallback === 'function') {
+        let callback = (statProxy) => {
             try {
-                 stepCallback(statProxy)
+                stepCallback(statProxy)
             } catch (e) {
                 console.error(e)
             }
@@ -19,16 +20,16 @@ export const buildStepCallback = (stepCallback) => {
         }
         return callback
     }
-    let callback =  (statProxy) => {
+    let callback = (statProxy) => {
         try {
-            if(statProxy.isDirectory){
-                stepCallback.ifDir &&  stepCallback.ifDir(statProxy)
+            if (statProxy.isDirectory) {
+                stepCallback.ifDir && stepCallback.ifDir(statProxy)
             }
-            if(statProxy.isFile){
-                stepCallback.ifFile &&  stepCallback.ifFile(statProxy)
+            if (statProxy.isFile) {
+                stepCallback.ifFile && stepCallback.ifFile(statProxy)
             }
-            if(statProxy.isSymbolicLink){
-                stepCallback.ifSymbolicLink &&  stepCallback.ifSymbolicLink(statProxy)
+            if (statProxy.isSymbolicLink) {
+                stepCallback.ifSymbolicLink && stepCallback.ifSymbolicLink(statProxy)
             }
         } catch (e) {
             console.warn(e)
@@ -91,3 +92,76 @@ export function buidStatFun(cwd) {
         }
     }
 }
+
+
+import { buildCache } from '../cache/cache.js'
+const statCache = buildCache('statCache')
+const fs = require('fs')
+export  const statWithCatch = (path) => {
+    try {
+        if (statCache[path]) {
+            return statCache.get(path)
+        }
+        statCache.set(path, fs.statSync(path))
+        return statCache.get(path)
+    } catch (e) {
+        return {
+            path,
+            isDirectory: () => false,
+            isFile: () => false,
+            isSymbolicLink: () => false,
+            error: e,
+            mode: 0,
+            size: 0,
+            atime: new Date(),
+            mtime: new Date(),
+            birthtime: new Date()
+        }
+    }
+}
+/**
+ * 创建一个代理对象,只有获取value时才会懒执行,节约性能
+ * 使用缓存,避免重复读取
+ */
+export const buildStatProxy = (entry, dir, useProxy) => {
+    return new Proxy({}, {
+        get(target, prop) {
+            if (prop === 'name') {
+                return 拼接文件名(dir, entry.name)
+            }
+            if (prop === 'isDirectory') {
+                return entry.isDirectory()
+            }
+            if (prop === 'isFile') {
+                return entry.isFile()
+            }
+            if (prop === 'isSymbolicLink') {
+                return entry.isSymbolicLink()
+            }
+            const stats = statWithCatch(拼接文件名(dir, entry.name))
+            if (prop === 'toString') {
+                const { path, id, type, size, mtime, mtimems, error } = stats
+                return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
+            }
+            if (prop === 'type') {
+                //type是文件类型,dir表示目录,file表示文件,link表示符号链接
+                if (entry.isDirectory()) {
+                    return 'dir'
+                }
+                if (entry.isFile()) {
+                    return 'file'
+                }
+                if (entry.isSymbolicLink()) {
+                    return 'link'
+                }
+            }
+            if (prop === 'path') {
+                let normalizedPath = 拼接文件名(dir, entry.name)
+                normalizedPath = normalizedPath.replace(/\/\//g, '/')
+                return normalizedPath
+            }
+            return stats[prop]
+        }
+    })
+}
+
