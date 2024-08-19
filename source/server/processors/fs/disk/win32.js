@@ -1,6 +1,6 @@
 const { exec } = window.require('child_process');
 const { existsSync } = window.require('fs');
-
+const fs=window.require('fs')
 /**
  * windows平台下调用这个函数
  * 调用wmic命令获取磁盘信息

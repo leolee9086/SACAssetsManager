@@ -1,3 +1,11 @@
+//使用fetch实现POST请求下的SSE
+export function postSSE(uri,data){
+    const eventSource=new EventSource(uri)
+    eventSource.onmessage=function(event){
+        console.log(event.data)
+    }
+}
+
 /**
  * 从url流式读取csv文件
  * 这里的csv文件是标准的csv文件,每一行一个对象
@@ -133,7 +141,6 @@ export async function applyURIStreamJson(uri, target, callback, step, signal,opt
         let splitedChunk
         function read() {
             reader.read().then(({ value, done }) => {
-                console.log(value)
                 if (done) {
                     callback && callback()
                     console.log('Stream complete');

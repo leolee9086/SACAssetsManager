@@ -1,9 +1,11 @@
+import { listLocalDisksWin32 } from './win32.js'
+
 const { exec } = window.require('child_process');
 const { statfsSync } = window.require('fs');
+const siyuan= window.siyuan||{config:window.siyuanConfig}
 const outputFilePath = require('path').join(siyuan.config.system.workspaceDir, 'temp','sac','wmic_output.txt');
 
 
-import { listLocalDisksWin32 } from './win32.js'
 
 
 

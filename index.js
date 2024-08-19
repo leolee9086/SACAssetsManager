@@ -57,6 +57,7 @@ module.exports = class SACAssetsManager extends Plugin {
       type: "config",
       init() {
         const UI容器父元素 = this.element
+        this.contollers=[]
         const UI容器 = 插入UI面板容器(UI容器父元素)
         import('/plugins/SACAssetsManager/source/UI/tab.js').then(
           module => {
@@ -85,6 +86,7 @@ module.exports = class SACAssetsManager extends Plugin {
           }
         )
       },
+      
     })
   }
   async 创建web服务() {
@@ -121,9 +123,13 @@ module.exports = class SACAssetsManager extends Plugin {
         )
       },
       beforeDestroy() {
-      },
-      destroy() {
+        this.element.innerHTML = ""
+        console.log(this.controllers)
+        this.controllers.forEach(controller=>{
+          controller.abort()
+        })
       }
+
     })
   }
 }
