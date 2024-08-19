@@ -220,10 +220,10 @@ watch(
 )
 let oldsize
 let lastSort = Date.now()
+//排序函数
 function sortLocalStream() {
     emit("layoutCount", 附件数据组.length)
     布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
-
     mounted.value = true
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 100) {
         oldsize = 布局对象.value.layout.length
@@ -237,6 +237,8 @@ const signal = controller.signal;
 onUnmounted(
     () => {
         try{
+            emit("layoutCount",0)
+            emit("layoutLoadedCount",0)
             controller.abort('unmounted');
         }catch(e){
             console.warn(e)
