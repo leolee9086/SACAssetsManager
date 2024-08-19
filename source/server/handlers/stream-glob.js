@@ -2,6 +2,7 @@
 import { walk, walkAsync } from '../processors/fs/walk.js'
 import { buidStatFun } from '../processors/fs/stat.js'
 import { Query } from '../../../static/mingo.js';
+import { 准备缩略图 } from '../processors/thumbnail/loader.js'
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -9,9 +10,18 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter, signal, controller) => {
+const createWalkStream = (cwd, filter, signal, res) => {
     let count = 0
-
+    //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
+    const walkController = new AbortController()
+    //当signal触发中止时,walkController也中止
+    signal.addEventListener('abort', () => {
+        walkController.abort()
+    })
+    if (signal.aborted) {
+        walkController.abort()
+    }
+    const walkSignal = walkController.signal
     const Transform = require('stream').Transform
     const filterFun = (entry) => {
         if (filter) {
@@ -22,11 +32,22 @@ const createWalkStream = (cwd, filter, signal, controller) => {
         objectMode: true,
         transform(chunk, encoding, callback) {
             walkAsync(cwd, filterFun, {
-                ifFile: (statProxy) => {
+                ifFile: async (statProxy) => {
                     if (count > 10000) {
-                        controller.abort()
+                        this.push(null)
+                        walkController.abort()
+                        return
+
                     }
+                    if (signal.aborted) {
+                        this.push(null)
+                        walkController.abort()
+                        return
+                    }
+                    console.log(count)
+
                     this.push(statProxy);
+                    res.flush()
                     count++
                 },
                 filter: (entry) => {
@@ -37,12 +58,12 @@ const createWalkStream = (cwd, filter, signal, controller) => {
                 end: () => {
                     this.push(null);
                 }
-            }, false, signal);
+            }, true, walkSignal);
             callback();
         }
     });
 };
-export const globStream = async (req, res) => {
+export const globStream = (req, res) => {
     const { pipeline, Transform } = require('stream')
     const scheme = JSON.parse(req.query.setting)
     console.log(scheme)
@@ -52,37 +73,64 @@ export const globStream = async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/text;charset=utf-8' });
     const controller = new AbortController();
     const { signal } = controller;
-    const walkStream = createWalkStream(cwd, filter, signal, controller)
+    const walkStream = createWalkStream(cwd, filter, signal, res)
 
     //前端请求关闭时,触发中止信号
-    req.on('close', () => {
+    //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
+    const socket = res.socket
+    socket.on('close', () => {
+        console.log('close')
         controller.abort();
     });
+
     const transformStream = new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
             let that = this
-            requestIdleCallback(() => {
-                try {
-                    const { name, path, type, size, mtime, mtimems, error } = chunk;
-                    const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-                    if(!signal.aborted){
-                        res.write(data);
-                    }else{
-                        res.destroy('aborted')
-                    }   
-                } catch (err) {
-                    console.warn(err, chunk);
-                }
 
-            }, { timeout: 1000 })
-            callback();
+            if (!signal.aborted) {
+
+                setImmediate(() => {
+                    try {
+                        if (signal.aborted) {
+                            callback()
+
+                            return
+                        }
+                        const { name, path, type, size, mtime, mtimems, error } = chunk;
+                        const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
+                        this.push(data)
+                        res.flush()
+                        try {
+                            callback()
+
+                        } catch (err) {
+                            callback()
+
+                            console.warn(err)
+                        }
+
+                        准备缩略图(path)
+                    } catch (err) {
+                        console.warn(err, chunk);
+                        callback()
+                    }
+                },
+                 );
+            } else {
+                callback()
+
+                return
+            }
+
+
         }
     });
-    pipeline(
+    walkStream.pipe(transformStream).pipe(res)
+    /*pipeline(
         walkStream,
         transformStream,
-        
+        res,
         (err) => {
             if (err) {
                 console.error('Streaming error:', err);
@@ -91,7 +139,7 @@ export const globStream = async (req, res) => {
                 console.log('Streaming completed');
             }
         }
-    );
+    )*/
     walkStream.write({});  // 触发walk开始
 };
 export const fileListStream = async (req, res) => {

@@ -1,8 +1,9 @@
 import {  listLoaders as listThumbnailLoaders } from '../processors/thumbnail/loader.js '
 let cacheLoader = (ctx) => {
-    let { 缓存对象, 缓存键, 缓存时间 } = ctx
-    let result = 缓存对象.get[缓存键]
+    let { 缓存对象, 缓存键, 缓存时间 } = ctx.stats
+    let result = 缓存对象.get(缓存键)
     if (result) {
+        console.log("缩略图缓存命中",缓存键)
         return result
     }
 }

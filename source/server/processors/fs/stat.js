@@ -98,11 +98,18 @@ import { buildCache } from '../cache/cache.js'
 const statCache = buildCache('statCache')
 const fs = require('fs')
 export  const statWithCatch = (path) => {
+    path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     try {
         if (statCache[path]) {
             return statCache.get(path)
         }
-        statCache.set(path, fs.statSync(path))
+        let stat =fs.statSync(path)
+        statCache.set(path, {
+            path,
+            type: stat.isFile()?'file':'dir',
+            ...stat,
+            ...fs.lstatSync(path)
+        })
         return statCache.get(path)
     } catch (e) {
         return {
@@ -124,6 +131,22 @@ export  const statWithCatch = (path) => {
  * 使用缓存,避免重复读取
  */
 export const buildStatProxy = (entry, dir, useProxy) => {
+    let path =拼接文件名(dir, entry.name)
+    if(useProxy){
+        return buildStatProxyByPath(path,entry)
+    }else{
+        let stats = statWithCatch(path)
+        let type = stats.type
+        return {
+            name:entry.name,
+            type,
+            path,
+            ...stats,
+            isDirectory:()=>entry.isDirectory(),
+            isFile:()=>entry.isFile(),
+            isSymbolicLink:()=>entry.isSymbolicLink(),
+        }
+    }
     return new Proxy({}, {
         get(target, prop) {
             if (prop === 'name') {
@@ -164,4 +187,54 @@ export const buildStatProxy = (entry, dir, useProxy) => {
         }
     })
 }
+export const buildStatProxyByPath = (path,entry) => {
+    path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
+    //这里的entry需要与fs.readdirSync(path)返回的entry一致
+    //否则会导致statWithCatch缓存失效
+    //设法让entry与fs.readdirSync(path)返回的entry一致
+    //不能使用lstatSync,因为lstatSync返回的entry没有isDirectory等方法
+    entry = entry||fs.statSync(path)
 
+    return new Proxy({}, {
+        get(target, prop) {
+            if (prop === 'name') {
+                return path
+            }
+            if (prop === 'isDirectory') {
+                return entry&&entry.isDirectory()
+            }
+            if (prop === 'isFile') {
+                return entry&&entry.isFile()
+
+            }
+            if (prop === 'isSymbolicLink') {
+                return entry&&entry.isSymbolicLink()
+
+            }
+            const stats = statWithCatch(path)
+            if (prop === 'toString') {
+                const { path, id, type, size, mtime, mtimems, error } = stats
+                return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
+            }
+            if (prop === 'type') {
+                //type是文件类型,dir表示目录,file表示文件,link表示符号链接
+                if (entry&&entry.isDirectory()) {
+                    return 'dir'
+                }
+                if (entry&&entry.isFile()) {
+
+                    return 'file'
+                }
+                if (entry&&entry.isSymbolicLink()) {
+                    return 'link'
+                }
+                return 'file'
+            }
+            if (prop === 'path') {
+                return path
+            }
+            return stats[prop]
+        }
+    })
+
+}

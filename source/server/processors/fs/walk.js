@@ -78,6 +78,7 @@ export function walk(root, _filter, _stepCallback, useProxy = true, signal = { a
                     continue
                 }
                 files.push(statProxy)
+
                 stepCallback && stepCallback(statProxy)
             }
         }
@@ -89,7 +90,6 @@ export function walk(root, _filter, _stepCallback, useProxy = true, signal = { a
 
 
 
-const globFileCache = {}
 
 export async function walkAsync(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
@@ -105,7 +105,7 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
         try {
             entries = fs.readdirSync(dir, { withFileTypes: true });
         } catch (error) {
-            console.error(error)
+            return
         }
         for await (let entry of entries) {
             if (signal.aborted) {

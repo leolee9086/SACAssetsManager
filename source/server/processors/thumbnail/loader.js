@@ -1,5 +1,7 @@
+import { buildCache } from '../cache/cache.js'
 import commonLoader from './internalGeneraters/onlyName.js'
 import { sortLoaderByRegexComplexity } from './sorter.js'
+import { statWithCatch } from '../fs/stat.js'
 let loderPaths = [
     './internalGeneraters/svg.js', 
     './internalGeneraters/sharp.js', 
@@ -87,6 +89,19 @@ export const 生成缩略图 = async (imagePath,loaderID=null) => {
         return null
     }
     return await loader.generateThumbnail(imagePath)
+}
+const tumbnailCache = buildCache('thumbnailCache')
+export const 准备缩略图 = async (imagePath,loaderID=null) => {
+
+    requestIdleCallback(async ()=>{
+
+        const stat = statWithCatch(imagePath)
+        const 缓存键 =JSON.stringify(stat)
+        if(!tumbnailCache.get(缓存键)){
+
+            tumbnailCache.set(缓存键,await 生成缩略图(imagePath,loaderID))
+        }
+    },{timeout:10000,deadline:100})
 }
 
 

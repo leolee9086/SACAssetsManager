@@ -65,7 +65,7 @@ app.get('/thumbnail',  (req, res) => {
     }
     源文件地址 = 源文件地址.replace(/\//g,'\\')
     const stat = statWithCatch(源文件地址)
-    const 缓存键 = JSON.stringify({stat})
+    const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('thumbnailCache')
     let ctx = {
         req,

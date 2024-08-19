@@ -65,8 +65,10 @@ export class BaseCacheProvider{
      * @param {*} value
      */
     set(key, value){
+ 
         this.cache.set(key, {value, timestamp: Date.now()})
     }
+
     /**
      * 删除缓存
      * @param {string} key
