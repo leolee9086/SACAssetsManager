@@ -66,7 +66,11 @@ export const globStream = async (req, res) => {
                 try {
                     const { name, path, type, size, mtime, mtimems, error } = chunk;
                     const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-                    res.write(data);
+                    if(!signal.aborted){
+                        res.write(data);
+                    }else{
+                        res.destroy('aborted')
+                    }   
                 } catch (err) {
                     console.warn(err, chunk);
                 }
