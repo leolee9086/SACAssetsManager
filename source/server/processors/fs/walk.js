@@ -70,7 +70,6 @@ export function walk(root, _filter, _stepCallback, useProxy = true, signal = { a
                 if (filter && !filter(buildStatProxy(entry, dir, useProxy), depth)) {
                     continue
                 }
-
                 readDir(拼接文件名(dir, entry.name), depth)
             } else {
                 const statProxy = buildStatProxy(entry, dir, useProxy)
@@ -78,7 +77,6 @@ export function walk(root, _filter, _stepCallback, useProxy = true, signal = { a
                     continue
                 }
                 files.push(statProxy)
-
                 stepCallback && stepCallback(statProxy)
             }
         }
@@ -114,7 +112,7 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
             }
             const isDir = entry.isDirectory()
             if (isDir) {
-                stepCallback && stepCallback(buildStatProxy(entry, dir, useProxy))
+                stepCallback && await stepCallback(buildStatProxy(entry, dir, useProxy))
                 if (filter && !filter(buildStatProxy(entry, dir, useProxy), depth)) {
                     continue
                 } else {
@@ -126,7 +124,7 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
                     continue
                 } else {
                     files.push(statProxy)
-                    stepCallback && stepCallback(statProxy)
+                    stepCallback &&await stepCallback(statProxy)
                 }
             }
         }

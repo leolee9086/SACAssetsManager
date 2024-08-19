@@ -133,6 +133,7 @@ export async function applyURIStreamJson(uri, target, callback, step, signal,opt
         let splitedChunk
         function read() {
             reader.read().then(({ value, done }) => {
+                console.log(value)
                 if (done) {
                     callback && callback()
                     console.log('Stream complete');

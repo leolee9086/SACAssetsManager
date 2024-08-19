@@ -34,7 +34,7 @@ app.use(compression({
 /**
  * 流式遍历文件夹
  */
-app.get('/glob-stream', headers.types.textPlain,globStream)
+app.get('/glob-stream',globStream)
 app.get('/file-list-stream', headers.types.textPlain,fileListStream)
 app.post('/file-list-stream', headers.types.textPlain,fileListStream)
 app.get('/count-etries', entryCounter)

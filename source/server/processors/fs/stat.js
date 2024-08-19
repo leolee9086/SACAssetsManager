@@ -8,9 +8,9 @@ import { 拼接文件名 } from './utils/JoinFilePath.js'
 export const buildStepCallback = (stepCallback) => {
     if (!stepCallback) return
     if (typeof stepCallback === 'function') {
-        let callback = (statProxy) => {
+        let callback =async (statProxy) => {
             try {
-                stepCallback(statProxy)
+                await stepCallback(statProxy)
             } catch (e) {
                 console.error(e)
             }
@@ -20,23 +20,23 @@ export const buildStepCallback = (stepCallback) => {
         }
         return callback
     }
-    let callback = (statProxy) => {
+    let callback =async (statProxy) => {
         try {
             if (statProxy.isDirectory) {
-                stepCallback.ifDir && stepCallback.ifDir(statProxy)
+                stepCallback.ifDir && await stepCallback.ifDir(statProxy)
             }
             if (statProxy.isFile) {
-                stepCallback.ifFile && stepCallback.ifFile(statProxy)
+                stepCallback.ifFile && await stepCallback.ifFile(statProxy)
             }
             if (statProxy.isSymbolicLink) {
-                stepCallback.ifSymbolicLink && stepCallback.ifSymbolicLink(statProxy)
+                stepCallback.ifSymbolicLink && await stepCallback.ifSymbolicLink(statProxy)
             }
         } catch (e) {
             console.warn(e)
         }
     }
-    callback.end = () => {
-        stepCallback.end && stepCallback.end()
+    callback.end =async () => {
+        stepCallback.end && await stepCallback.end()
     }
     return callback
 }

@@ -44,10 +44,7 @@ const createWalkStream = (cwd, filter, signal, res) => {
                         walkController.abort()
                         return
                     }
-                    console.log(count)
-
                     this.push(statProxy);
-                    res.flush()
                     count++
                 },
                 filter: (entry) => {
@@ -57,6 +54,7 @@ const createWalkStream = (cwd, filter, signal, res) => {
                 },
                 end: () => {
                     this.push(null);
+
                 }
             }, true, walkSignal);
             callback();
@@ -70,7 +68,13 @@ export const globStream = (req, res) => {
     const filter = scheme.query ? new Query(scheme.query) : null
     console.log(filter)
     const cwd = scheme.cwd
-    res.writeHead(200, { 'Content-Type': 'application/text;charset=utf-8' });
+    //设置响应头
+    res.writeHead(200, {
+        "Content-Type": "text/plain;charset=utf-8",
+    });
+    res.flushHeaders()
+    res.write('')
+
     const controller = new AbortController();
     const { signal } = controller;
     const walkStream = createWalkStream(cwd, filter, signal, res)
@@ -82,64 +86,41 @@ export const globStream = (req, res) => {
         console.log('close')
         controller.abort();
     });
-
+    let chunData = ''
     const transformStream = new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
             let that = this
-
             if (!signal.aborted) {
-
+               
                 setImmediate(() => {
                     try {
-                        if (signal.aborted) {
+                        if(signal.aborted){
                             callback()
-
                             return
                         }
                         const { name, path, type, size, mtime, mtimems, error } = chunk;
                         const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-                        this.push(data)
-                        res.flush()
-                        try {
-                            callback()
-
-                        } catch (err) {
-                            callback()
-
-                            console.warn(err)
-                        }
-
+                        chunData+=data
+                        callback()
                         准备缩略图(path)
                     } catch (err) {
                         console.warn(err, chunk);
-                        callback()
                     }
-                },
-                 );
+                })
+                setImmediate(()=>{
+                    this.push(chunData)
+                    chunData=''
+                    res.flush()
+                })
             } else {
+                res.end()
                 callback()
-
                 return
             }
-
-
         }
     });
     walkStream.pipe(transformStream).pipe(res)
-    /*pipeline(
-        walkStream,
-        transformStream,
-        res,
-        (err) => {
-            if (err) {
-                console.error('Streaming error:', err);
-                res.destroy(err);
-            } else {
-                console.log('Streaming completed');
-            }
-        }
-    )*/
     walkStream.write({});  // 触发walk开始
 };
 export const fileListStream = async (req, res) => {

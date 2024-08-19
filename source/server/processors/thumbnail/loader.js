@@ -101,7 +101,7 @@ export const 准备缩略图 = async (imagePath,loaderID=null) => {
 
             tumbnailCache.set(缓存键,await 生成缩略图(imagePath,loaderID))
         }
-    },{timeout:10000,deadline:100})
+    },{deadline:100})
 }
 
 
