@@ -147,45 +147,6 @@ export const buildStatProxy = (entry, dir, useProxy) => {
             isSymbolicLink:()=>entry.isSymbolicLink(),
         }
     }
-    return new Proxy({}, {
-        get(target, prop) {
-            if (prop === 'name') {
-                return 拼接文件名(dir, entry.name)
-            }
-            if (prop === 'isDirectory') {
-                return entry.isDirectory()
-            }
-            if (prop === 'isFile') {
-                return entry.isFile()
-            }
-            if (prop === 'isSymbolicLink') {
-                return entry.isSymbolicLink()
-            }
-            const stats = statWithCatch(拼接文件名(dir, entry.name))
-            if (prop === 'toString') {
-                const { path, id, type, size, mtime, mtimems, error } = stats
-                return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
-            }
-            if (prop === 'type') {
-                //type是文件类型,dir表示目录,file表示文件,link表示符号链接
-                if (entry.isDirectory()) {
-                    return 'dir'
-                }
-                if (entry.isFile()) {
-                    return 'file'
-                }
-                if (entry.isSymbolicLink()) {
-                    return 'link'
-                }
-            }
-            if (prop === 'path') {
-                let normalizedPath = 拼接文件名(dir, entry.name)
-                normalizedPath = normalizedPath.replace(/\/\//g, '/')
-                return normalizedPath
-            }
-            return stats[prop]
-        }
-    })
 }
 export const buildStatProxyByPath = (path,entry) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
