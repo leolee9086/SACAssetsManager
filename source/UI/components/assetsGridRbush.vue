@@ -29,8 +29,9 @@ import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, 
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting'])
+const props = defineProps(['size', 'sorter', 'globSetting','maxCount'])
 const size = toRef(props, 'size')
+const maxCount = toRef(props, 'maxCount')
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
 const root = ref(null)
@@ -253,7 +254,6 @@ onMounted(async () => {
             appData.value.tab.controllers=appData.value.tab.controllers||[]
             appData.value.tab.controllers.push(controller)
             await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 10, signal)
-
         }catch(e){
             console.warn(e)
         }

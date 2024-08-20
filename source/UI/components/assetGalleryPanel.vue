@@ -1,10 +1,21 @@
 <template>
-    <div @wheel="scaleListener"  class=" fn__flex-column" style="max-height: 100%;" ref="root">
+    <div @wheel="scaleListener" class=" fn__flex-column" style="max-height: 100%;" ref="root">
         <div class=" fn__flex " style="min-height:36px;align-items: center;">
             <div class="fn__space fn__flex-1"></div>
             <div class=" fn__flex ">
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="100"
                     class="b3-slider fn__block" max="1024" min="64" step="16" type="range">
+                <div class="fn__space fn__flex-1"></div>
+
+                <input v-model="maxCount" style="box-sizing: border-box;width:100px;" :value="10000" type="number">
+                <div class="fn__space fn__flex-1"></div>
+                <div class="fn__flex">
+                    <button @click="refreshPanel">刷新</button>
+                </div>
+                <div class="fn__space fn__flex-1"></div>
+                <div class="fn__flex">
+                    <input v-model="search" style="box-sizing: border-box;width:100px;">
+                </div>
             </div>
             <div class="fn__space fn__flex-1"></div>
         </div>
@@ -13,14 +24,14 @@
             <div class="fn__space fn__flex-1"></div>
         </div>
         <div class="fn__space"></div>
-        <div class="fn__flex-column fn__flex-1" @dragstart.stop="(e)=>onDragStart(e,currentLayout)" style="width:100%;overflow: hidden;"
-            @mousedown.left="startSelection" @click.left="endSelection" @click.right.stop="openMenu" @mousedup="endSelection"
-            @mousemove="updateSelection" @drop="handlerDrop" 
+        <div class="fn__flex-column fn__flex-1" @dragstart.stop="(e) => onDragStart(e, currentLayout)"
+            style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
+            @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush :globSetting="globSetting" v-if="showPanel && globSetting" @ready="size = 300"
-                @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
-                @layoutCount="(e) => { layoutCount.found = e }" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
-                :size="parseInt(size)"></assetsGridRbush>
+            <assetsGridRbush :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
+                @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
+                :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }"
+                @layoutLoadedCount="(e) => { layoutCount.loaded = e }" :size="parseInt(size)"></assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
                 layoutCount.found + layoutCount.loaded + '个文件发现,' + layoutCount.loaded + '个文件已经加载' }}</div>
             <!--选择框的容器-->
@@ -29,21 +40,49 @@
     </div>
 </template>
 <script setup>
-import { ref, inject, computed, nextTick, watch, toRef,onMounted } from 'vue'
+import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 
 import assetsGridRbush from './assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
+
+
+//全局设置
 const globSetting = ref({})
+//最大显示数量
+const maxCount = ref(1000)
+const search = ref('')
+const $realGlob = computed(() => {
+    let realGlob = {
+        ...globSetting.value,
+        maxCount: maxCount.value,
+    }
+    if (search.value) {
+        realGlob.query = {
+            $or: [
+                //正则要使用字符串形式,所以需要转义
+                { path: { '$regex': search.value } },
+                { type: { '$eq': 'dir' } },
+
+            ],
+        }
+    }
+    return realGlob
+})
 watch(
-    () => globSetting.value, () => {
+    () => $realGlob.value, () => {
         refreshPanel()
     }
 )
+
+
+
 const path = _path.default
 const appData = toRef(inject('appData'))
-const { block_id, box, localPath,tagLabel } = appData.value.tab.data
+const { block_id, box, localPath, tagLabel } = appData.value.tab.data
+//缩略图大小
 const size = ref(100)
+//最大显示数量
 const root = ref('null')
 const layoutCount = reactive({ found: 0, loaded: 0 })
 let currentLayout = reactive({})
@@ -87,11 +126,11 @@ function scaleListener(event) {
 /**
  * 键盘相关逻辑
  */
- onMounted(() => {
+onMounted(() => {
     window.addEventListener('keydown', handleKeyDown);
 });
 const handleKeyDown = (event) => {
-    if(event.key === 'Escape'){
+    if (event.key === 'Escape') {
         clearSelectionWithLayout()
     }
 }
@@ -124,28 +163,28 @@ const endSelection = (event) => {
     console.log(event.target)
     isSelecting.value = false;
     selectedItems.value = getSelectedItems(event);
-    plugin.eventBus.emit('assets-select',selectedItems.value)
+    plugin.eventBus.emit('assets-select', selectedItems.value)
 };
 import { getSelectionStatus } from '../utils/selection.js'
 const getSelectedItems = (event) => {
-    return getSelectionStatus(event,root,currentLayout,currentLayoutOffsetTop,selectionBox.value,currentLayoutContainer)
+    return getSelectionStatus(event, root, currentLayout, currentLayoutOffsetTop, selectionBox.value, currentLayoutContainer)
 };
 /**
  * 拖放相关逻辑
  */
 import { reactive } from '../../../static/vue.esm-browser.js';
-import { onDragOver,onDragStartWithLayout ,handlerDropWithTab } from '../utils/drag.js'
+import { onDragOver, onDragStartWithLayout, handlerDropWithTab } from '../utils/drag.js'
 import CommonBreadCrumb from './common/breadCrumb/commonBreadCrumb.vue';
-const onDragStart = async(event)=>{
-    onDragStartWithLayout(event,currentLayout)
+const onDragStart = async (event) => {
+    onDragStartWithLayout(event, currentLayout)
 }
-plugin.eventBus.on('update-tag',(event)=>{
-    if(event.detail.label === appData.value.tab.data.tagLabel){
+plugin.eventBus.on('update-tag', (event) => {
+    if (event.detail.label === appData.value.tab.data.tagLabel) {
         refreshPanel()
     }
 })
 const handlerDrop = (event) => {
-    handlerDropWithTab(event,appData.value.tab)
+    handlerDropWithTab(event, appData.value.tab)
 };
 const selectionBoxStyle = computed(() => {
     const { startX, startY, endX, endY } = selectionBox.value;

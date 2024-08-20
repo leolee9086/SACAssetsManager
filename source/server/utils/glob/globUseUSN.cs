@@ -24,7 +24,6 @@ public class UsnJournalReader
         public uint FileAttributes;
         public ushort FileNameLength;
         public ushort FileNameOffset;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
         public string FileName;
     }
 
@@ -133,14 +132,16 @@ public class UsnJournalReader
         if (hVolume == IntPtr.Zero || hVolume == new IntPtr(-1))
         {
             int errorCode = Marshal.GetLastWin32Error();
-            throw new CustomException($"Failed to open volume {volumePath}.", errorCode);
+            Console.WriteLine("Failed to open volume {volumePath}.", errorCode);
         }
 
         try
         {
+            //获取USN日志数据
             USN_JOURNAL_DATA journalData = new USN_JOURNAL_DATA();
+            //获取返回的字节数
             uint bytesReturned;
-
+            //如果获取USN日志数据成功
             if (!NativeMethods.DeviceIoControl(
                 hVolume,
                 0x000900f4,
@@ -152,7 +153,7 @@ public class UsnJournalReader
                 IntPtr.Zero))
             {
                 int errorCode = Marshal.GetLastWin32Error();
-                throw new CustomException("Failed to query USN journal data.", errorCode);
+                files.Add(errorCode.ToString());
             }
 
             MFT_ENUM_DATA enumData = new MFT_ENUM_DATA
@@ -161,41 +162,32 @@ public class UsnJournalReader
                 LowUsn = new USN { Value = 0 },
                 HighUsn = journalData.NextUsn
             };
-
-            IntPtr buffer = Marshal.AllocHGlobal(4096);
+            //创建内存托管
+            IntPtr buffer = Marshal.AllocHGlobal(9012);
 
             try
             {
-                while (true)
+
+                if (!NativeMethods.DeviceIoControl(
+                    hVolume,
+                    0x000900b3,
+                    ref enumData,
+                    (uint)Marshal.SizeOf(enumData),
+                    buffer,
+                    9012,
+                    out bytesReturned,
+                    IntPtr.Zero))
                 {
-                    if (!NativeMethods.DeviceIoControl(
-                        hVolume,
-                        0x000900b3,
-                        ref enumData,
-                        (uint)Marshal.SizeOf(enumData),
-                        buffer,
-                        4096,
-                        out bytesReturned,
-                        IntPtr.Zero))
-                    {
-                        int errorCode = Marshal.GetLastWin32Error();
-                        throw new CustomException("Failed to enumerate MFT records.", errorCode);
-                    }
-
-                    IntPtr pUsnRecord = new IntPtr(buffer.ToInt64() + sizeof(long));
-                    while (bytesReturned > 8)
-                    {
-                        USN_RECORD usnRecord = Marshal.PtrToStructure<USN_RECORD>(pUsnRecord);
-                        string fileName = usnRecord.FileName.Substring(0, usnRecord.FileNameLength / 2);
-                        files.Add(fileName);
-
-                        pUsnRecord = new IntPtr(pUsnRecord.ToInt64() + usnRecord.RecordLength);
-                        bytesReturned -= usnRecord.RecordLength;
-                    }
-
-                    enumData.StartFileReferenceNumber = new USN { Value = Marshal.ReadInt64(buffer) };
+                    int errorCode = Marshal.GetLastWin32Error();
+                    files.Add(errorCode.ToString());
                 }
+                //返回的字节数
+                files.Add(bytesReturned.ToString());
+
+                enumData.StartFileReferenceNumber = new USN { Value = Marshal.ReadInt64(buffer) };
+                files.Add(enumData.StartFileReferenceNumber.Value.ToString());
             }
+
             finally
             {
                 Marshal.FreeHGlobal(buffer);
@@ -203,7 +195,7 @@ public class UsnJournalReader
         }
         finally
         {
-            NativeMethods.CloseHandle(hVolume);
+            //  NativeMethods.CloseHandle(hVolume);
         }
 
         return files;
@@ -220,24 +212,16 @@ public class Startup
             List<string> files = UsnJournalReader.GetFiles(driveLetter);
             return files;
         }
-        catch (CustomException ex)
-        {
-            return new
-            {
-                Message = "Error: " + ex.Message,
-                ErrorCode = ex.ErrorCode,
-                StackTrace = ex.StackTrace,
-                InnerException = ex.InnerException?.ToString()
-            };
-        }
         catch (Exception ex)
         {
-            return new
-            {
-                Message = "Error: " + ex.Message,
-                StackTrace = ex.StackTrace,
-                InnerException = ex.InnerException?.ToString()
-            };
+            Console.WriteLine("Error: " + ex.Message);
+            List<string> files = new List<string>();
+            string error = ex.Message;
+            string stacktrace = ex.StackTrace;
+            files.Add(error);
+            files.Add(stacktrace);
+            return files;
         }
+        return null;
     }
 }

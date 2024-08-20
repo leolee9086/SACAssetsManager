@@ -8,7 +8,7 @@ import { 拼接文件名 } from './utils/JoinFilePath.js'
 export const buildStepCallback = (stepCallback) => {
     if (!stepCallback) return
     if (typeof stepCallback === 'function') {
-        let callback =async (statProxy) => {
+        let callback = async (statProxy) => {
             try {
                 await stepCallback(statProxy)
             } catch (e) {
@@ -20,23 +20,26 @@ export const buildStepCallback = (stepCallback) => {
         }
         return callback
     }
-    let callback =async (statProxy) => {
+    let callback = async (statProxy) => {
         try {
-            if (statProxy.isDirectory) {
+            if (statProxy.type === 'dir') {
                 stepCallback.ifDir && await stepCallback.ifDir(statProxy)
             }
-            if (statProxy.isFile) {
+            if (statProxy.type === 'file') {
                 stepCallback.ifFile && await stepCallback.ifFile(statProxy)
             }
-            if (statProxy.isSymbolicLink) {
+            if (statProxy.type === 'symbolicLink') {
                 stepCallback.ifSymbolicLink && await stepCallback.ifSymbolicLink(statProxy)
             }
         } catch (e) {
             console.warn(e)
         }
     }
-    callback.end =async () => {
-        stepCallback.end && await stepCallback.end()
+    stepCallback && stepCallback.preMatch && (callback.preMatch = async () => {
+        await stepCallback.preMatch()
+    });
+    callback.end = async () => {
+        stepCallback && stepCallback.end && await stepCallback.end()
     }
     return callback
 }
@@ -97,16 +100,16 @@ export function buidStatFun(cwd) {
 import { buildCache } from '../cache/cache.js'
 const statCache = buildCache('statCache')
 const fs = require('fs')
-export  const statWithCatch = (path) => {
+export const statWithCatch = (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     try {
-        if (statCache[path]) {
+        if (statCache.get(path)) {
             return statCache.get(path)
         }
-        let stat =fs.statSync(path)
+        let stat = fs.statSync(path)
         statCache.set(path, {
             path,
-            type: stat.isFile()?'file':'dir',
+            type: stat.isFile() ? 'file' : 'dir',
             ...stat,
             ...fs.lstatSync(path)
         })
@@ -130,72 +133,56 @@ export  const statWithCatch = (path) => {
  * 创建一个代理对象,只有获取value时才会懒执行,节约性能
  * 使用缓存,避免重复读取
  */
-export const buildStatProxy = (entry, dir, useProxy) => {
-    let path =拼接文件名(dir, entry.name)
-    if(useProxy){
-        return buildStatProxyByPath(path,entry)
-    }else{
+export const buildStatProxy = (entry, dir, useProxy, type) => {
+    let path = 拼接文件名(dir, entry.name)
+    if (useProxy) {
+        let proxy = buildStatProxyByPath(path, entry, type)
+        return proxy
+    } else {
         let stats = statWithCatch(path)
         let type = stats.type
         return {
-            name:entry.name,
+            name: entry.name,
             type,
             path,
             ...stats,
-            isDirectory:()=>entry.isDirectory(),
-            isFile:()=>entry.isFile(),
-            isSymbolicLink:()=>entry.isSymbolicLink(),
+            isDirectory: () => entry.isDirectory(),
+            isFile: () => entry.isFile(),
+            isSymbolicLink: () => entry.isSymbolicLink(),
         }
     }
 }
-export const buildStatProxyByPath = (path,entry) => {
+export const buildStatProxyByPath = (path, entry, type) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     //这里的entry需要与fs.readdirSync(path)返回的entry一致
     //否则会导致statWithCatch缓存失效
     //设法让entry与fs.readdirSync(path)返回的entry一致
     //不能使用lstatSync,因为lstatSync返回的entry没有isDirectory等方法
-    entry = entry||fs.statSync(path)
-
+    entry = entry || fs.statSync(path)
+    let $stat = {
+        name: { value: path },
+        path: { value: path },
+        type: { value: type },
+        isDirectory: { value: entry.isDirectory() ? true : false },
+        isFile: { value: entry.isFile() ? true : false },
+        isSymbolicLink: { value: entry.isSymbolicLink() ? true : false },
+        toString: undefined
+    }
     return new Proxy({}, {
         get(target, prop) {
-            if (prop === 'name') {
-                return path
-            }
-            if (prop === 'isDirectory') {
-                return entry&&entry.isDirectory()
-            }
-            if (prop === 'isFile') {
-                return entry&&entry.isFile()
-
-            }
-            if (prop === 'isSymbolicLink') {
-                return entry&&entry.isSymbolicLink()
-
-            }
-            const stats = statWithCatch(path)
-            if (prop === 'toString') {
+            if ($stat[prop]) {
+                return $stat[prop].value
+            } else if (prop === 'toString') {
+                const stats = statWithCatch(path)
                 const { path, id, type, size, mtime, mtimems, error } = stats
                 return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
+            } else if (entry[prop]) {
+                return entry[prop]
             }
-            if (prop === 'type') {
-                //type是文件类型,dir表示目录,file表示文件,link表示符号链接
-                if (entry&&entry.isDirectory()) {
-                    return 'dir'
-                }
-                if (entry&&entry.isFile()) {
-
-                    return 'file'
-                }
-                if (entry&&entry.isSymbolicLink()) {
-                    return 'link'
-                }
-                return 'file'
+            else {
+                const stats = statWithCatch(path)
+                return stats[prop]
             }
-            if (prop === 'path') {
-                return path
-            }
-            return stats[prop]
         }
     })
-
 }

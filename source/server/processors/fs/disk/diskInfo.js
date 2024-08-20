@@ -1,5 +1,5 @@
 import { listLocalDisksWin32 } from './win32.js'
-
+import { walkAsync } from '../walk.js';
 const { exec } = window.require('child_process');
 const { statfsSync } = window.require('fs');
 const siyuan= window.siyuan||{config:window.siyuanConfig}
@@ -18,6 +18,7 @@ export function listLocalDisks() {
             // Windows平台
             try{
                 diskInfos = listLocalDisksWin32(outputFilePath)
+         
                 resolve(diskInfos)
             }catch(e){
                 console.error(e)
