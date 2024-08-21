@@ -1,10 +1,9 @@
 import { 拼接文件名 } from './utils/JoinFilePath.js'
 import { buildStepCallback } from './stat.js'
 import { buildStatProxy,buildStatProxyByPath } from './stat.js'
-import { readDir } from '../../../polyfills/fs.js'
+import {fdir} from './fdirModified/index.js'
+
 const fs = require('fs')
-
-
 /**
  * 构建过滤函数
  * @param {function} filter 
@@ -67,86 +66,18 @@ function buildFilter(filter,signal) {
     }
 }
 
+
 /**
- * 按照给定路径,递归遍历所有文件和目录
- * 使用代理对象,避免重复读取
- * 每一步遍历都会执行stepCallback
- * 使用signal取消操作
- * @param {string} root //需要遍历的文件夹
- * @param {string} glob //需要匹配的文件名
- * @param {function} filter //匹配函数
- * @param {function|object{ifFile:function,ifDir:function,ifLink:function}} stepCallback 
- * @param {AbortSignal} signal 用于取消操作
+ * 使用修改后的fdir,遍历指定目录
+ * @param {*} root 
+ * @param {*} _filter 
+ * @param {*} _stepCallback 
+ * @param {*} useProxy 
+ * @param {*} signal 
+ * @param {*} maxCount 
  * @returns 
  */
-export function walk(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
-    const files = [];
-    const stepCallback = buildStepCallback(_stepCallback)
-    console.log('stepCallback',stepCallback.preMatch)
-    const filter = buildFilter(_filter,signal)
-    let depth = 1
-    function readDir(dir, depth) {
-        if (signal.aborted) {
-            stepCallback && stepCallback.end()
-            return
-        }
-        depth++
-        let entries = []
-        try {
-            entries = fs.readdirSync(dir, { withFileTypes: true });
-        } catch (error) {
-        }
-        for (let entry of entries) {
-            if (signal.aborted) {
-                stepCallback && stepCallback.end()
-                return
-            }
-            const isDir = entry.isDirectory()
-            if (isDir) {
-                const statProxy = buildStatProxy(entry, dir, useProxy,'dir')
-                stepCallback && stepCallback(statProxy)
-                if (signal.aborted) {
-                    stepCallback && stepCallback.end()
-                    return
-                }
-                if (filter && !filter(statProxy, depth)) {
-                    continue
-                }
-                readDir(拼接文件名(dir, entry.name), depth)
-            } else {
-                console.time('buildStatProxy')
-                const statProxy = buildStatProxy(entry, dir, useProxy)
-                console.timeEnd('buildStatProxy')
-                if (signal.aborted) {
-                    stepCallback && stepCallback.end()
-                    return
-                }
-                stepCallback&&stepCallback.preMatch&& stepCallback.preMatch(statProxy)
-
-                if (filter && !filter(statProxy, depth)) {
-                    continue
-                }
-                files.push(statProxy)
-                stepCallback && stepCallback(statProxy)
-            }
-        }
-    }
-    readDir(root, depth);
-    stepCallback && stepCallback.end()
-    return files;
-}
-
-const dirCache={}
-const readdirSyncWithCache=(dir)=>{
-    if(dirCache[dir]){
-        return dirCache[dir]
-    }
-    dirCache[dir]=fs.readdirSync(dir, { withFileTypes: true });
-    return dirCache[dir]
-}
-const {fdir} = require('fdir')
-
-export async function walkAsync(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false },maxCount) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false },maxCount) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter =buildFilter(_filter,signal)
     let count = 0
@@ -181,16 +112,11 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
     return result
 }
 
-export async function _walkAsync(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
+export async function walkAsync(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
     console.log('stepCallback',stepCallback&&stepCallback.preMatch)
     const filter =buildFilter(_filter,signal)
-
-    console.log('filter', _filter)
-    
-    
-    
     async function readDir(dir, depth,) {
         if (signal.aborted) {
             stepCallback && stepCallback.end()
@@ -248,5 +174,15 @@ export async function _walkAsync(root, _filter, _stepCallback, useProxy = true, 
     await readDir(root, depth);
     stepCallback && stepCallback.end()
     return files;
-
 }
+
+
+/**
+ * 测试
+ */
+
+const api = new fdir().withFullPaths().crawl('.')
+console.time('test') 
+const result = await api.withPromise()
+console.log(result)
+console.timeEnd('test')

@@ -1,5 +1,5 @@
 
-import { walkAsync } from '../processors/fs/walk.js'
+import { walkAsyncWithFdir,walkAsync } from '../processors/fs/walk.js'
 import { buidStatFun } from '../processors/fs/stat.js'
 import { Query } from '../../../static/mingo.js';
 import { 准备缩略图 } from '../processors/thumbnail/loader.js'
@@ -41,7 +41,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000,walkControl
     return new Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
-            walkAsync(cwd, filterFun, {
+            walkAsyncWithFdir(cwd, filterFun, {
                 ifFile:  (statProxy) => {
                     if (signal.aborted) {
                         this.push(null)
@@ -60,14 +60,13 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000,walkControl
     });
 };
 export const globStream = (req, res) => {
-    const { pipeline, Transform } = require('stream')
+    const { Transform } = require('stream')
     const scheme = JSON.parse(req.query.setting)
     console.log(scheme)
     const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
     console.log(_filter)
     const walkController = new AbortController()
     const controller = new AbortController();
-
     let filter
     if (_filter ) {
         filter = {
