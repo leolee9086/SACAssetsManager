@@ -113,13 +113,17 @@ public class UsnJournalReader
     public static List<string> GetFiles(string driveLetter)
     {
         List<string> files = new List<string>();
-
+        //通过盘符获取卷名
         string volumePath = "\\\\.\\" + driveLetter + ":";
+        //打开卷
         const uint OPEN_EXISTING = 3;
+        //只读
         const uint FILE_ATTRIBUTE_READONLY = 0x00000001;
+        //读取
         const uint GENERIC_READ = 0x80000000;
+        //共享读取
         const uint FILE_SHARE_READ = 0x00000001 | 0x00000002; // FILE_SHARE_READ | FILE_SHARE_WRITE
-
+        //创建文件句柄，这样之后可以对磁盘进行读取
         IntPtr hVolume = NativeMethods.CreateFile(
             volumePath,                // lpFileName
             GENERIC_READ,              // dwDesiredAccess: GENERIC_READ
@@ -128,34 +132,42 @@ public class UsnJournalReader
             OPEN_EXISTING,             // dwCreationDisposition
             FILE_ATTRIBUTE_READONLY,   // dwFlagsAndAttributes
             IntPtr.Zero);              // hTemplateFile
-
+        //如果文件句柄为空或者为-1，则表示打开卷失败
         if (hVolume == IntPtr.Zero || hVolume == new IntPtr(-1))
         {
             int errorCode = Marshal.GetLastWin32Error();
-            Console.WriteLine("Failed to open volume {volumePath}.", errorCode);
+            files.Add("Failed to open volume " + volumePath);
+
         }
 
         try
         {
-            //获取USN日志数据
+            //创建一个空的USN_JOURNAL_DATA对象
             USN_JOURNAL_DATA journalData = new USN_JOURNAL_DATA();
             //获取返回的字节数
             uint bytesReturned;
             //如果获取USN日志数据成功
             if (!NativeMethods.DeviceIoControl(
+                //磁盘句柄
                 hVolume,
+                //
                 0x000900f4,
+                //输入缓冲区
                 IntPtr.Zero,
-                0,
+                //输入缓冲区大小
+                9012,
+                //这一行的含义是将journalData的值传入
                 ref journalData,
                 (uint)Marshal.SizeOf(journalData),
+                //这一行的含义是将返回的字节数传入bytesReturned
                 out bytesReturned,
                 IntPtr.Zero))
             {
                 int errorCode = Marshal.GetLastWin32Error();
-                files.Add(errorCode.ToString());
+                //将错误码转换为字符串并添加到files中
+                files.Add("Failed to get USN journal data: " + errorCode.ToString());
             }
-
+            //创建一个空的MFT_ENUM_DATA对象
             MFT_ENUM_DATA enumData = new MFT_ENUM_DATA
             {
                 StartFileReferenceNumber = new USN { Value = 0 },
@@ -167,7 +179,6 @@ public class UsnJournalReader
 
             try
             {
-
                 if (!NativeMethods.DeviceIoControl(
                     hVolume,
                     0x000900b3,
@@ -183,19 +194,22 @@ public class UsnJournalReader
                 }
                 //返回的字节数
                 files.Add(bytesReturned.ToString());
-
+                //将buffer的值传入enumData.StartFileReferenceNumber
                 enumData.StartFileReferenceNumber = new USN { Value = Marshal.ReadInt64(buffer) };
+                //将enumData.StartFileReferenceNumber的值传入files
                 files.Add(enumData.StartFileReferenceNumber.Value.ToString());
             }
 
             finally
             {
+                //释放内存托管，避免内存泄漏
                 Marshal.FreeHGlobal(buffer);
             }
         }
         finally
         {
-            //  NativeMethods.CloseHandle(hVolume);
+            //关闭文件句柄
+            NativeMethods.CloseHandle(hVolume);
         }
 
         return files;

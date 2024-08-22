@@ -91,6 +91,11 @@ class Builder {
         this.options.onlyCounts = true;
         return this;
     }
+    withIdleCallback(idleOptions={deadline:10,timeout:1000}) {
+        this.options.withIdleCallback = true;
+        this.options.idleOptions = idleOptions;
+        return this;
+    }
     crawl(root) {
         return new APIBuilder(root || ".", this.options);
     }

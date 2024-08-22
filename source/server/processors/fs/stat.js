@@ -58,7 +58,7 @@ export function buidStatFun(cwd) {
     cwd && (cwd = cwd.replace(/\\/g, '/').replace(/\/\//g, '/'));
     return async function statWithCatch(filePath, encoding, callback,) {
         cwd && (filePath = cwd + filePath);
-        if (statCache.has(filePath)) {
+        if (statCache.get(filePath)) {
             const stats = statCache.get(filePath);
             callback(null, JSON.stringify(stats) + '\n');
             return;
@@ -153,12 +153,14 @@ export const buildStatProxy = (entry, dir, useProxy, type) => {
     }
 }
 export const buildStatProxyByPath = (path, entry, type) => {
+    console.log(path)
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     //这里的entry需要与fs.readdirSync(path)返回的entry一致
     //否则会导致statWithCatch缓存失效
     //设法让entry与fs.readdirSync(path)返回的entry一致
     //不能使用lstatSync,因为lstatSync返回的entry没有isDirectory等方法
     entry = entry || fs.statSync(path)
+    console.log(entry)
     let $stat = {
         name: { value: path },
         path: { value: path },

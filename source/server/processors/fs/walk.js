@@ -1,21 +1,22 @@
 import { 拼接文件名 } from './utils/JoinFilePath.js'
 import { buildStepCallback } from './stat.js'
-import { buildStatProxy,buildStatProxyByPath } from './stat.js'
-import {fdir} from './fdirModified/index.js'
+import { buildStatProxy, buildStatProxyByPath } from './stat.js'
+import { fdir } from './fdirModified/index.js'
 
-const fs = require('fs')
+import { buildCache } from '../cache/cache.js'
+const statCache = buildCache('statCache')
 /**
  * 构建过滤函数
  * @param {function} filter 
  * @returns 
  */
-function buildFilter(filter,signal) {
-    if(!filter){
+function buildFilter(filter, signal) {
+    if (!filter) {
         return null
     }
-    if (filter&&typeof filter === 'function') {
+    if (filter && typeof filter === 'function') {
         return (statProxy, depth) => {
-            if(signal&&signal.aborted){
+            if (signal && signal.aborted) {
                 return false
             }
             try {
@@ -34,9 +35,9 @@ function buildFilter(filter,signal) {
             }
         }
     } else {
-        if (filter&&typeof filter === 'object') {
-            return  (statProxy, depth) => {
-                if(signal&&signal.aborted){
+        if (filter && typeof filter === 'object') {
+            return (statProxy, depth) => {
+                if (signal && signal.aborted) {
                     return false
                 }
                 try {
@@ -77,46 +78,70 @@ function buildFilter(filter,signal) {
  * @param {*} maxCount 
  * @returns 
  */
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false },maxCount) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }, maxCount,cachedCallback) {
     const stepCallback = buildStepCallback(_stepCallback)
-    const filter =buildFilter(_filter,signal)
-    let count = 0
-    const realFilter=(path,isDir)=>{
-        if(signal.aborted){
-            return false
-        }
-        if(count>maxCount){
-            return false
-        }
-        const entry={
-            isDirectory:()=>false,
-            isFile:()=>true,
-            isSymbolicLink:()=>false,
-            name:path.split('/').pop()
-        }
-        let proxy = buildStatProxyByPath(path,entry,isDir?'dir':'file')
-        if(isDir){
-            if(count>maxCount){
+    let cached = []
+    const filter = buildFilter(_filter, signal)
+    try {
+        cached = statCache.filter((proxy) => {
+            if (signal.aborted) {
                 return false
             }
-            return filter(proxy,path.split('/').length)
+        
+            let flag = false
+            if (proxy.path.startsWith(root)) {
+                flag = filter ? filter(proxy, proxy.path.split('/').length) : true
+            }
+            if(flag){
+                stepCallback && stepCallback(proxy)
+            }
+            return flag
+        },signal)
+        cachedCallback && cachedCallback(cached)
+    } catch (e) {
+        console.error(e)
+    }
+    console.log(cached)
+    let count = cached.length
+    const realFilter = (path, isDir) => {
+        if (signal.aborted) {
+            return false
         }
-        stepCallback&&stepCallback.preMatch&& stepCallback.preMatch(proxy)
-        let result = filter?filter(proxy,path.split('/').length):true
-        result&&stepCallback&&stepCallback(proxy)
-        result&&count++
+        if (count > maxCount) {
+            return false
+        }
+        const entry = {
+            isDirectory: () => false,
+            isFile: () => true,
+            isSymbolicLink: () => false,
+            name: path.split('/').pop()
+        }
+        let proxy = buildStatProxyByPath(path, entry, isDir ? 'dir' : 'file')
+        if (cached.find(proxy => proxy.path === path)) {
+            return false
+        }
+        if (isDir) {
+            if (count > maxCount) {
+                return false
+            }
+            return filter(proxy, path.split('/').length)
+        }
+        stepCallback && stepCallback.preMatch && stepCallback.preMatch(proxy)
+        let result = filter ? filter(proxy, path.split('/').length) : true
+        result && stepCallback && stepCallback(proxy)
+        result && count++
         return result
     }
-    const api = new fdir().withFullPaths().withSignal(signal).withMaxFiles(maxCount).filter(realFilter).crawl(root)
-    const result =  api.withPromise()
+    const api = new fdir().withFullPaths().withIdleCallback({ deadline: 1, timeout: 100 }).withSignal(signal).withMaxFiles(maxCount).filter(realFilter).crawl(root)
+    const result =await api.withPromise()
     return result
 }
 
 export async function walkAsync(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }) {
     const files = [];
     const stepCallback = buildStepCallback(_stepCallback)
-    console.log('stepCallback',stepCallback&&stepCallback.preMatch)
-    const filter =buildFilter(_filter,signal)
+    console.log('stepCallback', stepCallback && stepCallback.preMatch)
+    const filter = buildFilter(_filter, signal)
     async function readDir(dir, depth,) {
         if (signal.aborted) {
             stepCallback && stepCallback.end()
@@ -135,15 +160,15 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
             }
             const isDir = entry.isDirectory()
             if (isDir) {
-                const statProxy = buildStatProxy(entry, dir, useProxy,'dir')
+                const statProxy = buildStatProxy(entry, dir, useProxy, 'dir')
 
                 stepCallback && await stepCallback(statProxy)
                 if (signal.aborted) {
                     stepCallback && stepCallback.end()
                     return
                 }
-                stepCallback&&stepCallback.preMatch&& await stepCallback.preMatch(statProxy)
-                let filterResult = filter && (! filter(statProxy, depth));
+                stepCallback && stepCallback.preMatch && await stepCallback.preMatch(statProxy)
+                let filterResult = filter && (!filter(statProxy, depth));
 
                 if (filterResult) {
                     continue
@@ -155,13 +180,13 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
                     await readDir(拼接文件名(dir, entry.name), depth + 1)
                 }
             } else {
-                const statProxy = buildStatProxy(entry, dir, useProxy,'file')
+                const statProxy = buildStatProxy(entry, dir, useProxy, 'file')
                 if (signal.aborted) {
                     stepCallback && stepCallback.end()
                     return
                 }
-                stepCallback&&stepCallback.preMatch&& await stepCallback.preMatch(statProxy)
-                let filterResult = filter && (! filter(statProxy, depth));
+                stepCallback && stepCallback.preMatch && await stepCallback.preMatch(statProxy)
+                let filterResult = filter && (!filter(statProxy, depth));
                 if (filterResult) {
                     continue
                 } else {
@@ -176,13 +201,3 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
     return files;
 }
 
-
-/**
- * 测试
- */
-
-const api = new fdir().withFullPaths().crawl('.')
-console.time('test') 
-const result = await api.withPromise()
-console.log(result)
-console.timeEnd('test')

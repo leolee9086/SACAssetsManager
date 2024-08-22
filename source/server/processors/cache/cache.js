@@ -5,43 +5,43 @@ export function generateCacheKey(raw) {
     return crypto.createHash('md5').update(raw).digest('hex');
 }
 class loacalJsonAdapter{
-    constructor(path){
-        this.path = path
-        this.fs = require('fs')
+    constructor(...$path){
+        this.path = require('path').join(...$path)
+        this.fs = require('fs-extra')
     }
-    /**
-     * 初始化数据
-     * @param {string} name
-     * @param {Map} cache
-     */
     initData(name,cache){
-        const data = this.read(name)
-        if(data) cache.set(name, data)
-    }
-    /**
-     * 持久化数据
-     * @param {Map} cache
-     */
-    persist(cache){
-        const data = Object.fromEntries(cache)
-        this.fs.writeFileSync(this.path, JSON.stringify(data))
-    }
-    /**
-     * 从持久化数据中恢复数据
-     * @param {Map} cache
-     */
-    restore(cache){
-        const data = JSON.parse(this.fs.readFileSync(this.path, 'utf-8'))
-        for(const [key, value] of Object.entries(data)){
-            cache.set(key, value)
+        let dataPath = require('path').join(this.path,name+'.json')
+        //如果文件不存在则创建,注意文件夹需要提前创建
+        if(!this.fs.existsSync(dataPath)){
+            try{
+                this.fs.mkdirSync(this.path)
+            }catch(e){
+                console.error(e)
+            }
+            this.fs.writeFileSync(dataPath, '{}')
         }
+     this.fs.promises.readFile(dataPath, 'utf8').then(data=>{
+        const json = JSON.parse(data)
+        for(const [key, value] of Object.entries(json)){
+            cache.set(key, value)
+            }
+        })
     }
-    read(name){
-        const data = JSON.parse(this.fs.readFileSync(this.path, 'utf-8'))
-        return data[name]
+    saveData(name,cache,cb){
+        //cache是map,需要转换成对象
+        console.log('saveData',cache.size)
+        let dataPath = require('path').join(this.path,name+'.json')
+
+        const data = JSON.stringify(Object.fromEntries(cache))
+        this.fs.writeFile(dataPath, data).then(()=>{
+            cb&&cb()
+        })
     }
 }
-
+/**
+ * 默认缓存适配器
+ * 使用工作空间的文件系统进行缓存
+ */
 /**
  * 缓存提供者
  * 用于管理缓存数据
@@ -58,6 +58,10 @@ export class BaseCacheProvider{
          * 初始化缓存
          */
         this.adapter&&this.adapter.initData(name,this.cache)
+        this.name = name
+        this.stat={
+            transactionCount:0,
+        }
     }
     /**
      * 更新缓存
@@ -65,10 +69,26 @@ export class BaseCacheProvider{
      * @param {*} value
      */
     set(key, value){
- 
+        
         this.cache.set(key, {value, timestamp: Date.now()})
+    
     }
-
+    /**
+     * 
+     */
+    filter(filter,signal){
+        const keys = this.cache.keys()
+        const result = []
+        for(const key of keys){
+            if(filter(this.cache.get(key).value)){
+                result.push(this.cache.get(key).value)
+            }
+            if(signal&&signal.aborted){
+                break
+            }
+        }
+        return result
+    }
     /**
      * 删除缓存
      * @param {string} key
@@ -88,6 +108,9 @@ export class BaseCacheProvider{
         if(!item) return null
         return item.value
     }
+    getRaw(key){
+        return this.cache.get(key)
+    }
     /**
      * 清空缓存
      */
@@ -99,17 +122,25 @@ export class BaseCacheProvider{
      * @returns {number}
      */
     sizeTo(size){
+        if(this.cache.size<=size) return
         /**
          * 遍历缓存
          */
-        const keys = this.cache.keys()
+        const keys = Array.from(this.cache.keys())
+        console.log('sizeTo',keys)
         /**
          * 根据时间排序
          */
-        const sortedKeys = keys.sort((a, b) => this.cache.get(a).timestamp - this.cache.get(b).timestamp)
+        const sortedKeys = keys.sort((a, b) =>{
+            const aRaw = this.getRaw(a)
+            const bRaw = this.getRaw(b)
+            console.log('aRaw',aRaw)
+            return aRaw.timestamp - bRaw.timestamp
+        })
         /**
          * 删除最旧的缓存直到缓存大小小于等于指定大小
          */
+        console.log('sortedKeys',sortedKeys)
         while(this.cache.size > size){
             this.delete(sortedKeys.shift())
         }
@@ -118,15 +149,30 @@ export class BaseCacheProvider{
      * 持久化缓存
      */
     persist(){
-        this.adapter&&this.adapter.persist(this.cache)
+        //持久化前先清理缓存到10G
+        if(this.updating){
+            return
+        }
+        this.updating = true
+        let cb =()=>{
+            this.updating = false
+        }
+        this.sizeTo(1024*1024*1024)
+        console.log('persist',this.cache.size)
+        console.log('persist',this.adapter)
+        this.adapter&&this.adapter.saveData(this.name,this.cache,cb)
+        if(!this.adapter){
+            cb()
+        }
     }
     /**
      * 从持久化数据中恢复缓存
      */
     restore(){
-        this.adapter&&this.adapter.restore(this.cache)
+        this.adapter&&this.adapter.initData(this.name,this.cache)
     }
 }
+const defaultAdapter = new loacalJsonAdapter(siyuanConfig.system.workspaceDir,'temp','sac','cache')
 export function buildCache(name,adapter){
     const globalCache = globalThis[Symbol.for('cache')] || {}
     globalThis[Symbol.for('cache')] = globalCache

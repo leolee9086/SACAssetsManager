@@ -29,7 +29,7 @@ import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, 
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting','maxCount'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount'])
 const size = toRef(props, 'size')
 const maxCount = toRef(props, 'maxCount')
 const sorter = toRef(props, 'sorter')
@@ -46,7 +46,7 @@ const showCard = ref(true)
  * 
  * 处理聚焦和切换等逻辑
  */
- import { handlerKeyDownWithLayout, setFocus } from "../utils/selection.js";
+import { handlerKeyDownWithLayout, setFocus } from "../utils/selection.js";
 
 const handleClick = (e) => {
     setFocus(e.currentTarget)
@@ -68,7 +68,7 @@ const 计算卡片样式 = (卡片数据) => {
     return {
         transform: 'none',
         top: `${卡片数据.y}px`,
-        left: `${卡片数据.x+paddingLR.value}px`,
+        left: `${卡片数据.x + paddingLR.value}px`,
         height: 卡片数据.height + 'px',
         width: 卡片数据.width + 'px',
         position: 'absolute',
@@ -237,30 +237,32 @@ const signal = controller.signal;
 
 onUnmounted(
     () => {
-        try{
-            emit("layoutCount",0)
-            emit("layoutLoadedCount",0)
+        try {
+            emit("layoutCount", 0)
+            emit("layoutLoadedCount", 0)
             controller.abort('unmounted');
-        }catch(e){
+        } catch (e) {
             console.warn(e)
         }
     }
 )
 
 onMounted(async () => {
+    appData.value.tab.controllers = appData.value.tab.controllers || []
+    appData.value.tab.controllers.push(controller)
+
     if (appData.value.tab.data.localPath) {
         附件数据组 = []
-        try{
-            appData.value.tab.controllers=appData.value.tab.controllers||[]
-            appData.value.tab.controllers.push(controller)
+        try {
             await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 10, signal)
-        }catch(e){
+        } catch (e) {
             console.warn(e)
         }
     }
     else if (appData.value.tab.data.tagLabel) {
         附件数据组 = []
-        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal)
+        
+        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal,globSetting.value)
     }
     else if (appData.value.tab.data.type === 'sql') {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);

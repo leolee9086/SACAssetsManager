@@ -1,9 +1,9 @@
 import { listLocalDisksWin32 } from './win32.js'
-import { walkAsync } from '../walk.js';
+import { fdir } from '../fdirModified/index.js'
 const { exec } = window.require('child_process');
 const { statfsSync } = window.require('fs');
-const siyuan= window.siyuan||{config:window.siyuanConfig}
-const outputFilePath = require('path').join(siyuan.config.system.workspaceDir, 'temp','sac','wmic_output.txt');
+const siyuan = window.siyuan || { config: window.siyuanConfig }
+const outputFilePath = require('path').join(siyuan.config.system.workspaceDir, 'temp', 'sac', 'wmic_output.txt');
 
 
 
@@ -16,11 +16,13 @@ export function listLocalDisks() {
         const platform = process.platform;
         if (platform === 'win32') {
             // Windows平台
-            try{
+            try {
+
                 diskInfos = listLocalDisksWin32(outputFilePath)
-         
                 resolve(diskInfos)
-            }catch(e){
+
+               
+            } catch (e) {
                 console.error(e)
                 reject(e)
             }

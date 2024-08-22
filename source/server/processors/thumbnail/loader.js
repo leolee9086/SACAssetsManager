@@ -2,6 +2,7 @@ import { buildCache } from '../cache/cache.js'
 import commonLoader from './internalGeneraters/onlyName.js'
 import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
+import { idleIdle } from '../fs/fdirModified/src/api/idleQueue.js'
 let loderPaths = [
     './internalGeneraters/svg.js', 
     './internalGeneraters/sharp.js', 
@@ -77,12 +78,6 @@ export function listLoaders(){
         }
     })
 }
-
-
-
-
-
-
 export const 生成缩略图 = async (imagePath,loaderID=null) => {
     let loader =await getLoader(imagePath,loaderID)
     if(!loader){
@@ -92,11 +87,12 @@ export const 生成缩略图 = async (imagePath,loaderID=null) => {
 }
 const tumbnailCache = buildCache('thumbnailCache')
 export const 准备缩略图 = async (imagePath,loaderID=null) => {
-    requestIdleCallback(async ()=>{
+    idleIdle(async ()=>{
         const stat = statWithCatch(imagePath)
         const 缓存键 =JSON.stringify(stat)
         if(!tumbnailCache.get(缓存键)){
             tumbnailCache.set(缓存键,await 生成缩略图(imagePath,loaderID))
+            console.log('缩略图准备完成')
         }
     },{deadline:100})
 }

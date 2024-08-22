@@ -10,6 +10,7 @@ import * as invokeCallback from "./functions/invoke-callback.js";
 import * as walkDirectory from "./functions/walk-directory.js";
 import * as queue_1 from "./queue.js";
 import * as counter_1 from "./counter.js";
+import {idleIdle} from "./idleQueue.js"
 class Walker {
     root;
     isSynchronous;
@@ -27,7 +28,7 @@ class Walker {
         this.callbackInvoker = invokeCallback.build(options, this.isSynchronous);
         this.state = {
             // Perf: we explicitly tell the compiler to optimize for String arrays
-            signal:options.signal,
+            signal: options.signal,
             paths: [""].slice(0, 0),
             groups: [],
             counts: new counter_1.Counter(),
@@ -81,7 +82,19 @@ class Walker {
                 let path = joinPath.joinDirectoryPath(entry.name, directoryPath, this.state.options.pathSeparator);
                 if (exclude && exclude(entry.name, path))
                     continue;
-                this.walkDirectory(this.state, path, depth - 1, this.walk);
+                if (this.state.options.withIdleCallback) {
+                    let idleOptions = this.state.options.idleOptions
+                    let callback = (...args) => {
+                        requestIdleCallback(() => {
+                            this.walk(...args)
+                        }, idleOptions)
+                    }
+                    requestIdleCallback(() => {
+                        this.walkDirectory(this.state, path, depth - 1, callback);
+                    }, this.state.options.idleOptions)
+                } else {
+                    this.walkDirectory(this.state, path, depth - 1, this.walk);
+                }
             }
             else if (entry.isSymbolicLink() && resolveSymlinks) {
                 let path = joinPath.joinDirectoryPath(entry.name, directoryPath, this.state.options.pathSeparator);
@@ -90,7 +103,19 @@ class Walker {
                         resolvedPath = this.normalizePath(resolvedPath);
                         if (exclude && exclude(entry.name, resolvedPath))
                             return;
-                        this.walkDirectory(this.state, resolvedPath, depth - 1, this.walk);
+                        if (this.state.options.withIdleCallback) {
+                            let idleOptions = this.state.options.idleOptions
+                            let callback = (...args) => {
+                                requestIdleCallback(() => {
+                                    this.walk(...args)
+                                }, idleOptions)
+                            }
+                            requestIdleCallback(() => {
+                                this.walkDirectory(this.state, path, depth - 1, callback);
+                            }, this.state.options.idleOptions)
+                        } else {
+                            this.walkDirectory(this.state, path, depth - 1, this.walk);
+                        }
                     }
                     else {
                         this.pushFile(resolvedPath, files, this.state.counts, filters);
@@ -101,4 +126,4 @@ class Walker {
         this.groupFiles(this.state.groups, directoryPath, files);
     };
 }
-export {Walker}
+export { Walker }

@@ -17,9 +17,9 @@ export async function 获取本地文件夹数据(globSetting, target, callback,
     let uri = `http://localhost:${plugin.http服务端口号}/glob-stream?setting=${encodeURIComponent(JSON.stringify(globSetting))}`
      applyURIStreamJson(uri, target, callback, step, signal)
 }
-export async function 获取标签列表数据(tagLabel, target, callback, step, signal) {
+export async function 获取标签列表数据(tagLabel, target, callback, step, signal,globSetting) {
     let tag = await queryTags(tagLabel)
-    console.log(tagLabel,tag)
+    console.log(tagLabel,tag,globSetting)
     let tagNotes = await kernelApi.fullTextSearchBlock({query:`#${tagLabel}#`})
     tagNotes=tagNotes.blocks.map(item=>
     {return{
@@ -35,10 +35,11 @@ export async function 获取标签列表数据(tagLabel, target, callback, step,
     for(let note of tagNotes){
         target.push(note)
     }
-    let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream`
+    let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream?setting=${encodeURIComponent(JSON.stringify(globSetting))}`
      applyURIStreamJson(uri, target, callback, step, signal,{method:'POST',body:tag.assets.join('\n')},)
 }
 export async function 获取本地文件列表数据(fileList, target, callback, step, signal) {
-    let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream?list=${encodeURIComponent(JSON.stringify(fileList))}`
+    
+    let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream?setting=${encodeURIComponent(JSON.stringify(fileList))}`
      applyURIStreamJson(uri, target, callback, step, signal)
 }
