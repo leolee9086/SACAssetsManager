@@ -150,15 +150,12 @@ const 更新可见区域 = (flag) => {
 }
 
 let 附件数据组
-let oldWith
-const resizeObserver = new ResizeObserver(entries => {
-    if (scrollContainer.value && scrollContainer.value.clientWidth !== oldWith) {
-        oldWith = scrollContainer.value.clientWidth
-        columnCount.value = Math.max(Math.floor(scrollContainer.value.clientWidth / size.value) - 1, 1)
-        paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-    }
-});
 
+import { 监听尺寸,以函数创建尺寸监听 } from "../utils/observers/resize.js"
+const 监听尺寸函数 = 以函数创建尺寸监听((stat)=>{
+    columnCount.value = Math.max(Math.floor(stat.width / size.value) - 1, 1)
+    paddingLR.value = (stat.width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+},true)
 watch(
     [columnCount, size], async () => {
         if (!scrollContainer.value) {
@@ -199,6 +196,25 @@ watch(
         }
     }
 )
+
+
+import {定长执行} from "../../utils/functions/Iteration.js"
+const 定长加载 = (阈值)=>{
+    let 生成函数 =async ()=>{
+        return 附件数据组.shift && 附件数据组.shift()
+    }
+    let 迭代函数 =async (data)=>{
+        if(data && data.id){
+            布局对象.value.add(data)
+            更新可见区域(true)
+        }
+    }
+    let 忽略空值 = false
+    let 忽略迭代错误 = false
+    let 忽略执行错误 = false
+    定长执行(生成函数,迭代函数,阈值,忽略空值,忽略迭代错误,忽略执行错误)
+}
+
 const mounted = ref(null)
 watch(
     mounted, (newVal, oldVal) => {
@@ -207,15 +223,8 @@ watch(
         }
         布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
         nextTick(() => {
-            resizeObserver.observe(scrollContainer.value)
-            resizeObserver.observe(
-                root.value
-            )
-            for (let i = 0; i < 100; i++) {
-                let data = 附件数据组.shift && 附件数据组.shift()
-                data && data.id ? 布局对象.value.add(data) : null
-                更新可见区域(true)
-            }
+            监听尺寸函数(scrollContainer.value)
+            定长加载(100)
         })
     }
 )
@@ -277,16 +286,8 @@ onMounted(async () => {
         nextTick(
             () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-                resizeObserver.observe(scrollContainer.value)
-                resizeObserver.observe(
-                    root.value
-                )
-                for (let i = 0; i < 100; i++) {
-                    let data = 附件数据组.shift && 附件数据组.shift()
-                    data && data.id ? 布局对象.value.add(data) : null
-
-                }
-                更新可见区域(true)
+                监听尺寸函数(scrollContainer.value)
+                定长加载(100)
             }
         )
 
@@ -304,16 +305,8 @@ onMounted(async () => {
         nextTick(
             () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-                resizeObserver.observe(scrollContainer.value)
-                resizeObserver.observe(
-                    root.value
-                )
-                for (let i = 0; i < 100; i++) {
-                    let data = 附件数据组.shift && 附件数据组.shift()
-                    data && data.id ? 布局对象.value.add(data) : null
-
-                }
-                更新可见区域(true)
+                监听尺寸函数(scrollContainer.value)
+                定长加载(100)
             }
         )
     }

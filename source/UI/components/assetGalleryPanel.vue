@@ -45,8 +45,6 @@ import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
-
-
 //全局设置
 const globSetting = ref({})
 //最大显示数量
