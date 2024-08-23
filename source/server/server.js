@@ -3,7 +3,7 @@ const app = express();
 const path = require('path')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
-import { genThumbnail,listLoaders } from './handlers/thumbnail.js';
+import { genThumbnail,listLoaders,getColor } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream,fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
@@ -41,7 +41,12 @@ app.get('/count-etries', entryCounter)
 app.get('/listDisk',listDisk)
 app.get('/loaders',listLoaders)
 app.get('/color',async (req,res)=>{
-    let 源文件地址 = req.query.localPath
+    let 源文件地址 = ''
+    if (req.query.localPath) {
+        源文件地址 = req.query.localPath
+    } else {
+        源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+    }
     源文件地址 = 源文件地址.replace(/\//g,'\\')
     let stat = statWithCatch(源文件地址)
     let 缓存键 = JSON.stringify({stat})
@@ -80,6 +85,31 @@ app.get('/thumbnail',  (req, res) => {
     }
     let next=()=>{}
     genThumbnail( ctx,next);
+});
+app.get('/thumbnail/pallet',  (req, res) => {
+    let 源文件地址 = ''
+    if (req.query.localPath) {
+        源文件地址 = req.query.localPath
+    } else {
+        源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+    }
+    源文件地址 = 源文件地址.replace(/\//g,'\\')
+    const stat = statWithCatch(源文件地址)
+    const 缓存键 = JSON.stringify(stat)
+    const thumbnailCache = buildCache('pallet')
+    let ctx = {
+        req,
+        res,
+        query:req.query,
+        缓存对象:thumbnailCache,
+        stats:{
+            源文件地址,
+            缓存键,
+            缓存对象:thumbnailCache
+        }
+    }
+    let next=()=>{}
+    getColor( ctx,next);
 });
 app.get(
     '/raw', async (req, res) => {

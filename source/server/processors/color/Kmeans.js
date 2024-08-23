@@ -65,7 +65,7 @@ function kMeans(data, k, 算法) {
 
 
 
-function kMeansPP(data, k, 算法, maxIterations = 100, withPercent = false) {
+export function kMeansPP(data, k, 算法, maxIterations = 100, withPercent = false) {
     // 初始化聚类中心
     let centers = initializeCenters(data, k);
     let assignments = new Array(data.length / 4).fill(-1);

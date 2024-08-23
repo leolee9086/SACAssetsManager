@@ -22,7 +22,7 @@
         <img v-bind="$attrs" ref="image" v-if="showImage" :style="`width:100%;border:none; 
         border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="lazy"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
-            :src="!cardData.data.type ? `${serverHost}/thumbnail/?path=${encodeURIComponent(cardData.data.path)}` : `${serverHost}/thumbnail/?localPath=${encodeURIComponent(cardData.data.path)}`" />
+            :src="thumbnail.genHref(cardData.data.type,cardData.data.path)" />
         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;background-color:none">
             {{ cleanAssetPath(cardData.data.path) }}
         </div>
@@ -30,6 +30,7 @@
 </template>
 <script setup>
 import { ref, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick } from 'vue';
+import {  thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { plugin } from 'runtime'
 import { clientApi } from '../../../asyncModules.js';
@@ -42,7 +43,6 @@ const imageHeight = ref(cardData.width + 0)
 const image = ref(null)
 const showIframe = ref(false)
 const showImage = ref('')
-const serverHost = `${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号}`
 const protyleContainer = ref(null)
 let idleCallbackId;
 let fn = () => {
@@ -61,6 +61,9 @@ let fn = () => {
     }
 }
 onMounted(() => {
+    console.log(thumbnail.getColor(cardData.data.type,cardData.data.path))
+    fetch(thumbnail.getColor(cardData.data.type,cardData.data.path))
+
     idleCallbackId = requestIdleCallback(fn, { timeout: 300 });
 });
 onBeforeUnmount(() => {
@@ -82,6 +85,8 @@ const buildCardProtyle = (element) => {
 }
 
 function 更新图片尺寸(e, cardData) {
+    fetch(thumbnail.getColor(cardData.data.type,cardData.data.path))
+
     const previewer = e.target
     const dimensions = {
         width: previewer.naturalWidth,

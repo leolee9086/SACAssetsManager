@@ -1,4 +1,7 @@
 import { 拼接文件名 } from './utils/JoinFilePath.js'
+import { buildCache } from '../cache/cache.js'
+const statCache = buildCache('statCache')
+
 /**
  * 如果stepCallback是一个函数,直接使用它
  * 如果stepCallback是一个对象,使用它的两个回调函数分别构建
@@ -46,59 +49,6 @@ export const buildStepCallback = (stepCallback) => {
 
 
 
-
-/**
- * 
- * @param {*} filePath 
- * @param {*} encoding 
- * @param {*} callback 
- */
-export function buidStatFun(cwd) {
-    const fs = require('fs')
-    cwd && (cwd = cwd.replace(/\\/g, '/').replace(/\/\//g, '/'));
-    return async function statWithCatch(filePath, encoding, callback,) {
-        cwd && (filePath = cwd + filePath);
-        if (statCache.get(filePath)) {
-            const stats = statCache.get(filePath);
-            callback(null, JSON.stringify(stats) + '\n');
-            return;
-        }
-        try {
-            const stats = await fs.promises.stat(filePath);
-            const fileInfo = {
-                path: filePath,
-                id: `localEntrie_${filePath}`,
-                type: 'local',
-                size: stats.size,
-                mtime: stats.mtime,
-                mtimems: stats.mtime.getTime(),
-            };
-            try {
-                watchFileStat(filePath);
-                statCache.set(filePath, fileInfo);
-            } catch (err) {
-                statCache.delete(filePath);
-                console.warn(err, filePath)
-            }
-            callback(null, JSON.stringify(fileInfo) + '\n');
-        } catch (err) {
-            const fileInfo = {
-                path: filePath,
-                id: `localEntrie_${filePath}`,
-                type: 'local',
-                size: null,
-                mtime: '',
-                mtimems: '',
-                error: err
-            };
-            callback(null, JSON.stringify(fileInfo) + '\n');
-        }
-    }
-}
-
-
-import { buildCache } from '../cache/cache.js'
-const statCache = buildCache('statCache')
 const fs = require('fs')
 export const statWithCatch = (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
@@ -153,14 +103,12 @@ export const buildStatProxy = (entry, dir, useProxy, type) => {
     }
 }
 export const buildStatProxyByPath = (path, entry, type) => {
-    console.log(path)
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     //这里的entry需要与fs.readdirSync(path)返回的entry一致
     //否则会导致statWithCatch缓存失效
     //设法让entry与fs.readdirSync(path)返回的entry一致
     //不能使用lstatSync,因为lstatSync返回的entry没有isDirectory等方法
     entry = entry || fs.statSync(path)
-    console.log(entry)
     let $stat = {
         name: { value: path },
         path: { value: path },

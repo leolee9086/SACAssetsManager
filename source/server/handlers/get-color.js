@@ -5,6 +5,7 @@ export async function genColor(ctx,next){
         res.status(400).send('Invalid request: missing source file address');
         return
     }
-    const colors = await genThumbnailColor(源文件地址,缓存键)
-    res.json(colors)
+    const colors = await genThumbnailColor(源文件地址)
+    console.log(colors)
+    return colors
 }
