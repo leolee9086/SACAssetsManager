@@ -2,7 +2,6 @@ import {CIEDE2000RGBA} from "./colorArrayDistance.js"
 export function 欧几里得聚类(data, k) {
     return kMeansPP(data, k, euclideanDistanceWithHueCorrection,100,true);
 }
-
 const cache = new Map();
 export const diffColor = (color1, color2) => {
     // 直接使用欧几里得距离
@@ -31,8 +30,6 @@ export const diffColor = (color1, color2) => {
     //欧几里得下平均距离大约220
     return distance1 < averageDistance1*0.2 && distance2 < averageDistance2*0.2;
 };
-
-
 function euclideanDistanceWithHueCorrection(a, b) {
     // 色相修正
     const hueCorrectedA = correctHue(a);
@@ -136,14 +133,11 @@ export function kMeansPP(data, k, 算法, maxIterations = 100, withPercent = fal
                 changed = true;
             }
         }
-
         if (!changed) break;
-
         // 更新聚类中心
         centers = updateCenters(data, assignments, k);
         counts = calculateCounts(assignments, k);
     }
-
     const sortedCenters = centers.map((center, index) => ({
         color: center,
         count: counts[index]
@@ -156,8 +150,6 @@ export function kMeansPP(data, k, 算法, maxIterations = 100, withPercent = fal
                 return item.color.map(x=>Math.round(x))
             }
         });
-
-
     return { centers: sortedCenters, assignments };
 }
 

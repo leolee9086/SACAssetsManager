@@ -24,7 +24,7 @@
         border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="lazy"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path)" />
-        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;background-color:var(--b3-theme-background)">
+        <div style="position:absolute;bottom:0;white-space: nowrap; overflow: hidden;width: 100%; text-overflow: ellipsis;height:36px;background-color:var(--b3-theme-background)">
             {{ cleanAssetPath(cardData.data.path) }}
             <div>
                 <template v-for="colorItem in pallet">

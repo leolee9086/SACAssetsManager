@@ -123,8 +123,6 @@ app.listen(port, () => {
     window.channel.postMessage('serverReady')
     console.log(`Server running at http://localhost:${port}`);
 });
-
-
 /**
  * 这里是为了让主窗口的拖拽事件能够被其自身响应
  */
