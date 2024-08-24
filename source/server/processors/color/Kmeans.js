@@ -1,6 +1,6 @@
 import {CIEDE2000RGBA} from "./colorArrayDistance.js"
 export function 欧几里得聚类(data, k) {
-    return kMeansPP(data, k, euclideanDistanceWithHueCorrection,5,true);
+    return kMeansPP(data, k, euclideanDistanceWithHueCorrection,100,true);
 }
 
 const cache = new Map();
@@ -17,7 +17,6 @@ export const diffColor = (color1, color2) => {
         cache.set('totalDistance2', 0);
         cache.set('count2', 0);
     }
-
     const totalDistance1 = cache.get('totalDistance1') + distance1;
     const totalDistance2 = cache.get('totalDistance2') + distance2;
     const count1 = cache.get('count1') + 1;
@@ -26,17 +25,11 @@ export const diffColor = (color1, color2) => {
     cache.set('totalDistance2', totalDistance2);
     cache.set('count1', count1);
     cache.set('count2', count2);
-
-
     const averageDistance1 = totalDistance1 / count1;
     const averageDistance2 = totalDistance2 / count2;
-
     //CIDE2000下平均距离大约120
     //欧几里得下平均距离大约220
-    return distance1 < averageDistance1*0.5 && distance2 < averageDistance2*0.5;
-
-
-
+    return distance1 < averageDistance1*0.2 && distance2 < averageDistance2*0.2;
 };
 
 

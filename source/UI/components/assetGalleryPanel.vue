@@ -24,7 +24,6 @@
                         <svg style="width:24px;height:24px;"><use xlink:href="#iconColorPannel"></use></svg>
                     </button>
                 </div>
-
                 <div class="grid__container" v-if="showPallet"
                  :style="`position:absolute;top:${palletButton.offsetTop+palletButton.offsetHeight+10}px;left:${palletButton.offsetLeft-100}px;width:200px;max-height:300px;background:rgba(0,0,0,0.5);height:300px;overflow:auto;z-index:10;`">
                     <template v-for="item in pallet">
@@ -33,7 +32,6 @@
                         :style="{backgroundColor:`rgb(${item[0]},${item[1]},${item[2]})`,height:36+'px',width:36+'px',display:'inline-block',margin:'0 2px'}"></div>
                     </template>
                 </div>
-
             </div>
             <div class="fn__space fn__flex-1"></div>
         </div>
@@ -68,7 +66,7 @@ import _path from '../../polyfills/path.js'
 //全局设置
 const globSetting = ref({})
 //最大显示数量
-const maxCount = ref(1000)
+const maxCount = ref(10000)
 const search = ref('')
 const palletButton = ref(null)
 const showPallet =ref(false)

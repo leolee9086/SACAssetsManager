@@ -140,13 +140,11 @@ export const globStream = (req, res) => {
     });
     res.flushHeaders()
     res.write('')
-
     const { signal } = controller;
     let chunData = {
         data: '',
         count: 0
     }
-
     const walkStream = createWalkStream(cwd, filter, signal, res, maxCount, walkController, chunData)
     //前端请求关闭时,触发中止信号
     //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发

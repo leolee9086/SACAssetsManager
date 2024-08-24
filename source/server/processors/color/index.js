@@ -8,6 +8,6 @@ export function 获取颜色(buffer){
     imgData.data.set(buffer)
     const data = imgData.data
     const k = 10
-    const clusters = kMeansPP(data, k, CIEDE2000,5,true);
+    const clusters = kMeansPP(data, k, CIEDE2000,1,true);
     return clusters
 }
