@@ -1,9 +1,10 @@
 
-import { walkAsyncWithFdir, walkAsync } from '../processors/fs/walk.js'
+import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { buildStatProxyByPath } from '../processors/fs/stat.js'
 import { Query } from '../../../static/mingo.js';
 import { 准备缩略图 } from '../processors/thumbnail/loader.js'
-import { idleIdle } from '../processors/fs/fdirModified/src/api/idleQueue.js'
+import { genThumbnailColor } from '../processors/thumbnail/loader.js'
+import { diffColor } from '../processors/color/Kmeans.js'
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -23,6 +24,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         walkController.abort()
     }
     const walkSignal = walkController.signal
+    walkSignal.walkController=walkController
     const Transform = require('stream').Transform
     let filterFun
     if (filter) {
@@ -44,12 +46,13 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         transform(chunk, encoding, callback) {
             walkAsyncWithFdir(cwd, filterFun, {
                 ifFile: (statProxy) => {
+                    
+                    this.push(statProxy);
                     if (signal.aborted) {
                         this.push(null)
                         walkController.abort()
                         return
                     }
-                    this.push(statProxy);
                 },
                 end: () => {
 
@@ -61,15 +64,17 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         }
     });
 };
+
+
+const diffColorCache=new Map
 export const globStream = (req, res) => {
     const { Transform } = require('stream')
     let scheme = {}
     if(req.query&&req.query){
         scheme=JSON.parse(req.query.setting)
     }
-    console.log(scheme)
+    
     const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
-    console.log(_filter)
     const walkController = new AbortController()
     const controller = new AbortController();
     let filter
@@ -90,6 +95,43 @@ export const globStream = (req, res) => {
     } else {
         filter = _filter
     }
+    if(scheme.queryPro){
+        if(_filter){
+            filter.test = async(statProxy)=>{
+                if (signal.aborted) {
+                    walkController.abort()
+                    return false
+                }
+                if( _filter.test(statProxy)){
+                    if(diffColorCache.has(JSON.stringify([statProxy.path,scheme.queryPro.color]))){
+                        return diffColorCache.get(JSON.stringify([statProxy.path,scheme.queryPro.color]))
+                    }
+                    let simiColor = await genThumbnailColor(statProxy.path)
+                    return simiColor.find(item=>{
+                        return diffColor(item.color,scheme.queryPro.color)
+                    })
+                }
+                return false
+            }
+        }else{
+            filter = {
+                test: async(statProxy)=>{
+                    if (signal.aborted) {
+                        walkController.abort()
+                        return false
+                    }
+                    if(diffColorCache.has(JSON.stringify([statProxy.path,scheme.queryPro.color]))){
+                        return diffColorCache.get(JSON.stringify([statProxy.path,scheme.queryPro.color]))
+                    }
+                    let simiColor = await genThumbnailColor(statProxy.path)
+                    return simiColor.find(item=>{
+                        return diffColor(item.color,scheme.queryPro.color)
+                    })
+                }
+            }
+        }
+    }
+    console.log(filter)
     const maxCount = scheme.maxCount
     const cwd = scheme.cwd
     //设置响应头
@@ -111,6 +153,9 @@ export const globStream = (req, res) => {
     res.on('close', () => {
         console.log('close')
         controller.abort();
+      !transformStream.destroyed?  transformStream.destroy():null
+       !walkStream.destroyed? walkStream.destroy():null
+
     });
     const transformStream = new Transform({
         objectMode: true,
@@ -126,8 +171,9 @@ export const globStream = (req, res) => {
                         const { name, path, type, size, mtime, mtimems, error } = chunk;
                         const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
                         chunData.data += data
+                        console.log(chunData.data)
                         callback()
-                    //    准备缩略图(path)
+                       准备缩略图(path)
                     } catch (err) {
                         console.warn(err, chunk);
                     }

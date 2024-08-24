@@ -16,6 +16,24 @@
                 <div class="fn__flex">
                     <input v-model="search" style="box-sizing: border-box;width:100px;">
                 </div>
+                <div class="fn__flex">
+                    <button
+                    @click.right.stop.prevent="()=>{filterColor=[];refreshPanel()}"
+                    ref="palletButton"
+                    @click.left="showPallet=!showPallet" :style="{padding:0,margin:0,width:24+'px',height:24+'px',backgroundColor:filterColor.length?`rgb(${filterColor.join(',')})`:''}">
+                        <svg style="width:24px;height:24px;"><use xlink:href="#iconColorPannel"></use></svg>
+                    </button>
+                </div>
+
+                <div class="grid__container" v-if="showPallet"
+                 :style="`position:absolute;top:${palletButton.offsetTop+palletButton.offsetHeight+10}px;left:${palletButton.offsetLeft-100}px;width:200px;max-height:300px;background:rgba(0,0,0,0.5);height:300px;overflow:auto;z-index:10;`">
+                    <template v-for="item in pallet">
+                        <div 
+                        @click.left="()=>{filterColor=item;showPallet=false;refreshPanel()}"
+                        :style="{backgroundColor:`rgb(${item[0]},${item[1]},${item[2]})`,height:36+'px',width:36+'px',display:'inline-block',margin:'0 2px'}"></div>
+                    </template>
+                </div>
+
             </div>
             <div class="fn__space fn__flex-1"></div>
         </div>
@@ -28,7 +46,9 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
+            <assetsGridRbush
+            @palletAdded="palletAdded"
+            :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
                 @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
                 :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }"
                 @layoutLoadedCount="(e) => { layoutCount.loaded = e }" :size="parseInt(size)"></assetsGridRbush>
@@ -50,6 +70,18 @@ const globSetting = ref({})
 //最大显示数量
 const maxCount = ref(1000)
 const search = ref('')
+const palletButton = ref(null)
+const showPallet =ref(false)
+const pallet = ref([])
+const filterColor = ref([])
+const palletAdded = (data)=>{
+    pallet.value=Array.from(new Set(pallet.value.concat(
+        data.map(
+            item=>item.color
+        ).filter(
+            item=>{return item&&!pallet.value.find(item2=>item2[0]===item[0]&&item2[1]===item[1]&&item2[2]===item[2])}
+        ))))
+}
 const $realGlob = computed(() => {
     let realGlob = {
         ...globSetting.value,
@@ -64,7 +96,14 @@ const $realGlob = computed(() => {
 
             ],
         }
+
     }
+    if(filterColor.value[0]){
+         
+         realGlob.queryPro=realGlob.queryPro||{}
+         realGlob.queryPro.color = filterColor.value
+     }
+
     return realGlob
 })
 watch(
@@ -75,9 +114,7 @@ watch(
 
 
 
-const path = _path.default
 const appData = toRef(inject('appData'))
-const { block_id, box, localPath, tagLabel } = appData.value.tab.data
 //缩略图大小
 const size = ref(100)
 //最大显示数量
@@ -154,9 +191,6 @@ const updateSelection = (event) => {
         selectedItems.value = getSelectedItems(event)
     }
 };
-const clearSelection = (event) => {
-    clearSelectionWithLayout(currentLayout)
-}
 const endSelection = (event) => {
     console.log(event.target)
     isSelecting.value = false;
@@ -208,3 +242,12 @@ const openMenu = (event) => {
     assets[0] && plugin.eventBus.emit(plugin.events.资源界面项目右键, { event, assets }, { stack: true })
 }
 </script>
+<style scoped>
+.grid__container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  /* Adjust the size as needed */
+  gap: 0px 0px;
+  /* Adjust the spacing between buttons */
+}
+</style>

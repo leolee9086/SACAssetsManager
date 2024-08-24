@@ -9,12 +9,13 @@
     position:absolute;
     top: ${cardData.width / 24}px;
     left: ${cardData.width / 24}px;
-    max-width: ${cardData.width / 2}px;
+    max-width: ${cardData.width }px;
     max-height: 1.5em;
     border-radius: 5px;
     background-color:var(--b3-theme-background);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;background-color:none`">
             {{ cardData.data.path.split('.').pop() }}
+           
         </div>
         <div v-show="showIframe" ref="protyleContainer">
             <div></div>
@@ -25,6 +26,12 @@
             :src="thumbnail.genHref(cardData.data.type,cardData.data.path)" />
         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;background-color:none">
             {{ cleanAssetPath(cardData.data.path) }}
+            <div >
+            <template v-for="colorItem in pallet">
+                <div :style="{backgroundColor:`rgb(${colorItem.color[0]},${colorItem.color[1]},${colorItem.color[2]})`,height:'0.8em',width:'0.8em',display:'inline-block',margin:'0 2px'}"></div>
+            </template>
+        </div>
+
         </div>
     </div>
 </template>
@@ -44,6 +51,7 @@ const image = ref(null)
 const showIframe = ref(false)
 const showImage = ref('')
 const protyleContainer = ref(null)
+const pallet = ref([])
 let idleCallbackId;
 let fn = () => {
     showImage.value = true
@@ -62,7 +70,16 @@ let fn = () => {
 }
 onMounted(() => {
     console.log(thumbnail.getColor(cardData.data.type,cardData.data.path))
-    fetch(thumbnail.getColor(cardData.data.type,cardData.data.path))
+    fetch(thumbnail.getColor(cardData.data.type,cardData.data.path)).then(
+        res=>{
+            return res.json()
+        }
+    ).then(
+        data=>{
+            pallet.value=data
+            emit('palletAdded',pallet.value)
+        }
+    )
 
     idleCallbackId = requestIdleCallback(fn, { timeout: 300 });
 });
@@ -85,8 +102,6 @@ const buildCardProtyle = (element) => {
 }
 
 function 更新图片尺寸(e, cardData) {
-    fetch(thumbnail.getColor(cardData.data.type,cardData.data.path))
-
     const previewer = e.target
     const dimensions = {
         width: previewer.naturalWidth,

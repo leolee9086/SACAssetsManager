@@ -3,6 +3,7 @@ import commonLoader from './internalGeneraters/onlyName.js'
 import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
 import { idleIdle } from '../fs/fdirModified/src/api/idleQueue.js'
+import { getColor } from './color.js'
 let loderPaths = [
     './internalGeneraters/svg.js', 
     './internalGeneraters/sharp.js', 
@@ -92,6 +93,7 @@ export const 准备缩略图 = async (imagePath,loaderID=null) => {
         const 缓存键 =JSON.stringify(stat)
         if(!tumbnailCache.get(缓存键)){
             tumbnailCache.set(缓存键,await 生成缩略图(imagePath,loaderID))
+            await getColor(tumbnailCache.get(缓存键),imagePath)
             console.log('缩略图准备完成')
         }
     },{deadline:100})
@@ -99,4 +101,11 @@ export const 准备缩略图 = async (imagePath,loaderID=null) => {
 
 
 
+export async function genThumbnailColor(filePath,loaderID=null){
+    const thumbnailBuffer = await 生成缩略图(filePath,loaderID)
+    // 欧几里得聚类,较为简单,但效果一般
+    // 不过颜色查询应该够用了
+    const colors = await getColor(thumbnailBuffer,filePath)
+    return colors
+}
 

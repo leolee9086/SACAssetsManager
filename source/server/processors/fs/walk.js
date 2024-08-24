@@ -15,7 +15,7 @@ function buildFilter(filter, signal) {
         return null
     }
     if (filter && typeof filter === 'function') {
-        return (statProxy, depth) => {
+        return async(statProxy, depth) => {
             if (signal && signal.aborted) {
                 return false
             }
@@ -28,7 +28,11 @@ function buildFilter(filter, signal) {
                         return statProxy[prop]
                     }
                 })
-                return filter(proxy)
+                return await Promise.race([
+                    filter(proxy),
+
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 100))
+                ])
             } catch (e) {
                 console.error(e, statProxy)
                 return false
@@ -36,7 +40,7 @@ function buildFilter(filter, signal) {
         }
     } else {
         if (filter && typeof filter === 'object') {
-            return (statProxy, depth) => {
+            return async(statProxy, depth) => {
                 if (signal && signal.aborted) {
                     return false
                 }
@@ -49,14 +53,17 @@ function buildFilter(filter, signal) {
                             return statProxy[prop]
                         }
                     })
+                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 100))
+
                     if (statProxy.isFile() && filter.ifFile) {
-                        return filter.ifFile(proxy)
+                        return await Promise.race([filter.ifFile(proxy), timeoutPromise])
                     }
                     if (statProxy.isDirectory() && _filter.ifDir) {
-                        return filter.ifDir(proxy)
+                        return await Promise.race([filter.ifDir(proxy), timeoutPromise])
+
                     }
                     if (statProxy.isSymbolicLink() && _filter.ifLink) {
-                        return filter.ifLink(proxy)
+                        return await Promise.race([filter.ifLink(proxy), timeoutPromise])
                     }
                 } catch (e) {
                     console.error(e, statProxy)
@@ -80,17 +87,19 @@ function buildFilter(filter, signal) {
  */
 export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }, maxCount,cachedCallback) {
     const stepCallback = buildStepCallback(_stepCallback)
-    let cached = []
     const filter = buildFilter(_filter, signal)
+   let cached = []
+    let count = 0
     try {
-        cached = statCache.filter((proxy) => {
+        
+        cached = await statCache.filter(async(proxy) => {
             if (signal.aborted) {
                 return false
             }
         
             let flag = false
             if (proxy.path.startsWith(root)) {
-                flag = filter ? filter(proxy, proxy.path.split('/').length) : true
+                flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
             }
             if(flag){
                 stepCallback && stepCallback(proxy)
@@ -101,13 +110,13 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy =
     } catch (e) {
         console.error(e)
     }
-    console.log(cached)
-    let count = cached.length
-    const realFilter = (path, isDir) => {
+     count = cached.length
+    const realFilter = async(path, isDir) => {
         if (signal.aborted) {
             return false
         }
         if (count > maxCount) {
+            signal.walkController.abort()
             return false
         }
         const entry = {
@@ -120,20 +129,23 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy =
         if (cached.find(proxy => proxy.path === path)) {
             return false
         }
+
         if (isDir) {
             if (count > maxCount) {
                 return false
             }
-            return filter(proxy, path.split('/').length)
+            return await filter(proxy, path.split('/').length)
         }
         stepCallback && stepCallback.preMatch && stepCallback.preMatch(proxy)
-        let result = filter ? filter(proxy, path.split('/').length) : true
+        let result = filter ? await filter(proxy, path.split('/').length) : true
         result && stepCallback && stepCallback(proxy)
         result && count++
         return result
     }
-    const api = new fdir().withFullPaths().withIdleCallback({ deadline: 1, timeout: 100 }).withSignal(signal).withMaxFiles(maxCount).filter(realFilter).crawl(root)
+    const api = new fdir().withFullPaths().withIdleCallback({ deadline: 1, timeout: 100 }).withSignal(signal).withMaxFiles().filter(realFilter).crawl(root)
     const result =await api.withPromise()
+    console.log('walkEnd')
+
     return result
 }
 
@@ -197,6 +209,7 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
         }
     }
     await readDir(root, depth);
+    console.log('walkEnd')
     stepCallback && stepCallback.end()
     return files;
 }

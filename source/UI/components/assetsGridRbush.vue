@@ -15,7 +15,7 @@
                         v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
                         <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
-                            :cardData="卡片数据">
+                            :cardData="卡片数据" @palletAdded="palletAdded">
                         </assetsThumbnailCard>
                     </div>
                 </template>
@@ -31,7 +31,6 @@ import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
 const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount'])
 const size = toRef(props, 'size')
-const maxCount = toRef(props, 'maxCount')
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
 const root = ref(null)
@@ -42,6 +41,10 @@ const columnCount = ref(1)
 const paddingLR = ref(100)
 const containerHeight = ref(102400)
 const showCard = ref(true)
+const emit = defineEmits()
+const palletAdded = (data)=>{
+    emit('palletAdded',data)
+}
 /**
  * 
  * 处理聚焦和切换等逻辑
@@ -182,7 +185,6 @@ watch(
         )
     }
 )
-const emit = defineEmits()
 
 watch(
     [布局对象, columnCount, size], () => {
