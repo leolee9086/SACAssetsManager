@@ -41,7 +41,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         ifFile:async (statProxy) => {
             const { name, path, type, size, mtime, mtimems, error } = statProxy;
             const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-             res.write(data)
+            res.write(`data:${data}\n`)
             res.flush()
             准备缩略图(path)
         },
@@ -184,9 +184,8 @@ export const fileListStream = async (req, res) => {
                 }
             }
             const { name, path, type, size, mtime, mtimems, error } = chunk;
-            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-            console.log(data)
-            this.push(data)
+            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) ;
+            this.push(`data:${data}\n`)
             res.flush()
             callback()
         }
