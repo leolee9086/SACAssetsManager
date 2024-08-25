@@ -88,16 +88,17 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (tumbnailCache.get(缓存键)) {
         return tumbnailCache.get(缓存键)
     }
+    console.log(imagePath)
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)
     tumbnailCache.set(缓存键, thumbnailBuffer)
     return thumbnailBuffer
 }
 const tumbnailCache = buildCache('thumbnailCache')
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
-    idleIdle(async () => {
+    requestIdleCallback(async () => {
         const thumbnailBuffer = await 生成缩略图(imagePath, loaderID)
         await getColor(thumbnailBuffer, imagePath)
-    }, { deadline: 20 })
+    }, { deadline:10 })
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const start=performance.now()

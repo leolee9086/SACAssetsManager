@@ -80,12 +80,13 @@ export class BaseCacheProvider{
         const keys = this.cache.keys()
         const result = []
         for await (const key of keys){
-            if( await filter(this.cache.get(key).value)){
-                result.push(this.cache.get(key).value)
-            }
             if(signal&&signal.aborted){
                 break
             }
+            if( await filter(this.cache.get(key).value)){
+                result.push(this.cache.get(key).value)
+            }
+         
         }
         return result
     }

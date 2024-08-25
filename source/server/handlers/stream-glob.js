@@ -2,9 +2,10 @@
 import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { buildStatProxyByPath } from '../processors/fs/stat.js'
 import { Query } from '../../../static/mingo.js';
-import { 准备缩略图 } from '../processors/thumbnail/loader.js'
+import { 准备缩略图,生成缩略图 } from '../processors/thumbnail/loader.js'
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { diffColor } from '../processors/color/Kmeans.js'
+import { 根据颜色查找内容 } from '../processors/color/colorIndex.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -48,11 +49,14 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         end: () => {
             res.end();
         }
-    }, false, walkSignal, maxCount);
+    }, (walkCount)=>{
+        res.write(`data:${JSON.stringify({walkCount})}\n`)
+        res.flush()
+    }, walkSignal, maxCount);
 };
 
 const diffColorCache=new Map()
-export const globStream = (req, res) => {
+export const globStream = async (req, res) => {
     let scheme = {}
     if(req.query&&req.query){
         scheme=JSON.parse(req.query.setting)
@@ -79,7 +83,8 @@ export const globStream = (req, res) => {
         filter = _filter
     }
     if(scheme.queryPro){
-        if(_filter){
+        console.log(await 根据颜色查找内容(scheme.queryPro.color))
+       /* if(_filter){
             filter.test = async(statProxy)=>{
                 if (signal.aborted) {
                     walkController.abort()
@@ -90,7 +95,9 @@ export const globStream = (req, res) => {
                         return diffColorCache.get(JSON.stringify([statProxy.path,scheme.queryPro.color]))
                     }
                     let simiColor = await genThumbnailColor(statProxy.path)
+                    
                     for await(let item of simiColor){
+                        
                         console.log(item.color,scheme.queryPro.color)
                         if(diffColor(item.color===scheme.queryPro.color)){
                             return true
@@ -104,6 +111,7 @@ export const globStream = (req, res) => {
         }else{
             filter = {
                 test: async(statProxy)=>{
+                    console.time('testColor'+statProxy.path)
                     if (signal.aborted) {
                         walkController.abort()
                         return false
@@ -118,11 +126,12 @@ export const globStream = (req, res) => {
                             return true
                         }
                     }
+                    console.timeEnd('testColor'+statProxy.path)
                     return false
 
                 }
             }
-        }
+        }*/
     }
     const maxCount = scheme.maxCount
     const cwd = scheme.cwd

@@ -24,7 +24,6 @@ export async function getColor(buffer,filePath) {
         }
     
     }
-  
     //这里的键不能用buffer本身,要进行序列化
     bufferCache.set(buffer.toString('base64'),dominantColors.centers)
     return dominantColors.centers

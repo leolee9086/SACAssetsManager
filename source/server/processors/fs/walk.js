@@ -85,21 +85,32 @@ function buildFilter(filter, signal) {
  * @param {*} maxCount 
  * @returns 
  */
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }, maxCount, cachedCallback) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, maxCount, cachedCallback) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
     let cached = []
     let count = 0
+    let total = 0
     try {
-
+      
       cached = await statCache.filter(async (proxy) => {
             if (signal.aborted) {
                 return false
             }
-
+            if (total > maxCount) {
+                signal.walkController.abort()
+                return false
+            }
+            countCallBack && countCallBack(total)
             let flag = false
             if (proxy.path.startsWith(root)) {
-                flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
+                total++
+
+                try{
+                    flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
+                }catch(e){
+                    return false
+                }
             }
 
             if (flag) {
@@ -117,18 +128,20 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy =
         if (signal.aborted) {
             return false
         }
-        if (count > maxCount) {
+        if (total > maxCount) {
             signal.walkController.abort()
             return false
         }
         const entry = {
-            isDirectory: () => false,
-            isFile: () => true,
+            isDirectory: () => isDir,
+            isFile: () => !isDir,
             isSymbolicLink: () => false,
             name: path.split('/').pop()
         }
-        let proxy = buildStatProxyByPath(path, entry, isDir ? 'dir' : 'file')
+        let proxy = buildStatProxyByPath(path.replace(/\\/g,'/'), entry, isDir ? 'dir' : 'file')
+        console.log(root,proxy.path)
         if (cached.find(proxy => proxy.path === path)) {
+            console.log('cached',proxy.path)
             return false
         }
 
@@ -136,13 +149,24 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy =
             if (count > maxCount) {
                 return false
             }
-            return await filter(proxy, path.split('/').length)
+            try{
+                let flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
+                return flag
+            }catch(e){
+                return false
+            }
         }
+        total++
+        countCallBack && countCallBack(total)
         stepCallback && stepCallback.preMatch && stepCallback.preMatch(proxy)
-        let result = filter ? await filter(proxy, path.split('/').length) : true
+        let result
+        try{
+            result= filter ? await filter(proxy, proxy.path.split('/').length) : true
+        }catch(e){
+            return false
+        }
         result && stepCallback && stepCallback(proxy)
         result && count++
-        console.log(count, maxCount)
         return result
     }
     const api = new fdir()

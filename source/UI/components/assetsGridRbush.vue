@@ -29,7 +29,7 @@ import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, 
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount','filterColor'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor'])
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
@@ -43,8 +43,8 @@ const paddingLR = ref(100)
 const containerHeight = ref(102400)
 const showCard = ref(true)
 const emit = defineEmits()
-const palletAdded = (data)=>{
-    emit('palletAdded',data)
+const palletAdded = (data) => {
+    emit('palletAdded', data)
 }
 /**
  * 
@@ -155,11 +155,11 @@ const 更新可见区域 = (flag) => {
 
 let 附件数据组
 
-import { 监听尺寸,以函数创建尺寸监听 } from "../utils/observers/resize.js"
-const 监听尺寸函数 = 以函数创建尺寸监听((stat)=>{
+import { 监听尺寸, 以函数创建尺寸监听 } from "../utils/observers/resize.js"
+const 监听尺寸函数 = 以函数创建尺寸监听((stat) => {
     columnCount.value = Math.max(Math.floor(stat.width / size.value) - 1, 1)
     paddingLR.value = (stat.width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-},true)
+}, true)
 watch(
     [columnCount, size], async () => {
         if (!scrollContainer.value) {
@@ -201,13 +201,13 @@ watch(
 )
 
 
-import {定长执行} from "../../utils/functions/Iteration.js"
-const 定长加载 = (阈值)=>{
-    let 生成函数 =async ()=>{
+import { 定长执行 } from "../../utils/functions/Iteration.js"
+const 定长加载 = (阈值) => {
+    let 生成函数 = async () => {
         return 附件数据组.shift && 附件数据组.shift()
     }
-    let 迭代函数 =async (data)=>{
-        if(data && data.id){
+    let 迭代函数 = async (data) => {
+        if (data && data.id) {
             布局对象.value.add(data)
             更新可见区域(true)
         }
@@ -215,7 +215,7 @@ const 定长加载 = (阈值)=>{
     let 忽略空值 = false
     let 忽略迭代错误 = false
     let 忽略执行错误 = false
-    定长执行(生成函数,迭代函数,阈值,忽略空值,忽略迭代错误,忽略执行错误)
+    定长执行(生成函数, 迭代函数, 阈值, 忽略空值, 忽略迭代错误, 忽略执行错误)
 }
 
 const mounted = ref(null)
@@ -234,16 +234,24 @@ watch(
 let oldsize
 let lastSort = Date.now()
 //排序函数
-function sortLocalStream() {
+
+async function sortLocalStream(total) {
+    if (total) {
+        emit("layoutCountTotal", total)
+        return
+    }
     emit("layoutCount", 附件数据组.length)
     布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
     mounted.value = true
+    
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 100) {
+        console.log('sort')
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
         更新可见区域(true)
     }
 }
+
 const controller = new AbortController();
 const signal = controller.signal;
 
@@ -273,8 +281,8 @@ onMounted(async () => {
     }
     else if (appData.value.tab.data.tagLabel) {
         附件数据组 = []
-        
-        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal,globSetting.value)
+
+        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
     }
     else if (appData.value.tab.data.type === 'sql') {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);

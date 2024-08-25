@@ -207,7 +207,7 @@ export default class SystemThumbnailLoader {
     }
     async generateThumbnail(filePath) {
         const extension = filePath.split('.').pop()
-        const encodedPath = Buffer.from(filePath).toString('base64');
+        const encodedPath = Buffer.from(filePath.replace(/\//g,'\\')).toString('base64');
         let resultBuffer = null
         let error = null
         if(noThumbnailList.includes(extension)){
@@ -222,7 +222,7 @@ export default class SystemThumbnailLoader {
         }catch(e){
             error = e
         }
-        if(!resultBuffer){
+     if(!resultBuffer){
             try{
                 resultBuffer = Buffer.from(await callBackPromise(getLargeIcon)(encodedPath), 'base64')
             }catch(e){

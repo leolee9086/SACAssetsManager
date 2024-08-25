@@ -1,13 +1,22 @@
 <template>
     <div @wheel="scaleListener" class=" fn__flex-column" style="max-height: 100%;" ref="root">
         <div class=" fn__flex " style="min-height:36px;align-items: center;">
-            <div class="fn__space fn__flex-1"></div>
+
+            <div class="fn__space fn__flex-1">
+                <div v-if="everthingEnabled" style="color:green;float: left;overflow:visible">everthing已经连接</div>
+
+            </div>
             <div class=" fn__flex ">
+
+                <input v-model="everthingPort" style="box-sizing: border-box;width:100px;" :value="10000" type="number">
+
+                <div class="fn__space fn__flex-1"></div>
+
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="100"
                     class="b3-slider fn__block" max="1024" min="64" step="16" type="range">
                 <div class="fn__space fn__flex-1"></div>
 
-                <input v-model="maxCount" style="box-sizing: border-box;width:100px;" :value="10000" type="number">
+                <input v-if="!everthingEnabled" v-model="maxCount" style="box-sizing: border-box;width:100px;" :value="10000" type="number">
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
                     <button @click="refreshPanel">刷新</button>
@@ -45,15 +54,18 @@
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
             <assetsGridRbush
+            :everthingEnabled="everthingEnabled"
+            :everthingPort="everthingPort"
             @palletAdded="palletAdded"
             :globSetting="$realGlob" 
             v-if="showPanel && globSetting" 
             :maxCount="maxCount"
+            @layoutCountTotal="(e)=>{layoutCountTotal=e}"
                 @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
                 :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @layoutLoadedCount="(e) => { layoutCount.loaded = e }" :size="parseInt(size)"></assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
-                layoutCount.found + layoutCount.loaded + '个文件发现,' + layoutCount.loaded + '个文件已经加载' }}</div>
+                (layoutCountTotal+'个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded + '个文件已经加载' }}</div>
             <!--选择框的容器-->
             <div v-if="isSelecting" :style="selectionBoxStyle" class="selection-box"></div>
         </div>
@@ -69,6 +81,7 @@ import _path from '../../polyfills/path.js'
 const globSetting = ref({})
 //最大显示数量
 const maxCount = ref(10000)
+const layoutCountTotal = ref(0)
 const search = ref('')
 const palletButton = ref(null)
 const showPallet =ref(false)
@@ -83,6 +96,8 @@ const palletAdded = (data)=>{
                 return item&&!pallet.value.find(item2=>item2[0]===item[0]&&item2[1]===item[1]&&item2[2]===item[2])}
         ))))
 }
+const everthingPort = ref(10000)
+
 const $realGlob = computed(() => {
     let realGlob = {
         ...globSetting.value,
@@ -106,6 +121,17 @@ const $realGlob = computed(() => {
      }
     return realGlob
 })
+const everthingEnabled = ref(false)
+watch([everthingPort,$realGlob],(e)=>{
+    fetch(`http://localhost:${everthingPort.value}/?reg=${encodeURIComponent(search.value)}&json=1`).then(res=>res.json()).then(json=>{
+        console.log(json)
+        if(json){
+            everthingEnabled.value=true
+        }
+    }).catch(e=>{
+        everthingEnabled.value=false
+    })
+})
 watch(
     () => $realGlob.value, () => {
         refreshPanel()
@@ -124,6 +150,9 @@ let currentLayoutContainer
 const showPanel = ref(true)
 const refreshPanel = () => {
     showPanel.value = false
+    layoutCount.found = 0
+    layoutCount.loaded = 0
+    layoutCountTotal.value = 0
     nextTick(() => {
         console.log(globSetting.value)
         showPanel.value = true

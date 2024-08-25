@@ -49,6 +49,7 @@ export async function applyURIStreamJson(uri, target, callback, step, signal, op
       const reader = stream.getReader();
       read()
       let splitedChunk
+      let total = 0
       function read() {
         reader.read().then(({ value, done }) => {
           if (done) {
@@ -64,26 +65,36 @@ export async function applyURIStreamJson(uri, target, callback, step, signal, op
                 splitedChunk = ''; // 清除已处理的部分
 
               }
-              
+
               if (chunk.startsWith('data:')) {
-                let  _chunk = chunk.substring(5)
-                try{
-                  target.push(JSON.parse(_chunk))
-                  _step += 1
+                let _chunk = chunk.substring(5)
+                try {
+                  let json = JSON.parse(_chunk)
+                  if (json.walkCount || json.walkCount === 0) {
+                    if (json.walkCount !== total) {
+                      total = json.walkCount
+                      callback && callback(total)
+
+                    }
+                  } else {
+                    target.push(JSON.parse(_chunk))
+                    _step += 1
+
+                  }
                   if (_step >= step) {
                     callback && callback()
                     _step = 0
                   }
                   splitedChunk = ''
-  
-                }catch(e){
-                  chunk&&(splitedChunk += chunk)
+
+                } catch (e) {
+                  chunk && (splitedChunk += chunk)
                 }
-              }else{
-                chunk&&(splitedChunk += chunk)
+              } else {
+                chunk && (splitedChunk += chunk)
               }
             } catch (e) {
-              chunk&&(splitedChunk += chunk)
+              chunk && (splitedChunk += chunk)
             }
 
 

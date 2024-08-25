@@ -84,17 +84,17 @@ export const statWithCatch = (path) => {
  * 使用缓存,避免重复读取
  */
 export const buildStatProxy = (entry, dir, useProxy, type) => {
-    let path = 拼接文件名(dir, entry.name)
+    let path = 拼接文件名(dir, entry.name).replace(/\\/g,'/')
     if (useProxy) {
         let proxy = buildStatProxyByPath(path, entry, type)
         return proxy
     } else {
-        let stats = statWithCatch(path)
+        let stats = statWithCatch(path.replace(/\\/g,'/'))
         let type = stats.type
         return {
             name: entry.name,
             type,
-            path,
+            path:path.replace(/\\/g,'/'),
             ...stats,
             isDirectory: () => entry.isDirectory(),
             isFile: () => entry.isFile(),
