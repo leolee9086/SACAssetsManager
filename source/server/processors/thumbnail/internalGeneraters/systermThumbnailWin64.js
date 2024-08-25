@@ -195,7 +195,9 @@ const noThumbnailList = [
     'html',
     'htm',
     'xml',
-    'docx'
+    'docx',
+    'sy',
+    'db'
 ]
 
 
