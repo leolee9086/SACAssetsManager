@@ -20,7 +20,7 @@ async function initLoadersFromPaths(loderPaths) {
             console.error(e)
         }
     }
-    return loaders
+    return sortLoaderByRegexComplexity(loaders)
 }
 let loaders = await initLoadersFromPaths(loderPaths)
 //判定是否支持,因为缩略图解析器需要调用系统接口
@@ -59,15 +59,11 @@ function getLoaderByID(loaderID) {
 }
 function getLoaderByMatch(imagePath) {
     let loader = null
-    loaders = sortLoaderByRegexComplexity(loaders)
     for (const _loader of loaders) {
         if (imagePath.match(_loader.match(imagePath))) {
             loader = _loader
         }
     }
-    
-
-
     return loader
 }
 export function listLoaders() {
@@ -94,29 +90,20 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     }
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)
     tumbnailCache.set(缓存键, thumbnailBuffer)
-
     return thumbnailBuffer
 }
 const tumbnailCache = buildCache('thumbnailCache')
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
-    console.log('准备缩略图',imagePath)
     idleIdle(async () => {
-        console.log('缩略图准备开始')
         const thumbnailBuffer = await 生成缩略图(imagePath, loaderID)
         await getColor(thumbnailBuffer, imagePath)
-        console.log('缩略图准备完成')
     }, { deadline: 20 })
 }
-
-
-
 export async function genThumbnailColor(filePath, loaderID = null) {
     const start=performance.now()
-
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
     const end=performance.now()
     console.log('生成缩略图',end-start)
-
     // 欧几里得聚类,较为简单,但效果一般
     // 不过颜色查询应该够用了
     const start2=performance.now()

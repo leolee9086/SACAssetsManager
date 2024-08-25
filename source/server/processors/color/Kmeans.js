@@ -1,4 +1,5 @@
-import {CIEDE2000RGBA} from "./colorArrayDistance.js"
+import {CIEDE2000RGBA} from "./similar.js"
+import {CIE76} from "./similar.js"
 export function 欧几里得聚类(data, k) {
     return kMeansPP(data, k, euclideanDistanceWithHueCorrection,100,true);
 }
@@ -16,32 +17,14 @@ export const diffColor = (color1, color2) => {
     // 直接使用欧几里得距离
    // const distance1 =     euclideanDistanceWithHueCorrection(color1, color2);
    const distance2 =CIEDE2000RGBA(color1, color2);
-    const distance3 = isColorSimilarCIE76(color1, color2)
+    const distance3 = CIE76(color1, color2)
 
     //let result1=isDistanceAcceptable(distance1, 'totalDistance2', 'count2', 0.8)
     let result2=isDistanceAcceptable(distance2, 'totalDistance1', 'count1', 0.9)
     const result3 = isDistanceAcceptable(distance3, 'totalDistance3', 'count3', 50)
     return result3&&result2
 };
-function isColorSimilarCIE76(color1, color2,) {
-    // 将颜色值转换为整数
-    let r1 = color1[0]
-    let g1 = color1[1]
-    let b1 = color1[2]
-  
-    let r2 = color2[0]
-    let g2 = color2[1]
-    let b2 = color2[2]
-  
-    // 计算CIE76色差公式
-    let deltaR = r1 - r2;
-    let deltaG = g1 - g2;
-    let deltaB = b1 - b2;
-    let deltaE = Math.sqrt(deltaR * deltaR + deltaG * deltaG + deltaB * deltaB);
-  
-    // 如果色差小于阈值，则认为颜色相近
-    return deltaE 
-  }
+
 function isDistanceAcceptable(distance, totalKey, countKey, threshold) {
     if (!cache.has(totalKey)) {
         cache.set(totalKey, 0);

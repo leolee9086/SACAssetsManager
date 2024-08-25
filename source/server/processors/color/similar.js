@@ -1,3 +1,23 @@
+export function CIE76(color1,color2){
+    // 将颜色值转换为整数
+    let r1 = color1[0]
+    let g1 = color1[1]
+    let b1 = color1[2]
+  
+    let r2 = color2[0]
+    let g2 = color2[1]
+    let b2 = color2[2]
+  
+    // 计算CIE76色差公式
+    let deltaR = r1 - r2;
+    let deltaG = g1 - g2;
+    let deltaB = b1 - b2;
+    let deltaE = Math.sqrt(deltaR * deltaR + deltaG * deltaG + deltaB * deltaB);
+  
+    //返回色差值
+    return deltaE 
+}
+
 //颜色数组距离计算
 //使用CIEDE2000算法计算颜色之间的距离
 // 将RGBA颜色转换为LAB颜色
