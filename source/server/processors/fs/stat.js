@@ -18,8 +18,8 @@ export const buildStepCallback = (stepCallback) => {
                 console.error(e)
             }
         }
-        callback.end = () => {
-            stepCallback.end && stepCallback.end()
+        callback.end = async () => {
+            stepCallback && stepCallback.end && await stepCallback.end()
         }
         return callback
     }

@@ -46,9 +46,11 @@
             @dragover.prevent>
             <assetsGridRbush
             @palletAdded="palletAdded"
-            :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
+            :globSetting="$realGlob" 
+            v-if="showPanel && globSetting" 
+            :maxCount="maxCount"
                 @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
-                :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }"
+                :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @layoutLoadedCount="(e) => { layoutCount.loaded = e }" :size="parseInt(size)"></assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
                 layoutCount.found + layoutCount.loaded + '个文件发现,' + layoutCount.loaded + '个文件已经加载' }}</div>
@@ -59,7 +61,7 @@
 </template>
 <script setup>
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
-
+import { diffColor } from '../../server/processors/color/Kmeans.js';
 import assetsGridRbush from './assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
@@ -77,7 +79,8 @@ const palletAdded = (data)=>{
         data.map(
             item=>item.color
         ).filter(
-            item=>{return item&&!pallet.value.find(item2=>item2[0]===item[0]&&item2[1]===item[1]&&item2[2]===item[2])}
+            item=>{
+                return item&&!pallet.value.find(item2=>item2[0]===item[0]&&item2[1]===item[1]&&item2[2]===item[2])}
         ))))
 }
 const $realGlob = computed(() => {
@@ -94,14 +97,13 @@ const $realGlob = computed(() => {
 
             ],
         }
-
     }
-    if(filterColor.value[0]){
+    if(filterColor.value[0]||filterColor.value[1]||filterColor.value[2]||JSON.stringify(filterColor.value)!=='[]'){
          
-         realGlob.queryPro=realGlob.queryPro||{}
-         realGlob.queryPro.color = filterColor.value
+        realGlob.queryPro=realGlob.queryPro||{}
+       realGlob.queryPro.color = filterColor.value
+        //realGlob.color = filterColor.value
      }
-
     return realGlob
 })
 watch(
@@ -109,8 +111,6 @@ watch(
         refreshPanel()
     }
 )
-
-
 
 const appData = toRef(inject('appData'))
 //缩略图大小
@@ -143,7 +143,6 @@ const handlerScrollTopChange = (scrollTop) => {
 function scaleListener(event) {
     if (event.ctrlKey) {
         let value = parseInt(size.value)
-
         value -= event.deltaY / 10
         if (value < 100) {
             value = 100

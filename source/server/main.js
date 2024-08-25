@@ -48,7 +48,6 @@ function createInvisibleWebview(entryURL) {
                     .enable(webviewWebContents);
                 webview.src = entryURL
                 resolve(webview)
-                webview.openDevTools();
             });
         } catch (e) {
             reject(e)
@@ -57,4 +56,8 @@ function createInvisibleWebview(entryURL) {
 }
 // 调用函数创建webview
 plugin.serverContainer=await createInvisibleWebview(entryURL);
+plugin.eventBus.on('openDevTools',()=>{
+    plugin.serverContainer.openDevTools()
+})
+
 

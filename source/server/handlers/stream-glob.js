@@ -12,9 +12,7 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkController,chunData) => {
-    let count = 0
-    let preMatchCount = 0
+const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkController) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
     signal.addEventListener('abort', () => {
@@ -25,7 +23,6 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     }
     const walkSignal = walkController.signal
     walkSignal.walkController=walkController
-    const Transform = require('stream').Transform
     let filterFun
     if (filter) {
         console.log(filter)
@@ -40,35 +37,22 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     } else {
         filterFun = undefined
     }
-
-    return new Transform({
-        objectMode: true,
-        transform(chunk, encoding, callback) {
-            walkAsyncWithFdir(cwd, filterFun, {
-                ifFile: (statProxy) => {
-                    
-                    this.push(statProxy);
-                    if (signal.aborted) {
-                        this.push(null)
-                        walkController.abort()
-                        return
-                    }
-                },
-                end: () => {
-
-                  //  this.push(null);
-                }
-            }, true, walkSignal, maxCount, 
-            );
-            callback();
+    walkAsyncWithFdir(cwd, filterFun, {
+        ifFile:async (statProxy) => {
+            const { name, path, type, size, mtime, mtimems, error } = statProxy;
+            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
+             res.write(data)
+            res.flush()
+            准备缩略图(path)
+        },
+        end: () => {
+            res.end();
         }
-    });
+    }, false, walkSignal, maxCount);
 };
 
-
-const diffColorCache=new Map
+const diffColorCache=new Map()
 export const globStream = (req, res) => {
-    const { Transform } = require('stream')
     let scheme = {}
     if(req.query&&req.query){
         scheme=JSON.parse(req.query.setting)
@@ -88,7 +72,6 @@ export const globStream = (req, res) => {
                 if (walkController.signal.aborted) {
                     return false
                 }
-
                 return statProxy.type !== 'file' || _filter.test(statProxy)
             }
         }
@@ -107,9 +90,14 @@ export const globStream = (req, res) => {
                         return diffColorCache.get(JSON.stringify([statProxy.path,scheme.queryPro.color]))
                     }
                     let simiColor = await genThumbnailColor(statProxy.path)
-                    return simiColor.find(item=>{
-                        return diffColor(item.color,scheme.queryPro.color)
-                    })
+                    for await(let item of simiColor){
+                        console.log(item.color,scheme.queryPro.color)
+                        if(diffColor(item.color===scheme.queryPro.color)){
+                            return true
+                        }
+                    }
+                    return false
+             
                 }
                 return false
             }
@@ -120,18 +108,22 @@ export const globStream = (req, res) => {
                         walkController.abort()
                         return false
                     }
-                    if(diffColorCache.has(JSON.stringify([statProxy.path,scheme.queryPro.color]))){
+                   if(diffColorCache.has(JSON.stringify([statProxy.path,scheme.queryPro.color]))){
                         return diffColorCache.get(JSON.stringify([statProxy.path,scheme.queryPro.color]))
                     }
                     let simiColor = await genThumbnailColor(statProxy.path)
-                    return simiColor.find(item=>{
-                        return diffColor(item.color,scheme.queryPro.color)
-                    })
+
+                    for await (let item of simiColor){
+                        if(diffColor(item.color,scheme.queryPro.color)){
+                            return true
+                        }
+                    }
+                    return false
+
                 }
             }
         }
     }
-    console.log(filter)
     const maxCount = scheme.maxCount
     const cwd = scheme.cwd
     //设置响应头
@@ -141,54 +133,13 @@ export const globStream = (req, res) => {
     res.flushHeaders()
     res.write('')
     const { signal } = controller;
-    let chunData = {
-        data: '',
-        count: 0
-    }
-    const walkStream = createWalkStream(cwd, filter, signal, res, maxCount, walkController, chunData)
+    createWalkStream(cwd, filter, signal, res, maxCount, walkController)
     //前端请求关闭时,触发中止信号
     //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
     res.on('close', () => {
         console.log('close')
         controller.abort();
-      !transformStream.destroyed?  transformStream.destroy():null
-       !walkStream.destroyed? walkStream.destroy():null
-
     });
-    const transformStream = new Transform({
-        objectMode: true,
-        transform(chunk, encoding, callback) {
-            let that = this
-            if (!signal.aborted) {
-                setImmediate(() => {
-                    try {
-                        if (signal.aborted) {
-                            callback()
-                            return
-                        }
-                        const { name, path, type, size, mtime, mtimems, error } = chunk;
-                        const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-                        chunData.data += data
-                        console.log(chunData.data)
-                        callback()
-                       准备缩略图(path)
-                    } catch (err) {
-                        console.warn(err, chunk);
-                    }
-                })
-                this.push(chunData.data)
-                res.flush()
-                chunData.data = ''
-            } else {
-                res.flush()
-                res.end()
-                callback()
-                return
-            }
-        }
-    });
-    walkStream.pipe(transformStream).pipe(res)
-    walkStream.write({});  // 触发walk开始
 };
 export const fileListStream = async (req, res) => {
     const controller = new AbortController();

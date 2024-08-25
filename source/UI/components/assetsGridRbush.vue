@@ -15,7 +15,7 @@
                         v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
                         <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
-                            :cardData="卡片数据" @palletAdded="palletAdded">
+                            :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
                         </assetsThumbnailCard>
                     </div>
                 </template>
@@ -29,10 +29,11 @@ import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, 
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount','filterColor'])
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
+const filterColor = toRef(props, 'filterColor')
 const root = ref(null)
 const scrollContainer = ref(null)
 const appData = toRef(inject('appData'))

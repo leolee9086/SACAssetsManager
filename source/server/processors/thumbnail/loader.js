@@ -5,8 +5,8 @@ import { statWithCatch } from '../fs/stat.js'
 import { idleIdle } from '../fs/fdirModified/src/api/idleQueue.js'
 import { getColor } from './color.js'
 let loderPaths = [
-    './internalGeneraters/svg.js', 
-    './internalGeneraters/sharp.js', 
+    './internalGeneraters/svg.js',
+    './internalGeneraters/sharp.js',
     './internalGeneraters/systermThumbnailWin64.js',
     './internalGeneraters/sy.js'
 ]
@@ -42,12 +42,12 @@ function isSupport(loader) {
         return loader.sys.indexOf(process.platform + " " + process.arch) !== -1
     }
 }
-export function getLoader(imagePath,loaderID) {
+export function getLoader(imagePath, loaderID) {
     let loader = null
-    if(loaderID){
+    if (loaderID) {
         loader = getLoaderByID(loaderID)
     }
-    else{
+    else {
         loader = getLoaderByMatch(imagePath)
     }
     //如果都没有匹配到,则使用commonLoader,返回一个svg图标
@@ -65,9 +65,12 @@ function getLoaderByMatch(imagePath) {
             loader = _loader
         }
     }
+    
+
+
     return loader
 }
-export function listLoaders(){
+export function listLoaders() {
     return loaders.map(item => {
         return {
             id: item.id,
@@ -79,33 +82,47 @@ export function listLoaders(){
         }
     })
 }
-export const 生成缩略图 = async (imagePath,loaderID=null) => {
-    let loader =await getLoader(imagePath,loaderID)
-    if(!loader){
+export const 生成缩略图 = async (imagePath, loaderID = null) => {
+    let loader = await getLoader(imagePath, loaderID)
+    if (!loader) {
         return null
     }
-    return await loader.generateThumbnail(imagePath)
+    const stat = statWithCatch(imagePath)
+    const 缓存键 = JSON.stringify(stat)
+    if (tumbnailCache.get(缓存键)) {
+        return tumbnailCache.get(缓存键)
+    }
+    const thumbnailBuffer = await loader.generateThumbnail(imagePath)
+    tumbnailCache.set(缓存键, thumbnailBuffer)
+
+    return thumbnailBuffer
 }
 const tumbnailCache = buildCache('thumbnailCache')
-export const 准备缩略图 = async (imagePath,loaderID=null) => {
-    idleIdle(async ()=>{
-        const stat = statWithCatch(imagePath)
-        const 缓存键 =JSON.stringify(stat)
-        if(!tumbnailCache.get(缓存键)){
-            tumbnailCache.set(缓存键,await 生成缩略图(imagePath,loaderID))
-            await getColor(tumbnailCache.get(缓存键),imagePath)
-            console.log('缩略图准备完成')
-        }
-    },{deadline:100})
+export const 准备缩略图 = async (imagePath, loaderID = null) => {
+    console.log('准备缩略图',imagePath)
+    idleIdle(async () => {
+        console.log('缩略图准备开始')
+        const thumbnailBuffer = await 生成缩略图(imagePath, loaderID)
+        await getColor(thumbnailBuffer, imagePath)
+        console.log('缩略图准备完成')
+    }, { deadline: 20 })
 }
 
 
 
-export async function genThumbnailColor(filePath,loaderID=null){
-    const thumbnailBuffer = await 生成缩略图(filePath,loaderID)
+export async function genThumbnailColor(filePath, loaderID = null) {
+    const start=performance.now()
+
+    const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
+    const end=performance.now()
+    console.log('生成缩略图',end-start)
+
     // 欧几里得聚类,较为简单,但效果一般
     // 不过颜色查询应该够用了
-    const colors = await getColor(thumbnailBuffer,filePath)
+    const start2=performance.now()
+    const colors = await getColor(thumbnailBuffer, filePath)
+    const end2=performance.now()
+    console.log('获取颜色',end2-start2)
     return colors
 }
 

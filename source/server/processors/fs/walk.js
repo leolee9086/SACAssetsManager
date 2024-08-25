@@ -15,7 +15,7 @@ function buildFilter(filter, signal) {
         return null
     }
     if (filter && typeof filter === 'function') {
-        return async(statProxy, depth) => {
+        return async (statProxy, depth) => {
             if (signal && signal.aborted) {
                 return false
             }
@@ -31,7 +31,7 @@ function buildFilter(filter, signal) {
                 return await Promise.race([
                     filter(proxy),
 
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 100))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15))
                 ])
             } catch (e) {
                 console.error(e, statProxy)
@@ -40,7 +40,7 @@ function buildFilter(filter, signal) {
         }
     } else {
         if (filter && typeof filter === 'object') {
-            return async(statProxy, depth) => {
+            return async (statProxy, depth) => {
                 if (signal && signal.aborted) {
                     return false
                 }
@@ -53,7 +53,7 @@ function buildFilter(filter, signal) {
                             return statProxy[prop]
                         }
                     })
-                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 100))
+                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15))
 
                     if (statProxy.isFile() && filter.ifFile) {
                         return await Promise.race([filter.ifFile(proxy), timeoutPromise])
@@ -85,33 +85,35 @@ function buildFilter(filter, signal) {
  * @param {*} maxCount 
  * @returns 
  */
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }, maxCount,cachedCallback) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy = true, signal = { aborted: false }, maxCount, cachedCallback) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
-   let cached = []
+    let cached = []
     let count = 0
     try {
-        
-        cached = await statCache.filter(async(proxy) => {
+
+      cached = await statCache.filter(async (proxy) => {
             if (signal.aborted) {
                 return false
             }
-        
+
             let flag = false
             if (proxy.path.startsWith(root)) {
                 flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
             }
-            if(flag){
+
+            if (flag) {
+                count++
                 stepCallback && stepCallback(proxy)
             }
             return flag
-        },signal)
+        }, signal)
         cachedCallback && cachedCallback(cached)
     } catch (e) {
         console.error(e)
     }
-     count = cached.length
-    const realFilter = async(path, isDir) => {
+    console.log('cached',cached)
+    const realFilter = async (path, isDir) => {
         if (signal.aborted) {
             return false
         }
@@ -140,10 +142,17 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, useProxy =
         let result = filter ? await filter(proxy, path.split('/').length) : true
         result && stepCallback && stepCallback(proxy)
         result && count++
+        console.log(count, maxCount)
         return result
     }
-    const api = new fdir().withFullPaths().withIdleCallback({ deadline: 1, timeout: 100 }).withSignal(signal).withMaxFiles().filter(realFilter).crawl(root)
-    const result =await api.withPromise()
+    const api = new fdir()
+        .withFullPaths()
+        .withIdleCallback({ deadline: 50, timeout: 100 })
+        .withSignal(signal)
+        .withMaxFiles()
+        .filter(realFilter)
+        .crawl(root)
+    const result = await api.withPromise()
     console.log('walkEnd')
 
     return result

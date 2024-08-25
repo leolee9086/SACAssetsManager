@@ -5,6 +5,8 @@ import { RGBA2LAB } from "./colorSpace.js";
 const cache = new Map();
 export function CIEDE2000RGBA(pix1, pix2) {
     //转换为整数
+    let 时间 =Math.random()
+
     pix1 = pix1.map(item=>Math.floor(item))
     pix2 = pix2.map(item=>Math.floor(item))
     const key1 = pix1.join(',');
@@ -13,11 +15,9 @@ export function CIEDE2000RGBA(pix1, pix2) {
     if (cache.has(cacheKey)) {
         return cache.get(cacheKey);
     }
-
     const lab1 = RGBA2LAB(pix1[0], pix1[1], pix1[2], pix1[3] || 0);
     const lab2 = RGBA2LAB(pix2[0], pix2[1], pix2[2], pix2[3] || 0);
     const result = CIEDE2000(lab1, lab2);
-
     cache.set(cacheKey, result);
     return result;
 }/**
@@ -102,7 +102,7 @@ export function CIEDE2000(Lab_1, Lab_2) {
     const dE_00 = Math.sqrt(f_L ** 2 + f_C ** 2 + f_H ** 2 + R_T * f_C * f_H);
     return dE_00;
 }
- function $CIEDE2000(lab1, lab2) {
+export  function $CIEDE2000(lab1, lab2) {
     const kL = 1, kC = 1, kH = 1;
 
     const L1 = lab1.L, a1 = lab1.a, b1 = lab1.b;

@@ -6,9 +6,16 @@
             </svg>资源收藏夹
         </div>
         <span class="fn__flex-1 fn__space"></span>
+        <span 
+        @click="打开后端控制台"
+        data-type="min" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="打开后端控制台 Ctrl+W"><svg>
+                <use xlink:href="#iconBug"></use>
+            </svg>
+        </span>
         <span data-type="min" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="最小化 Ctrl+W"><svg>
                 <use xlink:href="#iconMin"></use>
-            </svg></span>
+            </svg>
+        </span>
     </div>
     <div class="fn__flex">
         <div class="fn__flex fn__flex-column fn__flex-1" style="padding-left:14px;max-height: 30vh;">
@@ -26,6 +33,7 @@
     </div>
 </template>
 <script setup>
+import {plugin} from 'runtime'
 const 默认收藏夹组 = [
     {
         id: '000',
@@ -53,4 +61,7 @@ const 默认收藏夹组 = [
         ruler: '@internal/失效的附件引用.js'
     }
 ]
+const 打开后端控制台 = ()=>{
+    plugin.eventBus.emit('openDevTools')
+}
 </script>

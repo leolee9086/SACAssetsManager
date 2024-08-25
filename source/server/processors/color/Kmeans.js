@@ -2,34 +2,62 @@ import {CIEDE2000RGBA} from "./colorArrayDistance.js"
 export function 欧几里得聚类(data, k) {
     return kMeansPP(data, k, euclideanDistanceWithHueCorrection,100,true);
 }
+export function CIEDE2000聚类(data, k) {
+    return kMeansPP(data, k, CIEDE2000RGBA,100,true);
+}
 const cache = new Map();
+/**
+ * 查找两个颜色是否相近,搜索瓶颈不在这里
+ * @param {*} color1 
+ * @param {*} color2 
+ * @returns 
+ */
 export const diffColor = (color1, color2) => {
     // 直接使用欧几里得距离
-    const distance1 = CIEDE2000RGBA(color1, color2);
-    const distance2 = euclideanDistanceWithHueCorrection(color1, color2);
-    // 计算平均距离
-    if (!cache.has('totalDistance1')) {
-        cache.set('totalDistance1', 0);
-        cache.set('count1', 0);
-    }
-    if (!cache.has('totalDistance2')) {
-        cache.set('totalDistance2', 0);
-        cache.set('count2', 0);
-    }
-    const totalDistance1 = cache.get('totalDistance1') + distance1;
-    const totalDistance2 = cache.get('totalDistance2') + distance2;
-    const count1 = cache.get('count1') + 1;
-    const count2 = cache.get('count2') + 1;
-    cache.set('totalDistance1', totalDistance1);
-    cache.set('totalDistance2', totalDistance2);
-    cache.set('count1', count1);
-    cache.set('count2', count2);
-    const averageDistance1 = totalDistance1 / count1;
-    const averageDistance2 = totalDistance2 / count2;
-    //CIDE2000下平均距离大约120
-    //欧几里得下平均距离大约220
-    return distance1 < averageDistance1*0.2 && distance2 < averageDistance2*0.2;
+   // const distance1 =     euclideanDistanceWithHueCorrection(color1, color2);
+   const distance2 =CIEDE2000RGBA(color1, color2);
+    const distance3 = isColorSimilarCIE76(color1, color2)
+
+    //let result1=isDistanceAcceptable(distance1, 'totalDistance2', 'count2', 0.8)
+    let result2=isDistanceAcceptable(distance2, 'totalDistance1', 'count1', 0.9)
+    const result3 = isDistanceAcceptable(distance3, 'totalDistance3', 'count3', 50)
+    return result3&&result2
 };
+function isColorSimilarCIE76(color1, color2,) {
+    // 将颜色值转换为整数
+    let r1 = color1[0]
+    let g1 = color1[1]
+    let b1 = color1[2]
+  
+    let r2 = color2[0]
+    let g2 = color2[1]
+    let b2 = color2[2]
+  
+    // 计算CIE76色差公式
+    let deltaR = r1 - r2;
+    let deltaG = g1 - g2;
+    let deltaB = b1 - b2;
+    let deltaE = Math.sqrt(deltaR * deltaR + deltaG * deltaG + deltaB * deltaB);
+  
+    // 如果色差小于阈值，则认为颜色相近
+    return deltaE 
+  }
+function isDistanceAcceptable(distance, totalKey, countKey, threshold) {
+    if (!cache.has(totalKey)) {
+        cache.set(totalKey, 0);
+        cache.set(countKey, 0);
+    }
+    const totalDistance = (cache.get(totalKey) + distance)||0;
+    const count = (cache.get(countKey) + 1);
+    cache.set(totalKey, totalDistance);
+    cache.set(countKey, count);
+    const averageDistance = (totalDistance / count)||0;
+    if(threshold>1){
+        return distance <  threshold;
+    }else{
+        return distance < averageDistance * threshold;
+    }
+}
 function euclideanDistanceWithHueCorrection(a, b) {
     // 色相修正
     const hueCorrectedA = correctHue(a);
