@@ -6,11 +6,17 @@ const sharp = require('sharp')
 
 const bufferCache = new Map()
 export async function getColor(buffer,filePath) {
-    if(buffer.type){
+    if(buffer.type&&!buffer.isImage){
         return
     }
-    if(bufferCache.has(buffer.toString('base64'))){
-        return bufferCache.get(buffer.toString('base64'))
+    if(
+        buffer.type
+    ){
+        buffer=buffer.data
+    }
+    let key = buffer.toString('base64')
+    if(bufferCache.has(key)){
+        return bufferCache.get(key)
     }
     //缩放之后进行处理
     let rgba = await sharp(buffer).resize(64, 64, {
@@ -25,6 +31,6 @@ export async function getColor(buffer,filePath) {
     
     }
     //这里的键不能用buffer本身,要进行序列化
-    bufferCache.set(buffer.toString('base64'),dominantColors.centers)
+    bufferCache.set(key,dominantColors.centers)
     return dominantColors.centers
 }

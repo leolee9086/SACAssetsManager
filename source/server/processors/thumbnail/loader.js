@@ -4,6 +4,77 @@ import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
 import { idleIdle } from '../fs/fdirModified/src/api/idleQueue.js'
 import { getColor } from './color.js'
+import { genStatHash } from '../fs/stat.js'
+
+/**
+ * 不需要单独缩略图的列表
+ */
+const noThumbnailList = [
+    //文本类型的肯定是不需要的
+    'markdown',
+    'md',
+    'txt',
+    'json',
+    'js',
+    'css',
+    'html',
+    'htm',
+    'dll',
+    'go',
+    'py',
+    'rb',
+    'sh',
+    'bat',
+    'cmd',
+    'com',
+    'sys',
+    'ini',
+    'config',
+    'log',
+    'lock',
+    'cache',
+    'temp',
+    'backup',
+    'old',
+    'temp',
+    'tmp',
+    'cache',
+    'lock',
+    'pid',
+    'lock',
+    'cache',
+    'tmp',
+    'lock',
+    'pid',
+    'lock',
+    'cache',
+    'tmp',
+    'lock',
+    'pid',
+    'pyd',
+    'yml',
+    'js',
+    'css',
+    'html',
+    'htm',
+    'xml',
+    'docx',
+    'sy',
+    'db',
+    'yaml',
+    'gsm'
+]
+let imageExtensions = [
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'bmp',
+    'tiff',
+    'ico',
+    'webp'
+]
+
 let loderPaths = [
     './internalGeneraters/svg.js',
     './internalGeneraters/sharp.js',
@@ -78,19 +149,74 @@ export function listLoaders() {
         }
     })
 }
+
+
+const 缓存目录 = require('path').join(siyuanConfig.system.workspaceDir,'temp','sac', 'thumbnail')
+if (!require('fs').existsSync(缓存目录)) {
+    require('fs').mkdirSync(缓存目录, { recursive: true })
+}
+const commonIcons = new Map()
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
+    const extension = imagePath.split('.').pop()
+    let useExtension = false
+    let useRaw = false
+    if (noThumbnailList.includes(extension)) {
+        console.log('不需要单独缩略图', imagePath, extension)
+        useExtension = true
+        if (commonIcons.has(extension)) {
+            return commonIcons.get(extension)
+        }
+    }
+   
     let loader = await getLoader(imagePath, loaderID)
     if (!loader) {
         return null
     }
     const stat = statWithCatch(imagePath)
+
     const 缓存键 = JSON.stringify(stat)
     if (tumbnailCache.get(缓存键)) {
         return tumbnailCache.get(缓存键)
     }
-    console.log(imagePath)
+        //小图片直接返回
+        if (imageExtensions.includes(extension)&&stat.size<1024*50) {
+            useRaw = true
+            console.log('使用原始图',imagePath)
+            const rawBuffer = require('fs').readFileSync(imagePath)
+            tumbnailCache.set(缓存键,rawBuffer)
+            return {
+                data:rawBuffer,
+                type:extension,
+                isImage:true,
+            }
+        }
+    const hashedName = genStatHash(stat)+'.thumbnail.png'
+    let 缓存路径 = require('path').join(缓存目录, hashedName)
+    if (useExtension) {
+         缓存路径 = require('path').join(缓存目录,`${extension}.thumbnail.png`)
+    }
+    if (require('fs').existsSync(缓存路径)) {
+        return require('fs').readFileSync(缓存路径)
+    }
+
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)
+
     tumbnailCache.set(缓存键, thumbnailBuffer)
+    if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
+        commonIcons.set(extension, thumbnailBuffer)
+        require('fs').writeFile(缓存路径, thumbnailBuffer, (err) => {
+            if (err) {
+                console.error(err)
+            }
+        })
+    }
+    if(!noThumbnailList.includes(extension)){
+        require('fs').writeFile(缓存路径, thumbnailBuffer, (err) => {
+            if (err) {
+                console.error(err)
+            }
+        })
+    }
     return thumbnailBuffer
 }
 const tumbnailCache = buildCache('thumbnailCache')
@@ -104,13 +230,14 @@ export async function genThumbnailColor(filePath, loaderID = null) {
     const start=performance.now()
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
     const end=performance.now()
-    console.log('生成缩略图',end-start)
+    console.log('生成缩略图',filePath,end-start)
     // 欧几里得聚类,较为简单,但效果一般
     // 不过颜色查询应该够用了
     const start2=performance.now()
     const colors = await getColor(thumbnailBuffer, filePath)
     const end2=performance.now()
-    console.log('获取颜色',end2-start2)
+    console.log('获取颜色',filePath,end2-start2)
+
     return colors
 }
 

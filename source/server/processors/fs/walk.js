@@ -85,6 +85,8 @@ function buildFilter(filter, signal) {
  * @param {*} maxCount 
  * @returns 
  */
+const 缓存目录 = require('path').join(siyuanConfig.system.workspaceDir,'temp','sac', 'thumbnail').replace(/\\/g,'/')
+const ignoreDir = [缓存目录,'$recycle','$trash','.git']
 export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, maxCount, cachedCallback) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
@@ -103,9 +105,15 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
             }
             countCallBack && countCallBack(total)
             let flag = false
+            for await (let dir of ignoreDir) {
+                if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
+                    return false
+                }
+    
+            }
+   
             if (proxy.path.startsWith(root)) {
                 total++
-
                 try{
                     flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
                 }catch(e){
@@ -131,6 +139,11 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         if (total > maxCount) {
             signal.walkController.abort()
             return false
+        }
+        for await (let dir of ignoreDir) {
+            if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
+                return false
+            }
         }
         const entry = {
             isDirectory: () => isDir,

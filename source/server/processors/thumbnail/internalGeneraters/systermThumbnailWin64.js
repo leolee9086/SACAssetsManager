@@ -36,7 +36,7 @@ export const getLargeIcon = loadCsharpFunc(
     }
     `
 )
-export const getBase64Thumbnail =loadCsharpFunc(
+export const getBase64Thumbnail = loadCsharpFunc(
     `
     #r "System.Drawing.dll"
     using System;
@@ -53,7 +53,7 @@ export const getBase64Thumbnail =loadCsharpFunc(
         public async Task<object> Invoke(dynamic input)
         {
             string filePath = Encoding.UTF8.GetString(Convert.FromBase64String((string)input));
-            Size size = new Size(512, 512);
+            Size size = new Size(256, 256);
             return GenerateBase64Thumbnail(filePath, size);
         }
 
@@ -125,80 +125,23 @@ export const getBase64Thumbnail =loadCsharpFunc(
 )
 
 
-const callBackPromise = (fun)=>{
-    return (...args)=>{
+const callBackPromise = (fun) => {
+    return (...args) => {
         return new Promise((resolve, reject) => {
-            try{
+            try {
                 fun(...args, (err, result) => {
                     if (err) {
-                    reject(err);
-                } else {
-                    resolve(result);
+                        reject(err);
+                    } else {
+                        resolve(result);
                     }
                 });
-            }catch(e){
+            } catch (e) {
                 reject(e)
             }
         });
     }
 }
-
-/**
- * 不需要单独缩略图的列表
- */
-const noThumbnailList = [
-    //文本类型的肯定是不需要的
-    'markdown',
-    'md',
-    'txt',
-    'json',
-    'js',
-    'css',
-    'html',
-    'htm',
-    'dll',
-    'go',
-    'py',
-    'rb',
-    'sh',
-    'bat',
-    'cmd',
-    'com',
-    'sys',
-    'ini',
-    'config',
-    'log',
-    'lock',
-    'cache',
-    'temp',
-    'backup',
-    'old',
-    'temp',
-    'tmp',
-    'cache',
-    'lock',
-    'pid',
-    'lock',
-    'cache',
-    'tmp',
-    'lock',
-    'pid',
-    'lock',
-    'cache',
-    'tmp',
-    'lock',
-    'pid',
-    'pyd',
-    'yml',
-    'js',
-    'css',
-    'html',
-    'htm',
-    'xml',
-    'docx',
-    'sy',
-    'db'
-]
 
 
 export default class SystemThumbnailLoader {
@@ -206,34 +149,23 @@ export default class SystemThumbnailLoader {
         this.commonIcons = new Map()
     }
     async generateThumbnail(filePath) {
-        const extension = filePath.split('.').pop()
-        const encodedPath = Buffer.from(filePath.replace(/\//g,'\\')).toString('base64');
+        const encodedPath = Buffer.from(filePath.replace(/\//g, '\\')).toString('base64');
         let resultBuffer = null
         let error = null
-        if(noThumbnailList.includes(extension)){
-            console.log('不需要单独缩略图',filePath,extension)
-            if(this.commonIcons.has(extension)){
-                return this.commonIcons.get(extension)
-            }
-            
-        }
-        try{
+        try {
             resultBuffer = Buffer.from(await callBackPromise(getBase64Thumbnail)(encodedPath), 'base64')
-        }catch(e){
+        } catch (e) {
             error = e
         }
-     if(!resultBuffer){
-            try{
+        if (!resultBuffer) {
+            try {
                 resultBuffer = Buffer.from(await callBackPromise(getLargeIcon)(encodedPath), 'base64')
-            }catch(e){
+            } catch (e) {
                 error = e
             }
         }
-        if(!resultBuffer){
-            throw new Error('Failed to generate thumbnail:'+error.message)
-        }
-        if(noThumbnailList.includes(extension)&&!this.commonIcons.has(extension)){
-            this.commonIcons.set(extension, resultBuffer)
+        if (!resultBuffer) {
+            throw new Error('Failed to generate thumbnail:' + error.message)
         }
         return resultBuffer
     }
@@ -243,9 +175,9 @@ export default class SystemThumbnailLoader {
      * @param {*} filePath 
      * @returns 
      */
-    match(filePath){
+    match(filePath) {
         return /.*/
     }
-    sys=['win32 x64']
+    sys = ['win32 x64']
 }
 
