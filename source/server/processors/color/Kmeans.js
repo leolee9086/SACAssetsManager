@@ -1,5 +1,5 @@
-import {CIEDE2000RGBA} from "./similar.js"
-import {CIE76} from "./similar.js"
+import {CIEDE2000RGBA} from "./simlarity.js"
+import {CIE76} from "./simlarity.js"
 export function 欧几里得聚类(data, k) {
     return kMeansPP(data, k, euclideanDistanceWithHueCorrection,100,true);
 }
