@@ -59,26 +59,6 @@ async function 保存颜色索引(targetPath,mapper) {
     fs.writeFileSync(targetPath, JSON.stringify(colorIndexMapped))
     trasactionwsCount=0
 }
-/**
- * 加载颜色索引
- * @param {*} targetPath 
- */
-async function 加载颜色索引(targetPath,mapper) {
-    const fs = require('fs')
-    const result = JSON.parse(fs.readFileSync(targetPath))
-    /**
-     * 进行合并
-     */
-    const mappedResult=result.map(mapper)
-    mappedResult.forEach(item=>{
-        let find=colorIndex.find(item=>item.color.every((num,index)=>num===item.color[index]))
-        if(find){
-            find.assets.push(item.assets)
-        }else{
-            colorIndex.push(item)
-        }
-    })
-}
 export async function 根据颜色查找内容(color) {
     let find = colorIndex.filter(
         item => diffColor(item.color, color)
