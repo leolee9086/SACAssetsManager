@@ -15,6 +15,11 @@ const cache = new Map();
  */
 export const diffColor = (color1, color2,cutout=0.6) => {
     // 直接使用欧几里得距离
+    let string1 = color1.join(',')
+    let string2 = color2.join(',')
+    if(string1===string2){
+        return true
+    }
     const distance1 = euclideanDistanceWithHueCorrection(color1, color2);
     const distance2 = CIEDE2000RGBA(color1, color2);
     const distance3 = CIE76(color1, color2)
