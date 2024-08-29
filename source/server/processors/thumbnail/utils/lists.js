@@ -56,3 +56,13 @@ export const noThumbnailList = [
    'yaml',
    'gsm'
 ]
+export const imageExtensions= [
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'bmp',
+    'tiff',
+    'ico',
+    'webp'
+]

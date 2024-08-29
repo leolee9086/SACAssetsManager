@@ -1,6 +1,7 @@
 import { diffColor } from "./Kmeans.js"
-
+import { getCachePath } from '../fs/cached/fs.js'
 let colorIndex = []
+let loaded = {}
 globalThis.colorIndex = globalThis.colorIndex || colorIndex
 colorIndex = globalThis.colorIndex
 /**
@@ -8,7 +9,20 @@ colorIndex = globalThis.colorIndex
  * @param {*} color 
  * @param {*} assets 
  */
+const fs=require('fs')
 export async function 添加到颜色索引(colorItem, assets) {
+    const {cachePath} = getCachePath(assets,'colorIndex.json')
+    if(fs.existsSync(cachePath)&&!loaded[cachePath]){
+        console.log('从',cachePath,'加载缓存')
+
+        loaded[cachePath]=true
+        const cached =JSON.parse(fs.readFileSync(cachePath))
+        cached.forEach(
+            item=>{
+                colorIndex.push(item)
+            }
+        )
+    }
     let colorFormated = colorItem.color.map(num => Math.floor(num))
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
     let find = colorIndex.find(item => item.color.every((num, index) => num === colorFormated[index]))
@@ -22,16 +36,28 @@ export async function 添加到颜色索引(colorItem, assets) {
     } else {
         colorIndex.push({ color: colorFormated, assets: [asstItem] })
     }
+    await 保存颜色索引(cachePath,item=>{
+        return {
+            color:item.color,
+            assets:item.assets
+        }
+    })
 }
 /**
  * 保存颜色索引,允许先映射再保存
  * @param {string} targetPath 
  * @param {function} mapper 
  */
+let trasactionwsCount=0
 async function 保存颜色索引(targetPath,mapper) {
+    trasactionwsCount++
+    if(trasactionwsCount<100){
+        return
+    }
     const fs = require('fs')
     const colorIndexMapped=colorIndex.map(mapper)
     fs.writeFileSync(targetPath, JSON.stringify(colorIndexMapped))
+    trasactionwsCount=0
 }
 /**
  * 加载颜色索引

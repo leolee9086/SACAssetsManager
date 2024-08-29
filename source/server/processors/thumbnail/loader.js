@@ -4,17 +4,8 @@ import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
 import { genStatHash } from '../fs/stat.js'
-import { noThumbnailList } from './utils/lists.js'
-let imageExtensions = [
-    'png',
-    'jpg',
-    'jpeg',
-    'gif',
-    'bmp',
-    'tiff',
-    'ico',
-    'webp'
-]
+import { noThumbnailList,imageExtensions } from './utils/lists.js'
+
 
 let loderPaths = [
     './internalGeneraters/svg.js',
@@ -122,7 +113,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (imageExtensions.includes(extension) && stat.size < 1024 * 50) {
         useRaw = true
         console.log('使用原始图', imagePath)
-        const rawBuffer = require('fs').readFileSync(imagePath)
+        const rawBuffer = fs.readFileSync(imagePath)
         tumbnailCache.set(缓存键, rawBuffer)
         return {
             data: rawBuffer,
@@ -173,6 +164,7 @@ export async function genThumbnailColor(filePath, loaderID = null) {
     // 欧几里得聚类,较为简单,但效果一般
     // 不过颜色查询应该够用了
     const start2 = performance.now()
+    console.log(getColor.performance, thumbnailBuffer, filePath)
     const colors = await getColor(thumbnailBuffer, filePath)
     const end2 = performance.now()
     console.log('获取颜色', filePath, end2 - start2)

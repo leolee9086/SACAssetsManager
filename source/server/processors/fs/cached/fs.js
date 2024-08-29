@@ -10,8 +10,12 @@ export function readFile(path){
     return data
 }
 
+function getRoot(path){
+    let split = path.indexOf('\\')>-1?'\\':'/'
+    return path.split(split)[0]
+}
 export function getCachePath(path,cacheName){
-    const root = path.split('/')[0]
+    const root = getRoot(path)
     const cachePath = require('path').join(root,'.sac',cacheName)
     return {
         root,

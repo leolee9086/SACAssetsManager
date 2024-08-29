@@ -1,10 +1,10 @@
 import {CIEDE2000RGBA} from "./simlarity.js"
 import {CIE76} from "./simlarity.js"
 export function 欧几里得聚类(data, k) {
-    return kMeansPP(data, k, euclideanDistanceWithHueCorrection,100,true);
+    return kMeansPP(data, k, euclideanDistance,30,true);
 }
 export function CIEDE2000聚类(data, k) {
-    return kMeansPP(data, k, CIEDE2000RGBA,100,true);
+    return kMeansPP(data, k, CIEDE2000RGBA,30,true);
 }
 const cache = new Map();
 /**
