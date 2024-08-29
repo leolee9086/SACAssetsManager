@@ -44,7 +44,6 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
             const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
             res.write(`data:${data}\n`)
             res.flush()
-            准备缩略图(path)
         },
         end: () => {
             res.end();

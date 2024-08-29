@@ -13,6 +13,11 @@ import { buildCache } from './processors/cache/cache.js';
 import { statWithCatch } from './processors/fs/stat.js';
 import * as headers from './middlewares/headers.js';
 import { genColor } from './handlers/get-color.js'
+import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
+const siyuanBroadcastChannel =await createSiyuanBroadcastChannel('sacAssetsManager',window.siyuanPort)
+siyuanBroadcastChannel.onmessage = (e)=>{
+    console.log(e)
+}
 /**
  * 启用跨域支持
  */

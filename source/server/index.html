@@ -200,6 +200,8 @@
         channel.onmessage = (e) => {
             if (!window.siyuanConfig && e.data && e.data.type && e.data.type === 'siyuanConfig') {
                 window.siyuanConfig = e.data.data
+                window.appID=e.data.app
+                window.siyuanPort=e.data.siyuanPort
                 window.require.setExternalBase(path.join(siyuanConfig.system.workspaceDir, '/data/plugins/SACAssetsManager/node_modules/'))
                 window.require.setExternalDeps(path.join(siyuanConfig.system.workspaceDir, '/data/plugins/SACAssetsManager/node_modules/'))
                 console.log(siyuanConfig.system.workspaceDir,e.data)

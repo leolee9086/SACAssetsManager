@@ -8,14 +8,19 @@ colorIndex = globalThis.colorIndex
  * @param {*} color 
  * @param {*} assets 
  */
-export async function 添加到颜色索引(color, assets) {
-    let colorFormated = color.map(num => Math.floor(num))
+export async function 添加到颜色索引(colorItem, assets) {
+    let colorFormated = colorItem.color.map(num => Math.floor(num))
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
     let find = colorIndex.find(item => item.color.every((num, index) => num === colorFormated[index]))
+    let asstItem = {
+        count:colorItem.count,
+        percent:colorItem.percent,
+        path:assets
+    }
     if (find) {
-        find.assets.push(assets)
+        find.assets.push(asstItem)
     } else {
-        colorIndex.push({ color: colorFormated, assets: [assets] })
+        colorIndex.push({ color: colorFormated, assets: [asstItem] })
     }
 }
 /**
@@ -63,4 +68,22 @@ export async function 根据颜色查找内容(color) {
         )
         return acc
     }, [])
+}
+export async function 找到文件颜色(path){
+   let finded =[]
+   for(let i =0;i<colorIndex.length;i++){
+    let item=colorIndex[i]
+    let find=item.assets.find(assetItem=>assetItem.path===path)
+    if(find){
+        finded.push({
+            color:item.color,
+            count:find.count,
+            percent:find.percent
+        })
+    }
+   }
+   if(finded.length>0){
+    return finded
+   }
+   return null
 }

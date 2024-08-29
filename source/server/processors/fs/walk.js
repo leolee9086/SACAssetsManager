@@ -4,6 +4,7 @@ import { buildStatProxy, buildStatProxyByPath } from './stat.js'
 import { fdir } from './fdirModified/index.js'
 
 import { buildCache } from '../cache/cache.js'
+import { diskTree } from './disk/tree.js'
 const statCache = buildCache('statCache')
 /**
  * 构建过滤函数
@@ -93,9 +94,9 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     let cached = []
     let count = 0
     let total = 0
-    try {
-      
-      cached = await statCache.filter(async (proxy) => {
+   /* try {
+     console.log(diskTree)
+      cached = await diskTree.disks.find(d=>root.startsWith(d.root)).flatFiles.filter(async (fileItem) => {
             if (signal.aborted) {
                 return false
             }
@@ -103,27 +104,23 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
                 signal.walkController.abort()
                 return false
             }
-            countCallBack && countCallBack(total)
             let flag = false
             for await (let dir of ignoreDir) {
-                if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
+                if (fileItem.path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
                     return false
                 }
-    
             }
-   
-            if (proxy.path.startsWith(root)) {
+            if (fileItem.path.startsWith(root)) {
                 total++
                 try{
-                    flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
+                    flag = filter ? await filter(fileItem, fileItem.path.split('/').length) : true
                 }catch(e){
                     return false
                 }
             }
-
             if (flag) {
                 count++
-                stepCallback && stepCallback(proxy)
+                stepCallback && stepCallback(fileItem)
             }
             return flag
         }, signal)
@@ -131,6 +128,8 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     } catch (e) {
         console.error(e)
     }
+    countCallBack && countCallBack(total)*/
+
     console.log('cached',cached)
     const realFilter = async (path, isDir) => {
         if (signal.aborted) {
@@ -152,7 +151,6 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
             name: path.split('/').pop()
         }
         let proxy = buildStatProxyByPath(path.replace(/\\/g,'/'), entry, isDir ? 'dir' : 'file')
-        console.log(root,proxy.path)
         if (cached.find(proxy => proxy.path === path)) {
             console.log('cached',proxy.path)
             return false
@@ -227,7 +225,6 @@ export async function walkAsync(root, _filter, _stepCallback, useProxy = true, s
                 }
                 stepCallback && stepCallback.preMatch && await stepCallback.preMatch(statProxy)
                 let filterResult = filter && (!filter(statProxy, depth));
-
                 if (filterResult) {
                     continue
                 } else {

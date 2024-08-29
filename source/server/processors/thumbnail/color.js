@@ -1,9 +1,6 @@
-import { statWithCatch } from '../fs/stat.js';
-import { 欧几里得聚类,CIEDE2000聚类 } from '../color/Kmeans.js'
-import { 生成缩略图 } from './loader.js'
-
+import { 欧几里得聚类 } from '../color/Kmeans.js'
+import { awaitForEach } from '../../../utils/array/walk.js'
 const sharp = require('sharp')
-
 const bufferCache = new Map()
 export async function getColor(buffer,filePath) {
     if(buffer.type&&!buffer.isImage){
@@ -28,7 +25,6 @@ export async function getColor(buffer,filePath) {
         for(let item2 of item.color){
             item2=Math.floor(item2)
         }
-    
     }
     //这里的键不能用buffer本身,要进行序列化
     bufferCache.set(key,dominantColors.centers)

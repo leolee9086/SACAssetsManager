@@ -10,3 +10,11 @@ export function readFile(path){
     return data
 }
 
+export function getCachePath(path,cacheName){
+    const root = path.split('/')[0]
+    const cachePath = require('path').join(root,'.sac',cacheName)
+    return {
+        root,
+        cachePath
+    }
+}
