@@ -12,7 +12,7 @@
 
                 <div class="fn__space fn__flex-1"></div>
 
-                <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="100"
+                <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
                     class="b3-slider fn__block" max="1024" min="64" step="16" type="range">
                 <div class="fn__space fn__flex-1"></div>
 
@@ -140,7 +140,7 @@ watch(
 
 const appData = toRef(inject('appData'))
 //缩略图大小
-const size = ref(100)
+const size = ref(200)
 //最大显示数量
 const root = ref('null')
 const layoutCount = reactive({ found: 0, loaded: 0 })

@@ -9,37 +9,39 @@ colorIndex = globalThis.colorIndex
  * @param {*} color 
  * @param {*} assets 
  */
-const fs=require('fs')
+const fs = require('fs')
 export async function 添加到颜色索引(colorItem, assets) {
-    const {cachePath} = getCachePath(assets,'colorIndex.json')
-    if(fs.existsSync(cachePath)&&!loaded[cachePath]){
-        console.log('从',cachePath,'加载缓存')
+    const { cachePath } = getCachePath(assets, 'colorIndex.json')
+    if (fs.existsSync(cachePath) && !loaded[cachePath]) {
+        console.log('从', cachePath, '加载缓存')
 
-        loaded[cachePath]=true
-        const cached =JSON.parse(fs.readFileSync(cachePath))
+        loaded[cachePath] = true
+        const cached = JSON.parse(fs.readFileSync(cachePath))
         cached.forEach(
-            item=>{
+            item => {
                 colorIndex.push(item)
             }
         )
+        清理颜色索引(colorIndex)
     }
     let colorFormated = colorItem.color.map(num => Math.floor(num))
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
     let find = colorIndex.find(item => item.color.every((num, index) => num === colorFormated[index]))
+    console.log(find)
     let asstItem = {
-        count:colorItem.count,
-        percent:colorItem.percent,
-        path:assets
+        count: colorItem.count,
+        percent: colorItem.percent,
+        path: assets
     }
     if (find) {
         find.assets.push(asstItem)
     } else {
         colorIndex.push({ color: colorFormated, assets: [asstItem] })
     }
-    await 保存颜色索引(cachePath,item=>{
+    await 保存颜色索引(cachePath, item => {
         return {
-            color:item.color,
-            assets:item.assets
+            color: item.color,
+            assets: item.assets
         }
     })
 }
@@ -48,16 +50,17 @@ export async function 添加到颜色索引(colorItem, assets) {
  * @param {string} targetPath 
  * @param {function} mapper 
  */
-let trasactionwsCount=0
-async function 保存颜色索引(targetPath,mapper) {
+let trasactionwsCount = 0
+async function 保存颜色索引(targetPath, mapper) {
     trasactionwsCount++
-    if(trasactionwsCount<100){
+    if (trasactionwsCount < 100) {
         return
     }
     const fs = require('fs')
-    const colorIndexMapped=colorIndex.map(mapper)
+    清理颜色索引(colorIndex)
+    const colorIndexMapped = colorIndex.map(mapper)
     fs.writeFileSync(targetPath, JSON.stringify(colorIndexMapped))
-    trasactionwsCount=0
+    trasactionwsCount = 0
 }
 export async function 根据颜色查找内容(color) {
     let find = colorIndex.filter(
@@ -75,21 +78,49 @@ export async function 根据颜色查找内容(color) {
         return acc
     }, [])
 }
-export async function 找到文件颜色(path){
-   let finded =[]
-   for(let i =0;i<colorIndex.length;i++){
-    let item=colorIndex[i]
-    let find=item.assets.find(assetItem=>assetItem.path===path)
-    if(find){
-        finded.push({
-            color:item.color,
-            count:find.count,
-            percent:find.percent
-        })
+export async function 找到文件颜色(path) {
+    let finded = []
+    for (let i = 0; i < colorIndex.length; i++) {
+        let item = colorIndex[i]
+        let exist =finded.find(
+            item2=>item2.color.every((num,index)=>{ return num===item.color[index]})
+        )
+        if(exist){
+            continue
+        }
+        
+        let find = item.assets.find(assetItem => assetItem.path === path)
+        if (find) {
+            finded.push({
+                color: item.color,
+                count: find.count,
+                percent: find.percent
+            })
+        }
     }
-   }
-   if(finded.length>0){
-    return finded
-   }
-   return null
+    console.log(finded)
+    if (finded.length > 0) {
+        return finded
+    }
+    return null
+}
+function 清理颜色索引(颜色索引) {
+    let 清理后索引 = []
+    颜色索引.forEach(
+        颜色项目 => {
+            let 颜色值 = 颜色项目.color
+            let 已存在索引 = 清理后索引.find(item => {
+                return item.color.every((num, index) => {
+                    num === 颜色值[index]
+                })
+            })
+            console.log(已存在索引)
+            if (!已存在索引) {
+                清理后索引.push(颜色项目)
+            }
+            else {
+                清理后索引.assets = 颜色项目.assets.concat(清理后索引.assets)
+            }
+        }
+    )
 }
