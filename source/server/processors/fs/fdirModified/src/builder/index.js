@@ -99,6 +99,12 @@ class Builder {
     crawl(root) {
         return new APIBuilder(root || ".", this.options);
     }
+    withCache(cache){
+        if(cache&&cache.get&&cache.set){
+        this.options.dirCache = cache
+        }
+        return this
+    }
     /**
      * @deprecated Pass options using the constructor instead:
      * ```ts

@@ -47,7 +47,6 @@ app.get('/listDisk',listDisk)
 app.get('/loaders',listLoaders)
 app.get(
     '/getPathseByColor',async(req,res)=>{
-        console.log(req,res)
         const color = req.query.color
         let ctx = {
             req,
@@ -61,7 +60,6 @@ app.get(
     }
 )
 app.get('/color',async (req,res)=>{
-    console.log(req)
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
@@ -69,10 +67,7 @@ app.get('/color',async (req,res)=>{
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
     源文件地址 = 源文件地址.replace(/\//g,'\\')
-    console.log(源文件地址)
-
     let stat = statWithCatch(源文件地址)
-    console.log(stat)
     let 缓存键 = JSON.stringify({stat})
     let ctx = {
         req,
@@ -97,7 +92,6 @@ app.get('/thumbnail',  (req, res) => {
     } else {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
-    console.log(源文件地址)
     源文件地址 = 源文件地址.replace(/\//g,'\\')
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
@@ -124,7 +118,6 @@ app.get('/thumbnail/pallet',  (req, res) => {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
     源文件地址 = 源文件地址.replace(/\//g,'\\')
-    const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('pallet')
     let ctx = {

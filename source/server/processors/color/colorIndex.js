@@ -96,22 +96,24 @@ export async function 找到文件颜色(path) {
     }
     return null
 }
-function 清理颜色索引(颜色索引) {
-    let 清理后索引 = []
-    颜色索引.forEach(
-        颜色项目 => {
-            let 颜色值 = 颜色项目.color
-            let 已存在索引 = 清理后索引.find(item => {
-                return item.color.every((num, index) => {
-                    num === 颜色值[index]
-                })
-            })
-            if (!已存在索引) {
-                清理后索引.push(颜色项目)
-            }
-            else {
-                清理后索引.assets = 颜色项目.assets.concat(清理后索引.assets)
-            }
+async function 清理颜色索引(颜色索引) {
+    let 清理后索引 = new Map()
+    console.log('清理颜色索引',颜色索引.length)
+    const start = performance.now()
+    for (let i= 0;i<颜色索引.length;i++){
+        let 颜色项目 = 颜色索引[i]
+        let 颜色值 = 颜色项目.color.join(',')
+        let 已存在索引 = 清理后索引.get(颜色值)
+        if (!已存在索引) {
+            清理后索引.set(颜色值,颜色项目)
         }
-    )
+        else {
+            已存在索引.assets = 颜色项目.assets.concat(已存在索引.assets)
+        }
+    }
+    //所有的值
+    colorIndex = Array.from(清理后索引.values());
+    
+    const end= performance.now()
+    console.log('索引清理耗时',end-start)
 }

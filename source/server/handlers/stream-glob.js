@@ -42,9 +42,10 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         ifFile: async (statProxy) => {
             const { name, path, type, size, mtime, mtimems, error } = statProxy;
             const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
+            console.log(data)
             res.write(`data:${data}\n`)
             res.flush()
-            准备缩略图(path)
+          // setImmediate(()=>准备缩略图(path))
         },
         end: () => {
             res.end();
@@ -82,7 +83,7 @@ export const globStream = async (req, res) => {
     } else {
         filter = _filter
     }
-    if (scheme.queryPro) {
+   if (scheme.queryPro&&scheme.queryPro.color) {
         if (_filter) {
             filter.test = async (statProxy) => {
                 if (signal.aborted) {
@@ -181,7 +182,7 @@ export const fileListStream = async (req, res) => {
                 }
             }
             const { name, path, type, size, mtime, mtimems, error } = chunk;
-            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error });
+            const data = `{ ${name}, ${path}, id: localEntrie_${path}, type: 'local', ${size}, ${mtime}, ${mtimems}, ${error} })`
             this.push(`data:${data}\n`)
             res.flush()
             callback()

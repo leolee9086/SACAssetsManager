@@ -107,7 +107,6 @@ const palletAdded = (data) => {
         ))))
 }
 const everthingPort = ref(10000)
-
 const $realGlob = computed(() => {
     let realGlob = {
         ...globSetting.value,

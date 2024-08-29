@@ -91,6 +91,7 @@ const fs = require('fs')
 import { asyncReadFile } from '../fs/utils/withExists.js'
 const commonIcons = new Map()
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
+    imagePath=imagePath.replace(/\\/g,'/')
     const extension = imagePath.split('.').pop()
     let useExtension = false
     let useRaw = false
@@ -110,7 +111,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return tumbnailCache.get(缓存键)
     }
     //小图片直接返回
-    if (imageExtensions.includes(extension) && stat.size < 1024 * 50) {
+    if (imageExtensions.includes(extension) && stat.size < 1024 * 5) {
         useRaw = true
         console.log('使用原始图', imagePath)
         const rawBuffer = fs.readFileSync(imagePath)
@@ -127,7 +128,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     }
     let fromFIle=await asyncReadFile(缓存路径)
-    if(fromFIle&&fromFIle.length){
+    if(fromFIle&&fromFIle.length>=100){
         return fromFIle
     }
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)

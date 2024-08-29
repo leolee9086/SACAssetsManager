@@ -24,11 +24,12 @@
         border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="lazy"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path)" />
-        <div :style="`position:absolute;bottom:0;white-space: nowrap; overflow: hidden;width: 100%; text-overflow: ellipsis;height:36px;background-color:var(--b3-theme-background);color:${similarColor?rgb数组转字符串(similarColor):''}`">
+        <div
+            :style="`position:absolute;bottom:0;white-space: nowrap; overflow: hidden;width: 100%; text-overflow: ellipsis;height:36px;background-color:var(--b3-theme-background);color:${similarColor ? rgb数组转字符串(similarColor) : ''}`">
             {{ cleanAssetPath(cardData.data.path) }}
             <div>
                 <template v-for="colorItem in pallet">
-                    <div
+                    <div @click="()=>打开颜色查找面板(colorItem.color)"
                         :style="{ backgroundColor: `rgb(${colorItem.color[0]},${colorItem.color[1]},${colorItem.color[2]})`, height: '0.8em', width: '0.8em', display: 'inline-block', margin: '0 2px' }">
                     </div>
                 </template>
@@ -40,11 +41,11 @@
 import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick } from 'vue';
 import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
-import { plugin } from 'runtime'
 import { clientApi } from '../../../asyncModules.js';
 import { rgba数组转字符串, rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
-const props = defineProps(['cardData', 'size','filterColor'])
+import {plugin} from 'runtime'
+const props = defineProps(['cardData', 'size', 'filterColor'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
@@ -57,11 +58,14 @@ const showImage = ref('')
 const protyleContainer = ref(null)
 const pallet = ref([])
 const firstColorString = ref('var(--b3-theme-background-light)')
-const similarColor = computed(()=>{
-    let  item= pallet.value.find(item=>item&&filterColor.value&&diffColor(filterColor.value,item.color))
-   return item?filterColor.value:''
- //return ''
+const similarColor = computed(() => {
+    let item = pallet.value.find(item => item && filterColor.value && diffColor(filterColor.value, item.color))
+    return item ? filterColor.value : ''
+    //return ''
 })
+function 打开颜色查找面板(color){
+    plugin.eventBus.emit('click-galleryColor',color)
+}
 let idleCallbackId;
 let fn = () => {
     showImage.value = true

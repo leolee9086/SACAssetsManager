@@ -87,48 +87,12 @@ function buildFilter(filter, signal) {
  * @returns 
  */
 const 缓存目录 = require('path').join(siyuanConfig.system.workspaceDir,'temp','sac', 'thumbnail').replace(/\\/g,'/')
-const ignoreDir = [缓存目录,'$recycle','$trash','.git']
+const ignoreDir = [缓存目录,'$recycle','$trash','.git','.sac']
 export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, maxCount, cachedCallback) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
-    let cached = []
     let count = 0
     let total = 0
-   /* try {
-     console.log(diskTree)
-      cached = await diskTree.disks.find(d=>root.startsWith(d.root)).flatFiles.filter(async (fileItem) => {
-            if (signal.aborted) {
-                return false
-            }
-            if (total > maxCount) {
-                signal.walkController.abort()
-                return false
-            }
-            let flag = false
-            for await (let dir of ignoreDir) {
-                if (fileItem.path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
-                    return false
-                }
-            }
-            if (fileItem.path.startsWith(root)) {
-                total++
-                try{
-                    flag = filter ? await filter(fileItem, fileItem.path.split('/').length) : true
-                }catch(e){
-                    return false
-                }
-            }
-            if (flag) {
-                count++
-                stepCallback && stepCallback(fileItem)
-            }
-            return flag
-        }, signal)
-        cachedCallback && cachedCallback(cached)
-    } catch (e) {
-        console.error(e)
-    }
-    countCallBack && countCallBack(total)*/
     const realFilter = async (path, isDir) => {
         if (signal.aborted) {
             return false
@@ -149,10 +113,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
             name: path.split('/').pop()
         }
         let proxy = buildStatProxyByPath(path.replace(/\\/g,'/'), entry, isDir ? 'dir' : 'file')
-        if (cached.find(proxy => proxy.path === path)) {
-            console.log('cached',proxy.path)
-            return false
-        }
+     
         if (isDir) {
             if (count > maxCount) {
                 return false
@@ -180,9 +141,10 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     }
     const api = new fdir()
         .withFullPaths()
-        .withIdleCallback({ deadline: 50, timeout: 100 })
+        .withIdleCallback({ deadline: 1, timeout: 1000 })
         .withSignal(signal)
         .withMaxFiles()
+        .withCache(new Map())
         .filter(realFilter)
         .crawl(root)
     const result = await api.withPromise()

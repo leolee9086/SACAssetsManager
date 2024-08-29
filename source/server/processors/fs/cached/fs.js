@@ -16,6 +16,10 @@ function getRoot(path){
 }
 export function getCachePath(path,cacheName){
     const root = getRoot(path)
+    const cacheDir = require('path').join(root,'.sac')
+    if(!fs.existsSync(cacheDir)){
+        fs.mkdirSync(cacheDir,{recursive:true})
+    }
     const cachePath = require('path').join(root,'.sac',cacheName)
     return {
         root,
