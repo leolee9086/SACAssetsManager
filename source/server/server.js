@@ -12,7 +12,7 @@ const port = window.port
 import { buildCache } from './processors/cache/cache.js';
 import { statWithCatch } from './processors/fs/stat.js';
 import * as headers from './middlewares/headers.js';
-import { genColor } from './handlers/get-color.js'
+import { genColor, getFilesByColor } from './handlers/get-color.js'
 import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
 const siyuanBroadcastChannel =await createSiyuanBroadcastChannel('sacAssetsManager',window.siyuanPort)
 siyuanBroadcastChannel.onmessage = (e)=>{
@@ -45,7 +45,23 @@ app.post('/file-list-stream', headers.types.textPlain,fileListStream)
 app.get('/count-etries', entryCounter)
 app.get('/listDisk',listDisk)
 app.get('/loaders',listLoaders)
+app.get(
+    '/getPathseByColor',async(req,res)=>{
+        console.log(req,res)
+        const color = req.query.color
+        let ctx = {
+            req,
+            res,
+            stats:{
+                color:JSON.parse(color)
+            }
+        }
+        getFilesByColor(ctx)
+    
+    }
+)
 app.get('/color',async (req,res)=>{
+    console.log(req)
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
@@ -53,7 +69,10 @@ app.get('/color',async (req,res)=>{
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
     源文件地址 = 源文件地址.replace(/\//g,'\\')
+    console.log(源文件地址)
+
     let stat = statWithCatch(源文件地址)
+    console.log(stat)
     let 缓存键 = JSON.stringify({stat})
     let ctx = {
         req,
@@ -63,8 +82,13 @@ app.get('/color',async (req,res)=>{
             缓存键
         }
     }
-    const colors = await genColor(ctx)
-    res.json(colors)
+   genColor(ctx).then(
+        colors=>{
+            res.json(colors)
+
+        }
+    )
+
 })
 app.get('/thumbnail',  (req, res) => {
     let 源文件地址 = ''
@@ -73,6 +97,7 @@ app.get('/thumbnail',  (req, res) => {
     } else {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
+    console.log(源文件地址)
     源文件地址 = 源文件地址.replace(/\//g,'\\')
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)

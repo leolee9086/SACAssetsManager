@@ -1,21 +1,24 @@
-import {plugin} from '../asyncModules.js'
+import { plugin } from '../asyncModules.js'
 import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
 const entryURL = import.meta.resolve('./index.html?i=1'); // 或者指向你想要加载的URL
 const channel = new BroadcastChannel('SACAssets')
-const siyuanBroadcastChannel = await createSiyuanBroadcastChannel('sacAssetsManager',window.location.port)
-setInterval(() => channel.postMessage({
-    type:'siyuanConfig',
-    data:window.siyuan.config,
-    port:plugin.http服务端口号,
-    appID:plugin.app.appId,
-    siyuanPort:window.location.port
-}), 1000)
+const siyuanBroadcastChannel = await createSiyuanBroadcastChannel('sacAssetsManager', window.location.port)
+setInterval(() => {
+    console.log(window.siyuan.config,plugin.http服务端口号,plugin.app.appId,window.location.port)
+    channel.postMessage({
+        type: 'siyuanConfig',
+        data: window.siyuan.config,
+        port: plugin.http服务端口号,
+        appID: plugin.app.appId,
+        siyuanPort: window.location.port
+    })
+}, 1000)
 
 channel.addEventListener(
-    'message',(e)=>{
-        if(e.data&&e.data.type==='serverError'){
+    'message', (e) => {
+        if (e.data && e.data.type === 'serverError') {
             console.error(e.data.data)
-        }else{
+        } else {
             plugin.eventBus.emit('serverReady')
         }
     }
@@ -41,12 +44,12 @@ function createInvisibleWebview(entryURL) {
                 const webviewWebContents = webContents.fromId(webContentsId)
                 webviewWebContents.session.clearCache(() => {
                     console.log('缓存已清除');
-                  });
-                  
-                  // 每次加载页面时禁用缓存
-                  webviewWebContents.on('did-finish-load', () => {
-                    webviewWebContents.session.clearCache(() => {});
-                  });
+                });
+
+                // 每次加载页面时禁用缓存
+                webviewWebContents.on('did-finish-load', () => {
+                    webviewWebContents.session.clearCache(() => { });
+                });
                 require("@electron/remote")
                     .require("@electron/remote/main")
                     .enable(webviewWebContents);
@@ -59,8 +62,8 @@ function createInvisibleWebview(entryURL) {
     })
 }
 // 调用函数创建webview
-plugin.serverContainer=await createInvisibleWebview(entryURL);
-plugin.eventBus.on('openDevTools',()=>{
+plugin.serverContainer = await createInvisibleWebview(entryURL);
+plugin.eventBus.on('openDevTools', () => {
     plugin.serverContainer.openDevTools()
 })
 

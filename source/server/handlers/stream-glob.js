@@ -2,7 +2,7 @@
 import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { buildStatProxyByPath } from '../processors/fs/stat.js'
 import { Query } from '../../../static/mingo.js';
-import { 准备缩略图,生成缩略图 } from '../processors/thumbnail/loader.js'
+import { 准备缩略图, 生成缩略图 } from '../processors/thumbnail/loader.js'
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { diffColor } from '../processors/color/Kmeans.js'
 import { 根据颜色查找内容 } from '../processors/color/colorIndex.js';
@@ -23,7 +23,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         walkController.abort()
     }
     const walkSignal = walkController.signal
-    walkSignal.walkController=walkController
+    walkSignal.walkController = walkController
     let filterFun
     if (filter) {
         console.log(filter)
@@ -39,7 +39,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         filterFun = undefined
     }
     walkAsyncWithFdir(cwd, filterFun, {
-        ifFile:async (statProxy) => {
+        ifFile: async (statProxy) => {
             const { name, path, type, size, mtime, mtimems, error } = statProxy;
             const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
             res.write(`data:${data}\n`)
@@ -49,19 +49,19 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         end: () => {
             res.end();
         }
-    }, (walkCount)=>{
-        res.write(`data:${JSON.stringify({walkCount})}\n`)
+    }, (walkCount) => {
+        res.write(`data:${JSON.stringify({ walkCount })}\n`)
         res.flush()
     }, walkSignal, maxCount);
 };
 
-const diffColorCache=new Map()
+const diffColorCache = new Map()
 export const globStream = async (req, res) => {
     let scheme = {}
-    if(req.query&&req.query){
-        scheme=JSON.parse(req.query.setting)
+    if (req.query && req.query) {
+        scheme = JSON.parse(req.query.setting)
     }
-    
+
     const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
     const walkController = new AbortController()
     const controller = new AbortController();
@@ -82,56 +82,44 @@ export const globStream = async (req, res) => {
     } else {
         filter = _filter
     }
-    if(scheme.queryPro){
-        console.log(await 根据颜色查找内容(scheme.queryPro.color))
-       /* if(_filter){
-            filter.test = async(statProxy)=>{
+    if (scheme.queryPro) {
+        if (_filter) {
+            filter.test = async (statProxy) => {
                 if (signal.aborted) {
                     walkController.abort()
                     return false
                 }
-                if( _filter.test(statProxy)){
-                    if(diffColorCache.has(JSON.stringify([statProxy.path,scheme.queryPro.color]))){
-                        return diffColorCache.get(JSON.stringify([statProxy.path,scheme.queryPro.color]))
-                    }
+                if (_filter.test(statProxy)) {
+                   
                     let simiColor = await genThumbnailColor(statProxy.path)
-                    
-                    for await(let item of simiColor){
-                        
-                        console.log(item.color,scheme.queryPro.color)
-                        if(diffColor(item.color===scheme.queryPro.color)){
+                    for await (let item of simiColor) {
+                        if (diffColor(item.color === scheme.queryPro.color)) {
                             return true
                         }
                     }
                     return false
-             
+
                 }
                 return false
             }
-        }else{
+        } else {
             filter = {
-                test: async(statProxy)=>{
-                    console.time('testColor'+statProxy.path)
+                test: async (statProxy) => {
                     if (signal.aborted) {
                         walkController.abort()
                         return false
                     }
-                   if(diffColorCache.has(JSON.stringify([statProxy.path,scheme.queryPro.color]))){
-                        return diffColorCache.get(JSON.stringify([statProxy.path,scheme.queryPro.color]))
-                    }
+                   
                     let simiColor = await genThumbnailColor(statProxy.path)
-
-                    for await (let item of simiColor){
-                        if(diffColor(item.color,scheme.queryPro.color)){
+                    for await (let item of simiColor) {
+                        if (diffColor(item.color, scheme.queryPro.color)) {
                             return true
                         }
                     }
-                    console.timeEnd('testColor'+statProxy.path)
                     return false
-
                 }
             }
-        }*/
+        }
     }
     const maxCount = scheme.maxCount
     const cwd = scheme.cwd
@@ -153,8 +141,8 @@ export const globStream = async (req, res) => {
 export const fileListStream = async (req, res) => {
     const controller = new AbortController();
     let scheme = {}
-    if(req.query&&req.query.setting){
-        scheme=JSON.parse(req.query.setting)
+    if (req.query && req.query.setting) {
+        scheme = JSON.parse(req.query.setting)
     }
     console.log(scheme)
     // 当请求关闭时，触发中止信号
@@ -166,17 +154,17 @@ export const fileListStream = async (req, res) => {
     const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
     const jsonParserStream = new (require('stream')).Transform({
         objectMode: true,
-        transform(chunk, encoding, callback){
+        transform(chunk, encoding, callback) {
             buffer += chunk.toString();
             const lines = buffer.split('\n').filter(
-                item=>item
+                item => item
             )
             for (const line of lines) {
                 try {
                     const statProxy = buildStatProxyByPath(line)
                     this.push(statProxy);
                 } catch (err) {
-                    console.warn('Invalid JSON:', line,err);
+                    console.warn('Invalid JSON:', line, err);
                 }
             }
             callback();
@@ -185,15 +173,15 @@ export const fileListStream = async (req, res) => {
     // 创建转换流，处理文件信息
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
-        transform(chunk,encoding,callback){
-            if(_filter){
-                if(!_filter.test(chunk)){
+        transform(chunk, encoding, callback) {
+            if (_filter) {
+                if (!_filter.test(chunk)) {
                     callback()
                     return
                 }
             }
             const { name, path, type, size, mtime, mtimems, error } = chunk;
-            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) ;
+            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error });
             this.push(`data:${data}\n`)
             res.flush()
             callback()

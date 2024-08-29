@@ -28,6 +28,7 @@ import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表�
 import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted } from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
+import {plugin} from 'runtime'
 /*监听尺寸变化重新布局*/
 const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor'])
 const size = toRef(props, 'size')
@@ -281,11 +282,28 @@ onMounted(async () => {
     }
     else if (appData.value.tab.data.tagLabel) {
         附件数据组 = []
-
         await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
     }
     else if (appData.value.tab.data.type === 'sql') {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
+        附件数据组.map(
+            (item, index) => {
+                return ref({
+                    ...item,
+                    index
+                })
+            }
+        )
+        nextTick(
+            () => {
+                布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+                监听尺寸函数(scrollContainer.value)
+                定长加载(100)
+            }
+        )
+    }else if(appData.value.tab.data.color){
+        let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
+        附件数据组 = await (await fetch(uri)).json()
         附件数据组.map(
             (item, index) => {
                 return ref({

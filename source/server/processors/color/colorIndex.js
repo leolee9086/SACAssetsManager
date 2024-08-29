@@ -27,7 +27,6 @@ export async function 添加到颜色索引(colorItem, assets) {
     let colorFormated = colorItem.color.map(num => Math.floor(num))
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
     let find = colorIndex.find(item => item.color.every((num, index) => num === colorFormated[index]))
-    console.log(find)
     let asstItem = {
         count: colorItem.count,
         percent: colorItem.percent,
@@ -62,21 +61,15 @@ async function 保存颜色索引(targetPath, mapper) {
     fs.writeFileSync(targetPath, JSON.stringify(colorIndexMapped))
     trasactionwsCount = 0
 }
-export async function 根据颜色查找内容(color) {
+export async function 根据颜色查找内容(color,cutout=0.6) {
     let find = colorIndex.filter(
-        item => diffColor(item.color, color)
+        item => diffColor(item.color, color,cutout)
     )
-    return find.reduce((acc, item) => {
-        item.assets.forEach(
-            asset => {
-                if (!acc.includes(asset)) {
-                    acc.push(asset)
-                }
-
-            }
-        )
-        return acc
-    }, [])
+    let result=[]
+    for await(let colorItem of find){
+        result =result.concat(colorItem.assets)
+    }
+    return  Array.from(new Set(result.map(item=>item.path)))
 }
 export async function 找到文件颜色(path) {
     let finded = []
@@ -98,7 +91,6 @@ export async function 找到文件颜色(path) {
             })
         }
     }
-    console.log(finded)
     if (finded.length > 0) {
         return finded
     }
@@ -114,7 +106,6 @@ function 清理颜色索引(颜色索引) {
                     num === 颜色值[index]
                 })
             })
-            console.log(已存在索引)
             if (!已存在索引) {
                 清理后索引.push(颜色项目)
             }

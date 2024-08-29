@@ -49,3 +49,14 @@ export const 打开本地资源视图 = (localPath) => {
         },
     })
 }
+
+export const 打开颜色资源视图 = (color) => {
+
+    打开附件面板({
+        icon: "iconAssets",
+        title: "资源:本地",
+        data: {
+            color
+        },
+    })
+}

@@ -1,10 +1,10 @@
-import {CIEDE2000RGBA} from "./simlarity.js"
-import {CIE76} from "./simlarity.js"
+import { CIEDE2000RGBA } from "./simlarity.js"
+import { CIE76 } from "./simlarity.js"
 export function 欧几里得聚类(data, k) {
-    return kMeansPP(data, k, euclideanDistance,30,true);
+    return kMeansPP(data, k, euclideanDistance, 30, true);
 }
 export function CIEDE2000聚类(data, k) {
-    return kMeansPP(data, k, CIEDE2000RGBA,30,true);
+    return kMeansPP(data, k, CIEDE2000RGBA, 30, true);
 }
 const cache = new Map();
 /**
@@ -13,16 +13,16 @@ const cache = new Map();
  * @param {*} color2 
  * @returns 
  */
-export const diffColor = (color1, color2) => {
+export const diffColor = (color1, color2,cutout=0.6) => {
     // 直接使用欧几里得距离
-   // const distance1 =     euclideanDistanceWithHueCorrection(color1, color2);
-   const distance2 =CIEDE2000RGBA(color1, color2);
+    const distance1 = euclideanDistanceWithHueCorrection(color1, color2);
+    const distance2 = CIEDE2000RGBA(color1, color2);
     const distance3 = CIE76(color1, color2)
 
-    //let result1=isDistanceAcceptable(distance1, 'totalDistance2', 'count2', 0.8)
-    let result2=isDistanceAcceptable(distance2, 'totalDistance1', 'count1', 0.9)
-    const result3 = isDistanceAcceptable(distance3, 'totalDistance3', 'count3', 50)
-    return result3&&result2
+    let result1 = isDistanceAcceptable(distance1, 'totalDistance2', 'count2', cutout)
+    let result2 = isDistanceAcceptable(distance2, 'totalDistance1', 'count1', cutout)
+    const result3 = isDistanceAcceptable(distance3, 'totalDistance3', 'count3', 100*cutout)
+    return result3 && result2 && result1
 };
 
 function isDistanceAcceptable(distance, totalKey, countKey, threshold) {
@@ -30,14 +30,14 @@ function isDistanceAcceptable(distance, totalKey, countKey, threshold) {
         cache.set(totalKey, 0);
         cache.set(countKey, 0);
     }
-    const totalDistance = (cache.get(totalKey) + distance)||0;
+    const totalDistance = (cache.get(totalKey) + distance) || 0;
     const count = (cache.get(countKey) + 1);
     cache.set(totalKey, totalDistance);
     cache.set(countKey, count);
-    const averageDistance = (totalDistance / count)||0;
-    if(threshold>1){
-        return distance <  threshold;
-    }else{
+    const averageDistance = (totalDistance / count) || 0;
+    if (threshold > 1) {
+        return distance < threshold;
+    } else {
         return distance < averageDistance * threshold;
     }
 }
@@ -53,7 +53,7 @@ function correctHue(color) {
     const min = Math.min(r, g, b);
     let hue = 0;
     if (max === min) {
-        hue = 0; 
+        hue = 0;
     } else if (max === r) {
         hue = (60 * ((g - b) / (max - min)) + 360) % 360;
     } else if (max === g) {
@@ -155,10 +155,10 @@ export function kMeansPP(data, k, 算法, maxIterations = 100, withPercent = fal
     })).sort((a, b) => b.count - a.count || a.color[0] - b.color[0] || a.color[1] - b.color[1] || a.color[2] - b.color[2])
         .map(item => {
             if (withPercent) {
-                item.percent = item.count*4 / data.length
+                item.percent = item.count * 4 / data.length
                 return item
             } else {
-                return item.color.map(x=>Math.round(x))
+                return item.color.map(x => Math.round(x))
             }
         });
     return { centers: sortedCenters, assignments };

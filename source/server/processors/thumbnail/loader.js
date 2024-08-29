@@ -127,7 +127,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     }
     let fromFIle=await asyncReadFile(缓存路径)
-    if(fromFIle){
+    if(fromFIle&&fromFIle.length){
         return fromFIle
     }
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)
@@ -157,17 +157,10 @@ export const 准备缩略图 = async (imagePath, loaderID = null) => {
     }, { deadline: 10 })
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
-    const start = performance.now()
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
-    const end = performance.now()
-    console.log('生成缩略图', filePath, end - start)
     // 欧几里得聚类,较为简单,但效果一般
     // 不过颜色查询应该够用了
-    const start2 = performance.now()
-    console.log(getColor.performance, thumbnailBuffer, filePath)
     const colors = await getColor(thumbnailBuffer, filePath)
-    const end2 = performance.now()
-    console.log('获取颜色', filePath, end2 - start2)
     return colors
 }
 

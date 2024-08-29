@@ -32,7 +32,7 @@ function buildFilter(filter, signal) {
                 return await Promise.race([
                     filter(proxy),
 
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15))
+                    new Promise((resolve, reject) => setTimeout(() => resolve(false), 30))
                 ])
             } catch (e) {
                 console.error(e, statProxy)
@@ -54,7 +54,7 @@ function buildFilter(filter, signal) {
                             return statProxy[prop]
                         }
                     })
-                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15))
+                    const timeoutPromise = new Promise((resolve, reject) => setTimeout(() => resolve(false), 30))
 
                     if (statProxy.isFile() && filter.ifFile) {
                         return await Promise.race([filter.ifFile(proxy), timeoutPromise])
@@ -173,7 +173,8 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         }catch(e){
             return false
         }
-        result && stepCallback && stepCallback(proxy)
+        
+        result && stepCallback &&proxy.isFile&&stepCallback(proxy)
         result && count++
         return result
     }
