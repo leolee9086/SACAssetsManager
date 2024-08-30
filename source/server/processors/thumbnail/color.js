@@ -1,5 +1,4 @@
-import { 欧几里得聚类, CIEDE2000聚类 } from '../color/Kmeans.js'
-import { awaitForEach } from '../../../utils/array/walk.js'
+import { 欧几里得聚类 } from '../color/Kmeans.js'
 import { 找到文件颜色 } from '../color/colorIndex.js'
 const sharp = require('sharp')
 export async function getColor(buffer, filePath) {
@@ -26,16 +25,18 @@ export async function getColor(buffer, filePath) {
         console.log(buffer, filePath)
 
     }
-    try{
-    let dominantColors = 欧几里得聚类(rgba, 5)
-    for (let item of dominantColors.centers) {
-        for (let item2 of item.color) {
-            item2 = Math.floor(item2)
+    try {
+        let dominantColors = 欧几里得聚类(rgba, 5)
+        for (let item of dominantColors.centers) {
+            for (let item2 of item.color) {
+                item2 = Math.floor(item2)
+            }
         }
+        return dominantColors.centers
     }
-    return dominantColors.centers}
-    catch(e){
+    catch (e) {
         console.warn(e)
         return []
     }
 }
+

@@ -3,10 +3,9 @@ import commonLoader from './internalGeneraters/onlyName.js'
 import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
+import { diffColor } from '../color/Kmeans.js'
 import { genStatHash } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions } from './utils/lists.js'
-
-
 let loderPaths = [
     './internalGeneraters/svg.js',
     './internalGeneraters/sharp.js',
@@ -159,8 +158,7 @@ const tumbnailCache = buildCache('thumbnailCache')
 import { 智能防抖 } from '../../../utils/functionTools.js'
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
     智能防抖(async () => {
-        const thumbnailBuffer = await 生成缩略图(imagePath, loaderID)
-        await getColor(thumbnailBuffer, imagePath)
+        await genThumbnailColor(imagePath, loaderID)
     }, (idle, average) => { console.log(idle, average) })
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
@@ -171,3 +169,12 @@ export async function genThumbnailColor(filePath, loaderID = null) {
     return colors
 }
 
+export async function diffFileColor(filePath,color){
+    let simiColor = await genThumbnailColor(filePath)
+    for await (let item of simiColor) {
+        if (diffColor(item.color,color)) {
+            return true
+        }
+    }
+    return false
+}

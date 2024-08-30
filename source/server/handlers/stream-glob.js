@@ -1,8 +1,7 @@
 
 import { walkAsyncWithFdir } from '../processors/fs/walk.js'
-import { buildStatProxyByPath } from '../processors/fs/stat.js'
 import { Query } from '../../../static/mingo.js';
-import { 准备缩略图, 生成缩略图 } from '../processors/thumbnail/loader.js'
+import { 准备缩略图,diffFileColor } from '../processors/thumbnail/loader.js'
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { diffColor } from '../processors/color/Kmeans.js'
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
@@ -96,15 +95,7 @@ export const globStream = async (req, res) => {
                     return false
                 }
                 if (_filter.test(statProxy)) {
-
-                    let simiColor = await genThumbnailColor(statProxy.path)
-                    for await (let item of simiColor) {
-                        if (diffColor(item.color === scheme.queryPro.color)) {
-                            return true
-                        }
-                    }
-                    return false
-
+                    return await diffFileColor(statProxy.path,scheme.queryPro.color)
                 }
                 return false
             }
@@ -115,14 +106,7 @@ export const globStream = async (req, res) => {
                         walkController.abort()
                         return false
                     }
-
-                    let simiColor = await genThumbnailColor(statProxy.path)
-                    for await (let item of simiColor) {
-                        if (diffColor(item.color, scheme.queryPro.color)) {
-                            return true
-                        }
-                    }
-                    return false
+                    return await diffFileColor(statProxy.path,scheme.queryPro.color)
                 }
             }
         }
