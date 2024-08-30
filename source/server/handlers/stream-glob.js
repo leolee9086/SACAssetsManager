@@ -13,9 +13,6 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const { Readable } = require('stream');
-
-
 const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkController) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
@@ -29,7 +26,6 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     walkSignal.walkController = walkController
     let filterFun
     if (filter) {
-        console.log(filter)
         filterFun = (entry) => {
             if (filter) {
                 if (walkController.aborted) {
@@ -60,8 +56,6 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     }, walkSignal, maxCount);
     
 };
-
-const diffColorCache = new Map()
 export const globStream = async (req, res) => {
     let scheme = {}
     if (req.query && req.query) {
@@ -187,7 +181,7 @@ export const fileListStream = async (req, res) => {
                 }
             }
             const { name, path, type, size, mtime, mtimems, error } = chunk;
-            const data = `{ ${name}, ${path}, id: localEntrie_${path}, type: 'local', ${size}, ${mtime}, ${mtimems}, ${error} })`
+            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
             this.push(`data:${data}\n`)
             res.flush()
             callback()
