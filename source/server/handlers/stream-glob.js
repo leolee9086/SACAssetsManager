@@ -7,6 +7,7 @@ import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { diffColor } from '../processors/color/Kmeans.js'
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
+import { stat2assetsItemStringLine } from './utils/responseType.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -41,12 +42,9 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     let chunked = []
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile: async (statProxy) => {
-            const { name, path, type, size, mtime, mtimems, error } = statProxy;
-           const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-           
-           res.write(`data:${data}\n`)
+            res.write(stat2assetsItemStringLine(statProxy))
             res.flush()
-           准备缩略图(path)
+            准备缩略图(statProxy.path)
         },
         end: () => {
             res.end();
@@ -55,7 +53,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         res.write(`data:${JSON.stringify({ walkCount })}\n`)
         res.flush()
     }, walkSignal, maxCount);
-    
+
 };
 export const globStream = async (req, res) => {
     let scheme = {}
@@ -83,7 +81,7 @@ export const globStream = async (req, res) => {
     } else {
         filter = _filter
     }
-   if (scheme.queryPro&&scheme.queryPro.color) {
+    if (scheme.queryPro && scheme.queryPro.color) {
         if (_filter) {
             filter.test = async (statProxy) => {
                 if (signal.aborted) {
@@ -91,7 +89,7 @@ export const globStream = async (req, res) => {
                     return false
                 }
                 if (_filter.test(statProxy)) {
-                   
+
                     let simiColor = await genThumbnailColor(statProxy.path)
                     for await (let item of simiColor) {
                         if (diffColor(item.color === scheme.queryPro.color)) {
@@ -110,7 +108,7 @@ export const globStream = async (req, res) => {
                         walkController.abort()
                         return false
                     }
-                   
+
                     let simiColor = await genThumbnailColor(statProxy.path)
                     for await (let item of simiColor) {
                         if (diffColor(item.color, scheme.queryPro.color)) {
@@ -151,15 +149,13 @@ export const fileListStream = async (req, res) => {
         controller.abort();
     });
     const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
-    const jsonParserStream= buildFileListStream()
-    const filterStream =buildFilterStream(_filter)
+    const jsonParserStream = buildFileListStream()
+    const filterStream = buildFilterStream(_filter)
     // 创建转换流，处理文件信息
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
-            const { name, path, type, size, mtime, mtimems, error } = chunk;
-            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-            this.push(`data:${data}\n`)
+            this.push(stat2assetsItemStringLine(chunk))
             res.flush()
             callback()
         }
