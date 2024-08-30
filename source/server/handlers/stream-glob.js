@@ -8,6 +8,7 @@ import { diffColor } from '../processors/color/Kmeans.js'
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
+import { parseQuery } from './utils/requestType.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -33,13 +34,13 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
                 if (walkController.aborted) {
                     return false
                 }
+                console.log(filter,entry,filter.test(entry))
                 return filter.test(entry)
             }
         }
     } else {
         filterFun = undefined
     }
-    let chunked = []
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile: async (statProxy) => {
             res.write(stat2assetsItemStringLine(statProxy))
@@ -56,12 +57,18 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
 
 };
 export const globStream = async (req, res) => {
-    let scheme = {}
-    if (req.query && req.query) {
-        scheme = JSON.parse(req.query.setting)
+    let scheme 
+    if(req.query&&req.query.setting){
+        try{
+            scheme = JSON.parse(req.query.setting)
+        }catch(e){
+            console.error(e)
+            throw(e)
+        }
+    }else if(req.body){
+        scheme = req.body
     }
-
-    const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
+    const _filter = parseQuery({req,res})
     const walkController = new AbortController()
     const controller = new AbortController();
     let filter
