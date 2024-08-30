@@ -36,8 +36,6 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         }
         for await (let dir of ignoreDir) {
             if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
-                statPromisesArray.paused = false
-
                 return false
             }
         }
@@ -50,40 +48,32 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         let proxy = buildStatProxyByPath(path.replace(/\\/g,'/'), entry, isDir ? 'dir' : 'file')
      
         if (isDir) {
-            if (count > maxCount) {
+            if (total > maxCount) {
                 statPromisesArray.paused = false
-
                 return false
             }
             try{
                 let flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
-                statPromisesArray.paused = false
 
                 return flag
             }catch(e){
-                statPromisesArray.paused = false
-
                 return false
             }
         }
         total++
-        countCallBack && countCallBack(total)
+        countCallBack &&await countCallBack(total)
         stepCallback && stepCallback.preMatch && stepCallback.preMatch(proxy)
         let result
         try{
             result= filter ? await filter(proxy, proxy.path.split('/').length) : true
         }catch(e){
-            statPromisesArray.paused = false
-
             return false
         }
         
-        result && stepCallback &&proxy.isFile&&stepCallback(proxy)
+        result && stepCallback &&proxy.isFile&&await stepCallback(proxy)
         result && count++
-        statPromisesArray.paused = false
         return result
     }
-    statPromisesArray.paused = false
 
     const api = new fdir()
         .withFullPaths()

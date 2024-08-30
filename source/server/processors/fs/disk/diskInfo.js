@@ -74,16 +74,17 @@ export function listLocalDisks() {
                                console.log('processNext', index, statPromises.length, timeout)
                             }
                             index++;
-
+                            let start = performance.now();
                             (statPromises.pop())().then(stat => {
-
+                                let end =performance.now()
+                                timeout=Math.max(timeout,end-start)
                             });
                             setImmediate(
                                 processNext // 递归调用以处理下一个Promise
                                 , timeout)
 
                             // 处理stat
-                            timeout = Math.max(timeout / 2, 10)
+                            timeout = Math.max(timeout / 1.1, 10)
                         } else {
                             if (!statPromises.ended()) {
                                 if (index % 10000 == 0||statPromises.length<1000) {
@@ -91,7 +92,7 @@ export function listLocalDisks() {
                                     console.log('processNextLater', index, statPromises.length, timeout)
                                 }
 
-                                timeout = Math.min(timeout * 2, 1000)
+                                timeout = Math.min(timeout * 2, 10000)
                                 setTimeout(
                                     processNext // 递归调用以处理下一个Promise
                                     , timeout)

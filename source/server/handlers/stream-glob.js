@@ -1,7 +1,7 @@
 
 import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { Query } from '../../../static/mingo.js';
-import { 准备缩略图,diffFileColor } from '../processors/thumbnail/loader.js'
+import { 准备缩略图, diffFileColor } from '../processors/thumbnail/loader.js'
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
@@ -38,38 +38,56 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     } else {
         filterFun = undefined
     }
+    let chunked = ''
     walkAsyncWithFdir(cwd, filterFun, {
-        ifFile: async (statProxy) => {
+        ifFile:  (statProxy) => {
             statPromisesArray.paused = true
-            res.write(stat2assetsItemStringLine(statProxy))
-            res.flush()
+
+            let data = stat2assetsItemStringLine(statProxy)
+            chunked += data
+        
+            requestIdleCallback(() => {
+                statPromisesArray.paused = true
+                if (chunked) {
+                    res.write(chunked)
+                 //   res.flush()
+                    chunked = ''
+                }
+            },{timeout:100,deadline:18})
         },
         end: () => {
+            walkController.abort()
             statPromisesArray.paused = false
+            if (chunked) {
+                res.write(chunked)
+                 //   res.flush()
+                chunked = ''
+            }
 
+            res.flush()
             res.end();
         }
     }, (walkCount) => {
-        res.write(`data:${JSON.stringify({ walkCount })}\n`)
-        res.flush()
+        chunked += `data:${JSON.stringify({ walkCount })}\n`
     }, walkSignal, maxCount);
 
 };
 export const globStream = async (req, res) => {
-    let scheme 
+    console.log('globStream')
+    let scheme
     statPromisesArray.paused = true
 
-    if(req.query&&req.query.setting){
-        try{
+    if (req.query && req.query.setting) {
+        try {
             scheme = JSON.parse(req.query.setting)
-        }catch(e){
+        } catch (e) {
             console.error(e)
-            throw(e)
+            throw (e)
         }
-    }else if(req.body){
+    } else if (req.body) {
         scheme = req.body
     }
-    const _filter = parseQuery({req,res})
+    const _filter = parseQuery({ req, res })
     const walkController = new AbortController()
     const controller = new AbortController();
     let filter
@@ -97,7 +115,7 @@ export const globStream = async (req, res) => {
                     return false
                 }
                 if (_filter.test(statProxy)) {
-                    return await diffFileColor(statProxy.path,scheme.queryPro.color)
+                    return await diffFileColor(statProxy.path, scheme.queryPro.color)
                 }
                 return false
             }
@@ -108,7 +126,7 @@ export const globStream = async (req, res) => {
                         walkController.abort()
                         return false
                     }
-                    return await diffFileColor(statProxy.path,scheme.queryPro.color)
+                    return await diffFileColor(statProxy.path, scheme.queryPro.color)
                 }
             }
         }
@@ -121,6 +139,8 @@ export const globStream = async (req, res) => {
     });
     res.flushHeaders()
     res.write('')
+   // res.flush()
+
     const { signal } = controller;
     createWalkStream(cwd, filter, signal, res, maxCount, walkController)
     //前端请求关闭时,触发中止信号

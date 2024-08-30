@@ -10,7 +10,7 @@ async function countEntries(dir) {
 
     };
 }
-async function getTopLevelFoldersInfo(rootDir, maxCount=1000) {
+async function getTopLevelFoldersInfo(rootDir, maxCount=100) {
     const topLevelFolders = await fastGlob(['*'], { cwd: rootDir, onlyDirectories: true, absolute: true, suppressErrors: true, dot: true });
     let folderInfoPromises = []
     for (let i = 0; i < maxCount; i++) {

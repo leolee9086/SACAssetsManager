@@ -28,7 +28,7 @@ app.use(cors());
 /**
  * 启用响应压缩
  */
-app.use(compression({
+let compressor=compression({
     level: 6, // 设置压缩级别，范围是 0-9，默认值是 6
     filter: (req, res) => {
         if (req.headers['x-no-compression']) {
@@ -38,7 +38,7 @@ app.use(compression({
         // 其他情况下进行压缩
         return compression.filter(req, res);
     }
-}));
+})
 /**
  * 流式遍历文件夹
  */

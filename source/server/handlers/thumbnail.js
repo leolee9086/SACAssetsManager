@@ -58,9 +58,6 @@ export async function genPallte(ctx, next) {
     statPromisesArray.paused = false
     res.json(result)
 }
-
-
-
 export async function genThumbnail(ctx, next) {
     statPromisesArray.paused = true
     let { req, res, 缓存对象 } = ctx

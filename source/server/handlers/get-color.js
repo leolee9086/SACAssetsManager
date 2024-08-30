@@ -6,17 +6,11 @@ import { statPromisesArray } from '../processors/fs/disk/tree.js'
 export async function genColor(ctx,next){
     statPromisesArray.paused = true
     let { 源文件地址, 缓存键 } = ctx.stats
-    console.log(源文件地址)
-
     if (!源文件地址) {
         res.status(400).send('Invalid request: missing source file address');
         return
     }
-    console.log(源文件地址)
-
     let color=await 找到文件颜色(源文件地址)
-    console.log(color)
-
     if(color){
         return color
     }
@@ -24,7 +18,6 @@ export async function genColor(ctx,next){
         添加到颜色索引(colorItem,源文件地址)
     }
     const colors = await genThumbnailColor(源文件地址)
-    console.log(colors)
     colors&&await awaitForEach(colors,callback)
     statPromisesArray.paused = false
     return colors
