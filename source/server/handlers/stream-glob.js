@@ -6,6 +6,7 @@ import { 准备缩略图, 生成缩略图 } from '../processors/thumbnail/loader
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { diffColor } from '../processors/color/Kmeans.js'
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
+import { buildFilterStream } from '../processors/streams/withFilter.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -151,16 +152,11 @@ export const fileListStream = async (req, res) => {
     });
     const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
     const jsonParserStream= buildFileListStream()
+    const filterStream =buildFilterStream(_filter)
     // 创建转换流，处理文件信息
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
-            if (_filter) {
-                if (!_filter.test(chunk)) {
-                    callback()
-                    return
-                }
-            }
             const { name, path, type, size, mtime, mtimems, error } = chunk;
             const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
             this.push(`data:${data}\n`)
@@ -171,6 +167,7 @@ export const fileListStream = async (req, res) => {
     pipeline(
         req,
         jsonParserStream,
+        filterStream,
         transformStream,
         res,
         (err) => {
