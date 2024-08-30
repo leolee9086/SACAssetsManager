@@ -5,7 +5,7 @@ import { Query } from '../../../static/mingo.js';
 import { 准备缩略图, 生成缩略图 } from '../processors/thumbnail/loader.js'
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { diffColor } from '../processors/color/Kmeans.js'
-import { 根据颜色查找内容 } from '../processors/color/colorIndex.js';
+import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -149,27 +149,8 @@ export const fileListStream = async (req, res) => {
     req.on('close', () => {
         controller.abort();
     });
-    // 创建一个转换流，用于解析请求体中的JSON数据
-    let buffer = '';
     const _filter = scheme.query && JSON.stringify(scheme.query) !== '{}' ? new Query(scheme.query) : null
-    const jsonParserStream = new (require('stream')).Transform({
-        objectMode: true,
-        transform(chunk, encoding, callback) {
-            buffer += chunk.toString();
-            const lines = buffer.split('\n').filter(
-                item => item
-            )
-            for (const line of lines) {
-                try {
-                    const statProxy = buildStatProxyByPath(line)
-                    this.push(statProxy);
-                } catch (err) {
-                    console.warn('Invalid JSON:', line, err);
-                }
-            }
-            callback();
-        },
-    });
+    const jsonParserStream= buildFileListStream()
     // 创建转换流，处理文件信息
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
