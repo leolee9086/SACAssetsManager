@@ -2,12 +2,11 @@
 import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { Query } from '../../../static/mingo.js';
 import { 准备缩略图,diffFileColor } from '../processors/thumbnail/loader.js'
-import { genThumbnailColor } from '../processors/thumbnail/loader.js'
-import { diffColor } from '../processors/color/Kmeans.js'
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
 import { parseQuery } from './utils/requestType.js';
+import { statPromisesArray } from '../processors/fs/disk/tree.js'
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -33,7 +32,6 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
                 if (walkController.aborted) {
                     return false
                 }
-                console.log(filter,entry,filter.test(entry))
                 return filter.test(entry)
             }
         }
@@ -42,6 +40,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     }
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile: async (statProxy) => {
+            statPromisesArray.paused = true
             res.write(stat2assetsItemStringLine(statProxy))
             res.flush()
             准备缩略图(statProxy.path)
@@ -57,6 +56,8 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
 };
 export const globStream = async (req, res) => {
     let scheme 
+    statPromisesArray.paused = true
+
     if(req.query&&req.query.setting){
         try{
             scheme = JSON.parse(req.query.setting)
@@ -125,6 +126,8 @@ export const globStream = async (req, res) => {
     //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
     res.on('close', () => {
         console.log('close')
+        statPromisesArray.paused = false
+
         controller.abort();
     });
 };

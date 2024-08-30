@@ -2,12 +2,8 @@ import { buildStepCallback } from './stat.js'
 import {  buildStatProxyByPath } from './stat.js'
 import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
-
-
 import { buildCache } from '../cache/cache.js'
-import { diskTree } from './disk/tree.js'
-
-
+import { statPromisesArray } from './disk/tree.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -26,6 +22,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     let count = 0
     let total = 0
     const realFilter = async (path, isDir) => {
+        statPromisesArray.paused = true
         if (signal.aborted) {
             return false
         }
@@ -69,6 +66,9 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         
         result && stepCallback &&proxy.isFile&&stepCallback(proxy)
         result && count++
+        requestIdleCallback(() => {
+            statPromisesArray.paused = false
+        },{deadline:18})
         return result
     }
     const api = new fdir()

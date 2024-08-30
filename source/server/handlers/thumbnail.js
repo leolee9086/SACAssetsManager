@@ -12,7 +12,6 @@ let cacheLoader = (ctx) => {
 }
 const getThumbnailWithCache = async (ctx)=>{
     let { 源文件地址, 缓存键 } = ctx.stats
-    console.log(源文件地址)
     let result = null
     let cacheResult = cacheLoader(ctx)
     if (cacheResult) {

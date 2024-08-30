@@ -8,11 +8,110 @@ let diskInfos = []
 const platform = process.platform;
 export function listLocalDisks() {
     return new Promise(async (resolve, reject) => {
+        if (!diskInfos[0]) {
+            if (platform === 'win32') {
+
+                diskInfos = await listLocalDisksWin32(outputFilePath)
+                resolve(diskInfos)
+            } else {
+                const command = 'df -P | tail -n +2';
+                exec(command, (error, stdout) => {
+                    if (error) {
+                        console.error(`exec error: ${error}`);
+                        reject(error)
+                    }
+                    // 获取输出中每个磁盘的设备和挂载点
+                    const lines = stdout.split('\n');
+                    lines.forEach(line => {
+                        try {
+                            const parts = line.split(/\s+/);
+                            if (parts.length > 1) {
+                                const device = parts[0];
+                                disks.push(device);
+                                let stats = statfsSync(`/dev/${device}`)
+                                stats && diskInfos.push(
+                                    {
+                                        name: device,
+                                        Filesystem: stats.type,
+                                        /**MB */
+                                        total: stats.blocks * stats.bsize / 1024 / 1024,
+                                        free: stats.bfree * stats.bsize / 1024 / 1024
+                                    }
+                                )
+                            }
+                        } catch (e) {
+                            console.error(e)
+                        }
+                    });
+                    resolve(diskInfos)
+                });
+            }
+            setImmediate(() => {
+                let disks = diskInfos.map(d => d.name)
+                const diskPromises = []
+                disks.forEach(d => {
+                    diskPromises.push(async () => {
+                        console.log(d)
+                        console.time(`构建磁盘目录树${d}`)
+                        let result = await 构建磁盘目录树(d)
+                        console.timeEnd(`构建磁盘目录树${d}`)
+                        return result
+                    })
+                });
+                (async () => {
+                    console.time('buildIndex')
+                    let statPromises = []
+                    let index = 0
+                    let timeout = 100
+                    let isProcessing = false
+                    function processNext() {
+                        if(isProcessing){
+                            statPromises.paused = true
+                        }
+                        isProcessing = true
+                        if (index < statPromises.length&&!statPromises.paused) {
+                            console.log('processNext', index,statPromises.length,timeout)
+                            index++;
+
+                            statPromises[index]().then(stat => {
+                                // 处理stat
+                                timeout = Math.max(timeout/2,18)
+                                setImmediate(processNext,{timeout:100,deadline:18}); // 递归调用以处理下一个Promise
+                            });
+                        } else {
+                            if (!ended) {
+                                console.log('processNextLater', index,statPromises.length,timeout)
+
+                                setTimeout(() => {
+                                    processNext // 递归调用以处理下一个Promise
+                                }, timeout*2)
+                            }
+                        }
+                        isProcessing = false
+                    }
+                    let ended = false
+                    for (let i = 0; i < diskPromises.length; i++) {
+                        statPromises = await diskPromises[i]()
+                        queueMicrotask(processNext); // 开始处理第一个Promise
+                    }
+                    ended = true
+                    console.timeEnd('buildIndex')
+                })()
+            })
+
+        } else {
+            resolve(diskInfos)
+        }
+        return
         if (platform === 'win32') {
             // Windows平台
             try {
                 diskInfos = listLocalDisksWin32(outputFilePath)
-                resolve(diskInfos)              
+                resolve(diskInfos)
+                disks = diskInfos.map(d => d.name)
+                disks.forEach(d => {
+                    构建磁盘目录树(d)
+                })
             } catch (e) {
                 console.error(e)
                 reject(e)
@@ -20,36 +119,6 @@ export function listLocalDisks() {
             return
         } else {
             // Unix-like平台
-            const command = 'df -P | tail -n +2';
-            exec(command, (error, stdout) => {
-                if (error) {
-                    console.error(`exec error: ${error}`);
-                    reject(error)
-                }
-                // 获取输出中每个磁盘的设备和挂载点
-                const lines = stdout.split('\n');
-                lines.forEach(line => {
-                    try {
-                        const parts = line.split(/\s+/);
-                        if (parts.length > 1) {
-                            const device = parts[0];
-                            disks.push(device);
-                            let stats = statfsSync(`/dev/${device}`)
-                            stats && diskInfos.push(
-                                {
-                                    name: device,
-                                    Filesystem: stats.type,
-                                    /**MB */
-                                    total: stats.blocks * stats.bsize / 1024 / 1024,
-                                    free: stats.bfree * stats.bsize / 1024 / 1024
-                                }
-                            )
-                        }
-                    } catch (e) {
-                        console.error(e)
-                    }
-                });
-            });
         }
     })
 }
