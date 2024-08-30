@@ -1,5 +1,5 @@
 import { diffColor } from "./Kmeans.js"
-import { getCachePath } from '../fs/cached/fs.js'
+import { getCachePath,getRoot } from '../fs/cached/fs.js'
 let colorIndex = []
 let loaded = {}
 globalThis.colorIndex = globalThis.colorIndex || colorIndex
@@ -10,26 +10,33 @@ colorIndex = globalThis.colorIndex
  * @param {*} assets 
  */
 const fs = require('fs')
-export async function 添加到颜色索引(colorItem, assets) {
-    const { cachePath, root } = getCachePath(assets, 'colorIndex.json')
+export async function 根据路径查找并加载颜色索引(path){
+    const { cachePath, root } = getCachePath(path, 'colorIndex.json')
+    console.error(cachePath,root)
+     从路径加载颜色索引(cachePath,root)
+}
+export async function 从路径加载颜色索引(cachePath,root){
     if (fs.existsSync(cachePath) && !loaded[cachePath]) {
         console.log('从', cachePath, '加载缓存')
-
         loaded[cachePath] = true
-        const cached = JSON.parse(fs.readFileSync(cachePath))
-        cached.forEach(
-            item => {
-                item.assets = item.assets.map(asset => {
+        const cached = JSON.parse( await fs.promises.readFile(cachePath))
+         for(let i=0;i<cached.length;i++){
+            let item = cached[i]
+            item.assets = item.assets.map(asset => {
                     if (asset.path.startsWith(root)) {
                         return asset
                     }
                     return { ...asset, path: require('path').join(root, asset.path) }
                 })
                 colorIndex.push(item)
-            }
-        )
+            
+        }
         清理颜色索引(colorIndex)
     }
+}
+export async function 添加到颜色索引(colorItem, assets) {
+    const { cachePath, root } = getCachePath(assets, 'colorIndex.json')
+    await 从路径加载颜色索引(cachePath,root)
     let colorFormated = colorItem.color.map(num => Math.floor(num))
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
     let find = colorIndex.find(item => item.color.every((num, index) => num === colorFormated[index]))

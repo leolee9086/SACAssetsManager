@@ -10,11 +10,13 @@ export function readFile(path){
     return data
 }
 
-function getRoot(path){
+export function getRoot(path){
     let split = path.indexOf('\\')>-1?'\\':'/'
     return path.split(split)[0]
 }
 export function getCachePath(path,cacheName){
+    console.log(path,cacheName)
+
     const root = getRoot(path)
     const cacheDir = require('path').join(root,'.sac')
     if(!fs.existsSync(cacheDir)){

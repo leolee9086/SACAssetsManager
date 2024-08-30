@@ -38,7 +38,7 @@ export async function 构建磁盘目录树(diskLetter) {
 let tasks = 0
 const 遍历缓存 = buildCache('walk')
 const statCache = buildCache('statCache')
-
+import { 根据路径查找并加载颜色索引 } from '../../color/colorIndex.js'
 export async function 构建目录树(root, withFlat = false, $rootItem, $flatDirs, $flatFiles) {
     console.log(root)
     let rootItem = $rootItem || {
@@ -47,6 +47,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
         subDirs: [],
         files: [],
     }
+    根据路径查找并加载颜色索引(root)  
     if (withFlat) {
         rootItem.flatFiles = []
         rootItem.flatDirs = []
@@ -69,9 +70,6 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
     let options = {
         withFileTypes: true
     }
-
-
-
     async function 递归构建目录树(dir) {
         let entries = []
         let dirs = dir.subDirs

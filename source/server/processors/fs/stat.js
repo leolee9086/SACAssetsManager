@@ -118,9 +118,8 @@ export const buildStatProxy = (entry, dir, useProxy, type) => {
             type,
             path:path.replace(/\\/g,'/'),
             ...stats,
-            isDirectory: () => entry.isDirectory(),
-            isFile: () => entry.isFile(),
-            isSymbolicLink: () => entry.isSymbolicLink(),
+            isDirectory: () => type==='dir',
+            isFile: () => type==='file',
         }
     }
 }
@@ -135,9 +134,9 @@ export const buildStatProxyByPath = (path, entry, type) => {
         name: { value: path },
         path: { value: path },
         type: { value: type },
-        isDirectory: { value: entry.isDirectory() ? true : false },
-        isFile: { value: entry.isFile() ? true : false },
-        isSymbolicLink: { value: entry.isSymbolicLink() ? true : false },
+        isDirectory: { value: type==='dir' ? true : false },
+        isFile: { value: type==='file' ? true : false },
+        isSymbolicLink: { value: type==='symbolicLink' ? true : false },
         toString: undefined
     }
     return new Proxy({}, {
