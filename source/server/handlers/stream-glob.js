@@ -43,9 +43,10 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
             statPromisesArray.paused = true
             res.write(stat2assetsItemStringLine(statProxy))
             res.flush()
-            准备缩略图(statProxy.path)
         },
         end: () => {
+            statPromisesArray.paused = false
+
             res.end();
         }
     }, (walkCount) => {

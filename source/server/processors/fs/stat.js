@@ -73,8 +73,10 @@ export const buildStepCallback = (stepCallback) => {
 const fs = require('fs')
 export const statWithCatch = (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
+
     try {
         if (statCache.get(path)) {
+
             return statCache.get(path)
         }
         let stat = fs.statSync(path)
@@ -82,7 +84,6 @@ export const statWithCatch = (path) => {
             path,
             type: stat.isFile() ? 'file' : 'dir',
             ...stat,
-            ...fs.lstatSync(path)
         })
         return statCache.get(path)
     } catch (e) {
@@ -129,7 +130,7 @@ export const buildStatProxyByPath = (path, entry, type) => {
     //否则会导致statWithCatch缓存失效
     //设法让entry与fs.readdirSync(path)返回的entry一致
     //不能使用lstatSync,因为lstatSync返回的entry没有isDirectory等方法
-    entry = entry || fs.statSync(path)
+    entry = entry || statWithCatch(path.replace(/\\/g,'/'))
     let $stat = {
         name: { value: path },
         path: { value: path },

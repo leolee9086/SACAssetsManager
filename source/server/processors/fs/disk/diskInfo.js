@@ -65,36 +65,45 @@ export function listLocalDisks() {
                     let timeout = 100
                     let isProcessing = false
                     function processNext() {
-                        if(isProcessing){
-                            statPromises.paused = true
+                        let jump = false
+                        if (isProcessing) {
+                            jump = true
                         }
                         isProcessing = true
-                        if (index < statPromises.length&&!statPromises.paused) {
-                            console.log('processNext', index,statPromises.length,timeout)
+                        if (statPromises.length && !statPromises.paused && !jump) {
+                            if (index % 10000 == 0||statPromises.length<1000) {
+                                console.log('processNext', index, statPromises.length, timeout)
+                            }
                             index++;
 
-                            statPromises[index]().then(stat => {
-                                // 处理stat
-                                timeout = Math.max(timeout/2,18)
-                                setImmediate(processNext,{timeout:100,deadline:18}); // 递归调用以处理下一个Promise
-                            });
-                        } else {
-                            if (!ended) {
-                                console.log('processNextLater', index,statPromises.length,timeout)
+                            (statPromises.pop())().then(stat => {
 
-                                setTimeout(() => {
+                            });
+                            setImmediate(
+                                processNext // 递归调用以处理下一个Promise
+                                , timeout)
+
+                            // 处理stat
+                            timeout = Math.max(timeout / 2, 10)
+                        } else {
+                            if (!statPromises.ended()) {
+                                if (index % 10000 == 0||statPromises.length<1000) {
+
+                                    console.log('processNextLater', index, statPromises.length, timeout)
+                                }
+
+                                timeout = Math.min(timeout * 2, 1000)
+                                setTimeout(
                                     processNext // 递归调用以处理下一个Promise
-                                }, timeout*2)
+                                    , timeout)
                             }
                         }
                         isProcessing = false
                     }
-                    let ended = false
                     for (let i = 0; i < diskPromises.length; i++) {
-                        statPromises = await diskPromises[i]()
-                        queueMicrotask(processNext); // 开始处理第一个Promise
+                        statPromises = (await diskPromises[i]()).statPromisesArray
+                        setImmediate(processNext); // 开始处理第一个Promise
                     }
-                    ended = true
                     console.timeEnd('buildIndex')
                 })()
             })

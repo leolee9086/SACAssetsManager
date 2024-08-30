@@ -4,8 +4,6 @@ global[Symbol.for('tree')] = globalThis[Symbol.for('tree')] || {
     flatDirs: []
 }
 import { buildCache } from '../../cache/cache.js'
-const 遍历缓存 = buildCache('walk')
-const statCache = buildCache('statCache')
 const statPromisesArray = []
 global[Symbol.for('statPromises')] = globalThis[Symbol.for('statPromises')] ||statPromisesArray
 export {statPromisesArray}
@@ -37,53 +35,12 @@ export async function 构建磁盘目录树(diskLetter) {
     global[Symbol.for('tree')].disks.push(disk)
     return await 构建目录树(disk.root, true, disk, diskTree.flatDirs, diskTree.flatFiles)
 }
-const fs = require('fs')
-const statSync = require('fs').statSync
-import { fdir } from '../fdirModified/index.js'
+let tasks = 0
+const 遍历缓存 = buildCache('walk')
+const statCache = buildCache('statCache')
+
 export async function 构建目录树(root, withFlat = false, $rootItem, $flatDirs, $flatFiles) {
     console.log(root)
-    console.time('fdir' + root)
-    const paths = new fdir()
-        .withFullPaths()
-        .withCache(遍历缓存)
-        .filter(file => {
-            statPromisesArray.push(
-                () => new Promise((resolve, reject) => {
-                    console.log('闲时索引', file)
-                    if (statCache.get(file)) {
-                        resolve({
-                            path: file,
-                            stats: statCache.get(file)
-                        })
-                    } else {
-                        stat(file, (err, stats) => {
-                            if (err) {
-                                resolve({
-                                    path: file,
-                                    stats: null,
-                                    error: err.message
-                                })
-                            }
-                            statCache.set(file, stats)
-                            resolve({
-                                path: file,
-                                stats: stats
-                            })
-                            return
-                        })
-                    }
-                })
-            )
-            return true
-        })
-        .crawl(root)
-    const result = await paths.withPromise()
-    console.timeEnd('fdir' + root)
-    console.log(result)
-    return statPromisesArray
-
-
-
     let rootItem = $rootItem || {
         name: root,
         path: root,
@@ -94,7 +51,6 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
         rootItem.flatFiles = []
         rootItem.flatDirs = []
     }
-    let tasks = 0
     let totalTasks = 0
     let stated = 0
     let { flatFiles, flatDirs } = rootItem
@@ -113,8 +69,6 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
     let options = {
         withFileTypes: true
     }
-    const promises = []
-    const statPromises = []
 
 
 
@@ -126,6 +80,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
 
         try {
             entries = readdir(currentDir, options)
+            遍历缓存.set(currentDir.replace(/\//g,'\\'),entries)
             totalTasks += entries.length
         } catch (e) {
             dir.error = e.message
@@ -146,8 +101,8 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                             parent: currentDir
                         }
                         tasks++;
-                        promises.push(
-                            new Promise(async (resolve, reject) => {
+                        statPromisesArray.push(
+                            ()=>  new Promise(async (resolve, reject) => {
                                 try {
                                     await 递归构建目录树(dirItem)
                                     resolve()
@@ -159,12 +114,22 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                         )
                         dirs.push(dirItem)
                         pushFlatDirs(dirItem)
-                        statPromises.push(
-                            new Promise((resolve, reject) => {
+                        tasks++
+                        statPromisesArray.push(
+                            ()=>   new Promise((resolve, reject) => {
                                 stat(dirItem.path, (err, stats) => {
+                                    tasks--
                                     if (err) {
                                         resolve()
                                     } else {
+                                        statCache.set(
+                                            dirItem.path.replace(/\\/g,'/').replace(/\/\//g,'/'),
+                                            {
+                                                path:dirItem.path,
+                                                type:'dir',
+                                                ...stats,
+                                            }
+                                        )
                                         dirItem.type = 'dir'
                                         dirItem.atime = stats.atime
                                         dirItem.atimeMs = stats.atimeMs
@@ -206,12 +171,23 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                 }
                 files.push(fileItem)
                 pushFlatFiles(fileItem)
-                statPromises && statPromises.length <= 1000000 && statPromises.push(
-                    new Promise((resolve, reject) => {
+                tasks++
+                statPromisesArray.push(
+                  ()=>  new Promise((resolve, reject) => {
                         stat(fileItem.path, (err, stats) => {
+                            tasks--
                             if (err) {
                                 resolve()
                             } else {
+                                statCache.set(
+                                    fileItem.path.replace(/\\/g,'/').replace(/\/\//g,'/'),
+                                    {
+                                        path:fileItem.path,
+                                        type:'file',
+                                        ...stats,
+                                    }
+                                )
+
                                 fileItem.stats = stats
                                 fileItem.type = 'file'
                                 fileItem.atime = stats.atime
@@ -247,22 +223,14 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
         tasks--
     }
     tasks++
+    statPromisesArray.ended =()=>{
+        return tasks === 0
+    }
     try {
         await 递归构建目录树(rootItem)
     } catch (e) {
         tasks--
         throw e
     }
-    console.time('glob' + rootItem.path)
-    while (tasks > 0) {
-        await Promise.all(promises)
-    }
-    console.timeEnd('glob' + rootItem.path)
-    //stat响应不需要等待，存入之前能读取多少就读取多少
-    console.time('stat' + rootItem.path)
-    console.log(statPromises.length, statPromises)
-
-    Promise.all(statPromises)
-    console.timeEnd('stat' + rootItem.path)
-    return rootItem
+    return {rootItem,statPromisesArray}
 }

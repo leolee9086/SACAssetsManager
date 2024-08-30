@@ -24,14 +24,20 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     const realFilter = async (path, isDir) => {
         statPromisesArray.paused = true
         if (signal.aborted) {
+            statPromisesArray.paused = false
+
             return false
         }
         if (total > maxCount) {
             signal.walkController.abort()
+            statPromisesArray.paused = false
+
             return false
         }
         for await (let dir of ignoreDir) {
             if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
+                statPromisesArray.paused = false
+
                 return false
             }
         }
@@ -45,12 +51,18 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
      
         if (isDir) {
             if (count > maxCount) {
+                statPromisesArray.paused = false
+
                 return false
             }
             try{
                 let flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
+                statPromisesArray.paused = false
+
                 return flag
             }catch(e){
+                statPromisesArray.paused = false
+
                 return false
             }
         }
@@ -61,16 +73,18 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         try{
             result= filter ? await filter(proxy, proxy.path.split('/').length) : true
         }catch(e){
+            statPromisesArray.paused = false
+
             return false
         }
         
         result && stepCallback &&proxy.isFile&&stepCallback(proxy)
         result && count++
-        requestIdleCallback(() => {
-            statPromisesArray.paused = false
-        },{deadline:18})
+        statPromisesArray.paused = false
         return result
     }
+    statPromisesArray.paused = false
+
     const api = new fdir()
         .withFullPaths()
         .withSignal(signal)
