@@ -10,7 +10,6 @@ export function listLocalDisks() {
     return new Promise(async (resolve, reject) => {
         if (!diskInfos[0]) {
             if (platform === 'win32') {
-
                 diskInfos = await listLocalDisksWin32(outputFilePath)
                 resolve(diskInfos)
             } else {
@@ -72,7 +71,7 @@ export function listLocalDisks() {
                         isProcessing = true
                         if (statPromises.length && !statPromises.paused && !jump) {
                             if (index % 10000 == 0||statPromises.length<1000) {
-                             //   console.log('processNext', index, statPromises.length, timeout)
+                               console.log('processNext', index, statPromises.length, timeout)
                             }
                             index++;
 
@@ -89,7 +88,7 @@ export function listLocalDisks() {
                             if (!statPromises.ended()) {
                                 if (index % 10000 == 0||statPromises.length<1000) {
 
-                             //       console.log('processNextLater', index, statPromises.length, timeout)
+                                    console.log('processNextLater', index, statPromises.length, timeout)
                                 }
 
                                 timeout = Math.min(timeout * 2, 1000)
