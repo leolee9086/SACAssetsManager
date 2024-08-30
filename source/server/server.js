@@ -14,6 +14,9 @@ import { statWithCatch } from './processors/fs/stat.js';
 import * as headers from './middlewares/headers.js';
 import { genColor, getFilesByColor } from './handlers/get-color.js'
 import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
+import { getCachePath } from './processors/fs/cached/fs.js'
+import { genStatHash } from './processors/fs/stat.js'
+
 const siyuanBroadcastChannel =await createSiyuanBroadcastChannel('sacAssetsManager',window.siyuanPort)
 siyuanBroadcastChannel.onmessage = (e)=>{
     console.log(e)
@@ -69,6 +72,7 @@ app.get('/color',async (req,res)=>{
     源文件地址 = 源文件地址.replace(/\//g,'\\')
     let stat = statWithCatch(源文件地址)
     let 缓存键 = JSON.stringify({stat})
+   
     let ctx = {
         req,
         res,
@@ -85,7 +89,9 @@ app.get('/color',async (req,res)=>{
     )
 
 })
+
 app.get('/thumbnail',  (req, res) => {
+    const fs = require('fs')
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
@@ -96,6 +102,21 @@ app.get('/thumbnail',  (req, res) => {
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('thumbnailCache')
+    const hashedName = genStatHash(stat) + '.thumbnail.png'
+    const 缓存目录 = getCachePath(源文件地址,'thumbnails').cachePath
+    if(!fs.existsSync(缓存目录)){
+        fs.mkdirSync(缓存目录,{recursive:true})
+    }
+    let 缓存路径 = require('path').join(缓存目录, hashedName)
+    let extension = 源文件地址.split('.').pop()
+    let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
+    if(fs.existsSync(缓存路径)){
+        res.sendFile(缓存路径)
+        return
+    }else if(fs.existsSync(扩展名缓存路径)){
+        res.sendFile(扩展名缓存路径)
+        return
+    }
     let ctx = {
         req,
         res,

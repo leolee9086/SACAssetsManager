@@ -1,5 +1,5 @@
 import { diffColor } from "./Kmeans.js"
-import { getCachePath,getRoot } from '../fs/cached/fs.js'
+import { getCachePath } from '../fs/cached/fs.js'
 let colorIndex = []
 let loaded = {}
 globalThis.colorIndex = globalThis.colorIndex || colorIndex

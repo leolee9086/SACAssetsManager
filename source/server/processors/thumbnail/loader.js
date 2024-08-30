@@ -82,10 +82,7 @@ export function listLoaders() {
 }
 
 
-const 缓存目录 = require('path').join(siyuanConfig.system.workspaceDir, 'temp', 'sac', 'thumbnail')
-if (!require('fs').existsSync(缓存目录)) {
-    require('fs').mkdirSync(缓存目录, { recursive: true })
-}
+
 const fs = require('fs')
 import { asyncReadFile } from '../fs/utils/withExists.js'
 const commonIcons = new Map()
@@ -126,17 +123,21 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         }
     }
     const hashedName = genStatHash(stat) + '.thumbnail.png'
+    const 缓存目录 = getCachePath(imagePath,'thumbnails').cachePath
+    if(!fs.existsSync(缓存目录)){
+        fs.mkdirSync(缓存目录,{recursive:true})
+    }
     let 缓存路径 = require('path').join(缓存目录, hashedName)
     if (useExtension) {
         缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     }
-
     let fromFIle = await asyncReadFile(缓存路径)
     if (fromFIle && fromFIle.length >= 100) {
         return fromFIle
     }
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)
     tumbnailCache.set(缓存键, thumbnailBuffer)
+
     if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
         commonIcons.set(extension, thumbnailBuffer)
         fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
@@ -153,9 +154,11 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         })
     }
     return thumbnailBuffer
+
 }
 const tumbnailCache = buildCache('thumbnailCache')
 import { 智能防抖 } from '../../../utils/functionTools.js'
+import { getCachePath } from '../fs/cached/fs.js'
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
     智能防抖(async () => {
         await genThumbnailColor(imagePath, loaderID)
