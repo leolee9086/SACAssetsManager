@@ -8,7 +8,7 @@
             </div>
             <div class=" fn__flex ">
 
-                <input v-model="everthingPort" style="box-sizing: border-box;width:100px;" :value="10000" type="number">
+                <input v-model="everthingPort" style="box-sizing: border-box;width:100px;" :value="100" type="number">
 
                 <div class="fn__space fn__flex-1"></div>
 

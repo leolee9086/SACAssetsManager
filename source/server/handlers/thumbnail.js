@@ -20,7 +20,6 @@ const getThumbnailWithCache = async (ctx)=>{
     }
     let loaderID = ctx.query.loaderID
     try {
-
         result = await 生成缩略图(源文件地址, loaderID)
     } catch (e) {
         console.warn(e)
@@ -53,6 +52,9 @@ export async function genPallte(ctx, next) {
     let result = await 获取颜色(thumbnail)
     res.json(result)
 }
+
+
+
 export async function genThumbnail(ctx, next) {
     let { req, res, 缓存对象 } = ctx
     let { 源文件地址, 缓存键 } = ctx.stats
@@ -71,8 +73,6 @@ export async function genThumbnail(ctx, next) {
             } else {
                 res.type('png').send(result)
             }
-        } else {
-            res.status(404).send('Image not found');
         }
     } catch (e) {
         console.warn(e)

@@ -11,7 +11,7 @@ colorIndex = globalThis.colorIndex
  */
 const fs = require('fs')
 export async function 添加到颜色索引(colorItem, assets) {
-    const { cachePath } = getCachePath(assets, 'colorIndex.json')
+    const { cachePath,root } = getCachePath(assets, 'colorIndex.json')
     if (fs.existsSync(cachePath) && !loaded[cachePath]) {
         console.log('从', cachePath, '加载缓存')
 
@@ -19,6 +19,12 @@ export async function 添加到颜色索引(colorItem, assets) {
         const cached = JSON.parse(fs.readFileSync(cachePath))
         cached.forEach(
             item => {
+                item.assets=item.assets.map(asset=>{
+                    if(asset.path.startsWith(root)){
+                        return asset
+                    }
+                    return {...asset,path:require('path').join(root,asset.path)}
+                })
                 colorIndex.push(item)
             }
         )
@@ -55,9 +61,18 @@ async function 保存颜色索引(targetPath, mapper) {
     if (trasactionwsCount < 100) {
         return
     }
+    const root = targetPath.replace('\\.sac\\colorIndex.json','').replace('\\.sac\\colorIndex.json','')
+    console.log(root)
     const fs = require('fs')
     清理颜色索引(colorIndex)
-    const colorIndexMapped = colorIndex.map(mapper)
+    const colorIndexMapped = colorIndex.filter(
+        colorItem=>{
+            return colorItem.assets.find(asset=>asset.path.startsWith(root.trim()))
+        }
+    ).map(mapper).map(item=>{
+        item.assets=item.assets.filter(asset=>asset.path.startsWith(root.trim())).map(asset=>{return {...asset,path:asset.path.replace(root.trim(),'')}})
+        return item
+    })
     fs.writeFileSync(targetPath, JSON.stringify(colorIndexMapped))
     trasactionwsCount = 0
 }

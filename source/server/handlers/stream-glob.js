@@ -13,6 +13,9 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
+const { Readable } = require('stream');
+
+
 const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkController) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
@@ -38,14 +41,15 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     } else {
         filterFun = undefined
     }
+    let chunked = []
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile: async (statProxy) => {
             const { name, path, type, size, mtime, mtimems, error } = statProxy;
-            const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
-            console.log(data)
-            res.write(`data:${data}\n`)
+           const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
+           
+           res.write(`data:${data}\n`)
             res.flush()
-          // setImmediate(()=>准备缩略图(path))
+           准备缩略图(path)
         },
         end: () => {
             res.end();
@@ -54,6 +58,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         res.write(`data:${JSON.stringify({ walkCount })}\n`)
         res.flush()
     }, walkSignal, maxCount);
+    
 };
 
 const diffColorCache = new Map()

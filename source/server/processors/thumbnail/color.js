@@ -18,7 +18,7 @@ export async function getColor(buffer, filePath) {
     }
     let rgba
     try {
-        rgba = await sharp(buffer).resize(64, 64, {
+        rgba = await sharp(buffer).resize(32, 32, {
             fit: 'inside',
             withoutEnlargement: true // 防止放大图像
         }).raw().toBuffer()

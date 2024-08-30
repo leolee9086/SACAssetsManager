@@ -4,7 +4,7 @@ import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
 import { genStatHash } from '../fs/stat.js'
-import { noThumbnailList,imageExtensions } from './utils/lists.js'
+import { noThumbnailList, imageExtensions } from './utils/lists.js'
 
 
 let loderPaths = [
@@ -91,7 +91,7 @@ const fs = require('fs')
 import { asyncReadFile } from '../fs/utils/withExists.js'
 const commonIcons = new Map()
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
-    imagePath=imagePath.replace(/\\/g,'/')
+    imagePath = imagePath.replace(/\\/g, '/')
     const extension = imagePath.split('.').pop()
     let useExtension = false
     let useRaw = false
@@ -114,12 +114,16 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (imageExtensions.includes(extension) && stat.size < 1024 * 5) {
         useRaw = true
         console.log('使用原始图', imagePath)
-        const rawBuffer = fs.readFileSync(imagePath)
-        tumbnailCache.set(缓存键, rawBuffer)
-        return {
-            data: rawBuffer,
-            type: extension,
-            isImage: true,
+        try {
+            const rawBuffer = fs.readFileSync(imagePath)
+            tumbnailCache.set(缓存键, rawBuffer)
+            return {
+                data: rawBuffer,
+                type: extension,
+                isImage: true,
+            }
+        } catch (e) {
+            console.error(e)
         }
     }
     const hashedName = genStatHash(stat) + '.thumbnail.png'
@@ -127,8 +131,9 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (useExtension) {
         缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     }
-    let fromFIle=await asyncReadFile(缓存路径)
-    if(fromFIle&&fromFIle.length>=100){
+
+    let fromFIle = await asyncReadFile(缓存路径)
+    if (fromFIle && fromFIle.length >= 100) {
         return fromFIle
     }
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)
@@ -151,11 +156,12 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     return thumbnailBuffer
 }
 const tumbnailCache = buildCache('thumbnailCache')
+import { 智能防抖 } from '../../../utils/functionTools.js'
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
-    requestIdleCallback(async () => {
+    智能防抖(async () => {
         const thumbnailBuffer = await 生成缩略图(imagePath, loaderID)
         await getColor(thumbnailBuffer, imagePath)
-    }, { deadline: 10 })
+    }, (idle, average) => { console.log(idle, average) })
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)

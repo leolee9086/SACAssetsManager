@@ -141,7 +141,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     }
     const api = new fdir()
         .withFullPaths()
-        .withIdleCallback({ deadline: 1, timeout: 1000 })
+       // .withIdleCallback({ deadline: 1, timeout: 1000 })
         .withSignal(signal)
         .withMaxFiles()
         .withCache(new Map())

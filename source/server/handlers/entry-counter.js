@@ -1,9 +1,7 @@
 const fastGlob = require('fast-glob');
-
 async function countEntries(dir) {
     const files = await fastGlob(['*'], { cwd: dir + '/', absolute: true, onlyFiles: true, suppressErrors: true, dot: true });
     const folders = await fastGlob(['*'], { cwd: dir + '/', absolute: true, onlyDirectories: true, suppressErrors: true, dot: true });
-    console.log(dir,files,folders)
     return {
         name: dir.split('/').pop(),
         fileCount: files.length,
@@ -12,7 +10,6 @@ async function countEntries(dir) {
 
     };
 }
-
 async function getTopLevelFoldersInfo(rootDir, maxCount=1000) {
     const topLevelFolders = await fastGlob(['*'], { cwd: rootDir, onlyDirectories: true, absolute: true, suppressErrors: true, dot: true });
     let folderInfoPromises = []
@@ -30,6 +27,5 @@ export const entryCounter = async (req, res) => {
     const root = req.query.root
     let maxCount = req.query.maxCount
     let data = await getTopLevelFoldersInfo(root, maxCount)
-    console.log(data)
     res.end(JSON.stringify(data.slice(0, maxCount)))
 }
