@@ -17,6 +17,7 @@ import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.j
 import { getCachePath } from './processors/fs/cached/fs.js'
 import { genStatHash } from './processors/fs/stat.js'
 import { statPromisesArray } from './processors/fs/disk/tree.js';
+import { sendFileWithCacheSet } from './handlers/utils/responseType.js';
 const siyuanBroadcastChannel =await createSiyuanBroadcastChannel('sacAssetsManager',window.siyuanPort)
 siyuanBroadcastChannel.onmessage = (e)=>{
     console.log(e)
@@ -90,7 +91,7 @@ app.get('/color',async (req,res)=>{
 
 })
 
-app.get('/thumbnail',  (req, res) => {
+app.get('/thumbnail',  async (req, res) => {
     statPromisesArray.paused = true
     const fs = require('fs')
     let 源文件地址 = ''
@@ -117,25 +118,11 @@ app.get('/thumbnail',  (req, res) => {
         statPromisesArray.paused = false
         return
     }
-    if(fs.existsSync(缓存路径)){
-        res.sendFile(缓存路径)
-        fs.readFile(缓存路径,(err,data)=>{
-            if(err){
-                console.error(err)
-            }
-            thumbnailCache.set(缓存键,data)
-        })
-        statPromisesArray.paused = false
+    // 先检查是否存在缓存的缩略图
+    if(await sendFileWithCacheSet(res,缓存路径,thumbnailCache,缓存键)){
         return
-    }else if(fs.existsSync(扩展名缓存路径)){
-        res.sendFile(扩展名缓存路径)
-        fs.readFile(扩展名缓存路径,(err,data)=>{
-            if(err){
-                console.error(err)
-            }
-            thumbnailCache.set(缓存键,data)
-        })
-        statPromisesArray.paused = false
+    }
+    if(await sendFileWithCacheSet(res,扩展名缓存路径,thumbnailCache,缓存键)){
         return
     }
     let ctx = {
