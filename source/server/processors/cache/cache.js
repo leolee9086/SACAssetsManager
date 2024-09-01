@@ -73,6 +73,20 @@ export class BaseCacheProvider{
         this.cache.set(key, {value, timestamp: Date.now()})
     
     }
+    filterSync(filter){
+        const keys = this.cache.keys()
+        const result = []
+        for(const key of keys){
+            try{
+                if(filter(this.cache.get(key).value)){
+                    result.push(this.cache.get(key).value)
+                }
+            }catch(e){
+                console.error(e)
+            }
+        }
+        return result[0]?result[0]:null
+    }
     /**
      * 
      */

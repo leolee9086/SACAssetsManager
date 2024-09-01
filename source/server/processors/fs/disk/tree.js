@@ -3,13 +3,15 @@ global[Symbol.for('tree')] = globalThis[Symbol.for('tree')] || {
     flatFiles: [],
     flatDirs: []
 }
+import { 监听文件夹条目 } from '../watch.js'
 import { buildCache } from '../../cache/cache.js'
 const statPromisesArray = []
-global[Symbol.for('statPromises')] = globalThis[Symbol.for('statPromises')] ||statPromisesArray
-export {statPromisesArray}
+global[Symbol.for('statPromises')] = globalThis[Symbol.for('statPromises')] || statPromisesArray
+export { statPromisesArray }
 export const diskTree = global[Symbol.for('tree')]
 const stat = require('fs').stat
 const readdir = require('fs').readdirSync
+const statSync = require('fs').statSync
 export function pushPromise(promise) {
     return new Promise((resolve, reject) => {
         promise.then(() => {
@@ -32,7 +34,75 @@ export async function 构建磁盘目录树(diskLetter) {
         flatFiles: [],
         flatDirs: []
     }
+    监听文件夹条目({
+        path: disk.root,
+        type: 'dir'
+    }, (error, entries) => {
+        if (error) {
+            console.error('文件系统变化监听错误', error,entries)
+            return
+        }
+        try {
+            console.log('文件系统变化', event, entries)
+            entries.forEach(entry => {
+                let path = entry.path
+                let eventType = entry.type
+                path = path.replace(/\\/g, '/').replace(/\/\//g, '/')
+                if(eventType === 'delete'){
+                    遍历缓存.delete(path)
+                    遍历缓存.delete(path.replace(/\//g, '\\'))
+                    statCache.delete(path)
+                    statCache.delete(path.replace(/\//g, '\\'))
+                    return
+                }
+
+                statPromisesArray.push(() => {
+                    return new Promise((resolve, reject) => {
+                        try {
+                            if(!require('fs').existsSync(path)){
+                                resolve({path,error:'文件不存在'})
+                                return
+                            }
+                            let stats = statSync(path)
+                            console.log('文件系统变化', path, stats)
+                            let isDir = stats.isDirectory()
+                            if (isDir) {
+                                let entries = readdir(path, { withFileTypes: true })
+                                遍历缓存.set(path.replace(/\//g, '\\'), entries)
+                                遍历缓存.set(path, entries)
+                                statCache.set(path, {
+                                    path,
+                                    type: 'dir',
+                                    ...stats
+                                })
+                            } else {
+                                let dir = path.split('/').slice(0, -1).join('/')
+                                let entries =readdir(path, { withFileTypes: true })
+                                遍历缓存.set(dir, entries)
+                                statCache.set(path, {
+                                    path,
+                                    type: 'file',
+                                    ...stats
+                                })
+                            }
+                            resolve(stats)
+                        } catch (e) {
+                            console.error('文件系统变化监听错误', e)
+
+                            resolve({ path, error: e })
+                        }
+                    })
+                })
+            })
+        } catch (e) {
+            console.error('文件系统变化监听错误', e)
+        }
+    })
+
+    console.log('构建磁盘目录树', disk.root)
     global[Symbol.for('tree')].disks.push(disk)
+    根据路径查找并加载颜色索引(disk.root)
+    //   return {disk,statPromisesArray}
     return await 构建目录树(disk.root, true, disk, diskTree.flatDirs, diskTree.flatFiles)
 }
 let tasks = 0
@@ -40,20 +110,17 @@ const 遍历缓存 = buildCache('walk')
 const statCache = buildCache('statCache')
 import { 根据路径查找并加载颜色索引 } from '../../color/colorIndex.js'
 export async function 构建目录树(root, withFlat = false, $rootItem, $flatDirs, $flatFiles) {
-    console.log(root)
     let rootItem = $rootItem || {
         name: root,
         path: root,
         subDirs: [],
         files: [],
     }
-    根据路径查找并加载颜色索引(root)  
     if (withFlat) {
         rootItem.flatFiles = []
         rootItem.flatDirs = []
     }
     let totalTasks = 0
-    let stated = 0
     let { flatFiles, flatDirs } = rootItem
     const pushFlatFiles = (dir) => {
         if (withFlat) {
@@ -78,7 +145,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
 
         try {
             entries = readdir(currentDir, options)
-            遍历缓存.set(currentDir.replace(/\//g,'\\'),entries)
+            遍历缓存.set(currentDir.replace(/\//g, '\\'), entries)
             totalTasks += entries.length
         } catch (e) {
             dir.error = e.message
@@ -96,11 +163,16 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                             path: currentDir + entryName + '/',
                             subDirs: [],
                             files: [],
-                            parent: currentDir
+                            parent: currentDir,
+                            type: 'dir'
                         }
                         tasks++;
+                        if (statCache.get(dirItem.path)) {
+                            tasks--
+                            continue
+                        }
                         statPromisesArray.push(
-                            ()=>  new Promise(async (resolve, reject) => {
+                            () => new Promise(async (resolve, reject) => {
                                 try {
                                     await 递归构建目录树(dirItem)
                                     resolve(dirItem)
@@ -113,50 +185,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                         dirs.push(dirItem)
                         pushFlatDirs(dirItem)
                         tasks++
-                        statPromisesArray.push(
-                            ()=>   new Promise((resolve, reject) => {
-                                stat(dirItem.path, (err, stats) => {
-                                    tasks--
-                                    if (err) {
-                                        resolve(err)
-                                    } else {
-                                        statCache.set(
-                                            dirItem.path.replace(/\\/g,'/').replace(/\/\//g,'/'),
-                                            {
-                                                path:dirItem.path,
-                                                type:'dir',
-                                                ...stats,
-                                            }
-                                        )
-                                        dirItem.type = 'dir'
-                                        dirItem.atime = stats.atime
-                                        dirItem.atimeMs = stats.atimeMs
-                                        dirItem.birthtime = stats.birthtime
-                                        dirItem.birthtimeMs = stats.birthtimeMs
-                                        dirItem.blksize = stats.blksize
-                                        dirItem.blocks = stats.blocks
-                                        dirItem.blksize = stats.blksize
-                                        dirItem.blocks = stats.blocks
-                                        dirItem.ctime = stats.ctime
-                                        dirItem.ctimeMs = stats.ctimeMs
-                                        dirItem.dev = stats.dev
-                                        dirItem.gid = stats.gid
-                                        dirItem.ino = stats.ino
-                                        dirItem.mode = stats.mode
-                                        dirItem.mtime = stats.mtime
-                                        dirItem.mtimeMs = stats.mtimeMs
-                                        dirItem.nlink = stats.nlink
-                                        dirItem.rdev = stats.rdev
-                                        dirItem.size = stats.size
-                                        dirItem.uid = stats.uid
-                                        dirItem.rdev = stats.rdev
-                                        dirItem.size = stats.size
-                                        dirItem.uid = stats.uid
-                                        resolve(dirItem)
-                                    }
-                                })
-                            })
-                        )
+                        添加文件解析任务到任务队列(dirItem, tasks)
                     }
                 } else {
                     dir.sacIndexed = true
@@ -165,63 +194,23 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                 let fileItem = {
                     name: entryName,
                     path: currentDir + entryName,
-                    parent: currentDir
+                    parent: currentDir,
+                    type: 'file'
                 }
                 files.push(fileItem)
                 pushFlatFiles(fileItem)
                 tasks++
-                statPromisesArray.push(
-                  ()=>  new Promise((resolve, reject) => {
-                        stat(fileItem.path, (err, stats) => {
-                            tasks--
-                            if (err) {
-                                resolve(err)
-                            } else {
-                                statCache.set(
-                                    fileItem.path.replace(/\\/g,'/').replace(/\/\//g,'/'),
-                                    {
-                                        path:fileItem.path,
-                                        type:'file',
-                                        ...stats,
-                                    }
-                                )
-
-                                fileItem.stats = stats
-                                fileItem.type = 'file'
-                                fileItem.atime = stats.atime
-                                fileItem.atimeMs = stats.atimeMs
-                                fileItem.birthtime = stats.birthtime
-                                fileItem.birthtimeMs = stats.birthtimeMs
-                                fileItem.blksize = stats.blksize
-                                fileItem.blocks = stats.blocks
-                                fileItem.blksize = stats.blksize
-                                fileItem.blocks = stats.blocks
-                                fileItem.ctime = stats.ctime
-                                fileItem.ctimeMs = stats.ctimeMs
-                                fileItem.dev = stats.dev
-                                fileItem.gid = stats.gid
-                                fileItem.ino = stats.ino
-                                fileItem.mode = stats.mode
-                                fileItem.mtime = stats.mtime
-                                fileItem.mtimeMs = stats.mtimeMs
-                                fileItem.nlink = stats.nlink
-                                fileItem.rdev = stats.rdev
-                                fileItem.size = stats.size
-                                fileItem.uid = stats.uid
-                                fileItem.rdev = stats.rdev
-                                fileItem.size = stats.size
-                                fileItem.uid = stats.uid
-                                resolve(fileItem)
-                            }
-                        })
-                    })
-                )
+                if (statCache.get(fileItem.path)) {
+                    tasks--
+                    continue
+                }
+                添加文件解析任务到任务队列(fileItem, tasks)
             }
         }
         tasks--
     }
     tasks++
-    statPromisesArray.ended =()=>{
+    statPromisesArray.ended = () => {
         return tasks === 0
     }
     try {
@@ -230,5 +219,61 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
         tasks--
         throw e
     }
-    return {rootItem,statPromisesArray}
+
+    return { rootItem, statPromisesArray }
+}
+
+function 创建文件系统条目缓存(path, type, stats) {
+    let cacheKey = path.replace(/\\/g, '/').replace(/\/\//g, '/')
+    statCache.set(cacheKey, {
+        path,
+        type,
+        ...stats
+    })
+}
+function 合并文件系统条目(item, type, stats) {
+    item.type = type
+    item.atime = stats.atime
+    item.atimeMs = stats.atimeMs
+    item.birthtime = stats.birthtime
+    item.birthtimeMs = stats.birthtimeMs
+    item.blksize = stats.blksize
+    item.blocks = stats.blocks
+    item.blksize = stats.blksize
+    item.blocks = stats.blocks
+    item.ctime = stats.ctime
+    item.ctimeMs = stats.ctimeMs
+    item.dev = stats.dev
+    item.gid = stats.gid
+    item.ino = stats.ino
+    item.mode = stats.mode
+    item.mtime = stats.mtime
+    item.mtimeMs = stats.mtimeMs
+    item.nlink = stats.nlink
+    item.rdev = stats.rdev
+    item.size = stats.size
+    item.uid = stats.uid
+    item.rdev = stats.rdev
+    item.size = stats.size
+    item.uid = stats.uid
+}
+function 添加文件解析任务到任务队列(item, tasksCount) {
+    statPromisesArray.push(
+        () => new Promise((resolve, reject) => {
+            stat(item.path, (err, stats) => {
+                tasksCount--
+                if (err) {
+                    resolve({ path: item.path, error: err })
+                } else {
+                    try {
+                        创建文件系统条目缓存(item.path, item.type, stats)
+                        合并文件系统条目(item, item.type, stats)
+                    } catch (e) {
+                        resolve({ path: item.path, error: e })
+                    }
+                    resolve(item)
+                }
+            })
+        })
+    )
 }

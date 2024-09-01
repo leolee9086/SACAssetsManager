@@ -84,6 +84,9 @@ export function listLocalDisks() {
                                     console.log('processFile', stat.path,index, statPromises.length, end-start)
                                     log = false
                                 }
+                                if(stat.error){
+                                    console.log('processFileError', stat.path,stat.error,index, statPromises.length, end-start)
+                                }
                                 setTimeout(
                                     processNext // 递归调用以处理下一个Promise
                                     , timeout)
