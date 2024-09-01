@@ -8,6 +8,7 @@ export default class EagleLoader {
         const cleanedName = name.split('.')[0]
         const iconPath = `${dir}/${cleanedName}_thumbnail.png`        
         if(fs.existsSync(iconPath)){
+        
             return fs.readFileSync(iconPath)
         }
         return null

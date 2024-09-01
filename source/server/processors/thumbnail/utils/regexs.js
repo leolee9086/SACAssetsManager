@@ -8,3 +8,6 @@ export const isEagleMeta =(path)=>{
 export const isEagleThumbnail =(path)=>{
     return eagleRegex.test(path)&&path.endsWith('_thumbnail.png')
 }
+export const isWindsysThumbnailDb =(path)=>{
+    return path.endsWith('Thumbs.db')
+}

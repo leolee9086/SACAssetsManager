@@ -4,7 +4,7 @@ import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
 import { statPromisesArray } from './disk/tree.js'
-import { isEagleMeta,isEagleThumbnail } from '../thumbnail/utils/regexs.js'
+import { isEagleMeta,isEagleThumbnail,isWindsysThumbnailDb } from '../thumbnail/utils/regexs.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -48,7 +48,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         }
         let modifydied = path.replace(/\\/g,'/')
         let proxy = buildStatProxyByPath(modifydied, entry, isDir ? 'dir' : 'file')
-        if(isEagleMeta(modifydied)||isEagleThumbnail(modifydied)){
+        if(isEagleMeta(modifydied)||isEagleThumbnail(modifydied)||isWindsysThumbnailDb(modifydied)){
             return false
         }
         if (isDir) {
