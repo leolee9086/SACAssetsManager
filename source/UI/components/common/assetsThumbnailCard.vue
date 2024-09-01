@@ -21,8 +21,7 @@
         <div v-show="showIframe" ref="protyleContainer">
             <div></div>
         </div>
-        <img v-bind="$attrs" ref="image" v-if="showImage" :style="`${size > 200 ? 'width:100%' : 'width:' + size + 'px'};border:none; 
-        border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${size > 200?imageHeight:size}px;`" loading="eager"
+        <img v-bind="$attrs" ref="image" v-if="showImage" :style="$计算素材缩略图样式" loading="eager"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
         <div :style="`
@@ -174,5 +173,10 @@ function 更新图片尺寸(e, cardData) {
     imageHeight.value = 新高度
     emit('updateSize', { width: cardData.width, height: cardHeight.value })
 }
+
+import { 计算素材缩略图样式 } from './assetStyles.js';
+const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
+    size.value, imageHeight.value, cardData
+))
 </script>
 <style scoped></style>
