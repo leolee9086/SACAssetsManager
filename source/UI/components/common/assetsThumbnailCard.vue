@@ -21,7 +21,7 @@
             <div></div>
         </div>
         <img v-bind="$attrs" ref="image" v-if="showImage" :style="`width:100%;border:none; 
-        border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="lazy"
+        border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="eager"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path)" />
         <div
@@ -63,6 +63,7 @@ const similarColor = computed(() => {
     return item ? filterColor.value : ''
     //return ''
 })
+
 function 打开颜色查找面板(color){
     plugin.eventBus.emit('click-galleryColor',color)
 }

@@ -63,6 +63,7 @@ export function listLocalDisks() {
                     let index = 0
                     let timeout = 100
                     let isProcessing = false
+                    let log = false
                     function processNext() {
                         let jump = false
                         if (isProcessing) {
@@ -72,17 +73,27 @@ export function listLocalDisks() {
                         if (statPromises.length && !statPromises.paused && !jump) {
                             if (index % 10000 == 0||statPromises.length<1000) {
                                console.log('processNext', index, statPromises.length, timeout)
+                                log = true
                             }
                             index++;
                             let start = performance.now();
                             (statPromises.pop())().then(stat => {
                                 let end =performance.now()
                                 timeout=Math.max(timeout,end-start)
-                            });
-                            setImmediate(
-                                processNext // 递归调用以处理下一个Promise
-                                , timeout)
-
+                                if(log){
+                                    console.log('processFile', stat.path,index, statPromises.length, end-start)
+                                    log = false
+                                }
+                                setTimeout(
+                                    processNext // 递归调用以处理下一个Promise
+                                    , timeout)
+                            }).catch(e=>{
+                                console.error(e)
+                                timeout = Math.min(timeout * 2, 10000)
+                                setTimeout(
+                                    processNext // 递归调用以处理下一个Promise
+                                    , timeout)
+                            })
                             // 处理stat
                             timeout = Math.max(timeout / 1.1, 10)
                         } else {

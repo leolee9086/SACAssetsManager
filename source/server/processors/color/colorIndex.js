@@ -38,8 +38,9 @@ export async function 添加到颜色索引(colorItem, assets) {
     const { cachePath, root } = getCachePath(assets, 'colorIndex.json')
     await 从路径加载颜色索引(cachePath,root)
     let colorFormated = colorItem.color.map(num => Math.floor(num))
+    let colorValue = colorFormated.join(',')
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
-    let find = colorIndex.find(item => item.color.every((num, index) => num === colorFormated[index]))
+    let find = colorIndex.find(item => item.color.join(',')===colorValue)
     let asstItem = {
         count: colorItem.count,
         percent: colorItem.percent,
@@ -103,13 +104,13 @@ export async function 找到文件颜色(path) {
     let finded = []
     for (let i = 0; i < colorIndex.length; i++) {
         let item = colorIndex[i]
+        let colorValue = item.color.join(',')
         let exist = finded.find(
-            item2 => item2.color.every((num, index) => { return num === item.color[index] })
+            item2 => colorValue===item2.color.join(',')
         )
         if (exist) {
             continue
         }
-
         let find = item.assets.find(assetItem => assetItem.path === path)
         if (find) {
             finded.push({

@@ -103,9 +103,9 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                             ()=>  new Promise(async (resolve, reject) => {
                                 try {
                                     await 递归构建目录树(dirItem)
-                                    resolve()
+                                    resolve(dirItem)
                                 } catch (e) {
-                                    resolve()
+                                    resolve(e)
                                     tasks--
                                 }
                             })
@@ -118,7 +118,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                                 stat(dirItem.path, (err, stats) => {
                                     tasks--
                                     if (err) {
-                                        resolve()
+                                        resolve(err)
                                     } else {
                                         statCache.set(
                                             dirItem.path.replace(/\\/g,'/').replace(/\/\//g,'/'),
@@ -152,7 +152,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                                         dirItem.rdev = stats.rdev
                                         dirItem.size = stats.size
                                         dirItem.uid = stats.uid
-                                        resolve()
+                                        resolve(dirItem)
                                     }
                                 })
                             })
@@ -175,7 +175,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                         stat(fileItem.path, (err, stats) => {
                             tasks--
                             if (err) {
-                                resolve()
+                                resolve(err)
                             } else {
                                 statCache.set(
                                     fileItem.path.replace(/\\/g,'/').replace(/\/\//g,'/'),
@@ -211,7 +211,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
                                 fileItem.rdev = stats.rdev
                                 fileItem.size = stats.size
                                 fileItem.uid = stats.uid
-                                resolve()
+                                resolve(fileItem)
                             }
                         })
                     })
