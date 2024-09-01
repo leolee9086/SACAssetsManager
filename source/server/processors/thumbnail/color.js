@@ -1,4 +1,4 @@
-import { 欧几里得聚类 } from '../color/Kmeans.js'
+import { 欧几里得聚类,CIEDE2000聚类 } from '../color/Kmeans.js'
 import { 找到文件颜色 } from '../color/colorIndex.js'
 const sharp = require('sharp')
 export async function getColor(buffer, filePath) {
@@ -15,7 +15,7 @@ export async function getColor(buffer, filePath) {
         console.log('颜色缓存命中')
         return finded
     }
-    let rgba
+    let rgba=buffer
     try {
         rgba = await sharp(buffer).resize(32, 32, {
             fit: 'inside',
@@ -32,7 +32,7 @@ export async function getColor(buffer, filePath) {
                 item2 = Math.floor(item2)
             }
         }
-        return dominantColors.centers
+        return dominantColors.centers.filter(item=>item.percent>0.05)
     }
     catch (e) {
         console.warn(e)

@@ -108,7 +108,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return tumbnailCache.get(缓存键)
     }
     //小图片直接返回
-    if (imageExtensions.includes(extension) && stat.size < 1024 * 5) {
+    if (imageExtensions.includes(extension) && stat.size < 1024 * 10) {
         useRaw = true
         console.log('使用原始图', imagePath)
         try {
@@ -136,29 +136,30 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (fromFIle && fromFIle.length >= 100) {
         return fromFIle
     }
-    const thumbnailBuffer = await loader.generateThumbnail(imagePath)
-    const compressedBuffer = await sharp(thumbnailBuffer)
-    .png({ quality: 70 })
+    let thumbnailBuffer = await loader.generateThumbnail(imagePath)
+  //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
+    thumbnailBuffer = await sharp(thumbnailBuffer)
+    .png({ compressionLevel: 9 })
     .toBuffer()
 
-    tumbnailCache.set(缓存键, compressedBuffer)
+    tumbnailCache.set(缓存键, thumbnailBuffer)
 
     if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
-        commonIcons.set(extension, compressedBuffer)
-        fs.writeFile(缓存路径, compressedBuffer, (err) => {
+        commonIcons.set(extension, thumbnailBuffer)
+        fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
             if (err) {
                 console.error(err)
             }
         })
     }
     if (!noThumbnailList.includes(extension)) {
-        fs.writeFile(缓存路径, compressedBuffer, (err) => {
+        fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
             if (err) {
                 console.error(err)
             }
         })
     }
-    return compressedBuffer
+    return thumbnailBuffer
 
 }
 const tumbnailCache = buildCache('thumbnailCache')

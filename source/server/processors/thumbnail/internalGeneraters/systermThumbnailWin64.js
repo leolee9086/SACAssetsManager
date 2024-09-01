@@ -18,7 +18,8 @@ export const getLargeIcon = loadCsharpFunc(
                 using (Icon icon = Icon.ExtractAssociatedIcon(filePath))
                 {
                     using (Bitmap bmp = icon.ToBitmap())
-                    {
+                    {   
+                       // bmp.MakeTransparent(); 添加这行代码以处理透明度
                         using (MemoryStream ms = new MemoryStream())
                         {
                             bmp.Save(ms, ImageFormat.Png); 
@@ -76,6 +77,8 @@ export const getBase64Thumbnail = loadCsharpFunc(
             }
 
             Bitmap thumbnail = Bitmap.FromHbitmap(hBitmap);
+            //thumbnail.MakeTransparent();  添加这行代码以处理透明度
+
             DeleteObject(hBitmap);
             Marshal.ReleaseComObject(shellItem);
 
