@@ -76,11 +76,11 @@ export const statWithCatch = (path) => {
 
     try {
         if (statCache.get(path)) {
-
             return statCache.get(path)
         }
         let stat = fs.statSync(path)
         statCache.set(path, {
+            name: path.split('/').pop(),
             path,
             type: stat.isFile() ? 'file' : 'dir',
             ...stat,
@@ -88,6 +88,7 @@ export const statWithCatch = (path) => {
         return statCache.get(path)
     } catch (e) {
         return {
+            name: path.split('/').pop(),
             path,
             isDirectory: () => false,
             isFile: () => false,
@@ -112,15 +113,7 @@ export const buildStatProxy = (entry, dir, useProxy, type) => {
         return proxy
     } else {
         let stats = statWithCatch(path.replace(/\\/g,'/'))
-        let type = stats.type
-        return {
-            name: entry.name,
-            type,
-            path:path.replace(/\\/g,'/'),
-            ...stats,
-            isDirectory: () => type==='dir',
-            isFile: () => type==='file',
-        }
+        return stats
     }
 }
 export const buildStatProxyByPath = (path, entry, type) => {
@@ -129,31 +122,6 @@ export const buildStatProxyByPath = (path, entry, type) => {
     //否则会导致statWithCatch缓存失效
     //设法让entry与fs.readdirSync(path)返回的entry一致
     //不能使用lstatSync,因为lstatSync返回的entry没有isDirectory等方法
-    entry = entry || statWithCatch(path.replace(/\\/g,'/'))
-    let $stat = {
-        name: { value: path },
-        path: { value: path },
-        type: { value: type },
-        isDirectory: { value: type==='dir' ? true : false },
-        isFile: { value: type==='file' ? true : false },
-        isSymbolicLink: { value: type==='symbolicLink' ? true : false },
-        toString: undefined
-    }
-    return new Proxy({}, {
-        get(target, prop) {
-            if ($stat[prop]) {
-                return $stat[prop].value
-            } else if (prop === 'toString') {
-                const stats = statWithCatch(path)
-                const { path, id, type, size, mtime, mtimems, error } = stats
-                return JSON.stringify({ path, id, type, size, mtime, mtimems, error })
-            } else if (entry[prop]) {
-                return entry[prop]
-            }
-            else {
-                const stats = statWithCatch(path)
-                return stats[prop]
-            }
-        }
-    })
+    entry =  statWithCatch(path.replace(/\\/g,'/'))
+    return entry
 }

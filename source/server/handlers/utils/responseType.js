@@ -1,7 +1,38 @@
 
 export function stat2assetsItemStringLine(stat) {
-    const { name, path, type, size, mtime, mtimems, error } = stat;
-    const data = JSON.stringify({ name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }) + '\n';
+    console.log(stat)
+    const { 
+        name, 
+        path,
+        atime,
+        birthtime,
+        ctime,
+        mode,
+        mtime,
+        type, 
+        size, 
+        aTimeMs, 
+        birthtimeMs, 
+        ctimeMs, 
+        mtimeMs, 
+        error 
+    } = stat;
+    const data = JSON.stringify({ 
+        name, 
+        path, 
+        atime,
+        birthtime,
+        ctime,
+        mtime, 
+        mode,
+        id: `localEntrie_${path}`, 
+        type: 'local', 
+        size, 
+        aTimeMs, 
+        birthtimeMs, 
+        ctimeMs, 
+        mtimeMs, 
+        error }) + '\n';
     return (`data:${data}\n`)
 }
 

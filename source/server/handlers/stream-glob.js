@@ -42,7 +42,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile:  (statProxy) => {
             statPromisesArray.paused = true
-
+            console.log(statProxy)
             let data = stat2assetsItemStringLine(statProxy)
             chunked += data
         

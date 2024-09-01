@@ -31,6 +31,7 @@ import { plugin } from 'runtime'
  * 计算样式的部分
  */
  const 计算卡片样式 = (卡片数据) => {
+    console.log(卡片数据,paddingLR.value)
     return `
         transform: none;
         top: ${卡片数据.y}px;
@@ -41,6 +42,7 @@ import { plugin } from 'runtime'
     `
 }
 const 计算容器样式 = computed(() => ({size,paddingLR,containerHeight}) ,()=>{
+    console.log(size.value,paddingLR.value,containerHeight.value)
     return `
         min-height: ${containerHeight}px;
         height: ${containerHeight}px;

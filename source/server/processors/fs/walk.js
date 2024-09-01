@@ -48,6 +48,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         }
         let modifydied = path.replace(/\\/g,'/')
         let proxy = buildStatProxyByPath(modifydied, entry, isDir ? 'dir' : 'file')
+        console.log(proxy)
         if(isEagleMeta(modifydied)||isEagleThumbnail(modifydied)||isWindsysThumbnailDb(modifydied)){
             return false
         }
@@ -73,8 +74,8 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         }catch(e){
             return false
         }
-        
-        result && stepCallback &&proxy.isFile&&await stepCallback(proxy)
+        console.log(result)
+        result && stepCallback &&proxy.type==='file'&&await stepCallback(proxy)
         result && count++
         return result
     }

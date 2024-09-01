@@ -22,7 +22,7 @@
             <div></div>
         </div>
         <img v-bind="$attrs" ref="image" v-if="showImage" :style="`${size > 200 ? 'width:100%' : 'width:' + size + 'px'};border:none; 
-        border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="eager"
+        border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${size > 200?imageHeight:size}px;`" loading="eager"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
         <div :style="`
@@ -39,15 +39,15 @@
             {{ size > 200 ? cleanAssetPath(cardData.data.path) : '' }}
             <div v-if="size < 200" :style="`background-color:var(--b3-theme-background);
                 color:${similarColor ? rgb数组转字符串(similarColor) : ''};
-                height:${cardHeight}px;
+                height:${size}px;
                 display:flex;
                 `
                 ">
                 <template v-for="prop in getProps(cardData.data)">
-                    <div style="border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop && !prop.endsWith('Ms')" style="border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
-                    width:200px;
+                    width:150px;
                     overflow:hidden;
                     text-overflow:ellipsis;
                     white-space:nowrap;
@@ -171,7 +171,6 @@ function 更新图片尺寸(e, cardData) {
     if (size.value < 200) {
         cardHeight.value = 新高度
     }
-
     imageHeight.value = 新高度
     emit('updateSize', { width: cardData.width, height: cardHeight.value })
 }
