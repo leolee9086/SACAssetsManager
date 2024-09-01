@@ -3,12 +3,7 @@
         <div class="fn__flex-1 fn__flex gallery_container" ref="scrollContainer" @scroll="更新可见区域"
             style="position: relative;">
 
-            <div class="fn__flex-column fn__flex-1" :style="`min-height: ${containerHeight}px;
-                        height:${containerHeight}px;
-                        padding-left:${paddingLR}px;
-                        padding-right:${paddingLR}px`
-                ">
-
+            <div class="fn__flex-column fn__flex-1" :style="计算容器样式">
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
                     <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
                         :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
@@ -25,13 +20,47 @@
 </template>
 <script setup>
 import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../data/siyuanAssets.js"
-import { ref, onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted } from 'vue'
+import { 
+    computed,
+    ref, 
+    onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted } from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
-import {plugin} from 'runtime'
+import { plugin } from 'runtime'
+/**
+ * 计算样式的部分
+ */
+ const 计算卡片样式 = (卡片数据) => {
+    return `
+        transform: none;
+        top: ${卡片数据.y}px;
+        left: ${卡片数据.x + paddingLR.value}px;
+        height: ${卡片数据.height}px;
+        width: ${size.value > 200 ? 卡片数据.width + 'px' : `100%`};
+        position: absolute;
+    `
+}
+const 计算容器样式 = computed(() => ({size,paddingLR,containerHeight}) ,()=>{
+    return `
+        min-height: ${containerHeight}px;
+        height: ${containerHeight}px;
+        padding-left: ${size.value < 200 ? 0 : paddingLR.value}px;
+        padding-right: ${size.value < 200 ? 0 : paddingLR.value}px
+    `
+})
+
+
 /*监听尺寸变化重新布局*/
 const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor'])
 const size = toRef(props, 'size')
+watch(
+    [size],
+    () => {
+        console.log('size',size.value)
+        列数和边距监听器()
+    }
+)
+
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
 const filterColor = toRef(props, 'filterColor')
@@ -69,16 +98,7 @@ const handleKeyDown = (e) => {
     return
 
 }
-const 计算卡片样式 = (卡片数据) => {
-    return {
-        transform: 'none',
-        top: `${卡片数据.y}px`,
-        left: `${卡片数据.x + paddingLR.value}px`,
-        height: 卡片数据.height + 'px',
-        width: 卡片数据.width + 'px',
-        position: 'absolute',
-    }
-}
+
 
 const 可见卡片组 = ref([])
 function 更新图片尺寸(dimensions, cardData) {
@@ -156,35 +176,39 @@ const 更新可见区域 = (flag) => {
 
 let 附件数据组
 
-import { 监听尺寸, 以函数创建尺寸监听 } from "../utils/observers/resize.js"
+import { 以函数创建尺寸监听 } from "../utils/observers/resize.js"
 const 监听尺寸函数 = 以函数创建尺寸监听((stat) => {
-    columnCount.value = Math.max(Math.floor(stat.width / size.value) - 1, 1)
-    paddingLR.value = (stat.width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+    计算列数和边距(stat.width)
 }, true)
-watch(
-    [columnCount, size], async () => {
-        if (!scrollContainer.value) {
-            return
-        }
-        if (!scrollContainer.value.clientWidth) {
-            return
-        }
-        if (!columnCount.value) {
-            return
-        }
-        columnCount.value = Math.max(Math.floor(scrollContainer.value.clientWidth / size.value) - 1, 1)
-        paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-        columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
-        emit('layoutChange', {
-            layout: 布局对象.value,
-            element: scrollContainer.value
-        })
-        paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-        可见卡片组.value = []
-        nextTick(
-            () => 更新可见区域(true)
+const 列数和边距监听器 = async () => {
+    if (!scrollContainer.value) {
+        return
+    }
+    if (!scrollContainer.value.clientWidth) {
+        return
+    }
+    if (!columnCount.value) {
+        return
+    }
+    计算列数和边距(scrollContainer.value.clientWidth)
+    //    columnCount.value = Math.max(Math.floor(scrollContainer.value.clientWidth / size.value) - 1, 1)
+    //  paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+    columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
+    emit('layoutChange', {
+        layout: 布局对象.value,
+        element: scrollContainer.value
+    })
+    paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+    可见卡片组.value = []
+    nextTick(
+        () => 更新可见区域(true)
 
-        )
+    )
+}
+watch(
+    () => scrollContainer.value&&scrollContainer.value.clientWidth,
+    () => {
+        列数和边距监听器()
     }
 )
 
@@ -244,7 +268,7 @@ async function sortLocalStream(total) {
     emit("layoutCount", 附件数据组.length)
     布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
     mounted.value = true
-    
+
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 100) {
         console.log('sort')
         oldsize = 布局对象.value.layout.length
@@ -301,7 +325,7 @@ onMounted(async () => {
                 定长加载(100)
             }
         )
-    }else if(appData.value.tab.data.color){
+    } else if (appData.value.tab.data.color) {
         let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
         附件数据组 = await (await fetch(uri)).json()
         附件数据组.map(
@@ -340,6 +364,22 @@ onMounted(async () => {
         )
     }
 })
+
+
+/**
+ * 一些工具函数
+ */
+const 计算列数和边距 = (width) => {
+    columnCount.value = Math.max(Math.floor(width / size.value) - 1, 1)
+    paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+    if (size.value < 200) {
+        paddingLR.value = 0
+        //如果宽度小于200，则只显示一列,因为此时是表格视图
+        columnCount.value = 1
+    }
+    console.log(size.value, columnCount.value, paddingLR.value)
+
+}
 </script>
 <style scoped>
 .thumbnail-card:focus {

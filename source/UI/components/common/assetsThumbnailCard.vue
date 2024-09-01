@@ -2,38 +2,68 @@
     <div class="thumbnail-card-content" :style="`width:100%;
     border:none;
     border-radius: ${cardData.width / 24}px;
-    height:${cardHeight}px;
+    height:${size < 200 ? size : cardHeight}px;
     background-color:${firstColorString};
+    display:${size < 200 ? 'flex' : 'inline-block'};
     `">
-        <div :style="`
-    position:absolute;
+        <div v-if="size > 200" :style="`
+    position:${size > 200 ? 'absolute' : 'relative'};
     top: ${cardData.width / 24}px;
     left: ${cardData.width / 24}px;
-    max-width: ${cardData.width}px;
+    max-width: ${genMaxWidth()};
     max-height: 1.5em;
     border-radius: 5px;
         background-color:var(--b3-theme-background);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;`">
-            {{ cardData.data.path.split('.').pop() }}
+            {{ size > 200 ? cardData.data.path.split('.').pop() : '' }}
 
         </div>
         <div v-show="showIframe" ref="protyleContainer">
             <div></div>
         </div>
-        <img v-bind="$attrs" ref="image" v-if="showImage" :style="`width:100%;border:none; 
+        <img v-bind="$attrs" ref="image" v-if="showImage" :style="`${size > 200 ? 'width:100%' : 'width:' + size + 'px'};border:none; 
         border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="eager"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
-            :src="thumbnail.genHref(cardData.data.type, cardData.data.path,size)" />
-        <div
-            :style="`position:absolute;bottom:0;white-space: nowrap; overflow: hidden;width: 100%; text-overflow: ellipsis;height:36px;background-color:var(--b3-theme-background);color:${similarColor ? rgb数组转字符串(similarColor) : ''}`">
-            {{ cleanAssetPath(cardData.data.path) }}
+            :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
+        <div :style="`
+            position:${size > 200 ? 'absolute' : 'relative'};
+            bottom:0;white-space: nowrap; 
+            overflow: hidden;
+            width: 100%; 
+            text-overflow: ellipsis;height:36px;
+            background-color:var(--b3-theme-background);
+            color:${similarColor ? rgb数组转字符串(similarColor) : ''};
+            display:${size < 200 ? 'flex' : 'block'};
+            height:${size < 200 ? cardHeight + 'px' : '36px'};
+            `">
+            {{ size > 200 ? cleanAssetPath(cardData.data.path) : '' }}
+            <div v-if="size < 200" :style="`background-color:var(--b3-theme-background);
+                color:${similarColor ? rgb数组转字符串(similarColor) : ''};
+                height:${cardHeight}px;
+                display:flex;
+                `
+                ">
+                <template v-for="prop in getProps(cardData.data)">
+                    <div style="border:1px solid var(--b3-theme-background-light);
+                    padding:0px;
+                    margin:0px;
+                    width:200px;
+                    overflow:hidden;
+                    text-overflow:ellipsis;
+                    white-space:nowrap;
+                    ">
+                        {{ prop }}:{{ cardData.data[prop] }}
+                    </div>
+                </template>
+            </div>
             <div>
                 <template v-for="colorItem in pallet">
-                    <div @click="()=>打开颜色查找面板(colorItem.color)"
+                    <div @click="() => 打开颜色查找面板(colorItem.color)"
                         :style="{ backgroundColor: `rgb(${colorItem.color[0]},${colorItem.color[1]},${colorItem.color[2]})`, height: '0.8em', width: '0.8em', display: 'inline-block', margin: '0 2px' }">
                     </div>
                 </template>
             </div>
+
         </div>
     </div>
 </template>
@@ -44,7 +74,7 @@ import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { clientApi } from '../../../asyncModules.js';
 import { rgba数组转字符串, rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
-import {plugin} from 'runtime'
+import { plugin } from 'runtime'
 const props = defineProps(['cardData', 'size', 'filterColor'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
@@ -63,9 +93,18 @@ const similarColor = computed(() => {
     return item ? filterColor.value : ''
     //return ''
 })
-
-function 打开颜色查找面板(color){
-    plugin.eventBus.emit('click-galleryColor',color)
+function getProps(data) {
+    return Object.keys(data).filter(key => key !== 'id' && key !== 'path' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
+}
+const genMaxWidth = () => {
+    if (size.value < 200) {
+        return `100%`
+    } else {
+        return `${size.value}px`
+    }
+}
+function 打开颜色查找面板(color) {
+    plugin.eventBus.emit('click-galleryColor', color)
 }
 let idleCallbackId;
 let fn = () => {
@@ -77,7 +116,12 @@ let fn = () => {
             showImage.value = false
             const resizeObserver = new ResizeObserver((entries) => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
+                if (size.value < 200) {
+                    cardHeight.value = protyle.protyle.contentElement.scrollHeight
+
+                }
                 emit('updateSize', { width: cardData.width, height: cardHeight.value })
+
             });
             resizeObserver.observe(protyleContainer.value);
         })
@@ -124,8 +168,12 @@ function 更新图片尺寸(e, cardData) {
     const 缩放因子 = dimensions.width / size.value
     const 新高度 = dimensions.height / 缩放因子
     cardHeight.value = 新高度 + 36
+    if (size.value < 200) {
+        cardHeight.value = 新高度
+    }
+
     imageHeight.value = 新高度
-    emit('updateSize', { width: cardData.width, height: 新高度 + 36 })
+    emit('updateSize', { width: cardData.width, height: cardHeight.value })
 }
 </script>
 <style scoped></style>

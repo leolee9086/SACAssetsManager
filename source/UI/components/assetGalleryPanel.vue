@@ -77,7 +77,6 @@ import assetsGridRbush from './assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 const appData = toRef(inject('appData'))
-
 //全局设置
 const globSetting = ref({})
 //最大显示数量
@@ -148,7 +147,7 @@ watch(
 )
 
 //缩略图大小
-const size = ref(200)
+const size = ref(250)
 //最大显示数量
 const root = ref('null')
 const layoutCount = reactive({ found: 0, loaded: 0 })
