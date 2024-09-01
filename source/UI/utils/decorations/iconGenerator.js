@@ -1,11 +1,11 @@
+import { resolveWorkspacePath,Constants } from "../../../asyncModules.js"
 export const imgeWithConut = (count, returnImage) => {
     return new Promise((resolve, reject) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-
         // Load the base image
         const baseImage = new Image();
-        baseImage.src = 'D:/思源主库/data/plugins/SACAssetsManager/icon.png'; // Replace with your image path
+        baseImage.src = resolveWorkspacePath(Constants.Drag_Icon); // 用实际地址替代
         baseImage.onload = () => {
             // Set canvas dimensions to match the image dimensions
             canvas.width = 128;
@@ -70,8 +70,8 @@ export const imgeWithConut = (count, returnImage) => {
             } else {
                 const fs = window.require('fs');
                 const base64Data = dataURL.replace(/^data:image\/png;base64,/, "");
-                fs.writeFileSync('D:/思源主库/temp/sac/imgeWithConut.png', base64Data, 'base64');
-                resolve('D:/思源主库/temp/sac/imgeWithConut.png');
+                fs.writeFileSync(resolveWorkspacePath(Constants.Drag_Count_Icon), base64Data, 'base64');
+                resolve(resolveWorkspacePath(Constants.Drag_Count_Icon));
             }
         };
 
