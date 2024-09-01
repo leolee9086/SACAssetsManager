@@ -24,17 +24,7 @@
         <img v-bind="$attrs" ref="image" v-if="showImage" :style="$计算素材缩略图样式" loading="eager"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
-        <div :style="`
-            position:${size > 200 ? 'absolute' : 'relative'};
-            bottom:0;white-space: nowrap; 
-            overflow: hidden;
-            width: 100%; 
-            text-overflow: ellipsis;height:36px;
-            background-color:var(--b3-theme-background);
-            color:${similarColor ? rgb数组转字符串(similarColor) : ''};
-            display:${size < 200 ? 'flex' : 'block'};
-            height:${size < 200 ? cardHeight + 'px' : '36px'};
-            `">
+        <div :style="$计算素材详情容器样式">
             {{ size > 200 ? cleanAssetPath(cardData.data.path) : '' }}
             <div v-if="size < 200" :style="`background-color:var(--b3-theme-background);
                 color:${similarColor ? rgb数组转字符串(similarColor) : ''};
@@ -174,9 +164,12 @@ function 更新图片尺寸(e, cardData) {
     emit('updateSize', { width: cardData.width, height: cardHeight.value })
 }
 
-import { 计算素材缩略图样式 } from './assetStyles.js';
+import { 计算素材缩略图样式, 计算素材详情容器样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
+))
+const $计算素材详情容器样式 = computed(() => 计算素材详情容器样式(
+    size.value, cardHeight.value
 ))
 </script>
 <style scoped></style>
