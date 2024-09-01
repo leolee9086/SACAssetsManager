@@ -6,6 +6,7 @@ import { getColor } from './color.js'
 import { diffColor } from '../color/Kmeans.js'
 import { genStatHash } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions } from './utils/lists.js'
+const sharp = require('sharp')
 let loderPaths = [
     './internalGeneraters/svg.js',
     './internalGeneraters/sharp.js',
@@ -136,24 +137,28 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return fromFIle
     }
     const thumbnailBuffer = await loader.generateThumbnail(imagePath)
-    tumbnailCache.set(缓存键, thumbnailBuffer)
+    const compressedBuffer = await sharp(thumbnailBuffer)
+    .png({ quality: 70 })
+    .toBuffer()
+
+    tumbnailCache.set(缓存键, compressedBuffer)
 
     if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
-        commonIcons.set(extension, thumbnailBuffer)
-        fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
+        commonIcons.set(extension, compressedBuffer)
+        fs.writeFile(缓存路径, compressedBuffer, (err) => {
             if (err) {
                 console.error(err)
             }
         })
     }
     if (!noThumbnailList.includes(extension)) {
-        fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
+        fs.writeFile(缓存路径, compressedBuffer, (err) => {
             if (err) {
                 console.error(err)
             }
         })
     }
-    return thumbnailBuffer
+    return compressedBuffer
 
 }
 const tumbnailCache = buildCache('thumbnailCache')
