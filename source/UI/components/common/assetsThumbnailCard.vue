@@ -23,7 +23,7 @@
         <img v-bind="$attrs" ref="image" v-if="showImage" :style="`width:100%;border:none; 
         border-radius: ${cardData.width / 24}px ${cardData.width / 24}px 0 0;height=${imageHeight}px;`" loading="eager"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
-            :src="thumbnail.genHref(cardData.data.type, cardData.data.path)" />
+            :src="thumbnail.genHref(cardData.data.type, cardData.data.path,size)" />
         <div
             :style="`position:absolute;bottom:0;white-space: nowrap; overflow: hidden;width: 100%; text-overflow: ellipsis;height:36px;background-color:var(--b3-theme-background);color:${similarColor ? rgb数组转字符串(similarColor) : ''}`">
             {{ cleanAssetPath(cardData.data.path) }}

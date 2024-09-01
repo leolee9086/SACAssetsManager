@@ -165,9 +165,11 @@ app.get('/thumbnail/pallet',  (req, res) => {
 });
 app.get(
     '/raw', async (req, res) => {
-        const path = req.query.path
+        const path = req.query.path||req.query.localPath
         if (path.startsWith('assets')) {
             res.sendFile(require('path').join(siyuanConfig.system.workspaceDir, 'data', req.query.path))
+        }else{
+            res.sendFile(path)
         }
     }
 )

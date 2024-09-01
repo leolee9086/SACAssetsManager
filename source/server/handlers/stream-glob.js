@@ -171,7 +171,6 @@ export const fileListStream = async (req, res) => {
         objectMode: true,
         transform(chunk, encoding, callback) {
             this.push(stat2assetsItemStringLine(chunk))
-            res.flush()
             callback()
         }
     });
