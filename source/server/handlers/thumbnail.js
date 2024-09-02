@@ -57,32 +57,34 @@ export async function genPallte(ctx, next) {
     statPromisesArray.paused = false
     res.json(result)
 }
+
+
+
 export async function genThumbnail(ctx, next) {
     statPromisesArray.paused = true
-    let { req, res, 缓存对象 } = ctx
-    let { 源文件地址, 缓存键 } = ctx.stats
-    if (!源文件地址) {
-        res.status(400).send('Invalid request: missing source file address');
-        return
-    }
-    let result = null
-    let type = null
-    try {
-        result = await getThumbnailWithCache(ctx)
-        if (result) {
-            type = result.type
-            if (type) {
-                res.type(type).send(result.data)
-            } else {
-                res.type('png').send(result)
-            }
+        let { req, res, 缓存对象 } = ctx
+        let { 源文件地址, 缓存键 } = ctx.stats
+        if (!源文件地址) {
+            res.status(400).send('Invalid request: missing source file address');
+            return
         }
-    } catch (e) {
-        console.warn(e)
-        res.status(500).send('Error processing image: ' + e.message);
-    }
-    statPromisesArray.paused = false
-    return
+        let result = null
+        let type = null
+        try {
+            result = await getThumbnailWithCache(ctx)
+            if (result) {
+                type = result.type
+                if (type) {
+                    res.type(type).send(result.data)
+                } else {
+                    res.type('png').send(result)
+                }
+            }
+        } catch (e) {
+            console.warn(e)
+            res.status(500).send('Error processing image: ' + e.message);
+        }
+        statPromisesArray.paused = false
 }
 export function listLoaders(req, res) {
     res.json(listThumbnailLoaders())

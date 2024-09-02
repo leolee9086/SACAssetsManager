@@ -3,9 +3,9 @@ const app = express();
 const path = require('path')
 const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
-import { genThumbnail,listLoaders,getColor } from './handlers/thumbnail.js';
+import { genThumbnail, listLoaders, getColor } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
-import { globStream,fileListStream } from './handlers/stream-glob.js';
+import { globStream, fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
 const port = window.port
@@ -18,8 +18,8 @@ import { getCachePath } from './processors/fs/cached/fs.js'
 import { genStatHash } from './processors/fs/stat.js'
 import { statPromisesArray } from './processors/fs/disk/tree.js';
 import { sendFileWithCacheSet } from './handlers/utils/responseType.js';
-const siyuanBroadcastChannel =await createSiyuanBroadcastChannel('sacAssetsManager',window.siyuanPort)
-siyuanBroadcastChannel.onmessage = (e)=>{
+const siyuanBroadcastChannel = await createSiyuanBroadcastChannel('sacAssetsManager', window.siyuanPort)
+siyuanBroadcastChannel.onmessage = (e) => {
     console.log(e)
 }
 /**
@@ -29,7 +29,7 @@ app.use(cors());
 /**
  * 启用响应压缩
  */
-let compressor=compression({
+let compressor = compression({
     level: 6, // 设置压缩级别，范围是 0-9，默认值是 6
     filter: (req, res) => {
         if (req.headers['x-no-compression']) {
@@ -43,132 +43,135 @@ let compressor=compression({
 /**
  * 流式遍历文件夹
  */
-app.get('/glob-stream',globStream)
-app.get('/file-list-stream', headers.types.textPlain,fileListStream)
-app.post('/file-list-stream', headers.types.textPlain,fileListStream)
+app.get('/glob-stream', globStream)
+app.get('/file-list-stream', headers.types.textPlain, fileListStream)
+app.post('/file-list-stream', headers.types.textPlain, fileListStream)
 app.get('/count-etries', entryCounter)
-app.get('/listDisk',listDisk)
-app.get('/loaders',listLoaders)
+app.get('/listDisk', listDisk)
+app.get('/loaders', listLoaders)
 app.get(
-    '/getPathseByColor',async(req,res)=>{
+    '/getPathseByColor', async (req, res) => {
         const color = req.query.color
         let ctx = {
             req,
             res,
-            stats:{
-                color:JSON.parse(color)
+            stats: {
+                color: JSON.parse(color)
             }
         }
         getFilesByColor(ctx)
-    
+
     }
 )
-app.get('/color',async (req,res)=>{
+app.get('/color', async (req, res) => {
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
     } else {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
-    源文件地址 = 源文件地址.replace(/\//g,'\\')
+    源文件地址 = 源文件地址.replace(/\//g, '\\')
     let stat = statWithCatch(源文件地址)
-    let 缓存键 = JSON.stringify({stat})
-   
+    let 缓存键 = JSON.stringify({ stat })
+
     let ctx = {
         req,
         res,
-        stats:{
+        stats: {
             源文件地址,
             缓存键
         }
     }
-   genColor(ctx).then(
-        colors=>{
+    genColor(ctx).then(
+        colors => {
             res.json(colors)
-
         }
     )
 
 })
 
-app.get('/thumbnail',  async (req, res) => {
-    statPromisesArray.paused = true
-    const fs = require('fs')
-    let 源文件地址 = ''
-    if (req.query.localPath) {
-        源文件地址 = req.query.localPath
-    } else {
-        源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
-    }
-    源文件地址 = 源文件地址.replace(/\//g,'\\')
-    const stat = statWithCatch(源文件地址)
-    const 缓存键 = JSON.stringify(stat)
-    const thumbnailCache = buildCache('thumbnailCache')
-    const hashedName = genStatHash(stat) + '.thumbnail.png'
-    const 缓存目录 = getCachePath(源文件地址,'thumbnails').cachePath
-    if(!fs.existsSync(缓存目录)){
-        fs.mkdirSync(缓存目录,{recursive:true})
-    }
-    let 缓存路径 = require('path').join(缓存目录, hashedName)
-    let extension = 源文件地址.split('.').pop()
-    let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
-    let cacheResult = thumbnailCache.get(缓存键)
-    if(cacheResult&&Buffer.isBuffer(cacheResult)){
-        res.send(cacheResult)
-        statPromisesArray.paused = false
-        return
-    }
-    // 先检查是否存在缓存的缩略图
-    if(await sendFileWithCacheSet(res,缓存路径,thumbnailCache,缓存键)){
-        return
-    }
-    if(await sendFileWithCacheSet(res,扩展名缓存路径,thumbnailCache,缓存键)){
-        return
-    }
-    let ctx = {
-        req,
-        res,
-        query:req.query,
-        缓存对象:thumbnailCache,
-        stats:{
-            源文件地址,
-            缓存键,
-            缓存对象:thumbnailCache
-        }
-    }
-    let next=()=>{}
-    genThumbnail( ctx,next);
+app.get('/thumbnail', async (req, res) => {
+
+            statPromisesArray.paused = true
+            const fs = require('fs')
+            let 源文件地址 = ''
+            if (req.query.localPath) {
+                源文件地址 = req.query.localPath
+            } else {
+                源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+            }
+            源文件地址 = 源文件地址.replace(/\//g, '\\')
+            const stat = statWithCatch(源文件地址)
+            const 缓存键 = JSON.stringify(stat)
+            const thumbnailCache = buildCache('thumbnailCache')
+            const hashedName = genStatHash(stat) + '.thumbnail.png'
+            const 缓存目录 = getCachePath(源文件地址, 'thumbnails').cachePath
+            if (!fs.existsSync(缓存目录)) {
+                fs.mkdirSync(缓存目录, { recursive: true })
+            }
+            let 缓存路径 = require('path').join(缓存目录, hashedName)
+            let extension = 源文件地址.split('.').pop()
+            let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
+            let cacheResult = thumbnailCache.get(缓存键)
+            if (cacheResult && Buffer.isBuffer(cacheResult)) {
+                res.send(cacheResult)
+                statPromisesArray.paused = false
+                return
+            }
+            // 先检查是否存在缓存的缩略图
+            if (await sendFileWithCacheSet(res, 缓存路径, thumbnailCache, 缓存键)) {
+                return
+            }
+            if (await sendFileWithCacheSet(res, 扩展名缓存路径, thumbnailCache, 缓存键)) {
+                return
+            }
+            let ctx = {
+                req,
+                res,
+                query: req.query,
+                缓存对象: thumbnailCache,
+                stats: {
+                    源文件地址,
+                    缓存键,
+                    缓存对象: thumbnailCache
+                }
+            }
+            let next = () => { }
+            genThumbnail(ctx, next);
+            statPromisesArray.paused = false
+
+     
 });
-app.get('/thumbnail/pallet',  (req, res) => {
+app.get('/thumbnail/pallet', (req, res) => {
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
     } else {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
-    源文件地址 = 源文件地址.replace(/\//g,'\\')
+    源文件地址 = 源文件地址.replace(/\//g, '\\')
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('pallet')
     let ctx = {
         req,
         res,
-        query:req.query,
-        缓存对象:thumbnailCache,
-        stats:{
+        query: req.query,
+        缓存对象: thumbnailCache,
+        stats: {
             源文件地址,
             缓存键,
-            缓存对象:thumbnailCache
+            缓存对象: thumbnailCache
         }
     }
-    let next=()=>{}
-    getColor( ctx,next);
+    let next = () => { }
+    getColor(ctx, next);
 });
 app.get(
     '/raw', async (req, res) => {
-        const path = req.query.path||req.query.localPath
+        const path = req.query.path || req.query.localPath
         if (path.startsWith('assets')) {
             res.sendFile(require('path').join(siyuanConfig.system.workspaceDir, 'data', req.query.path))
-        }else{
+        } else {
             res.sendFile(path)
         }
     }
@@ -181,10 +184,10 @@ app.listen(port, () => {
  * 这里是为了让主窗口的拖拽事件能够被其自身响应
  */
 const remote = require('@electron/remote');
-const {ipcRenderer} = require('electron')
+const { ipcRenderer } = require('electron')
 const { webContents } = remote
-ipcRenderer.on('startDrag',(e,arg)=>{    
-    if(arg.id){
+ipcRenderer.on('startDrag', (e, arg) => {
+    if (arg.id) {
         const webContentsId = arg.id
         const webviewWebContents = webContents.fromId(webContentsId)
         webviewWebContents.startDrag(arg.data)
