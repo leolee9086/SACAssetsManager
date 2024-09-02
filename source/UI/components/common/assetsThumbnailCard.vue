@@ -159,9 +159,10 @@ function 更新图片尺寸(e, cardData) {
     };
     const 缩放因子 = dimensions.width / size.value
     const 新高度 = dimensions.height / 缩放因子
-    cardHeight.value = 新高度 + 36
     if (size.value < 200) {
-        cardHeight.value = 新高度
+        cardHeight.value = size.value
+    }else{
+        cardHeight.value = 新高度 + 36
     }
     imageHeight.value = 新高度
     emit('updateSize', { width: cardData.width, height: cardHeight.value })

@@ -121,16 +121,10 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
                 // 清空队列
             }
         )
-        // console.time('batchUpdateIndex')
-        /**
-         * 只有基本上不会有高度变化的情况下使用Rbush会有优势
-         */
+   
         staticSize && batchUpdateIndex()
-        // console.timeEnd('batchUpdateIndex')
         updateQueue = [];
         timeStep = 30
-        // console.timeEnd('processUpdates')
-
     }
     // 更新从指定索引开始的所有卡片的高度，直到下一个更新分片的索引
     function updateCardsFromIndex(startIndex, heightChange, nextIndex, column) {
@@ -153,12 +147,6 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         const heightDifference = parseInt(newHeight) - oldHeight;
         if (index >= 0 && index < layout.length && Math.abs(heightDifference) >= oldHeight * 0.1) {
             const item = layout[index];
-          /*  if (item.ready) {
-                return
-            }
-            item.ready = true;*/
-            // 从 Rbush 中移除旧的项
-            // 更新项的高度和位置
             staticSize && tree.remove(item)
             item.height = newHeight;
             item.maxY = item.y + item.height;
@@ -184,20 +172,11 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
              * 这里的批处理函数可能会在有大量文件时出错
              */
             if (!updateTimer) {
-                updateTimer = setTimeout(async () => {
+                updateTimer = setTimeout( () => {
                     processUpdates();
                     updateTimer = null; // 处理完毕后重置定时器
                 }, timeStep); // 假设处理间隔为100毫秒
             }
-
-            /*  for (let i = item.indexInColumn + 1; i < currentColumn.items.length; i++) {
-                  let _item = currentColumn.items[i];
-                  _item.y += heightDifference;
-                  _item.minY = _item.y;
-                  _item.maxY = _item.y + _item.height;
-                  pendingUpdates.add(_item)
-              }
-              requestIdleCallback(batchUpdateIndex)*/
         }
     }
     function batchUpdateIndex() {
