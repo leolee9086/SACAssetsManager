@@ -136,14 +136,15 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (fromFIle && fromFIle.length >= 100) {
         return fromFIle
     }
+    const start = performance.now()
     let thumbnailBuffer = await loader.generateThumbnail(imagePath)
+    const end = performance.now()
+    console.log(`生成缩略图用时: ${end - start}ms`)
   //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
     thumbnailBuffer = await sharp(thumbnailBuffer)
     .png({ compressionLevel: 9 })
     .toBuffer()
-
     tumbnailCache.set(缓存键, thumbnailBuffer)
-
     if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
         commonIcons.set(extension, thumbnailBuffer)
         fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
@@ -160,7 +161,6 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         })
     }
     return thumbnailBuffer
-
 }
 const tumbnailCache = buildCache('thumbnailCache')
 import { 智能防抖 } from '../../../utils/functionTools.js'

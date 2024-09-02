@@ -36,7 +36,7 @@
                 `
                 ">
                 <template v-for="prop in getProps(cardData.data)">
-                    <div v-if="prop && !prop.endsWith('Ms')" style="border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop " style="border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     width:150px;

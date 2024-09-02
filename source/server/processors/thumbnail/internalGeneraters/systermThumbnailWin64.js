@@ -1,4 +1,6 @@
 import { loadCsharpFunc } from "../../../utils/CSharpLoader.js";
+
+
 export const getLargeIcon = loadCsharpFunc(
     `
     #r "System.Drawing.dll"
@@ -128,23 +130,6 @@ export const getBase64Thumbnail = loadCsharpFunc(
 )
 
 
-const callBackPromise = (fun) => {
-    return (...args) => {
-        return new Promise((resolve, reject) => {
-            try {
-                fun(...args, (err, result) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve(result);
-                    }
-                });
-            } catch (e) {
-                reject(e)
-            }
-        });
-    }
-}
 
 
 export default class SystemThumbnailLoader {
@@ -156,13 +141,13 @@ export default class SystemThumbnailLoader {
         let resultBuffer = null
         let error = null
         try {
-            resultBuffer = Buffer.from(await callBackPromise(getBase64Thumbnail)(encodedPath), 'base64')
+            resultBuffer = Buffer.from(await getBase64Thumbnail(encodedPath), 'base64')
         } catch (e) {
             error = e
         }
         if (!resultBuffer) {
             try {
-                resultBuffer = Buffer.from(await callBackPromise(getLargeIcon)(encodedPath), 'base64')
+                resultBuffer = Buffer.from(await getLargeIcon(encodedPath), 'base64')
             } catch (e) {
                 error = e
             }

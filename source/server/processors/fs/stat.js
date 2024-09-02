@@ -85,6 +85,7 @@ export const statWithCatch = (path) => {
             type: stat.isFile() ? 'file' : 'dir',
             ...stat,
         })
+        console.log(stat)
         return statCache.get(path)
     } catch (e) {
         return {
@@ -118,10 +119,6 @@ export const buildStatProxy = (entry, dir, useProxy, type) => {
 }
 export const buildStatProxyByPath = (path, entry, type) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
-    //这里的entry需要与fs.readdirSync(path)返回的entry一致
-    //否则会导致statWithCatch缓存失效
-    //设法让entry与fs.readdirSync(path)返回的entry一致
-    //不能使用lstatSync,因为lstatSync返回的entry没有isDirectory等方法
     entry =  statWithCatch(path.replace(/\\/g,'/'))
     return entry
 }
