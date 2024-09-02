@@ -1,31 +1,24 @@
 {
-  "name": "SACSearch",
+  "name": "SACAssetsManager",
   "author": "椽承设计",
-  "url": "https://github.com/leolee9086/SAC",
-  "version": "0.0.1",
+  "url": "https://github.com/leolee9086/SACAssetsManager",
+  "version": "0.0.2",
   "minAppVersion": "3.0.12",
 
   "backends": [
-    "windows",
-    "linux",
-    "darwin",
-    "ios",
-    "android"
+    "windows"
   ],
   "frontends": [
     "desktop",
-    "mobile",
-    "browser-desktop",
-    "browser-mobile",
     "desktop-window"
   ],
   "displayName": {
-    "default": "SACSearch",
-    "zh_CN": "SAC搜索增强"
+    "default": "SACAssetsManager",
+    "zh_CN": "SAC素材管理"
   },
   "description": {
-    "default": "",
-    "zh_CN": ""
+    "default": "an assets manager plugin for siyuan,can view assets in notes,manage assets by note tags and note references,search assets by color,and compatible with Eagle assets library.",
+    "zh_CN": "一个素材管理插件,可以查看笔记中的素材、用笔记标签和笔记引用管理素材、通过颜色搜索素材等，额外兼容Eagle素材库"
   },
   "readme": {
     "default": "README.md",
@@ -39,5 +32,20 @@
       "https://afdian.net/a/leolee9086"
     ]
   },
-  "keywords":["ai","ChatGPT","聊天助手","样式","椽承设计"]
+  "keywords":[
+    "ai",
+    "ChatGPT",
+    "聊天助手",
+    "样式",
+    "椽承设计",
+    "素材管理",
+    "Eagle素材库",
+    "assets",
+    "file",
+    "thumbnail",
+    "图片",
+    "图片管理",
+    "缩略图",
+    "thumbnail"
+  ]
 }
