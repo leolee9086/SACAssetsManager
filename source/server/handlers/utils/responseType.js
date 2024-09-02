@@ -1,6 +1,5 @@
 
-export function stat2assetsItemStringLine(stat) {
-    console.log(stat)
+export function stat2assetsItemStringLine(stat,json=false) {
     const { 
         name, 
         path,
@@ -17,7 +16,8 @@ export function stat2assetsItemStringLine(stat) {
         mtimeMs, 
         error 
     } = stat;
-    const data = JSON.stringify({ 
+    
+    const data = { 
         name, 
         path, 
         atime,
@@ -32,8 +32,11 @@ export function stat2assetsItemStringLine(stat) {
         birthtimeMs, 
         ctimeMs, 
         mtimeMs, 
-        error }) + '\n';
-    return (`data:${data}\n`)
+        error };
+    if(json){
+        return data
+    }
+    return (`data:${JSON.stringify(data)}\n`)
 }
 
 export function sendFileWithCacheSet(res, 缓存路径, 缓存, 缓存键) {

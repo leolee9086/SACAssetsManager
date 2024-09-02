@@ -7,6 +7,7 @@ import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
 import { parseQuery } from './utils/requestType.js';
 import { statPromisesArray } from '../processors/fs/disk/tree.js'
+import { buildStatProxyByPath } from '../processors/fs/stat.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -42,10 +43,8 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile:  (statProxy) => {
             statPromisesArray.paused = true
-            console.log(statProxy)
             let data = stat2assetsItemStringLine(statProxy)
             chunked += data
-        
             requestIdleCallback(() => {
                 statPromisesArray.paused = true
                 if (chunked) {
@@ -158,8 +157,6 @@ export const fileListStream = async (req, res) => {
     if (req.query && req.query.setting) {
         scheme = JSON.parse(req.query.setting)
     }
-    console.log(scheme)
-    // 当请求关闭时，触发中止信号
     req.on('close', () => {
         controller.abort();
     });
@@ -170,7 +167,8 @@ export const fileListStream = async (req, res) => {
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
-            this.push(stat2assetsItemStringLine(chunk))
+            let path = chunk.path
+            this.push(stat2assetsItemStringLine(buildStatProxyByPath(path)))
             callback()
         }
     });
