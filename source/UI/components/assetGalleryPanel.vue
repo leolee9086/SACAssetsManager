@@ -121,12 +121,6 @@ const $realGlob = computed(() => {
             ],
         }
     }
-    /*if(filterColor.value[0]||filterColor.value[1]||filterColor.value[2]||JSON.stringify(filterColor.value)!=='[]'){
-         
-        realGlob.queryPro=realGlob.queryPro||{}
-       realGlob.queryPro.color = filterColor.value
-        //realGlob.color = filterColor.value
-     }*/
     return realGlob
 })
 const everthingEnabled = ref(false)

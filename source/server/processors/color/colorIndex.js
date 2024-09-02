@@ -10,6 +10,9 @@ colorIndex = globalThis.colorIndex
  * @param {*} assets 
  */
 const fs = require('fs')
+export async function 获取索引中所有颜色(){
+    return colorIndex.map(item => item.color)
+}
 export async function 根据路径查找并加载颜色索引(path){
     const { cachePath, root } = getCachePath(path, 'colorIndex.json')
     console.error(cachePath,root)
