@@ -14,7 +14,7 @@ export async function 获取索引中所有颜色(){
     return colorIndex.map(item => item.color)
 }
 export async function 根据路径查找并加载颜色索引(path){
-    const { cachePath, root } = getCachePath(path, 'colorIndex.json')
+    const { cachePath, root } = await getCachePath(path, 'colorIndex.json')
     console.error(cachePath,root)
      从路径加载颜色索引(cachePath,root)
 }
@@ -38,7 +38,7 @@ export async function 从路径加载颜色索引(cachePath,root){
     }
 }
 export async function 添加到颜色索引(colorItem, assets) {
-    const { cachePath, root } = getCachePath(assets, 'colorIndex.json')
+    const { cachePath, root } = await getCachePath(assets, 'colorIndex.json')
     await 从路径加载颜色索引(cachePath,root)
     let colorFormated = colorItem.color.map(num => Math.floor(num))
     let colorValue = colorFormated.join(',')

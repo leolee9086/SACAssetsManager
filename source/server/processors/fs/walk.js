@@ -4,7 +4,7 @@ import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
 import { statPromisesArray } from './disk/tree.js'
-import { isEagleMeta,isEagleThumbnail,isWindsysThumbnailDb } from '../thumbnail/utils/regexs.js'
+import { isEagleBackup, isEagleMeta,isEagleThumbnail,isWindowsysThumbnailDb } from '../thumbnail/utils/regexs.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -26,7 +26,6 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         statPromisesArray.paused = true
         if (signal.aborted) {
             statPromisesArray.paused = false
-
             return false
         }
         if (total > maxCount) {
@@ -40,17 +39,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
                 return false
             }
         }
-        const entry = {
-            isDirectory: () => isDir,
-            isFile: () => !isDir,
-            isSymbolicLink: () => false,
-            name: path.split('/').pop()
-        }
-        let modifydied = path.replace(/\\/g,'/')
-        let proxy = buildStatProxyByPath(modifydied, entry, isDir ? 'dir' : 'file')
-        if(isEagleMeta(modifydied)||isEagleThumbnail(modifydied)||isWindsysThumbnailDb(modifydied)){
-            return false
-        }
+       
         if (isDir) {
             if (total > maxCount) {
                 statPromisesArray.paused = false
@@ -63,7 +52,20 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
             }catch(e){
                 return false
             }
+        } 
+        const entry = {
+            isDirectory: () => isDir,
+            isFile: () => !isDir,
+            isSymbolicLink: () => false,
+            name: path.split('/').pop()
         }
+        let modifydied = path.replace(/\\/g,'/')
+        let proxy = buildStatProxyByPath(modifydied, entry, isDir ? 'dir' : 'file')
+        if(isEagleMeta(modifydied)||isEagleThumbnail(modifydied)||isWindowsysThumbnailDb(modifydied)||isEagleBackup(modifydied)){
+            return false
+        }
+    
+
         total++
         countCallBack &&await countCallBack(total)
         stepCallback && stepCallback.preMatch && stepCallback.preMatch(proxy)

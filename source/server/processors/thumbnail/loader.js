@@ -108,7 +108,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return tumbnailCache.get(缓存键)
     }
     //小图片直接返回
-    if (imageExtensions.includes(extension) && stat.size < 1024 * 10) {
+   if (imageExtensions.includes(extension) && stat.size < 1024 * 10) {
         useRaw = true
         console.log('使用原始图', imagePath)
         try {
@@ -124,9 +124,9 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         }
     }
     const hashedName = genStatHash(stat) + '.thumbnail.png'
-    const 缓存目录 = getCachePath(imagePath,'thumbnails').cachePath
-    if(!fs.existsSync(缓存目录)){
-        fs.mkdirSync(缓存目录,{recursive:true})
+    const 缓存目录 = (await getCachePath(imagePath, 'thumbnails')).cachePath
+    if (!fs.existsSync(缓存目录)) {
+        fs.mkdirSync(缓存目录, { recursive: true })
     }
     let 缓存路径 = require('path').join(缓存目录, hashedName)
     if (useExtension) {
@@ -140,10 +140,13 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     let thumbnailBuffer = await loader.generateThumbnail(imagePath)
     const end = performance.now()
     console.log(`生成缩略图用时: ${end - start}ms`)
-  //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
-    thumbnailBuffer = await sharp(thumbnailBuffer)
-    .png({ compressionLevel: 9 })
-    .toBuffer()
+    //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
+    if (thumbnailBuffer.length > 1024 * 10) {
+        thumbnailBuffer = await sharp(thumbnailBuffer)
+            .png({ compressionLevel: 9 })
+            .toBuffer()
+        console.log(thumbnailBuffer)
+    }
     tumbnailCache.set(缓存键, thumbnailBuffer)
     if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
         commonIcons.set(extension, thumbnailBuffer)
@@ -178,10 +181,10 @@ export async function genThumbnailColor(filePath, loaderID = null) {
     return colors
 }
 
-export async function diffFileColor(filePath,color){
+export async function diffFileColor(filePath, color) {
     let simiColor = await genThumbnailColor(filePath)
     for await (let item of simiColor) {
-        if (diffColor(item.color,color)) {
+        if (diffColor(item.color, color)) {
             return true
         }
     }

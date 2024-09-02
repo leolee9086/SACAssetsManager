@@ -51,10 +51,10 @@ export function listLocalDisks() {
                 disks.forEach(d => {
                     diskPromises.push(async () => {
                         console.log(d)
-                        console.time(`构建磁盘目录树${d}`)
+                       console.time(`构建磁盘目录树${d}`)
                         let result = await 构建磁盘目录树(d)
                         console.timeEnd(`构建磁盘目录树${d}`)
-                        return result
+                       return result
                     })
                 });
                 (async () => {

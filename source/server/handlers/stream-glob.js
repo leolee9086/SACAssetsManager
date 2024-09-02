@@ -41,7 +41,15 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
     }
     let chunked = ''
     walkAsyncWithFdir(cwd, filterFun, {
-        ifFile:  (statProxy) => {
+        ifFile: async (statProxy) => {
+            if(signal.aborted){
+                walkController.abort()
+                return
+            }
+            if(walkController.aborted){
+                return
+            }
+            
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)
             chunked += data
@@ -52,7 +60,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
                  //   res.flush()
                     chunked = ''
                 }
-            },{timeout:100,deadline:18})
+            },{timeout:17,deadline:18})
         },
         end: () => {
             walkController.abort()
@@ -62,8 +70,8 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
                  //   res.flush()
                 chunked = ''
             }
-
-            res.flush()
+            
+            //res.flush()
             res.end();
         }
     }, (walkCount) => {

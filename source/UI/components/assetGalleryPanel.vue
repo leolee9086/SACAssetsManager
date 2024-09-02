@@ -74,7 +74,7 @@
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import { diffColor } from '../../server/processors/color/Kmeans.js';
 import assetsGridRbush from './assetsGridRbush.vue';
-import { plugin } from 'runtime'
+import { plugin,Constants } from 'runtime'
 import _path from '../../polyfills/path.js'
 const appData = toRef(inject('appData'))
 //全局设置
@@ -155,7 +155,6 @@ const refreshPanel = () => {
     layoutCount.loaded = 0
     layoutCountTotal.value = 0
     nextTick(() => {
-        console.log(globSetting.value)
         showPanel.value = true
     })
 }

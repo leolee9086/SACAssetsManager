@@ -37,7 +37,7 @@ export async function 构建磁盘目录树(diskLetter) {
     监听文件夹条目({
         path: disk.root,
         type: 'dir'
-    }, (error, entries) => {
+    },async (error, entries) => {
         if (error) {
             console.error('文件系统变化监听错误', error,entries)
             return
@@ -64,7 +64,6 @@ export async function 构建磁盘目录树(diskLetter) {
                                 return
                             }
                             let stats = statSync(path)
-                            console.log('文件系统变化', path, stats)
                             let isDir = stats.isDirectory()
                             if (isDir) {
                                 let entries = readdir(path, { withFileTypes: true })

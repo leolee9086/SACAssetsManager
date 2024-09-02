@@ -8,7 +8,7 @@
         <span class="fn__flex-1 fn__space"></span>
         <span 
         @click="打开后端控制台"
-        data-type="min" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="打开后端控制台 Ctrl+W"><svg>
+        class="block__icon b3-tooltips b3-tooltips__sw" aria-label="打开后端控制台 Ctrl+W"><svg>
                 <use xlink:href="#iconBug"></use>
             </svg>
         </span>

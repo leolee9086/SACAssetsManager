@@ -85,7 +85,6 @@ export const statWithCatch = (path) => {
             type: stat.isFile() ? 'file' : 'dir',
             ...stat,
         })
-        console.log(stat)
         return statCache.get(path)
     } catch (e) {
         return {

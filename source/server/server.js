@@ -1,9 +1,8 @@
 const express = require('express');
 const app = express();
 const path = require('path')
-const compression = require('compression');
 const cors = require('cors'); // 引入 cors 中间件
-import { genThumbnail, listLoaders, getColor } from './handlers/thumbnail.js';
+import { genThumbnail, listLoaders } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream, fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
@@ -27,20 +26,6 @@ siyuanBroadcastChannel.onmessage = (e) => {
  */
 app.use(cors());
 /**
- * 启用响应压缩
- */
-let compressor = compression({
-    level: 6, // 设置压缩级别，范围是 0-9，默认值是 6
-    filter: (req, res) => {
-        if (req.headers['x-no-compression']) {
-            // 如果请求头包含 'x-no-compression'，则不进行压缩
-            return false;
-        }
-        // 其他情况下进行压缩
-        return compression.filter(req, res);
-    }
-})
-/**
  * 流式遍历文件夹
  */
 app.get('/glob-stream', globStream)
@@ -49,8 +34,7 @@ app.post('/file-list-stream', headers.types.textPlain, fileListStream)
 app.get('/count-etries', entryCounter)
 app.get('/listDisk', listDisk)
 app.get('/loaders', listLoaders)
-app.get(
-    '/getPathseByColor', async (req, res) => {
+app.get('/getPathseByColor', async (req, res) => {
         const color = req.query.color
         let ctx = {
             req,
@@ -60,7 +44,6 @@ app.get(
             }
         }
         getFilesByColor(ctx)
-
     }
 )
 app.get('/color', async (req, res) => {
@@ -73,7 +56,6 @@ app.get('/color', async (req, res) => {
     源文件地址 = 源文件地址.replace(/\//g, '\\')
     let stat = statWithCatch(源文件地址)
     let 缓存键 = JSON.stringify({ stat })
-
     let ctx = {
         req,
         res,
@@ -82,76 +64,58 @@ app.get('/color', async (req, res) => {
             缓存键
         }
     }
+    const start = performance.now()
     genColor(ctx).then(
         colors => {
             res.json(colors)
+            statPromisesArray.paused = false;   
+            console.log(`生成颜色，耗时：${performance.now() - start}ms`)
         }
     )
 
 })
 
 app.get('/thumbnail', async (req, res) => {
-
-            statPromisesArray.paused = true
-            const fs = require('fs')
-            let 源文件地址 = ''
-            if (req.query.localPath) {
-                源文件地址 = req.query.localPath
-            } else {
-                源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
-            }
-            源文件地址 = 源文件地址.replace(/\//g, '\\')
-            const stat = statWithCatch(源文件地址)
-            const 缓存键 = JSON.stringify(stat)
-            const thumbnailCache = buildCache('thumbnailCache')
-            const hashedName = genStatHash(stat) + '.thumbnail.png'
-            const 缓存目录 = getCachePath(源文件地址, 'thumbnails').cachePath
-            if (!fs.existsSync(缓存目录)) {
-                fs.mkdirSync(缓存目录, { recursive: true })
-            }
-            let 缓存路径 = require('path').join(缓存目录, hashedName)
-            let extension = 源文件地址.split('.').pop()
-            let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
-            let cacheResult = thumbnailCache.get(缓存键)
-            if (cacheResult && Buffer.isBuffer(cacheResult)) {
-                res.send(cacheResult)
-                statPromisesArray.paused = false
-                return
-            }
-            // 先检查是否存在缓存的缩略图
-            if (await sendFileWithCacheSet(res, 缓存路径, thumbnailCache, 缓存键)) {
-                return
-            }
-            if (await sendFileWithCacheSet(res, 扩展名缓存路径, thumbnailCache, 缓存键)) {
-                return
-            }
-            let ctx = {
-                req,
-                res,
-                query: req.query,
-                缓存对象: thumbnailCache,
-                stats: {
-                    源文件地址,
-                    缓存键,
-                    缓存对象: thumbnailCache
-                }
-            }
-            let next = () => { }
-            genThumbnail(ctx, next);
-            statPromisesArray.paused = false
-
-     
-});
-app.get('/thumbnail/pallet', (req, res) => {
+    statPromisesArray.paused = true
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
     } else {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
+    console.log(源文件地址)
+
     源文件地址 = 源文件地址.replace(/\//g, '\\')
+    const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
-    const thumbnailCache = buildCache('pallet')
+    const thumbnailCache = buildCache('thumbnailCache')
+    const hashedName = genStatHash(stat) + '.thumbnail.png'
+    const 缓存目录 = (await getCachePath(源文件地址, 'thumbnails', true)).cachePath
+
+    let 缓存路径 = require('path').join(缓存目录, hashedName)
+    let extension = 源文件地址.split('.').pop()
+    let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
+    let cacheResult = thumbnailCache.get(缓存键)
+    const start = performance.now()
+    if (cacheResult && Buffer.isBuffer(cacheResult)) {
+        res.send(cacheResult)
+        statPromisesArray.paused = false
+        console.log(`内存缓存命中，耗时：${performance.now() - start}ms`)
+        return
+    }
+    // 先检查是否存在缓存的缩略图
+    if (await sendFileWithCacheSet(res, 缓存路径, thumbnailCache, 缓存键)) {
+        console.log(`文件缩略图硬盘缓存命中，耗时：${performance.now() - start}ms`)
+        statPromisesArray.paused = false;
+
+        return
+    }
+    if (await sendFileWithCacheSet(res, 扩展名缓存路径, thumbnailCache, 缓存键)) {
+        console.log(`文件扩展名缩略图硬盘缓存命中，耗时：${performance.now() - start}ms`)
+        statPromisesArray.paused = false;
+
+        return
+    }
     let ctx = {
         req,
         res,
@@ -163,9 +127,13 @@ app.get('/thumbnail/pallet', (req, res) => {
             缓存对象: thumbnailCache
         }
     }
-    let next = () => { }
-    getColor(ctx, next);
+    let next = () => { 
+        console.log(`生成缩略图，耗时：${performance.now() - start}ms`)
+    }
+    genThumbnail(ctx, next);
+    statPromisesArray.paused = false
 });
+
 app.get(
     '/raw', async (req, res) => {
         const path = req.query.path || req.query.localPath
