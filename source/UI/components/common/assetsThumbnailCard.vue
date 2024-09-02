@@ -21,6 +21,9 @@
         <div v-show="showIframe" ref="protyleContainer">
             <div></div>
         </div>
+        <div class="alt-text" v-if="!showImage" :style="$计算素材缩略图样式">
+            
+        </div>
         <img v-bind="$attrs" ref="image" v-if="showImage" :style="$计算素材缩略图样式" loading="eager"
             draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
