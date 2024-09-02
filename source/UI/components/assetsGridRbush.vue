@@ -30,8 +30,8 @@ import { plugin } from 'runtime'
 /**
  * 计算样式的部分
  */
- const 计算卡片样式 = (卡片数据) => {
-    console.log(卡片数据,paddingLR.value)
+const 计算卡片样式 = (卡片数据) => {
+    paddingLR.value = size.value>200?paddingLR.value:0
     return `
         transform: none;
         top: ${卡片数据.y}px;
@@ -41,6 +41,7 @@ import { plugin } from 'runtime'
         position: absolute;
     `
 }
+
 const 计算容器样式 = computed(() => ({size,paddingLR,containerHeight}) ,()=>{
     console.log(size.value,paddingLR.value,containerHeight.value)
     return `
@@ -193,8 +194,6 @@ const 列数和边距监听器 = async () => {
         return
     }
     计算列数和边距(scrollContainer.value.clientWidth)
-    //    columnCount.value = Math.max(Math.floor(scrollContainer.value.clientWidth / size.value) - 1, 1)
-    //  paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
     columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
     emit('layoutChange', {
         layout: 布局对象.value,
