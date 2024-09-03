@@ -31,3 +31,12 @@ export const 计算素材详情容器样式 = (size,cardHeight) => {
     style.backgroundColor = 'var(--b3-theme-background)'
     return style
 }
+export const 计算素材颜色按钮样式 = (color) => {
+    let style = {}
+    style.backgroundColor = `rgb(${color[0]},${color[1]},${color[2]})`
+    style.height = '0.8em'
+    style.width = '0.8em'
+    style.display = 'inline-block'
+    style.margin = '0 2px'
+    return style
+}

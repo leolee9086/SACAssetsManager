@@ -22,10 +22,10 @@
             <div></div>
         </div>
         <div class="alt-text" v-if="!showImage" :style="$计算素材缩略图样式">
-            
+
         </div>
-        <img v-bind="$attrs" ref="image" v-if="showImage" :style="$计算素材缩略图样式" loading="eager"
-            draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
+        <img v-bind="$attrs" ref="image" v-if="showImage" :style="$计算素材缩略图样式" loading="eager" draggable='true'
+            :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
         <div :style="$计算素材详情容器样式">
             {{ size > 200 ? cleanAssetPath(cardData.data.path) : '' }}
@@ -36,7 +36,7 @@
                 `
                 ">
                 <template v-for="prop in getProps(cardData.data)">
-                    <div v-if="prop " style="border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop" style="border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     width:150px;
@@ -51,11 +51,10 @@
             <div>
                 <template v-for="colorItem in pallet">
                     <div @click="() => 打开颜色查找面板(colorItem.color)"
-                        :style="{ backgroundColor: `rgb(${colorItem.color[0]},${colorItem.color[1]},${colorItem.color[2]})`, height: '0.8em', width: '0.8em', display: 'inline-block', margin: '0 2px' }">
+                        :style="计算素材颜色按钮样式(colorItem.color)">
                     </div>
                 </template>
             </div>
-
         </div>
     </div>
 </template>
@@ -64,7 +63,7 @@ import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick
 import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { clientApi } from '../../../asyncModules.js';
-import { rgba数组转字符串, rgb数组转字符串 } from '../../../utils/color/convert.js';
+import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
 const props = defineProps(['cardData', 'size', 'filterColor'])
@@ -83,7 +82,6 @@ const firstColorString = ref('var(--b3-theme-background-light)')
 const similarColor = computed(() => {
     let item = pallet.value.find(item => item && filterColor.value && diffColor(filterColor.value, item.color))
     return item ? filterColor.value : ''
-    //return ''
 })
 function getProps(data) {
     return Object.keys(data).filter(key => key !== 'id' && key !== 'path' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
@@ -161,14 +159,14 @@ function 更新图片尺寸(e, cardData) {
     const 新高度 = dimensions.height / 缩放因子
     if (size.value < 200) {
         cardHeight.value = size.value
-    }else{
+    } else {
         cardHeight.value = 新高度 + 36
     }
     imageHeight.value = 新高度
     emit('updateSize', { width: cardData.width, height: cardHeight.value })
 }
 
-import { 计算素材缩略图样式, 计算素材详情容器样式 } from './assetStyles.js';
+import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
