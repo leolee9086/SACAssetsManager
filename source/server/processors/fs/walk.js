@@ -17,7 +17,7 @@ import { isEagleBackup, isEagleMeta,isEagleThumbnail,isWindowsysThumbnailDb } fr
  */
 const ignoreDir = ['$recycle','$trash','.git','.sac']
 const 遍历缓存 = buildCache('walk')
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, maxCount, cachedCallback) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, maxCount, maxDepth) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
     let count = 0
@@ -80,13 +80,16 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         return result
     }
 
-    const api = new fdir()
+    let api = new fdir()
         .withFullPaths()
         .withSignal(signal)
         .withMaxFiles()
         .withCache(遍历缓存)
         .filter(realFilter)
-        .crawl(root)
+    if(maxDepth){
+        api=  api.withMaxDepth(maxDepth)
+    }
+    api= api.crawl(root)
     const result = await api.withPromise()
     return result
 }

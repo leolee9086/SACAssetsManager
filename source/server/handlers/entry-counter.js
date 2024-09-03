@@ -1,13 +1,30 @@
 const fastGlob = require('fast-glob');
+import { fdir } from '../processors/fs/fdirModified/index.js';
+import {buildCache} from '../processors/cache/cache.js'
+const 遍历缓存 = buildCache('walk')
 async function countEntries(dir) {
-    const files = await fastGlob(['*'], { cwd: dir + '/', absolute: true, onlyFiles: true, suppressErrors: true, dot: true });
-    const folders = await fastGlob(['*'], { cwd: dir + '/', absolute: true, onlyDirectories: true, suppressErrors: true, dot: true });
+    let fileCount = 0
+    let folderCount = 0
+
+    let api = new fdir()
+    .withMaxDepth(1)
+    .withDirs()
+    .withCache(遍历缓存)
+    .filter(async (path,isDir)=>{
+        if(isDir){
+            folderCount++
+        }else{
+            fileCount++
+        }
+        return true
+    })
+    .crawl(dir)
+    await api.withPromise()
     return {
         name: dir.split('/').pop(),
-        fileCount: files.length,
-        folderCount: folders.length,
+        fileCount: fileCount,
+        folderCount: folderCount,
         show: true
-
     };
 }
 async function getTopLevelFoldersInfo(rootDir, maxCount=100) {

@@ -55,7 +55,6 @@ export async function 构建磁盘目录树(diskLetter) {
                     statCache.delete(path.replace(/\//g, '\\'))
                     return
                 }
-
                 statPromisesArray.push(() => {
                     return new Promise((resolve, reject) => {
                         try {
@@ -76,7 +75,7 @@ export async function 构建磁盘目录树(diskLetter) {
                                 })
                             } else {
                                 let dir = path.split('/').slice(0, -1).join('/')
-                                let entries =readdir(path, { withFileTypes: true })
+                                let entries =readdir(dir, { withFileTypes: true })
                                 遍历缓存.set(dir, entries)
                                 statCache.set(path, {
                                     path,
