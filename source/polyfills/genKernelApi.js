@@ -21,9 +21,11 @@ let pre = `export class  kernelApiList{
     let 思源伺服端口 =  option.思源伺服端口||option.siYuanPort||''
     let 思源伺服协议 =  option.思源伺服协议||option.siYuanScheme||"http"
 	this.apitoken =  option.apitoken||""
-    this.思源伺服地址 = 思源伺服协议+ "://"+思源伺服ip+":"+思源伺服端口
+  this.思源伺服地址 = 思源伺服协议+ "://"+思源伺服ip+":"+思源伺服端口
 	if(option.siYuanServiceURL){this.思源伺服地址=option.siYuanServiceURL}
-	if(option.思源伺服地址){this.思源伺服地址=option.思源伺服地址}`;
+  if(option.思源伺服地址){this.思源伺服地址=option.思源伺服地址}
+  this.sql=(...args)=>{return this.SQL(...args)}
+  `;
 let after = `
 async set(方法, 路径, 英文名, 中文名) {
   this[英文名] = this.生成方法(方法, 路径).bind(this);
@@ -116,11 +118,16 @@ goLines.forEach((line, index) => {
   } else {
     if (line && line.indexOf("ginServer.Handle") > 0) {
       line = line.split("//")[0];
+    }else{
+      if (line&&line.trim().startsWith("ginServer.Any")){
+        line=""
+      }
     }
     line = line
       .replace("ginServer.Handle", "this.set")
       .replace("model.CheckAuth,", "")
       .replace("model.CheckReadonly,", "")
+      .replace("model.CheckAdminRole,","")
       .replace("model.", "");
     let functionName = line.split(",").pop().replace(")", "").trim();
     if (line && line.indexOf("this.set") > 0) {

@@ -5,7 +5,6 @@ const 遍历缓存 = buildCache('walk')
 async function countEntries(dir) {
     let fileCount = 0
     let folderCount = 0
-
     let api = new fdir()
     .withMaxDepth(1)
     .withDirs()

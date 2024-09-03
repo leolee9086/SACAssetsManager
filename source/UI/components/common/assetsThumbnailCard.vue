@@ -24,7 +24,14 @@
         <div class="alt-text" v-if="!showImage" :style="$计算素材缩略图样式">
 
         </div>
-        <img v-bind="$attrs" ref="image" v-if="showImage" :style="$计算素材缩略图样式" loading="eager" draggable='true'
+        <img v-bind="$attrs" 
+        class="thumbnail-card-image ariaLabel"
+        :aria-label="`${cardData.data.path}`"
+        ref="image" 
+        v-if="showImage" 
+        :style="$计算素材缩略图样式" 
+        loading="lazy" 
+        draggable='true'
             :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
         <div :style="$计算素材详情容器样式">
@@ -36,15 +43,18 @@
                 `
                 ">
                 <template v-for="prop in getProps(cardData.data)">
-                    <div v-if="prop" style="border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop&&(文件系统内部属性表[prop]?文件系统内部属性表[prop].show:true)" style="border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     width:150px;
                     overflow:hidden;
                     text-overflow:ellipsis;
                     white-space:nowrap;
-                    ">
-                        {{ prop }}:{{ cardData.data[prop] }}
+                    "
+                    class="ariaLabel"
+                    :aria-label="`${文件系统内部属性表[prop]&&文件系统内部属性表[prop].label?文件系统内部属性表[prop].label:prop}(${prop}):${文件系统内部属性表[prop]&&文件系统内部属性表[prop].parser?文件系统内部属性表[prop].parser(cardData.data[prop]):cardData.data[prop]}`"
+                    >
+                        {{ 文件系统内部属性表[prop]&&文件系统内部属性表[prop].parser?文件系统内部属性表[prop].parser(cardData.data[prop]):cardData.data[prop] }}
                     </div>
                 </template>
             </div>
@@ -66,6 +76,7 @@ import { clientApi } from '../../../asyncModules.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
+import { 文件系统内部属性表 } from '../../../data/attributies/parseAttributies.js';
 const props = defineProps(['cardData', 'size', 'filterColor'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
@@ -83,8 +94,9 @@ const similarColor = computed(() => {
     let item = pallet.value.find(item => item && filterColor.value && diffColor(filterColor.value, item.color))
     return item ? filterColor.value : ''
 })
+
 function getProps(data) {
-    return Object.keys(data).filter(key => key !== 'id' && key !== 'path' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
+    return Object.keys(data).filter(key => key !== 'id'  && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
 }
 const genMaxWidth = () => {
     if (size.value < 200) {

@@ -181,7 +181,7 @@ let 附件数据组
 
 import { 以函数创建尺寸监听 } from "../utils/observers/resize.js"
 const 监听尺寸函数 = 以函数创建尺寸监听((stat) => {
-    计算列数和边距(stat.width)
+    列数和边距监听器(stat.width)
 }, true)
 const 列数和边距监听器 = async () => {
     if (!scrollContainer.value) {
@@ -378,7 +378,6 @@ const 计算列数和边距 = (width) => {
         //如果宽度小于200，则只显示一列,因为此时是表格视图
         columnCount.value = 1
     }
-    console.log(size.value, columnCount.value, paddingLR.value)
 
 }
 </script>

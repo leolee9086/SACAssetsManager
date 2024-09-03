@@ -2,7 +2,12 @@ import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
 import { applyStmt } from '../../data/galleryDefine.js'
 import * as menuItems from './menuItems.js'
 import { tabEvents } from './tabs/events.js'
+import { thumbnail } from '../../server/endPoints.js'
+import { imageExtensions } from '../../server/processors/thumbnail/utils/lists.js'
 const { eventBus, events, app } = plugin
+function isImagePath(path){
+    return imageExtensions.includes(path.split('.').pop())
+}
 eventBus.on(
     'click-editortitleicon', (event) => {
         event.detail.menu.addItem({
@@ -130,7 +135,31 @@ eventBus.on(
                     {
                         label: "最近笔记"
                     }, {
-                        label: "日记"
+                        label: "日记(file链接)",
+                        click:async()=>{
+                            console.log(assets)
+                            const fileLinks = assets.map(item=>{return{
+                                name:item.name,
+                                link: `file:///${item.path}`,
+                                type:item.type,
+                                path:item.path,
+                                href:`${thumbnail.genHref(item.type, item.path, 500)}`,
+                                fileLink:`file:///${item.path}`
+                            }})     
+                            const markdown = fileLinks.map(link=>`[${link.name}](${link.link})\n![](${isImagePath(link.path)?link.fileLink:link.href})`).join('\n\n')
+                            const noteBooks = await kernelApi.sql({
+                                //获取最近修改笔记所在的box
+                                stmt:`select box from blocks order by updated desc limit 1`
+                            })
+                            const result = await kernelApi.appendDailyNoteBlock(
+                                {
+                                    data:markdown,
+                                    dataType:'markdown',
+                                    notebook:noteBooks[0].box
+                                }
+                            )
+                            console.log(result)
+                        }
                     }
                 ]
             },
