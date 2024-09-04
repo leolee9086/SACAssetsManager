@@ -230,21 +230,38 @@
             div.innerHTML = args.join('')
             div.style.whiteSpace = 'pre-wrap'
             div.setAttribute('class','log')
-            logAppContainer.innerHTML += args.join('')
+            logAppContainer.appendChild(div)
+            logAppContainer.scrollTop = logAppContainer.scrollHeight
+            shiftChild(logAppContainer,1000)
+        }
+        console.error=async(...args)=>{
+            let div = document.createElement('div')
+            div.innerHTML = args.join('')
+            div.style.whiteSpace = 'pre-wrap'
+            div.style.color = 'red'
+            div.setAttribute('class','log error')
+            logAppContainer.appendChild(div)
             logAppContainer.scrollTop = logAppContainer.scrollHeight
             shiftChild(logAppContainer,1000)
         }
         function shiftChild(container,num){
-
-            const children =Array.from(container.children)
-            while(children.length>num){
+            const children =Array.from(container.querySelectorAll('.log'))
+            //先进行第一次遍历,只删除非error
+            while(children.length>=num){
+                try{
+                    if(children[0].getAttribute('class')!=='log error'){
+                        children.shift().remove()
+                    }
+                }catch(e){
+                }
+            }
+            //再进行第二次遍历,删除error
+            while(children.length>=num){
                 try{
                     children.shift().remove()
                 }catch(e){
-                    console.error('删除节点失败',e)
                 }
             }
-         
         }
     }
 </script>

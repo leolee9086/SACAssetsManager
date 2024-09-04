@@ -35,6 +35,7 @@ plugin.serverContainer = await createBrowserWindowByURL(entryURL,{
     showImmediately: false,
     keepAlive:true,
     withHeartbeat:true,
+    showTitleBar:false
 });
 plugin.eventBus.on('openDevTools', () => {
     try {

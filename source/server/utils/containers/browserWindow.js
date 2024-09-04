@@ -9,13 +9,15 @@ export function createBrowserWindowByURL(url, options = {
     noCache: true,
     keepAlive: true,
     //是否使用心跳检测
-    withHeartbeat: true
+    withHeartbeat: true,
+    //是否显示默认的窗口标题栏
+    showTitleBar: true
 }) {
     const { BrowserWindow } = require('@electron/remote');
     if (options.keepAlive && !options.single) {
         throw new Error('keepAlive不能对非单例窗口使用')
     }
- 
+
     return new Promise((resolve, reject) => {
         let win = null
         //找到已经打开过的窗口
@@ -75,40 +77,48 @@ export function createBrowserWindowByURL(url, options = {
             }
         }
         try {
-            if(!win){
-            win = new BrowserWindow({
-                width: 800,
-                height: 600,
-                show: options.showImmediately,
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                    webviewTag: true
-                }
-            });
-            //如果使用了心跳检测，则需要注入心跳检测脚本
-
-            enableRemote(win.webContents)
-            if (options.noCache) {
-                win.webContents.session.clearCache(() => {
-                    console.log('缓存已清除');
+            if (!win) {
+                win = new BrowserWindow({
+                    width: 800,
+                    height: 600,
+                    show: options.showImmediately,
+                    webPreferences: {
+                        nodeIntegration: true,
+                        contextIsolation: false,
+                        webviewTag: true,
+                        titleBarStyle: options.showTitleBar ? 'hidden' : 'default'
+                    }
                 });
-            }
-            win.loadURL(url);
-            if (options.withHeartbeat) {
-                try {
-                    win.webContents.executeJavaScript(`
+                //如果使用了心跳检测，则需要注入心跳检测脚本
+
+                enableRemote(win.webContents)
+                if (options.noCache) {
+                    win.webContents.session.clearCache(() => {
+                        console.log('缓存已清除');
+                    });
+                }
+                win.loadURL(url);
+                if (options.withHeartbeat) {
+                    try {
+                        // 注入心跳检测脚本
+                        // 获取当前窗口
+                        const currentWebcontentID = require('@electron/remote').getCurrentWindow().id
+                        win.webContents.executeJavaScript(`
                         const ipcRenderer = require('electron').ipcRenderer
-                    ipcRenderer.on('heartbeat', (e, data) => {
-                        e.sender.send('heartbeat', new Date().toLocaleString())
-                        console.log('收到心跳检测', data,e)
+                        ipcRenderer.on('heartbeat', (e, data) => {
+                        const currentWebcontentID = ${currentWebcontentID}
+                        console.log('收到心跳检测', currentWebcontentID)
+                        const targetWebcontent = require('@electron/remote').webContents.fromId(currentWebcontentID)
+                        if(targetWebcontent){
+                            targetWebcontent.send('heartbeat', data)
+                        }
                         })
                     `)
-                } catch (e) {
-                    console.error('注入心跳检测脚本失败', e)
+                    } catch (e) {
+                        console.error('注入心跳检测脚本失败', e)
+                    }
                 }
             }
-        }
         } catch (e) {
             reject(e)
         }
@@ -141,22 +151,21 @@ export function createBrowserWindowByURL(url, options = {
                 console.log('窗口关闭')
                 try {
                     if (win && !win.isDestroyed()) {
-                        //   win.close()
+                          win.close()
                     }
                 } catch (e) {
                     console.error('关闭窗口失败', e)
                 }
-            }, 2000)
+            }, 5000)
             win.webContents.on('close', () => {
                 clearTimeout(colseTimeout)
             })
             const ipc = require('electron').ipcRenderer
             ipc.on('heartbeat', (e, data) => {
-                console.log('收到心跳检测', data)
                 clearTimeout(colseTimeout)
             })
             let 已经打开过的窗口2 = 获取同源窗口(url)
-        console.log(已经打开过的窗口2)
+            console.log(已经打开过的窗口2)
 
         }
 
