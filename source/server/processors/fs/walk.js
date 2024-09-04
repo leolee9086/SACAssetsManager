@@ -20,17 +20,21 @@ const 遍历缓存 = buildCache('walk')
 export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, maxCount, maxDepth) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
+    const startTime = new Date().getTime()
     let count = 0
     let total = 0
     const realFilter = async (path, isDir) => {
         statPromisesArray.paused = true
+        const nowTime = new Date().getTime()
+        if (nowTime - startTime > 3000) {
+            signal.walkController.abort()
+            return false
+        }
         if (signal.aborted) {
-            statPromisesArray.paused = false
             return false
         }
         if (total > maxCount) {
             signal.walkController.abort()
-            statPromisesArray.paused = false
 
             return false
         }
