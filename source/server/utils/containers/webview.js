@@ -1,8 +1,7 @@
 const { webContents } = require('@electron/remote');
 const  remote  = require('@electron/remote');
 import { createProxyHTMLURL } from './createProxyHTML.js';
-const remoteRequire = remote.require
-const enableRemote =require('@electron/remote').require("@electron/remote/main").enable
+export const enableRemote =require('@electron/remote').require("@electron/remote/main").enable
 export function createInvisibleWebview(entryURL,$enableRemote=true) {
     return new Promise((resolve, reject) => {
         try {
@@ -33,12 +32,9 @@ export function createInvisibleWebview(entryURL,$enableRemote=true) {
                     console.log('缓存已清除');
                 });
                 // 每次加载页面时禁用缓存
-                console.log(entryURL)
                 webviewWebContents.on('did-finish-load', () => {
                     webviewWebContents.session.clearCache(() => { });
                 });
-                console.log(entryURL)
-                console.log(entryURL)
                 resolve(webview)
             });
             setTimeout(() => {
