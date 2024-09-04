@@ -8,7 +8,7 @@ setInterval(() => {
     try {
         channel.postMessage({
             type: 'siyuanConfig',
-        data: window.siyuan.config,
+            data: window.siyuan.config,
             port: plugin.http服务端口号,
             appID: plugin.app.appId,
             siyuanPort: window.location.port
