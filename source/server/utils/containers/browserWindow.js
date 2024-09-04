@@ -1,14 +1,6 @@
 import { enableRemote } from './webview.js'
+import { 获取同源窗口 } from './webcontentsUtils/query.js'
 
-function isSameURL(url1, url2) {
-    const $url1 = new URL(url1)
-    const $url2 = new URL(url2)
-    //注意浏览器会自动将url中的路径解析到index.html
-    //所以需要将路径中的index.html去掉
-    $url1.pathname = $url1.pathname.replace(/index\.html$/, '')
-    $url2.pathname = $url2.pathname.replace(/index\.html$/, '')
-    return $url1.pathname === $url2.pathname && $url1.search === $url2.search
-}
 
 export function createBrowserWindowByURL(url, options = {
     closePrevious: true,
@@ -23,18 +15,15 @@ export function createBrowserWindowByURL(url, options = {
     if (options.keepAlive && !options.single) {
         throw new Error('keepAlive不能对非单例窗口使用')
     }
+ 
     return new Promise((resolve, reject) => {
         let win = null
         //找到已经打开过的窗口
+        const 已经打开过的窗口 = 获取同源窗口(url)
+        console.log(已经打开过的窗口)
+
         if (options.closePrevious) {
             //关闭已经打开过的所有窗口
-            const 已经打开过的窗口 = BrowserWindow.getAllWindows().filter(w => {
-                let result = isSameURL(w.webContents.getURL(), url)
-                console.log('已经打开过的窗口', result, w.webContents.getURL(), url)
-                if (result) {
-                    win = result
-                }
-            })
             if (已经打开过的窗口.length > 0) {
                 try {
                     已经打开过的窗口.forEach(w => {
@@ -48,9 +37,23 @@ export function createBrowserWindowByURL(url, options = {
             }
         }
         if (options.single) {
-            const 已经打开过的窗口 = BrowserWindow.getAllWindows().filter(w => isSameURL(w.webContents.getURL(), url))
-            console.log('已经打开过的窗口', 已经打开过的窗口)
             if (已经打开过的窗口.length > 0) {
+                //关闭直到只有一个窗口
+                const maxCount = 10
+                let count = 0
+                while (已经打开过的窗口.length > 1 && count < maxCount) {
+                    try {
+                        if (已经打开过的窗口[0] && !已经打开过的窗口[0].isDestroyed()) {
+                            已经打开过的窗口[0].close()
+                        }
+                    } catch (e) {
+                        console.error('关闭其他窗口失败', e)
+                    }
+                    count++
+                    if (count > maxCount) {
+                        throw new Error('关闭其他窗口失败')
+                    }
+                }
                 win = 已经打开过的窗口[0]
                 //关闭其他窗口
                 try {
@@ -72,6 +75,7 @@ export function createBrowserWindowByURL(url, options = {
             }
         }
         try {
+            if(!win){
             win = new BrowserWindow({
                 width: 800,
                 height: 600,
@@ -104,6 +108,7 @@ export function createBrowserWindowByURL(url, options = {
                     console.error('注入心跳检测脚本失败', e)
                 }
             }
+        }
         } catch (e) {
             reject(e)
         }
@@ -150,8 +155,11 @@ export function createBrowserWindowByURL(url, options = {
                 console.log('收到心跳检测', data)
                 clearTimeout(colseTimeout)
             })
+            let 已经打开过的窗口2 = 获取同源窗口(url)
+        console.log(已经打开过的窗口2)
 
         }
+
         resolve(win)
 
     })

@@ -68,8 +68,6 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         if(isEagleMeta(modifydied)||isEagleThumbnail(modifydied)||isWindowsysThumbnailDb(modifydied)||isEagleBackup(modifydied)){
             return false
         }
-    
-
         total++
         countCallBack &&await countCallBack(total)
         stepCallback && stepCallback.preMatch && stepCallback.preMatch(proxy)

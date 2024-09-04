@@ -1,6 +1,6 @@
 import { plugin } from '../asyncModules.js'
+import { 获取同源窗口 } from './utils/containers/webcontentsUtils/query.js'
 //使用webview作为接口
-import { createInvisibleWebview } from './utils/containers/webview.js'
 import { createBrowserWindowByURL } from './utils/containers/browserWindow.js'
 const entryURL = import.meta.resolve('./index.html?i=1'); // 或者指向你想要加载的URL
 const channel = new BroadcastChannel('SACAssets')
@@ -38,8 +38,28 @@ plugin.serverContainer = await createBrowserWindowByURL(entryURL,{
 });
 plugin.eventBus.on('openDevTools', () => {
     try {
-        plugin.serverContainer.show()
-        plugin.serverContainer.webContents.openDevTools()
+        let 已经打开过的窗口 = 获取同源窗口(entryURL)
+        console.log(已经打开过的窗口)
+        if(已经打开过的窗口){
+            已经打开过的窗口.forEach(w => {
+                try{
+                    if(!w.isVisible()){
+                        w.show()
+                    }else{
+                        //如果已经打开,置顶
+                        w.setAlwaysOnTop(true)
+                    }
+                }catch(e){
+                    console.error('显示窗口失败', e)
+                }
+                try {   
+                    w.webContents.openDevTools()
+                } catch (e) {
+                    console.error('打开开发者工具失败', e)
+                }
+            })
+            return
+        }
     } catch (e) {
         console.error('打开开发者工具失败', e)
     }

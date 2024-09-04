@@ -221,8 +221,58 @@
 
 
 </script>
+<script>
+    window.onload = () => {
+        const logAppContainer = document.getElementById('logApp')
+        logAppContainer.innerHTML = '<div>123</div>'
+        console.log=async(...args)=>{
+            let div = document.createElement('div')
+            div.innerHTML = args.join('')
+            div.style.whiteSpace = 'pre-wrap'
+            div.setAttribute('class','log')
+            logAppContainer.innerHTML += args.join('')
+            logAppContainer.scrollTop = logAppContainer.scrollHeight
+            shiftChild(logAppContainer,1000)
+        }
+        function shiftChild(container,num){
+
+            const children =Array.from(container.children)
+            while(children.length>num){
+                try{
+                    children.shift().remove()
+                }catch(e){
+                    console.error('删除节点失败',e)
+                }
+            }
+         
+        }
+    }
+</script>
+<style>
+    body,html{
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+    }
+    #logApp{
+        width: 100%;
+        height: 100%;
+        overflow-y: auto;
+        background-color: #000;
+        color: #fff;
+    }
+    .log{
+        white-space: pre-wrap;
+        margin-bottom: 10px;
+    }
+</style>
 </head>
 <body>
+    <div id="logApp">
+
+    </div>
 </body>
 </html>
 
