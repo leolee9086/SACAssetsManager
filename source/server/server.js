@@ -34,6 +34,28 @@ app.post('/file-list-stream', headers.types.textPlain, fileListStream)
 app.get('/count-etries', entryCounter)
 app.get('/listDisk', listDisk)
 app.get('/loaders', listLoaders)
+import { 获取ealge素材库路径,获取ealge素材库标签列表 } from './handlers/eagle-api.js'
+
+/***
+ * 获取eagle素材库路径
+ */
+app.get('/eagle-path',(req,res)=>{
+    const ctx = {
+        req,
+        res
+    }
+    获取ealge素材库路径(ctx)
+})
+app.get('/eagle-tags',(req,res)=>{
+    const ctx = {
+        req,
+        res
+    }
+    获取ealge素材库标签列表(ctx)
+})
+/***
+ * 获取颜色
+ */
 app.get('/getPathseByColor', async (req, res) => {
         const color = req.query.color
         let ctx = {
@@ -74,9 +96,15 @@ app.get('/color', async (req, res) => {
     )
 
 })
-
+/**
+ * 缩略图生成
+ * 这里前端也需要加上一个15秒左右的缓存
+ */
 app.get('/thumbnail', async (req, res) => {
+    // 暂停所有文件状态获取
     statPromisesArray.paused = true
+    // 前端保留15秒的缓存
+    res.setHeader('Cache-Control', 'public, max-age=15')
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath

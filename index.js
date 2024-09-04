@@ -124,7 +124,6 @@ module.exports = class SACAssetsManager extends Plugin {
       },
       beforeDestroy() {
         this.element.innerHTML = ""
-        console.log(this.controllers)
         this.controllers&&this.controllers.forEach(controller=>{
           controller.abort()
         })

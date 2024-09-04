@@ -137,7 +137,6 @@ eventBus.on(
                     }, {
                         label: "日记(file链接)",
                         click:async()=>{
-                            console.log(assets)
                             const fileLinks = assets.map(item=>{return{
                                 name:item.name,
                                 link: `file:///${item.path}`,
@@ -158,7 +157,6 @@ eventBus.on(
                                     notebook:noteBooks[0].box
                                 }
                             )
-                            console.log(result)
                         }
                     }
                 ]

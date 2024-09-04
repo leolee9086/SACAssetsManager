@@ -100,7 +100,6 @@ export async function 构建磁盘目录树(diskLetter) {
     console.log('构建磁盘目录树', disk.root)
     global[Symbol.for('tree')].disks.push(disk)
     根据路径查找并加载颜色索引(disk.root)
-    //   return {disk,statPromisesArray}
     return await 构建目录树(disk.root, true, disk, diskTree.flatDirs, diskTree.flatFiles)
 }
 let tasks = 0

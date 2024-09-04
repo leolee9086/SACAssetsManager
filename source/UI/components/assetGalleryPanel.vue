@@ -35,6 +35,9 @@
                         </svg>
                     </button>
                 </div>
+                <div class="fn__flex">
+                    <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
+                </div>
                 <div class="grid__container" v-if="showPallet"
                     :style="`position:absolute;top:${palletButton.offsetTop + palletButton.offsetHeight + 10}px;left:${palletButton.offsetLeft - 100}px;width:200px;max-height:300px;background:rgba(0,0,0,0.5);height:300px;overflow:auto;z-index:10;`">
                     <template v-for="item in pallet">
@@ -87,6 +90,8 @@ const palletButton = ref(null)
 const showPallet = ref(false)
 const pallet = ref([])
 const filterColor = ref(appData.value.tab.data.color || [])
+const eaglePath = ref('')
+
 watch(
     filterColor, (data) => {
         plugin.eventBus.emit(
@@ -126,7 +131,6 @@ const $realGlob = computed(() => {
 const everthingEnabled = ref(false)
 watch([everthingPort, $realGlob], (e) => {
     fetch(`http://localhost:${everthingPort.value}/?reg=${encodeURIComponent(search.value)}&json=1`).then(res => res.json()).then(json => {
-        console.log(json)
         if (json) {
             everthingEnabled.value = true
         }
@@ -184,6 +188,21 @@ function scaleListener(event) {
         event.stopPropagation()
     }
 }
+
+const 获取eagle标签列表=()=>{
+    fetch(`http://localhost:${plugin.http服务端口号}/eagle-tags?path=${eaglePath.value}`).then(res => res.json()).then(json => {
+        console.log(json)
+    })
+}
+const 获取ealge素材库路径 = () => {
+    fetch(`http://localhost:${plugin.http服务端口号}/eagle-path?path=${appData.value.tab.data.localPath}`).then(res => res.json()).then(json => {
+        eaglePath.value = json.finded
+    })
+}
+onMounted(() => {
+    获取ealge素材库路径()
+})
+
 /**
  * 键盘相关逻辑
  */
