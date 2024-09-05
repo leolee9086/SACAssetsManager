@@ -247,7 +247,12 @@
         function shiftChild(container,num){
             const children =Array.from(container.querySelectorAll('.log'))
             //先进行第一次遍历,只删除非error
+            const timeOut= 1000
+            const startTime = Date.now()
             while(children.length>=num){
+                if(Date.now()-startTime>timeOut){
+                    break
+                }
                 try{
                     if(children.shift().getAttribute('class')!=='log error'){
                         children.shift().remove()
@@ -257,6 +262,9 @@
             }
             //再进行第二次遍历,删除error
             while(children.length>=num){
+                if(Date.now()-startTime>timeOut){
+                    break
+                }
                 try{
                     children.shift().remove()
                 }catch(e){
