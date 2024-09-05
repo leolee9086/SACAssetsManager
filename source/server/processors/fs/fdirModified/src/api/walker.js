@@ -10,7 +10,6 @@ import * as invokeCallback from "./functions/invoke-callback.js";
 import * as walkDirectory from "./functions/walk-directory.js";
 import * as queue_1 from "./queue.js";
 import * as counter_1 from "./counter.js";
-import {idleIdle} from "./idleQueue.js"
 class Walker {
     root;
     isSynchronous;

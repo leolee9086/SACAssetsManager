@@ -129,9 +129,7 @@ export function createBrowserWindowByURL(url, options = {
                             const ipcRenderer = require('electron').ipcRenderer
                         ipcRenderer.on('heartbeat', (e, data) => {
                             const currentWebcontentID = data.data.currentWebcontentID
-                            console.log('收到心跳检测', currentWebcontentID,JSON.stringify(data))
                             const targetWebcontent = require('@electron/remote').webContents.fromId(currentWebcontentID)
-                            console.log('targetWebcontent', targetWebcontent)
                             if(targetWebcontent){
                                 targetWebcontent.send('heartbeat', 'heartbeat')
                             }

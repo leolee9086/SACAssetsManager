@@ -15,7 +15,7 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkController) => {
+const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
     signal.addEventListener('abort', () => {
@@ -76,7 +76,7 @@ const createWalkStream = (cwd, filter, signal, res, maxCount = 10000, walkContro
         }
     }, (walkCount) => {
         chunked += `data:${JSON.stringify({ walkCount })}\n`
-    }, walkSignal, maxCount);
+    }, walkSignal, timeout);
 
 };
 export const globStream = async (req, res) => {
@@ -138,7 +138,7 @@ export const globStream = async (req, res) => {
             }
         }
     }
-    const maxCount = scheme.maxCount
+    const timeout = parseInt(scheme.timeout)||1000
     const cwd = scheme.cwd
     //设置响应头
     res.writeHead(200, {
@@ -149,7 +149,7 @@ export const globStream = async (req, res) => {
    // res.flush()
 
     const { signal } = controller;
-    createWalkStream(cwd, filter, signal, res, maxCount, walkController)
+    createWalkStream(cwd, filter, signal, res, timeout, walkController)
     //前端请求关闭时,触发中止信号
     //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
     res.on('close', () => {

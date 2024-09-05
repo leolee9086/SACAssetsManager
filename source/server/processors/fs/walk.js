@@ -5,6 +5,7 @@ import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
 import { statPromisesArray } from './disk/tree.js'
 import { isEagleBackup, isEagleMeta,isEagleThumbnail,isWindowsysThumbnailDb } from '../thumbnail/utils/regexs.js'
+import { 构建目录树 } from '../fs/disk/tree.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -17,43 +18,53 @@ import { isEagleBackup, isEagleMeta,isEagleThumbnail,isWindowsysThumbnailDb } fr
  */
 const ignoreDir = ['$recycle','$trash','.git','.sac']
 const 遍历缓存 = buildCache('walk')
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, maxCount, maxDepth) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
-    const startTime = new Date().getTime()
     let count = 0
     let total = 0
+    //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
+    try{
+        if(!遍历缓存.get(root)){
+            构建目录树(root)
+        }
+    }catch(e){
+        console.error('构建目录树失败', e)
+    }
+    const startTime = Date.now()
+
     const realFilter = async (path, isDir) => {
         statPromisesArray.paused = true
-        const nowTime = new Date().getTime()
-        if (nowTime - startTime > 3000) {
+        const nowTime = Date.now()
+        if (nowTime - startTime > timeout) {
             signal.walkController.abort()
+
             return false
         }
+     
         if (signal.aborted) {
-            return false
-        }
-        if (total > maxCount) {
-            signal.walkController.abort()
 
             return false
         }
         for await (let dir of ignoreDir) {
             if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
+
                 return false
             }
         }
        
         if (isDir) {
-            if (total > maxCount) {
-                statPromisesArray.paused = false
-                return false
+            try{
+                if(!遍历缓存.get(proxy.path)){
+                    构建目录树(proxy.path)
+                }
+            }catch(e){
             }
             try{
                 let flag = filter ? await filter(proxy, proxy.path.split('/').length) : true
-
                 return flag
             }catch(e){
+
                 return false
             }
         } 
@@ -66,6 +77,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         let modifydied = path.replace(/\\/g,'/')
         let proxy = buildStatProxyByPath(modifydied, entry, isDir ? 'dir' : 'file')
         if(isEagleMeta(modifydied)||isEagleThumbnail(modifydied)||isWindowsysThumbnailDb(modifydied)||isEagleBackup(modifydied)){
+
             return false
         }
         total++
@@ -74,7 +86,8 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         let result
         try{
             result= filter ? await filter(proxy, proxy.path.split('/').length) : true
-        }catch(e){
+        }catch(e){                
+
             return false
         }
         result && stepCallback &&proxy.type==='file'&&await stepCallback(proxy)

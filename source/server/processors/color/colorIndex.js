@@ -19,6 +19,7 @@ export async function 根据路径查找并加载颜色索引(path){
      从路径加载颜色索引(cachePath,root)
 }
 export async function 从路径加载颜色索引(cachePath,root){
+    try{
     if (fs.existsSync(cachePath) && !loaded[cachePath]) {
         console.log('从', cachePath, '加载缓存')
         loaded[cachePath] = true
@@ -36,6 +37,9 @@ export async function 从路径加载颜色索引(cachePath,root){
         }
         清理颜色索引(colorIndex)
     }
+}catch(e){
+    console.error('从路径加载颜色索引失败', e,cachePath,root)
+}
 }
 export async function 添加到颜色索引(colorItem, assets) {
     const { cachePath, root } = await getCachePath(assets, 'colorIndex.json')

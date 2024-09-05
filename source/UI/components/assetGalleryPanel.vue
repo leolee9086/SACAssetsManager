@@ -17,7 +17,7 @@
                 <div class="fn__space fn__flex-1"></div>
 
                 <input v-if="!everthingEnabled" v-model="maxCount" style="box-sizing: border-box;width:100px;"
-                    :value="10000" type="number">
+                    :value="1000" type="number">
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
                     <button @click="refreshPanel">刷新</button>
@@ -83,7 +83,7 @@ const appData = toRef(inject('appData'))
 //全局设置
 const globSetting = ref({})
 //最大显示数量
-const maxCount = ref(10000)
+const maxCount = ref(1000)
 const layoutCountTotal = ref(0)
 const search = ref('')
 const palletButton = ref(null)
@@ -110,11 +110,11 @@ const palletAdded = (data) => {
             }
         ))))
 }
-const everthingPort = ref(10000)
+const everthingPort = ref(1000)
 const $realGlob = computed(() => {
     let realGlob = {
         ...globSetting.value,
-        maxCount: maxCount.value,
+        timeout: maxCount.value,
     }
     if (search.value) {
         realGlob.query = {

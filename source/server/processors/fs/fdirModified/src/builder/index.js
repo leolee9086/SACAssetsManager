@@ -25,6 +25,10 @@ class Builder {
         this.options.signal = signal;
         return this;
     }
+    withTimeout(timeout) {
+        this.options.timeout = timeout;
+        return this;
+    }
     group() {
         this.options.group = true;
         return this;
