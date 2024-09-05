@@ -274,3 +274,9 @@ function 添加文件解析任务到任务队列(item, tasksCount) {
         })
     )
 }
+export function 暂停文件系统解析队列(){
+    statPromisesArray.paused = true
+}
+export function 恢复文件系统解析队列(){
+    statPromisesArray.paused = false
+}

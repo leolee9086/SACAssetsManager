@@ -4,7 +4,6 @@ import { buildCache } from "../processors/cache/cache.js"
 import { statWithCatch } from "../processors/fs/stat.js"
 import { genStatHash } from "../processors/fs/stat.js"
 import { statPromisesArray } from "../processors/fs/disk/tree.js"
-import { genThumbnail } from "../handlers/thumbnail.js"
 export const sendDefaultIcon = (req, res) => {
     const iconPath = process.execPath.replace('SiYuan.exe', 'resources\\stage\\icon-large.png')
     res.sendFile(iconPath)
@@ -25,23 +24,8 @@ export const getSourcePath = (req, res, next) => {
     req.sourcePath = 源文件地址
     next()
 }
-export const checkAndSendExtensionIcon = async (req, res, next) => {
-    const 源文件地址 = req.sourcePath
-    const stat = statWithCatch(源文件地址)
-    let extension = 源文件地址.split('.').pop()
-    const 缓存目录 = (await getCachePath(源文件地址, 'thumbnails', true)).cachePath
-    let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
-    const thumbnailCache = buildCache('thumbnailCache')
-    const 缓存键 = JSON.stringify(stat)
-    console.log(`查找扩展名缓存路径`,扩展名缓存路径)
-    if (await sendFileWithCacheSet(res, 扩展名缓存路径, thumbnailCache, 缓存键)) {
-        console.log(`扩展名缓存命中`,源文件地址)
-        statPromisesArray.paused = false;
-        return
-    }
-    next()
-}
-export const checkAndSendThumbnailWithMemoryCache = async (req, res, next) => {
+
+export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
     const 源文件地址 = req.sourcePath
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
@@ -72,4 +56,56 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
         return
     }
     next()
+}
+
+
+export const buildCtxAndSendThumbnail = async (req, res, next) => {
+    console.log(`未找到文件缩略图，生成文件缩略图`,req.sourcePath)
+    genThumbnail(req, res, next);
+    statPromisesArray.paused = false
+}
+export async function genThumbnail(req, res, next) {
+    const 源文件地址 = req.sourcePath
+    const stat = statWithCatch(源文件地址)
+    const 缓存键 = JSON.stringify(stat)
+    const start = performance.now()
+    const thumbnailCache = buildCache('thumbnailCache')
+    let ctx = {
+        req,
+        res,
+        query: req.query,
+        缓存对象: thumbnailCache,
+        stats: {
+            源文件地址,
+            缓存键,
+            缓存对象: thumbnailCache
+        }
+    }
+    let $next = () => {
+        console.log(`生成缩略图，耗时：${performance.now() - start}ms`)
+    }
+
+    statPromisesArray.paused = true
+    if (!源文件地址) {
+        res.status(400).send('Invalid request: missing source file address');
+        return
+    }
+    let result = null
+    let type = null
+    try {
+        result = await getThumbnailWithCache(ctx)
+        if (result) {
+            type = result.type
+            if (type) {
+                res.type(type).send(result.data)
+            } else {
+                res.type('png').send(result)
+            }
+        }
+    } catch (e) {
+        console.warn(e)
+        res.status(500).send('Error processing image: ' + e.message);
+    }
+    statPromisesArray.paused = false
+    next && next()
 }

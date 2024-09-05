@@ -36,19 +36,15 @@ const express = require('express')
 const router = express.Router()
 import {
     sendDfaultIconWithCacheWrite,
-    checkAndSendExtensionIcon,
     checkAndSendWritedIconWithCacheWrite,
     getSourcePath,
-    checkAndSendThumbnailWithMemoryCache,
+    文件缩略图内存缓存中间件,
+    buildCtxAndSendThumbnail,
 } from '../middlewares/defaultIcon.js'
-const buildCtxAndSendThumbnail = async (req, res, next) => {
-    console.log(`未找到文件缩略图，生成文件缩略图`,req.sourcePath)
-    genThumbnail(req, res, next);
-    statPromisesArray.paused = false
-}
+import { checkAndSendExtensionIcon } from '../middlewares/thumbnails/withdiskCache.js'
 router.get('/',
     getSourcePath,
-    checkAndSendThumbnailWithMemoryCache,
+    文件缩略图内存缓存中间件,
     checkAndSendExtensionIcon,
     checkAndSendWritedIconWithCacheWrite, 
     async (req, res,next) => {
@@ -66,51 +62,6 @@ router.get('/',
 },buildCtxAndSendThumbnail,sendDfaultIconWithCacheWrite);
 export const genThumbnailRouter = router
 
-export async function genThumbnail(req, res, next) {
-    const 源文件地址 = req.sourcePath
-    const stat = statWithCatch(源文件地址)
-    const 缓存键 = JSON.stringify(stat)
-    const start = performance.now()
-    const thumbnailCache = buildCache('thumbnailCache')
-    let ctx = {
-        req,
-        res,
-        query: req.query,
-        缓存对象: thumbnailCache,
-        stats: {
-            源文件地址,
-            缓存键,
-            缓存对象: thumbnailCache
-        }
-    }
-    let $next = () => {
-        console.log(`生成缩略图，耗时：${performance.now() - start}ms`)
-    }
-
-    statPromisesArray.paused = true
-    if (!源文件地址) {
-        res.status(400).send('Invalid request: missing source file address');
-        return
-    }
-    let result = null
-    let type = null
-    try {
-        result = await getThumbnailWithCache(ctx)
-        if (result) {
-            type = result.type
-            if (type) {
-                res.type(type).send(result.data)
-            } else {
-                res.type('png').send(result)
-            }
-        }
-    } catch (e) {
-        console.warn(e)
-        res.status(500).send('Error processing image: ' + e.message);
-    }
-    statPromisesArray.paused = false
-    next && next()
-}
 export function listLoaders(req, res) {
     res.json(listThumbnailLoaders())
 }
