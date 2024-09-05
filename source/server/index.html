@@ -249,7 +249,7 @@
             //先进行第一次遍历,只删除非error
             while(children.length>=num){
                 try{
-                    if(children[0].getAttribute('class')!=='log error'){
+                    if(children.shift().getAttribute('class')!=='log error'){
                         children.shift().remove()
                     }
                 }catch(e){

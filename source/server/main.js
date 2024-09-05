@@ -37,6 +37,31 @@ plugin.serverContainer = await createBrowserWindowByURL(entryURL,{
     withHeartbeat:true,
     showTitleBar:false
 });
+
+plugin.serverContainer.getWebContentsId=()=>{
+    try{
+        return plugin.serverContainer.webContents.id
+    }catch(e){
+        console.error('获取webContentsId失败', e)
+        createBrowserWindowByURL(entryURL,{
+            closePrevious: false,
+            single: true,
+            noCache:true,
+            showImmediately: false,
+            keepAlive:true,
+            withHeartbeat:true,
+            showTitleBar:false
+        }).then(
+            (w)=>{
+                plugin.serverContainer = w
+            }
+        ).catch(
+            (e)=>{
+                console.error('创建webview失败', e)
+            }
+        )
+    }
+}
 plugin.eventBus.on('openDevTools', () => {
     try {
         let 已经打开过的窗口 = 获取同源窗口(entryURL)

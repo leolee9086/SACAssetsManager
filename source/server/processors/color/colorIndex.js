@@ -24,6 +24,7 @@ export async function 从路径加载颜色索引(cachePath,root){
         console.log('从', cachePath, '加载缓存')
         loaded[cachePath] = true
         const cached = JSON.parse( await fs.promises.readFile(cachePath))
+        //将原本的cached进行缓存
          for(let i=0;i<cached.length;i++){
             let item = cached[i]
             item.assets = item.assets.map(asset => {
