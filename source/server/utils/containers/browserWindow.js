@@ -156,7 +156,7 @@ export function createBrowserWindowByURL(url, options = {
                 } catch (e) {
                     console.error('关闭窗口失败', e)
                 }
-            }, 5000)
+            }, 2000)
             win.webContents.on('close', () => {
                 clearTimeout(colseTimeout)
             })
