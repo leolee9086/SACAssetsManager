@@ -21,7 +21,7 @@ export function createBrowserWindowByURL(url, options = {
     return new Promise((resolve, reject) => {
         let win = null
         //找到已经打开过的窗口
-        const 已经打开过的窗口 = 获取同源窗口(url)
+        let 已经打开过的窗口 = 获取同源窗口(url)
         console.log(已经打开过的窗口)
 
         if (options.closePrevious) {
@@ -40,40 +40,32 @@ export function createBrowserWindowByURL(url, options = {
         }
         if (options.single) {
             if (已经打开过的窗口.length > 0) {
+                console.log('已经打开过的窗口', 已经打开过的窗口)
                 //关闭直到只有一个窗口
                 const maxCount = 10
                 let count = 0
                 while (已经打开过的窗口.length > 1 && count < maxCount) {
-                    try {
-                        if (已经打开过的窗口[0] && !已经打开过的窗口[0].isDestroyed()) {
-                            已经打开过的窗口[0].close()
+                    已经打开过的窗口 = 获取同源窗口(url)
+
+                    for (let i = 0; i < 已经打开过的窗口.length; i++) {
+                        if (i === 0) {
+                            continue
                         }
-                    } catch (e) {
-                        console.error('关闭其他窗口失败', e)
-                    }
-                    count++
-                    if (count > maxCount) {
-                        throw new Error('关闭其他窗口失败')
+                        try {
+                            if (已经打开过的窗口[i] && !已经打开过的窗口[i].isDestroyed()) {
+                                console.log('关闭其他窗口', 已经打开过的窗口[i])
+                                已经打开过的窗口[i].close()
+                            }
+                        } catch (e) {
+                            console.error('关闭其他窗口失败', e)
+                        }
+                        count++
+                        if (count > maxCount) {
+                            throw new Error('关闭其他窗口失败')
+                        }
                     }
                 }
                 win = 已经打开过的窗口[0]
-                //关闭其他窗口
-                try {
-                    已经打开过的窗口.forEach(w => {
-                        if (w !== 已经打开过的窗口[0]) {
-                            console.log('关闭其他窗口', w)
-                            try {
-                                if (w && !w.isDestroyed()) {
-                                    w.close()
-                                }
-                            } catch (e) {
-                                console.error('关闭其他窗口失败', e)
-                            }
-                        }
-                    })
-                } catch (e) {
-                    console.error('关闭其他窗口失败', e)
-                }
             }
         }
         try {
@@ -98,27 +90,8 @@ export function createBrowserWindowByURL(url, options = {
                     });
                 }
                 win.loadURL(url);
-                if (options.withHeartbeat) {
-                    try {
-                        // 注入心跳检测脚本
-                        // 获取当前窗口
-                        const currentWebcontentID = require('@electron/remote').getCurrentWindow().id
-                        win.webContents.executeJavaScript(`
-                        const ipcRenderer = require('electron').ipcRenderer
-                        ipcRenderer.on('heartbeat', (e, data) => {
-                        const currentWebcontentID = ${currentWebcontentID}
-                        console.log('收到心跳检测', currentWebcontentID)
-                        const targetWebcontent = require('@electron/remote').webContents.fromId(currentWebcontentID)
-                        if(targetWebcontent){
-                            targetWebcontent.send('heartbeat', data)
-                        }
-                        })
-                    `)
-                    } catch (e) {
-                        console.error('注入心跳检测脚本失败', e)
-                    }
-                }
             }
+            console.log('窗口加载完成')
         } catch (e) {
             reject(e)
         }
@@ -128,17 +101,17 @@ export function createBrowserWindowByURL(url, options = {
                 createBrowserWindowByURL(url, options)
             })
         }
-        if (options.withHeartbeat) {
+        if (options.withHeartbeat && window.location.href.includes('/stage/build/app')) {
             console.log('开始心跳检测')
             console.log('win', win)
             setInterval(() => {
-                let time = new Date().toLocaleString()
+                const currentWebcontentID = require('@electron/remote').getCurrentWindow().webContents.id
                 try {
                     if (win && !win.isDestroyed()) {
                         win.webContents.send('heartbeat', {
                             type: 'heartbeat',
                             data: {
-                                time: time,
+                                currentWebcontentID: currentWebcontentID,
                             }
                         })
                     }
@@ -146,27 +119,57 @@ export function createBrowserWindowByURL(url, options = {
                     console.warn('发送心跳检测失败', e)
                 }
             }, 1000)
-            console.log('窗口加载完成,开始心跳检测')
-            const colseTimeout = setTimeout(() => {
-                console.log('窗口关闭')
+            if (options.withHeartbeat) {
                 try {
-                    if (win && !win.isDestroyed()) {
-                          win.close()
+                    // 注入心跳检测脚本
+                    // 获取当前窗口
+                    win.webContents.executeJavaScript(`
+                    if(!window.heartbeatStarted){
+                            window.heartbeatStarted = true
+                            const ipcRenderer = require('electron').ipcRenderer
+                        ipcRenderer.on('heartbeat', (e, data) => {
+                            const currentWebcontentID = data.data.currentWebcontentID
+                            console.log('收到心跳检测', currentWebcontentID,JSON.stringify(data))
+                            const targetWebcontent = require('@electron/remote').webContents.fromId(currentWebcontentID)
+                            console.log('targetWebcontent', targetWebcontent)
+                            if(targetWebcontent){
+                                targetWebcontent.send('heartbeat', 'heartbeat')
+                            }
+                        })
                     }
+                `)
                 } catch (e) {
-                    console.error('关闭窗口失败', e)
+                    console.error('注入心跳检测脚本失败', e)
                 }
-            }, 2000)
-            win.webContents.on('close', () => {
-                clearTimeout(colseTimeout)
-            })
-            const ipc = require('electron').ipcRenderer
-            ipc.on('heartbeat', (e, data) => {
-                clearTimeout(colseTimeout)
-            })
-            let 已经打开过的窗口2 = 获取同源窗口(url)
-            console.log(已经打开过的窗口2)
+            }
+            setTimeout(() => {
+                console.log('窗口加载完成,开始心跳检测')
 
+                const currentWebcontentID = require('@electron/remote').getCurrentWindow().webContents.id
+             
+                console.log('currentWebcontentID', currentWebcontentID)
+                console.log(require('@electron/remote').webContents.fromId(currentWebcontentID))
+                const colseTimeout = setTimeout(() => {
+                    console.log('窗口关闭')
+                    try {
+                        if (win && !win.isDestroyed()) {
+                            win.close()
+                        }
+                    } catch (e) {
+                        console.error('关闭窗口失败', e)
+                    }
+                }, 5000)
+                win.webContents.on('close', () => {
+                    clearTimeout(colseTimeout)
+                })
+                const ipc = require('electron').ipcRenderer
+                ipc.on('heartbeat', (e, data) => {
+                    console.log('收到心跳响应', data)
+                    clearTimeout(colseTimeout)
+                })
+                let 已经打开过的窗口2 = 获取同源窗口(url)
+                console.log(已经打开过的窗口2)
+            }, 3000)
         }
 
         resolve(win)
