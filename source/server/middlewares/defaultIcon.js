@@ -33,8 +33,9 @@ export const checkAndSendExtensionIcon = async (req, res, next) => {
     let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     const thumbnailCache = buildCache('thumbnailCache')
     const 缓存键 = JSON.stringify(stat)
+    console.log(`查找扩展名缓存路径`,扩展名缓存路径)
     if (await sendFileWithCacheSet(res, 扩展名缓存路径, thumbnailCache, 缓存键)) {
-        console.log(`扩展名缓存命中`)
+        console.log(`扩展名缓存命中`,源文件地址)
         statPromisesArray.paused = false;
         return
     }
@@ -46,7 +47,9 @@ export const checkAndSendThumbnailWithMemoryCache = async (req, res, next) => {
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('thumbnailCache')
     let cacheResult = thumbnailCache.get(缓存键)
+    console.log(`查找文件缩略图内存缓存`,源文件地址)
     if (cacheResult && Buffer.isBuffer(cacheResult)) {
+        console.log(`文件缩略图内存缓存命中`,源文件地址)
         res.send(cacheResult)
         statPromisesArray.paused = false;
         return
@@ -62,14 +65,11 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
     const 缓存目录 = (await getCachePath(源文件地址, 'thumbnails', true)).cachePath
     let 缓存路径 = require('path').join(缓存目录, hashedName)
     // 先检查是否存在缓存的缩略图
+    console.log(`查找文件缩略图硬盘缓存`,缓存路径)
     if (await sendFileWithCacheSet(res, 缓存路径, thumbnailCache, 缓存键)) {
-        console.log(`文件缩略图硬盘缓存命中`)
+        console.log(`文件缩略图硬盘缓存命中`,源文件地址)
         statPromisesArray.paused = false;
         return
     }
     next()
-}
-export const buildCtxAndSendThumbnail = async (req, res, next) => {
-    genThumbnail(req, res, next);
-    statPromisesArray.paused = false
 }

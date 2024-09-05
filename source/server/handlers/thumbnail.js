@@ -1,7 +1,5 @@
 import { listLoaders as listThumbnailLoaders } from '../processors/thumbnail/loader.js '
 import { 生成缩略图 } from '../processors/thumbnail/loader.js'
-import { 获取颜色 } from '../processors/color/index.js'
-import { 获取图片尺寸 } from '../processors/size/size.js'
 import { statPromisesArray } from '../processors/fs/disk/tree.js'
 import { statWithCatch } from '../processors/fs/stat.js'
 import { buildCache } from '../processors/cache/cache.js'
@@ -34,7 +32,41 @@ const getThumbnailWithCache = async (ctx) => {
     return result
 }
 
-export async function genThumbnail(req, res, next) {
+const express = require('express')
+const router = express.Router()
+import {
+    sendDfaultIconWithCacheWrite,
+    checkAndSendExtensionIcon,
+    checkAndSendWritedIconWithCacheWrite,
+    getSourcePath,
+    checkAndSendThumbnailWithMemoryCache,
+} from '../middlewares/defaultIcon.js'
+const buildCtxAndSendThumbnail = async (req, res, next) => {
+    console.log(`未找到文件缩略图，生成文件缩略图`,req.sourcePath)
+    genThumbnail(req, res, next);
+    statPromisesArray.paused = false
+}
+router.get('/',
+    getSourcePath,
+    checkAndSendThumbnailWithMemoryCache,
+    checkAndSendExtensionIcon,
+    checkAndSendWritedIconWithCacheWrite, 
+    async (req, res,next) => {
+    // 暂停所有文件状态获取
+    statPromisesArray.paused = true
+    // 前端保留15秒的缓存
+    res.setHeader('Cache-Control', 'public, max-age=15')
+    try{
+        next()
+    }catch(e){
+        console.log(e)
+    }
+    statPromisesArray.paused = false
+    return
+},buildCtxAndSendThumbnail,sendDfaultIconWithCacheWrite);
+export const genThumbnailRouter = router
+
+export async function $genThumbnail(req, res, next) {
     const 源文件地址 = req.sourcePath
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)

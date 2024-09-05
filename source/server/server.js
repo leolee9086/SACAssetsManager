@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const path = require('path')
 const cors = require('cors'); // 引入 cors 中间件
-import { genThumbnail, listLoaders } from './handlers/thumbnail.js';
+import { genThumbnailRouter, listLoaders } from './handlers/thumbnail.js';
 import "./licenseChecker.js"
 import { globStream, fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
@@ -100,33 +100,7 @@ app.get('/color', async (req, res) => {
  * 缩略图生成
  * 这里前端也需要加上一个15秒左右的缓存
  */
-import { 
-    sendDfaultIconWithCacheWrite,
-    checkAndSendExtensionIcon,
-    checkAndSendWritedIconWithCacheWrite,
-    getSourcePath,
-    checkAndSendThumbnailWithMemoryCache,
-    buildCtxAndSendThumbnail
-} from './middlewares/defaultIcon.js'
-app.get('/thumbnail',
-    getSourcePath,
-    checkAndSendThumbnailWithMemoryCache,
-    checkAndSendExtensionIcon,
-    checkAndSendWritedIconWithCacheWrite, 
-    async (req, res,next) => {
-    // 暂停所有文件状态获取
-    statPromisesArray.paused = true
-    // 前端保留15秒的缓存
-    res.setHeader('Cache-Control', 'public, max-age=15')
-    try{
-        next()
-    }catch(e){
-        console.log(e)
-    }
-    statPromisesArray.paused = false
-    return
-},buildCtxAndSendThumbnail,sendDfaultIconWithCacheWrite);
-
+app.use('/thumbnail',genThumbnailRouter)
 app.get(
     '/raw', async (req, res) => {
         const path = req.query.path || req.query.localPath
