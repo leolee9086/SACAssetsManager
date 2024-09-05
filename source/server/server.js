@@ -100,67 +100,32 @@ app.get('/color', async (req, res) => {
  * 缩略图生成
  * 这里前端也需要加上一个15秒左右的缓存
  */
-app.get('/thumbnail', async (req, res) => {
+import { 
+    sendDfaultIconWithCacheWrite,
+    checkAndSendExtensionIcon,
+    checkAndSendWritedIconWithCacheWrite,
+    getSourcePath,
+    checkAndSendThumbnailWithMemoryCache,
+    buildCtxAndSendThumbnail
+} from './middlewares/defaultIcon.js'
+app.get('/thumbnail',
+    getSourcePath,
+    checkAndSendThumbnailWithMemoryCache,
+    checkAndSendExtensionIcon,
+    checkAndSendWritedIconWithCacheWrite, 
+    async (req, res,next) => {
     // 暂停所有文件状态获取
     statPromisesArray.paused = true
     // 前端保留15秒的缓存
     res.setHeader('Cache-Control', 'public, max-age=15')
-    let 源文件地址 = ''
-    if (req.query.localPath) {
-        源文件地址 = req.query.localPath
-    } else {
-        源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+    try{
+        next()
+    }catch(e){
+        console.log(e)
     }
-    console.log(源文件地址)
-
-    源文件地址 = 源文件地址.replace(/\//g, '\\')
-    const stat = statWithCatch(源文件地址)
-    const 缓存键 = JSON.stringify(stat)
-    const thumbnailCache = buildCache('thumbnailCache')
-    const hashedName = genStatHash(stat) + '.thumbnail.png'
-    const 缓存目录 = (await getCachePath(源文件地址, 'thumbnails', true)).cachePath
-
-    let 缓存路径 = require('path').join(缓存目录, hashedName)
-    let extension = 源文件地址.split('.').pop()
-    let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
-    let cacheResult = thumbnailCache.get(缓存键)
-    const start = performance.now()
-    if (cacheResult && Buffer.isBuffer(cacheResult)) {
-        res.send(cacheResult)
-        statPromisesArray.paused = false
-        console.log(`内存缓存命中，耗时：${performance.now() - start}ms`)
-        return
-    }
-    // 先检查是否存在缓存的缩略图
-    if (await sendFileWithCacheSet(res, 缓存路径, thumbnailCache, 缓存键)) {
-        console.log(`文件缩略图硬盘缓存命中，耗时：${performance.now() - start}ms`)
-        statPromisesArray.paused = false;
-
-        return
-    }
-    if (await sendFileWithCacheSet(res, 扩展名缓存路径, thumbnailCache, 缓存键)) {
-        console.log(`文件扩展名缩略图硬盘缓存命中，耗时：${performance.now() - start}ms`)
-        statPromisesArray.paused = false;
-
-        return
-    }
-    let ctx = {
-        req,
-        res,
-        query: req.query,
-        缓存对象: thumbnailCache,
-        stats: {
-            源文件地址,
-            缓存键,
-            缓存对象: thumbnailCache
-        }
-    }
-    let next = () => { 
-        console.log(`生成缩略图，耗时：${performance.now() - start}ms`)
-    }
-    genThumbnail(ctx, next);
     statPromisesArray.paused = false
-});
+    return
+},buildCtxAndSendThumbnail,sendDfaultIconWithCacheWrite);
 
 app.get(
     '/raw', async (req, res) => {
