@@ -66,7 +66,7 @@ router.get('/',
 },buildCtxAndSendThumbnail,sendDfaultIconWithCacheWrite);
 export const genThumbnailRouter = router
 
-export async function $genThumbnail(req, res, next) {
+export async function genThumbnail(req, res, next) {
     const 源文件地址 = req.sourcePath
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
