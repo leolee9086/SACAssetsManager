@@ -70,25 +70,6 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
     next()
 }
 export const buildCtxAndSendThumbnail = async (req, res, next) => {
-    const 源文件地址 = req.sourcePath
-    const stat = statWithCatch(源文件地址)
-    const 缓存键 = JSON.stringify(stat)
-    const start = performance.now()
-    const thumbnailCache = buildCache('thumbnailCache')
-    let ctx = {
-        req,
-        res,
-        query: req.query,
-        缓存对象: thumbnailCache,
-        stats: {
-            源文件地址,
-            缓存键,
-            缓存对象: thumbnailCache
-        }
-    }
-    let $next = () => {
-        console.log(`生成缩略图，耗时：${performance.now() - start}ms`)
-    }
-    genThumbnail(ctx, $next);
+    genThumbnail(req, res, next);
     statPromisesArray.paused = false
 }
