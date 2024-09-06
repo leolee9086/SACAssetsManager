@@ -4,12 +4,13 @@ import { buildCache } from "../processors/cache/cache.js"
 import { statWithCatch } from "../processors/fs/stat.js"
 import { genStatHash } from "../processors/fs/stat.js"
 import { statPromisesArray } from "../processors/fs/disk/tree.js"
+import { 生成缩略图 } from "../processors/thumbnail/loader.js"
 export const sendDefaultIcon = (req, res) => {
     const iconPath = process.execPath.replace('SiYuan.exe', 'resources\\stage\\icon-large.png')
     res.sendFile(iconPath)
     return
 }
-export const sendDfaultIconWithCacheWrite = async (req, res, next) => {
+export const 默认图片响应 = async (req, res, next) => {
     sendDefaultIcon(req, res)
     next()
 }
@@ -59,11 +60,44 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
 }
 
 
-export const buildCtxAndSendThumbnail = async (req, res, next) => {
+export const 生成缩略图响应 = async (req, res, next) => {
     console.log(`未找到文件缩略图，生成文件缩略图`,req.sourcePath)
     genThumbnail(req, res, next);
     statPromisesArray.paused = false
+    return 
 }
+
+
+
+let cacheLoader = (ctx) => {
+    let { 缓存对象, 缓存键, 缓存时间 } = ctx.stats
+    let result = 缓存对象.get(缓存键)
+    if (result) {
+        return result
+    }
+}
+const getThumbnailWithCache = async (ctx) => {
+    statPromisesArray.paused = true
+    let { 源文件地址, 缓存键 } = ctx.stats
+    let result = null
+    let cacheResult = cacheLoader(ctx)
+    if (cacheResult) {
+        result = cacheResult
+    }
+    let loaderID = ctx.query.loaderID
+    try {
+        result = await 生成缩略图(源文件地址, loaderID)
+    } catch (e) {
+        console.warn(e)
+        return
+    }
+    if (result) {
+        ctx.stats.缓存对象.set(ctx.stats.缓存键, result)
+    }
+    statPromisesArray.paused = false
+    return result
+}
+ 
 export async function genThumbnail(req, res, next) {
     const 源文件地址 = req.sourcePath
     const stat = statWithCatch(源文件地址)
@@ -97,9 +131,13 @@ export async function genThumbnail(req, res, next) {
         if (result) {
             type = result.type
             if (type) {
-                res.type(type).send(result.data)
+                res.type(type)
+                res.send(result.data)
+                return
             } else {
-                res.type('png').send(result)
+                res.type('png')
+                res.send(result)
+                return
             }
         }
     } catch (e) {

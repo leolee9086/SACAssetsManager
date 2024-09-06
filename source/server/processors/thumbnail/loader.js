@@ -108,7 +108,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return tumbnailCache.get(缓存键)
     }
     //小图片直接返回
-   if (imageExtensions.includes(extension) && stat.size < 1024 * 10) {
+    if (imageExtensions.includes(extension) && stat.size < 1024 * 10) {
         useRaw = true
         console.log('使用原始图', imagePath)
         try {
@@ -137,33 +137,36 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return fromFIle
     }
     const start = performance.now()
-    let thumbnailBuffer = await loader.generateThumbnail(imagePath)
-    const end = performance.now()
-    console.log(`生成缩略图用时: ${end - start}ms`)
-    //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
-    if (thumbnailBuffer.length > 1024 * 10) {
-        thumbnailBuffer = await sharp(thumbnailBuffer)
-            .png({ compressionLevel: 9 })
-            .toBuffer()
-        console.log(thumbnailBuffer)
+    let thumbnailBuffer = await loader.generateThumbnail(imagePath, 缓存路径)
+    if (thumbnailBuffer) {
+
+        const end = performance.now()
+        console.log(`生成缩略图用时: ${end - start}ms`)
+        //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
+        if (thumbnailBuffer.length > 1024 * 10) {
+            thumbnailBuffer = await sharp(thumbnailBuffer)
+                .png({ compressionLevel: 9 })
+                .toBuffer()
+            console.log(thumbnailBuffer)
+        }
+        tumbnailCache.set(缓存键, thumbnailBuffer)
+        if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
+            commonIcons.set(extension, thumbnailBuffer)
+            fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
+                if (err) {
+                    console.error(err)
+                }
+            })
+        }
+        if (!noThumbnailList.includes(extension)) {
+            fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
+                if (err) {
+                    console.error(err)
+                }
+            })
+        }
+        return thumbnailBuffer
     }
-    tumbnailCache.set(缓存键, thumbnailBuffer)
-    if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
-        commonIcons.set(extension, thumbnailBuffer)
-        fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
-            if (err) {
-                console.error(err)
-            }
-        })
-    }
-    if (!noThumbnailList.includes(extension)) {
-        fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
-            if (err) {
-                console.error(err)
-            }
-        })
-    }
-    return thumbnailBuffer
 }
 const tumbnailCache = buildCache('thumbnailCache')
 import { 智能防抖 } from '../../../utils/functionTools.js'
@@ -177,12 +180,18 @@ export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
     // 欧几里得聚类,较为简单,但效果一般
     // 不过颜色查询应该够用了
+    if (!thumbnailBuffer) {
+        return null
+    }
     const colors = await getColor(thumbnailBuffer, filePath)
     return colors
 }
 
 export async function diffFileColor(filePath, color) {
     let simiColor = await genThumbnailColor(filePath)
+    if (!simiColor) {
+        return false
+    }
     for await (let item of simiColor) {
         if (diffColor(item.color, color)) {
             return true

@@ -29,6 +29,7 @@ async function countEntries(dir) {
 }
 async function getTopLevelFoldersInfo(rootDir, maxCount = 100) {
     let topLevelFolders2 = []
+    console.log(rootDir, maxCount)
     let api = new fdir().withCache(遍历缓存).withMaxDepth(1).withDirs().filter((path, isDir) => {
         if (isDir) {
             topLevelFolders2.push(path.replace(/\\/g, '/'))
@@ -36,8 +37,10 @@ async function getTopLevelFoldersInfo(rootDir, maxCount = 100) {
         return isDir
     }).crawl(rootDir)
     await api.withPromise()
+    console.log(topLevelFolders2)
     topLevelFolders2 = topLevelFolders2.filter(item => item.replace(/\\/g, '/') !== rootDir.replace(/\\/g, '/'))
     let folderInfoPromises = []
+    console.log(topLevelFolders2)
     for (let i = 0; i < topLevelFolders2.length; i++) {
         let folderPath = topLevelFolders2[i]
         folderPath && folderInfoPromises.push(
@@ -52,5 +55,6 @@ export const entryCounter = async (req, res) => {
     const root = req.query.root
     let maxCount = req.query.maxCount
     let data = await getTopLevelFoldersInfo(root, maxCount)
+    console.log(data)
     res.end(JSON.stringify(data.slice(0, maxCount)))
 }

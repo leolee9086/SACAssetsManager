@@ -225,7 +225,7 @@
     window.onload = () => {
         const logAppContainer = document.getElementById('logApp')
         logAppContainer.innerHTML = '<div>123</div>'
-        console.log=async(...args)=>{
+      /*  console.log=async(...args)=>{
             let div = document.createElement('div')
             div.innerHTML = args.join('')
             div.style.whiteSpace = 'pre-wrap'
@@ -243,7 +243,7 @@
             logAppContainer.appendChild(div)
             logAppContainer.scrollTop = logAppContainer.scrollHeight
             shiftChild(logAppContainer,1000)
-        }
+        }*/
         function shiftChild(container,num){
             const children =Array.from(container.querySelectorAll('.log'))
             //先进行第一次遍历,只删除非error

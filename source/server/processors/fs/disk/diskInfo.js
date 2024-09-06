@@ -1,5 +1,6 @@
 import { listLocalDisksWin32 } from './win32.js'
 import { 构建磁盘目录树 } from './tree.js'
+import { statPromisesArray } from './tree.js'
 const { exec } = window.require('child_process');
 const { statfsSync } = window.require('fs');
 const siyuan = window.siyuan || { config: window.siyuanConfig }
@@ -59,64 +60,8 @@ export function listLocalDisks() {
                 });
                 (async () => {
                     console.time('buildIndex')
-                    let statPromises = []
-                    let index = 0
-                    let timeout = 100
-                    let isProcessing = false
-                    let log = false
-                    function processNext() {
-                        let jump = false
-                        if (isProcessing) {
-                            jump = true
-                        }
-                        isProcessing = true
-                        if (statPromises.length && !statPromises.paused && !jump) {
-                            if (index % 10000 == 0||statPromises.length<1000) {
-                               console.log('processNext', index, statPromises.length, timeout)
-                                log = true
-                            }
-                            index++;
-                            let start = performance.now();
-                            (statPromises.pop())().then(stat => {
-                                let end =performance.now()
-                                timeout=Math.max(timeout,end-start)
-                                if(log){
-                                    console.log('processFile', stat.path,index, statPromises.length, end-start)
-                                    log = false
-                                }
-                                if(stat.error){
-                                    console.log('processFileError', stat.path,stat.error,index, statPromises.length, end-start)
-                                }
-                                setTimeout(
-                                    processNext // 递归调用以处理下一个Promise
-                                    , timeout)
-                            }).catch(e=>{
-                                console.error(e)
-                                timeout = Math.min(timeout * 2, 10000)
-                                setTimeout(
-                                    processNext // 递归调用以处理下一个Promise
-                                    , timeout)
-                            })
-                            // 处理stat
-                            timeout = Math.max(timeout / 1.1, 10)
-                        } else {
-                            if (!statPromises.ended()) {
-                                if (index % 10000 == 0||statPromises.length<1000) {
-
-                                    console.log('processNextLater', index, statPromises.length, timeout)
-                                }
-
-                                timeout = Math.min(timeout * 2, 10000)
-                                setTimeout(
-                                    processNext // 递归调用以处理下一个Promise
-                                    , timeout)
-                            }
-                        }
-                        isProcessing = false
-                    }
                     for (let i = 0; i < diskPromises.length; i++) {
-                        statPromises = (await diskPromises[i]()).statPromisesArray
-                        setImmediate(processNext); // 开始处理第一个Promise
+                        setImmediate(statPromisesArray.start); // 开始处理第一个Promise
                     }
                     console.timeEnd('buildIndex')
                 })()

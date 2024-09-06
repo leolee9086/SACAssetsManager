@@ -79,8 +79,9 @@ class Walker {
             }
             else if (entry.isDirectory()) {
                 let path = joinPath.joinDirectoryPath(entry.name, directoryPath, this.state.options.pathSeparator);
-                if (exclude && exclude(entry.name, path))
+                if (exclude && exclude(entry.name, path)){
                     continue;
+                }
                 if (this.state.options.withIdleCallback) {
                     let idleOptions = this.state.options.idleOptions
                     let callback = (...args) => {

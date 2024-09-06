@@ -5,7 +5,7 @@ import { 准备缩略图, diffFileColor } from '../processors/thumbnail/loader.j
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
-import { parseQuery } from './utils/requestType.js';
+import { parseQuery } from '../middlewares/ctx/parseQuery.js'
 import { statPromisesArray } from '../processors/fs/disk/tree.js'
 import { buildStatProxyByPath } from '../processors/fs/stat.js';
 const { pipeline } = require('stream');
@@ -42,14 +42,6 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     let chunked = ''
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile: async (statProxy) => {
-            if(signal.aborted){
-                walkController.abort()
-                return
-            }
-            if(walkController.aborted){
-                return
-            }
-            
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)
             chunked += data
@@ -57,20 +49,20 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
                 statPromisesArray.paused = true
                 if (chunked) {
                     res.write(chunked)
-                 //   res.flush()
+                    //   res.flush()
                     chunked = ''
                 }
-            },{timeout:17,deadline:18})
+            }, { timeout: 17, deadline: 18 })
         },
         end: () => {
             walkController.abort()
             statPromisesArray.paused = false
             if (chunked) {
                 res.write(chunked)
-                 //   res.flush()
+                //   res.flush()
                 chunked = ''
             }
-            
+
             //res.flush()
             res.end();
         }
@@ -79,85 +71,101 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     }, walkSignal, timeout);
 
 };
-export const globStream = async (req, res) => {
-    console.log('globStream')
-    let scheme
-    statPromisesArray.paused = true
+export const globStream =  (req, res) => {
+    let fn = () => {
+        console.log('globStream')
 
-    if (req.query && req.query.setting) {
-        try {
-            scheme = JSON.parse(req.query.setting)
-        } catch (e) {
-            console.error(e)
-            throw (e)
-        }
-    } else if (req.body) {
-        scheme = req.body
-    }
-    const _filter = parseQuery({ req, res })
-    const walkController = new AbortController()
-    const controller = new AbortController();
-    let filter
-    if (_filter) {
-        filter = {
-            test: (statProxy) => {
-                if (signal.aborted) {
-                    walkController.abort()
-                    return false
-                }
-                if (walkController.signal.aborted) {
-                    return false
-                }
-                return statProxy.type !== 'file' || _filter.test(statProxy)
+        let scheme
+        statPromisesArray.paused = true
+
+        if (req.query && req.query.setting) {
+            try {
+                scheme = JSON.parse(req.query.setting)
+            } catch (e) {
+                console.error(e)
+                throw (e)
             }
+        } else if (req.body) {
+            scheme = req.body
         }
-    } else {
-        filter = _filter
-    }
-    if (scheme.queryPro && scheme.queryPro.color) {
+        const _filter = parseQuery(req)
+        const walkController = new AbortController()
+        const controller = new AbortController();
+        let filter
         if (_filter) {
-            filter.test = async (statProxy) => {
-                if (signal.aborted) {
-                    walkController.abort()
-                    return false
-                }
-                if (_filter.test(statProxy)) {
-                    return await diffFileColor(statProxy.path, scheme.queryPro.color)
-                }
-                return false
-            }
-        } else {
             filter = {
-                test: async (statProxy) => {
+                test: (statProxy) => {
                     if (signal.aborted) {
                         walkController.abort()
                         return false
                     }
-                    return await diffFileColor(statProxy.path, scheme.queryPro.color)
+                    if (walkController.signal.aborted) {
+                        return false
+                    }
+                    return statProxy.type !== 'file' || _filter.test(statProxy)
+                }
+            }
+        } else {
+            filter = _filter
+        }
+        if (scheme.queryPro && scheme.queryPro.color) {
+            if (_filter) {
+                filter.test = async (statProxy) => {
+                    if (signal.aborted) {
+                        walkController.abort()
+                        return false
+                    }
+                    if (_filter.test(statProxy)) {
+                        return await diffFileColor(statProxy.path, scheme.queryPro.color)
+                    }
+                    return false
+                }
+            } else {
+                filter = {
+                    test: async (statProxy) => {
+                        if (signal.aborted) {
+                            walkController.abort()
+                            return false
+                        }
+                        return await diffFileColor(statProxy.path, scheme.queryPro.color)
+                    }
                 }
             }
         }
+        const timeout = parseInt(scheme.timeout) || 1000
+        const cwd = scheme.cwd
+        //设置响应头
+        res.writeHead(200, {
+            "Content-Type": "text/plain;charset=utf-8",
+        });
+        res.flushHeaders()
+        res.write('')
+        // res.flush()
+
+        const { signal } = controller;
+        createWalkStream(cwd, filter, signal, res, timeout, walkController)
+        statPromisesArray.start()
+        //前端请求关闭时,触发中止信号
+        //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
+        setTimeout(
+            ()=>{
+                res.destroy()
+            },timeout+200
+        )
+        res.on('close', () => {
+            statPromisesArray.paused = false
+
+            controller.abort();
+        });
+        return new Promise((resolve, reject) => {
+            resolve({
+                path:""
+            })
+        })
     }
-    const timeout = parseInt(scheme.timeout)||1000
-    const cwd = scheme.cwd
-    //设置响应头
-    res.writeHead(200, {
-        "Content-Type": "text/plain;charset=utf-8",
-    });
-    res.flushHeaders()
-    res.write('')
-   // res.flush()
-
-    const { signal } = controller;
-    createWalkStream(cwd, filter, signal, res, timeout, walkController)
-    //前端请求关闭时,触发中止信号
-    //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
-    res.on('close', () => {
-        console.log('close')
-        statPromisesArray.paused = false
-
-        controller.abort();
-    });
+    fn.priority=0
+    statPromisesArray.push(fn)
+    statPromisesArray.start(0,true)
 };
 export const fileListStream = async (req, res) => {
     const controller = new AbortController();

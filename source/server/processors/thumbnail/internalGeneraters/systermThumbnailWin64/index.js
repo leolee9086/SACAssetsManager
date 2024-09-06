@@ -1,6 +1,5 @@
-import { loadCsharpFunc } from "../../../utils/CSharpLoader.js";
-import { createInvisibleWebview } from "../../../utils/containers/webview.js";
-
+console.log(window.PluginModulePath)
+import { loadCsharpFunc } from "../../../../utils/CSharpLoader.js";
 export const getLargeIcon = loadCsharpFunc(
     `
     #r "System.Drawing.dll"
@@ -129,74 +128,43 @@ export const getBase64Thumbnail = loadCsharpFunc(
     `
 )
 
-const buildEsmWebview = async (esmURL) => {
-    const webview = await createInvisibleWebview(esmURL,
-        true, window.siyuanConfig.system.workspaceDir + "\\data\\plugins\\SACAssetsManager\\source\\server\\processors\\thumbnail\\internalGeneraters\\preload.js")
-    console.log(webview)
+export async function 生成缩略图(filePath, targetPath) {
+    const fs = require('fs')
 
-    return webview
-}
-
-export default class SystemThumbnailLoader {
-    constructor() {
-        this.commonIcons = new Map()
-       // this.onLoad()
+    if(fs.existsSync(targetPath)&&fs.existsSync(targetPath+'.lock')){
+        return
     }
-    async onLoad() {
-        this.webviews = []
-        const cpus = require('os').cpus()
-        for (let i = 0; i < cpus.length/2; i++) {
-            this.webviews.push(await buildEsmWebview(import.meta.resolve('./systermThumbnailWin64/index.html')))
-        }
-        this.webviews.forEach(webview => {
-            webview.$webContents.on('did-finish-load', async () => {
-                webview.$webContents.openDevTools()
-            })
-            try {
-                webview.$webContents.openDevTools()
-            } catch (e) {
-                console.log(e)
-            }
-        })
+    const encodedPath = Buffer.from(filePath.replace(/\//g, '\\')).toString('base64');
+    let resultBuffer = null
+    let error = null
+    try {
+        resultBuffer = Buffer.from(await getBase64Thumbnail(encodedPath), 'base64')
+    } catch (e) {
+        error = e
     }
-
-
-    async generateThumbnail(filePath, targetPath) {
-       /* const channel = new BroadcastChannel('sac-thumbnail-generate-channel')
-        channel.postMessage({
-            filePath,
-            targetPath
-        })
-        return null*/
-        const encodedPath = Buffer.from(filePath.replace(/\//g, '\\')).toString('base64');
-        let resultBuffer = null
-        let error = null
+    if (!resultBuffer) {
         try {
-            resultBuffer = Buffer.from(await getBase64Thumbnail(encodedPath), 'base64')
+            resultBuffer = Buffer.from(await getLargeIcon(encodedPath), 'base64')
         } catch (e) {
             error = e
         }
-        if (!resultBuffer) {
-            try {
-                resultBuffer = Buffer.from(await getLargeIcon(encodedPath), 'base64')
-            } catch (e) {
-                error = e
-            }
-        }
-        if (!resultBuffer) {
-            throw new Error('Failed to generate thumbnail:' + error.message)
-        }
-        return resultBuffer
     }
-    /**
-     * 返回一个正则表达式，用于匹配文件路径
-     * 这里返回一个匹配全部的正则表达式
-     * @param {*} filePath 
-     * @returns 
-     */
-    match(filePath) {
-        return /.*/
+    if (!resultBuffer) {
+        throw new Error('Failed to generate thumbnail:' + error.message)
     }
-    sys = ['win32 x64']
+    if(fs.existsSync(targetPath)&&fs.existsSync(targetPath+'.lock')){
+        return
+    }
+    else{
+        //先创建一个lock文件
+        fs.writeFileSync(targetPath+'.lock', '')
+        fs.writeFileSync(targetPath, resultBuffer)
+        fs.unlinkSync(targetPath+'.lock')
+    }
 }
+const channel = new BroadcastChannel('sac-thumbnail-generate-channel')
+channel.onmessage = (e) => {
+    const { filePath, targetPath } = e.data
 
+    生成缩略图(filePath, targetPath)
+}

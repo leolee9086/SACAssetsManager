@@ -63,6 +63,9 @@ export class BaseCacheProvider{
             transactionCount:0,
         }
     }
+    get size(){
+        return this.cache.size
+    }
     /**
      * 更新缓存
      * @param {string} key

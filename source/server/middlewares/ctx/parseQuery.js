@@ -1,5 +1,16 @@
 import { Query } from "../../../../static/mingo.js";
- const parseQuery = (req, res, next) => {
+export const parseQueryFromReq = (req, res, next) => {
+    req.queryTester = parseQuery(req)
+    next&&next()
+}
+export const parseQueryCtx = (ctx, next) => {
+    const {req,res,stats}=ctx
+    parseQueryFromReq(req, res, next)
+    stats&&(stats.queryTester=req.queryTester)
+    next&&next()
+}
+export const parseQuery =(req)=>{
+    let queryTester = null
     let scheme 
     if(req.query&&req.query.setting){
         try{
@@ -12,14 +23,8 @@ import { Query } from "../../../../static/mingo.js";
         scheme = req.body
     }
     if(JSON.stringify(scheme) !== '{}'){
-        const tester = new Query(scheme.query)   
-        req.queryTester = tester     
+        const tester = new Query(scheme.query||{})   
+        queryTester = tester     
     }
-    next&&next()
-}
-export const parseQueryCtx = (ctx, next) => {
-    const {req,res,stats}=ctx
-    parseQuery(req, res, next)
-    stats&&(stats.queryTester=req.queryTester)
-    next&&next()
+    return queryTester
 }
