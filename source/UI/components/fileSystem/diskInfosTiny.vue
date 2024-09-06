@@ -22,9 +22,10 @@
             </svg>
         </div>
         <span class="fn__space"></span>
-        <span data-type="layout" class="block__icon b3-tooltips b3-tooltips__nw" aria-label="上" @click="foldUp=!foldUp">
+        <span data-type="layout" class="block__icon b3-tooltips b3-tooltips__nw" aria-label="上"
+            @click="foldUp = !foldUp">
             <svg>
-                <use :xlink:href="foldUp?'#iconUp':'#iconRight'"></use>
+                <use :xlink:href="foldUp ? '#iconUp' : '#iconRight'"></use>
             </svg>
         </span>
     </div>
@@ -58,8 +59,7 @@
                                     <div class="fn__flex  disk-tiny-item"
                                         v-if="folder && folder.parentPath.startsWith(disk.name + '/')"
                                         :class="{ 'stripe': i % 2 === 0, 'disk-tiny-item-selected': folder.selected }"
-                                        @click="() => toggleSUbFolders(folder.path)"
-                                        @dblclick="() => { openFolder(folder.path) }">
+                                        @click="(e) => callbacks(folder)(e)">
                                         <span :style="{
                                             marginLeft: (folder.depth - 1) * 14 + 'px',
                                             marginTop: 0 - calcMargin(folder) - 7 + 'px',
@@ -104,6 +104,18 @@ import { ref, onMounted, reactive, nextTick } from 'vue'
 import { listLocalDisks } from '../../../data/diskInfo.js';
 import { plugin } from 'runtime'
 import { commonIcon } from '../common/icons.js'
+import { buildMultiClickListener } from '../../utils/click.js'
+const callbacks = (folder) =>{ 
+    folder.callbacks =folder.callbacks ||    buildMultiClickListener(300, [
+    (event) => {
+        toggleSUbFolders(folder.path)
+    },
+    (event) => {
+        openFolder(folder.path)
+        }
+    ])
+    return folder.callbacks
+}
 const foldUp = ref(true)
 const diskInfos = ref([])
 const folderInfos = reactive([])
@@ -129,17 +141,9 @@ const scrollHandler = (event) => {
     let items = target.querySelectorAll('.disk-tiny-item')
 
 }
-const openFolder = (folder) => {
-    plugin.eventBus.emit(
-        'click-galleryLocalFIleicon',
-        folder,
-    )
-}
 const calcMargin = (folder) => {
     const index = folderInfos.findIndex(item => { return item.path === folder.path })
-    console.log(folder)
     let parentIndex = folderInfos.findIndex(item => { return item.parentPath === folder.parentPath })
-    console.log(index, parentIndex)
     return (index - parentIndex) * 19
 
 }
@@ -158,6 +162,13 @@ function sortDocuments(a, b) {
 }
 
 // 调用函数
+const openFolder = (folder) => {
+    plugin.eventBus.emit(
+        'click-galleryLocalFIleicon',
+        folder,
+    )
+}
+
 const toggleSUbFolders = async (root) => {
     if (folderInfos.find(item => item.parentPath === root) || folderInfos.find(item => item.path === root && item.selected)?.folderCount === 0) {
         let rootItem = folderInfos.find(item => item.path === root)
@@ -196,6 +207,7 @@ const toggleSUbFolders = async (root) => {
     }
     folderInfos.sort(sortDocuments)
 }
+
 onMounted(async () => {
     diskInfos.value = await listLocalDisks();
 })

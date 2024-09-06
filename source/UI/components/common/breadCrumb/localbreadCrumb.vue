@@ -25,7 +25,7 @@
         </div>
         <div v-if="IncludeSubfolders" @wheel="horizontalScroll" class="fn__flex subFolders">
             <div class="fn__space"></div>
-            <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i">
+            <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i" v-if="i<100">
                 <div 
                 @click.left.stop="() => { toggleShow(子文件夹信息, i) }" 
                 @click.right.stop="() => { 右键菜单(子文件夹信息, i) }"
