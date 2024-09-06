@@ -5,21 +5,9 @@ global[Symbol.for('tree')] = globalThis[Symbol.for('tree')] || {
 }
 import { 监听文件夹条目 } from '../watch.js'
 import { buildCache } from '../../cache/cache.js'
-import { MinHeap } from '../../../../utils/array/minHeap.js'
-let statPromisesArray = new MinHeap(
-    (a, b) => {
-        // 获取优先级，如果不存在则默认为最大值
-        const priorityA = a.priority !== undefined ? a.priority : Infinity;
-        const priorityB = b.priority !== undefined ? b.priority : Infinity;
-        
-        // 按照优先级进行排序，数值越小优先级越高
-        return priorityA - priorityB;
-    }
-)
-global[Symbol.for('statPromises')] = globalThis[Symbol.for('statPromises')] || statPromisesArray
-
-statPromisesArray=global[Symbol.for('statPromises')]
-export { statPromisesArray }
+import { globalTaskQueue } from '../../queue/taskQueue.js'
+const statPromisesArray = globalTaskQueue
+export {  statPromisesArray }
 export const diskTree = global[Symbol.for('tree')]
 const stat = require('fs').stat
 const readdir = require('fs').readdirSync
@@ -288,84 +276,3 @@ function 添加文件解析任务到任务队列(item, tasksCount) {
         })
     )
 }
-export function 暂停文件系统解析队列(){
-    statPromisesArray.paused = true
-}
-export function 恢复文件系统解析队列(){
-    statPromisesArray.paused = false
-    statPromisesArray.start()
-}
-statPromisesArray.start= function($timeout,force){
-    if(this.started){
-        this.processNext($timeout,force)
-        return
-    }
-    this.ended=()=>{
-        return this.length===0
-    }
-    let index = 0
-    let timeout = 100
-    let isProcessing = false
-    let log = false
-    this.processNext=function($timeout,force){
-        if($timeout){
-            timeout = timeout
-        }
-        if($timeout===0){
-            timeout = 0
-        }
-        if(force){
-            statPromisesArray.paused=false
-        }
-
-        let jump = false
-        if (isProcessing) {
-            jump = true
-        }
-        isProcessing = true
-
-        if (statPromisesArray.peek() && !statPromisesArray.paused && !jump) {
-            if (index % 10000 == 0||statPromisesArray.length<100) {
-               console.log('processNext', index, statCache.size,遍历缓存.size, statPromisesArray.size(), timeout)
-                log = true
-            }
-            index++;
-            let start = performance.now();
-            (statPromisesArray.pop())().then(stat => {
-                let end =performance.now()
-                timeout=Math.max(timeout,end-start)
-                if(log){
-                    console.log('processFile', stat.path,index,statCache.size,遍历缓存.size,statPromisesArray.size(), end-start)
-                    log = false
-                }
-                if(stat&&stat.error){
-                    console.log('processFileError', stat.path,stat.error,index, statCache.size,遍历缓存.size, statPromisesArray.size(), end-start)
-                }
-                setTimeout(
-                    statPromisesArray.processNext // 递归调用以处理下一个Promise
-                    , timeout)
-            }).catch(e=>{
-                console.error(e)
-                timeout = Math.min(timeout * 2, 10000)
-                setTimeout(
-                    statPromisesArray.processNext // 递归调用以处理下一个Promise
-                    , timeout)
-            })
-            // 处理stat
-            timeout = Math.max(timeout / 1.1, 10)
-        } else {
-            if (!statPromisesArray.ended()) {
-                if (index % 10000 == 0||statPromisesArray.size()<100) {
-                    console.log('processNextLater', index,statCache.size,遍历缓存.size, statPromisesArray.size(),  timeout)
-                }
-                timeout = Math.min(Math.max(timeout * 2,timeout+100), 1000)
-                setTimeout(
-                    statPromisesArray.processNext // 递归调用以处理下一个Promise
-                    , timeout)
-            }
-        }
-        isProcessing = false
-    }
-    this.processNext()
-    this.started = true
-}.bind(statPromisesArray)
