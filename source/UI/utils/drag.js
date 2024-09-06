@@ -20,10 +20,9 @@ export const onDragStartWithLayout = async (event, currentLayout) => {
         event.preventDefault();
         const remote = window.require('@electron/remote');
         const { webContents } = remote
-        const webContentsId = plugin.serverContainer.getWebContentsId();
+        const webContentsId = plugin.serverContainerWebContentsID
         const webviewWebContents = webContents.fromId(webContentsId)
         let _webContents = remote.getCurrentWindow().webContents
-
         //    let webContents = remote.getCurrentWindow().webContents;
         files[0] && webviewWebContents.send('startDrag',
             {
@@ -72,17 +71,6 @@ export const handlerDropWithTab = (event, tab) => {
                         console.error(`Error copying ${file} to ${destinationPath}:`, err);
                     });
             });
-
-            Promise.all(copyPromises)
-                .then(() => {
-                    refreshPanel();
-                })
-                .catch(err => {
-                    refreshPanel()
-
-                    console.error('Error during file copy:', err);
-                });
-
         } else if (tagLabel) {
             (async () => {
 
@@ -90,7 +78,7 @@ export const handlerDropWithTab = (event, tab) => {
                 droppedItems.forEach(
                     file => {
                         tag.assets.push(file)
-                        tag.assets=Array.from(new Set(tag.assets))
+                        tag.assets = Array.from(new Set(tag.assets))
                     }
                 );
                 await saveTags(plugin.tags)

@@ -17,7 +17,6 @@ export function createBrowserWindowByURL(url, options = {
     if (options.keepAlive && !options.single) {
         throw new Error('keepAlive不能对非单例窗口使用')
     }
-
     return new Promise((resolve, reject) => {
         let win = null
         //找到已经打开过的窗口
@@ -130,8 +129,9 @@ export function createBrowserWindowByURL(url, options = {
                         ipcRenderer.on('heartbeat', (e, data) => {
                             const currentWebcontentID = data.data.currentWebcontentID
                             const targetWebcontent = require('@electron/remote').webContents.fromId(currentWebcontentID)
+                            const selfWebcontentID = require('@electron/remote').getCurrentWindow().webContents.id
                             if(targetWebcontent){
-                                targetWebcontent.send('heartbeat', 'heartbeat')
+                                targetWebcontent.send('heartbeat', selfWebcontentID)
                             }
                         })
                     }
@@ -139,61 +139,51 @@ export function createBrowserWindowByURL(url, options = {
                 } catch (e) {
                     console.error('注入心跳检测脚本失败', e)
                 }
-            }
-            setTimeout(() => {
-                console.log('窗口加载完成,开始心跳检测')
-
-                const currentWebcontentID = require('@electron/remote').getCurrentWindow().webContents.id
-             
-                console.log('currentWebcontentID', currentWebcontentID)
-                console.log(require('@electron/remote').webContents.fromId(currentWebcontentID))
-                
-                let heartbeatInterval;
-                let heartbeatTimeout;
-                
-                const startHeartbeat = () => {
-                    clearInterval(heartbeatInterval);
-                    clearTimeout(heartbeatTimeout);
-                
-                    heartbeatInterval = setInterval(() => {
-                        if (win && !win.isDestroyed()) {
-                            win.webContents.send('heartbeat', { type: 'heartbeat', data: {
-                                currentWebcontentID: currentWebcontentID,
-                            }});
-                            
-                            heartbeatTimeout = setTimeout(() => {
-                                console.log('心跳超时,准备关闭窗口');
-                                try {
-                                    if (win && !win.isDestroyed()) {
-                                        win.close();
+                setTimeout(() => {
+                    console.log('窗口加载完成,开始心跳检测')
+                    const currentWebcontentID = require('@electron/remote').getCurrentWindow().webContents.id
+                    console.log('currentWebcontentID', currentWebcontentID)
+                    console.log(require('@electron/remote').webContents.fromId(currentWebcontentID))
+                    let heartbeatInterval;
+                    let heartbeatTimeout;
+                    const startHeartbeat = () => {
+                        clearInterval(heartbeatInterval);
+                        clearTimeout(heartbeatTimeout);
+                        heartbeatInterval = setInterval(() => {
+                            if (win && !win.isDestroyed()) {
+                                win.webContents.send('heartbeat', {
+                                    type: 'heartbeat', data: {
+                                        currentWebcontentID: currentWebcontentID,
                                     }
-                                } catch (e) {
-                                    console.error('关闭窗口失败', e);
-                                }
-                            }, 5000); // 5秒内没有响应则关闭窗口
-                        }
-                    }, 3000); // 每3秒发送一次心跳
-                };
-                
-                const ipc = require('electron').ipcRenderer;
-                ipc.on('heartbeat', (e, data) => {
-                    console.log('收到心跳响应', data);
-                    clearTimeout(heartbeatTimeout);
-                });
-                
-                startHeartbeat();
-                
-                win.webContents.on('close', () => {
-                    clearInterval(heartbeatInterval);
-                    clearTimeout(heartbeatTimeout);
-                });
-                
-                let 已经打开过的窗口2 = 获取同源窗口(url)
-                console.log(已经打开过的窗口2)
-            }, 3000)
+                                });
+                                heartbeatTimeout = setTimeout(() => {
+                                    console.log('心跳超时,准备关闭窗口');
+                                    try {
+                                        if (win && !win.isDestroyed()) {
+                                            win.close();
+                                        }
+                                    } catch (e) {
+                                        console.error('关闭窗口失败', e);
+                                    }
+                                }, 5000); // 5秒内没有响应则关闭窗口
+                            }
+                        }, 3000); // 每3秒发送一次心跳
+                    };
+                    const ipc = require('electron').ipcRenderer;
+                    ipc.on('heartbeat', (e, data) => {
+                        console.log('收到心跳响应', data);
+                        clearTimeout(heartbeatTimeout);
+                    });
+                    startHeartbeat();
+                    win.webContents.on('close', () => {
+                        clearInterval(heartbeatInterval);
+                        clearTimeout(heartbeatTimeout);
+                    });
+                    let 已经打开过的窗口2 = 获取同源窗口(url)
+                    console.log(已经打开过的窗口2)
+                }, 3000)
+            }
         }
-
         resolve(win)
-
     })
 }
