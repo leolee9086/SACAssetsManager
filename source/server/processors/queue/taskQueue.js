@@ -99,3 +99,10 @@ export function 恢复文件系统解析队列(){
     globalTaskQueue.paused = false
     globalTaskQueue.start()
 }
+export function 添加文件系统解析任务(task){
+    //任务必须是一个函数，并且返回一个Promise
+    if(typeof task !== 'function'){
+        throw new Error('任务必须是一个函数，并且返回一个Promise')
+    }
+    globalTaskQueue.push(task)
+}

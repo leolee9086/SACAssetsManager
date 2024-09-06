@@ -16,7 +16,7 @@ import { 构建目录树 } from '../fs/disk/tree.js'
  * @param {*} maxCount 
  * @returns 
  */
-const ignoreDir = ['$recycle', '$trash', '.git', '.sac','$RECYCLE.BIN','#recycle']
+const ignoreDir = ['$recycle', '$trash', '.git', '.sac','$RECYCLE.BIN','#recycle','.pnpm-store']
 const 遍历缓存 = buildCache('walk')
 export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth) {
     const stepCallback = buildStepCallback(_stepCallback)
