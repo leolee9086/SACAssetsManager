@@ -168,7 +168,8 @@ const refreshPanel = () => {
     })
 }
 const handlerLayoutChange = (data) => {
-    currentLayout = data.layout
+    console.log('layoutChange',data)
+    currentLayout.value = data.layout||{}
     currentLayoutContainer = data.element
 }
 
@@ -216,7 +217,7 @@ onMounted(() => {
 });
 const handleKeyDown = (event) => {
     if (event.key === 'Escape') {
-        clearSelectionWithLayout()
+        clearSelectionWithLayout(currentLayout.value)
     }
 }
 /***
@@ -245,15 +246,24 @@ const updateSelection = (event) => {
         selectedItems.value = getSelectedItems(event)
     }
 };
+
 const endSelection = (event) => {
     console.log(event.target)
     isSelecting.value = false;
     selectedItems.value = getSelectedItems(event);
     plugin.eventBus.emit('assets-select', selectedItems.value)
 };
+plugin.eventBus.on(globalKeyboardEvents.globalKeyDown,(e)=>{
+    const {key}=e.detail
+    console.log(key)
+    if(key==='Escape'){
+        isSelecting.value =false
+        selectedItems.value=[]
+    }
+})
 import { getSelectionStatus } from '../utils/selection.js'
 const getSelectedItems = (event) => {
-    return getSelectionStatus(event, root, currentLayout, currentLayoutOffsetTop, selectionBox.value, currentLayoutContainer)
+    return getSelectionStatus(event, root, currentLayout.value, currentLayoutOffsetTop, selectionBox.value, currentLayoutContainer)
 };
 /**
  * 拖放相关逻辑
@@ -261,6 +271,7 @@ const getSelectedItems = (event) => {
 import { reactive } from '../../../static/vue.esm-browser.js';
 import { onDragOver, onDragStartWithLayout, handlerDropWithTab } from '../utils/drag.js'
 import CommonBreadCrumb from './common/breadCrumb/commonBreadCrumb.vue';
+import { globalKeyboardEvents } from '../../events/eventNames.js';
 const onDragStart = async (event) => {
     onDragStartWithLayout(event, currentLayout)
 }
@@ -292,7 +303,7 @@ const sorter = ref({
     }
 })
 const openMenu = (event) => {
-    let assets = currentLayout.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
+    let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
     assets[0] && plugin.eventBus.emit(plugin.events.资源界面项目右键, { event, assets }, { stack: true })
 }
 </script>

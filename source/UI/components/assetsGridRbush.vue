@@ -8,11 +8,8 @@
                         :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
-                        <assetsThumbnailCard
-                         :size="size" 
-                         @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"   
-                         
-                         :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
+                        <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
+                            :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
                         </assetsThumbnailCard>
                     </div>
                 </template>
@@ -22,10 +19,11 @@
 </template>
 <script setup>
 import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../data/siyuanAssets.js"
-import { 
+import {
     computed,
-    ref, 
-    onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted } from 'vue'
+    ref,
+    onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted
+} from 'vue'
 import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
 import { plugin } from 'runtime'
@@ -33,7 +31,7 @@ import { plugin } from 'runtime'
  * 计算样式的部分
  */
 const 计算卡片样式 = (卡片数据) => {
-    paddingLR.value = size.value>200?paddingLR.value:0
+    paddingLR.value = size.value > 200 ? paddingLR.value : 0
     return `
         transform: none;
         top: ${卡片数据.y}px;
@@ -44,8 +42,8 @@ const 计算卡片样式 = (卡片数据) => {
     `
 }
 
-const 计算容器样式 = computed(() => ({size,paddingLR,containerHeight}) ,()=>{
-    console.log(size.value,paddingLR.value,containerHeight.value)
+const 计算容器样式 = computed(() => ({ size, paddingLR, containerHeight }), () => {
+    console.log(size.value, paddingLR.value, containerHeight.value)
     return `
         min-height: ${containerHeight}px;
         height: ${containerHeight}px;
@@ -61,7 +59,7 @@ const size = toRef(props, 'size')
 watch(
     [size],
     () => {
-        console.log('size',size.value)
+        console.log('size', size.value)
         列数和边距监听器()
     }
 )
@@ -209,24 +207,28 @@ const 列数和边距监听器 = async () => {
     )
 }
 watch(
-    () => scrollContainer.value&&scrollContainer.value.clientWidth,
+    () => scrollContainer.value && scrollContainer.value.clientWidth,
     () => {
         列数和边距监听器()
     }
 )
 
+const emitLayoutChange = () => {
+    emit('layoutChange', {
+        layout: 布局对象.value,
+        element: scrollContainer.value
+    })
+    emit("layoutLoadedCount", 布局对象.value.layout.length)
+
+}
 watch(
     [布局对象, columnCount, size], () => {
         if (布局对象.value) {
-            emit('layoutChange', {
-                layout: 布局对象.value,
-                element: scrollContainer.value
-            })
-            emit("layoutLoadedCount", 布局对象.value.layout.length)
-
+            emitLayoutChange()
         }
     }
 )
+
 
 
 import { 定长执行 } from "../../utils/functions/Iteration.js"
@@ -293,6 +295,7 @@ onUnmounted(
             console.warn(e)
         }
     }
+
 )
 
 onMounted(async () => {
@@ -326,6 +329,7 @@ onMounted(async () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
                 监听尺寸函数(scrollContainer.value)
                 定长加载(100)
+                emitLayoutChange()
             }
         )
     } else if (appData.value.tab.data.color) {
@@ -344,6 +348,7 @@ onMounted(async () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
                 监听尺寸函数(scrollContainer.value)
                 定长加载(100)
+                emitLayoutChange()
             }
         )
 
@@ -363,6 +368,7 @@ onMounted(async () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
                 监听尺寸函数(scrollContainer.value)
                 定长加载(100)
+                emitLayoutChange()
             }
         )
     }

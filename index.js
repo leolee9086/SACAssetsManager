@@ -13,11 +13,13 @@ module.exports = class SACAssetsManager extends Plugin {
     this.工作空间根路径 = window.siyuan.config.system.workspaceDir
     this.插件自身伺服地址 = `/plugins/${this.name}`
     this.selfURL = this.插件自身伺服地址
+    this.添加全局事件监听()
     this.stayAlive = true
     this.创建web服务()
     this.添加资源信息边栏()
     this.创建资源Tab类型()
     this.添加菜单()
+  
   }
   /**
    * 只有getter,避免被不小心改掉
@@ -28,6 +30,9 @@ module.exports = class SACAssetsManager extends Plugin {
       资源界面项目右键: 'rightclick-galleryitem',
       打开附件所在路径: 'open-asset-folder'
     }
+  }
+  添加全局事件监听(){
+    import(`${this.插件自身伺服地址}/source/events/globalEvents.js`)
   }
   emitEvent(eventName, detail, options) {
     if (!Object.values(this.events).includes(eventName)) {
