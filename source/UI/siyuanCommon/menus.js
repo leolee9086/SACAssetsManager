@@ -1,6 +1,5 @@
 import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
 import { applyStmt } from '../../data/galleryDefine.js'
-import * as menuItems from './menuItems.js'
 import { tabEvents } from './tabs/events.js'
 import { thumbnail } from '../../server/endPoints.js'
 import { imageExtensions } from '../../server/processors/thumbnail/utils/lists.js'

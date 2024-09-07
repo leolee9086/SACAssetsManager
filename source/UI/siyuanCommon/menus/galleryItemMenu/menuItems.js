@@ -1,4 +1,4 @@
-import { plugin, clientApi } from '../../asyncModules.js'
+import { plugin, clientApi } from '../../../../asyncModules.js'
 export const 打开资源文件所在笔记 = (assets) => {
     return {
         label: "所在笔记",

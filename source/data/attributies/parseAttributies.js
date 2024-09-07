@@ -33,7 +33,7 @@ export const 文件系统内部属性表 = {
         required: true,
         description: '文件名',
         label: '文件名',
-        setter: (value,path) => {
+        setter: (value, path) => {
             require('fs').renameSync(path, value)
         },
         setterTimeOut: 1000,
@@ -48,13 +48,13 @@ export const 文件系统内部属性表 = {
         parser: (value) => {
             //按照类似资源管理器的格式显示文件大小
             let numValue = Number(value)
-            if(numValue < 1024){
+            if (numValue < 1024) {
                 return numValue + '字节'
             }
-            if(numValue < 1024 * 1024){
+            if (numValue < 1024 * 1024) {
                 return (numValue / 1024).toFixed(2) + 'KB'
             }
-            if(numValue < 1024 * 1024 * 1024){
+            if (numValue < 1024 * 1024 * 1024) {
                 return (numValue / 1024 / 1024).toFixed(2) + 'MB'
             }
             return (numValue / 1024 / 1024 / 1024).toFixed(2) + 'GB'
@@ -156,3 +156,34 @@ export const 文件系统内部属性表 = {
     }
 }
 
+export function 解析文件内部属性显示(属性名, 属性值) {
+    let result = 属性值
+    try {
+        let 解析器定义 = 文件系统内部属性表[属性名]
+        if (解析器定义) {
+            if (解析器定义.parser) {
+                result = 解析器定义.parser(属性值)
+            }
+        }
+    } catch (e) {
+        console.warn(e)
+    }
+    return result
+}
+export function 解析文件属性数组内部属性显示(属性名, 属性数组) {
+    if (属性数组.length === 1) {
+        return 解析文件内部属性显示(属性名, 属性数组[0][属性名]);
+    } else {
+        // 检查数组中所有元素的指定属性是否一致
+        const firstValue = 属性数组[0][属性名];
+        let allSame = true;
+        for (let i = 1; i < 属性数组.length; i++) {
+            if (属性数组[i][属性名] !== firstValue) {
+                allSame = false;
+                break;
+            }
+        }
+        // 如果全部一致，返回值；否则返回 "多种"
+        return allSame ? 解析文件内部属性显示(属性名, firstValue) : "多种";
+    }
+}
