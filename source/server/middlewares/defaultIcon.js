@@ -14,7 +14,9 @@ export const 默认图片响应 = async (req, res, next) => {
     sendDefaultIcon(req, res)
     next()
 }
+
 export const getSourcePath = (req, res, next) => {
+    const path = require('path')
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath

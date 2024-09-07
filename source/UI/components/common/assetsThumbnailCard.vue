@@ -55,7 +55,7 @@
                     white-space:nowrap;
                     "
                     class="ariaLabel"
-                    :aria-label="`${文件系统内部属性表[prop]&&文件系统内部属性表[prop].label?文件系统内部属性表[prop].label:prop}(${prop}):${文件系统内部属性表[prop]&&文件系统内部属性表[prop].parser?文件系统内部属性表[prop].parser(cardData.data[prop]):cardData.data[prop]}`"
+                    :aria-label="解析文件属性名标签(prop) +':'+解析文件内部属性显示(prop,cardData.data[prop])"
                     >
                         {{ 解析文件内部属性显示(prop,cardData.data[prop])}}
                     </div>
@@ -79,7 +79,7 @@ import { clientApi } from '../../../asyncModules.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
-import { 文件系统内部属性表,解析文件内部属性显示 } from '../../../data/attributies/parseAttributies.js';
+import { 文件系统内部属性表,解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 const props = defineProps(['cardData', 'size', 'filterColor'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')

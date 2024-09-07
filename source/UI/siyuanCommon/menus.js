@@ -1,12 +1,8 @@
 import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
 import { applyStmt } from '../../data/galleryDefine.js'
 import { tabEvents } from './tabs/events.js'
-import { thumbnail } from '../../server/endPoints.js'
-import { imageExtensions } from '../../server/processors/thumbnail/utils/lists.js'
 const { eventBus, events, app } = plugin
-function isImagePath(path) {
-    return imageExtensions.includes(path.split('.').pop())
-}
+
 eventBus.on(
     'click-editortitleicon', (event) => {
         event.detail.menu.addItem({
