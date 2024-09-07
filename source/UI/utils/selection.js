@@ -28,7 +28,6 @@ export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffs
         maxY,
         maxX,
     }))
-    console.log(result)
     result[0] && result.forEach(data => {
         if (event && event.shiftKey) {
             data.selected = undefined

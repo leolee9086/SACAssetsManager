@@ -2,15 +2,17 @@
     <div class="fn__flex-column fn__flex-1" style="max-height:100%;height: 100%;" ref="root">
         <div class="fn__flex-1 fn__flex gallery_container" ref="scrollContainer" @scroll="更新可见区域"
             style="position: relative;">
-
             <div class="fn__flex-column fn__flex-1" :style="计算容器样式">
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
                     <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
                         :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
-                        <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
-                            :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
+                        <assetsThumbnailCard
+                         :size="size" 
+                         @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"   
+                         
+                         :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
                         </assetsThumbnailCard>
                     </div>
                 </template>

@@ -1,5 +1,7 @@
 <template>
-    <div class="thumbnail-card-content" :style="`width:100%;
+    <div 
+    
+    class="thumbnail-card-content" :style="`width:100%;
     border:none;
     border-radius: ${cardData.width / 24}px;
     height:${size < 200 ? size : cardHeight}px;

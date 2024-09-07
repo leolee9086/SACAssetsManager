@@ -54,10 +54,16 @@
             <div class="fn__space fn__flex-1"></div>
         </div>
         <div class="fn__space"></div>
-        <div class="fn__flex-column fn__flex-1" @dragstart.stop="(e) => onDragStart(e, currentLayout)"
-            style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
-            @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
-            @dragover.prevent>
+        <div class="fn__flex-column fn__flex-1"
+         @dragstart.stop="(e) => onDragStart(e, currentLayout)"
+        style="width:100%;overflow: hidden;" 
+        @mousedown.left="startSelection" 
+        @click.left="endSelection"
+        @click.right.stop="openMenu" 
+        @mousedup="endSelection" 
+        @mousemove="updateSelection" 
+        @drop="handlerDrop"
+        @dragover.prevent>
             <assetsGridRbush :everthingEnabled="everthingEnabled" :everthingPort="everthingPort"
                 @palletAdded="palletAdded" :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
                 @layoutCountTotal="(e) => { layoutCountTotal = e }" @ready="size = 300" @layoutChange="handlerLayoutChange"
@@ -221,6 +227,10 @@ const isSelecting = ref(false);
 const selectionBox = ref({ startX: 0, startY: 0, endX: 0, endY: 0 });
 const selectedItems = ref([])
 const startSelection = (event) => {
+    if(isSelecting.value){
+        endSelection(event)
+        return
+    }
     isSelecting.value = true;
     selectionBox.value.startX = event.x;
     selectionBox.value.startY = event.y;
