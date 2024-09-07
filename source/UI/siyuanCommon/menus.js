@@ -5,7 +5,7 @@ import { tabEvents } from './tabs/events.js'
 import { thumbnail } from '../../server/endPoints.js'
 import { imageExtensions } from '../../server/processors/thumbnail/utils/lists.js'
 const { eventBus, events, app } = plugin
-function isImagePath(path){
+function isImagePath(path) {
     return imageExtensions.includes(path.split('.').pop())
 }
 eventBus.on(
@@ -13,7 +13,7 @@ eventBus.on(
         event.detail.menu.addItem({
             label: "打开附件管理视图",
             click: () => {
-                eventBus.emit(tabEvents.打开笔记资源视图,event.detail.data.id)
+                eventBus.emit(tabEvents.打开笔记资源视图, event.detail.data.id)
             }
         })
     })
@@ -21,15 +21,15 @@ eventBus.on(
 /**
  * 点击笔记内容中的图片
  */
-eventBus.on('click-editorcontent',async(e)=>{
-    const {protyle,event} = e.detail
-    if(event.target.tagName==='IMG'){
+eventBus.on('click-editorcontent', async (e) => {
+    const { protyle, event } = e.detail
+    if (event.target.tagName === 'IMG') {
         const span = event.target.parentElement.parentElement
         const path = event.target.getAttribute('data-src')
-        const assets =await applyStmt({
-            query:`select * from assets where path='${path}'`
+        const assets = await applyStmt({
+            query: `select * from assets where path='${path}'`
         })
-        plugin.eventBus.emit('assets-select',assets)
+        plugin.eventBus.emit('assets-select', assets)
     }
 })
 /**
@@ -56,8 +56,8 @@ eventBus.on(events.打开附件所在路径, (e) => {
 /**
  * 打开菜单标签
  */
-eventBus.on('open-menu-tag',(event)=>{
-    const tagLabel=event.detail.element.textContent
+eventBus.on('open-menu-tag', (event) => {
+    const tagLabel = event.detail.element.textContent
     event.detail.menu.addItem({
         label: "打开附件管理视图",
         click: () => {
@@ -136,25 +136,27 @@ eventBus.on(
                         label: "最近笔记"
                     }, {
                         label: "日记(file链接)",
-                        click:async()=>{
-                            const fileLinks = assets.map(item=>{return{
-                                name:item.name,
-                                link: `file:///${item.path}`,
-                                type:item.type,
-                                path:item.path,
-                                href:`${thumbnail.genHref(item.type, item.path, 500)}`,
-                                fileLink:`file:///${item.path}`
-                            }})     
-                            const markdown = fileLinks.map(link=>`[${link.name}](${link.link})\n![](${isImagePath(link.path)?link.fileLink:link.href})`).join('\n\n')
+                        click: async () => {
+                            const fileLinks = assets.map(item => {
+                                return {
+                                    name: item.name,
+                                    link: `file:///${item.path}`,
+                                    type: item.type,
+                                    path: item.path,
+                                    href: `${thumbnail.genHref(item.type, item.path, 500)}`,
+                                    fileLink: `file:///${item.path}`
+                                }
+                            })
+                            const markdown = fileLinks.map(link => `[${link.name}](${link.link})\n![](${isImagePath(link.path) ? link.fileLink : link.href})`).join('\n\n')
                             const noteBooks = await kernelApi.sql({
                                 //获取最近修改笔记所在的box
-                                stmt:`select box from blocks order by updated desc limit 1`
+                                stmt: `select box from blocks order by updated desc limit 1`
                             })
                             const result = await kernelApi.appendDailyNoteBlock(
                                 {
-                                    data:markdown,
-                                    dataType:'markdown',
-                                    notebook:noteBooks[0].box
+                                    data: markdown,
+                                    dataType: 'markdown',
+                                    notebook: noteBooks[0].box
                                 }
                             )
                         }
@@ -166,7 +168,7 @@ eventBus.on(
         menu.addItem(
             {
                 label: "插件",
-                submenu:[
+                submenu: [
                     menuItems.使用TEColors插件分析图像颜色(e),
                 ]
             }
@@ -174,7 +176,7 @@ eventBus.on(
         eventBus.emit(
             'contextmenu-galleryitem', { event, assets, menu }
         )
-        menu.open({ y: event.y||e.detail.y, x: event.x||e.detail.x })
+        menu.open({ y: event.y || e.detail.y, x: event.x || e.detail.x })
         document.addEventListener('mousedown', () => { menu.close }, { once: true })
     }
 )

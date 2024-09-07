@@ -3,7 +3,6 @@
         <div class="protyle-breadcrumb">
             <div class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">
                 <breadCrumbItem icon="iconFolder" label="本地文件夹"></breadCrumbItem>
-
                 <span class="fn__space"></span>
                 <template v-for="(pathPttern, i) in localPathArray">
                     <breadCrumbItem :icon="i === 0 ? '#iconDatabase' : '#iconFolder'" :label="pathPttern"
@@ -16,7 +15,6 @@
             <input class="b3-switch fn__flex-center ariaLabel" aria-label="显示子路径" v-model="IncludeSubfolders"
                 type="checkbox">
             <button class="b3-tooltips b3-tooltips__w block__icon fn__flex-center" style="opacity: 1;" data-menu="true"
-                
             aria-label="更多">
                 <svg>
                     <use xlink:href="#iconMore"></use>

@@ -185,6 +185,7 @@ export const 上传到assets并复制链接 = (e) => {
                 method: 'POST',
                 body: formData
             })
+            console.log(res)
             navigator.clipboard.writeText(assets.map(asset => `![${asset.name}](file:///${asset.path})`).join('\n'))
         }
     }

@@ -43,7 +43,8 @@
                 `
                 ">
                 <template v-for="prop in getProps(cardData.data)">
-                    <div v-if="prop&&(文件系统内部属性表[prop]?文件系统内部属性表[prop].show:true)" style="border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop&&(文件系统内部属性表[prop]?文件系统内部属性表[prop].show:true)" 
+                    style="border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     width:150px;
@@ -77,6 +78,13 @@ import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 文件系统内部属性表 } from '../../../data/attributies/parseAttributies.js';
+import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
+const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
+    size.value, imageHeight.value, cardData
+))
+const $计算素材详情容器样式 = computed(() => 计算素材详情容器样式(
+    size.value, cardHeight.value
+))
 const props = defineProps(['cardData', 'size', 'filterColor'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
@@ -178,12 +186,5 @@ function 更新图片尺寸(e, cardData) {
     emit('updateSize', { width: cardData.width, height: cardHeight.value })
 }
 
-import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
-const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
-    size.value, imageHeight.value, cardData
-))
-const $计算素材详情容器样式 = computed(() => 计算素材详情容器样式(
-    size.value, cardHeight.value
-))
 </script>
 <style scoped></style>

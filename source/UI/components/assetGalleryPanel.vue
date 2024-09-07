@@ -91,7 +91,6 @@ const showPallet = ref(false)
 const pallet = ref([])
 const filterColor = ref(appData.value.tab.data.color || [])
 const eaglePath = ref('')
-
 watch(
     filterColor, (data) => {
         plugin.eventBus.emit(
