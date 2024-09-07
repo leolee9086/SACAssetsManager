@@ -70,3 +70,80 @@ export const textOverflow = {
     initial: 'initial',
     unset: 'unset'
 };
+export const position = {
+    // 静态定位（默认值）
+    static: 'static',
+    
+    // 相对定位
+    relative: 'relative',
+    
+    // 绝对定位
+    absolute: 'absolute',
+    
+    // 固定定位
+    fixed: 'fixed',
+    
+    // 粘性定位
+    sticky: 'sticky',
+    
+    // 全局值
+    inherit: 'inherit',
+    initial: 'initial',
+    unset: 'unset',
+    
+    // 新增的实验性值（可能需要浏览器前缀）
+    // 注意：这些值的支持度可能较低，使用时需谨慎
+    absoluteSticky: '-webkit-sticky',  // 仅 WebKit/Blink
+    
+    // 辅助函数：生成带浏览器前缀的 sticky
+    stickyWithPrefix: () => {
+      return {
+        position: [
+          '-webkit-sticky',
+          '-moz-sticky',
+          '-ms-sticky',
+          '-o-sticky',
+          'sticky'
+        ]
+      };
+    }
+  };
+  export const whiteSpace = {
+    // 默认值,空白会被浏览器忽略
+    normal: 'normal',
+    
+    // 空白会被保留,文本内的换行无效
+    nowrap: 'nowrap',
+    
+    // 空白会被保留,文本只在有换行符的地方换行
+    pre: 'pre',
+    
+    // 同 pre,但是会自动换行
+    preLine: 'pre-line',
+    
+    // 同 pre,但是会保留文本的换行
+    preWrap: 'pre-wrap',
+    
+    // 保留连续的空白符,但文本自动换行
+    breakSpaces: 'break-spaces',
+    
+    // 全局值
+    inherit: 'inherit',
+    initial: 'initial',
+    unset: 'unset',
+    
+    // 实验性值
+    // 警告: 这些值可能不被所有浏览器支持
+    webkitNowrap: '-webkit-nowrap',
+    
+    // 辅助函数: 生成带浏览器前缀的值
+    withPrefix: (value) => {
+      return [
+        `-webkit-${value}`,
+        `-moz-${value}`,
+        `-ms-${value}`,
+        `-o-${value}`,
+        value
+      ].join(';');
+    }
+  };
