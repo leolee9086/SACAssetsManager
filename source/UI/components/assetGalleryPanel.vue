@@ -7,15 +7,11 @@
 
             </div>
             <div class=" fn__flex ">
-
                 <input v-model="everthingPort" style="box-sizing: border-box;width:100px;" :value="100" type="number">
-
                 <div class="fn__space fn__flex-1"></div>
-
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
                     class="b3-slider fn__block" max="1024" min="64" step="16" type="range">
                 <div class="fn__space fn__flex-1"></div>
-
                 <input v-if="!everthingEnabled" v-model="maxCount" style="box-sizing: border-box;width:100px;"
                     :value="1000" type="number">
                 <div class="fn__space fn__flex-1"></div>
@@ -273,7 +269,7 @@ import { onDragOver, onDragStartWithLayout, handlerDropWithTab } from '../utils/
 import CommonBreadCrumb from './common/breadCrumb/commonBreadCrumb.vue';
 import { globalKeyboardEvents } from '../../events/eventNames.js';
 const onDragStart = async (event) => {
-    onDragStartWithLayout(event, currentLayout)
+    onDragStartWithLayout(event, currentLayout.value)
 }
 plugin.eventBus.on('update-tag', (event) => {
     if (event.detail.label === appData.value.tab.data.tagLabel) {
