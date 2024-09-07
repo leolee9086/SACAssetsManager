@@ -66,3 +66,15 @@ export const 计算文件格式标签样式 = (size, cardData) => {
     console.log(style)
     return style
 }
+export const 计算卡片内容主体样式 = (cardData,size,firstColorString,cardHeight)=>{
+    let style = {}
+    if(cardData){
+        style.width=per(100)
+        style.border='none'
+        style.borderRadius=px(cardData.width/24)
+        style.height = size<200?px(size):px(cardHeight)
+        style.backgroundColor=firstColorString
+        style.display=size<200?display.flex:display.inlineBlock
+    }
+    return style
+}
