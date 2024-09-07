@@ -6,15 +6,7 @@
     background-color:${firstColorString};
     display:${size < 200 ? 'flex' : 'inline-block'};
     `">
-        <div v-if="size > 200" :style="`
-    position:${size > 200 ? 'absolute' : 'relative'};
-    top: ${cardData.width / 24}px;
-    left: ${cardData.width / 24}px;
-    max-width: ${genMaxWidth()};
-    max-height: 1.5em;
-    border-radius: 5px;
-        background-color:var(--b3-theme-background);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;`">
+        <div v-if="cardData && size > 200" :style="$计算文件格式标签样式">
             {{ size > 200 ? cardData.data.path.split('.').pop() : '' }}
 
         </div>
@@ -24,16 +16,10 @@
         <div class="alt-text" v-if="!showImage" :style="$计算素材缩略图样式">
 
         </div>
-        <img v-bind="$attrs" 
-        class="thumbnail-card-image ariaLabel"
-        :aria-label="`${cardData.data.path}`"
-        ref="image" 
-        v-if="showImage" 
-        :style="$计算素材缩略图样式" 
-        loading="lazy" 
-        draggable='true'
-            :onload="(e) => 更新图片尺寸(e, cardData)"
-            :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
+        <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
+            v-if=" showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true'
+            :onload="(e) => { 更新图片尺寸(e, cardData); fn() }"
+            :src="cardData && cardData.data ? thumbnail.genHref(cardData.data.type, cardData.data.path, size) : ''" />
         <div :style="$计算素材详情容器样式">
             {{ size > 200 ? cleanAssetPath(cardData.data.path) : '' }}
             <div v-if="size < 200" :style="`background-color:var(--b3-theme-background);
@@ -43,26 +29,24 @@
                 `
                 ">
                 <template v-for="prop in getProps(cardData.data)">
-                    <div v-if="prop&&(文件系统内部属性表[prop]?文件系统内部属性表[prop].show:true)" 
-                    style="border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop && (文件系统内部属性表[prop] ? 文件系统内部属性表[prop].show : true)" style="border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     width:150px;
                     overflow:hidden;
                     text-overflow:ellipsis;
                     white-space:nowrap;
-                    "
-                    class="ariaLabel"
-                    :aria-label="`${文件系统内部属性表[prop]&&文件系统内部属性表[prop].label?文件系统内部属性表[prop].label:prop}(${prop}):${文件系统内部属性表[prop]&&文件系统内部属性表[prop].parser?文件系统内部属性表[prop].parser(cardData.data[prop]):cardData.data[prop]}`"
-                    >
-                        {{ 文件系统内部属性表[prop]&&文件系统内部属性表[prop].parser?文件系统内部属性表[prop].parser(cardData.data[prop]):cardData.data[prop] }}
+                    " class="ariaLabel"
+                        :aria-label="`${文件系统内部属性表[prop] && 文件系统内部属性表[prop].label ? 文件系统内部属性表[prop].label : prop}(${prop}):${文件系统内部属性表[prop] && 文件系统内部属性表[prop].parser ? 文件系统内部属性表[prop].parser(cardData.data[prop]) : cardData.data[prop]}`">
+                        {{
+                            文件系统内部属性表[prop] && 文件系统内部属性表[prop].parser ? 文件系统内部属性表[prop].parser(cardData.data[prop]) :cardData.data[prop]
+                        }}
                     </div>
                 </template>
             </div>
             <div>
                 <template v-for="colorItem in pallet">
-                    <div @click="() => 打开颜色查找面板(colorItem.color)"
-                        :style="计算素材颜色按钮样式(colorItem.color)">
+                    <div @click="() => 打开颜色查找面板(colorItem.color)" :style="计算素材颜色按钮样式(colorItem.color)">
                     </div>
                 </template>
             </div>
@@ -78,15 +62,16 @@ import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 文件系统内部属性表 } from '../../../data/attributies/parseAttributies.js';
-import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
+import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式, 计算文件格式标签样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
 const $计算素材详情容器样式 = computed(() => 计算素材详情容器样式(
     size.value, cardHeight.value
 ))
+const $计算文件格式标签样式 = computed(() => 计算文件格式标签样式(size.value, cardData.value))
 const props = defineProps(['cardData', 'size', 'filterColor'])
-const { cardData } = props
+const cardData = toRef(props, 'cardData')
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
 const emit = defineEmits()
@@ -104,22 +89,17 @@ const similarColor = computed(() => {
 })
 
 function getProps(data) {
-    return Object.keys(data).filter(key => key !== 'id'  && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
+    return Object.keys(data).filter(key => key !== 'id' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
 }
-const genMaxWidth = () => {
-    if (size.value < 200) {
-        return `100%`
-    } else {
-        return `${size.value}px`
-    }
-}
+
 function 打开颜色查找面板(color) {
     plugin.eventBus.emit('click-galleryColor', color)
 }
 let idleCallbackId;
 let fn = () => {
     showImage.value = true
-    if (cardData.data.type === 'note' && cardData.width > 300) {
+    console.log(cardData)
+    if (cardData.value && cardData.value.data && cardData.value.data.type === 'note' && cardData.value.width > 300) {
         showIframe.value = true
         nextTick(() => {
             const protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
@@ -130,7 +110,7 @@ let fn = () => {
                     cardHeight.value = protyle.protyle.contentElement.scrollHeight
 
                 }
-                emit('updateSize', { width: cardData.width, height: cardHeight.value })
+                emit('updateSize', { width: cardData.value.width, height: cardHeight.value })
 
             });
             resizeObserver.observe(protyleContainer.value);
@@ -138,7 +118,7 @@ let fn = () => {
     }
 }
 onMounted(() => {
-    fetch(thumbnail.getColor(cardData.data.type, cardData.data.path)).then(
+    cardData.value.data && fetch(thumbnail.getColor(cardData.value.data.type, cardData.value.data.path)).then(
         res => {
             return res.json()
         }
