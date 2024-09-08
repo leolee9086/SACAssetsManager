@@ -30,7 +30,9 @@ export const genStatHash = (stat) => {
  * @returns 
  */
 export const buildStepCallback = (stepCallback) => {
-    if (!stepCallback) return
+    if (!stepCallback) return ()=>{
+        return true
+    }
     if (typeof stepCallback === 'function') {
         let callback = async (statProxy) => {
             try {
@@ -81,7 +83,6 @@ export const statWithCatch = (path) => {
             path,
             ...stat,
             type: stat.isFile() ? 'file' : 'dir',
-
         }
         statCache.set(path,entry)
         return entry

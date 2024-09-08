@@ -6,6 +6,7 @@ import { getColor } from './color.js'
 import { diffColor } from '../color/Kmeans.js'
 import { genStatHash } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions } from './utils/lists.js'
+import { isEagleBackupImage } from './utils/regexs.js'
 const sharp = require('sharp')
 let loderPaths = [
     './internalGeneraters/svg.js',
@@ -89,13 +90,17 @@ import { asyncReadFile } from '../fs/utils/withExists.js'
 const commonIcons = new Map()
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
     imagePath = imagePath.replace(/\\/g, '/')
-    const extension = imagePath.split('.').pop()
+    const extension = imagePath.split('.').pop().toLowerCase()
     let useExtension = false
     let useRaw = false
-    if (noThumbnailList.includes(extension)) {
-        useExtension = true
-        if (commonIcons.has(extension)) {
-            return commonIcons.get(extension)
+    for (let i = 0; i < noThumbnailList.length; i++) {
+        if (noThumbnailList[i].toLowerCase() === extension) {
+            useExtension = true;
+            if (commonIcons.has(extension)) {
+                console.log('使用扩展名缩略图',imagePath)
+                return commonIcons.get(extension);
+            }
+            break;
         }
     }
     let loader = await getLoader(imagePath, loaderID)
@@ -108,7 +113,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return tumbnailCache.get(缓存键)
     }
     //小图片直接返回
-    if (imageExtensions.includes(extension) && stat.size < 1024 * 10) {
+    if (imageExtensions.includes(extension) && stat.size < 1024 * 512) {
         useRaw = true
         console.log('使用原始图', imagePath)
         try {
@@ -132,6 +137,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (useExtension) {
         缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     }
+ 
     let fromFIle = await asyncReadFile(缓存路径)
     if (fromFIle && fromFIle.length >= 100) {
         return fromFIle
@@ -141,13 +147,13 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (thumbnailBuffer) {
 
         const end = performance.now()
-        console.log(`生成缩略图用时: ${end - start}ms`)
+        //console.log(`生成缩略图用时: ${end - start}ms`)
         //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
         if (thumbnailBuffer.length > 1024 * 10) {
             thumbnailBuffer = await sharp(thumbnailBuffer)
                 .png({ compressionLevel: 9 })
                 .toBuffer()
-            console.log(thumbnailBuffer)
+            console.log('成功生成缩略图',imagePath)
         }
         tumbnailCache.set(缓存键, thumbnailBuffer)
         if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
@@ -172,9 +178,7 @@ const tumbnailCache = buildCache('thumbnailCache')
 import { 智能防抖 } from '../../../utils/functionTools.js'
 import { getCachePath } from '../fs/cached/fs.js'
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
-    智能防抖(async () => {
         await genThumbnailColor(imagePath, loaderID)
-    }, (idle, average) => { console.log(idle, average) })
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
@@ -184,6 +188,7 @@ export async function genThumbnailColor(filePath, loaderID = null) {
         return null
     }
     const colors = await getColor(thumbnailBuffer, filePath)
+    
     return colors
 }
 

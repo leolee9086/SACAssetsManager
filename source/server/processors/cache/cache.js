@@ -72,9 +72,7 @@ export class BaseCacheProvider{
      * @param {*} value
      */
     set(key, value){
-        
         this.cache.set(key, {value, timestamp: Date.now()})
-    
     }
     filterSync(filter){
         const keys = this.cache.keys()

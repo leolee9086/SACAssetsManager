@@ -37,7 +37,6 @@ export function loadCsharpFunc(string) {
     return async (...args) => {
         const func = funcs.find(item => !item.busy)
         if (func) {
-            console.log('func',func.index)
             func.busy = true
             let result = null
             try {

@@ -16,13 +16,14 @@ let globalTaskQueue=new MinHeap(
 
 globalThis[Symbol.for('taskQueue')]=globalThis[Symbol.for('taskQueue')]||globalTaskQueue
 globalTaskQueue=globalThis[Symbol.for('taskQueue')]
-globalTaskQueue.start= function($timeout,force){
+globalTaskQueue.start= function($timeout=0,force){
+    console.log('恢复后台任务',"执行间隔:"+$timeout,force?"强制开始:":'')
     if(this.started){
         this.processNext($timeout,force)
         return
     }
     this.ended=()=>{
-        return this.length===0
+        return this.size()===0
     }
     let index = 0
     let timeout = 100
@@ -30,7 +31,7 @@ globalTaskQueue.start= function($timeout,force){
     let log = false
     this.processNext=function($timeout,force){
         if($timeout){
-            timeout = timeout
+            timeout = $timeout
         }
         if($timeout===0){
             timeout = 0
@@ -74,7 +75,9 @@ globalTaskQueue.start= function($timeout,force){
             })
             // 处理stat
             timeout = Math.max(timeout / 1.1, 10)
-        } else {
+            isProcessing = false
+
+        } else if(!jump) {
             if (!globalTaskQueue.ended()) {
                 if (index % 10000 == 0||globalTaskQueue.size()<100) {
                     console.log('processNextLater', index,statCache.size,遍历缓存.size, globalTaskQueue.size(),  timeout)
@@ -84,8 +87,14 @@ globalTaskQueue.start= function($timeout,force){
                     globalTaskQueue.processNext // 递归调用以处理下一个Promise
                     , timeout)
             }
+            isProcessing = false
         }
-        isProcessing = false
+        else{
+            setTimeout(
+                globalTaskQueue.processNext // 递归调用以处理下一个Promise
+                , timeout)
+
+        }
     }
     this.processNext()
     this.started = true

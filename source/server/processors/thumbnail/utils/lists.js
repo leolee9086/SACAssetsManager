@@ -3,6 +3,7 @@
 */
 export const noThumbnailList = [
    //文本类型的肯定是不需要的
+   'inf',
    'markdown',
    'md',
    'txt',
@@ -54,7 +55,8 @@ export const noThumbnailList = [
    'sy',
    'db',
    'yaml',
-   'gsm'
+   'gsm',
+   'gitignore'
 ]
 export const imageExtensions= [
     'png',

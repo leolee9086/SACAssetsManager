@@ -1,6 +1,5 @@
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
-import { 添加到颜色索引,找到文件颜色, 根据颜色查找内容 } from '../processors/color/colorIndex.js'
-import { awaitForEach } from '../../utils/array/walk.js'
+import { 找到文件颜色, 根据颜色查找内容 } from '../processors/color/colorIndex.js'
 import { statWithCatch } from '../processors/fs/stat.js';
 import { statPromisesArray } from '../processors/fs/disk/tree.js'
 import { stat2assetsItemStringLine } from './utils/responseType.js';
@@ -15,11 +14,8 @@ export async function genColor(ctx,next){
     if(color){
         return color
     }
-    let callback = async (colorItem,index)=>{
-        添加到颜色索引(colorItem,源文件地址)
-    }
+
     const colors = await genThumbnailColor(源文件地址)
-    colors&&await awaitForEach(colors,callback)
     statPromisesArray.paused = false
     return colors
 }

@@ -8,15 +8,11 @@ import { globStream, fileListStream } from './handlers/stream-glob.js';
 import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
 const port = window.port
-import { buildCache } from './processors/cache/cache.js';
 import { statWithCatch } from './processors/fs/stat.js';
 import * as headers from './middlewares/headers.js';
 import { genColor, getFilesByColor } from './handlers/get-color.js'
 import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
-import { getCachePath } from './processors/fs/cached/fs.js'
-import { genStatHash } from './processors/fs/stat.js'
 import { statPromisesArray } from './processors/fs/disk/tree.js';
-import { sendFileWithCacheSet } from './handlers/utils/responseType.js';
 const siyuanBroadcastChannel = await createSiyuanBroadcastChannel('sacAssetsManager', window.siyuanPort)
 siyuanBroadcastChannel.onmessage = (e) => {
     console.log(e)

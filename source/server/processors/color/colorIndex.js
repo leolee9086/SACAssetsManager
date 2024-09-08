@@ -4,60 +4,106 @@ let colorIndex = []
 let loaded = {}
 globalThis.colorIndex = globalThis.colorIndex || colorIndex
 colorIndex = globalThis.colorIndex
+let transactionwsCountStatu = { chunkSize: 10 }
+globalThis.colorIndexTransactionwsCountStatu = globalThis.colorIndexTransactionwsCountStatu || transactionwsCountStatu
+transactionwsCountStatu = globalThis.colorIndexTransactionwsCountStatu
+for (let i = 0; i < 10; i++) {
+    transactionwsCountStatu[i] = transactionwsCountStatu[i] || 0
+}
 /**
  * 添加到颜色索引,这个索引的结构是倒排的
  * @param {*} color 
  * @param {*} assets 
  */
 const fs = require('fs')
-export async function 获取索引中所有颜色(){
+export async function 获取索引中所有颜色() {
     return colorIndex.map(item => item.color)
 }
-export async function 根据路径查找并加载颜色索引(path){
-    const { cachePath, root } = await getCachePath(path, 'colorIndex.json')
-    console.error(cachePath,root)
-     从路径加载颜色索引(cachePath,root)
+export async function 根据路径查找并加载颜色索引(path) {
+    const { cachePath, root } = await getCachePath(path, 'colorIndex')
+    console.error(cachePath, root)
+    从路径加载颜色索引(cachePath, root)
 }
-export async function 从路径加载颜色索引(cachePath,root){
-    try{
-    if (fs.existsSync(cachePath) && !loaded[cachePath]) {
-        console.log('从', cachePath, '加载缓存')
-        loaded[cachePath] = true
-        const cached = JSON.parse( await fs.promises.readFile(cachePath))
-        //将原本的cached进行缓存
-         for(let i=0;i<cached.length;i++){
-            let item = cached[i]
-            item.assets = item.assets.map(asset => {
-                    if (asset.path.startsWith(root)) {
-                        return asset
-                    }
-                    return { ...asset, path: require('path').join(root, asset.path) }
-                })
-                colorIndex.push(item)
-            
+export async function 从路径加载颜色索引(cachePath, root) {
+    const path = require('path')
+    try {
+        if (loaded[cachePath]) {
+            return
         }
-        清理颜色索引(colorIndex)
+        const dirPath = path.dirname(cachePath) + '\\';
+        const files = await fs.promises.readdir(dirPath);
+        const indexFiles = files.filter(file => {
+            
+            return file.startsWith("colorIndex") && file.endsWith('_chunk.json')
+        });
+
+        if (indexFiles.length === 0) {
+            console.log('没有找到索引文件', cachePath);
+            loaded[cachePath] = true;
+            return;
+        }
+        for (const file of indexFiles) {
+            const filePath = path.join(dirPath, file);
+            if (!loaded[filePath]) {
+                if (fs.existsSync(filePath)) {
+                    console.log('从', filePath, '加载缓存');
+                    loaded[filePath] = true;
+
+                    const data = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
+                    // 创建备份文件
+                    const today = new Date().toISOString().split('T')[0];
+                    const backupPath = filePath.replace('.json', `-${today}.json`);
+                    await fs.promises.writeFile(backupPath, JSON.stringify(data));
+                    for (let item of data) {
+                        item.assets = item.assets && item.assets.map(asset => {
+                            if (asset.path.startsWith(root)) {
+                                return asset;
+                            }
+                            return { ...asset, path: path.join(root, asset.path) };
+                        });
+                        if (item.assets) {
+                            colorIndex.push(item);
+                        }
+                    }
+                } else {
+                    loaded[filePath] = true;
+                }
+            }
+        }
+        loaded[cachePath] = true;
+
+        await 清理颜色索引(colorIndex);
+    } catch (e) {
+        console.error('从路径加载颜色索引失败', e, cachePath, root);
     }
-}catch(e){
-    console.error('从路径加载颜色索引失败', e,cachePath,root)
 }
-}
+
+
 export async function 添加到颜色索引(colorItem, assets) {
-    const { cachePath, root } = await getCachePath(assets, 'colorIndex.json')
-    await 从路径加载颜色索引(cachePath,root)
+    const { cachePath, root } = await getCachePath(assets, 'colorIndex')
+    await 从路径加载颜色索引(cachePath, root)
+
     let colorFormated = colorItem.color.map(num => Math.floor(num))
+    const mod = (colorFormated[0] + colorFormated[1] + colorFormated[2]) % transactionwsCountStatu.chunkSize;
+
     let colorValue = colorFormated.join(',')
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
-    let find = colorIndex.find(item => item.color.join(',')===colorValue)
+    let find = colorIndex.find(item => item.color.join(',') === colorValue)
     let asstItem = {
         count: colorItem.count,
-        percent: colorItem.percent,
+        //保留两位小数
+        percent: colorItem.percent.toFixed(2),
         path: assets
     }
     if (find) {
-        find.assets.push(asstItem)
+        if (find.assets && !find.assets.find(item => item.path === assets)) {
+            find.assets.push(asstItem)
+            transactionwsCountStatu[mod]++
+        }
     } else {
         colorIndex.push({ color: colorFormated, assets: [asstItem] })
+        transactionwsCountStatu[mod]++
+
     }
     await 保存颜色索引(cachePath, item => {
         return {
@@ -71,30 +117,86 @@ export async function 添加到颜色索引(colorItem, assets) {
  * @param {string} targetPath 
  * @param {function} mapper 
  */
-let transactionwsCount = 0
+let isSaving = false; // 用于锁定保存过程的变量
+let lastSaveTime = 0; // 添加一个变量来记录上次保存的时间
+
 async function 保存颜色索引(targetPath, mapper) {
-    transactionwsCount++
-    if (transactionwsCount < 100) {
+    const currentTime = Date.now();
+
+    if (currentTime - lastSaveTime < 10000) { // 检查是否距离上次保存不足10秒
+       // console.log("距离上次保存不足10秒，跳过本次保存");
+        return;
+    }
+    if (isSaving) {
+        console.log("保存过程已在进行中，等待...");
+        return;
+    }
+    isSaving = true; // 锁定保存过程
+    let totalCtransaction = 0
+    for (let i = 0; i < transactionwsCountStatu.chunkSize; i++) {
+        totalCtransaction += transactionwsCountStatu[i]
+    }
+    if (totalCtransaction <= 1000) {
+        console.log("变更少于1000...,跳过保存",transactionwsCountStatu,totalCtransaction);
+
+        isSaving=false 
         return
     }
-    const root = targetPath.replace('\\.sac\\colorIndex.json', '').replace('\\.sac\\colorIndex.json', '')
-    const fs = require('fs')
-    清理颜色索引(colorIndex)
+    lastSaveTime = currentTime
+
+    const root = targetPath.replace('\\.sac\\colorIndex', '');
+    const fs = require('fs');
+    await 清理颜色索引(colorIndex);
     const colorIndexMapped = colorIndex.filter(
         colorItem => {
-            return colorItem.assets.find(asset => asset.path.startsWith(root.trim()))
+            return colorItem.assets.some(asset => asset.path.startsWith(root.trim()));
         }
     ).map(mapper).map(item => {
-        item.assets = item.assets.filter(asset => asset.path.startsWith(root.trim())).map(asset => { return { ...asset, path: asset.path.replace(root.trim(), '') } })
-        return item
-    })
-    fs.writeFile(targetPath, JSON.stringify(colorIndexMapped), (err) => {
-        if (err) {
-            console.error(err)
+        item.assets = item.assets.filter(asset => asset.path.startsWith(root.trim())).map(asset => {
+            return { ...asset, path: asset.path.replace(root.trim(), '') };
+        });
+        return item;
+    });
+
+    if (!loaded[targetPath]) {
+        console.error("索引未加载完成,不保存", targetPath);
+        isSaving = false; // 解锁保存过程
+        return;
+    }
+    try {
+        const chunkSize = transactionwsCountStatu.chunkSize; // 每个分片的大小
+        const chunksByMod = {};
+
+        for (let i = 0; i < colorIndexMapped.length; i++) {
+           
+            const color = colorIndexMapped[i].color;
+            const mod = (color[0] + color[1] + color[2]) % chunkSize;
+   
+            if (!chunksByMod[mod]) {
+                chunksByMod[mod] = [];
+            }
+            chunksByMod[mod].push(colorIndexMapped[i]);
         }
-    })
-    transactionwsCount = 0
+        Object.keys(chunksByMod).forEach((mod, index) => {
+            if (!transactionwsCountStatu[mod]) {
+                console.log(`分片${mod}无变化,不需要保存`)
+                return
+            }
+            const chunkData = JSON.stringify(chunksByMod[mod]);
+            const chunkPath = `${targetPath}_${mod}_chunk.json`;
+            fs.writeFileSync(chunkPath, chunkData);
+            transactionwsCountStatu[mod] = 0
+            console.log(`颜色索引分片(模${mod})已成功保存`);
+        });
+    } catch (e) {
+        console.error("颜色索引保存错误", e);
+    } finally {
+
+        isSaving = false; // 解锁保存过程
+
+    }
 }
+
 export async function 根据颜色查找内容(color, cutout = 0.6) {
     let find = colorIndex.filter(
         item => diffColor(item.color, color, cutout)
@@ -114,7 +216,7 @@ export async function 找到文件颜色(path) {
         let item = colorIndex[i]
         let colorValue = item.color.join(',')
         let exist = finded.find(
-            item2 => colorValue===item2.color.join(',')
+            item2 => colorValue === item2.color.join(',')
         )
         if (exist) {
             continue
