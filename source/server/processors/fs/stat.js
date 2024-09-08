@@ -44,24 +44,21 @@ export const buildStepCallback = (stepCallback) => {
         }
         return callback
     }
+    let empty=()=>{return true}
+    let map={
+        dir:stepCallback.ifDir||empty,
+        file:stepCallback.ifFile||empty,
+        symbolicLink:stepCallback.ifSymbolicLink||empty,
+        error:empty
+    }
     let callback = async (statProxy) => {
         try {
-            if (statProxy.type === 'dir') {
-                stepCallback.ifDir && await stepCallback.ifDir(statProxy)
-            }
-            if (statProxy.type === 'file') {
-                stepCallback.ifFile && await stepCallback.ifFile(statProxy)
-            }
-            if (statProxy.type === 'symbolicLink') {
-                stepCallback.ifSymbolicLink && await stepCallback.ifSymbolicLink(statProxy)
-            }
+           await map[statProxy.type](statProxy)
         } catch (e) {
-            console.warn(e)
+            console.warn(e,statProxy)
         }
     }
-    stepCallback && stepCallback.preMatch && (callback.preMatch = async () => {
-        await stepCallback.preMatch()
-    });
+ 
     callback.end = async () => {
         stepCallback && stepCallback.end && await stepCallback.end()
     }
@@ -79,13 +76,15 @@ export const statWithCatch = (path) => {
             return statCache.get(path)
         }
         let stat = fs.statSync(path)
-        statCache.set(path, {
+        let entry= {
             name: path.split('/').pop(),
             path,
-            type: stat.isFile() ? 'file' : 'dir',
             ...stat,
-        })
-        return statCache.get(path)
+            type: stat.isFile() ? 'file' : 'dir',
+
+        }
+        statCache.set(path,entry)
+        return entry
     } catch (e) {
         return {
             name: path.split('/').pop(),
@@ -93,6 +92,7 @@ export const statWithCatch = (path) => {
             isDirectory: () => false,
             isFile: () => false,
             isSymbolicLink: () => false,
+            type:"error",
             error: e,
             mode: 0,
             size: 0,
@@ -116,8 +116,8 @@ export const buildStatProxy = (entry, dir, useProxy, type) => {
         return stats
     }
 }
-export const buildStatProxyByPath = (path, entry, type) => {
+export const buildStatProxyByPath = (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
-    entry =  statWithCatch(path.replace(/\\/g,'/'))
+    const entry =  statWithCatch(path.replace(/\\/g,'/'))
     return entry
 }

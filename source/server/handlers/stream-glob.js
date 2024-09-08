@@ -41,7 +41,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     }
     let chunked = ''
     walkAsyncWithFdir(cwd, filterFun, {
-        ifFile: async (statProxy) => {
+        ifFile:  (statProxy) => {
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)
             chunked += data
@@ -49,7 +49,6 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
                 statPromisesArray.paused = true
                 if (chunked) {
                     res.write(chunked)
-                    //   res.flush()
                     chunked = ''
                 }
             }, { timeout: 17, deadline: 18 })
@@ -62,7 +61,6 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
                 //   res.flush()
                 chunked = ''
             }
-
             //res.flush()
             res.end();
         }
@@ -74,10 +72,8 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
 export const globStream =  (req, res) => {
     let fn = () => {
         console.log('globStream')
-
         let scheme
         statPromisesArray.paused = true
-
         if (req.query && req.query.setting) {
             try {
                 scheme = JSON.parse(req.query.setting)
@@ -138,24 +134,17 @@ export const globStream =  (req, res) => {
         res.writeHead(200, {
             "Content-Type": "text/plain;charset=utf-8",
         });
+        //没有compression中间件的情况下,也就没有res.flush方法
         res.flushHeaders()
         res.write('')
-        // res.flush()
-
         const { signal } = controller;
         createWalkStream(cwd, filter, signal, res, timeout, walkController)
         statPromisesArray.start()
         //前端请求关闭时,触发中止信号
         //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
-        setTimeout(
-            ()=>{
-                res.destroy()
-            },timeout+200
-        )
+       
         res.on('close', () => {
             statPromisesArray.paused = false
-
-            controller.abort();
         });
         return new Promise((resolve, reject) => {
             resolve({

@@ -59,6 +59,14 @@ export const 打开附件组菜单 = (event, assets, position) => {
 
                     },
                     event, assets, position
+                ),
+                创建模式菜单(
+                    {
+                        label: "编辑",
+                        value: '编辑'
+
+                    },
+                    event, assets, position
                 )
 
             ]

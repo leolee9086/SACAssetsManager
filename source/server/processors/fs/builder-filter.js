@@ -5,7 +5,7 @@
  */
 export function buildFilter(filter, signal) {
     if (!filter) {
-        return null
+        return ()=>{return true}
     }
     if (filter && typeof filter === 'function') {
         return async (statProxy, depth) => {
