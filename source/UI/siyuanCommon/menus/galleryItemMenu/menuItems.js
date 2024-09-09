@@ -4,6 +4,18 @@ export const 打开资源文件所在笔记 = (assets) => {
         label: "所在笔记",
         click: () => {
             assets.forEach(asset => {
+                if(asset.type==='note'){
+                    clientApi.openTab(
+                        {
+                            app: plugin.app,
+                            doc: {
+                                id: asset.id,
+                                action: "cb-get-focus"
+                            }
+                        }
+                    )
+                    return
+                }
                 clientApi.openTab(
                     {
                         app: plugin.app,
@@ -13,7 +25,6 @@ export const 打开资源文件所在笔记 = (assets) => {
                         }
                     }
                 )
-
             });
         }
     }
