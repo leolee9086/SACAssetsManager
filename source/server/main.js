@@ -29,7 +29,7 @@ channel.addEventListener(
 )
 // 调用函数创建webview
 plugin.serverContainer = await createBrowserWindowByURL(entryURL,{
-    closePrevious: true,
+    closePrevious: false,
     single: true,
     noCache:true,
     showImmediately: false,
@@ -37,6 +37,21 @@ plugin.serverContainer = await createBrowserWindowByURL(entryURL,{
     withHeartbeat:true,
     showTitleBar:false
 });
+plugin.rebuildServerContainer=()=>{
+    let 已经打开过的窗口 = 获取同源窗口(entryURL)
+    if (已经打开过的窗口.length > 0) {
+        try {
+            已经打开过的窗口.forEach(w => {
+                if (w && !w.isDestroyed()) {
+                    w.close()
+                }
+            })
+        } catch (e) {
+            console.error('关闭已经打开过的窗口失败', e)
+        }
+    }
+
+}
 const ipc = require('electron').ipcRenderer;
 ipc.on('heartbeat', (e, data) => {
     console.log('收到心跳响应', data);

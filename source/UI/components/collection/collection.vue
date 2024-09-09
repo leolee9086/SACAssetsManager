@@ -7,8 +7,8 @@
         </div>
         <span class="fn__flex-1 fn__space"></span>
         <span 
-        @click="打开后端控制台"
-        class="block__icon b3-tooltips b3-tooltips__sw" aria-label="打开后端控制台 Ctrl+W"><svg>
+        @click="打开后端控制台" @click.right="plugin.rebuildServerContainer"
+        class="block__icon b3-tooltips b3-tooltips__sw" :aria-label="`打开后端控制台 Ctrl+W,\n右键强制重启后端`"><svg>
                 <use xlink:href="#iconBug"></use>
             </svg>
         </span>
