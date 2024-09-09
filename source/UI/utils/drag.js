@@ -5,7 +5,27 @@ import path from '../../polyfills/path.js'
 export const onDragOver = (e) => {
     e.preventDefault()
 }
-
+const 开始原生文件拖拽事件=async(event,files)=>{
+    event.preventDefault();
+    const remote = window.require('@electron/remote');
+    const { webContents } = remote
+    const webContentsId = plugin.serverContainerWebContentsID
+    const webviewWebContents = webContents.fromId(webContentsId)
+    let _webContents = remote.getCurrentWindow().webContents
+    files[0] && webviewWebContents.send('startDrag',
+        {
+            id: _webContents.id,
+            data: {
+                files,
+                icon: await imgeWithConut(files.length),
+                options: {
+                    dragOperation: 'all',
+                    delay: 100 // 100毫秒的拖拽延迟
+                }
+            }
+        }
+    )
+}
 export const onDragStartWithLayout = async (event, currentLayout) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
     let files = []
@@ -17,26 +37,7 @@ export const onDragStartWithLayout = async (event, currentLayout) => {
         }
     });
     if (window.require) {
-        event.preventDefault();
-        const remote = window.require('@electron/remote');
-        const { webContents } = remote
-        const webContentsId = plugin.serverContainerWebContentsID
-        const webviewWebContents = webContents.fromId(webContentsId)
-        let _webContents = remote.getCurrentWindow().webContents
-        //    let webContents = remote.getCurrentWindow().webContents;
-        files[0] && webviewWebContents.send('startDrag',
-            {
-                id: _webContents.id,
-                data: {
-                    files,
-                    icon: await imgeWithConut(files.length),
-                    options: {
-                        dragOperation: 'all',
-                        delay: 100 // 100毫秒的拖拽延迟
-                    }
-                }
-            }
-        )
+        开始原生文件拖拽事件(event,files)
     }
     event.dataTransfer.setData('application/x-electron-drag-data', JSON.stringify(files.join('\n')));
     event.dataTransfer.setData('files', files.join('\n'));

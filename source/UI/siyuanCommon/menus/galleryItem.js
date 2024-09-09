@@ -1,4 +1,4 @@
-import { clientApi, plugin, kernelApi } from "../../../asyncModules.js";
+import { clientApi, plugin } from "../../../asyncModules.js";
 import { 解析文件属性数组内部属性显示 } from "../../../data/attributies/parseAttributies.js";
 import * as menuItems from "./galleryItemMenu/menuItems.js"
 import * as 文件移动菜单组 from "./galleryItemMenu/fileMoveMenuItems.js"
@@ -68,18 +68,14 @@ export const 打开附件组菜单 = (event, assets, position) => {
                     },
                     event, assets, position
                 )
-
             ]
         }
     )
 
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '插件') {
         menu.addSeparator();
-
         menu.addItem(
-
             menuItems.使用TEColors插件分析图像颜色(assets),
-
         )
         添加插件菜单内容(menu.assets)
     }
@@ -195,6 +191,5 @@ function 添加通用菜单内容(menu, assets) {
                 submenu: 附件复制菜单组
             }
         )
-
     }
 }
