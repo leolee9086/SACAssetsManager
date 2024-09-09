@@ -1,4 +1,4 @@
-import {plugin} from '../../asyncModules.js'
+import { plugin } from '../../asyncModules.js'
 window[Symbol.for('sacAssetsStatus')] = window[Symbol.for('sacAssetsStatus')] || {}
 const 全局选择状态 = window[Symbol.for('sacAssetsStatus')]
 export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffsetTop, selectionBox, currentLayoutContainer) => {
@@ -46,100 +46,87 @@ export const clearSelectionWithLayout = (currentLayout) => {
 
 
 export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollContainer) => {
-    if(e.target.dataset&&e.target.dataset.index>=0){
-    const index = parseInt(e.target.dataset.index)
-    const currentItem = currentLayout.layout.find(item => item && item.index === index)
-    let element=scrollContainer.querySelector(`[tabindex="${index}"]`)
-    let targetItem=currentItem
-    let targetIndex=index
-    const isCtrl = e.ctrlKey
-    const isShift = e.shiftKey
-    switch (e.key) {
-        case 'ArrowUp':
-             targetIndex = index - columnCount
-            if (targetIndex < 0) {
-                targetIndex = 0
-            }
-            targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
-            element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
-            break;
-        case 'ArrowDown':
-            targetIndex = index + columnCount
-            if (targetIndex >= currentLayout.layout.length) {
-                targetIndex = currentLayout.layout.length - 1
-            }
-            targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
-            element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
-      
-            break;
-        case 'ArrowLeft':
-            targetIndex = index - 1
-            if (targetIndex < 0) {
-                targetIndex = 0
-            }
-            targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
-            element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
-   
-            break;
-        case 'ArrowRight':
-            targetIndex = index + 1
-            if (targetIndex >= currentLayout.layout.length) {
-                targetIndex = currentLayout.layout.length - 1
-            }
-            targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
-            element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
-         
-            break;
-        case 'Enter':
-            const asset = currentLayout.layout.find(item => item && item.index === index)
-            element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
-
-            plugin.eventBus.emit(plugin.events.资源界面项目右键,{
-                event:e,
-                assets:currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data),
-                x:element.getBoundingClientRect().left+element.offsetWidth/2,
-                y:element.getBoundingClientRect().top+element.offsetHeight/2
-            })
-            break;
-        case 'Escape':
-            currentLayout.layout.forEach(item => {
-                item.selected = false
-            })
-            break;
-    }
-    if(element){
-            setFocus(element)
-        
-    }
-    if (targetItem) {
-        if (isShift) {
-            targetItem.selected = !targetItem.selected
-        } else {
-            targetItem.selected = true
-        }
-        if (!isCtrl && !isShift) {
-            currentLayout.layout.forEach(item => {
-                if (item !== targetItem) {
-                    item.selected = false
+    if (e.target.dataset && e.target.dataset.index >= 0) {
+        const index = parseInt(e.target.dataset.index)
+        const currentItem = currentLayout.layout.find(item => item && item.index === index)
+        let element = scrollContainer.querySelector(`[tabindex="${index}"]`)
+        let targetItem = currentItem
+        let targetIndex = index
+        const isCtrl = e.ctrlKey
+        const isShift = e.shiftKey
+        switch (e.key) {
+            case 'ArrowUp':
+                targetIndex = index - columnCount
+                if (targetIndex < 0) {
+                    targetIndex = 0
                 }
-            })
+                targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
+                element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
+                break;
+            case 'ArrowDown':
+                targetIndex = index + columnCount
+                if (targetIndex >= currentLayout.layout.length) {
+                    targetIndex = currentLayout.layout.length - 1
+                }
+                targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
+                element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
+
+                break;
+            case 'ArrowLeft':
+                targetIndex = index - 1
+                if (targetIndex < 0) {
+                    targetIndex = 0
+                }
+                targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
+                element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
+
+                break;
+            case 'ArrowRight':
+                targetIndex = index + 1
+                if (targetIndex >= currentLayout.layout.length) {
+                    targetIndex = currentLayout.layout.length - 1
+                }
+                targetItem = currentLayout.layout.find(item => item && item.index === targetIndex)
+                element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
+
+                break;
+            case 'Enter':
+                const asset = currentLayout.layout.find(item => item && item.index === index)
+                element = scrollContainer.querySelector(`[tabindex="${targetItem.index}"]`)
+
+                plugin.eventBus.emit(plugin.events.资源界面项目右键, {
+                    event: e,
+                    assets: currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data),
+                    x: element.getBoundingClientRect().left + element.offsetWidth / 2,
+                    y: element.getBoundingClientRect().top + element.offsetHeight / 2
+                })
+                break;
+            case 'Escape':
+                currentLayout.layout.forEach(item => {
+                    item.selected = false
+                })
+                break;
         }
-    }
-    plugin.eventBus.emit('assets-select', currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data))
-}
-}
-export function setFocus(element) {
-    if(!element.classList.contains('focused')){
+        if (element) {
+            setFocus(element)
 
-    element.focus()
-
-    // 移除所有元素的焦点样式
-    document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
-    
-    // 为目标元素添加焦点样式
-    element.classList.add('focused');
-    
-    // 确保元素在视图中可见
-    element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (targetItem) {
+            if (isShift) {
+                targetItem.selected = !targetItem.selected
+            } else {
+                targetItem.selected = true
+            }
+            if (!isCtrl && !isShift) {
+                currentLayout.layout.forEach(item => {
+                    if (item !== targetItem) {
+                        item.selected = false
+                    }
+                })
+            }
+        }
+        plugin.eventBus.emit('assets-select', currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data))
     }
 }
+
+export {setFocus} from '../../utils/DOM/focus.js'

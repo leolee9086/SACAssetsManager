@@ -5,7 +5,6 @@ import {globalKeyboardEvents} from './eventNames.js'
  */
 document.addEventListener('keydown', (event) => {
     // 在这里处理键盘按下事件
-    console.log('按下的键:', event.key);
     plugin.eventBus.emit(globalKeyboardEvents.globalKeyDown,{
         event,
         key:event.key
