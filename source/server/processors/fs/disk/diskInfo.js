@@ -46,26 +46,6 @@ export function listLocalDisks() {
                     resolve(diskInfos)
                 });
             }
-            setImmediate(() => {
-                let disks = diskInfos.map(d => d.name)
-                const diskPromises = []
-                disks.forEach(d => {
-                    diskPromises.push(async () => {
-                        console.log(d)
-                       console.time(`构建磁盘目录树${d}`)
-                        let result = await 构建磁盘目录树(d)
-                        console.timeEnd(`构建磁盘目录树${d}`)
-                       return result
-                    })
-                });
-                (async () => {
-                    console.time('buildIndex')
-                    for (let i = 0; i < diskPromises.length; i++) {
-                        setImmediate(statPromisesArray.start); // 开始处理第一个Promise
-                    }
-                    console.timeEnd('buildIndex')
-                })()
-            })
 
         } else {
             resolve(diskInfos)

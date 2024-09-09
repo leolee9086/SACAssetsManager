@@ -1,17 +1,17 @@
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
-import { 找到文件颜色, 根据颜色查找内容 } from '../processors/color/colorIndex.js'
+import { 找到文件颜色, 根据颜色查找内容, 流式根据颜色查找内容 } from '../processors/color/colorIndex.js'
 import { statWithCatch } from '../processors/fs/stat.js';
 import { statPromisesArray } from '../processors/fs/disk/tree.js'
 import { stat2assetsItemStringLine } from './utils/responseType.js';
-export async function genColor(ctx,next){
+export async function genColor(ctx, next) {
     statPromisesArray.paused = true
     let { 源文件地址, 缓存键 } = ctx.stats
     if (!源文件地址) {
         res.status(400).send('Invalid request: missing source file address');
         return
     }
-    let color=await 找到文件颜色(源文件地址)
-    if(color){
+    let color = await 找到文件颜色(源文件地址)
+    if (color) {
         return color
     }
 
@@ -19,22 +19,28 @@ export async function genColor(ctx,next){
     statPromisesArray.paused = false
     return colors
 }
-export async function getFilesByColor(ctx,next){
+
+
+export async function getFilesByColor(ctx, next) {
     statPromisesArray.paused = true
-    let {color,accurity}= ctx.stats
-    let files = await 根据颜色查找内容(color,accurity)
-    let statPromise  = files.map(
-        file=>{
-            return statWithCatch(file)
+    let { color, accurity } = ctx.stats
+    //设置响应头
+    ctx.res.writeHead(200, {
+        "Content-Type": "text/plain;charset=utf-8",
+    });
+    //没有compression中间件的情况下,也就没有res.flush方法
+    ctx.res.flushHeaders()
+    let sended={}
+    let cb =(file,count)=> requestIdleCallback(async () => {
+        const statProxy = await statWithCatch(file)
+        const result = stat2assetsItemStringLine(statProxy)
+        if(!sended[result]){
+            ctx.res.write(result)
         }
-    )
-    const result = statPromise.map(
-        statProxy=>{
-          //  const { name, path, type, size, mtime, mtimems, error } = statProxy;
-           // return { name, path, id: `localEntrie_${path}`, type: 'local', size, mtime, mtimems, error }
-            return stat2assetsItemStringLine(statProxy,true)
-        }
-    )
-    ctx.res.json(result)
+        sended[result]=true
+        count--
+        count===0 &&ctx.res.end()
+    }, { timeout: 17, deadline: 18 })
+    流式根据颜色查找内容(color, accurity, cb,ctx.res.end)
     statPromisesArray.paused = false
 }

@@ -70,6 +70,7 @@ export async function applyURIStreamJson(uri, target, callback, step, signal, op
                 let _chunk = chunk.substring(5)
                 try {
                   let json = JSON.parse(_chunk)
+                  console.log(json)
                   if (json.walkCount || json.walkCount === 0) {
                     if (json.walkCount !== total) {
                       total = json.walkCount

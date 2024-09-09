@@ -1,6 +1,6 @@
 import { enableRemote } from './webview.js'
 import { 获取同源窗口 } from './webcontentsUtils/query.js'
-
+import { plugin } from '../../../asyncModules.js';
 
 export function createBrowserWindowByURL(url, options = {
     closePrevious: true,
@@ -73,11 +73,12 @@ export function createBrowserWindowByURL(url, options = {
                     width: 800,
                     height: 600,
                     show: options.showImmediately,
+                    titleBarStyle: options.showTitleBar ? 'hidden' : 'default',
+
                     webPreferences: {
                         nodeIntegration: true,
                         contextIsolation: false,
                         webviewTag: true,
-                        titleBarStyle: options.showTitleBar ? 'hidden' : 'default'
                     }
                 });
                 //如果使用了心跳检测，则需要注入心跳检测脚本
@@ -134,6 +135,9 @@ export function createBrowserWindowByURL(url, options = {
                                 targetWebcontent.send('heartbeat', selfWebcontentID)
                             }
                         })
+                        ipcRenderer.on('forceClose', (e, data) => {
+                            window.close()
+                        })
                     }
                 `)
                 } catch (e) {
@@ -165,7 +169,7 @@ export function createBrowserWindowByURL(url, options = {
                                     } catch (e) {
                                         console.error('关闭窗口失败', e);
                                     }
-                                }, 3000); // 5秒内没有响应则关闭窗口
+                                }, 5000); // 5秒内没有响应则关闭窗口
                             }
                         }, 1000); // 每3秒发送一次心跳
                     };

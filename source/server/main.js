@@ -38,6 +38,7 @@ plugin.serverContainer = await createBrowserWindowByURL(entryURL,{
     showTitleBar:false
 });
 plugin.rebuildServerContainer=()=>{
+    plugin.eventBus.emit('closeAllService',{})
     let 已经打开过的窗口 = 获取同源窗口(entryURL)
     if (已经打开过的窗口.length > 0) {
         try {

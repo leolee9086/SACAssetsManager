@@ -26,6 +26,7 @@ export async function 根据路径查找并加载颜色索引(path) {
 }
 export async function 从路径加载颜色索引(cachePath, root) {
     const path = require('path')
+
     try {
         if (loaded[cachePath]) {
             return
@@ -33,7 +34,7 @@ export async function 从路径加载颜色索引(cachePath, root) {
         const dirPath = path.dirname(cachePath) + '\\';
         const files = await fs.promises.readdir(dirPath);
         const indexFiles = files.filter(file => {
-            
+
             return file.startsWith("colorIndex") && file.endsWith('_chunk.json')
         });
 
@@ -122,9 +123,8 @@ let lastSaveTime = 0; // 添加一个变量来记录上次保存的时间
 
 async function 保存颜色索引(targetPath, mapper) {
     const currentTime = Date.now();
-
     if (currentTime - lastSaveTime < 10000) { // 检查是否距离上次保存不足10秒
-       // console.log("距离上次保存不足10秒，跳过本次保存");
+        // console.log("距离上次保存不足10秒，跳过本次保存");
         return;
     }
     if (isSaving) {
@@ -137,13 +137,11 @@ async function 保存颜色索引(targetPath, mapper) {
         totalCtransaction += transactionwsCountStatu[i]
     }
     if (totalCtransaction <= 1000) {
-        console.log("变更少于1000...,跳过保存",transactionwsCountStatu,totalCtransaction);
-
-        isSaving=false 
+        console.log("变更少于1000...,跳过保存", transactionwsCountStatu, totalCtransaction);
+        isSaving = false
         return
     }
     lastSaveTime = currentTime
-
     const root = targetPath.replace('\\.sac\\colorIndex', '');
     const fs = require('fs');
     await 清理颜色索引(colorIndex);
@@ -166,12 +164,9 @@ async function 保存颜色索引(targetPath, mapper) {
     try {
         const chunkSize = transactionwsCountStatu.chunkSize; // 每个分片的大小
         const chunksByMod = {};
-
         for (let i = 0; i < colorIndexMapped.length; i++) {
-           
             const color = colorIndexMapped[i].color;
             const mod = (color[0] + color[1] + color[2]) % chunkSize;
-   
             if (!chunksByMod[mod]) {
                 chunksByMod[mod] = [];
             }
@@ -191,24 +186,46 @@ async function 保存颜色索引(targetPath, mapper) {
     } catch (e) {
         console.error("颜色索引保存错误", e);
     } finally {
-
         isSaving = false; // 解锁保存过程
-
     }
 }
-
 export async function 根据颜色查找内容(color, cutout = 0.6) {
-    let find = colorIndex.filter(
-        item => diffColor(item.color, color, cutout)
-    )
-    let result = []
-    for await (let colorItem of find) {
-        //这里不需要返回,直接校验
-        await 校验颜色索引文件条目(colorItem)
-        result = result.concat(colorItem.assets)
-
+    let result = [];
+    for (let i = 0; i < colorIndex.length; i++) {
+        let item = colorIndex[i];
+        let diffResult = diffColor(item.color, color, cutout)
+        if (diffResult) {
+            // 这里不需要返回，直接校验
+            // 校验颜色索引文件条目(item);
+            result = result.concat(item.assets);
+        }
     }
-    return Array.from(new Set(result.map(item => item.path)))
+    return Array.from(new Set(result.map(item => item.path)));
+}
+export async function 流式根据颜色查找内容(color, cutout = 0.6, callback, endCallback) {
+    let count = colorIndex.length
+    return new Promise((resolve, reject) => {
+        for (let i = 0; i < colorIndex.length; i++) {
+            let item = colorIndex[i];
+            let fn = async () => {
+                let diffResult = diffColor(item.color, color, cutout)
+                if (diffResult) {
+                    let len = item.assets.length
+                    item.assets.forEach(
+                        data => {
+                            count++
+                            len--
+                            callback(data.path, count)
+                            len === 0 && count--
+                        }
+                    )
+                }
+            }
+            setImmediate(
+                fn
+            )
+        }
+    })
 }
 export async function 找到文件颜色(path) {
     let finded = []

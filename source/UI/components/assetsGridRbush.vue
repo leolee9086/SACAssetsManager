@@ -19,6 +19,7 @@
 </template>
 <script setup>
 import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../data/siyuanAssets.js"
+import { applyURIStreamJson } from "../../data/fetchStream.js";
 import {
     computed,
     ref,
@@ -333,8 +334,12 @@ onMounted(async () => {
             }
         )
     } else if (appData.value.tab.data.color) {
+        附件数据组 = []
+
         let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
-        附件数据组 = await (await fetch(uri)).json()
+        await applyURIStreamJson(uri, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
+
+        /*附件数据组 = await (await fetch(uri)).json()
         附件数据组.map(
             (item, index) => {
                 return ref({
@@ -342,7 +347,7 @@ onMounted(async () => {
                     index
                 })
             }
-        )
+        )*/
         nextTick(
             () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
