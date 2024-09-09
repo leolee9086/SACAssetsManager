@@ -29,7 +29,7 @@ channel.addEventListener(
 )
 // 调用函数创建webview
 plugin.serverContainer = await createBrowserWindowByURL(entryURL,{
-    closePrevious: false,
+    closePrevious: true,
     single: true,
     noCache:true,
     showImmediately: false,

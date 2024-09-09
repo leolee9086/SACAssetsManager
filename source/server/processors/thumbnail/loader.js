@@ -7,6 +7,7 @@ import { diffColor } from '../color/Kmeans.js'
 import { genStatHash } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions } from './utils/lists.js'
 import { isEagleBackupImage } from './utils/regexs.js'
+import { globalTaskQueue } from '../queue/taskQueue.js'
 const sharp = require('sharp')
 let loderPaths = [
     './internalGeneraters/svg.js',
@@ -97,7 +98,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         if (noThumbnailList[i].toLowerCase() === extension) {
             useExtension = true;
             if (commonIcons.has(extension)) {
-                console.log('使用扩展名缩略图',imagePath)
+                console.log('使用扩展名缩略图', imagePath)
                 return commonIcons.get(extension);
             }
             break;
@@ -137,7 +138,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (useExtension) {
         缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     }
- 
+
     let fromFIle = await asyncReadFile(缓存路径)
     if (fromFIle && fromFIle.length >= 100) {
         return fromFIle
@@ -153,7 +154,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
             thumbnailBuffer = await sharp(thumbnailBuffer)
                 .png({ compressionLevel: 9 })
                 .toBuffer()
-            console.log('成功生成缩略图',imagePath)
+            console.log('成功生成缩略图', imagePath)
         }
         tumbnailCache.set(缓存键, thumbnailBuffer)
         if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
@@ -178,7 +179,28 @@ const tumbnailCache = buildCache('thumbnailCache')
 import { 智能防抖 } from '../../../utils/functionTools.js'
 import { getCachePath } from '../fs/cached/fs.js'
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
-        await genThumbnailColor(imagePath, loaderID)
+    let fn = async () => {
+        try {
+            await genThumbnailColor(imagePath, loaderID)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            return imagePath
+        }
+    }
+       // 使用当前时间的负值作为优先级
+       const priority = -Date.now();
+    
+       // 处理可能的边界情况
+       if (priority === 0) {
+           // 在极少数情况下，如果 Date.now() 返回 0，我们使用一个非常小的负数
+           fn = globalTaskQueue.priority(fn, -Number.MIN_SAFE_INTEGER);
+       } else {
+           fn = globalTaskQueue.priority(fn, priority);
+       }
+       
+       globalTaskQueue.push(fn);
+   
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
@@ -188,7 +210,7 @@ export async function genThumbnailColor(filePath, loaderID = null) {
         return null
     }
     const colors = await getColor(thumbnailBuffer, filePath)
-    
+
     return colors
 }
 

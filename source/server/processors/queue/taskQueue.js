@@ -3,19 +3,27 @@ import { buildCache } from '../cache/cache.js'
 const 遍历缓存 = buildCache('walk')
 const statCache = buildCache('statCache')
 
-let globalTaskQueue=new MinHeap(
+let globalTaskQueue = new MinHeap(
     (a, b) => {
-        // 获取优先级，如果不存在则默认为最大值
         const priorityA = a.priority !== undefined ? a.priority : Infinity;
         const priorityB = b.priority !== undefined ? b.priority : Infinity;
         
-        // 按照优先级进行排序，数值越小优先级越高
+        // 当一正一负时，优先选择0和正数
+        if ((priorityA >= 0 && priorityB < 0) || (priorityA < 0 && priorityB >= 0)) {
+            return priorityB - priorityA; // 反转顺序，使得非负数优先
+        }
+        
+        // 其他情况下，数值更小的优先
         return priorityA - priorityB;
     }
 )
 
 globalThis[Symbol.for('taskQueue')]=globalThis[Symbol.for('taskQueue')]||globalTaskQueue
 globalTaskQueue=globalThis[Symbol.for('taskQueue')]
+globalTaskQueue.priority=(fn,num)=>{
+    fn.priority=num
+    return fn
+}
 globalTaskQueue.start= function($timeout=0,force){
     console.log('恢复后台任务',"执行间隔:"+$timeout,force?"强制开始:":'')
     if(this.started){

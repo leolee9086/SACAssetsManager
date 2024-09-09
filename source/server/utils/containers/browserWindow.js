@@ -165,13 +165,12 @@ export function createBrowserWindowByURL(url, options = {
                                     } catch (e) {
                                         console.error('关闭窗口失败', e);
                                     }
-                                }, 5000); // 5秒内没有响应则关闭窗口
+                                }, 3000); // 5秒内没有响应则关闭窗口
                             }
-                        }, 3000); // 每3秒发送一次心跳
+                        }, 1000); // 每3秒发送一次心跳
                     };
                     const ipc = require('electron').ipcRenderer;
                     ipc.on('heartbeat', (e, data) => {
-                        console.log('收到心跳响应', data);
                         clearTimeout(heartbeatTimeout);
                     });
                     startHeartbeat();

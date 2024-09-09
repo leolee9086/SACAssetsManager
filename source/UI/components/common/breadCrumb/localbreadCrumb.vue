@@ -15,7 +15,7 @@
             <input class="b3-switch fn__flex-center ariaLabel" aria-label="显示子路径" v-model="IncludeSubfolders"
                 type="checkbox">
             <button class="b3-tooltips b3-tooltips__w block__icon fn__flex-center" style="opacity: 1;" data-menu="true"
-            aria-label="更多">
+                aria-label="更多">
                 <svg>
                     <use xlink:href="#iconMore"></use>
                 </svg>
@@ -23,11 +23,9 @@
         </div>
         <div v-if="IncludeSubfolders" @wheel="horizontalScroll" class="fn__flex subFolders">
             <div class="fn__space"></div>
-            <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i" v-if="i<100">
-                <div 
-                @click.left.stop="() => { toggleShow(子文件夹信息, i) }" 
-                @click.right.stop="() => { 右键菜单(子文件夹信息, i) }"
-                :class="{ 'subfolderShown': 子文件夹信息.show }"
+            <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i">
+                <div v-if="i < 100" @click.left.stop="() => { toggleShow(子文件夹信息, i) }"
+                    @click.right.stop="() => { 右键菜单(子文件夹信息, i) }" :class="{ 'subfolderShown': 子文件夹信息.show }"
                     style="border-radius:15px;min-width:80px;width:80px;height:80px;background-color: var(--b3-theme-background-light);">
                     <img src="/stage/icon.png">
                     <div style="font-size: small;text-align: center;">{{ 子文件夹信息.name }}</div>
@@ -49,23 +47,21 @@ import { commonIcon } from '../icons.js'
 const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 const 右键菜单 = (子文件夹信息, i) => {
-    
+
 }
 watch(() => IncludeSubfolders.value, () => {
     fetchSUbFolders()
     if (!IncludeSubfolders.value) {
         emit('globChange', {
             cwd: localPath,
-            query: {
-                $and: [
-                {
-                    depth: { $eq: 1 },
-                    },
-                ]
-            }
+            /***
+             * 内置属性
+             */
+            depth:1,
+           
 
         })
-    }else{
+    } else {
         emit('globChange', 构建搜索模式(子文件夹数组.value, localPath.replace(/\\/g, '/')))
     }
 })

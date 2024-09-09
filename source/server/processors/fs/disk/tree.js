@@ -8,6 +8,7 @@ import { buildCache } from '../../cache/cache.js'
 import { globalTaskQueue } from '../../queue/taskQueue.js'
 import { 根据路径查找并加载颜色索引 } from '../../color/colorIndex.js'
 import { 准备缩略图 } from '../../thumbnail/loader.js'
+import { ignoreDir } from '../dirs/ignored.js'
 const statPromisesArray = globalTaskQueue
 export { statPromisesArray }
 export const diskTree = global[Symbol.for('tree')]
@@ -156,7 +157,7 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
             let entry = entries[i]
             let entryName = entry.name
             if (entry.isDirectory()) {
-                if (entryName !== '.sac') {
+                if (ignoreDir.indexOf(entryName)===-1) {
                     if (!entryName.startsWith('.') && !entryName.startsWith('$')) {
                         let dirItem = {
                             name: entryName,

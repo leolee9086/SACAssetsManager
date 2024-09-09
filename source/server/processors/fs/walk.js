@@ -4,8 +4,10 @@ import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
 import { statPromisesArray } from './disk/tree.js'
-import { isMetaData,isThumbnail } from '../thumbnail/utils/regexs.js'
+import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
 import { 构建目录树 } from '../fs/disk/tree.js'
+import { ignoreDir } from './dirs/ignored.js'
+import { globalTaskQueue } from '../queue/taskQueue.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -16,11 +18,11 @@ import { 构建目录树 } from '../fs/disk/tree.js'
  * @param {*} maxCount 
  * @returns 
  */
-const ignoreDir = ['$recycle', '$trash', '.git', '.sac', '$RECYCLE.BIN', '#recycle', '.pnpm-store']
 const 遍历缓存 = buildCache('walk')
 const statCache = buildCache('statCache')
 
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth=Infinity) {
+    console.log(maxDepth)
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
     let total = 0
@@ -34,14 +36,32 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     }
     const startTime = Date.now()
     const realFilter = async (path, isDir) => {
-        if (isDir) {
-            return false
-        }
         statPromisesArray.paused = true
         const nowTime = Date.now()
         let modifydied = path.replace(/\\/g, '/')
-        if(isThumbnail(path)||isMetaData(path)){
-            total++ 
+        if (isDir) {
+            globalTaskQueue.push(
+                async () => {
+                    try {
+                        if (!遍历缓存.get(modifydied)) {
+                            globalTaskQueue.push(
+                                globalTaskQueue.priority(
+                                    async () => {
+                                        构建目录树(modifydied)
+                                        return modifydied
+                                    }, 0 - nowTime)
+                            )
+                        }
+                    } catch (e) {
+                        console.error('构建目录树失败', e)
+                    }
+                    return  modifydied
+                }
+            )
+            return false
+        }
+        if (isThumbnail(path) || isMetaData(path)) {
+            total++
             return false
         }
         if (nowTime - startTime > timeout) {
@@ -54,13 +74,15 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         let proxy = buildStatProxyByPath(modifydied)
         let result
         total++
+        countCallBack && countCallBack(total)
+
         try {
-            result = await filter(proxy, proxy.path.split('/').length)
+            result = await filter(proxy)
         } catch (e) {
+            console.error(e)
             return false
         }
-        countCallBack &&  countCallBack(total)
-        result &&   stepCallback(proxy)
+        result && stepCallback(proxy)
         return result
     }
     let api = new fdir()
@@ -74,6 +96,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
             return false
         })
         .withSignal(signal)
+        .withMaxDepth(maxDepth)
         .withCache(遍历缓存)
         .filter(realFilter)
     if (maxDepth) {

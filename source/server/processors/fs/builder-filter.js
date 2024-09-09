@@ -8,19 +8,12 @@ export function buildFilter(filter, signal) {
         return ()=>{return true}
     }
     if (filter && typeof filter === 'function') {
-        return async (statProxy, depth) => {
+        return async (statProxy) => {
             if (signal && signal.aborted) {
                 return false
             }
             try {
-                let proxy = new Proxy({}, {
-                    get(target, prop) {
-                        if (prop === 'depth') {
-                            return depth
-                        }
-                        return statProxy[prop]
-                    }
-                })
+                let proxy = statProxy
                 return await Promise.race([
                     filter(proxy),
                     new Promise((resolve, reject) => setTimeout(() => resolve(false), 30))
@@ -32,19 +25,12 @@ export function buildFilter(filter, signal) {
         }
     } else {
         if (filter && typeof filter === 'object') {
-            return async (statProxy, depth) => {
+            return async (statProxy) => {
                 if (signal && signal.aborted) {
                     return false
                 }
                 try {
-                    let proxy = new Proxy({}, {
-                        get(target, prop) {
-                            if (prop === 'depth') {
-                                return depth
-                            }
-                            return statProxy[prop]
-                        }
-                    })
+                    let proxy = statProxy
                     const timeoutPromise = new Promise((resolve, reject) => setTimeout(() => resolve(false), 30))
                     if (statProxy.isFile() && filter.ifFile) {
                         return await Promise.race([filter.ifFile(proxy), timeoutPromise])
