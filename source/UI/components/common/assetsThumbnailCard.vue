@@ -112,12 +112,13 @@ function 打开颜色查找面板(color) {
     plugin.eventBus.emit('click-galleryColor', color)
 }
 let idleCallbackId;
+let protyle
 let fn = () => {
     showImage.value = true
     if (cardData.data.type === 'note' && cardData.width > 300) {
         showIframe.value = true
         nextTick(() => {
-            const protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
+             protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
             showImage.value = false
             const resizeObserver = new ResizeObserver((entries) => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
@@ -148,6 +149,13 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
     cancelIdleCallback(idleCallbackId);
+    nextTick(
+        ()=>{
+            console.log(protyle)
+            protyle&&protyle.destroy()
+
+        }
+    )
 });
 const buildCardProtyle = (element) => {
     return new clientApi.Protyle(

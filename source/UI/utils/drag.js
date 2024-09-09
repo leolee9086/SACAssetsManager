@@ -12,19 +12,34 @@ const 开始原生文件拖拽事件=async(event,files)=>{
     const webContentsId = plugin.serverContainerWebContentsID
     const webviewWebContents = webContents.fromId(webContentsId)
     let _webContents = remote.getCurrentWindow().webContents
-    files[0] && webviewWebContents.send('startDrag',
+    const dragOperation = event.ctrlKey ? 'copy' : 'move';
+    files[0] &&webContentsId&& webviewWebContents.send('startDrag',
         {
             id: _webContents.id,
             data: {
                 files,
-                icon: await imgeWithConut(files.length),
+                icon: await imgeWithConut(files.length,false,event.ctrlKey ? '复制' : '移动'),
                 options: {
-                    dragOperation: 'all',
+                    dragOperation:dragOperation,
                     delay: 100 // 100毫秒的拖拽延迟
                 }
             }
         }
     )
+}
+const 将文件写入dataTransfer=async(event,files)=>{
+    event.dataTransfer.setData('application/x-electron-drag-data', JSON.stringify(files.join('\n')));
+    event.dataTransfer.setData('files', files.join('\n'));
+    event.dataTransfer.setData('text/plain', files.join('\n'));
+    event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
+    event.dataTransfer.setData('text/uri-list', files.join('\n'));
+    event.dataTransfer.setData('sac/data-assets', JSON.stringify(files.join('\n')));
+    event.dataTransfer.effectAllowed = 'copyLink';
+    // 自定义拖拽图标
+    const iconPath = await imgeWithConut(files.length, true);
+    event.dataTransfer.setDragImage(iconPath, 64, 64);
+    //window.blur()
+
 }
 export const onDragStartWithLayout = async (event, currentLayout) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
@@ -39,17 +54,7 @@ export const onDragStartWithLayout = async (event, currentLayout) => {
     if (window.require) {
         开始原生文件拖拽事件(event,files)
     }
-    event.dataTransfer.setData('application/x-electron-drag-data', JSON.stringify(files.join('\n')));
-    event.dataTransfer.setData('files', files.join('\n'));
-    event.dataTransfer.setData('text/plain', files.join('\n'));
-    event.dataTransfer.setData('text/html', files.map(item => { return `<img src="file://${item}">` }).join('\n'));
-    event.dataTransfer.setData('text/uri-list', files.join('\n'));
-    event.dataTransfer.setData('sac/data-assets', JSON.stringify(files.join('\n')));
-    event.dataTransfer.effectAllowed = 'copyLink';
-    // 自定义拖拽图标
-    const iconPath = await imgeWithConut(files.length, true);
-    event.dataTransfer.setDragImage(iconPath, 64, 64);
-    //window.blur()
+    将文件写入dataTransfer(event,files)
 }
 
 

@@ -1,4 +1,6 @@
 import { plugin } from '../../asyncModules.js'
+import {setFocus} from '../../utils/DOM/focus.js'
+export {setFocus}
 window[Symbol.for('sacAssetsStatus')] = window[Symbol.for('sacAssetsStatus')] || {}
 const 全局选择状态 = window[Symbol.for('sacAssetsStatus')]
 export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffsetTop, selectionBox, currentLayoutContainer) => {
@@ -129,4 +131,3 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
     }
 }
 
-export {setFocus} from '../../utils/DOM/focus.js'

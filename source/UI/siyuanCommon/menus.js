@@ -102,9 +102,42 @@ eventBus.on('open-menu-tag', (event) => {
 })
 
 import { 打开附件组菜单 } from './menus/galleryItem.js'
+import { 打开附件面板 } from './tabs/assetsTab.js'
 eventBus.on(
     'rightclick-galleryitem', (e) => {
         const { event, assets } = e.detail
         打开附件组菜单(event,assets,{ y: event.y || e.detail.y, x: event.x || e.detail.x })
+    }
+)
+eventBus.on(
+    'click-blockicon',(e)=>{
+        const {blockElements,menu,protyle}=e.detail
+        let sqlBlock=blockElements.filter(
+            item=>{
+                let span= item.querySelector('.protyle-action__language')
+                return span&&span.textContent==='sql'
+            }
+        )
+        if(sqlBlock[0]){
+            menu.addItem({
+                label:"在assetsManager中打开",
+                click(){
+                    sqlBlock.forEach(
+                        block=> 打开附件面板(
+                            {
+                                icon: "iconAssets",
+                                title: "资源:sql查询",
+                                data: {
+                                    type:'sql',
+                                    stmt:block.querySelector('[contenteditable="true"]').textContent
+                                },
+                        
+                            }
+                        )
+                    )
+            
+                }
+            })
+        }
     }
 )

@@ -1,5 +1,5 @@
 import { resolveWorkspacePath,Constants } from "../../../asyncModules.js"
-export const imgeWithConut = (count, returnImage) => {
+export const imgeWithConut = (count, returnImage,dragOperation) => {
     return new Promise((resolve, reject) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -42,7 +42,7 @@ export const imgeWithConut = (count, returnImage) => {
             ctx.strokeStyle = 'black';
             ctx.stroke();
             // Draw the number inside the bubble
-            const number = `${count}个文件\n小心操作`; // Replace with your desired number
+            const number = `${dragOperation}${count}个文件\n小心操作`; // Replace with your desired number
             ctx.font = '13px black';
             ctx.fillStyle = 'red';
             // Split the text into two lines

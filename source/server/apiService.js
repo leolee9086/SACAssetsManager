@@ -111,16 +111,3 @@ app.listen(port, () => {
     window.channel.postMessage('serverReady')
     console.log(`Server running at http://localhost:${port}`);
 });
-/**
- * 这里是为了让主窗口的拖拽事件能够被其自身响应
- */
-const remote = require('@electron/remote');
-const { ipcRenderer } = require('electron')
-const { webContents } = remote
-ipcRenderer.on('startDrag', (e, arg) => {
-    if (arg.id) {
-        const webContentsId = arg.id
-        const webviewWebContents = webContents.fromId(webContentsId)
-        webviewWebContents.startDrag(arg.data)
-    }
-})
