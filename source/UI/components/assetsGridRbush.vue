@@ -55,7 +55,7 @@ const 计算容器样式 = computed(() => ({ size, paddingLR, containerHeight })
 
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor','filListProvided'])
 const size = toRef(props, 'size')
 watch(
     [size],
@@ -64,6 +64,7 @@ watch(
         列数和边距监听器()
     }
 )
+const filListProvided= toRef(props, 'filListProvided')
 
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
@@ -77,6 +78,7 @@ const paddingLR = ref(100)
 const containerHeight = ref(102400)
 const showCard = ref(true)
 const emit = defineEmits()
+
 const palletAdded = (data) => {
     emit('palletAdded', data)
 }
@@ -299,11 +301,25 @@ onUnmounted(
 
 )
 
+
+
 onMounted(async () => {
     appData.value.tab.controllers = appData.value.tab.controllers || []
     appData.value.tab.controllers.push(controller)
+    if(filListProvided.value){
+        附件数据组=filListProvided.value
+        console.log(filListProvided)
+        nextTick(
+            () => {
+                布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+                监听尺寸函数(scrollContainer.value)
+                定长加载(100)
+                emitLayoutChange()
+            }
+        )
 
-    if (appData.value.tab.data.localPath) {
+    }
+    else if (appData.value.tab.data.localPath) {
         附件数据组 = []
         try {
             await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 10, signal)

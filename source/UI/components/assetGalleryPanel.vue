@@ -20,7 +20,7 @@
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
-                    <input v-model="search" style="box-sizing: border-box;width:100px;">
+                    <input v-model="rawSearch" style="box-sizing: border-box;width:100px;">
                 </div>
                 <div class="fn__flex">
                     <button @click.right.stop.prevent="() => { filterColor = []; refreshPanel() }" ref="palletButton"
@@ -50,25 +50,20 @@
             <div class="fn__space fn__flex-1"></div>
         </div>
         <div class="fn__space"></div>
-        <div class="fn__flex-column fn__flex-1"
-         @dragstart.stop="(e) => onDragStart(e, currentLayout)"
-        style="width:100%;overflow: hidden;" 
-        @mousedown.left="startSelection" 
-        @click.left="endSelection"
-        @click.right.stop="openMenu" 
-        @mousedup="endSelection" 
-        @mousemove="updateSelection" 
-        @drop="handlerDrop"
-        @dragover.prevent>
+        <div class="fn__flex-column fn__flex-1" @dragstart.stop="(e) => onDragStart(e, currentLayout)"
+            style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
+            @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
+            @dragover.prevent>
             <assetsGridRbush :everthingEnabled="everthingEnabled" :everthingPort="everthingPort"
-                @palletAdded="palletAdded" :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
-                @layoutCountTotal="(e) => { layoutCountTotal = e }" @ready="size = 300" @layoutChange="handlerLayoutChange"
-                @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
-                @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
+                :filListProvided="filListProvided" @palletAdded="palletAdded" :globSetting="$realGlob"
+                v-if="showPanel && globSetting" :maxCount="maxCount" @layoutCountTotal="(e) => { layoutCountTotal = e }"
+                @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
+                :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @layoutLoadedCount="(e) => { layoutCount.loaded = e }" :size="parseInt(size)">
             </assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
-                (layoutCountTotal + '个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded +
+                (layoutCountTotal + '个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded
+                +
                 '个文件已经加载' }}</div>
             <!--选择框的容器-->
             <div v-if="isSelecting" :style="selectionBoxStyle" class="selection-box"></div>
@@ -79,7 +74,7 @@
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import { diffColor } from '../../server/processors/color/Kmeans.js';
 import assetsGridRbush from './assetsGridRbush.vue';
-import { plugin,Constants } from 'runtime'
+import { plugin, Constants } from 'runtime'
 import _path from '../../polyfills/path.js'
 const appData = toRef(inject('appData'))
 //全局设置
@@ -87,7 +82,21 @@ const globSetting = ref({})
 //最大显示数量
 const maxCount = ref(1000)
 const layoutCountTotal = ref(0)
-const search = ref('')
+const search = ref('');
+const rawSearch = ref('');
+let searchTimer = null;
+
+watch(rawSearch, (data) => {
+    // 每次 rawSearch 变化时，清除之前的定时器
+    clearTimeout(searchTimer);
+
+    // 设置一个新的定时器
+    searchTimer = setTimeout(() => {
+        // 半秒钟后，如果 rawSearch 没有变化，则更新 search 并触发搜索
+        search.value = data;
+    }, 500); // 500 毫秒后执行搜索
+});
+
 const palletButton = ref(null)
 const showPallet = ref(false)
 const pallet = ref([])
@@ -112,6 +121,7 @@ const palletAdded = (data) => {
         ))))
 }
 const everthingPort = ref(1000)
+
 const $realGlob = computed(() => {
     let realGlob = {
         ...globSetting.value,
@@ -130,12 +140,30 @@ const $realGlob = computed(() => {
     return realGlob
 })
 const everthingEnabled = ref(false)
-watch([everthingPort, $realGlob], (e) => {
-    fetch(`http://localhost:${everthingPort.value}/?reg=${encodeURIComponent(search.value)}&json=1`).then(res => res.json()).then(json => {
+const filListProvided = ref(null)
+watch([everthingPort, $realGlob],async (e) => {
+    search.value&&fetch(`http://localhost:${everthingPort.value}/?search=${encodeURIComponent(search.value)}&json=1&path_column=1&size_column=1&date_modified_column=1&date_created_column=1&count=100000`).then(res => res.json()).then(json => {
         if (json) {
             everthingEnabled.value = true
+            filListProvided.value = json.results.filter(
+                item=>item.type==='file'
+            ).map(
+                (item, index) => {
+                    return {
+                        ...item,
+                        id:`local_entry${item.path}`,
+                        type:"local",
+                        path:(item.path+'/'+item.name).replace(/\\/g,'/'),
+                        mtimems:item.date_modified,
+                        index
+                    }
+                }
+            )
+            
+            nextTick(refreshPanel)
         }
     }).catch(e => {
+        console.error(e)
         everthingEnabled.value = false
     })
 })
@@ -164,8 +192,8 @@ const refreshPanel = () => {
     })
 }
 const handlerLayoutChange = (data) => {
-    console.log('layoutChange',data)
-    currentLayout.value = data.layout||{}
+    console.log('layoutChange', data)
+    currentLayout.value = data.layout || {}
     currentLayoutContainer = data.element
 }
 
@@ -191,7 +219,7 @@ function scaleListener(event) {
     }
 }
 
-const 获取eagle标签列表=()=>{
+const 获取eagle标签列表 = () => {
     fetch(`http://localhost:${plugin.http服务端口号}/eagle-tags?path=${eaglePath.value}`).then(res => res.json()).then(json => {
         console.log(json)
     })
@@ -224,7 +252,7 @@ const isSelecting = ref(false);
 const selectionBox = ref({ startX: 0, startY: 0, endX: 0, endY: 0 });
 const selectedItems = ref([])
 const startSelection = (event) => {
-    if(isSelecting.value){
+    if (isSelecting.value) {
         endSelection(event)
         return
     }
@@ -249,12 +277,12 @@ const endSelection = (event) => {
     selectedItems.value = getSelectedItems(event);
     plugin.eventBus.emit('assets-select', selectedItems.value)
 };
-plugin.eventBus.on(globalKeyboardEvents.globalKeyDown,(e)=>{
-    const {key}=e.detail
+plugin.eventBus.on(globalKeyboardEvents.globalKeyDown, (e) => {
+    const { key } = e.detail
     console.log(key)
-    if(key==='Escape'){
-        isSelecting.value =false
-        selectedItems.value=[]
+    if (key === 'Escape') {
+        isSelecting.value = false
+        selectedItems.value = []
     }
 })
 import { getSelectionStatus } from '../utils/selection.js'
