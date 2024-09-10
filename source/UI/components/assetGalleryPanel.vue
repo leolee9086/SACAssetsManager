@@ -139,33 +139,21 @@ const $realGlob = computed(() => {
     }
     return realGlob
 })
+
+
+import { searchByEverything } from '../../utils/thirdParty/everything.js';
 const everthingEnabled = ref(false)
 const filListProvided = ref(null)
-watch([everthingPort, $realGlob],async (e) => {
-    search.value&&fetch(`http://localhost:${everthingPort.value}/?search=${encodeURIComponent(search.value)}&json=1&path_column=1&size_column=1&date_modified_column=1&date_created_column=1&count=100000`).then(res => res.json()).then(json => {
-        if (json) {
-            everthingEnabled.value = true
-            filListProvided.value = json.results.filter(
-                item=>item.type==='file'
-            ).map(
-                (item, index) => {
-                    return {
-                        ...item,
-                        id:`local_entry${item.path}`,
-                        type:"local",
-                        path:(item.path+'/'+item.name).replace(/\\/g,'/'),
-                        mtimems:item.date_modified,
-                        index
-                    }
-                }
-            )
-            
-            nextTick(refreshPanel)
-        }
-    }).catch(e => {
-        console.error(e)
-        everthingEnabled.value = false
-    })
+watch([everthingPort, $realGlob], async (e) => {
+    const { enabled, fileList } = await searchByEverything(search.value, everthingPort.value);
+    if (enabled) {
+        everthingEnabled.value = true;
+        filListProvided.value = fileList;
+        nextTick(refreshPanel);
+    } else {
+        everthingEnabled.value = false;
+    }
+
 })
 watch(
     () => $realGlob.value, () => {

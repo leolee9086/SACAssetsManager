@@ -42,7 +42,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     }
     let chunked = ''
     walkAsyncWithFdir(cwd, filterFun, {
-        ifFile: (statProxy) => {
+        ifFile:async (statProxy) => {
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)
             chunked += data

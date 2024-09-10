@@ -171,7 +171,7 @@ export function createBrowserWindowByURL(url, options = {
                                     }
                                 }, 5000); // 5秒内没有响应则关闭窗口
                             }
-                        }, 1000); // 每3秒发送一次心跳
+                        }, 1000); // 每1秒发送一次心跳
                     };
                     const ipc = require('electron').ipcRenderer;
                     ipc.on('heartbeat', (e, data) => {
