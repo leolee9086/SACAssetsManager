@@ -212,6 +212,8 @@ function 添加通用菜单内容(menu, assets) {
         menu.addItem(menuItems.复制文件缩略图地址(assets))
         menu.addItem(menuItems.上传到assets并复制链接(assets))
         menu.addSeparator();
+        menu.addItem(menuItems.清理缓存并硬刷新())
+        menu.addSeparator();
     } else {
         //否则收缩到子菜单项目
         menu.addSeparator();

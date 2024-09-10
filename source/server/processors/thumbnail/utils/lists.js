@@ -56,6 +56,7 @@ export const noThumbnailList = [
    'db',
    'yaml',
    'gsm',
+   'yml',
    'gitignore'
 ]
 export const imageExtensions= [
@@ -68,3 +69,22 @@ export const imageExtensions= [
     'ico',
     'webp'
 ]
+export const vectorExtensions = [
+    'svg',
+    'ai',
+    'eps',
+    'pdf',
+    'cdr',
+    'emf',
+    'wmf'
+]
+export const 是否不需要单独缩略图 =(extension)=>{
+    let useExtension
+    for (let i = 0; i < noThumbnailList.length; i++) {
+        if (noThumbnailList[i].toLowerCase() === extension.toLowerCase()) {
+            useExtension = true;
+            break;
+        }
+    }
+    return useExtension
+}

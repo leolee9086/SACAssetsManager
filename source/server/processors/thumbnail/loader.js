@@ -5,8 +5,7 @@ import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
 import { diffColor } from '../color/Kmeans.js'
 import { genStatHash } from '../fs/stat.js'
-import { noThumbnailList, imageExtensions } from './utils/lists.js'
-import { isEagleBackupImage } from './utils/regexs.js'
+import { noThumbnailList, imageExtensions,是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
 const sharp = require('sharp')
 let loderPaths = [
@@ -88,19 +87,15 @@ export function listLoaders() {
 
 const fs = require('fs')
 import { asyncReadFile } from '../fs/utils/withExists.js'
+import { getFileExtension } from '../../../utils/fs/extension.js'
 const commonIcons = new Map()
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
     imagePath = imagePath.replace(/\\/g, '/')
-    const extension = imagePath.split('.').pop().toLowerCase()
-    let useExtension = false
+    //const extension = imagePath.split('.').pop().toLowerCase()
+    const extension=getFileExtension(imagePath)
+    let useExtension = 是否不需要单独缩略图(extension)
     let useRaw = false
-    for (let i = 0; i < noThumbnailList.length; i++) {
-        if (noThumbnailList[i].toLowerCase() === extension) {
-            useExtension = true;
-           
-            break;
-        }
-    }
+ 
     let loader = await getLoader(imagePath, loaderID)
     if (!loader) {
         return null

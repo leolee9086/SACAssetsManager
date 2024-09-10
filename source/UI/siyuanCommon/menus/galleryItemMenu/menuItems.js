@@ -4,7 +4,7 @@ export const 打开资源文件所在笔记 = (assets) => {
         label: "所在笔记",
         click: () => {
             assets.forEach(asset => {
-                if(asset.type==='note'){
+                if (asset.type === 'note') {
                     clientApi.openTab(
                         {
                             app: plugin.app,
@@ -124,7 +124,7 @@ export const 复制文件缩略图地址 = (assets) => {
             let text = ''
             assets.forEach(asset => {
                 const thumbnailSrc = `${serverHost}/thumbnail/?localPath=${encodeURIComponent(asset.path)}`
-                text+=`![${asset.name}](${thumbnailSrc})\n\n`
+                text += `![${asset.name}](${thumbnailSrc})\n\n`
             });
             navigator.clipboard.writeText(text)
         }
@@ -178,7 +178,7 @@ export const 上传到assets并复制链接 = (assets) => {
                 // 转换为 Blob 对象
                 let fileBlob = new Blob([fileData.buffer], { type: 'application/octet-stream' });
                 // 添加到 FormData，使用索引作为字段名，或者使用统一的字段名如 'files[]'
-                let fileObj=new File([fileData],require('path').basename(asset.path))
+                let fileObj = new File([fileData], require('path').basename(asset.path))
                 formData.append(`file[${i}]`, fileObj);
 
             }
@@ -189,6 +189,25 @@ export const 上传到assets并复制链接 = (assets) => {
             })
             console.log(res)
             navigator.clipboard.writeText(assets.map(asset => `![${asset.name}](file:///${asset.path})`).join('\n'))
+        }
+    }
+}
+
+export const 清理缓存并硬刷新 =  () => {
+    return {
+        label:"清理缓存并硬刷新当前窗口",
+        click: async () => {
+            const remote = require('@electron/remote')
+            try {
+                // 清理会话缓存
+                const session = remote.session.defaultSession;
+                await session.clearCache();
+
+                // 强制刷新页面
+                remote.getCurrentWindow().reload();
+            } catch (error) {
+                console.error('清理缓存并硬刷新失败:', error);
+            }
         }
     }
 }
