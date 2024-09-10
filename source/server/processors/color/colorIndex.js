@@ -252,6 +252,21 @@ export async function 找到文件颜色(path) {
     }
     return null
 }
+export async function 删除文件颜色记录(path){
+    let 已删除计数 = 0;
+    for (let i = 0; i < colorIndex.length; i++) {
+        let item = colorIndex[i];
+        let 原始长度 = item.assets.length;
+        item.assets = item.assets.filter(asset => asset.path !== path);
+        
+        if (item.assets.length < 原始长度) {
+            已删除计数 += 原始长度 - item.assets.length;
+        }
+    }
+    // 移除没有资产的颜色记录
+    colorIndex = colorIndex.filter(item => item.assets.length > 0);
+    console.log(`已从颜色索引中删除 ${已删除计数} 条与路径 "${path}" 相关的记录`);
+}
 async function 清理颜色索引(颜色索引) {
     let 清理后索引 = new Map()
     console.log('清理颜色索引', 颜色索引.length)

@@ -66,6 +66,7 @@ app.get('/getPathseByColor', async (req, res) => {
 )
 app.get('/color', async (req, res) => {
     let 源文件地址 = ''
+    let 是否重新计算=  req.query.reGen
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
     } else {
@@ -79,7 +80,8 @@ app.get('/color', async (req, res) => {
         res,
         stats: {
             源文件地址,
-            缓存键
+            缓存键,
+            重新计算文件颜色:是否重新计算
         }
     }
     const start = performance.now()

@@ -97,10 +97,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     for (let i = 0; i < noThumbnailList.length; i++) {
         if (noThumbnailList[i].toLowerCase() === extension) {
             useExtension = true;
-            if (commonIcons.has(extension)) {
-                console.log('使用扩展名缩略图', imagePath)
-                return commonIcons.get(extension);
-            }
+           
             break;
         }
     }
@@ -135,14 +132,29 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         fs.mkdirSync(缓存目录, { recursive: true })
     }
     let 缓存路径 = require('path').join(缓存目录, hashedName)
+    let 原始缓存路径 =缓存路径
+    let 扩展名缓存路径 =require('path').join(缓存目录, `${extension}.thumbnail.png`)
     if (useExtension) {
-        缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
+        缓存路径 = 扩展名缓存路径
     }
+    
+    //如果原始缓存有存在的话,说明特别生成了缩略图
+    let fromFIle1 = await asyncReadFile(原始缓存路径)
+    console.log(原始缓存路径,fromFIle1)
+    if (fromFIle1 && fromFIle1.length >= 100) {
+        return fromFIle1
+    }
+    if (commonIcons.has(extension)) {
+        console.log('使用扩展名缩略图', imagePath)
+        return commonIcons.get(extension);
+    }
+
 
     let fromFIle = await asyncReadFile(缓存路径)
     if (fromFIle && fromFIle.length >= 100) {
         return fromFIle
     }
+   
     const start = performance.now()
     let thumbnailBuffer = await loader.generateThumbnail(imagePath, 缓存路径)
     if (thumbnailBuffer) {

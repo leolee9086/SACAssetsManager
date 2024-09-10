@@ -1,16 +1,24 @@
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
-import { 找到文件颜色, 根据颜色查找内容, 流式根据颜色查找内容 } from '../processors/color/colorIndex.js'
+import { 找到文件颜色, 删除文件颜色记录, 流式根据颜色查找内容 } from '../processors/color/colorIndex.js'
 import { statWithCatch } from '../processors/fs/stat.js';
 import { statPromisesArray } from '../processors/fs/disk/tree.js'
 import { stat2assetsItemStringLine } from './utils/responseType.js';
+
 export async function genColor(ctx, next) {
     statPromisesArray.paused = true
-    let { 源文件地址, 缓存键 } = ctx.stats
+    let { 源文件地址, 缓存键, 重新计算文件颜色 } = ctx.stats
     if (!源文件地址) {
         res.status(400).send('Invalid request: missing source file address');
         return
     }
+    /**
+     * 如果传入参数中有重新计算的话
+     */
+    if(重新计算文件颜色){
+       await 删除文件颜色记录(源文件地址)
+    }
     let color = await 找到文件颜色(源文件地址)
+    console.log(color)
     if (color) {
         return color
     }

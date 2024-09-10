@@ -15,10 +15,35 @@ const thumbnailHost =(type,path,size)=>{
         return src
     }
 }
+const upload= (type, path) => {
+    let baseUrl = `${serverHost()}/thumbnail/upload`;
+    let params = new URLSearchParams();
+    
+    if (!type) {
+        params.append('path', path);
+    } else {
+        params.append('localPath', path);
+    }
+    
+    return `${baseUrl}?${params.toString()}`;
+}
 export const thumbnail={
     genHref:thumbnailHost,
-    getColor:(type,path)=>{
-        let src=!type ? `${serverHost()}/color/?path=${encodeURIComponent(path)}` : `${serverHost()}/color/?localPath=${encodeURIComponent(path)}`
-        return src
-    }
+    getColor: (type, path, reGen = false) => {
+        let baseUrl = `${serverHost()}/color/`;
+        let params = new URLSearchParams();
+        
+        if (!type) {
+            params.append('path', path);
+        } else {
+            params.append('localPath', path);
+        }
+        
+        if (reGen) {
+            params.append('reGen', 'true');
+        }
+        
+        return `${baseUrl}?${params.toString()}`;
+    },
+    upload:upload
 }

@@ -23,13 +23,38 @@ export const diffColor = (color1, color2,cutout=0.6) => {
     const distance1 = euclideanDistanceWithHueCorrection(color1, color2);
     const distance2 = CIEDE2000RGBA(color1, color2);
     const distance3 = CIE76(color1, color2)
+    // 计算色相差异
+    const hue1 = calculateHue(color1);
+    const hue2 = calculateHue(color2);
+    const hueDifference = Math.abs(hue1 - hue2);
+    const hueThreshold = 10; // 色相差异阈值,可以根据需要调整
 
     let result1 = isDistanceAcceptable(distance1, 'totalDistance2', 'count2', cutout)
     let result2 = isDistanceAcceptable(distance2, 'totalDistance1', 'count1', cutout)
     const result3 = isDistanceAcceptable(distance3, 'totalDistance3', 'count3', 100*cutout)
-    return result3 && result2 && result1
+    // 加入色相差异判断
+    return result3 && result2 && result1 && (hueDifference <= hueThreshold);
 };
 
+// 新增计算色相的函数
+function calculateHue(color) {
+    const [r, g, b] = color;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let hue = 0;
+
+    if (max === min) {
+        hue = 0;
+    } else if (max === r) {
+        hue = (60 * ((g - b) / (max - min)) + 360) % 360;
+    } else if (max === g) {
+        hue = (60 * ((b - r) / (max - min)) + 120) % 360;
+    } else if (max === b) {
+        hue = (60 * ((r - g) / (max - min)) + 240) % 360;
+    }
+
+    return hue;
+}
 function isDistanceAcceptable(distance, totalKey, countKey, threshold) {
     if (!cache.has(totalKey)) {
         cache.set(totalKey, 0);

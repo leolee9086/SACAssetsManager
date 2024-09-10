@@ -2,6 +2,8 @@ import { clientApi, plugin } from "../../../asyncModules.js";
 import { 解析文件属性数组内部属性显示 } from "../../../data/attributies/parseAttributies.js";
 import * as menuItems from "./galleryItemMenu/menuItems.js"
 import * as 文件移动菜单组 from "./galleryItemMenu/fileMoveMenuItems.js"
+import * as 编辑菜单组 from "./editModeMenu/items.js"
+import { thumbnail } from "../../../server/endPoints.js";
 const { eventBus } = plugin
 const 创建模式菜单 = (模式, event, assets, position) => {
     return {
@@ -84,6 +86,53 @@ export const 打开附件组菜单 = (event, assets, position) => {
         menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
         menu.addItem(文件移动菜单组.移动到回收站(assets))
         menu.addItem(文件移动菜单组.移动到目录(assets,'D:/',event))
+    }
+    if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '编辑') {
+        menu.addSeparator();
+        menu.addItem(编辑菜单组.重新计算文件颜色(assets))
+        assets.length === 1&& menu.addItem(编辑菜单组.上传缩略图(assets))
+        assets.length === 1&& menu.addItem(编辑菜单组.从剪贴板上传缩略图(assets))
+
+        if (assets.length === 1) {
+            const asset = assets[0];
+            const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
+            
+            fetch(colorUrl)
+                .then(response => response.json())
+                .then(colorData => {
+                    if (colorData && Array.isArray(colorData)) {
+                        colorData.forEach(colorInfo => {
+                            const colorHex = `#${colorInfo.color.map(c => c.toString(16).padStart(2, '0')).join('')}`;
+                            menu.addItem({
+                                label: `颜色操作: ${colorHex}`,
+                                icon: `<span style="background-color: ${colorHex}; width: 16px; height: 16px; display: inline-block; margin-right: 5px;"></span>`,
+                                submenu: [
+                                    {
+                                        label: `复制颜色代码: ${colorHex}`,
+                                        click: () => {
+                                            navigator.clipboard.writeText(colorHex);
+                                        }
+                                    },
+                                    {
+                                        label: `删除此颜色记录`,
+                                        click: () => {
+                                            // 调用删除颜色记录的函数
+
+                                        }
+                                    },
+                                    {
+                                        label: `颜色占比: ${colorInfo.percent*100}%`,
+                                        disabled: true
+                                    }
+                                ]
+                            });
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('获取颜色信息失败:', error);
+                });
+        }
     }
     添加通用菜单内容(menu, assets)
     添加只读菜单内容(menu, assets)
