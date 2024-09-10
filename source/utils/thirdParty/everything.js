@@ -65,7 +65,7 @@ export const searchByEverything = async (searchValue, port, options = {}) => {
             id: `local_entry${item.path}`,
             type: "local",
             path: (item.path + '/' + item.name).replace(/\\/g, '/'),
-            mtimems: item.date_modified,
+            mtimeMs: Number(item.date_modified), // 将 date_modified 转换为数字
             index
           }));
   

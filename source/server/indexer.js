@@ -2,7 +2,7 @@ import { 根据路径查找并加载颜色索引 } from "./processors/color/colo
 import { listLocalDisks } from "./processors/fs/disk/diskInfo.js";
 import { globalTaskQueue } from "./processors/queue/taskQueue.js";
 let diskInfos= await listLocalDisks()
-console.warn(diskInfos)
+
 setImmediate(() => {
     let disks = diskInfos.map(d => d.name)
     const diskPromises = []

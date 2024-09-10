@@ -40,7 +40,6 @@ const nativeDrag = (nativeWindowHandler, data) => {
                 return new FileDataObject(input.files);
             }
         }
-
         `
     )
     fn(nativeWindowHandler, data)

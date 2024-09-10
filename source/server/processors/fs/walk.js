@@ -8,6 +8,7 @@ import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
 import { 构建目录树 } from '../fs/disk/tree.js'
 import { ignoreDir } from './dirs/ignored.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
+import { reportHeartbeat } from '../../utils/heartBeat.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -38,6 +39,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     const realFilter = async (path, isDir) => {
         statPromisesArray.paused = true
         const nowTime = Date.now()
+        reportHeartbeat()
         let modifydied = path.replace(/\\/g, '/')
         if (isDir) {
             globalTaskQueue.push(

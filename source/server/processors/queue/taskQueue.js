@@ -1,5 +1,6 @@
 import { MinHeap } from '../../../utils/array/minHeap.js'
 import { buildCache } from '../cache/cache.js'
+import { reportHeartbeat } from '../../utils/heartBeat.js'
 const 遍历缓存 = buildCache('walk')
 const statCache = buildCache('statCache')
 
@@ -38,6 +39,7 @@ globalTaskQueue.start= function($timeout=0,force){
     let isProcessing = false
     let log = false
     this.processNext=function($timeout,force){
+        reportHeartbeat()
         if($timeout){
             timeout = $timeout
         }
