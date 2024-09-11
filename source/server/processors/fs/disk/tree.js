@@ -3,18 +3,22 @@ global[Symbol.for('tree')] = globalThis[Symbol.for('tree')] || {
     flatFiles: [],
     flatDirs: []
 }
-import { 监听文件夹条目 } from '../watch.js'
+import { 永久监听文件夹条目 } from '../watch.js'
 import { buildCache } from '../../cache/cache.js'
 import { globalTaskQueue } from '../../queue/taskQueue.js'
 import { 根据路径查找并加载颜色索引 } from '../../color/colorIndex.js'
 import { 准备缩略图 } from '../../thumbnail/loader.js'
 import { ignoreDir } from '../dirs/ignored.js'
+import { parcel文件系统变化监听回调 } from '../cached/update.js'
 const statPromisesArray = globalTaskQueue
 export { statPromisesArray }
 export const diskTree = global[Symbol.for('tree')]
 const stat = require('fs').stat
 const readdir = require('fs').readdirSync
 const statSync = require('fs').statSync
+const 遍历缓存 = buildCache('walk')
+const statCache = buildCache('statCache')
+
 export function pushPromise(promise) {
     return new Promise((resolve, reject) => {
         promise.then(() => {
@@ -24,7 +28,6 @@ export function pushPromise(promise) {
         })
     })
 }
-
 /***
  * 暂时没有用上,先取消导出
  */
@@ -41,68 +44,10 @@ export function pushPromise(promise) {
         flatFiles: [],
         flatDirs: []
     }
-    监听文件夹条目({
+    永久监听文件夹条目({
         path: disk.root,
         type: 'dir'
-    }, async (error, entries) => {
-        if (error) {
-            console.error('文件系统变化监听错误', error, entries)
-            return
-        }
-        try {
-            console.log('文件系统变化', event, entries)
-            entries.forEach(entry => {
-                let path = entry.path
-                let eventType = entry.type
-                path = path.replace(/\\/g, '/').replace(/\/\//g, '/')
-                if (eventType === 'delete') {
-                    遍历缓存.delete(path)
-                    遍历缓存.delete(path.replace(/\//g, '\\'))
-                    statCache.delete(path)
-                    statCache.delete(path.replace(/\//g, '\\'))
-                    return
-                }
-                statPromisesArray.push(() => {
-                    return new Promise((resolve, reject) => {
-                        try {
-                            if (!require('fs').existsSync(path)) {
-                                resolve({ path, error: '文件不存在' })
-                                return
-                            }
-                            let stats = statSync(path)
-                            let isDir = stats.isDirectory()
-                            if (isDir) {
-                                let entries = readdir(path, { withFileTypes: true })
-                                遍历缓存.set(path.replace(/\//g, '\\'), entries)
-                                遍历缓存.set(path, entries)
-                                statCache.set(path, {
-                                    path,
-                                    type: 'dir',
-                                    ...stats
-                                })
-                            } else {
-                                let dir = path.split('/').slice(0, -1).join('/')
-                                let entries = readdir(dir, { withFileTypes: true })
-                                遍历缓存.set(dir, entries)
-                                statCache.set(path, {
-                                    path,
-                                    type: 'file',
-                                    ...stats
-                                })
-                            }
-                            resolve(stats)
-
-                        } catch (e) {
-                            console.error('文件系统变化监听错误', e)
-                            resolve({ path, error: e })
-                        }
-                    })
-                })
-            })
-        } catch (e) {
-            console.error('文件系统变化监听错误', e)
-        }
-    })
+    }, parcel文件系统变化监听回调)
 
     console.log('构建磁盘目录树', disk.root)
     global[Symbol.for('tree')].disks.push(disk)
@@ -110,8 +55,6 @@ export function pushPromise(promise) {
     return await 构建目录树(disk.root, true, disk, diskTree.flatDirs, diskTree.flatFiles)
 }
 let tasks = 0
-const 遍历缓存 = buildCache('walk')
-const statCache = buildCache('statCache')
 export async function 构建目录树(root, withFlat = false, $rootItem, $flatDirs, $flatFiles,ignoreCache) {
     let rootItem = $rootItem || {
         name: root,
@@ -150,7 +93,6 @@ export async function 构建目录树(root, withFlat = false, $rootItem, $flatDi
             entries = readdir(currentDir, options)
             遍历缓存.set(currentDir.replace(/\//g, '\\'), entries)
             遍历缓存.set(currentDir.replace(/\\/g, '/'), entries)
-
             totalTasks += entries.length
         } catch (e) {
             dir.error = e.message
@@ -236,6 +178,12 @@ function 创建文件系统条目缓存(path, type, stats) {
         ...stats
     })
 }
+/**
+ * 这里这么长是因为之后还需要处理
+ * @param {*} item 
+ * @param {*} type 
+ * @param {*} stats 
+ */
 function 合并文件系统条目(item, type, stats) {
     item.type = type
     item.atime = stats.atime

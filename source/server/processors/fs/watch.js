@@ -14,7 +14,7 @@ export function 取消监听(path) {
         wachedPaths.delete(path)
     }
 }
-export function 监听文件夹条目(item, callback) {
+export function 永久监听文件夹条目(item, callback) {
     let { path, type } = item
     console.log('监听文件夹条目', item)
     if (type !== 'dir') {

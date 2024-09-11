@@ -20,10 +20,7 @@ import { reportHeartbeat } from '../../utils/heartBeat.js'
  * @returns 
  */
 const 遍历缓存 = buildCache('walk')
-const statCache = buildCache('statCache')
-
 export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth=Infinity) {
-    console.log(maxDepth)
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
     let total = 0
