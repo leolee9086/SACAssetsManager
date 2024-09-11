@@ -1,8 +1,5 @@
 import { MinHeap } from '../../../utils/array/minHeap.js'
-import { buildCache } from '../cache/cache.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
-const 遍历缓存 = buildCache('walk')
-const statCache = buildCache('statCache')
 
 let globalTaskQueue = new MinHeap(
     (a, b) => {
@@ -58,7 +55,7 @@ globalTaskQueue.start= function($timeout=0,force){
 
         if (globalTaskQueue.peek() && !globalTaskQueue.paused && !jump) {
             if (index % 10000 == 0||globalTaskQueue.length<100) {
-               console.log('processNext', index, statCache.size,遍历缓存.size, globalTaskQueue.size(), timeout)
+               console.log('processNext', index, globalTaskQueue.size(), timeout)
                 log = true
             }
             index++;
@@ -67,11 +64,11 @@ globalTaskQueue.start= function($timeout=0,force){
                 let end =performance.now()
                 timeout=Math.max(timeout,end-start)
                 if(log){
-                    console.log('processFile', stat.path,index,statCache.size,遍历缓存.size,globalTaskQueue.size(), end-start)
+                    console.log('processFile', stat.path,index,globalTaskQueue.size(), end-start)
                     log = false
                 }
                 if(stat&&stat.error){
-                    console.log('processFileError', stat.path,stat.error,index, statCache.size,遍历缓存.size, globalTaskQueue.size(), end-start)
+                    console.log('processFileError', stat.path,stat.error,index, globalTaskQueue.size(), end-start)
                 }
                 setTimeout(
                     globalTaskQueue.processNext // 递归调用以处理下一个Promise
@@ -90,7 +87,7 @@ globalTaskQueue.start= function($timeout=0,force){
         } else if(!jump) {
             if (!globalTaskQueue.ended()) {
                 if (index % 10000 == 0||globalTaskQueue.size()<100) {
-                    console.log('processNextLater', index,statCache.size,遍历缓存.size, globalTaskQueue.size(),  timeout)
+                    console.log('processNextLater', index, globalTaskQueue.size(),  timeout)
                 }
                 timeout = Math.min(Math.max(timeout * 2,timeout+100), 1000)
                 setTimeout(
