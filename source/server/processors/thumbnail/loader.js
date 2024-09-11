@@ -7,7 +7,7 @@ import { diffColor } from '../color/Kmeans.js'
 import { 获取哈希并写入数据库 } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions, 是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
-import { 写入缩略图缓存行, 根据路径查找并加载缩略图索引 } from './indexer.js'
+import {  根据路径查找并加载缩略图索引 } from './indexer.js'
 const sharp = require('sharp')
 let loderPaths = [
     './internalGeneraters/svg.js',
@@ -123,7 +123,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
             console.error(e)
         }
     }
-    const hashedName = 获取哈希并写入数据库(stat) + '.thumbnail.png'
+    const hashedName = await 获取哈希并写入数据库(stat) + '.thumbnail.png'
     const 缓存目录 = (await getCachePath(imagePath, 'thumbnails')).cachePath
     if (!fs.existsSync(缓存目录)) {
         fs.mkdirSync(缓存目录, { recursive: true })

@@ -45,7 +45,7 @@ export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
 }
 export const 生成默认缩略图路径=async(path)=>{
     const stat = statWithCatch(path)
-    const hashedName = 获取哈希并写入数据库(stat) + '.thumbnail.png'
+    const hashedName =await 获取哈希并写入数据库(stat) + '.thumbnail.png'
     const 缓存目录 = (await getCachePath(path, 'thumbnails', true)).cachePath
     let 缓存路径 = require('path').join(缓存目录, hashedName)
     return 缓存路径
@@ -56,9 +56,10 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('thumbnailCache')
-    const hashedName = 获取哈希并写入数据库(stat) + '.thumbnail.png'
+    const hashedName =await 获取哈希并写入数据库(stat) + '.thumbnail.png'
     const 缓存目录 = (await getCachePath(源文件地址, 'thumbnails', true)).cachePath
     let 缓存路径 = require('path').join(缓存目录, hashedName)
+    console.log(缓存路径)
     // 先检查是否存在缓存的缩略图
     console.log(`查找文件缩略图硬盘缓存`,缓存路径)
     if (await sendFileWithCacheSet(res, 缓存路径, thumbnailCache, 缓存键)) {
