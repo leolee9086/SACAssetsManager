@@ -3,7 +3,7 @@ import { getCachePath } from "../fs/cached/fs.js";
 const fs = require('fs')
 const path = require('path')
 const Database = require('better-sqlite3')
-const dbVersion= '01'
+const dbVersion= '02'
 let dbs = {}
 globalThis.thumbnailPathDBs =globalThis.thumbnailPathDBs||dbs
 function 初始化数据库(dbPath,root) {
