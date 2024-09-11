@@ -41,6 +41,10 @@ export const 打开本地资源视图 = (localPath) => {
     if(!localPath.endsWith('/')){
         localPath+='/'
     }
+    /**
+     * plugin的最近打开文件列表是一个set
+     */
+    plugin.最近打开本地文件夹列表.add(localPath)
     打开附件面板({
         icon: "iconAssets",
         title: "资源:本地",

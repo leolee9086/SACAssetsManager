@@ -2,7 +2,8 @@ import { clientApi, plugin } from "../../../asyncModules.js";
 import { 解析文件属性数组内部属性显示 } from "../../../data/attributies/parseAttributies.js";
 import * as menuItems from "./galleryItemMenu/menuItems.js"
 import * as 文件移动菜单组 from "./galleryItemMenu/fileMoveMenuItems.js"
-import * as 编辑菜单组 from "./editModeMenu/items.js"
+import * as 元数据编辑菜单组 from "./editModeMenu/items.js"
+import * as 文件内容编辑菜单组  from "./galleryItemMenu/fileEditMenuItems.js"
 import { thumbnail } from "../../../server/endPoints.js";
 const { eventBus } = plugin
 const 创建模式菜单 = (模式, event, assets, position) => {
@@ -85,14 +86,22 @@ export const 打开附件组菜单 = (event, assets, position) => {
         menu.addSeparator();
         menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
         menu.addItem(文件移动菜单组.移动到回收站(assets))
-        menu.addItem(文件移动菜单组.移动到目录(assets,'D:/',event))
+        文件移动菜单组.移动到最近目录菜单组(assets,event).forEach(
+            item=>{
+                menu.addItem(item)
+
+            }
+        )
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '编辑') {
         menu.addSeparator();
-        menu.addItem(编辑菜单组.重新计算文件颜色(assets))
-        assets.length === 1&& menu.addItem(编辑菜单组.上传缩略图(assets))
-        assets.length === 1&& menu.addItem(编辑菜单组.从剪贴板上传缩略图(assets))
-
+        menu.addItem(元数据编辑菜单组.重新计算文件颜色(assets))
+        assets.length === 1&& menu.addItem(元数据编辑菜单组.上传缩略图(assets))
+        assets.length === 1&& menu.addItem(元数据编辑菜单组.从剪贴板上传缩略图(assets))
+        menu.addSeparator()
+        let png菜单组 =文件内容编辑菜单组.压缩图片为png菜单项(assets)
+        png菜单组.submenu=文件内容编辑菜单组.png压缩菜单组(assets)
+        menu.addItem(png菜单组)
         if (assets.length === 1) {
             const asset = assets[0];
             const colorUrl = thumbnail.getColor(asset.type, asset.path, false);

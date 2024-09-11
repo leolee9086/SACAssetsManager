@@ -13,13 +13,16 @@ module.exports = class SACAssetsManager extends Plugin {
     this.工作空间根路径 = window.siyuan.config.system.workspaceDir
     this.插件自身伺服地址 = `/plugins/${this.name}`
     this.selfURL = this.插件自身伺服地址
+    this.初始化进程状态()
     this.添加全局事件监听()
     this.stayAlive = true
     this.创建web服务()
     this.添加资源信息边栏()
     this.创建资源Tab类型()
     this.添加菜单()
-  
+  }
+  初始化进程状态(){
+    this.最近打开本地文件夹列表 = new Set()
   }
   /**
    * 只有getter,避免被不小心改掉

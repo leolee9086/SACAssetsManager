@@ -1,6 +1,8 @@
-import { kernelApi,clientApi } from "../../../../asyncModules.js"
+import { kernelApi,clientApi, plugin } from "../../../../asyncModules.js"
 import { thumbnail } from "../../../../server/endPoints.js";
 import { isImagePath } from "../../../../utils/fs/pathType.js";
+import { processFiles } from "../../../../utils/fs/process.js";
+import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
 
 export const 以file链接形式添加到最近笔记本日记 = (assets) => {
     return {
@@ -42,14 +44,48 @@ export const 移动到回收站=(assets)=>{
         }
     }
 }
-export const 移动到目录=(assets,targetPath,event)=>{
-    return  {
-        label:(event.ctrlKey?'复制到':"移动到")+targetPath,
-        click:()=>{
-            clientApi.confirm(
-                `确认移动${assets.length}个文件?`,
-                "由于插件作者水平所限,不保证移动操作安全性,请优先考虑使用系统资源管理器移动或复制文件"
-            )
+export const 移动到最近目录菜单组 = (assets,event)=>{
+    let 最近打开本地文件夹数组 = Array.from(plugin.最近打开本地文件夹列表)
+    return 最近打开本地文件夹数组.map(
+        targetPath=>{
+            return 移动到目录(assets,targetPath,event)
         }
-    }
+    )
 }
+export const 移动到目录 = (assets, targetPath, event) => {
+    const operations = {
+        move: { label: "移动到", action: "移动", func: 'move' },
+        copy: { label: "复制到", action: "复制", func: 'copy' },
+        hardlink: { label: "硬链接到", action: "创建硬链接", func: 'hardlink' },
+        symlink: { label: "软链接到", action: "创建软链接", func: 'symlink' }
+    };
+
+    let operation = operations.move;
+    if (event.ctrlKey && event.altKey) {
+        operation = operations.symlink;
+    } else if (event.ctrlKey) {
+        operation = operations.copy;
+    } else if (event.altKey) {
+        operation = operations.hardlink;
+    }
+
+    return {
+        label: `${operation.label}${targetPath}`,
+        click: async() => {
+            let result=await confirmAsPromise(
+                `确认${operation.action}${assets.length}个文件到${targetPath}?`,
+                `由于插件作者水平所限,不保证${operation.action}操作安全性,请优先考虑使用系统资源管理器进行操作`
+            );
+            if(result){
+                    const errors = await processFiles(assets, targetPath, operation.func);
+                    if (errors.length > 0) {
+                        clientApi.showMessage(`操作完成,但有以下错误:\n${errors.join('\n')}`, 'error');
+                    } else {
+                        clientApi.showMessage(`${operation.action}操作成功完成`, 'success');
+                    }
+                
+    
+            }
+        }
+    };
+};

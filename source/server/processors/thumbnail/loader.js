@@ -7,6 +7,7 @@ import { diffColor } from '../color/Kmeans.js'
 import { genStatHash } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions,是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
+import { 写入缩略图缓存行, 根据路径查找并加载缩略图索引 } from './indexer.js'
 const sharp = require('sharp')
 let loderPaths = [
     './internalGeneraters/svg.js',
@@ -91,6 +92,7 @@ import { getFileExtension } from '../../../utils/fs/extension.js'
 const commonIcons = new Map()
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
     imagePath = imagePath.replace(/\\/g, '/')
+    根据路径查找并加载缩略图索引(imagePath)
     //const extension = imagePath.split('.').pop().toLowerCase()
     const extension=getFileExtension(imagePath)
     let useExtension = 是否不需要单独缩略图(extension)
@@ -137,16 +139,22 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     let fromFIle1 = await asyncReadFile(原始缓存路径)
     console.log(原始缓存路径,fromFIle1)
     if (fromFIle1 && fromFIle1.length >= 100) {
+        写入缩略图缓存行(imagePath,原始缓存路径,Date.now())
+
         return fromFIle1
     }
     if (commonIcons.has(extension)) {
         console.log('使用扩展名缩略图', imagePath)
+        写入缩略图缓存行(imagePath,扩展名缓存路径,Date.now())
+
         return commonIcons.get(extension);
     }
 
 
     let fromFIle = await asyncReadFile(缓存路径)
     if (fromFIle && fromFIle.length >= 100) {
+        写入缩略图缓存行(imagePath,缓存路径,Date.now())
+
         return fromFIle
     }
    
@@ -169,14 +177,18 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
             fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
                 if (err) {
                     console.error(err)
+                    return
                 }
+                写入缩略图缓存行(imagePath,缓存路径,Date.now())
             })
         }
         if (!noThumbnailList.includes(extension)) {
             fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
                 if (err) {
                     console.error(err)
+                    return
                 }
+                写入缩略图缓存行(imagePath,缓存路径,Date.now())
             })
         }
         return thumbnailBuffer
