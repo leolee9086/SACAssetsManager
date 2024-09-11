@@ -3,7 +3,7 @@ import { confirmAsPromise } from '../siyuanUI/confirm.js';
 const fs = require('fs').promises
 const path = require('path')
 const MAX_PATH_LENGTH = 260; // Windows 的最大路径长度限制
-export async function processFilesFrontEnd(assets, targetPath, operation) {
+export async function processFilesFrontEnd(assets, targetPath, operation,callBack) {
     const errors = [];
     console.log(assets, targetPath);
 
@@ -12,9 +12,12 @@ export async function processFilesFrontEnd(assets, targetPath, operation) {
         try {
             await handleLongPath(targetFilePath, MAX_PATH_LENGTH);
             await performOperation(operation, asset, targetFilePath);
+            await callBack(operation, asset, targetFilePath)
         } catch (error) {
             console.error(error);
             errors.push(`处理文件 ${asset.name} 时出错: ${error.message}`);
+            await callBack(operation, asset, targetFilePath,error)
+
         }
     }
     return errors;
@@ -161,7 +164,16 @@ async function handleLongPath(targetFilePath, MAX_PATH_LENGTH) {
         }
     }
 }
-
+async function trashFile(path) {
+    const { shell } = require('@electron/remote')
+    try {
+        await shell.trashItem(path.replace(/\//g,'\\'));
+    } catch (error) {
+        console.error(`将文件移动到回收站时出错: ${error.message}`);
+        throw new Error(`无法将文件移动到回收站: ${error.message}`);
+    }
+    
+}
 async function performOperation(operation, asset, targetFilePath) {
     switch (operation) {
         case 'move':
@@ -176,6 +188,9 @@ async function performOperation(operation, asset, targetFilePath) {
         case 'symlink':
             await handleSymLink(asset.path, targetFilePath);
             break;
+        case 'trash':
+            await trashFile(asset.path, targetFilePath)
+            break
         default:
             throw new Error(`未知操作: ${operation}`);
     }

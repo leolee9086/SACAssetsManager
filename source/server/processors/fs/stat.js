@@ -1,5 +1,6 @@
 import { 拼接文件名 } from './utils/JoinFilePath.js'
 import { buildCache } from '../cache/cache.js'
+import { 写入缩略图缓存行 } from '../thumbnail/indexer.js';
 const statCache = buildCache('statCache')
 
 /**
@@ -7,22 +8,22 @@ const statCache = buildCache('statCache')
  */
 const { createHash } = require('crypto');
 
-export const genStatHash = (stat) => {
+export const 获取哈希并写入数据库 = (stat) => {
     // 创建一个hash对象，使用MD5算法
     const hash = createHash('md5');
-  
     // 直接向hash对象添加数据，减少字符串拼接
     hash.update(stat.path);
     hash.update(stat.size.toString());
     hash.update(stat.mtime.getTime().toString());
-  
     // 生成哈希值，并截取前8个字符，以提高性能
     const hashValue = hash.digest().toString('hex').substring(0, 8);
-  
     // 使用文件名（去掉扩展名）和哈希值生成最终的哈希字符串
     const name = stat.path.split('/').pop().replace(/\./g, '_');
-    return `${name}_${hashValue}`;
-  }
+    const hashedName= `${name}_${hashValue}`;
+    写入缩略图缓存行(stat.path,hashedName,Date.now(),stat)
+    console.log('缓存地址:',stat.path,hashedName)
+    return hashedName;
+}
 /**
  * 如果stepCallback是一个函数,直接使用它
  * 如果stepCallback是一个对象,使用它的两个回调函数分别构建
@@ -30,7 +31,7 @@ export const genStatHash = (stat) => {
  * @returns 
  */
 export const buildStepCallback = (stepCallback) => {
-    if (!stepCallback) return ()=>{
+    if (!stepCallback) return () => {
         return true
     }
     if (typeof stepCallback === 'function') {
@@ -46,21 +47,21 @@ export const buildStepCallback = (stepCallback) => {
         }
         return callback
     }
-    let empty=()=>{return true}
-    let map={
-        dir:stepCallback.ifDir||empty,
-        file:stepCallback.ifFile||empty,
-        symbolicLink:stepCallback.ifSymbolicLink||empty,
-        error:empty
+    let empty = () => { return true }
+    let map = {
+        dir: stepCallback.ifDir || empty,
+        file: stepCallback.ifFile || empty,
+        symbolicLink: stepCallback.ifSymbolicLink || empty,
+        error: empty
     }
     let callback = async (statProxy) => {
         try {
-           await map[statProxy.type](statProxy)
+            await map[statProxy.type](statProxy)
         } catch (e) {
-            console.warn(e,statProxy)
+            console.warn(e, statProxy)
         }
     }
- 
+
     callback.end = async () => {
         stepCallback && stepCallback.end && await stepCallback.end()
     }
@@ -78,13 +79,13 @@ export const statWithCatch = (path) => {
             return statCache.get(path)
         }
         let stat = fs.statSync(path)
-        let entry= {
+        let entry = {
             name: path.split('/').pop(),
             path,
             ...stat,
             type: stat.isFile() ? 'file' : 'dir',
         }
-        statCache.set(path,entry)
+        statCache.set(path, entry)
         return entry
     } catch (e) {
         return {
@@ -93,7 +94,7 @@ export const statWithCatch = (path) => {
             isDirectory: () => false,
             isFile: () => false,
             isSymbolicLink: () => false,
-            type:"error",
+            type: "error",
             error: e,
             mode: 0,
             size: 0,
@@ -108,17 +109,17 @@ export const statWithCatch = (path) => {
  * 使用缓存,避免重复读取
  */
 export const buildStatProxy = (entry, dir, useProxy, type) => {
-    let path = 拼接文件名(dir, entry.name).replace(/\\/g,'/')
+    let path = 拼接文件名(dir, entry.name).replace(/\\/g, '/')
     if (useProxy) {
         let proxy = buildStatProxyByPath(path, entry, type)
         return proxy
     } else {
-        let stats = statWithCatch(path.replace(/\\/g,'/'))
+        let stats = statWithCatch(path.replace(/\\/g, '/'))
         return stats
     }
 }
 export const buildStatProxyByPath = (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
-    const entry =  statWithCatch(path.replace(/\\/g,'/'))
+    const entry = statWithCatch(path.replace(/\\/g, '/'))
     return entry
 }

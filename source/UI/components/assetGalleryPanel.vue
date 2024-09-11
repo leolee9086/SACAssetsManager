@@ -315,7 +315,11 @@ const sorter = ref({
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
-    assets[0] && 打开附件组菜单(event,assets,{ y: event.y || e.detail.y, x: event.x || e.detail.x })
+    assets[0] && 打开附件组菜单(event, assets, {
+        position: { y: event.y || e.detail.y, x: event.x || e.detail.x }, panelController: {
+            refresh: () => refreshPanel()
+        }
+    })
 }
 </script>
 <style scoped>

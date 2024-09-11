@@ -2,10 +2,9 @@ import { sendFileWithCacheSet } from "../handlers/utils/responseType.js"
 import { getCachePath } from "../processors/fs/cached/fs.js"
 import { buildCache } from "../processors/cache/cache.js"
 import { statWithCatch } from "../processors/fs/stat.js"
-import { genStatHash } from "../processors/fs/stat.js"
+import { 获取哈希并写入数据库 } from "../processors/fs/stat.js"
 import { statPromisesArray } from "../processors/fs/disk/tree.js"
 import { 生成缩略图 } from "../processors/thumbnail/loader.js"
-import { 写入缩略图缓存行 } from "../processors/thumbnail/indexer.js"
 export const sendDefaultIcon = (req, res) => {
     const iconPath = process.execPath.replace('SiYuan.exe', 'resources\\stage\\icon-large.png')
     res.sendFile(iconPath)
@@ -46,7 +45,7 @@ export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
 }
 export const 生成默认缩略图路径=async(path)=>{
     const stat = statWithCatch(path)
-    const hashedName = genStatHash(stat) + '.thumbnail.png'
+    const hashedName = 获取哈希并写入数据库(stat) + '.thumbnail.png'
     const 缓存目录 = (await getCachePath(path, 'thumbnails', true)).cachePath
     let 缓存路径 = require('path').join(缓存目录, hashedName)
     return 缓存路径
@@ -57,8 +56,7 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
     const stat = statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('thumbnailCache')
-    const thumbnailPathCache =buildCache('thumbnailPathCache')
-    const hashedName = genStatHash(stat) + '.thumbnail.png'
+    const hashedName = 获取哈希并写入数据库(stat) + '.thumbnail.png'
     const 缓存目录 = (await getCachePath(源文件地址, 'thumbnails', true)).cachePath
     let 缓存路径 = require('path').join(缓存目录, hashedName)
     // 先检查是否存在缓存的缩略图
@@ -66,9 +64,6 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
     if (await sendFileWithCacheSet(res, 缓存路径, thumbnailCache, 缓存键)) {
         console.log(`文件缩略图硬盘缓存命中`,源文件地址)
         statPromisesArray.paused = false;
-        if(!thumbnailPathCache.get(源文件地址)){
-            await 写入缩略图缓存行(源文件地址,缓存路径,Date.now())
-        }
         return
     }
     next()

@@ -4,8 +4,8 @@ import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
 import { diffColor } from '../color/Kmeans.js'
-import { genStatHash } from '../fs/stat.js'
-import { noThumbnailList, imageExtensions,是否不需要单独缩略图 } from './utils/lists.js'
+import { 获取哈希并写入数据库 } from '../fs/stat.js'
+import { noThumbnailList, imageExtensions, 是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
 import { 写入缩略图缓存行, 根据路径查找并加载缩略图索引 } from './indexer.js'
 const sharp = require('sharp')
@@ -94,10 +94,10 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     imagePath = imagePath.replace(/\\/g, '/')
     根据路径查找并加载缩略图索引(imagePath)
     //const extension = imagePath.split('.').pop().toLowerCase()
-    const extension=getFileExtension(imagePath)
+    const extension = getFileExtension(imagePath)
     let useExtension = 是否不需要单独缩略图(extension)
     let useRaw = false
- 
+
     let loader = await getLoader(imagePath, loaderID)
     if (!loader) {
         return null
@@ -123,41 +123,43 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
             console.error(e)
         }
     }
-    const hashedName = genStatHash(stat) + '.thumbnail.png'
+    const hashedName = 获取哈希并写入数据库(stat) + '.thumbnail.png'
     const 缓存目录 = (await getCachePath(imagePath, 'thumbnails')).cachePath
     if (!fs.existsSync(缓存目录)) {
         fs.mkdirSync(缓存目录, { recursive: true })
     }
     let 缓存路径 = require('path').join(缓存目录, hashedName)
-    let 原始缓存路径 =缓存路径
-    let 扩展名缓存路径 =require('path').join(缓存目录, `${extension}.thumbnail.png`)
+    let 原始缓存路径 = 缓存路径
+    let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
     if (useExtension) {
         缓存路径 = 扩展名缓存路径
     }
-    
-    //如果原始缓存有存在的话,说明特别生成了缩略图
-    let fromFIle1 = await asyncReadFile(原始缓存路径)
-    console.log(原始缓存路径,fromFIle1)
-    if (fromFIle1 && fromFIle1.length >= 100) {
-        写入缩略图缓存行(imagePath,原始缓存路径,Date.now())
 
+    //如果原始缓存有存在的话,说明特别生成了缩略图
+    let fromFIle1 = await asyncReadFile(
+        原始缓存路径,
+        //表示不存在时不抛出错误
+        true
+    )
+    console.log(原始缓存路径, fromFIle1)
+    if (fromFIle1 && fromFIle1.length >= 100) {
         return fromFIle1
     }
     if (commonIcons.has(extension)) {
         console.log('使用扩展名缩略图', imagePath)
-        写入缩略图缓存行(imagePath,扩展名缓存路径,Date.now())
 
         return commonIcons.get(extension);
     }
 
 
-    let fromFIle = await asyncReadFile(缓存路径)
+    let fromFIle = await asyncReadFile(缓存路径,        //表示不存在时不抛出错误
+        true
+    )
     if (fromFIle && fromFIle.length >= 100) {
-        写入缩略图缓存行(imagePath,缓存路径,Date.now())
 
         return fromFIle
     }
-   
+
     const start = performance.now()
     let thumbnailBuffer = await loader.generateThumbnail(imagePath, 缓存路径)
     if (thumbnailBuffer) {
@@ -179,7 +181,6 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
                     console.error(err)
                     return
                 }
-                写入缩略图缓存行(imagePath,缓存路径,Date.now())
             })
         }
         if (!noThumbnailList.includes(extension)) {
@@ -188,7 +189,6 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
                     console.error(err)
                     return
                 }
-                写入缩略图缓存行(imagePath,缓存路径,Date.now())
             })
         }
         return thumbnailBuffer
@@ -207,19 +207,19 @@ export const 准备缩略图 = async (imagePath, loaderID = null) => {
             return imagePath
         }
     }
-       // 使用当前时间的负值作为优先级
-       const priority = -Date.now();
-    
-       // 处理可能的边界情况
-       if (priority === 0) {
-           // 在极少数情况下，如果 Date.now() 返回 0，我们使用一个非常小的负数
-           fn = globalTaskQueue.priority(fn, -Number.MIN_SAFE_INTEGER);
-       } else {
-           fn = globalTaskQueue.priority(fn, priority);
-       }
-       
-       globalTaskQueue.push(fn);
-   
+    // 使用当前时间的负值作为优先级
+    const priority = -Date.now();
+
+    // 处理可能的边界情况
+    if (priority === 0) {
+        // 在极少数情况下，如果 Date.now() 返回 0，我们使用一个非常小的负数
+        fn = globalTaskQueue.priority(fn, -Number.MIN_SAFE_INTEGER);
+    } else {
+        fn = globalTaskQueue.priority(fn, priority);
+    }
+
+    globalTaskQueue.push(fn);
+
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)

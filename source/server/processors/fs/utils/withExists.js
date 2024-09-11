@@ -2,7 +2,7 @@ const fs = require('fs')
 /*
  * 
  */
-export function asyncReadFile(path, timeout, noError) {
+export function asyncReadFile(path,  noError,timeout) {
     return new Promise((resolve, reject) => {
         if (timeout) {
             setTimeout(

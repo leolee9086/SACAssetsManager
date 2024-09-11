@@ -6,12 +6,12 @@ import * as 元数据编辑菜单组 from "./editModeMenu/items.js"
 import * as 文件内容编辑菜单组  from "./galleryItemMenu/fileEditMenuItems.js"
 import { thumbnail } from "../../../server/endPoints.js";
 const { eventBus } = plugin
-const 创建模式菜单 = (模式, event, assets, position) => {
+const 创建模式菜单 = (模式, event, assets, options) => {
     return {
         label: 模式.label,
         click: () => {
             plugin.附件编辑模式 = 模式
-            setTimeout(() => 打开附件组菜单(event, assets, position), 100)
+            setTimeout(() => 打开附件组菜单(event, assets, options), 100)
         }
     }
 }
@@ -24,7 +24,8 @@ function 计算主标签(assets, 模式) {
     }
 }
 
-export const 打开附件组菜单 = (event, assets, position) => {
+export const 打开附件组菜单 = (event, assets, options) => {
+    const {position,panelController}=options
     plugin.附件编辑模式=plugin.附件编辑模式||{
         label:'常规',
         value:"常规"
@@ -46,14 +47,14 @@ export const 打开附件组菜单 = (event, assets, position) => {
                     label: '移动',
                     value: "移动"
                 },
-                    event, assets, position
+                    event, assets, options
                 ),
                 创建模式菜单(
                     {
                         label: "插件",
                         value: '插件'
                     },
-                    event, assets, position
+                    event, assets, options
                 ),
                 创建模式菜单(
                     {
@@ -61,7 +62,7 @@ export const 打开附件组菜单 = (event, assets, position) => {
                         value: '常规'
 
                     },
-                    event, assets, position
+                    event, assets, options
                 ),
                 创建模式菜单(
                     {
@@ -69,7 +70,7 @@ export const 打开附件组菜单 = (event, assets, position) => {
                         value: '编辑'
 
                     },
-                    event, assets, position
+                    event, assets, options
                 )
             ]
         }
@@ -85,7 +86,7 @@ export const 打开附件组菜单 = (event, assets, position) => {
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '移动') {
         menu.addSeparator();
         menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
-        menu.addItem(文件移动菜单组.移动到回收站(assets))
+        menu.addItem(文件移动菜单组.移动到回收站(assets,panelController))
         文件移动菜单组.移动到最近目录菜单组(assets,event).forEach(
             item=>{
                 menu.addItem(item)

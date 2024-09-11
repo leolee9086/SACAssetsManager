@@ -31,6 +31,8 @@ app.get('/count-etries', entryCounter)
 app.get('/listDisk', listDisk)
 app.get('/loaders', listLoaders)
 import { 获取ealge素材库路径,获取ealge素材库标签列表 } from './handlers/eagle-api.js'
+import { 删除文件颜色记录 } from './processors/color/colorIndex.js';
+import { buildCache } from './middlewares/runtime_cache.js';
 
 /***
  * 获取eagle素材库路径
@@ -64,6 +66,20 @@ app.get('/getPathseByColor', async (req, res) => {
         getFilesByColor(ctx)
     }
 )
+app.get('/metaRecords/delete',async (req,res)=>{
+    let 源文件地址 = ''
+    if (req.query.localPath) {
+        源文件地址 = req.query.localPath
+    } else {
+        源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
+    }
+    删除文件颜色记录(源文件地址)
+    buildCache("statCache").delete(源文件地址.replace(/\\/g,'/'))
+    buildCache("walk").delete(require('path').dirname(源文件地址.replace(/\\/g,'/')))
+    res.json({
+        success:true
+    })
+})
 app.get('/color', async (req, res) => {
     let 源文件地址 = ''
     let 是否重新计算=  req.query.reGen
@@ -92,7 +108,6 @@ app.get('/color', async (req, res) => {
             console.log(`生成颜色，耗时：${performance.now() - start}ms`)
         }
     )
-
 })
 /**
  * 缩略图生成

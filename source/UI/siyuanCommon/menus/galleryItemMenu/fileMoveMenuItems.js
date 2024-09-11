@@ -1,7 +1,7 @@
 import { kernelApi,clientApi, plugin } from "../../../../asyncModules.js"
-import { thumbnail } from "../../../../server/endPoints.js";
+import { metaRecords, thumbnail } from "../../../../server/endPoints.js";
 import { isImagePath } from "../../../../utils/fs/pathType.js";
-import { processFilesFrontEnd } from "../../../../utils/fs/process.js";
+import { processFilesFrontEnd } from "../../../../utils/fs/processFrontEnd.js";
 import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
 
 export const 以file链接形式添加到最近笔记本日记 = (assets) => {
@@ -33,14 +33,19 @@ export const 以file链接形式添加到最近笔记本日记 = (assets) => {
         }
     }
 }
-export const 移动到回收站=(assets)=>{
+export const 移动到回收站=(assets,panelController)=>{
     return {
         label:`移动到回收站`,
-        click:()=>{
-            clientApi.confirm(
+        click:async()=>{
+            let 确认删除=await confirmAsPromise(
                 `确认删除${assets.length}个文件?`,
                 "删除后,本地磁盘请在系统回收站找回,群晖nas磁盘请在挂载目录的#recycle文件夹找回"
             )
+            确认删除&&await processFilesFrontEnd(assets,'','trash',async(operation, assetItem, targetFilePath,error)=>{
+                console.log(operation, assetItem, targetFilePath,error)
+                panelController.refresh()
+                await metaRecords.deleteRecord(assetItem.path)
+            })
         }
     }
 }

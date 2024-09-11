@@ -47,3 +47,11 @@ export const thumbnail={
     },
     upload:upload
 }
+export const metaRecords = {
+    deleteRecord:async(path)=>{
+        let baseUrl= `${serverHost()}/metaRecords/delete/`
+        let params = new URLSearchParams();
+        params.append('path', path);
+        return await fetch(`${baseUrl}?${params.toString()}`)
+    }
+}
