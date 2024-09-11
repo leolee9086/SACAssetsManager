@@ -11,7 +11,7 @@ function 初始化数据库(dbPath,root) {
     dbs[root].exec(`
         CREATE TABLE IF NOT EXISTS thumbnails (
             filePath TEXT PRIMARY KEY,
-            thumbnailPath TEXT,
+            statHashedName TEXT,
             updateTime INTEGER,
             stat TEXT
         )
@@ -41,7 +41,7 @@ export async function 写入缩略图缓存行(filePath, thumbnailPath, updateTi
     }
     const { cachePath, root } = await getCachePath(filePath, `thumbnailIndex.${dbVersion}.db`)
     let 磁盘缩略图数据库 =  初始化数据库(cachePath,root)
-    const stmt = 磁盘缩略图数据库.prepare('INSERT OR REPLACE INTO thumbnails (filePath, thumbnailPath, updateTime,stat) VALUES (?, ?, ?,?)');
+    const stmt = 磁盘缩略图数据库.prepare('INSERT OR REPLACE INTO thumbnails (filePath, statHashedName, updateTime,stat) VALUES (?, ?, ?,?)');
     const updateTimeValue = updateTime instanceof Date ? updateTime.getTime() : updateTime;
     stmt.run(filePath, thumbnailPath, updateTimeValue,JSON.stringify(stat));
     文件缩略图路径映射.set(filePath, JSON.stringify({
@@ -64,7 +64,7 @@ export async function 查找文件缩略图路径(filePath) {
     const { cachePath, root } = await getCachePath(filePath, `thumbnailIndex.${dbVersion}.db`);
     let 磁盘缩略图数据库 = 初始化数据库(cachePath, root);
 
-    const stmt = 磁盘缩略图数据库.prepare('SELECT thumbnailPath, updateTime FROM thumbnails WHERE filePath = ?');
+    const stmt = 磁盘缩略图数据库.prepare('SELECT statHashedName, updateTime FROM thumbnails WHERE filePath = ?');
     const result = stmt.get(filePath);
 
     if (result) {
