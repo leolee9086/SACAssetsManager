@@ -133,8 +133,89 @@ async function createSymLink(source, target) {
         }
     }
 }
-
 export async function processFiles(assets, targetPath, operation) {
+    const errors = [];
+    console.log(assets, targetPath);
+
+    for (const asset of assets) {
+        const targetFilePath = path.join(targetPath, path.basename(asset.path));
+        try {
+            await handleLongPath(targetFilePath, MAX_PATH_LENGTH);
+            await performOperation(operation, asset, targetFilePath);
+        } catch (error) {
+            console.error(error);
+            errors.push(`处理文件 ${asset.name} 时出错: ${error.message}`);
+        }
+    }
+    return errors;
+}
+async function handleLongPath(targetFilePath, MAX_PATH_LENGTH) {
+    if (targetFilePath.length > MAX_PATH_LENGTH) {
+        const continueOperation = await confirmAsPromise(
+            '目标路径过长',
+            `目标路径 "${targetFilePath}" 超过了${MAX_PATH_LENGTH}个字符。是否继续操作？`
+        );
+        if (!continueOperation) {
+            throw new Error('用户取消了操作: 目标路径过长');
+        }
+    }
+}
+
+async function performOperation(operation, asset, targetFilePath) {
+    switch (operation) {
+        case 'move':
+            await moveFile(asset.path, targetFilePath);
+            break;
+        case 'copy':
+            await copyFile(asset.path, targetFilePath);
+            break;
+        case 'hardlink':
+            await handleHardLink(asset.path, targetFilePath);
+            break;
+        case 'symlink':
+            await handleSymLink(asset.path, targetFilePath);
+            break;
+        default:
+            throw new Error(`未知操作: ${operation}`);
+    }
+}
+
+async function handleHardLink(sourcePath, targetPath) {
+    const hardlinkConfirm = await confirmAsPromise(
+        '⚠是否确认操作',
+        `<p>请确认在操作前你已了解硬链接可能造成的问题：</p>
+        <ol>
+          <li>不能跨越不同文件系统</li>
+          <li>删除原始文件不会删除硬链接数据</li>
+          <li>可能使文件权限管理变复杂</li>
+          <li>某些系统可能不支持对目录创建硬链接</li>
+          <li>可能对文件系统完整性造成风险</li>
+        </ol>
+        <p>请确保完全理解上述问题，并在确认安全的情况下继续操作。</p>`
+    );
+    if (hardlinkConfirm) {
+        await createHardLink(sourcePath, targetPath);
+    }
+}
+
+async function handleSymLink(sourcePath, targetPath) {
+    const symlinkConfirm = await confirmAsPromise(
+        '⚠是否确认操作',
+        `<p>请确认在操作前你已了解软链接可能造成的问题：</p>
+        <ol>
+          <li>可能使文件系统结构变复杂</li>
+          <li>目标文件移动或删除后，软链接将失效</li>
+          <li>不同操作系统中行为可能不一致</li>
+          <li>可能增加安全风险</li>
+          <li>创建需要相应权限</li>
+        </ol>
+        <p>请确保完全理解上述问题，并在确认安全的情况下继续操作。</p>`
+    );
+    if (symlinkConfirm) {
+        await createSymLink(sourcePath, targetPath);
+    }
+}
+/*export async function processFiles(assets, targetPath, operation) {
     const errors = [];
     console.log(assets, targetPath)
     let skipLongPathWarning = false;
@@ -200,3 +281,4 @@ export async function processFiles(assets, targetPath, operation) {
     }
     return errors;
 }
+*/
