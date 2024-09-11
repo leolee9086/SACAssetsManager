@@ -3,6 +3,22 @@ import { confirmAsPromise } from '../siyuanUI/confirm.js';
 const fs = require('fs').promises
 const path = require('path')
 const MAX_PATH_LENGTH = 260; // Windows 的最大路径长度限制
+export async function processFilesFrontEnd(assets, targetPath, operation) {
+    const errors = [];
+    console.log(assets, targetPath);
+
+    for (const asset of assets) {
+        const targetFilePath = path.join(targetPath, path.basename(asset.path));
+        try {
+            await handleLongPath(targetFilePath, MAX_PATH_LENGTH);
+            await performOperation(operation, asset, targetFilePath);
+        } catch (error) {
+            console.error(error);
+            errors.push(`处理文件 ${asset.name} 时出错: ${error.message}`);
+        }
+    }
+    return errors;
+}
 // 辅助函数：生成唯一文件名
 async function getUniqueFilename(filePath) {
     const dir = path.dirname(filePath);
@@ -133,22 +149,7 @@ async function createSymLink(source, target) {
         }
     }
 }
-export async function processFiles(assets, targetPath, operation) {
-    const errors = [];
-    console.log(assets, targetPath);
 
-    for (const asset of assets) {
-        const targetFilePath = path.join(targetPath, path.basename(asset.path));
-        try {
-            await handleLongPath(targetFilePath, MAX_PATH_LENGTH);
-            await performOperation(operation, asset, targetFilePath);
-        } catch (error) {
-            console.error(error);
-            errors.push(`处理文件 ${asset.name} 时出错: ${error.message}`);
-        }
-    }
-    return errors;
-}
 async function handleLongPath(targetFilePath, MAX_PATH_LENGTH) {
     if (targetFilePath.length > MAX_PATH_LENGTH) {
         const continueOperation = await confirmAsPromise(

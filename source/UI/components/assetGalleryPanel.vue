@@ -4,7 +4,6 @@
 
             <div class="fn__space fn__flex-1">
                 <div v-if="everthingEnabled" style="color:green;float: left;overflow:visible">everthing已经连接</div>
-
             </div>
             <div class=" fn__flex ">
                 <input v-model="everthingPort" style="box-sizing: border-box;width:100px;" :value="100" type="number">
@@ -72,9 +71,8 @@
 </template>
 <script setup>
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
-import { diffColor } from '../../server/processors/color/Kmeans.js';
 import assetsGridRbush from './assetsGridRbush.vue';
-import { plugin, Constants } from 'runtime'
+import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 const appData = toRef(inject('appData'))
 //全局设置
@@ -314,9 +312,10 @@ const sorter = ref({
         return -(a.data.mtimems - b.data.mtimems)
     }
 })
+import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
-    assets[0] && plugin.eventBus.emit(plugin.events.资源界面项目右键, { event, assets }, { stack: true })
+    assets[0] && 打开附件组菜单(event,assets,{ y: event.y || e.detail.y, x: event.x || e.detail.x })
 }
 </script>
 <style scoped>

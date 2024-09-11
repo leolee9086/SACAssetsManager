@@ -1,7 +1,7 @@
 import { kernelApi,clientApi, plugin } from "../../../../asyncModules.js"
 import { thumbnail } from "../../../../server/endPoints.js";
 import { isImagePath } from "../../../../utils/fs/pathType.js";
-import { processFiles } from "../../../../utils/fs/process.js";
+import { processFilesFrontEnd } from "../../../../utils/fs/process.js";
 import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
 
 export const 以file链接形式添加到最近笔记本日记 = (assets) => {
@@ -77,7 +77,7 @@ export const 移动到目录 = (assets, targetPath, event) => {
                 `由于插件作者水平所限,不保证${operation.action}操作安全性,请优先考虑使用系统资源管理器进行操作`
             );
             if(result){
-                    const errors = await processFiles(assets, targetPath, operation.func);
+                    const errors = await processFilesFrontEnd(assets, targetPath, operation.func);
                     if (errors.length > 0) {
                         clientApi.showMessage(`操作完成,但有以下错误:\n${errors.join('\n')}`, 'error');
                     } else {
