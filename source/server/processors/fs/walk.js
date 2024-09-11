@@ -28,13 +28,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     const filter = buildFilter(_filter, signal)
     let total = 0
     //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
-    try {
-        if (!遍历缓存.get(root)) {
-            构建目录树(root)
-        }
-    } catch (e) {
-        console.error('构建目录树失败', e)
-    }
+    初始化目录树(root)
     const startTime = Date.now()
     const realFilter = async (path, isDir) => {
         statPromisesArray.paused = true
@@ -42,35 +36,14 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         reportHeartbeat()
         let modifydied = path.replace(/\\/g, '/')
         if (isDir) {
-            globalTaskQueue.push(
-                async () => {
-                    try {
-                        if (!遍历缓存.get(modifydied)) {
-                            globalTaskQueue.push(
-                                globalTaskQueue.priority(
-                                    async () => {
-                                        构建目录树(modifydied)
-                                        return modifydied
-                                    }, 0 - nowTime)
-                            )
-                        }
-                    } catch (e) {
-                        console.error('构建目录树失败', e)
-                    }
-                    return  modifydied
-                }
-            )
+            handleDirectory(modifydied, nowTime)
             return false
         }
         if (isThumbnail(path) || isMetaData(path)) {
             total++
             return false
         }
-        if (nowTime - startTime > timeout) {
-            signal.walkController.abort()
-            return false
-        }
-        if (signal.aborted) {
+        if(shouldAbort(startTime, timeout, signal)){
             return false
         }
         let proxy = buildStatProxyByPath(modifydied)
@@ -107,4 +80,41 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     api = api.crawl(root)
     const result = await api.withPromise()
     return result
+}
+
+async function 初始化目录树(root) {
+    try {
+        if (!遍历缓存.get(root)) {
+            构建目录树(root)
+        }
+    } catch (e) {
+        console.error('构建目录树失败', e)
+    }
+}
+function shouldAbort(startTime, timeout, signal) {
+    const nowTime = Date.now()
+    if (nowTime - startTime > timeout) {
+        signal.walkController.abort()
+        return true
+    }
+    return signal.aborted
+}
+async function handleDirectory(path, nowTime) {
+    globalTaskQueue.push(async () => {
+        try {
+            if (!遍历缓存.get(path)) {
+                globalTaskQueue.push(
+                    globalTaskQueue.priority(
+                        async () => {
+                            构建目录树(path)
+                            return path
+                        }, 0 - nowTime)
+                )
+            }
+        } catch (e) {
+            console.error('构建目录树失败', e)
+        }
+        return path
+    })
+    return false
 }

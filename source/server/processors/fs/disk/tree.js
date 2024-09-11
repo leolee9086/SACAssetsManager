@@ -112,7 +112,7 @@ export function pushPromise(promise) {
 let tasks = 0
 const 遍历缓存 = buildCache('walk')
 const statCache = buildCache('statCache')
-export async function 构建目录树(root, withFlat = false, $rootItem, $flatDirs, $flatFiles) {
+export async function 构建目录树(root, withFlat = false, $rootItem, $flatDirs, $flatFiles,ignoreCache) {
     let rootItem = $rootItem || {
         name: root,
         path: root,
