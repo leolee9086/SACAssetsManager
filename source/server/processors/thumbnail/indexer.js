@@ -18,7 +18,7 @@ function 初始化数据库(dbPath,root) {
 }
 export const 文件缩略图路径映射 = buildCache('thumbnailPathCache')
 export async function 根据路径查找并加载缩略图索引(filePath) {
-    const { cachePath, root } = await getCachePath(filePath, 'thumbnailIndex.txt')
+    const { cachePath, root } = await getCachePath(filePath, 'thumbnailIndex.db')
     const dirPath = path.dirname(cachePath) + '\\';
     if (!fs.existsSync(dirPath)) {
 
