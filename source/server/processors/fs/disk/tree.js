@@ -24,7 +24,11 @@ export function pushPromise(promise) {
         })
     })
 }
-export async function 构建磁盘目录树(diskLetter) {
+
+/***
+ * 暂时没有用上,先取消导出
+ */
+ async function 构建磁盘目录树(diskLetter) {
     let disk = {
         letter: diskLetter,
         root: diskLetter + '/',

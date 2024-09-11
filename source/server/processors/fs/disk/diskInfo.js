@@ -1,6 +1,4 @@
 import { listLocalDisksWin32 } from './win32.js'
-import { 构建磁盘目录树 } from './tree.js'
-import { statPromisesArray } from './tree.js'
 const { exec } = window.require('child_process');
 const { statfsSync } = window.require('fs');
 const siyuan = window.siyuan || { config: window.siyuanConfig }
@@ -57,9 +55,7 @@ export function listLocalDisks() {
                 diskInfos = listLocalDisksWin32(outputFilePath)
                 resolve(diskInfos)
                 disks = diskInfos.map(d => d.name)
-                disks.forEach(d => {
-                    构建磁盘目录树(d)
-                })
+             
             } catch (e) {
                 console.error(e)
                 reject(e)
