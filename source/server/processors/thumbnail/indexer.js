@@ -12,10 +12,10 @@ function 初始化数据库(dbPath, root) {
     }
     dbs[root] = new Database(dbPath);
 
-     dbs[root].pragma('journal_mode = WAL');
-     dbs[root].pragma('synchronous = NORMAL');
-     dbs[root].pragma('cache_size = 1000');
-     dbs[root].pragma('temp_store = MEMORY');
+    dbs[root].pragma('journal_mode = WAL');
+    dbs[root].pragma('synchronous = NORMAL');
+    dbs[root].pragma('cache_size = 1000');
+    dbs[root].pragma('temp_store = MEMORY');
     dbs[root].exec(`
         CREATE TABLE IF NOT EXISTS thumbnails (
             fullName TEXT PRIMARY KEY,
@@ -67,6 +67,15 @@ export function 计算哈希(stat) {
     const hashValue = hash.digest().toString('hex').substring(0, 8);
     return hashValue
 }
+export async function 删除缩略图缓存行(fullName) {
+    const { cachePath, root } = await 获取数据库地址(fullName);
+    let 磁盘缩略图数据库 = 初始化数据库(cachePath, root);
+
+    const stmt = 磁盘缩略图数据库.prepare('DELETE FROM thumbnails WHERE fullName = ?');
+    const result = stmt.run(fullName);
+
+    return result.changes; // 返回受影响的行数
+}
 export async function 写入缩略图缓存行(fullName, updateTime, stat, entryType) {
     if (!stat) {
         throw new Error('尝试写入缓存记录时未提供stat')
@@ -107,67 +116,41 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
     }
 
 }
-export async function 查找子文件夹(dirPath,search) {
-   /* const start = Date.now()
 
+export async function 查找子文件夹(dirPath, search) {
+    const start = Date.now()
     const { cachePath, root } = await 获取数据库地址(dirPath);
     let 磁盘缩略图数据库 = 初始化数据库(cachePath, root);
-
     // 准备 SQL 查询语句
-    const stmt = 磁盘缩略图数据库.prepare(`
-        SELECT stat
-        FROM thumbnails 
-        WHERE fullName LIKE ? || '%' 
-        AND fullName != ? 
-        AND type = 'file'
-        Limit 300000
-    `);
-
-    // 执行查询并返回结果
-    const results = stmt.all(dirPath + "%", dirPath);
-
-    // 返回子文件夹的完整路径列表
-    console.log(Date.now() - start)
-
-    return results.map(
-        item => { return item.stat }
-    )*/
-        const start = Date.now()
-
-        const { cachePath, root } = await 获取数据库地址(dirPath);
-        let 磁盘缩略图数据库 = 初始化数据库(cachePath, root);
-    
-        // 准备 SQL 查询语句
-        let sql = `
+    let sql = `
             SELECT stat
             FROM thumbnails 
             WHERE fullName LIKE ? || '%' 
             AND fullName != ? 
             AND type = 'file'
         `;
-    
-        // 如果有search参数，添加额外的过滤条件
-        if (search) {
-            sql += ` AND fullName LIKE '%' || ? || '%'`;
-        }
-    
-        sql += ` LIMIT 300000`;
-    
-        const stmt = 磁盘缩略图数据库.prepare(sql);
-            
-        // 执行查询并返回结果
-        let results;
-        if (search) {
-            results = stmt.all(dirPath + "%", dirPath, search);
-        } else {
-            results = stmt.all(dirPath + "%", dirPath);
-        }
-    
-        // 返回子文件夹的完整路径列表
-        console.log(Date.now() - start)
-        console.log(results)
-        return results.map(item => item.stat)
-    
+    // 如果有search参数，添加额外的过滤条件
+    if (search) {
+        sql += ` AND fullName LIKE '%' || ? || '%'`;
+    }
+    sql += ` LIMIT 300000`;
+    const stmt = 磁盘缩略图数据库.prepare(sql);
+    const countStmt = 磁盘缩略图数据库.prepare('SELECT MAX(rowid) as approximate_count FROM thumbnails');
+    const approximateCount = countStmt.get().approximate_count;
+
+    // 执行查询并返回结果
+    let results;
+    if (search) {
+        results = stmt.all(dirPath + "%", dirPath, search);
+    } else {
+        results = stmt.all(dirPath + "%", dirPath);
+    }
+    // 返回子文件夹的完整路径列表
+    console.log(Date.now() - start)
+    return {
+        results: results.map(item => item.stat),
+        approximateCount: approximateCount
+    }
 }
 
 export async function 查找文件hash(filePath) {

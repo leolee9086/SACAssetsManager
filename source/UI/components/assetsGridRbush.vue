@@ -322,7 +322,7 @@ onMounted(async () => {
     else if (appData.value.tab.data.localPath) {
         附件数据组 = []
         try {
-            await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 10, signal)
+            await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
         } catch (e) {
             console.warn(e)
         }

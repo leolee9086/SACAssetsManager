@@ -127,6 +127,7 @@ const $realGlob = computed(() => {
     }
     if (search.value) {
         realGlob.search= search.value
+        //迁移到sql之后可能不再使用mingo
         /*realGlob.query = {
             $or: [
                 //正则要使用字符串形式,所以需要转义

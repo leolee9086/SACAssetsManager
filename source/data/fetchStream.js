@@ -65,7 +65,6 @@ export async function applyURIStreamJson(uri, target, callback, step, signal, op
                 splitedChunk = ''; // 清除已处理的部分
 
               }
-
               if (chunk.startsWith('data:')) {
                 let _chunk = chunk.substring(5)
                 try {
@@ -74,19 +73,16 @@ export async function applyURIStreamJson(uri, target, callback, step, signal, op
                     if (json.walkCount !== total) {
                       total = json.walkCount
                       callback && callback(total)
-
                     }
                   } else {
                     target.push(JSON.parse(_chunk))
                     _step += 1
-
                   }
                   if (_step >= step) {
                     callback && callback()
                     _step = 0
                   }
                   splitedChunk = ''
-
                 } catch (e) {
                   chunk && (splitedChunk += chunk)
                 }
@@ -96,8 +92,6 @@ export async function applyURIStreamJson(uri, target, callback, step, signal, op
             } catch (e) {
               chunk && (splitedChunk += chunk)
             }
-
-
           });
           // 处理文件信息
           // 继续读取

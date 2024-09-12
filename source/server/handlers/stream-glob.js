@@ -47,8 +47,6 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)
             reportHeartbeat()
-
-           // 准备缩略图(statProxy.path)
             res.write(data)
         },
         end: () => {
@@ -57,10 +55,8 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
             statPromisesArray.paused = false
             if (chunked) {
                 res.write(chunked)
-                //   res.flush()
                 chunked = ''
             }
-            //res.flush()
             res.end();
         }
     }, (walkCount) => {
@@ -92,7 +88,6 @@ export const globStream = (req, res) => {
             scheme = req.body
         }
         console.log('globStream',scheme)
-
         const _filter = parseQuery(req)
         const walkController = new AbortController()
         const controller = new AbortController();
