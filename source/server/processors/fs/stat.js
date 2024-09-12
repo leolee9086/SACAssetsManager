@@ -1,40 +1,28 @@
-import { 拼接文件名 } from './utils/JoinFilePath.js'
-import { buildCache } from '../cache/cache.js'
-import { 写入缩略图缓存行, 查找文件hash } from '../thumbnail/indexer.js';
-const statCache = buildCache('statCache')
+import { 写入缩略图缓存行, 查找并解析文件状态, 查找文件hash, 查找文件状态, 计算哈希 } from '../thumbnail/indexer.js';
 
 /**
  * 根据stat计算hash
  */
-const { createHash } = require('crypto');
 
-export const 获取哈希并写入数据库 = async (stat) => {
-    let 数据库查询结果 =await 查找文件hash(stat.path)
+export const 获取哈希并写入数据库 = async (stat, retryConut = 0) => {
+    let 数据库查询结果 = await 查找文件hash(stat.path)
     if (!数据库查询结果) {
-        console.log('发现新的文件条目,尝试写入')
+        retryConut += 1
+        console.log('发现新的文件条目,尝试写入重试次数', retryConut)
+        if (retryConut >= 10) {
+            throw new Error('执行获取哈希并写入数据库失败,请检查')
+        }
         // 创建一个hash对象，使用MD5算法
-        const hash = createHash('md5');
-        // 直接向hash对象添加数据，减少字符串拼接
-        // 使用path,size和mtime来进行hash,这样只有在mtime改变时才会需要写入
-        hash.update(stat.path);
-        hash.update(stat.size.toString());
-        hash.update(stat.mtime.getTime().toString());
-        // 生成哈希值，并截取前8个字符，以提高性能
-        const hashValue = hash.digest().toString('hex').substring(0, 8);
         // 使用文件名（去掉扩展名）和哈希值生成最终的哈希字符串
-        const name = stat.path.split('/').pop().replace(/\./g, '_');
-        const hashedName = `${name}_${hashValue}`;
-        const 写入开始时间 = performance.now()
-        await 写入缩略图缓存行(stat.path, hashValue, Date.now(), stat)
-        console.log('缓存地址:', stat.path, hashedName,performance.now()-写入开始时间)
-        return hashedName;
+        await 写入缩略图缓存行(stat.path, Date.now(), stat)
+        return await 获取哈希并写入数据库(stat, retryConut)
     }
-    else{
-        if(数据库查询结果.length>1){
-            throw('发现重复索引')
+    else {
+        if (数据库查询结果.length > 1) {
+            throw ('发现重复索引')
         }
         console.log(数据库查询结果)
-        return 数据库查询结果.statHash
+        return `${数据库查询结果.fullName.split('/').pop().replace(/\./g, '_')}_${数据库查询结果.statHash}`
     }
 }
 /**
@@ -84,55 +72,75 @@ export const buildStepCallback = (stepCallback) => {
 
 
 const fs = require('fs')
-export const statWithCatch = (path) => {
+export const statWithNew =async(path)=>{
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
-
     try {
-        if (statCache.get(path)) {
-            return statCache.get(path)
-        }
-        let stat = fs.statSync(path)
-        let entry = {
-            name: path.split('/').pop(),
-            path,
-            ...stat,
-            type: stat.isFile() ? 'file' : 'dir',
-        }
-        statCache.set(path, entry)
-        return entry
+         fs.stat(path,async(error,stat)=>{
+            if(error){
+                console.error(error)
+                return
+            }
+            let result = await 查找并解析文件状态(path)
+            if(result&&result.updateTime>new Date(stat.mtime).getTime()-5000){
+                console.log('时间不足')
+                return
+            }
+            stat.name = path.split('/').pop()
+            stat.path = path
+            if (stat.isFile()) {
+                stat.type = 'file'
+            }
+            if (stat.isDirectory()) {
+                stat.type = 'dir'
+            }
+            if (stat.isSymbolicLink()) {
+                stat.type = 'link'
+            }
+            await 写入缩略图缓存行(path, Date.now(), stat)
+        
+         })
+
     } catch (e) {
-        return {
-            name: path.split('/').pop(),
-            path,
-            isDirectory: () => false,
-            isFile: () => false,
-            isSymbolicLink: () => false,
-            type: "error",
-            error: e,
-            mode: 0,
-            size: 0,
-            atime: new Date(),
-            mtime: new Date(),
-            birthtime: new Date()
-        }
+        console.warn('获取文件状态失败', path, e)
+        return undefined
     }
 }
-/**
- * 创建一个代理对象,只有获取value时才会懒执行,节约性能
- * 使用缓存,避免重复读取
- */
-export const buildStatProxy = (entry, dir, useProxy, type) => {
-    let path = 拼接文件名(dir, entry.name).replace(/\\/g, '/')
-    if (useProxy) {
-        let proxy = buildStatProxyByPath(path, entry, type)
-        return proxy
-    } else {
-        let stats = statWithCatch(path.replace(/\\/g, '/'))
-        return stats
-    }
-}
-export const buildStatProxyByPath = (path) => {
+export const statWithCatch = async (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
-    const entry = statWithCatch(path.replace(/\\/g, '/'))
-    return entry
+    const start = Date.now()
+    try {
+        let result = await 查找并解析文件状态(path)
+        if (result) {
+            return result
+        }
+        else {
+            let stat
+            try {
+                stat = await fs.promises.stat(path)
+            } catch (e) {
+                console.warn('获取文件状态失败', path, e)
+                return undefined
+            }
+            stat.name = path.split('/').pop()
+            stat.path = path
+            if (stat.isFile()) {
+                stat.type = 'file'
+            }
+            if (stat.isDirectory()) {
+                stat.type = 'dir'
+            }
+            if (stat.isSymbolicLink()) {
+                stat.type = 'link'
+            }
+            await 写入缩略图缓存行(path, Date.now(), stat)
+            const result = await 查找并解析文件状态(path)
+            //  console.log("statWithCatchNew",result)
+            console.log("statWithCatchNew", Date.now() - start, result)
+
+            return result
+        }
+    } catch (e) {
+        console.error(e)
+        return
+    }
 }

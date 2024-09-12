@@ -4,20 +4,26 @@
  * @returns 
  */
 export function buildFilter(filter, signal) {
+
     if (!filter) {
         return ()=>{return true}
     }
     if (filter && typeof filter === 'function') {
+
         return async (statProxy) => {
+
             if (signal && signal.aborted) {
                 return false
             }
             try {
-                let proxy = statProxy
-                return await Promise.race([
-                    filter(proxy),
-                    new Promise((resolve, reject) => setTimeout(() => resolve(false), 30))
+            
+                let result= await Promise.race([
+                    filter(statProxy),
+                    new Promise((resolve, reject) => setTimeout(() => {
+                        resolve(false)
+                    }, 30))
                 ])
+                return result
             } catch (e) {
                 console.error(e, statProxy)
                 return false
@@ -25,6 +31,8 @@ export function buildFilter(filter, signal) {
         }
     } else {
         if (filter && typeof filter === 'object') {
+            console.log(filter)
+
             return async (statProxy) => {
                 if (signal && signal.aborted) {
                     return false

@@ -7,8 +7,9 @@ import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
 import { parseQuery } from '../middlewares/ctx/parseQuery.js'
 import { statPromisesArray } from '../processors/fs/disk/tree.js'
-import { buildStatProxyByPath } from '../processors/fs/stat.js';
+import { statWithCatch } from '../processors/fs/stat.js';
 import { buildCache } from '../processors/cache/cache.js';
+import { reportHeartbeat } from '../utils/heartBeat.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -16,7 +17,7 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController,maxDepth) => {
+const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController,maxDepth,search) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
     signal.addEventListener('abort', () => {
@@ -42,20 +43,16 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     }
     let chunked = ''
     walkAsyncWithFdir(cwd, filterFun, {
-        ifFile:async (statProxy) => {
+        ifFile: (statProxy) => {
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)
-            chunked += data
-            准备缩略图(statProxy.path)
-            requestIdleCallback(() => {
-                statPromisesArray.paused = true
-                if (chunked) {
-                    res.write(chunked)
-                    chunked = ''
-                }
-            }, { timeout: 17, deadline: 18 })
+            reportHeartbeat()
+
+           // 准备缩略图(statProxy.path)
+            res.write(data)
         },
         end: () => {
+
             walkController.abort()
             statPromisesArray.paused = false
             if (chunked) {
@@ -69,6 +66,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     }, (walkCount) => {
         chunked += `data:${JSON.stringify({ walkCount })}\n`
         requestIdleCallback(() => {
+            
             statPromisesArray.paused = true
             if (chunked) {
                 res.write(chunked)
@@ -76,7 +74,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
             }
         }, { timeout: 17, deadline: 18 })
 
-    }, walkSignal, timeout,maxDepth);
+    }, walkSignal, timeout,maxDepth,search);
 
 };
 export const globStream = (req, res) => {
@@ -104,6 +102,7 @@ export const globStream = (req, res) => {
                 test: (statProxy) => {
                     if (signal.aborted) {
                         walkController.abort()
+
                         return false
                     }
                     if (walkController.signal.aborted) {
@@ -148,12 +147,14 @@ export const globStream = (req, res) => {
         //没有compression中间件的情况下,也就没有res.flush方法
         res.flushHeaders()
         const { signal } = controller;
-        createWalkStream(cwd, filter, signal, res, timeout, walkController,scheme.depth)
+        createWalkStream(cwd, filter, signal, res, timeout, walkController,scheme.depth,scheme.search)
         statPromisesArray.start()
         //前端请求关闭时,触发中止信号
         //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
 
         res.on('close', () => {
+            reportHeartbeat()
+
             statPromisesArray.paused = false
         });
         return new Promise((resolve, reject) => {
@@ -184,9 +185,11 @@ export const fileListStream = async (req, res) => {
     const transformStream = new (require('stream')).Transform({
         objectMode: true,
         transform(chunk, encoding, callback) {
+            (async()=>{
             let path = chunk.path
-            this.push(stat2assetsItemStringLine(buildStatProxyByPath(path)))
+            this.push(stat2assetsItemStringLine(await statWithCatch(path)))
             callback()
+            })()
         }
     });
     pipeline(

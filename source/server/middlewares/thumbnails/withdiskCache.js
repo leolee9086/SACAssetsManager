@@ -8,7 +8,7 @@ import { 暂停文件系统解析队列,恢复文件系统解析队列 } from ".
 export const checkAndSendExtensionIcon = async (req, res, next) => {
     暂停文件系统解析队列()
     const 源文件地址 = req.sourcePath
-    const stat = statWithCatch(源文件地址)
+    const stat = await statWithCatch(源文件地址)
     let extension = 源文件地址.split('.').pop()
     const 缓存目录 = (await getCachePath(源文件地址, 'thumbnails', true)).cachePath
     let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)

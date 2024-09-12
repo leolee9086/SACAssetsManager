@@ -126,15 +126,17 @@ const $realGlob = computed(() => {
         timeout: maxCount.value,
     }
     if (search.value) {
-        realGlob.query = {
+        realGlob.search= search.value
+        /*realGlob.query = {
             $or: [
                 //正则要使用字符串形式,所以需要转义
                 { path: { '$regex': search.value } },
                 { type: { '$eq': 'dir' } },
 
             ],
-        }
+        }*/
     }
+    console.log(realGlob)
     return realGlob
 })
 

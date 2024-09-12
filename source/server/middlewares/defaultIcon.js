@@ -30,7 +30,7 @@ export const getSourcePath = (req, res, next) => {
 
 export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
     const 源文件地址 = req.sourcePath
-    const stat = statWithCatch(源文件地址)
+    const stat = await statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('thumbnailCache')
     let cacheResult = thumbnailCache.get(缓存键)
@@ -44,7 +44,7 @@ export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
     next()
 }
 export const 生成默认缩略图路径=async(path)=>{
-    const stat = statWithCatch(path)
+    const stat = await statWithCatch(path)
     const hashedName =await 获取哈希并写入数据库(stat) + '.thumbnail.png'
     const 缓存目录 = (await getCachePath(path, 'thumbnails', true)).cachePath
     let 缓存路径 = require('path').join(缓存目录, hashedName)
@@ -53,7 +53,7 @@ export const 生成默认缩略图路径=async(path)=>{
 }    
 export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
     const 源文件地址 = req.sourcePath
-    const stat = statWithCatch(源文件地址)
+    const stat = await statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
     const thumbnailCache = buildCache('thumbnailCache')
     const hashedName =await 获取哈希并写入数据库(stat) + '.thumbnail.png'
@@ -111,7 +111,7 @@ const getThumbnailWithCache = async (ctx) => {
  
 export async function genThumbnail(req, res, next) {
     const 源文件地址 = req.sourcePath
-    const stat = statWithCatch(源文件地址)
+    const stat = await statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
     const start = performance.now()
     const thumbnailCache = buildCache('thumbnailCache')

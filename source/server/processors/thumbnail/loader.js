@@ -92,7 +92,6 @@ import { getFileExtension } from '../../../utils/fs/extension.js'
 const commonIcons = new Map()
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
     imagePath = imagePath.replace(/\\/g, '/')
-    根据路径查找并加载缩略图索引(imagePath)
     //const extension = imagePath.split('.').pop().toLowerCase()
     const extension = getFileExtension(imagePath)
     let useExtension = 是否不需要单独缩略图(extension)
@@ -102,7 +101,8 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     if (!loader) {
         return null
     }
-    const stat = statWithCatch(imagePath)
+    const stat = await statWithCatch(imagePath)
+    console.log(stat)
     const 缓存键 = JSON.stringify(stat)
     if (tumbnailCache.get(缓存键)) {
         return tumbnailCache.get(缓存键)
@@ -141,7 +141,6 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         //表示不存在时不抛出错误
         true
     )
-    console.log(原始缓存路径, fromFIle1)
     if (fromFIle1 && fromFIle1.length >= 100) {
         return fromFIle1
     }

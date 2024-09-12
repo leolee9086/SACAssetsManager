@@ -1,14 +1,13 @@
-import { buildStepCallback } from './stat.js'
-import { buildStatProxyByPath } from './stat.js'
+import { buildStepCallback, statWithNew } from './stat.js'
 import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
-import { statPromisesArray } from './disk/tree.js'
 import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
 import { 构建目录树 } from '../fs/disk/tree.js'
 import { ignoreDir } from './dirs/ignored.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
+import { 查找子文件夹 } from '../thumbnail/indexer.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -20,98 +19,75 @@ import { reportHeartbeat } from '../../utils/heartBeat.js'
  * @returns 
  */
 const 遍历缓存 = buildCache('walk')
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth=Infinity) {
-    const stepCallback = buildStepCallback(_stepCallback)
-    const filter = buildFilter(_filter, signal)
-    let total = 0
-    //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
-    初始化目录树(root)
-    const startTime = Date.now()
-    const realFilter = async (path, isDir) => {
-        statPromisesArray.paused = true
-        const nowTime = Date.now()
-        reportHeartbeat()
-        let modifydied = path.replace(/\\/g, '/')
-        if (isDir) {
-            handleDirectory(modifydied, nowTime)
-            return false
-        }
-        if (isThumbnail(path) || isMetaData(path)) {
-            total++
-            return false
-        }
-        if(shouldAbort(startTime, timeout, signal)){
-            return false
-        }
-        let proxy = buildStatProxyByPath(modifydied)
-        let result
-        total++
-        countCallBack && countCallBack(total)
+const timouters={
 
-        try {
-            result = await filter(proxy)
-        } catch (e) {
-            console.error(e)
-            return false
-        }
-        result && stepCallback(proxy)
-        return result
-    }
-    let api = new fdir()
-        .withFullPaths()
-        .exclude((name, path) => {
-            for (let dir of ignoreDir) {
-                if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
-                    return true
+}
+function 更新目录索引(root){
+            //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
+
+            let api = new fdir()
+            .withFullPaths()
+            .withCache(遍历缓存)
+            .exclude((name, path) => {
+                for (let dir of ignoreDir) {
+                    if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
+                        return true
+                    }
                 }
-            }
-            return false
-        })
-        .withSignal(signal)
-        .withMaxDepth(maxDepth)
-        .withCache(遍历缓存)
-        .filter(realFilter)
-    if (maxDepth) {
-        api = api.withMaxDepth(maxDepth)
-    }
-    api = api.crawl(root)
-    const result = await api.withPromise()
-    return result
-}
+                return false
+            }).filter((path, isDir)=>{
+                reportHeartbeat()
 
-async function 初始化目录树(root) {
-    try {
-        if (!遍历缓存.get(root)) {
-            构建目录树(root)
-        }
-    } catch (e) {
-        console.error('构建目录树失败', e)
-    }
-}
-function shouldAbort(startTime, timeout, signal) {
-    const nowTime = Date.now()
-    if (nowTime - startTime > timeout) {
-        signal.walkController.abort()
-        return true
-    }
-    return signal.aborted
-}
-async function handleDirectory(path, nowTime) {
-    globalTaskQueue.push(async () => {
-        try {
-            if (!遍历缓存.get(path)) {
+                if(timouters[path]){
+                    return
+                }
+                timouters[path]=()=>{
+                    if(isDir){
+                        setTimeout(遍历缓存.delete(path),100*path.length)
+
+                    }
+                    setTimeout(timouters[path]=undefined,1000*60*path.length)
+                }
+
                 globalTaskQueue.push(
                     globalTaskQueue.priority(
                         async () => {
-                            构建目录树(path)
+                            reportHeartbeat()
+
+                            if (isThumbnail(path) || isMetaData(path)) {
+                                return 
+                            }
+                             statWithNew(path)
+                           
                             return path
-                        }, 0 - nowTime)
+                        }, 2
+                    )
                 )
-            }
-        } catch (e) {
-            console.error('构建目录树失败', e)
-        }
-        return path
-    })
-    return false
+            })
+    
+        api = api.crawl(root)
+        api.withPromise()
 }
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth = Infinity,search) {
+    const stepCallback = buildStepCallback(_stepCallback)
+    const filter = buildFilter(_filter, signal)
+    const startTime = Date.now()
+    let results = await 查找子文件夹(root,search)
+    console.log(Date.now() - startTime)
+    results.map(
+        item => {
+            return JSON.parse(item)
+        }
+    ).forEach(
+        async (result) => {
+            reportHeartbeat()
+
+            let flag = await filter(result)
+            if (flag) {
+                stepCallback(result)
+            }
+        }
+    )
+   更新目录索引(root)
+}
+

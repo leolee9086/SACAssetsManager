@@ -89,7 +89,7 @@ app.get('/color', async (req, res) => {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
     源文件地址 = 源文件地址.replace(/\//g, '\\')
-    let stat = statWithCatch(源文件地址)
+    let stat =await statWithCatch(源文件地址)
     let 缓存键 = JSON.stringify({ stat })
     let ctx = {
         req,

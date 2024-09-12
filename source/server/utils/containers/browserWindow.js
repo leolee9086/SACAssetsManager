@@ -160,6 +160,8 @@ export function createBrowserWindowByURL(url, options = {
                                         currentWebcontentID: currentWebcontentID,
                                     }
                                 });
+                                clearTimeout(heartbeatTimeout);
+
                                 heartbeatTimeout = setTimeout(() => {
                                     console.log('心跳超时,准备关闭窗口');
                                     try {
@@ -169,7 +171,7 @@ export function createBrowserWindowByURL(url, options = {
                                     } catch (e) {
                                         console.error('关闭窗口失败', e);
                                     }
-                                }, 5000); // 5秒内没有响应则关闭窗口
+                                }, 10000); // 5秒内没有响应则关闭窗口
                             }
                         }, 1000); // 每1秒发送一次心跳
                     };

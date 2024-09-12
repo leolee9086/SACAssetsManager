@@ -1,11 +1,11 @@
 import { statWithCatch } from "./stat.js"
 
-export function sacnDuplicateFilesByPathArray(pathArray,options={
+export async function sacnDuplicateFilesByPathArray(pathArray,options={
     needSameName:false,
 }) {
     const fileArray = []
     for(const path of pathArray){
-        const stat= statWithCatch(path)
+        const stat= await statWithCatch(path)
         if(stat.isFile()){
             fileArray.push(stat)
         }

@@ -1,1 +1,1 @@
-export const ignoreDir = ['$recycle', '$trash', '.git', '.sac', '$RECYCLE.BIN', '#recycle', '.pnpm-store']
+export const ignoreDir = ['$recycle', '$trash', '.git', '.sac', '$RECYCLE.BIN', '#recycle', '.pnpm-store','System Volume Information']
