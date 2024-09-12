@@ -63,9 +63,8 @@
             </div>
             <div>
                 <template v-for="colorItem in pallet">
-                    <div @click="() => 打开颜色查找面板(colorItem.color)"
-                        :style="计算素材颜色按钮样式(colorItem.color)">
-                    </div>
+                    <colorPalletButton :colorItem="colorItem"></colorPalletButton>
+                   
                 </template>
             </div>
         </div>
@@ -80,6 +79,7 @@ import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 文件系统内部属性表,解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
+import colorPalletButton from './colorPalletButton.vue';
 const props = defineProps(['cardData', 'size', 'filterColor'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
