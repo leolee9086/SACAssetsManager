@@ -51,7 +51,7 @@ export const metaRecords = {
     deleteRecord:async(path)=>{
         let baseUrl= `${serverHost()}/metaRecords/delete/`
         let params = new URLSearchParams();
-        params.append('path', path);
+        params.append('localPath', path);
         return await fetch(`${baseUrl}?${params.toString()}`)
     }
 }

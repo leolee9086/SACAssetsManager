@@ -3,7 +3,7 @@ import { confirmAsPromise } from '../siyuanUI/confirm.js';
 const fs = require('fs').promises
 const path = require('path')
 const MAX_PATH_LENGTH = 260; // Windows 的最大路径长度限制
-export async function processFilesFrontEnd(assets, targetPath, operation,callBack) {
+export async function processFilesFrontEnd(assets, targetPath, operation, callBack) {
     const errors = [];
     console.log(assets, targetPath);
 
@@ -16,7 +16,7 @@ export async function processFilesFrontEnd(assets, targetPath, operation,callBac
         } catch (error) {
             console.error(error);
             errors.push(`处理文件 ${asset.name} 时出错: ${error.message}`);
-            await callBack(operation, asset, targetFilePath,error)
+            await callBack(operation, asset, targetFilePath, error)
 
         }
     }
@@ -165,14 +165,85 @@ async function handleLongPath(targetFilePath, MAX_PATH_LENGTH) {
     }
 }
 async function trashFile(path) {
-    const { shell } = require('@electron/remote')
     try {
-        await shell.trashItem(path.replace(/\//g,'\\'));
+        await shell.trashItem(path.replace(/\//g, '\\'));
     } catch (error) {
         console.error(`将文件移动到回收站时出错: ${error.message}`);
-        throw new Error(`无法将文件移动到回收站: ${error.message}`);
+        const moveToSynoTrash = await confirmAsPromise(
+            '移动到回收站失败',
+            `将文件移动到回收站时出错。是否尝试将文件移动到群晖磁盘的回收站（#recycle）？`
+        );
+        if (moveToSynoTrash) {
+            try {
+                const synoTrashPath = await getSynoTrashPath(path);
+                fs.renameSync(path, synoTrashPath);
+                console.log(`文件已移动到群晖磁盘的回收站: ${synoTrashPath}`);
+            } catch (synoError) {
+                console.error(`将文件移动到群晖磁盘的回收站时出错: ${synoError.message}`);
+                const moveToSacTrash = await confirmAsPromise(
+                    '移动到群晖磁盘回收站失败',
+                    `将文件移动到群晖磁盘的回收站时出错。是否尝试将文件移动到 .sac/trashed 文件夹？`
+                );
+                if (moveToSacTrash) {
+                    try {
+                        const sacTrashPath = await getSacTrashPath(path);
+                        await fs.rename(path, sacTrashPath);
+                        console.log(`文件已移动到 .sac/trashed 文件夹: ${sacTrashPath}`);
+                    } catch (sacError) {
+                        console.error(`将文件移动到 .sac/trashed 文件夹时出错: ${sacError.message}`);
+                        const deleteFile = await confirmAsPromise(
+                            '移动到群晖磁盘回收站失败',
+                            `将文件移动到群晖磁盘的回收站时出错。是否尝试移动文件到sac回收站(位于磁盘根目录下的.sac/trashed文件夹中)？`
+                        );
+                        if (deleteFile) {
+                            try {
+                                fs.unlink(path);
+                                console.log(`文件已被删除: ${path}`);
+                            } catch (deleteError) {
+                                console.error(`删除文件时出错: ${deleteError.message}`);
+                                throw new Error(`无法将文件移动到回收站或删除: ${deleteError.message}`);
+                            }
+                        } else {
+                            throw new Error('用户取消了操作: 无法删除文件');
+                        }
+                    }
+                } else {
+
+                    throw new Error('用户取消了操作: 无法移动到 .sac/trashed 文件夹');
+                }
+
+            }
+        } else {
+            throw new Error('用户取消了操作: 无法移动到回收站');
+        }
     }
-    
+}
+async function getSacTrashPath(filePath) {
+    const driveRoot = path.parse(filePath).root;
+    const sacTrashPath = path.join(driveRoot, '.sac', 'trashed');
+
+    try {
+        await fs.access(sacTrashPath);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            await fs.mkdir(sacTrashPath, { recursive: true });
+        } else {
+            throw error;
+        }
+    }
+
+    return path.join(sacTrashPath, path.basename(filePath));
+}
+async function getSynoTrashPath(filePath) {
+    const shareRoot = path.parse(filePath).root;
+    const trashPath = path.join(shareRoot, '#recycle');
+
+    try {
+        await fs.access(trashPath);
+        return path.join(trashPath, path.basename(filePath));
+    } catch (error) {
+        throw new Error(`未找到有效的群晖回收站路径: ${error.message}`);
+    }
 }
 async function performOperation(operation, asset, targetFilePath) {
     switch (operation) {

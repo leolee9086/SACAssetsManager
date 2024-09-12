@@ -1,5 +1,8 @@
 
 export function stat2assetsItemStringLine(stat, json = false) {
+    if(!stat){
+        return ''
+    }
     const {
         name,
         path,

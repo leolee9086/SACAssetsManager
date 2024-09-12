@@ -133,7 +133,7 @@ export async function 查找子文件夹(dirPath, search) {
     if (search) {
         sql += ` AND fullName LIKE '%' || ? || '%'`;
     }
-    sql += ` LIMIT 300000`;
+    sql += ` LIMIT 100000`;
     const stmt = 磁盘缩略图数据库.prepare(sql);
     const countStmt = 磁盘缩略图数据库.prepare('SELECT MAX(rowid) as approximate_count FROM thumbnails');
     const approximateCount = countStmt.get().approximate_count;

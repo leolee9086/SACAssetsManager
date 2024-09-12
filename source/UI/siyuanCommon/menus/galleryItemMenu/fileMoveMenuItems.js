@@ -1,4 +1,4 @@
-import { kernelApi,clientApi, plugin } from "../../../../asyncModules.js"
+import { kernelApi, clientApi, plugin } from "../../../../asyncModules.js"
 import { metaRecords, thumbnail } from "../../../../server/endPoints.js";
 import { isImagePath } from "../../../../utils/fs/pathType.js";
 import { processFilesFrontEnd } from "../../../../utils/fs/processFrontEnd.js";
@@ -33,27 +33,37 @@ export const 以file链接形式添加到最近笔记本日记 = (assets) => {
         }
     }
 }
-export const 移动到回收站=(assets,panelController)=>{
+export const 移动到回收站 = (assets, panelController) => {
     return {
-        label:`移动到回收站`,
-        click:async()=>{
-            let 确认删除=await confirmAsPromise(
+        label: `移动到回收站`,
+        click: async () => {
+            let 确认删除 = await confirmAsPromise(
                 `确认删除${assets.length}个文件?`,
                 "删除后,本地磁盘请在系统回收站找回,群晖nas磁盘请在挂载目录的#recycle文件夹找回"
             )
-            确认删除&&await processFilesFrontEnd(assets,'','trash',async(operation, assetItem, targetFilePath,error)=>{
-                console.log(operation, assetItem, targetFilePath,error)
-                panelController.refresh()
-                await metaRecords.deleteRecord(assetItem.path)
-            })
+            try {
+                
+                if(确认删除) { 
+                    assets.forEach(assetItem=> metaRecords.deleteRecord(assetItem.path))
+
+                    await processFilesFrontEnd(assets, '', 'trash', async (operation, assetItem, targetFilePath, error) => {
+                    console.log(operation, assetItem, targetFilePath, error)
+
+                    panelController.refresh()
+                })}
+            } catch (e) {
+                console.error(e)
+                //panelController.refresh()
+
+            }
         }
     }
 }
-export const 移动到最近目录菜单组 = (assets,event)=>{
+export const 移动到最近目录菜单组 = (assets, event) => {
     let 最近打开本地文件夹数组 = Array.from(plugin.最近打开本地文件夹列表)
     return 最近打开本地文件夹数组.map(
-        targetPath=>{
-            return 移动到目录(assets,targetPath,event)
+        targetPath => {
+            return 移动到目录(assets, targetPath, event)
         }
     )
 }
@@ -76,20 +86,20 @@ export const 移动到目录 = (assets, targetPath, event) => {
 
     return {
         label: `${operation.label}${targetPath}`,
-        click: async() => {
-            let result=await confirmAsPromise(
+        click: async () => {
+            let result = await confirmAsPromise(
                 `确认${operation.action}${assets.length}个文件到${targetPath}?`,
                 `由于插件作者水平所限,不保证${operation.action}操作安全性,请优先考虑使用系统资源管理器进行操作`
             );
-            if(result){
-                    const errors = await processFilesFrontEnd(assets, targetPath, operation.func);
-                    if (errors.length > 0) {
-                        clientApi.showMessage(`操作完成,但有以下错误:\n${errors.join('\n')}`, 'error');
-                    } else {
-                        clientApi.showMessage(`${operation.action}操作成功完成`, 'success');
-                    }
-                
-    
+            if (result) {
+                const errors = await processFilesFrontEnd(assets, targetPath, operation.func);
+                if (errors.length > 0) {
+                    clientApi.showMessage(`操作完成,但有以下错误:\n${errors.join('\n')}`, 'error');
+                } else {
+                    clientApi.showMessage(`${operation.action}操作成功完成`, 'success');
+                }
+
+
             }
         }
     };

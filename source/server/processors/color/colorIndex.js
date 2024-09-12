@@ -1,5 +1,6 @@
 import { diffColor } from "./Kmeans.js"
 import { getCachePath } from '../fs/cached/fs.js'
+import { 修正路径分隔符号为反斜杠, 修正路径分隔符号为正斜杠 } from "../../../utils/fs/fixPath.js"
 let colorIndex = []
 let loaded = {}
 globalThis.colorIndex = globalThis.colorIndex || colorIndex
@@ -247,6 +248,9 @@ export async function 找到文件颜色(path) {
     return null
 }
 export async function 删除文件颜色记录(path){
+    let fixedPath=修正路径分隔符号为反斜杠(path)
+    console.log('删除颜色记录',path,fixedPath)
+
     let 已删除计数 = 0;
     for (let i = 0; i < colorIndex.length; i++) {
         let item = colorIndex[i];
@@ -260,6 +264,9 @@ export async function 删除文件颜色记录(path){
     // 移除没有资产的颜色记录
     colorIndex = colorIndex.filter(item => item.assets.length > 0);
     console.log(`已从颜色索引中删除 ${已删除计数} 条与路径 "${path}" 相关的记录`);
+    if(fixedPath!==path){
+        删除文件颜色记录(fixedPath)
+    }
 }
 async function 清理颜色索引(颜色索引) {
     let 清理后索引 = new Map()

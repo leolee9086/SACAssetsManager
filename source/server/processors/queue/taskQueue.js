@@ -35,12 +35,16 @@ globalTaskQueue.start= function($timeout=0,force){
     let timeout = 100
     let isProcessing = false
     let log = false
+    let lastTimeOut
+
     this.processNext=function($timeout,force){
         reportHeartbeat()
         if($timeout){
             timeout = $timeout
         }
         if($timeout===0){
+            lastTimeOut=timeout||lastTimeOut
+
             timeout = 0
         }
         if(force){
@@ -62,7 +66,7 @@ globalTaskQueue.start= function($timeout=0,force){
             let start = performance.now();
             (globalTaskQueue.pop())().then(stat => {
                 let end =performance.now()
-                timeout=Math.max(timeout,end-start)
+                timeout=Math.max(timeout,end-start,(lastTimeOut||0))
                 if(log){
                     console.log('processFile', stat.path,index,globalTaskQueue.size(), end-start)
                     log = false

@@ -1,4 +1,4 @@
-import { buildStepCallback, statWithNew } from './stat.js'
+import { buildStepCallback, statWithNew, 获取哈希并写入数据库 } from './stat.js'
 import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
@@ -6,7 +6,8 @@ import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
 import { ignoreDir } from './dirs/ignored.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
-import { 查找子文件夹,删除缩略图缓存行 } from '../thumbnail/indexer.js'
+import { 查找子文件夹, 删除缩略图缓存行, 查找文件hash, 计算哈希 } from '../thumbnail/indexer.js'
+import { getCachePath } from './cached/fs.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -65,20 +66,39 @@ function 更新目录索引(root) {
         })
     api = api.crawl(root)
     api.withPromise().then(
-        async(results)=>{
-            
-            let  fixed =results.map(item=>item.replace(/\\/g,'/'))
-            let dbResults= await 查找子文件夹(root)
-            
-            dbResults.results.forEach(
-                entry=>{
-                    let find= fixed.find(item=>entry.indexOf(`"path":"${item}"`)!==-1)
-                    if(!find){
-                        console.log('找到多余数据项')
-                        删除缩略图缓存行(JSON.parse(entry).path.replace(/\\/g,'/'))
+        async (results) => {
+
+            let fixed = new Set(results.map(item => item.replace(/\\/g, '/')));
+            let dbResults = await 查找子文件夹(root);
+            dbResults.results.forEach(entry => {
+
+                let parsedEntry = JSON.parse(entry);
+                let path = parsedEntry.path.replace(/\\/g, '/');
+
+                if (!fixed.has(path)) {
+                    console.log('找到多余数据项');
+                    删除缩略图缓存行(path);
+
+                    async () => {
+                        let hash = 计算哈希(entry)
+                        let hashedName = `${数据库查询结果.path.pop().replace(/\./g, '_')}_${hash}`
+                        const 缓存目录 = (await getCachePath(path, 'thumbnails', true)).cachePath
+                        let 缓存路径 = require('path').join(缓存目录, hashedName)
+                        if (require('fs').existsSync(缓存路径)) {
+                            console.log('删除多余缩略图', 缓存路径);
+                            require('fs').unlink(
+                                缓存路径, (err) => {
+                                    console.warn('删除多余缩略图出错')
+                                }
+                            )
+
+                        }
                     }
                 }
+                return path;
+            }
             )
+
         }
     )
 }

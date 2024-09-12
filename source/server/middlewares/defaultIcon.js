@@ -16,6 +16,8 @@ export const 默认图片响应 = async (req, res, next) => {
 }
 
 export const getSourcePath = (req, res, next) => {
+    statPromisesArray.paused = true;
+
     const path = require('path')
     let 源文件地址 = ''
     if (req.query.localPath) {
@@ -29,6 +31,8 @@ export const getSourcePath = (req, res, next) => {
 }
 
 export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
+    statPromisesArray.paused = true;
+
     const 源文件地址 = req.sourcePath
     const stat = await statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
@@ -37,6 +41,7 @@ export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
     console.log(`查找文件缩略图内存缓存`,源文件地址)
     if (cacheResult && Buffer.isBuffer(cacheResult)) {
         console.log(`文件缩略图内存缓存命中`,源文件地址)
+        res.type('png').send(cacheResult)
         statPromisesArray.paused = false;
         return
     }
@@ -51,6 +56,8 @@ export const 生成默认缩略图路径=async(path)=>{
 
 }    
 export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
+    statPromisesArray.paused = true;
+
     const 源文件地址 = req.sourcePath
     const stat = await statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
@@ -71,6 +78,8 @@ export const checkAndSendWritedIconWithCacheWrite = async (req, res, next) => {
 
 
 export const 生成缩略图响应 = async (req, res, next) => {
+    statPromisesArray.paused = true;
+
     console.log(`未找到文件缩略图，生成文件缩略图`,req.sourcePath)
     genThumbnail(req, res, next);
     statPromisesArray.paused = false

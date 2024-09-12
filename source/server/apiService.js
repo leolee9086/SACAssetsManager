@@ -70,9 +70,10 @@ app.get('/metaRecords/delete',async (req,res)=>{
     let 源文件地址 = ''
     if (req.query.localPath) {
         源文件地址 = req.query.localPath
-    } else {
+    } else if(req.query.path){
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
+    console.log(源文件地址)
     删除文件颜色记录(源文件地址)
     buildCache("statCache").delete(源文件地址.replace(/\\/g,'/'))
     buildCache("walk").delete(require('path').dirname(源文件地址.replace(/\\/g,'/')))
