@@ -1,4 +1,5 @@
 import { 删除文件颜色记录 } from '../color/colorIndex.js';
+import { globalTaskQueue } from '../queue/taskQueue.js';
 import { 写入缩略图缓存行, 删除缩略图缓存行, 查找并解析文件状态, 查找文件hash, 查找文件状态, 计算哈希 } from '../thumbnail/indexer.js';
 
 /**
@@ -121,8 +122,15 @@ export const statWithCatch = async (path) => {
             } catch (e) {
                 console.warn('获取文件状态失败', path, e)
                 if(e.message.indexOf('no such file or directory')){
-                    console.log('文件不存在,删除颜色记录',删除文件颜色记录(path))
-                    console.log('文件不存在,删除数据库记录',删除缩略图缓存行(path))
+                    console.log('文件不存在,将删除颜色记录')
+                    console.log('文件不存在,将删除数据库记录')
+                    globalTaskQueue.push(
+                        async()=>{
+                            删除文件颜色记录(path)
+                            删除缩略图缓存行(path)
+                            return path
+                        }
+                    )
                 }
                 return undefined
             }

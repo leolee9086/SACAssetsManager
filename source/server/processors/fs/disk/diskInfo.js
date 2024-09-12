@@ -49,20 +49,5 @@ export function listLocalDisks() {
             resolve(diskInfos)
         }
         return
-        if (platform === 'win32') {
-            // Windows平台
-            try {
-                diskInfos = listLocalDisksWin32(outputFilePath)
-                resolve(diskInfos)
-                disks = diskInfos.map(d => d.name)
-             
-            } catch (e) {
-                console.error(e)
-                reject(e)
-            }
-            return
-        } else {
-            // Unix-like平台
-        }
     })
 }

@@ -140,18 +140,6 @@ function getImageSizeFromBuffer(buffer, ext, log) {
             log.push(`Error processing with extension-based format: ${ext} - ${error.message}`);
         }
     }
-    
-   /* for (const format of imageFormats) {
-
-        try {
-            if (format.isFormat(firstByte, secondByte, dataView, buffer)) {
-                return format.getSize(dataView, buffer);
-            }
-        } catch (error) {
-            log.push(`Error processing with byte-based format: ${format.name} - ${error.message}`);
-        }
-    }*/
-
     throw new Error('Unsupported image format');
 }
 

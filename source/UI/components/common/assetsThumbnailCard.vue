@@ -64,7 +64,6 @@
             <div>
                 <template v-for="colorItem in pallet">
                     <colorPalletButton :colorItem="colorItem"></colorPalletButton>
-                   
                 </template>
             </div>
         </div>
@@ -79,7 +78,7 @@ import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 文件系统内部属性表,解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
-import colorPalletButton from './colorPalletButton.vue';
+import colorPalletButton from './pallets/colorPalletButton.vue';
 const props = defineProps(['cardData', 'size', 'filterColor'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
