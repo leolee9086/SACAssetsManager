@@ -104,7 +104,6 @@ export async function 添加到颜色索引(colorItem, assets) {
     } else {
         colorIndex.push({ color: colorFormated, assets: [asstItem] })
         transactionwsCountStatu[mod]++
-
     }
     await 保存颜色索引(cachePath, item => {
         return {
@@ -228,16 +227,11 @@ export async function 流式根据颜色查找内容(color, cutout = 0.6, callba
     })
 }
 export async function 找到文件颜色(path) {
+
     let finded = []
     for (let i = 0; i < colorIndex.length; i++) {
         let item = colorIndex[i]
-        let colorValue = item.color.join(',')
-        let exist = finded.find(
-            item2 => colorValue === item2.color.join(',')
-        )
-        if (exist) {
-            continue
-        }
+ 
         let find = item.assets.find(assetItem => assetItem.path === path)
         if (find) {
             finded.push({

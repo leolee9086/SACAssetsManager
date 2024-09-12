@@ -37,7 +37,6 @@ export const 文件缩略图内存缓存中间件 = async (req, res, next) => {
     console.log(`查找文件缩略图内存缓存`,源文件地址)
     if (cacheResult && Buffer.isBuffer(cacheResult)) {
         console.log(`文件缩略图内存缓存命中`,源文件地址)
-        res.send(cacheResult)
         statPromisesArray.paused = false;
         return
     }
@@ -98,6 +97,7 @@ const getThumbnailWithCache = async (ctx) => {
     let loaderID = ctx.query.loaderID
     try {
         result = await 生成缩略图(源文件地址, loaderID)
+        console.log(result)
     } catch (e) {
         console.warn(e)
         return
@@ -113,7 +113,6 @@ export async function genThumbnail(req, res, next) {
     const 源文件地址 = req.sourcePath
     const stat = await statWithCatch(源文件地址)
     const 缓存键 = JSON.stringify(stat)
-    const start = performance.now()
     const thumbnailCache = buildCache('thumbnailCache')
     let ctx = {
         req,
@@ -126,10 +125,6 @@ export async function genThumbnail(req, res, next) {
             缓存对象: thumbnailCache
         }
     }
-    let $next = () => {
-        console.log(`生成缩略图，耗时：${performance.now() - start}ms`)
-    }
-
     statPromisesArray.paused = true
     if (!源文件地址) {
         res.status(400).send('Invalid request: missing source file address');

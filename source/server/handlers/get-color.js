@@ -17,8 +17,9 @@ export async function genColor(ctx, next) {
     if(重新计算文件颜色){
        await 删除文件颜色记录(源文件地址)
     }
+    const start= performance.now()
     let color = await 找到文件颜色(源文件地址)
-    console.log(color)
+    console.log('查找颜色耗时',performance.now()-start)
     if (color) {
         return color
     }
