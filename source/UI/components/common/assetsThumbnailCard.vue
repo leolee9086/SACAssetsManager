@@ -108,9 +108,7 @@ const genMaxWidth = () => {
         return `${size.value}px`
     }
 }
-function 打开颜色查找面板(color) {
-    plugin.eventBus.emit('click-galleryColor', color)
-}
+
 let idleCallbackId;
 let protyle
 let fn = () => {
