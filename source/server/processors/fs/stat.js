@@ -74,38 +74,47 @@ export const buildStepCallback = (stepCallback) => {
 
 
 const fs = require('fs')
-export const statWithNew =async(path)=>{
-    path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
-    try {
-         fs.stat(path,async(error,stat)=>{
-            if(error){
-                console.error(error)
-                return
-            }
-            let result = await 查找并解析文件状态(path)
-            if(result&&result.updateTime>new Date(stat.mtime).getTime()-5000){
-                console.log('时间不足')
-                return
-            }
-            stat.name = path.split('/').pop()
-            stat.path = path
-            if (stat.isFile()) {
-                stat.type = 'file'
-            }
-            if (stat.isDirectory()) {
-                stat.type = 'dir'
-            }
-            if (stat.isSymbolicLink()) {
-                stat.type = 'link'
-            }
-            await 写入缩略图缓存行(path, Date.now(), stat)
-        
-         })
 
-    } catch (e) {
-        console.warn('获取文件状态失败', path, e)
-        return undefined
-    }
+export const statWithNew = (path) => {
+    return new Promise((resolve, reject) => {
+
+
+        path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
+        try {
+            fs.stat(path, async (error, stat) => {
+                if (error) {
+                    console.error(error)
+                    resolve()
+                    return
+                }
+                /* let result = await 查找并解析文件状态(path)
+                 if(result&&result.updateTime>new Date(stat.mtime).getTime()-5000){
+                     console.log('时间不足')
+                     return
+                 }*/
+                stat.name = path.split('/').pop()
+                stat.path = path
+                if (stat.isFile()) {
+                    stat.type = 'file'
+                }
+                if (stat.isDirectory()) {
+                    stat.type = 'dir'
+                }
+                if (stat.isSymbolicLink()) {
+                    stat.type = 'link'
+                }
+                await 写入缩略图缓存行(path, Date.now(), stat)
+                resolve()
+
+            })
+
+        } catch (e) {
+            console.warn('获取文件状态失败', path, e)
+            resolve()
+
+            return undefined
+        }
+    })
 }
 export const statWithCatch = async (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
@@ -121,11 +130,11 @@ export const statWithCatch = async (path) => {
                 stat = await fs.promises.stat(path)
             } catch (e) {
                 console.warn('获取文件状态失败', path, e)
-                if(e.message.indexOf('no such file or directory')){
+                if (e.message.indexOf('no such file or directory')) {
                     console.log('文件不存在,将删除颜色记录')
                     console.log('文件不存在,将删除数据库记录')
                     globalTaskQueue.push(
-                        async()=>{
+                        async () => {
                             删除文件颜色记录(path)
                             删除缩略图缓存行(path)
                             return path

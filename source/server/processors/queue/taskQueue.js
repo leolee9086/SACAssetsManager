@@ -32,7 +32,7 @@ globalTaskQueue.start= function($timeout=0,force){
         return this.size()===0
     }
     let index = 0
-    let timeout = 100
+    let timeout = 0
     let isProcessing = false
     let log = false
     let lastTimeOut
@@ -43,6 +43,7 @@ globalTaskQueue.start= function($timeout=0,force){
             timeout = $timeout
         }
         if($timeout===0){
+            console.log($timeout)
             lastTimeOut=timeout||lastTimeOut
 
             timeout = 0
@@ -58,7 +59,7 @@ globalTaskQueue.start= function($timeout=0,force){
         isProcessing = true
 
         if (globalTaskQueue.peek() && !globalTaskQueue.paused && !jump) {
-            if (index % 10000 == 0||globalTaskQueue.length<100) {
+            if (index % 100 == 0||globalTaskQueue.length<100) {
                console.log('processNext', index, globalTaskQueue.size(), timeout)
                 log = true
             }
@@ -66,7 +67,7 @@ globalTaskQueue.start= function($timeout=0,force){
             let start = performance.now();
             (globalTaskQueue.pop())().then(stat => {
                 let end =performance.now()
-                timeout=Math.max(timeout,end-start,(lastTimeOut||0))
+                timeout=Math.max(timeout/10,end-start,(lastTimeOut/10||0))
                 if(log){
                     console.log('processFile', stat.path,index,globalTaskQueue.size(), end-start)
                     log = false
@@ -85,12 +86,12 @@ globalTaskQueue.start= function($timeout=0,force){
                     , timeout)
             })
             // 处理stat
-            timeout = Math.max(timeout / 1.1, 10)
+            timeout = Math.max(timeout / 10, 10)
             isProcessing = false
 
         } else if(!jump) {
             if (!globalTaskQueue.ended()) {
-                if (index % 10000 == 0||globalTaskQueue.size()<100) {
+                if (index % 100 == 0||globalTaskQueue.size()<100) {
                     console.log('processNextLater', index, globalTaskQueue.size(),  timeout)
                 }
                 timeout = Math.min(Math.max(timeout * 2,timeout+100), 1000)

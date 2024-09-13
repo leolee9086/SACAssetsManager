@@ -1,52 +1,18 @@
 import { buildCache } from '../cache/cache.js'
 import commonLoader from './internalGeneraters/onlyName.js'
-import { sortLoaderByRegexComplexity } from './sorter.js'
 import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
 import { diffColor } from '../color/Kmeans.js'
 import { 获取哈希并写入数据库 } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions, 是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
-import {  根据路径查找并加载缩略图索引 } from './indexer.js'
+import { 内置缩略图生成器序列 } from './loaders/internal.js'
 const sharp = require('sharp')
-let loderPaths = [
-    './internalGeneraters/svg.js',
-    './internalGeneraters/sharp.js',
-    './internalGeneraters/systermThumbnailWin64.js',
-    './internalGeneraters/sy.js'
-]
-async function initLoadersFromPaths(loderPaths) {
-    let loaders = []
-    for (const path of loderPaths) {
-        try {
-            const loader = await import(path)
-            loaders.push(new loader.default())
-        } catch (e) {
-            console.error(e)
-        }
-    }
-    return sortLoaderByRegexComplexity(loaders)
-}
-let loaders = await initLoadersFromPaths(loderPaths)
-//判定是否支持,因为缩略图解析器需要调用系统接口
-loaders = loaders.filter(
-    item => {
-        return isSupport(item)
-    }
-)
 /**
  * 判断item的系统是否支持
  * @param {*} loader 
  * @returns 
  */
-function isSupport(loader) {
-    if (!loader.sys) {
-        return true
-    }
-    else {
-        return loader.sys.indexOf(process.platform + " " + process.arch) !== -1
-    }
-}
 export function getLoader(imagePath, loaderID) {
     let loader = null
     if (loaderID) {
@@ -60,11 +26,11 @@ export function getLoader(imagePath, loaderID) {
     return loader
 }
 function getLoaderByID(loaderID) {
-    return loaders.find(item => item.id === loaderID)
+    return 内置缩略图生成器序列.find(item => item.id === loaderID)
 }
 function getLoaderByMatch(imagePath) {
     let loader = null
-    for (const _loader of loaders) {
+    for (const _loader of 内置缩略图生成器序列) {
         if (imagePath.match(_loader.match(imagePath))) {
             loader = _loader
         }
@@ -72,7 +38,7 @@ function getLoaderByMatch(imagePath) {
     return loader
 }
 export function listLoaders() {
-    return loaders.map(item => {
+    return 内置缩略图生成器序列.map(item => {
         return {
             id: item.id,
             name: item.name,

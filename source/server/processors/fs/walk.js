@@ -1,4 +1,4 @@
-import { buildStepCallback, statWithNew, 获取哈希并写入数据库 } from './stat.js'
+import { buildStepCallback, statWithNew } from './stat.js'
 import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
@@ -6,7 +6,7 @@ import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
 import { ignoreDir } from './dirs/ignored.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
-import { 查找子文件夹, 删除缩略图缓存行, 查找文件hash, 计算哈希 } from '../thumbnail/indexer.js'
+import { 查找子文件夹, 删除缩略图缓存行, 计算哈希 } from '../thumbnail/indexer.js'
 import { getCachePath } from './cached/fs.js'
 /**
  * 使用修改后的fdir,遍历指定目录
@@ -19,14 +19,17 @@ import { getCachePath } from './cached/fs.js'
  * @returns 
  */
 const 遍历缓存 = buildCache('walk')
-const timouters = {
-
-}
-function 更新目录索引(root) {
+const timouters = {}
+const batch = []
+function 更新目录索引(root, stats, signal) {
     //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
+    console.log(signal.aborted)
+
     let api = new fdir()
         .withFullPaths()
         .withDirs()
+        .withCache(遍历缓存)
+        //   .withAbortSignal(signal)
         .exclude((name, path) => {
             for (let dir of ignoreDir) {
                 if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
@@ -36,27 +39,58 @@ function 更新目录索引(root) {
             return false
         }).filter((path, isDir) => {
             reportHeartbeat()
+            if (signal.aborted) {
+                console.log(signal.aborted)
+                return
+            }
             if (timouters[path]) {
                 return true
             }
             try {
+
                 timouters[path] = () => {
                     if (isDir) {
-                        清理子文件夹索引(path)
-                        setTimeout(遍历缓存.delete(path), 100 * path.length)
+                        setTimeout(遍历缓存.delete(path), 1000 * path.length)
                     }
-                    setTimeout(timouters[path] = undefined, 1000 * 60 * path.length)
+                    setTimeout(timouters[path] = undefined, 10 * 60 * path.length)
+                }
+
+                if (isDir) {
+                    return true
+                }
+                if (isThumbnail(path) || isMetaData(path)) {
+                    return
+                }
+                batch.push(path)
+                if (stats[path]) {
+                    globalTaskQueue.push(
+                        async () => {
+                            {
+                                删除缩略图缓存行(path), await statWithNew(path);
+                            }
+                        }
+                    )
+                    return true
                 }
                 globalTaskQueue.push(
                     globalTaskQueue.priority(
                         async () => {
                             reportHeartbeat()
-                            if (isThumbnail(path) || isMetaData(path)) {
-                                return
+
+                            for (let i = 0; i < Math.max((Math.min(15 / (batch.time || 0.1), 100)), 1); i += 1) {
+                                const _path = batch.pop()
+                                if (_path) {
+                                    if (isThumbnail(_path) || isMetaData(_path)) {
+                                        continue;
+                                    }
+
+                                    const start = performance.now()
+                                    await statWithNew(_path);
+                                    batch.time = performance.now() - start
+                                }
                             }
-                            statWithNew(path)
                             return path
-                        }, 2
+                        }, 0 - Date.now()
                     )
                 )
             } catch (e) {
@@ -109,9 +143,12 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     let { results, approximateCount } = await 查找子文件夹(root, search)
     countCallBack(approximateCount)
     console.log(Date.now() - startTime)
+    const stats = {}
     results.map(
         item => {
-            return JSON.parse(item)
+            let stat = JSON.parse(item)
+            stats[item.path] = item
+            return stat
         }
     ).forEach(
         async (result) => {
@@ -122,6 +159,6 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
             }
         }
     )
-    更新目录索引(root)
+    更新目录索引(root, stats, signal)
 }
 
