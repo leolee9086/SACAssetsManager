@@ -1,5 +1,4 @@
 import { buildCache } from '../cache/cache.js'
-import commonLoader from './internalGeneraters/onlyName.js'
 import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
 import { diffColor } from '../color/Kmeans.js'
@@ -7,36 +6,9 @@ import { 获取哈希并写入数据库 } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions, 是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
 import { 内置缩略图生成器序列 } from './loaders/internal.js'
+import { getLoader } from './loaders/query.js'
 const sharp = require('sharp')
-/**
- * 判断item的系统是否支持
- * @param {*} loader 
- * @returns 
- */
-export function getLoader(imagePath, loaderID) {
-    let loader = null
-    if (loaderID) {
-        loader = getLoaderByID(loaderID)
-    }
-    else {
-        loader = getLoaderByMatch(imagePath)
-    }
-    //如果都没有匹配到,则使用commonLoader,返回一个svg图标
-    loader = loader || new commonLoader()
-    return loader
-}
-function getLoaderByID(loaderID) {
-    return 内置缩略图生成器序列.find(item => item.id === loaderID)
-}
-function getLoaderByMatch(imagePath) {
-    let loader = null
-    for (const _loader of 内置缩略图生成器序列) {
-        if (imagePath.match(_loader.match(imagePath))) {
-            loader = _loader
-        }
-    }
-    return loader
-}
+
 export function listLoaders() {
     return 内置缩略图生成器序列.map(item => {
         return {
@@ -63,7 +35,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     let useExtension = 是否不需要单独缩略图(extension)
     let useRaw = false
 
-    let loader = await getLoader(imagePath, loaderID)
+    let loader = await getLoader(imagePath, loaderID,内置缩略图生成器序列)
     if (!loader) {
         return null
     }
@@ -125,12 +97,8 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return fromFIle
     }
 
-    const start = performance.now()
     let thumbnailBuffer = await loader.generateThumbnail(imagePath, 缓存路径)
     if (thumbnailBuffer) {
-
-        const end = performance.now()
-        //console.log(`生成缩略图用时: ${end - start}ms`)
         //@todo 使用sharp压缩图片,暂时不压缩,因为会对色彩分析造成非常剧烈的干扰
         if (thumbnailBuffer.length > 1024 * 10) {
             thumbnailBuffer = await sharp(thumbnailBuffer)
@@ -160,7 +128,6 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
     }
 }
 const tumbnailCache = buildCache('thumbnailCache')
-import { 智能防抖 } from '../../../utils/functionTools.js'
 import { getCachePath } from '../fs/cached/fs.js'
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
     let fn = async () => {
@@ -174,7 +141,6 @@ export const 准备缩略图 = async (imagePath, loaderID = null) => {
     }
     // 使用当前时间的负值作为优先级
     const priority = -Date.now();
-
     // 处理可能的边界情况
     if (priority === 0) {
         // 在极少数情况下，如果 Date.now() 返回 0，我们使用一个非常小的负数
@@ -182,9 +148,7 @@ export const 准备缩略图 = async (imagePath, loaderID = null) => {
     } else {
         fn = globalTaskQueue.priority(fn, priority);
     }
-
     globalTaskQueue.push(fn);
-
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
@@ -194,10 +158,8 @@ export async function genThumbnailColor(filePath, loaderID = null) {
         return null
     }
     const colors = await getColor(thumbnailBuffer, filePath)
-
     return colors
 }
-
 export async function diffFileColor(filePath, color) {
     let simiColor = await genThumbnailColor(filePath)
     if (!simiColor) {
