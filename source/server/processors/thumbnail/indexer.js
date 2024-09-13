@@ -178,3 +178,20 @@ export async function 查找并解析文件状态(filePath) {
         return undefined
     }
 }
+export async function 提取所有子目录文件扩展名(dirPath) {
+    const { cachePath, root } = await 获取数据库地址(dirPath);
+    let 磁盘缩略图数据库 = 初始化数据库(cachePath, root);
+    
+    const sql = `
+        SELECT DISTINCT LOWER(SUBSTR(fullName, INSTR(fullName, '.') + 1)) AS extension
+        FROM thumbnails
+        WHERE fullName LIKE ? || '%'
+        AND type = 'file'
+        AND INSTR(fullName, '.') > 0
+    `;
+    
+    const stmt = 磁盘缩略图数据库.prepare(sql);
+    const results = stmt.all(dirPath + "%");
+    
+    return results.map(row => row.extension);
+}
