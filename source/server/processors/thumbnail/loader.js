@@ -87,6 +87,20 @@ async function 查询缩略图硬盘缓存(ctx, callback) {
         callback(fromFIle1)
     }
 }
+async function 查询eagle缩略图(ctx,callback){
+    const imageName = ctx.fixedPath
+    const eagle缩略图名 = imageName.replace(`.${ctx.extension}`,'').trim()+'_thumbnail.png'
+    console.log(eagle缩略图名)
+    let fromFIle1 = await asyncReadFile(
+        eagle缩略图名,
+        //表示不存在时不抛出错误
+        true
+    )
+    if (fromFIle1 && fromFIle1.length >= 100) {
+        console.log(`eagle格式缩略图发现,为${ctx.fixedPath}使用eagle缩略图`)
+        callback(fromFIle1)
+    }
+}
 async function 查询扩展名缩略图硬盘缓存(ctx, callback) {
     //如果原始缓存有存在的话,说明特别生成了缩略图
     let fromFIle1 = await asyncReadFile(
@@ -144,23 +158,30 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
                 return
             }
         }
+        await 查询eagle缩略图(ctx,callback)
+        if(resolved){
+            return 
+        }
         await 查询缩略图硬盘缓存(ctx, callback)
         if (resolved) {
             return
         }
+    
         useExtension && await 查询扩展名缩略图硬盘缓存(ctx, callback)
         if (resolved) {
             return
         }
+       
         await 计算缩略图(ctx, callback)
-        if (resultBuffer) {
+        if (resultBuffer&&Buffer.isBuffer(resultBuffer)) {
             if (useExtension) {
-                fs.watchFile(ctx.extensionThumbnailPath, resultBuffer, (err) => {
-                    err && console.error('缩略图生成成功但是写入失败', extension, resultBuffer, fixedPath)
+                fs.writeFile(ctx.extensionThumbnailPath, resultBuffer, (err) => {
+                    err && console.error('缩略图生成成功但是写入失败', extension, resultBuffer, fixedPath,err)
                 })
             } else {
-                fs.watchFile(ctx.targetPath, resultBuffer, (err) => {
-                    err && console.error('缩略图生成成功但是写入失败', extension, resultBuffer, fixedPath)
+                console.log(ctx.targetPath)
+                fs.writeFile(ctx.targetPath, resultBuffer, (err) => {
+                    err && console.error('缩略图生成成功但是写入失败', extension, resultBuffer, fixedPath,err)
                 })
             }
         }
