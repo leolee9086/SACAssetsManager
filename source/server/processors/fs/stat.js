@@ -7,6 +7,9 @@ import { 写入缩略图缓存行, 删除缩略图缓存行, 查找并解析文�
  */
 
 export const 获取哈希并写入数据库 = async (stat, retryConut = 0) => {
+    if(!stat){
+        throw new Error('stat不能为空')
+    }
     let 数据库查询结果 = await 查找文件hash(stat.path)
     if (!数据库查询结果) {
         retryConut += 1

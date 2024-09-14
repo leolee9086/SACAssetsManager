@@ -8,7 +8,7 @@ export async function genColor(ctx, next) {
     statPromisesArray.paused = true
     let { 源文件地址, 缓存键, 重新计算文件颜色 } = ctx.stats
     if (!源文件地址) {
-        res.status(400).send('Invalid request: missing source file address');
+        ctx.res.status(400).send('Invalid request: missing source file address');
         return
     }
     /**
@@ -18,6 +18,7 @@ export async function genColor(ctx, next) {
        await 删除文件颜色记录(源文件地址)
     }
     const start= performance.now()
+    try{
     let color = await 找到文件颜色(源文件地址)
     console.log('查找颜色耗时',performance.now()-start)
     if (color) {
@@ -27,6 +28,11 @@ export async function genColor(ctx, next) {
     const colors = await genThumbnailColor(源文件地址)
     statPromisesArray.paused = false
     return colors
+    }catch(e){
+        ctx.res.status(500).send(`为${源文件地址}生成颜色色板\n${e.message}`);
+        return
+
+    }
 }
 
 

@@ -7,8 +7,9 @@ import { noThumbnailList, imageExtensions, 是否不需要单独缩略图 } from
 import { globalTaskQueue } from '../queue/taskQueue.js'
 import { 内置缩略图生成器序列 } from './loaders/internal.js'
 import { getLoader } from './loaders/query.js'
-const sharp = require('sharp')
+import { getCachePath } from '../fs/cached/fs.js'
 
+const sharp = require('sharp')
 export function listLoaders() {
     return 内置缩略图生成器序列.map(item => {
         return {
@@ -28,74 +29,149 @@ const fs = require('fs')
 import { asyncReadFile } from '../fs/utils/withExists.js'
 import { getFileExtension } from '../../../utils/fs/extension.js'
 const commonIcons = new Map()
-export const 生成缩略图 = async (imagePath, loaderID = null) => {
+const 创建缩略图生成上下文 = async (imagePath, loaderID = null) => {
     imagePath = imagePath.replace(/\\/g, '/')
-    //const extension = imagePath.split('.').pop().toLowerCase()
     const extension = getFileExtension(imagePath)
     let useExtension = 是否不需要单独缩略图(extension)
-    let useRaw = false
 
-    let loader = await getLoader(imagePath, loaderID,内置缩略图生成器序列)
+    let loader = await getLoader(imagePath, loaderID, 内置缩略图生成器序列)
     if (!loader) {
         return null
     }
     const stat = await statWithCatch(imagePath)
-    console.log(stat)
-    const 缓存键 = JSON.stringify(stat)
-    if (tumbnailCache.get(缓存键)) {
-        return tumbnailCache.get(缓存键)
+    if (!stat) {
+        throw new Error(`获取文件属性失败,不能为${imagePath}创建缩略图上下文`)
     }
-    //小图片直接返回
-    if (imageExtensions.includes(extension) && stat.size < 1024 * 512) {
+    let useRaw = false
+    if (imageExtensions.includes(extension) && stat.size < 1024 * 1024 * 1) {
         useRaw = true
-        console.log('使用原始图', imagePath)
-        try {
-            const rawBuffer = fs.readFileSync(imagePath)
-            tumbnailCache.set(缓存键, rawBuffer)
-            return {
-                data: rawBuffer,
-                type: extension,
-                isImage: true,
-            }
-        } catch (e) {
-            console.error(e)
-        }
     }
-    const hashedName = await 获取哈希并写入数据库(stat) + '.thumbnail.png'
-    const 缓存目录 = (await getCachePath(imagePath, 'thumbnails')).cachePath
-    if (!fs.existsSync(缓存目录)) {
-        fs.mkdirSync(缓存目录, { recursive: true })
+    const hash = await 获取哈希并写入数据库(stat)
+    const cacheDir = (await getCachePath(imagePath, 'thumbnails')).cachePath
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true })
     }
-    let 缓存路径 = require('path').join(缓存目录, hashedName)
-    let 原始缓存路径 = 缓存路径
-    let 扩展名缓存路径 = require('path').join(缓存目录, `${extension}.thumbnail.png`)
-    if (useExtension) {
-        缓存路径 = 扩展名缓存路径
+    const hashedName = hash + '.thumbnail.png'
+    const targetPath = require('path').join(cacheDir, hashedName)
+    const extensionThumbnailPath = require('path').join(cacheDir, `${extension}.thumbnail.png`)
+    return {
+        extension,
+        useExtension,
+        useRaw,
+        loader,
+        stat,
+        hash,
+        fixedPath: imagePath,
+        cacheDir,
+        hashedName,
+        targetPath,
+        extensionThumbnailPath
     }
+}
 
+function 查询缓存内缩略图(ctx, callback) {
+    const { hash } = ctx
+    if (tumbnailCache.get(hash)) {
+        console.log('使用内存缓存', ctx.fixedPath)
+    }
+    callback(tumbnailCache.get(hash))
+}
+async function 查询缩略图硬盘缓存(ctx, callback) {
     //如果原始缓存有存在的话,说明特别生成了缩略图
     let fromFIle1 = await asyncReadFile(
-        原始缓存路径,
+        ctx.targetPath,
         //表示不存在时不抛出错误
         true
     )
     if (fromFIle1 && fromFIle1.length >= 100) {
-        return fromFIle1
+        callback(fromFIle1)
     }
-    if (commonIcons.has(extension)) {
-        console.log('使用扩展名缩略图', imagePath)
-
-        return commonIcons.get(extension);
-    }
-
-
-    let fromFIle = await asyncReadFile(缓存路径,        //表示不存在时不抛出错误
+}
+async function 查询扩展名缩略图硬盘缓存(ctx, callback) {
+    //如果原始缓存有存在的话,说明特别生成了缩略图
+    let fromFIle1 = await asyncReadFile(
+        ctx.extensionThumbnailPath,
+        //表示不存在时不抛出错误
         true
     )
-    if (fromFIle && fromFIle.length >= 100) {
-
-        return fromFIle
+    if (fromFIle1 && fromFIle1.length >= 100) {
+        callback(fromFIle1)
     }
+}
+async function 计算缩略图(ctx, callback) {
+    console.log(`使用${ctx.loader}为${ctx.fixedPath}生成缩略图到${ctx.targetPath}`)
+    let thumbnailBuffer = await ctx.loader.generateThumbnail(ctx.fixedPath, ctx.targetPath)
+    callback(thumbnailBuffer)
+}
+export const 生成缩略图 = async (imagePath, loaderID = null) => {
+    const ctx = await 创建缩略图生成上下文(imagePath, loaderID)
+    const { extension, useExtension, useRaw, loader, stat, hash, fixedPath } = ctx
+    globalTaskQueue.paused = true
+    return new Promise(async (resolve, reject) => {
+        let resolved
+        let resultBuffer
+        const callback = (result) => {
+            if (result) {
+                resultBuffer = result
+                resolve(result)
+                resolved = true
+
+                tumbnailCache.set(ctx.hash, result)
+            }
+            globalTaskQueue.paused = false
+        }
+        查询缓存内缩略图(ctx, callback)
+        if (resolved) {
+            return
+        }
+
+        if (useRaw) {
+            console.log('使用原始图', fixedPath)
+            try {
+                const rawBuffer = fs.readFileSync(fixedPath)
+                tumbnailCache.set(hash, rawBuffer)
+                resolve({
+                    data: rawBuffer,
+                    type: extension,
+                    isImage: true,
+                })
+                globalTaskQueue.paused = false
+                return
+            } catch (e) {
+                console.warn(e)
+                reject(new Error('未能从磁盘读取缩略图', fixedPath))
+                globalTaskQueue.paused = false
+                return
+            }
+        }
+        await 查询缩略图硬盘缓存(ctx, callback)
+        if (resolved) {
+            return
+        }
+        useExtension && await 查询扩展名缩略图硬盘缓存(ctx, callback)
+        if (resolved) {
+            return
+        }
+        await 计算缩略图(ctx, callback)
+        if (resultBuffer) {
+            if (useExtension) {
+                fs.watchFile(ctx.extensionThumbnailPath, resultBuffer, (err) => {
+                    err && console.error('缩略图生成成功但是写入失败', extension, resultBuffer, fixedPath)
+                })
+            } else {
+                fs.watchFile(ctx.targetPath, resultBuffer, (err) => {
+                    err && console.error('缩略图生成成功但是写入失败', extension, resultBuffer, fixedPath)
+                })
+            }
+        }
+        if (resolved) {
+            return
+        }
+        reject(new Error(`未能为${fixedPath}生成缩略图`))
+    })
+
+
+
 
     let thumbnailBuffer = await loader.generateThumbnail(imagePath, 缓存路径)
     if (thumbnailBuffer) {
@@ -106,7 +182,7 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
                 .toBuffer()
             console.log('成功生成缩略图', imagePath)
         }
-        tumbnailCache.set(缓存键, thumbnailBuffer)
+        tumbnailCache.set(hash, thumbnailBuffer)
         if (noThumbnailList.includes(extension) && !commonIcons.has(extension)) {
             commonIcons.set(extension, thumbnailBuffer)
             fs.writeFile(缓存路径, thumbnailBuffer, (err) => {
@@ -127,8 +203,10 @@ export const 生成缩略图 = async (imagePath, loaderID = null) => {
         return thumbnailBuffer
     }
 }
+
+
+
 const tumbnailCache = buildCache('thumbnailCache')
-import { getCachePath } from '../fs/cached/fs.js'
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
     let fn = async () => {
         try {
