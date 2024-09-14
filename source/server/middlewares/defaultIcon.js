@@ -17,7 +17,6 @@ export const 默认图片响应 = async (req, res, next) => {
 
 export const getSourcePath = (req, res, next) => {
     statPromisesArray.paused = true;
-
     const path = require('path')
     let 源文件地址 = ''
     if (req.query.localPath) {

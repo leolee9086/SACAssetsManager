@@ -60,7 +60,7 @@ const size = toRef(props, 'size')
 watch(
     [size],
     () => {
-        console.log('size', size.value)
+        
         列数和边距监听器()
     }
 )
@@ -197,7 +197,7 @@ const 列数和边距监听器 = async () => {
         return
     }
     计算列数和边距(scrollContainer.value.clientWidth)
-    columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
+    columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive)) 
     emit('layoutChange', {
         layout: 布局对象.value,
         element: scrollContainer.value
@@ -206,7 +206,6 @@ const 列数和边距监听器 = async () => {
     可见卡片组.value = []
     nextTick(
         () => 更新可见区域(true)
-
     )
 }
 watch(
@@ -222,7 +221,6 @@ const emitLayoutChange = () => {
         element: scrollContainer.value
     })
     emit("layoutLoadedCount", 布局对象.value.layout.length)
-
 }
 watch(
     [布局对象, columnCount, size], () => {
@@ -351,19 +349,8 @@ onMounted(async () => {
         )
     } else if (appData.value.tab.data.color) {
         附件数据组 = []
-
         let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
         await applyURIStreamJson(uri, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
-
-        /*附件数据组 = await (await fetch(uri)).json()
-        附件数据组.map(
-            (item, index) => {
-                return ref({
-                    ...item,
-                    index
-                })
-            }
-        )*/
         nextTick(
             () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
@@ -403,7 +390,7 @@ const 计算列数和边距 = (width) => {
     columnCount.value = Math.max(Math.floor(width / size.value) - 1, 1)
     paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
     if (size.value < 200) {
-        paddingLR.value = 0
+        paddingLR.value = 10
         //如果宽度小于200，则只显示一列,因为此时是表格视图
         columnCount.value = 1
     }
