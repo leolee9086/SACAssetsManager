@@ -10,6 +10,10 @@ const 根据尺寸计算圆角 = (size, cardData) => {
         return 0
     }
 }
+
+const genMaxWidth = (size) => {
+    return size > 200 ? px(size) : per(100)
+}
 export const 计算素材缩略图样式 = (size, imageHeight, cardData) => {
     let style = {}
     if (size > 200) {
@@ -37,19 +41,16 @@ export const 计算素材详情容器样式 = (size) => {
     return style
 }
 export const 计算素材颜色按钮样式 = (color) => {
-    let style = {}
-    style.backgroundColor = `rgb(${color[0]},${color[1]},${color[2]})`
-    style.height = em(0.8)
-    style.width = em(0.8)
-    style.display = display.inlineBlock
-    style.margin = '0 2px'
-    return style
+    return chainable({})
+        .backgroundColor(`rgb(${color[0]},${color[1]},${color[2]})`)
+        .height(em(0.8))
+        .width(em(0.8))
+        .display(display.inlineBlock)
+        .margin('0 2px')
+        .$raw;
 }
 
 
-const genMaxWidth = (size) => {
-    return size > 200 ? px(size) : per(100)
-}
 export const 计算文件格式标签样式 = (size, cardData) => {
     if (!cardData) return {};
     return chainable({})

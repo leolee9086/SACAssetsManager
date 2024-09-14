@@ -1,80 +1,137 @@
 /**
- * 提供设置边框半径的工具对象
- * @namespace
+ * 创建一个BorderRadius实例的工厂函数
+ * @param {...number} args - 边框圆角值。可以是1到4个数字。
+ * @returns {BorderRadius} 返回一个新的BorderRadius实例
  */
-export const borderRadius = {
+const borderRadius = (() => {
+  /**
+   * 表示CSS边框圆角的类
+   * @class
+   */
+  class BorderRadius {
     /**
-     * 创建一个用于设置所有角边框半径的链式调用对象
-     * @param {...string} args - 边框半径的值，可以是任意数量的参数
-     * @returns {Function & {apply2Obj: Function, apply2Element: Function}} 返回一个函数和包含方法的对象
+     * 创建一个新的BorderRadius实例
      */
-    all: (...args) => createChain('borderRadius', args),
+    constructor() {
+      /**
+       * 存储四个角的圆角值
+       * @type {number[]}
+       * @private
+       */
+      this.values = [0, 0, 0, 0];
+    }
 
     /**
-     * 创建一个用于设置左上和左下角边框半径的链式调用对象
-     * @param {...string} args - 边框半径的值，可以是任意数量的参数
-     * @returns {Function & {apply2Obj: Function, apply2Element: Function}} 返回一个函数和包含方法的对象
+     * 设置指定索引的圆角值
+     * @param {number} index - 要设置的角的索引（0-3）
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
+     * @private
      */
-    left: (...args) => createChain(['borderTopLeftRadius', 'borderBottomLeftRadius'], args),
+    _setValue(index, value) {
+      this.values[index] = value;
+      return this;
+    }
 
     /**
-     * 创建一个用于设置右上和右下角边框半径的链式调用对象
-     * @param {...string} args - 边框半径的值，可以是任意数量的参数
-     * @returns {Function & {apply2Obj: Function, apply2Element: Function}} 返回一个函数和包含方法的对象
+     * 设置左侧（左上和左下）的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
      */
-    right: (...args) => createChain(['borderTopRightRadius', 'borderBottomRightRadius'], args),
+    left(value) {
+      return this._setValue(0, value)._setValue(3, value);
+    }
 
     /**
-     * 创建一个用于设置左上和右上角边框半径的链式调用对象
-     * @param {...string} args - 边框半径的值，可以是任意数量的参数
-     * @returns {Function & {apply2Obj: Function, apply2Element: Function}} 返回一个函数和包含方法的对象
+     * 设置右侧（右上和右下）的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
      */
-    top: (...args) => createChain(['borderTopLeftRadius', 'borderTopRightRadius'], args),
+    right(value) {
+      return this._setValue(1, value)._setValue(2, value);
+    }
 
     /**
-     * 创建一个用于设置左下和右下角边框半径的链式调用对象
-     * @param {...string} args - 边框半径的值，可以是任意数量的参数
-     * @returns {Function & {apply2Obj: Function, apply2Element: Function}} 返回一个函数和包含方法的对象
+     * 设置顶部（左上和右上）的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
      */
-    bottom: (...args) => createChain(['borderBottomLeftRadius', 'borderBottomRightRadius'], args)
-};
+    top(value) {
+      return this._setValue(0, value)._setValue(1, value);
+    }
 
-/**
- * 创建一个链式调用对象
- * @param {string|string[]} properties - 要设置的 CSS 属性名称
- * @param {string[]} args - 边框半径的值
- * @returns {Function & {apply2Obj: Function, apply2Element: Function}} 返回一个函数和包含方法的对象
- */
-function createChain(properties, args) {
-    const chain = {
-        /**
-         * 将边框半径应用到样式对象
-         * @param {Object} style - 要应用样式的对象
-         * @returns {Object} 返回链式调用对象
-         */
-        apply2Obj: (style) => {
-            const value = args.join(' ');
-            if (Array.isArray(properties)) {
-                properties.forEach(prop => style[prop] = value);
-            } else {
-                style[properties] = value;
-            }
-            return chain;
-        },
-        /**
-         * 将边框半径直接应用到 DOM 元素
-         * @param {HTMLElement} element - 要应用样式的 DOM 元素
-         * @returns {Object} 返回链式调用对象
-         */
-        apply2Element: (element) => {
-            const value = args.join(' ');
-            if (Array.isArray(properties)) {
-                properties.forEach(prop => element.style[prop] = value);
-            } else {
-                element.style[properties] = value;
-            }
-            return chain;
-        }
-    };
-    return Object.assign((...newArgs) => createChain(properties, [...args, ...newArgs]), chain);
-}
+    /**
+     * 设置底部（右下和左下）的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
+     */
+    bottom(value) {
+      return this._setValue(2, value)._setValue(3, value);
+    }
+
+    /**
+     * 设置左上角的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
+     */
+    leftTop(value) {
+      return this._setValue(0, value);
+    }
+
+    /**
+     * 设置右上角的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
+     */
+    rightTop(value) {
+      return this._setValue(1, value);
+    }
+
+    /**
+     * 设置右下角的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
+     */
+    rightBottom(value) {
+      return this._setValue(2, value);
+    }
+
+    /**
+     * 设置左下角的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
+     */
+    leftBottom(value) {
+      return this._setValue(3, value);
+    }
+
+    /**
+     * 设置所有角的圆角值
+     * @param {number} value - 圆角值
+     * @returns {BorderRadius} 返回this以支持链式调用
+     */
+    all(value) {
+      this.values = [value, value, value, value];
+      return this;
+    }
+
+    /**
+     * 将圆角值转换为CSS可用的字符串
+     * @returns {string} 以空格分隔的圆角值字符串
+     */
+    toString() {
+      return this.values.join(' ');
+    }
+  }
+
+  return (...args) => {
+    const br = new BorderRadius();
+    if (args.length > 0) {
+      br.all(args[0]);
+      if (args.length > 1) {
+        br.values = args.slice(0, 4);
+      }
+    }
+    return br;
+  };
+})();

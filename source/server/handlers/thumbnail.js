@@ -1,5 +1,4 @@
 import { listLoaders as listThumbnailLoaders } from '../processors/thumbnail/loader.js '
-import { statPromisesArray } from '../processors/fs/disk/tree.js'
 import { globalTaskQueue } from '../middlewares/runtime_queue.js'
 const express = require('express')
 const router = express.Router()
@@ -9,27 +8,22 @@ import {
     生成缩略图响应,
     生成默认缩略图路径
 } from '../middlewares/defaultIcon.js'
-router.get('/', async(req, res, next) => {
-        // 暂停所有文件状态获取
-        statPromisesArray.paused = true
-        // 前端保留15秒的缓存
-        console.log(req, res)
-    //    res.setHeader('Cache-Control', 'public, max-age=15')
-        try {
-            await next()
-        } catch (e) {
-            console.error(e)
-        }
-        return
-
-    },
+router.get('/', async (req, res, next) => {
+    globalTaskQueue.paused = true
+    console.log(req, res)
+    try {
+        await next()
+    } catch (e) {
+        console.error(e)
+    }
+    return
+},
     getSourcePath,
     生成缩略图响应,
     默认图片响应
 );
 const multer = require('multer')
 const upload = multer({ dest: require('path').join(window.siyuanConfig.system.workspaceDir, 'temp', 'sac', 'upload') });
-
 router.post('/upload', upload.single('image'), async (req, res, next) => {
     console.log(req)
     try {
