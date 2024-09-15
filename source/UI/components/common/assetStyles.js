@@ -2,9 +2,9 @@ import { px, per, em } from "../../../utils/css/unitedStrings.js"
 import { display, textOverflow, overflow, position, whiteSpace } from "../../../utils/css/inherentValues.js"
 import { cssVarProxy } from "../../../utils/css/cssVarGenerator.js"
 import { chainable } from "../../../utils/object/chainable.js"
-
+import { 表格视图阈值 } from "../../utils/threhold.js"
 const 根据尺寸计算圆角 = (size, cardData) => {
-    if (size > 200) {
+    if (size > 表格视图阈值) {
         return cardData.width / 24
     } else {
         return 0
@@ -12,11 +12,11 @@ const 根据尺寸计算圆角 = (size, cardData) => {
 }
 
 const genMaxWidth = (size) => {
-    return size > 200 ? px(size) : per(100)
+    return size > 表格视图阈值 ? px(size) : per(100)
 }
 export const 计算素材缩略图样式 = (size, imageHeight, cardData) => {
     let style = {}
-    if (size > 200) {
+    if (size > 表格视图阈值) {
         style.width = per(100)
     } else {
         style.width = px(size)
@@ -24,19 +24,19 @@ export const 计算素材缩略图样式 = (size, imageHeight, cardData) => {
     style.border = 'none'
     let borderRadius = px(根据尺寸计算圆角(size, cardData))
     style.borderRadius = `${borderRadius} ${borderRadius} 0 0`
-    style.height = size > 200 ? imageHeight || px(size) : px(size)
+    style.height = size > 表格视图阈值 ? imageHeight || px(size) : px(size)
     return style
 }
 export const 计算素材详情容器样式 = (size) => {
     let style = {}
-    style.position = size > 200 ? position.absolute : position.relative
+    style.position = size > 表格视图阈值 ? position.absolute : position.relative
     style.bottom = 0
     style.whiteSpace = whiteSpace.nowrap
     style.overflow = overflow.hidden
     style.width = per(100)
     style.textOverflow = textOverflow.ellipsis
-    style.height = size > 200 ? px(36) : px(size)
-    style.display = size < 200 ? display.flex : display.block
+    style.height = size > 表格视图阈值 ? px(36) : px(size)
+    style.display = size < 表格视图阈值 ? display.flex : display.block
     style.backgroundColor = cssVarProxy.b3.theme.background()
     return style
 }
@@ -54,7 +54,7 @@ export const 计算素材颜色按钮样式 = (color) => {
 export const 计算文件格式标签样式 = (size, cardData) => {
     if (!cardData) return {};
     return chainable({})
-        .position(size > 200 ? position.absolute : position.relative)
+        .position(size > 表格视图阈值 ? position.absolute : position.relative)
         .top(px(cardData.width / 24))
         .left(px(cardData.width / 24))
         .maxWidth(genMaxWidth(size))
@@ -70,12 +70,13 @@ export const 计算文件格式标签样式 = (size, cardData) => {
 
 export const 计算卡片内容主体样式 = (cardData, size, firstColorString, cardHeight) => {
     if (!cardData) return {};
+    
     return chainable({})
-        .width(per(100))
+        .width(per(表格视图阈值))
         .border('none')
         .borderRadius(px(cardData.width / 24))
-        .height(size < 200 ? px(size) : px(cardHeight))
+        .height(size < 表格视图阈值 ? px(size) : px(cardHeight))
         .backgroundColor(firstColorString)
-        .display(size < 200 ? display.flex : display.inlineBlock)
+        .display(size < 表格视图阈值 ? display.flex : display.inlineBlock)
         .$raw;
 }

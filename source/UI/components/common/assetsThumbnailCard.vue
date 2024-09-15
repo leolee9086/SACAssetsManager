@@ -4,12 +4,12 @@
     class="thumbnail-card-content" :style="`width:100%;
     border:none;
     border-radius: ${cardData.width / 24}px;
-    height:${size < 200 ? size : cardHeight}px;
+    height:${size < 表格视图阈值 ? size : cardHeight}px;
     background-color:${firstColorString};
-    display:${size < 200 ? 'flex' : 'inline-block'};
+    display:${size < 表格视图阈值 ? 'flex' : 'inline-block'};
     `">
-        <div v-if="size > 200" :style="`
-    position:${size > 200 ? 'absolute' : 'relative'};
+        <div v-if="size > 表格视图阈值" :style="`
+    position:${size > 表格视图阈值 ? 'absolute' : 'relative'};
     top: ${cardData.width / 24}px;
     left: ${cardData.width / 24}px;
     max-width: ${genMaxWidth()};
@@ -17,7 +17,7 @@
     border-radius: 5px;
         background-color:var(--b3-theme-background);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;`">
-            {{ size > 200 ? cardData.data.path.split('.').pop() : '' }}
+            {{ size > 表格视图阈值 ? cardData.data.path.split('.').pop() : '' }}
 
         </div>
         <div v-show="showIframe" ref="protyleContainer">
@@ -37,8 +37,8 @@
             :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
         <div :style="$计算素材详情容器样式">
-            {{ size > 200 ? cleanAssetPath(cardData.data.path) : '' }}
-            <div v-if="size < 200" :style="`background-color:var(--b3-theme-background);
+            {{ size > 表格视图阈值 ? cleanAssetPath(cardData.data.path) : '' }}
+            <div v-if="size < 表格视图阈值" :style="`background-color:var(--b3-theme-background);
                 color:${similarColor ? rgb数组转字符串(similarColor) : ''};
                 height:${size}px;
                 display:flex;
@@ -77,6 +77,7 @@ import { clientApi } from '../../../asyncModules.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
+import { 表格视图阈值 } from '../../utils/threhold.js';
 import { 文件系统内部属性表,解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import colorPalletButton from './pallets/colorPalletButton.vue';
 const props = defineProps(['cardData', 'size', 'filterColor'])
@@ -101,7 +102,7 @@ function getProps(data) {
     return Object.keys(data).filter(key => key !== 'id'  && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
 }
 const genMaxWidth = () => {
-    if (size.value < 200) {
+    if (size.value < 表格视图阈值) {
         return `100%`
     } else {
         return `${size.value}px`
@@ -119,7 +120,7 @@ let fn = () => {
             showImage.value = false
             const resizeObserver = new ResizeObserver((entries) => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
-                if (size.value < 200) {
+                if (size.value < 表格视图阈值) {
                     cardHeight.value = protyle.protyle.contentElement.scrollHeight
 
                 }
@@ -177,7 +178,7 @@ function 更新图片尺寸(e, cardData) {
     };
     const 缩放因子 = dimensions.width / size.value
     const 新高度 = dimensions.height / 缩放因子
-    if (size.value < 200) {
+    if (size.value < 表格视图阈值) {
         cardHeight.value = size.value
     } else {
         cardHeight.value = 新高度 + 36

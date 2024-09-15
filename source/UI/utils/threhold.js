@@ -1,0 +1,1 @@
+export const 表格视图阈值 = 150

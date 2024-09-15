@@ -46,7 +46,6 @@ router.post('/upload', upload.single('image'), async (req, res, next) => {
 
 })
 export const genThumbnailRouter = router
-
 export function listLoaders(req, res) {
     res.json(listThumbnailLoaders())
 }

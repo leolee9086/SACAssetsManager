@@ -20,6 +20,7 @@
 <script setup>
 import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../data/siyuanAssets.js"
 import { applyURIStreamJson } from "../../data/fetchStream.js";
+import { 表格视图阈值 } from "../utils/threhold.js";
 import {
     computed,
     ref,
@@ -32,13 +33,13 @@ import { plugin } from 'runtime'
  * 计算样式的部分
  */
 const 计算卡片样式 = (卡片数据) => {
-    paddingLR.value = size.value > 200 ? paddingLR.value : 0
+    paddingLR.value = size.value > 表格视图阈值 ? paddingLR.value : 0
     return `
         transform: none;
         top: ${卡片数据.y}px;
         left: ${卡片数据.x + paddingLR.value}px;
         height: ${卡片数据.height}px;
-        width: ${size.value > 200 ? 卡片数据.width + 'px' : `100%`};
+        width: ${size.value > 表格视图阈值 ? 卡片数据.width + 'px' : `100%`};
         position: absolute;
     `
 }
@@ -48,8 +49,8 @@ const 计算容器样式 = computed(() => ({ size, paddingLR, containerHeight })
     return `
         min-height: ${containerHeight}px;
         height: ${containerHeight}px;
-        padding-left: ${size.value < 200 ? 0 : paddingLR.value}px;
-        padding-right: ${size.value < 200 ? 0 : paddingLR.value}px
+        padding-left: ${size.value < 表格视图阈值 ? 0 : paddingLR.value}px;
+        padding-right: ${size.value < 表格视图阈值 ? 0 : paddingLR.value}px
     `
 })
 
@@ -60,7 +61,7 @@ const size = toRef(props, 'size')
 watch(
     [size],
     () => {
-        
+        console.log('size', size.value)
         列数和边距监听器()
     }
 )
@@ -197,7 +198,8 @@ const 列数和边距监听器 = async () => {
         return
     }
     计算列数和边距(scrollContainer.value.clientWidth)
-    columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive)) 
+    columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
+     
     emit('layoutChange', {
         layout: 布局对象.value,
         element: scrollContainer.value
@@ -206,6 +208,7 @@ const 列数和边距监听器 = async () => {
     可见卡片组.value = []
     nextTick(
         () => 更新可见区域(true)
+
     )
 }
 watch(
@@ -349,8 +352,19 @@ onMounted(async () => {
         )
     } else if (appData.value.tab.data.color) {
         附件数据组 = []
+
         let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
         await applyURIStreamJson(uri, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
+
+        /*附件数据组 = await (await fetch(uri)).json()
+        附件数据组.map(
+            (item, index) => {
+                return ref({
+                    ...item,
+                    index
+                })
+            }
+        )*/
         nextTick(
             () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
@@ -389,9 +403,9 @@ onMounted(async () => {
 const 计算列数和边距 = (width) => {
     columnCount.value = Math.max(Math.floor(width / size.value) - 1, 1)
     paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-    if (size.value < 200) {
+    if (size.value < 表格视图阈值) {
         paddingLR.value = 10
-        //如果宽度小于200，则只显示一列,因为此时是表格视图
+        //如果宽度小于表格视图阈值，则只显示一列,因为此时是表格视图
         columnCount.value = 1
     }
 
