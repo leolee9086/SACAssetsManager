@@ -9,9 +9,10 @@
 
 
 .asset-selected {
-    box-shadow: 0 10px 16px var(--b3-theme-primary) ;
+     /*box-shadow: 0 10px 16px var(--b3-theme-primary) ;*/
     transform: scale(1.05);
-    background-color: var(--b3-theme-secondary) !important;
+    outline:2px solid var(--b3-theme-secondary);
+    outline: offset 2px; ;
 }
 .cc_ui-container{
     max-height: 100%;

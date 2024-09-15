@@ -72,7 +72,7 @@
 </template>
 <script setup>
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
-import assetsGridRbush from './assetsGridRbush.vue';
+import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 const appData = toRef(inject('appData'))

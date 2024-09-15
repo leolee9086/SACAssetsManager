@@ -18,16 +18,16 @@
     </div>
 </template>
 <script setup>
-import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../data/siyuanAssets.js"
-import { applyURIStreamJson } from "../../data/fetchStream.js";
-import { 表格视图阈值 } from "../utils/threhold.js";
+import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../../data/siyuanAssets.js"
+import { applyURIStreamJson } from "../../../data/fetchStream.js";
+import { 表格视图阈值 } from "../../utils/threhold.js";
 import {
     computed,
     ref,
     onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted
 } from 'vue'
-import { 创建瀑布流布局 } from "../utils/layoutComputer/masonry/layout.js";
-import assetsThumbnailCard from "./common/assetsThumbnailCard.vue";
+import { 创建瀑布流布局 } from "../../utils/layoutComputer/masonry/layout.js";
+import assetsThumbnailCard from "../common/assetsThumbnailCard.vue";
 import { plugin } from 'runtime'
 /**
  * 计算样式的部分
@@ -78,7 +78,7 @@ const palletAdded = (data) => {
  * 
  * 处理聚焦和切换等逻辑
  */
-import { handlerKeyDownWithLayout, setFocus } from "../utils/selection.js";
+import { handlerKeyDownWithLayout, setFocus } from "../../utils/selection.js";
 
 const handleClick = (e) => {
     setFocus(e.currentTarget)
@@ -174,7 +174,7 @@ const 更新可见区域 = (flag) => {
 
 let 附件数据组
 
-import { 以函数创建尺寸监听 } from "../utils/observers/resize.js"
+import { 以函数创建尺寸监听 } from "../../utils/observers/resize.js"
 let lastWidth= 0
 const 监听尺寸函数 = 以函数创建尺寸监听((stat) => {
     if(stat.width===lastWidth){
@@ -230,7 +230,7 @@ watch(
 
 
 
-import { 定长执行 } from "../../utils/functions/Iteration.js"
+import { 定长执行 } from "../../../utils/functions/Iteration.js"
 const 定长加载 = (阈值) => {
     let 生成函数 = async () => {
         return 附件数据组.shift && 附件数据组.shift()
@@ -345,19 +345,8 @@ onMounted(async () => {
         )
     } else if (appData.value.tab.data.color) {
         附件数据组 = []
-
         let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
         await applyURIStreamJson(uri, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
-
-        /*附件数据组 = await (await fetch(uri)).json()
-        附件数据组.map(
-            (item, index) => {
-                return ref({
-                    ...item,
-                    index
-                })
-            }
-        )*/
         nextTick(
             () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
@@ -366,7 +355,6 @@ onMounted(async () => {
                 emitLayoutChange()
             }
         )
-
     }
     else {
         附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
@@ -416,6 +404,5 @@ const 计算列数和边距 = (width) => {
     border-color: var(--b3-theme-primary) !important;
     border-width: 1px;
     border-style: solid;
-
 }
 </style>

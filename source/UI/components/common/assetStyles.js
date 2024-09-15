@@ -28,7 +28,8 @@ export const 计算素材缩略图样式 = (size, imageHeight, cardData) => {
     style.height = size > 表格视图阈值 ? imageHeight || px(size) : px(size)
     return style
 }
-export const 计算素材详情容器样式 = (size,selected) => {
+export const 计算素材详情容器样式 = (size,cardData) => {
+    console.log(size,cardData)
     let style = {}
     style.position = size > 表格视图阈值 ? position.absolute : position.relative
     style.bottom = 0
@@ -39,7 +40,7 @@ export const 计算素材详情容器样式 = (size,selected) => {
     style.height = size > 表格视图阈值 ? px(36) : px(size)
     style.display = size < 表格视图阈值 ? display.flex : display.block
     style.flex=1
-    style.backgroundColor =selected? cssVarProxy.b3.theme.background():cssVarProxy.b3.theme.secondary()
+    style.backgroundColor =!cardData.selected? cssVarProxy.b3.theme.background():cssVarProxy.b3.theme.secondary()
     return style
 }
 export const 计算素材颜色按钮样式 = (color) => {
