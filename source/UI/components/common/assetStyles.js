@@ -21,23 +21,25 @@ export const 计算素材缩略图样式 = (size, imageHeight, cardData) => {
     } else {
         style.width = px(size)
     }
+    style.minWidth=style.width
     style.border = 'none'
     let borderRadius = px(根据尺寸计算圆角(size, cardData))
     style.borderRadius = `${borderRadius} ${borderRadius} 0 0`
     style.height = size > 表格视图阈值 ? imageHeight || px(size) : px(size)
     return style
 }
-export const 计算素材详情容器样式 = (size) => {
+export const 计算素材详情容器样式 = (size,selected) => {
     let style = {}
     style.position = size > 表格视图阈值 ? position.absolute : position.relative
     style.bottom = 0
     style.whiteSpace = whiteSpace.nowrap
     style.overflow = overflow.hidden
-    style.width = per(100)
+    style.width = size > 表格视图阈值?per(100):''
     style.textOverflow = textOverflow.ellipsis
     style.height = size > 表格视图阈值 ? px(36) : px(size)
     style.display = size < 表格视图阈值 ? display.flex : display.block
-    style.backgroundColor = cssVarProxy.b3.theme.background()
+    style.flex=1
+    style.backgroundColor =selected? cssVarProxy.b3.theme.background():cssVarProxy.b3.theme.secondary()
     return style
 }
 export const 计算素材颜色按钮样式 = (color) => {

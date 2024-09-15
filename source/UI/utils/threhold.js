@@ -1,1 +1,1 @@
-export const 表格视图阈值 = 150
+export const 表格视图阈值 = 100

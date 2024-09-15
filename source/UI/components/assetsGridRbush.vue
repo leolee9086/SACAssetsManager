@@ -2,13 +2,13 @@
     <div class="fn__flex-column fn__flex-1" style="max-height:100%;height: 100%;" ref="root">
         <div class="fn__flex-1 fn__flex gallery_container" ref="scrollContainer" @scroll="更新可见区域"
             style="position: relative;">
-            <div class="fn__flex-column fn__flex-1" :style="计算容器样式">
+            <div class="fn__flex-column fn__flex-1" :style="`height:${containerHeight}px`">
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
                     <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
                         :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
-                        v-if="卡片数据 && 卡片数据.data && showCard" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
+                        v-if="卡片数据 && 卡片数据.data " :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
-                        <assetsThumbnailCard :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
+                        <assetsThumbnailCard :selected="卡片数据.selected" :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
                             :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
                         </assetsThumbnailCard>
                     </div>
@@ -33,7 +33,7 @@ import { plugin } from 'runtime'
  * 计算样式的部分
  */
 const 计算卡片样式 = (卡片数据) => {
-    paddingLR.value = size.value > 表格视图阈值 ? paddingLR.value : 0
+ //   paddingLR.value = size.value > 表格视图阈值 ? paddingLR.value : 0
     return `
         transform: none;
         top: ${卡片数据.y}px;
@@ -44,28 +44,18 @@ const 计算卡片样式 = (卡片数据) => {
     `
 }
 
-const 计算容器样式 = computed(() => ({ size, paddingLR, containerHeight }), () => {
-    console.log(size.value, paddingLR.value, containerHeight.value)
-    return `
-        min-height: ${containerHeight}px;
-        height: ${containerHeight}px;
-        padding-left: ${size.value < 表格视图阈值 ? 0 : paddingLR.value}px;
-        padding-right: ${size.value < 表格视图阈值 ? 0 : paddingLR.value}px
-    `
-})
 
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor','filListProvided'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'filListProvided'])
 const size = toRef(props, 'size')
 watch(
-    [size],
+    ()=>size.value,
     () => {
-        console.log('size', size.value)
         列数和边距监听器()
     }
 )
-const filListProvided= toRef(props, 'filListProvided')
+const filListProvided = toRef(props, 'filListProvided')
 
 const sorter = toRef(props, 'sorter')
 const globSetting = toRef(props, 'globSetting')
@@ -77,7 +67,8 @@ let 布局对象 = shallowRef(null)
 const columnCount = ref(1)
 const paddingLR = ref(100)
 const containerHeight = ref(102400)
-const showCard = ref(true)
+
+
 const emit = defineEmits()
 
 const palletAdded = (data) => {
@@ -136,7 +127,7 @@ const 更新可见区域 = (flag) => {
     布局对象.value.timeStep += 5
 
     try {
-        containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y))
+        containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y),(附件数据组.length+布局对象.value.layout.length)*size.value/columnCount.value)
     } catch (e) {
         console.warn(e)
     }
@@ -184,8 +175,13 @@ const 更新可见区域 = (flag) => {
 let 附件数据组
 
 import { 以函数创建尺寸监听 } from "../utils/observers/resize.js"
+let lastWidth= 0
 const 监听尺寸函数 = 以函数创建尺寸监听((stat) => {
+    if(stat.width===lastWidth){
+        return
+    }
     列数和边距监听器(stat.width)
+    lastWidth=stat.width
 }, true)
 const 列数和边距监听器 = async () => {
     if (!scrollContainer.value) {
@@ -199,12 +195,8 @@ const 列数和边距监听器 = async () => {
     }
     计算列数和边距(scrollContainer.value.clientWidth)
     columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
-     
-    emit('layoutChange', {
-        layout: 布局对象.value,
-        element: scrollContainer.value
-    })
-    paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+    emitLayoutChange()
+  //  paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
     可见卡片组.value = []
     nextTick(
         () => 更新可见区域(true)
@@ -228,7 +220,10 @@ const emitLayoutChange = () => {
 watch(
     [布局对象, columnCount, size], () => {
         if (布局对象.value) {
-            emitLayoutChange()
+            if (size.value >= 表格视图阈值) {
+
+                emitLayoutChange()
+            }
         }
     }
 )
@@ -279,7 +274,6 @@ async function sortLocalStream(total) {
     mounted.value = true
 
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 100) {
-        console.log('sort')
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
         更新可见区域(true)
@@ -307,9 +301,8 @@ onUnmounted(
 onMounted(async () => {
     appData.value.tab.controllers = appData.value.tab.controllers || []
     appData.value.tab.controllers.push(controller)
-    if(filListProvided.value){
-        附件数据组=filListProvided.value
-        console.log(filListProvided)
+    if (filListProvided.value) {
+        附件数据组 = filListProvided.value
         nextTick(
             () => {
                 布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
@@ -403,13 +396,20 @@ onMounted(async () => {
 const 计算列数和边距 = (width) => {
     columnCount.value = Math.max(Math.floor(width / size.value) - 1, 1)
     paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-    if (size.value < 表格视图阈值) {
-        paddingLR.value = 10
-        //如果宽度小于表格视图阈值，则只显示一列,因为此时是表格视图
-        columnCount.value = 1
+    if(paddingLR.value<0){
+        columnCount.value=columnCount.value-1
+        paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+        emit('paddingChange',paddingLR.value)
     }
 
-}
+    if (size.value < 表格视图阈值) {
+        paddingLR.value =10
+        //如果宽度小于表格视图阈值，则只显示一列,因为此时是表格视图
+        columnCount.value = 1
+
+    }
+
+}   
 </script>
 <style scoped>
 .thumbnail-card:focus {

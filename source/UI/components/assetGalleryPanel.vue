@@ -9,7 +9,7 @@
                 <input v-model="everthingPort" style="box-sizing: border-box;width:100px;" :value="100" type="number">
                 <div class="fn__space fn__flex-1"></div>
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
-                    class="b3-slider fn__block" max="1024" min="64" step="16" type="range">
+                    class="b3-slider fn__block" max="1024" min="32" step="16" type="range">
                 <div class="fn__space fn__flex-1"></div>
                 <input v-if="!everthingEnabled" v-model="maxCount" style="box-sizing: border-box;width:100px;"
                     :value="1000" type="number">
@@ -58,6 +58,7 @@
                 v-if="showPanel && globSetting" :maxCount="maxCount" @layoutCountTotal="(e) => { layoutCountTotal = e }"
                 @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
                 :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
+                @paddingChange="(e)=>paddingLR=e"
                 @layoutLoadedCount="(e) => { layoutCount.loaded = e }" :size="parseInt(size)">
             </assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
@@ -82,6 +83,8 @@ const maxCount = ref(1000)
 const layoutCountTotal = ref(0)
 const search = ref('');
 const rawSearch = ref('');
+const paddingLR = ref(100)
+
 let searchTimer = null;
 
 watch(rawSearch, (data) => {
@@ -137,7 +140,6 @@ const $realGlob = computed(() => {
             ],
         }*/
     }
-    console.log(realGlob)
     return realGlob
 })
 
@@ -158,6 +160,7 @@ watch([everthingPort, $realGlob], async (e) => {
 })
 watch(
     () => $realGlob.value, () => {
+        console.log($realGlob.value)
         refreshPanel()
     }
 )
@@ -177,11 +180,10 @@ const refreshPanel = () => {
     layoutCount.loaded = 0
     layoutCountTotal.value = 0
     nextTick(() => {
-        showPanel.value = true
+       showPanel.value = true
     })
 }
 const handlerLayoutChange = (data) => {
-    console.log('layoutChange', data)
     currentLayout.value = data.layout || {}
     currentLayoutContainer = data.element
 }
@@ -196,8 +198,8 @@ function scaleListener(event) {
     if (event.ctrlKey) {
         let value = parseInt(size.value)
         value -= event.deltaY / 10
-        if (value < 100) {
-            value = 100
+        if (value < 32) {
+            value = 32
         }
         if (value > 1024) {
             value = 1024
@@ -276,13 +278,13 @@ plugin.eventBus.on(globalKeyboardEvents.globalKeyDown, (e) => {
 })
 import { getSelectionStatus } from '../utils/selection.js'
 const getSelectedItems = (event) => {
-    return getSelectionStatus(event, root, currentLayout.value, currentLayoutOffsetTop, selectionBox.value, currentLayoutContainer)
+    return getSelectionStatus(event, root, currentLayout.value, currentLayoutOffsetTop, selectionBox.value, currentLayoutContainer,paddingLR.value)
 };
 /**
  * 拖放相关逻辑
  */
 import { reactive } from '../../../static/vue.esm-browser.js';
-import { onDragOver, onDragStartWithLayout, handlerDropWithTab } from '../utils/drag.js'
+import { onDragStartWithLayout, handlerDropWithTab } from '../utils/drag.js'
 import CommonBreadCrumb from './common/breadCrumb/commonBreadCrumb.vue';
 import { globalKeyboardEvents } from '../../events/eventNames.js';
 const onDragStart = async (event) => {

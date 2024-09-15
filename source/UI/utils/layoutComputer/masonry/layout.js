@@ -237,7 +237,8 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             updatedFromLastSearch = false
         }
 
-        return tree.search(可见框)
+        let result= tree.search(可见框)
+        return result
     }
     return {
         layout: layout,

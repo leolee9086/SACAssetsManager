@@ -1,7 +1,5 @@
 <template>
-    <div 
-    
-    class="thumbnail-card-content" :style="`width:100%;
+    <div class="thumbnail-card-content" :style="`width:100%;
     border:none;
     border-radius: ${cardData.width / 24}px;
     height:${size < 表格视图阈值 ? size : cardHeight}px;
@@ -15,8 +13,10 @@
     max-width: ${genMaxWidth()};
     max-height: 1.5em;
     border-radius: 5px;
-        background-color:var(--b3-theme-background);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;`">
+background-color:var(--b3-theme-background);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;
+        flex:1;
+        `">
             {{ size > 表格视图阈值 ? cardData.data.path.split('.').pop() : '' }}
 
         </div>
@@ -26,42 +26,43 @@
         <div class="alt-text" v-if="!showImage" :style="$计算素材缩略图样式">
 
         </div>
-        <img v-bind="$attrs" 
-        class="thumbnail-card-image ariaLabel"
-        :aria-label="`${cardData.data.path}`"
-        ref="image" 
-        v-if="showImage" 
-        :style="$计算素材缩略图样式" 
-        loading="lazy" 
-        draggable='true'
-            :onload="(e) => 更新图片尺寸(e, cardData)"
+        <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
+            v-if="showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
-        <div :style="$计算素材详情容器样式">
+        <div :style="$计算素材详情容器样式" ref="detailContainer">
             {{ size > 表格视图阈值 ? cleanAssetPath(cardData.data.path) : '' }}
             <div v-if="size < 表格视图阈值" :style="`background-color:var(--b3-theme-background);
                 color:${similarColor ? rgb数组转字符串(similarColor) : ''};
                 height:${size}px;
                 display:flex;
+                flex:1;
+                max-width:100%;
+                width:100%
                 `
                 ">
                 <template v-for="prop in getProps(cardData.data)">
-                    <div v-if="prop&&(文件系统内部属性表[prop]?文件系统内部属性表[prop].show:true)" 
-                    style="border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop && (文件系统内部属性表[prop] ? 文件系统内部属性表[prop].show : true)" :style="`border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
-                    width:150px;
                     overflow:hidden;
+                    width:${100 / (getProps(cardData.data).length+1)}%;
                     text-overflow:ellipsis;
-                    white-space:nowrap;
-                    "
-                    class="ariaLabel"
-                    :aria-label="解析文件属性名标签(prop) +':'+解析文件内部属性显示(prop,cardData.data[prop])"
-                    >
-                        {{ 解析文件内部属性显示(prop,cardData.data[prop])}}
+                    white-space:nowrap;`
+                        " class="ariaLabel" :aria-label="解析文件属性名标签(prop) + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
+                        {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
                     </div>
                 </template>
+                <div :style="`
+                display: grid;
+                width:${100 / (getProps(cardData.data).length+1)}%;
+                max-width:${100 / (getProps(cardData.data).length+1)}%;
+                grid-template-columns: repeat(auto-fill, minmax(16px, 1fr));`">
+                    <template v-for="colorItem in pallet">
+                        <colorPalletButton :colorItem="colorItem"></colorPalletButton>
+                    </template>
+                </div>
             </div>
-            <div>
+            <div v-if="size >= 表格视图阈值">
                 <template v-for="colorItem in pallet">
                     <colorPalletButton :colorItem="colorItem"></colorPalletButton>
                 </template>
@@ -78,12 +79,14 @@ import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../server/processors/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 表格视图阈值 } from '../../utils/threhold.js';
-import { 文件系统内部属性表,解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
+import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import colorPalletButton from './pallets/colorPalletButton.vue';
-const props = defineProps(['cardData', 'size', 'filterColor'])
+const props = defineProps(['cardData', 'size', 'filterColor','selected'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
+const selected = toRef(props, 'selected')
+
 const emit = defineEmits()
 const cardHeight = ref(cardData.width + 0)
 const imageHeight = ref(cardData.width + 0)
@@ -99,7 +102,7 @@ const similarColor = computed(() => {
 })
 
 function getProps(data) {
-    return Object.keys(data).filter(key => key !== 'id'  && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height')
+    return Object.keys(data).filter(key => key !== 'id' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height'&&(文件系统内部属性表[key] ? 文件系统内部属性表[key].show : true))
 }
 const genMaxWidth = () => {
     if (size.value < 表格视图阈值) {
@@ -116,7 +119,7 @@ let fn = () => {
     if (cardData.data.type === 'note' && cardData.width > 300) {
         showIframe.value = true
         nextTick(() => {
-             protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
+            protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
             showImage.value = false
             const resizeObserver = new ResizeObserver((entries) => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
@@ -148,9 +151,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
     cancelIdleCallback(idleCallbackId);
     nextTick(
-        ()=>{
-            console.log(protyle)
-            protyle&&protyle.destroy()
+        () => {
+            protyle && protyle.destroy()
 
         }
     )
@@ -192,7 +194,7 @@ const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
 const $计算素材详情容器样式 = computed(() => 计算素材详情容器样式(
-    size.value, cardHeight.value
+    size.value, cardHeight.value,cardData.selected
 ))
 </script>
 <style scoped></style>

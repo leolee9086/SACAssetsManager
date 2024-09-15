@@ -11,7 +11,7 @@
 .asset-selected {
     box-shadow: 0 10px 16px var(--b3-theme-primary) ;
     transform: scale(1.05);
-
+    background-color: var(--b3-theme-secondary) !important;
 }
 .cc_ui-container{
     max-height: 100%;

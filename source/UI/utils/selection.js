@@ -1,9 +1,8 @@
 import { plugin } from '../../asyncModules.js'
-import {setFocus} from '../../utils/DOM/focus.js'
-export {setFocus}
+import { setFocus } from '../../utils/DOM/focus.js'
+export { setFocus }
 window[Symbol.for('sacAssetsStatus')] = window[Symbol.for('sacAssetsStatus')] || {}
-const 全局选择状态 = window[Symbol.for('sacAssetsStatus')]
-export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffsetTop, selectionBox, currentLayoutContainer) => {
+export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffsetTop, selectionBox, currentLayoutContainer, paddingLR) => {
     const galleryContainer = root.value.querySelector('.gallery_container')
     let result = []
     //处理单选
@@ -17,11 +16,16 @@ export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffs
     if (cardElement.getAttribute('data-id')) {
         result.push(currentLayout.layout.find(item => { return item.data && item.data.id === cardElement.getAttribute('data-id') }))
     }
+    currentLayout.layout.forEach(
+        item=>{
+            item.selected=undefined
+        }
+    )
     //处理多选
     const layoutRect = galleryContainer.getBoundingClientRect()
     const { startX, startY, endX, endY } = selectionBox;
-    const minX = Math.min(startX, endX) - layoutRect.x - currentLayoutContainer.style.paddingLeft;
-    const maxX = Math.max(startX, endX) - layoutRect.x - currentLayoutContainer.style.paddingLeft;
+    const minX = Math.min(startX, endX) - layoutRect.x - paddingLR;
+    const maxX = Math.max(startX, endX) - layoutRect.x - paddingLR;
     const minY = Math.min(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
     const maxY = Math.max(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
     result = result.concat(currentLayout.searchByRect({
@@ -32,11 +36,13 @@ export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffs
     }))
     result[0] && result.forEach(data => {
         if (event && event.shiftKey) {
-            data.selected = undefined
+            data.selected = !data.selected
         } else {
             data.selected = true
         }
     });
+    console.log(result)
+
     return currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
 }
 export const clearSelectionWithLayout = (currentLayout) => {
