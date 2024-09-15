@@ -31,7 +31,7 @@ background-color:var(--b3-theme-background);
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
         <div :style="$计算素材详情容器样式" ref="detailContainer">
             {{ size > 表格视图阈值 ? cleanAssetPath(cardData.data.path) : '' }}
-            <div v-if="size < 表格视图阈值" :style="`background-color:var(--b3-theme-background);
+            <div v-if="size < 表格视图阈值" :style="`
                 color:${similarColor ? rgb数组转字符串(similarColor) : ''};
                 height:${size}px;
                 display:flex;
