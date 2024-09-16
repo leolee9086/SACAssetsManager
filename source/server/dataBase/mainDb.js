@@ -81,7 +81,6 @@ export async function 查找子文件夹(dirPath, search) {
             FROM thumbnails 
             WHERE fullName LIKE ? || '%' 
             AND fullName != ? 
-            AND type = 'file'
         `;
     // 如果有search参数，添加额外的过滤条件
     if (search) {
@@ -115,9 +114,16 @@ export async function 查找文件hash(filePath) {
 }
 export async function 查找文件状态(filePath) {
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(filePath)
-    const stmt = 磁盘缩略图数据库.prepare(`SELECT stat , statHash FROM thumbnails WHERE fullName = ? and type='file'`);
+    const stmt = 磁盘缩略图数据库.prepare(`SELECT * FROM thumbnails WHERE fullName = ? and type='file'`);
     const result = stmt.get(filePath);
     return result;
+}
+export async function 查找文件夹状态(filePath){
+    let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(filePath)
+    const stmt = 磁盘缩略图数据库.prepare(`SELECT * FROM thumbnails WHERE fullName = ? and type='dir'`);
+    const result = stmt.get(filePath);
+    return result;
+
 }
 
 export async function 查找并解析文件状态(filePath) {

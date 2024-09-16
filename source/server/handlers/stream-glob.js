@@ -6,7 +6,7 @@ import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
 import { parseQuery } from '../middlewares/ctx/parseQuery.js'
-import { statPromisesArray } from '../processors/fs/disk/tree.js'
+import { statPromisesArray } from '../../../trashed/tree.js'
 import { statWithCatch } from '../processors/fs/stat.js';
 import { buildCache } from '../processors/cache/cache.js';
 import { reportHeartbeat } from '../utils/heartBeat.js';

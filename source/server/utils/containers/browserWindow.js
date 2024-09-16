@@ -132,7 +132,7 @@ export function createBrowserWindowByURL(url, options = {
                             const targetWebcontent = require('@electron/remote').webContents.fromId(currentWebcontentID)
                             const selfWebcontentID = require('@electron/remote').getCurrentWindow().webContents.id
                             if(targetWebcontent){
-                                targetWebcontent.send('heartbeat', selfWebcontentID)
+                                targetWebcontent.send('heartbeat', {webContentID:selfWebcontentID})
                             }
                         })
                         ipcRenderer.on('forceClose', (e, data) => {

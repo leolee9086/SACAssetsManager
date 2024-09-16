@@ -1,7 +1,7 @@
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { 找到文件颜色, 删除文件颜色记录, 流式根据颜色查找内容 } from '../processors/color/colorIndex.js'
 import { statWithCatch } from '../processors/fs/stat.js';
-import { statPromisesArray } from '../processors/fs/disk/tree.js'
+import { statPromisesArray } from '../../../trashed/tree.js'
 import { stat2assetsItemStringLine } from './utils/responseType.js';
 
 export async function genColor(ctx, next) {
@@ -21,7 +21,8 @@ export async function genColor(ctx, next) {
     try{
     let color = await 找到文件颜色(源文件地址)
     console.log('查找颜色耗时',performance.now()-start)
-    if (color) {
+    if (color&&color[0]) {
+        console.log(color)
         return color
     }
 
@@ -29,6 +30,7 @@ export async function genColor(ctx, next) {
     statPromisesArray.paused = false
     return colors
     }catch(e){
+        console.error(e)
         ctx.res.status(500).send(`为${源文件地址}生成颜色色板\n${e.message}`);
         return
 

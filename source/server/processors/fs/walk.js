@@ -8,6 +8,8 @@ import { globalTaskQueue } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
 import { 查找子文件夹, 删除缩略图缓存行, 计算哈希 } from '../thumbnail/indexer.js'
 import { getCachePath } from './cached/fs.js'
+import { 永久监听文件夹条目 } from './watch.js'
+import { 查找文件夹状态 } from '../../dataBase/mainDb.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -18,17 +20,30 @@ import { getCachePath } from './cached/fs.js'
  * @param {*} maxCount 
  * @returns 
  */
-const 遍历缓存 = buildCache('walk')
+const 索引遍历缓存 = buildCache('walkForStat')
 const timouters = {}
 const batch = []
-function 更新目录索引(root, stats, signal) {
+async function 更新目录索引(root) {
+    let fixedroot = root.replace(/\\/g, '/')
+    let 遍历优先级 = 0-Date.now()
     //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
-    console.log(signal.aborted)
-
+    let oldStat = await 查找文件夹状态(fixedroot)
+    if(!oldStat){
+        遍历优先级= 0-Date.now()-1000
+    }else{
+        let stat = require('fs').statSync(fixedroot)
+        if (new Date(stat.mtime).getTime() <= oldStat.mtime) {  
+            遍历优先级=0-Date.now()+1000
+        }else{
+            遍历优先级=0-Date.now()
+        }
+    }
+    setTimeout(索引遍历缓存.delete(root), 10 * root.length)
+    let count=0
     let api = new fdir()
         .withFullPaths()
         .withDirs()
-        .withCache(遍历缓存)
+        .withCache(索引遍历缓存)
         //   .withAbortSignal(signal)
         .exclude((name, path) => {
             for (let dir of ignoreDir) {
@@ -37,60 +52,42 @@ function 更新目录索引(root, stats, signal) {
                 }
             }
             return false
-        }).filter((path, isDir) => {
+        }).filter(async (path, isDir) => {
+            let fixedPath = path.replace(/\\/g, '/')
             reportHeartbeat()
-            if (signal.aborted) {
-                console.log(signal.aborted)
-                return
-            }
-            if (timouters[path]) {
-                return true
-            }
             try {
-
-                timouters[path] = () => {
-                    if (isDir) {
-                        setTimeout(遍历缓存.delete(path), 1000 * path.length)
-                    }
-                    setTimeout(timouters[path] = undefined, 10 * 60 * path.length)
-                }
-
-                if (isDir) {
-                    return true
-                }
+                timouters[path] = () => globalTaskQueue.push(
+                    globalTaskQueue.priority(
+                        async () => {
+                            索引遍历缓存.delete(path)
+                            timouters[path] = undefined
+                            return { path }
+                        }, 1
+                    )
+                )
                 if (isThumbnail(path) || isMetaData(path)) {
                     return
                 }
                 batch.push(path)
-                if (stats[path]) {
-                    globalTaskQueue.push(
-                        async () => {
-                            {
-                                删除缩略图缓存行(path), await statWithNew(path);
-                            }
-                        }
-                    )
-                    return true
-                }
+                count++
                 globalTaskQueue.push(
                     globalTaskQueue.priority(
                         async () => {
                             reportHeartbeat()
-
                             for (let i = 0; i < Math.max((Math.min(15 / (batch.time || 0.1), 100)), 1); i += 1) {
                                 const _path = batch.pop()
                                 if (_path) {
                                     if (isThumbnail(_path) || isMetaData(_path)) {
                                         continue;
                                     }
-
                                     const start = performance.now()
                                     await statWithNew(_path);
+                                    timouters[_path] && timouters[_path]()
                                     batch.time = performance.now() - start
                                 }
                             }
-                            return path
-                        }, 0 - Date.now()
+                            return {path}
+                        }, 遍历优先级+count
                     )
                 )
             } catch (e) {
@@ -101,18 +98,15 @@ function 更新目录索引(root, stats, signal) {
     api = api.crawl(root)
     api.withPromise().then(
         async (results) => {
-
+            console.log(results)
+            globalTaskQueue.start()
             let fixed = new Set(results.map(item => item.replace(/\\/g, '/')));
             let dbResults = await 查找子文件夹(root);
             dbResults.results.forEach(entry => {
-
                 let parsedEntry = JSON.parse(entry);
                 let path = parsedEntry.path.replace(/\\/g, '/');
-
                 if (!fixed.has(path)) {
-                    console.log('找到多余数据项');
                     删除缩略图缓存行(path);
-
                     async () => {
                         let hash = 计算哈希(entry)
                         let hashedName = `${数据库查询结果.path.pop().replace(/\./g, '_')}_${hash}`
@@ -125,14 +119,12 @@ function 更新目录索引(root, stats, signal) {
                                     console.warn('删除多余缩略图出错')
                                 }
                             )
-
                         }
                     }
                 }
                 return path;
             }
             )
-
         }
     )
 }
@@ -144,6 +136,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     countCallBack(approximateCount)
     console.log(Date.now() - startTime)
     const stats = {}
+    console.log(results)
     results.map(
         item => {
             let stat = JSON.parse(item)
@@ -152,6 +145,9 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         }
     ).forEach(
         async (result) => {
+            if (result.type !== 'file') {
+                return
+            }
             reportHeartbeat()
             let flag = await filter(result)
             if (flag) {

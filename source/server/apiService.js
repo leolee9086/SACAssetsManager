@@ -12,7 +12,7 @@ import { statWithCatch } from './processors/fs/stat.js';
 import * as headers from './middlewares/headers.js';
 import { genColor, getFilesByColor } from './handlers/get-color.js'
 import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
-import { statPromisesArray } from './processors/fs/disk/tree.js';
+import { statPromisesArray } from '../../trashed/tree.js';
 const siyuanBroadcastChannel = await createSiyuanBroadcastChannel('sacAssetsManager', window.siyuanPort)
 siyuanBroadcastChannel.onmessage = (e) => {
     console.log(e)
@@ -101,12 +101,10 @@ app.get('/color', async (req, res) => {
             重新计算文件颜色:是否重新计算
         }
     }
-    const start = performance.now()
     genColor(ctx).then(
         colors => {
             res.json(colors)
             statPromisesArray.paused = false;   
-            console.log(`生成颜色，耗时：${performance.now() - start}ms`)
         }
     )
 })

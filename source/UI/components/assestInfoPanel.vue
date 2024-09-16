@@ -76,7 +76,7 @@ const lastAssetPaths = ref([]);
 
 plugin.eventBus.on('assets-select', async(e) => {
   const assets = Array.from(new Set(e.detail))
-  const assetPaths = assets.map(asset => asset.path);
+  const assetPaths = assets.map(asset => asset.data.path);
   
   // 检查是否与上次的路径列表相同
   if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
@@ -85,11 +85,12 @@ plugin.eventBus.on('assets-select', async(e) => {
   }
   lastAssetPaths.value = assetPaths;
 
-  assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item => item)))
-  getLabel(assets)
-  format.value = 获取文件格式(assets)
-  folder.value = 获取本地文件夹(assets)
-  eagleMetas.value = await 搜集eagle元数据(assets)
+  assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item => item.data)))
+
+  getLabel(assets.map(item => item.data))
+  format.value = 获取文件格式(assets.map(item => item.data))
+  folder.value = 获取本地文件夹(assets.map(item => item.data))
+  eagleMetas.value = await 搜集eagle元数据(assets.map(item => item.data))
   doc.value =(await 获取所在笔记(lastAssetPaths.value)).map(item=>item.root_id).join(',')
 })
 

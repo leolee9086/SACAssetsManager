@@ -273,7 +273,7 @@ async function sortLocalStream(total) {
     布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
     mounted.value = true
 
-    if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 100) {
+    if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 10) {
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
         更新可见区域(true)
@@ -387,7 +387,6 @@ const 计算列数和边距 = (width) => {
     if(paddingLR.value<0){
         columnCount.value=columnCount.value-1
         paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-        emit('paddingChange',paddingLR.value)
     }
 
     if (size.value < 表格视图阈值) {
@@ -396,6 +395,8 @@ const 计算列数和边距 = (width) => {
         columnCount.value = 1
 
     }
+    emit('paddingChange',paddingLR.value)
+
 
 }   
 </script>

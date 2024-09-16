@@ -40,7 +40,7 @@ export const 计算素材详情容器样式 = (size,cardData) => {
     style.height = size > 表格视图阈值 ? px(36) : px(size)
     style.display = size < 表格视图阈值 ? display.flex : display.block
     style.flex=1
-    style.backgroundColor =!cardData.selected? cssVarProxy.b3.theme.background():cssVarProxy.b3.theme.secondary()
+    style.backgroundColor =!cardData.selected? cssVarProxy.b3.theme.background():cssVarProxy.b3.theme.primary()
     return style
 }
 export const 计算素材颜色按钮样式 = (color) => {

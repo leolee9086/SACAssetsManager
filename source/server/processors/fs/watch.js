@@ -1,11 +1,12 @@
+import { 修正路径分隔符号为反斜杠, 修正路径分隔符号为正斜杠 } from '../../../utils/fs/fixPath.js'
 import { buildCache } from '../cache/cache.js'
 const watcher = require('@parcel/watcher')
 const wachedPaths = buildCache('wachedPaths')
 export function 上级目录已监听(path) {
-    return wachedPaths.filterSync(p => path.startsWith(p.path))
+    return wachedPaths.filterSync(p => path.startsWith(p.path)&& p.path!==path)
 }
 export function 找到所有下级目录(path) {
-    return wachedPaths.filterSync(p => p.path.startsWith(path))
+    return wachedPaths.filterSync(p => p.path.startsWith(path)&& p.path!==path)
 }
 export function 取消监听(path) {
     let watcherSubscription = wachedPaths.get(path)
@@ -14,19 +15,15 @@ export function 取消监听(path) {
         wachedPaths.delete(path)
     }
 }
-export function 永久监听文件夹条目(item, callback) {
-    let { path, type } = item
-    console.log('监听文件夹条目', item)
-    if (type !== 'dir') {
-        console.error('监听文件夹条目失败，因为不是目录', item)
-        return
-    }
+export function 永久监听文件夹条目(dirpath, callback) {
+    let path = 修正路径分隔符号为反斜杠(dirpath)
+    console.log('监听文件夹条目', path)
     if (上级目录已监听(path)) {
-        console.log('已经监听上级目录', item.path)
+        console.log('已经监听上级目录', dirpath)
         return
     }
-    if (wachedPaths.get(item.path)) {
-        console.log('已经监听', item.path)
+    if (wachedPaths.get(dirpath)) {
+        console.log('已经监听', dirpath)
         return
     }
     let 下级目录列表 = 找到所有下级目录(path)
@@ -44,7 +41,7 @@ export function 永久监听文件夹条目(item, callback) {
      * 当已经监听上级目录时，不监听下级目录
      */
     try {
-        console.log('监听文件夹条目', path)
+        console.log('尝试监听文件夹条目', path)
         //chokidar不适用,直接使用nodejs的fs.watch
         const subscription = watcher.subscribe(path, (event, path) => {
             callback && callback(event, path);

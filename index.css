@@ -2,7 +2,7 @@
     transition: box-shadow 0.3s ease;
 }
 .thumbnail-card:hover{
-    box-shadow: 0 10px 16px var(--b3-theme-secondary) ;
+    box-shadow: 0 10px 16px var(--b3-theme-primary) ;
     transform: scale(1.05);
 
 }
@@ -11,7 +11,7 @@
 .asset-selected {
      /*box-shadow: 0 10px 16px var(--b3-theme-primary) ;*/
     transform: scale(1.05);
-    outline:2px solid var(--b3-theme-secondary);
+    outline:2px solid var(--b3-theme-primary);
     outline: offset 2px; ;
 }
 .cc_ui-container{

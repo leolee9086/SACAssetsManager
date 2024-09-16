@@ -55,8 +55,9 @@ plugin.rebuildServerContainer=()=>{
 }
 const ipc = require('electron').ipcRenderer;
 ipc.on('heartbeat', (e, data) => {
-    console.log('收到心跳响应', data);
-    plugin.serverContainerWebContentsID = data
+   if(data){ console.log('收到心跳响应', data)}
+    
+   data.webContentID&& (plugin.serverContainerWebContentsID = data.webContentID)
 });
 
 plugin.eventBus.on('openDevTools', () => {

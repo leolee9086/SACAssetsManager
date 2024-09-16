@@ -2,6 +2,7 @@ import { diffColor } from "./Kmeans.js"
 import { getCachePath } from '../fs/cached/fs.js'
 import { 修正路径分隔符号为反斜杠, 修正路径分隔符号为正斜杠 } from "../../../utils/fs/fixPath.js"
 let colorIndex = []
+let fileIndex = []
 let loaded = {}
 globalThis.colorIndex = globalThis.colorIndex || colorIndex
 colorIndex = globalThis.colorIndex
@@ -61,10 +62,22 @@ export async function 从路径加载颜色索引(cachePath, root) {
                             if (asset.path.startsWith(root)) {
                                 return asset;
                             }
-                            return { ...asset, path: path.join(root, asset.path) };
+                            return { ...asset, path: 修正路径分隔符号为正斜杠(path.join(root, asset.path)) };
                         });
                         if (item.assets) {
                             colorIndex.push(item);
+                            item.assets.forEach(
+                                asset => {
+                                    fileIndex[asset.path] = fileIndex[asset.path] || []
+                                    fileIndex[asset.path].push(
+                                        {
+                                            color: item.color,
+                                            percent: asset.percent,
+                                            count: asset.count
+                                        }
+                                    )
+                                }
+                            )
                         }
                     }
                 } else {
@@ -81,24 +94,26 @@ export async function 从路径加载颜色索引(cachePath, root) {
 }
 
 
-export async function 添加到颜色索引(colorItem, assets) {
-    const { cachePath, root } = await getCachePath(assets, 'colorIndex')
+export async function 添加到颜色索引(colorItem, assetPath) {
+    const { cachePath, root } = await getCachePath(assetPath, 'colorIndex')
+    const fixedPath = 修正路径分隔符号为正斜杠(assetPath)
     await 从路径加载颜色索引(cachePath, root)
-
     let colorFormated = colorItem.color.map(num => Math.floor(num))
+    colorItem.percent = colorItem.percent.toFixed(2)
     const mod = (colorFormated[0] + colorFormated[1] + colorFormated[2]) % transactionwsCountStatu.chunkSize;
-
     let colorValue = colorFormated.join(',')
     // @todo:如果颜色索引中存在非常接近的颜色，则合并颜色
     let find = colorIndex.find(item => item.color.join(',') === colorValue)
     let asstItem = {
         count: colorItem.count,
         //保留两位小数
-        percent: colorItem.percent.toFixed(2),
-        path: assets
+        percent: colorItem.percent,
+        path: fixedPath
     }
+    fileIndex[fixedPath] = fileIndex[fixedPath] || []
+    fileIndex[fixedPath].push(colorItem)
     if (find) {
-        if (find.assets && !find.assets.find(item => item.path === assets)) {
+        if (find.assets && !find.assets.find(item => item.path === fixedPath)) {
             find.assets.push(asstItem)
             transactionwsCountStatu[mod]++
         }
@@ -227,38 +242,31 @@ export async function 流式根据颜色查找内容(color, cutout = 0.6, callba
         }
     })
 }
-export async function 找到文件颜色(path) {
+export function 找到文件颜色(path) {
+    let fixedPath = 修正路径分隔符号为正斜杠(path);
+    if (fileIndex[fixedPath]) {
+        let UNIQUE = {}
+        fileIndex[fixedPath] = fileIndex[fixedPath].filter(
+            item => {
+                if (!UNIQUE[item.color.join(',')]) {
+                    UNIQUE[item.color.join(',')] = true
+                    return true
+                }
+            }
+        )
+    }
+    return fileIndex[fixedPath]
 
-    let finded = []
-    for (let i = 0; i < colorIndex.length; i++) {
-        let item = colorIndex[i]
- 
-        let find = item.assets.find(assetItem => assetItem.path === path)
-        if (find) {
-            finded.push({
-                color: item.color,
-                count: find.count,
-                percent: find.percent
-            })
-        }
-    }
-    if (finded.length > 0) {
-        return finded
-    }
-    return null
 }
 export async function 删除文件颜色记录(path) {
-    let fixedPath = 修正路径分隔符号为反斜杠(path);
+    let fixedPath = 修正路径分隔符号为正斜杠(path);
     console.log('删除颜色记录', path, fixedPath);
-    
     let 已删除计数 = 从颜色索引中删除路径(path);
-    
     移除空的颜色记录();
-    
     console.log(`已从颜色索引中删除 ${已删除计数} 条与路径 "${path}" 相关的记录`);
-    
     if (fixedPath !== path) {
         删除文件颜色记录(fixedPath);
+        fileIndex[fixedPath] = undefined
     }
 }
 

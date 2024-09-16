@@ -58,8 +58,8 @@
                 v-if="showPanel && globSetting" :maxCount="maxCount" @layoutCountTotal="(e) => { layoutCountTotal = e }"
                 @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
                 :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
-                @paddingChange="(e)=>paddingLR=e"
-                @layoutLoadedCount="(e) => { layoutCount.loaded = e }" :size="parseInt(size)">
+                @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
+                :size="parseInt(size)">
             </assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
                 (layoutCountTotal + '个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded
@@ -129,16 +129,7 @@ const $realGlob = computed(() => {
         timeout: maxCount.value,
     }
     if (search.value) {
-        realGlob.search= search.value
-        //迁移到sql之后可能不再使用mingo
-        /*realGlob.query = {
-            $or: [
-                //正则要使用字符串形式,所以需要转义
-                { path: { '$regex': search.value } },
-                { type: { '$eq': 'dir' } },
-
-            ],
-        }*/
+        realGlob.search = search.value
     }
     return realGlob
 })
@@ -180,7 +171,7 @@ const refreshPanel = () => {
     layoutCount.loaded = 0
     layoutCountTotal.value = 0
     nextTick(() => {
-       showPanel.value = true
+        showPanel.value = true
     })
 }
 const handlerLayoutChange = (data) => {
@@ -230,6 +221,8 @@ onMounted(() => {
 onMounted(() => {
     window.addEventListener('keydown', handleKeyDown);
 });
+import { clearSelectionWithLayout, diffByEventKey, handleMultiSelection } from '../utils/selection.js'
+
 const handleKeyDown = (event) => {
     if (event.key === 'Escape') {
         clearSelectionWithLayout(currentLayout.value)
@@ -238,48 +231,66 @@ const handleKeyDown = (event) => {
 /***
 * 选择相关逻辑
 */
-import { clearSelectionWithLayout } from '../utils/selection.js'
+import { calculateSelectionCoordinates, updateSelectionStatus } from '../utils/selection.js'
+
 const isSelecting = ref(false);
 const selectionBox = ref({ startX: 0, startY: 0, endX: 0, endY: 0 });
 const selectedItems = ref([])
+const previousSelectedItem = ref([])
 const startSelection = (event) => {
     if (isSelecting.value) {
         endSelection(event)
         return
     }
+    console.log(event)
+
     isSelecting.value = true;
     selectionBox.value.startX = event.x;
     selectionBox.value.startY = event.y;
     selectionBox.value.endX = event.x;
     selectionBox.value.endY = event.y;
+    if (event.ctrlKey || event.shiftKey || event.altKey) {
+        previousSelectedItem.value = selectedItems.value
+    }
 };
 
 const updateSelection = (event) => {
     if (isSelecting.value) {
         selectionBox.value.endX = event.x;
         selectionBox.value.endY = event.y;
-        selectedItems.value = getSelectedItems(event)
+        const galleryContainer = root.value.querySelector('.gallery_container');
+        const layoutRect = galleryContainer.getBoundingClientRect();
+        const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value,size.value )
+        selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, size.value < 表格视图阈值)
+        selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
+        clearSelectionWithLayout(currentLayout.value)
+        updateSelectionStatus(selectedItems.value, event)
     }
 };
 
 const endSelection = (event) => {
-    console.log(event.target)
+    console.log(event)
     isSelecting.value = false;
-    selectedItems.value = getSelectedItems(event);
+    selectionBox.value.endX = event.x;
+    selectionBox.value.endY = event.y;
+    const galleryContainer = root.value.querySelector('.gallery_container');
+    const layoutRect = galleryContainer.getBoundingClientRect();
+    const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value,size.value )
+    selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, size.value < 表格视图阈值)
+    selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
+    clearSelectionWithLayout(currentLayout.value)
+    updateSelectionStatus(selectedItems.value, event)
+
     plugin.eventBus.emit('assets-select', selectedItems.value)
 };
 plugin.eventBus.on(globalKeyboardEvents.globalKeyDown, (e) => {
     const { key } = e.detail
-    console.log(key)
     if (key === 'Escape') {
         isSelecting.value = false
         selectedItems.value = []
     }
 })
-import { getSelectionStatus } from '../utils/selection.js'
-const getSelectedItems = (event) => {
-    return getSelectionStatus(event, root, currentLayout.value, currentLayoutOffsetTop, selectionBox.value, currentLayoutContainer,paddingLR.value)
-};
+
 /**
  * 拖放相关逻辑
  */
@@ -314,13 +325,14 @@ const selectionBoxStyle = computed(() => {
 });
 const sorter = ref({
     fn: (a, b) => {
-        return -(a.data.mtimems - b.data.mtimems)
+        return -(a.data.mtimeMs - b.data.mtimeMs)
     }
 })
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
+import { 表格视图阈值 } from '../utils/threhold.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
-    assets[0] && 打开附件组菜单(event, assets, {
+    打开附件组菜单(event, assets, {
         position: { y: event.y || e.detail.y, x: event.x || e.detail.x }, panelController: {
             refresh: () => refreshPanel()
         }

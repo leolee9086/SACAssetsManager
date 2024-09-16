@@ -8,6 +8,7 @@ const 开始原生文件拖拽事件=async(event,files)=>{
     const remote = window.require('@electron/remote');
     const { webContents } = remote
     const webContentsId = plugin.serverContainerWebContentsID
+    console.log(webContentsId)
     const webviewWebContents = webContents.fromId(webContentsId)
     let _webContents = remote.getCurrentWindow().webContents
     const dragOperation = event.ctrlKey ? 'copy' : 'move';

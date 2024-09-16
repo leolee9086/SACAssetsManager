@@ -3,13 +3,13 @@ global[Symbol.for('tree')] = globalThis[Symbol.for('tree')] || {
     flatFiles: [],
     flatDirs: []
 }
-import { 永久监听文件夹条目 } from '../watch.js'
-import { buildCache } from '../../cache/cache.js'
-import { globalTaskQueue } from '../../queue/taskQueue.js'
-import { 根据路径查找并加载颜色索引 } from '../../color/colorIndex.js'
-import { 准备缩略图 } from '../../thumbnail/loader.js'
-import { ignoreDir } from '../dirs/ignored.js'
-import { parcel文件系统变化监听回调 } from '../cached/update.js'
+import { 永久监听文件夹条目 } from '../source/server/processors/fs/watch.js'
+import { buildCache } from '../source/server/processors/cache/cache.js'
+import { globalTaskQueue } from '../source/server/processors/queue/taskQueue.js'
+import { 根据路径查找并加载颜色索引 } from '../source/server/processors/color/colorIndex.js'
+import { 准备缩略图 } from '../source/server/processors/thumbnail/loader.js'
+import { ignoreDir } from '../source/server/processors/fs/dirs/ignored.js'
+import { parcel文件系统变化监听回调 } from '../source/server/processors/fs/cached/update.js'
 const statPromisesArray = globalTaskQueue
 export { statPromisesArray }
 export const diskTree = global[Symbol.for('tree')]

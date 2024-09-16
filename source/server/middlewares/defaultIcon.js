@@ -3,7 +3,7 @@ import { getCachePath } from "../processors/fs/cached/fs.js"
 import { buildCache } from "../processors/cache/cache.js"
 import { statWithCatch } from "../processors/fs/stat.js"
 import { 获取哈希并写入数据库 } from "../processors/fs/stat.js"
-import { statPromisesArray } from "../processors/fs/disk/tree.js"
+import { statPromisesArray } from "../../../trashed/tree.js"
 import { 生成缩略图 } from "../processors/thumbnail/loader.js"
 export const sendDefaultIcon = (req, res) => {
     const iconPath = process.execPath.replace('SiYuan.exe', 'resources\\stage\\icon-large.png')

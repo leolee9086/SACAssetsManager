@@ -2,57 +2,96 @@ import { plugin } from '../../asyncModules.js'
 import { setFocus } from '../../utils/DOM/focus.js'
 export { setFocus }
 window[Symbol.for('sacAssetsStatus')] = window[Symbol.for('sacAssetsStatus')] || {}
-export const getSelectionStatus = (event, root, currentLayout, currentLayoutOffsetTop, selectionBox, currentLayoutContainer, paddingLR) => {
-    const galleryContainer = root.value.querySelector('.gallery_container')
-    let result = []
-    //处理单选
-    let cardElement = event.target
+const handlePreviousSelection = (event, galleryContainer, currentLayout) => {
+    let cardElement = event.target;
     while (!cardElement.getAttribute('data-id')) {
-        cardElement = cardElement.parentElement
-        if (cardElement === galleryContainer) {
-            break
-        }
+        cardElement = cardElement.parentElement;
+        if (cardElement === galleryContainer) break;
     }
+    let result =[]
     if (cardElement.getAttribute('data-id')) {
-        result.push(currentLayout.layout.find(item => { return item.data && item.data.id === cardElement.getAttribute('data-id') }))
+        result= [currentLayout.layout.find(item => item.data && item.data.id === cardElement.getAttribute('data-id'))]
     }
-    currentLayout.layout.forEach(
-        item=>{
-            item.selected=undefined
-        }
-    )
-    //处理多选
-    const layoutRect = galleryContainer.getBoundingClientRect()
+    //如果按住了功能键需要用之前的选择进行计算
+    if(event.ctrlKey||event.shiftKey){
+        result =result.concat(currentLayout.layout.filter(item=>{
+            return   item.data&&item.selected
+        }))
+    }
+    return result
+}
+
+// 计算选择框的坐标
+export const calculateSelectionCoordinates = (selectionBox, layoutRect, currentLayoutOffsetTop, paddingLR,size) => {
     const { startX, startY, endX, endY } = selectionBox;
-    const minX = Math.min(startX, endX) - layoutRect.x - paddingLR;
-    const maxX = Math.max(startX, endX) - layoutRect.x - paddingLR;
-    const minY = Math.min(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
-    const maxY = Math.max(startY, endY) + currentLayoutOffsetTop - layoutRect.y;
-    result = result.concat(currentLayout.searchByRect({
-        minX,
-        minY,
-        maxY,
-        maxX,
-    }))
-    result[0] && result.forEach(data => {
+    console.log(Math.max(startX, endX) -paddingLR-layoutRect.x,paddingLR,layoutRect.x,size)
+    return {
+        minX: Math.min(startX, endX) - paddingLR-layoutRect.x,
+        maxX: Math.max(startX, endX) -paddingLR-layoutRect.x,
+        minY: Math.min(startY, endY) + currentLayoutOffsetTop - layoutRect.y,
+        maxY: Math.max(startY, endY) + currentLayoutOffsetTop - layoutRect.y
+    };
+}
+
+// 处理多选
+export const handleMultiSelection = (currentLayout, coordinates, YPositionOnly) => {
+    if (!YPositionOnly) {
+        return currentLayout.searchByRect(coordinates);
+    } else {
+        return currentLayout.search(coordinates);
+    }
+}
+
+// 更新选择状态
+export  const updateSelectionStatus = (result, event) => {
+    result.forEach(data => {
         if (event && event.shiftKey) {
-            data.selected = !data.selected
+            data.selected = !data.selected;
         } else {
-            data.selected = true
+            data.selected = true;
         }
     });
-    console.log(result)
-
-    return currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
 }
+
 export const clearSelectionWithLayout = (currentLayout) => {
     currentLayout.layout.forEach(item => {
         item.selected = false
     })
     plugin.eventBus.emit('assets-select', [])
 }
+export  function diffByEventKey(previousResult, currentResult, event) {
+    // 如果没有按下Ctrl或Shift键,直接返回当前结果
+    let {ctrlKey,shiftKey,altKey}=event
+    console.log(ctrlKey,shiftKey,altKey)
+    if (!event.ctrlKey && !event.shiftKey&&!event.altKey) {
+        return currentResult;
+    }
 
-
+    // 如果按下了Ctrl键,合并之前的结果和当前结果
+    if (event.ctrlKey) {
+        return [...new Set([...previousResult, ...currentResult])];
+    }
+    if (event.altKey) {
+        let final= []
+        const allItems = [...new Set([...previousResult, ...currentResult])]
+        allItems.forEach(
+            item=>{
+                if(previousResult.find(previouSelected=>previouSelected.data.id===item.data.id)){
+                    if(!currentResult.find(currentSelected=>currentSelected.data.id===item.data.id)){
+                        final.push(item)
+                    }
+                }
+                if(currentResult.find(currentSelected=>currentSelected.data.id===item.data.id)){
+                    if(!previousResult.find(previouSelected=>previouSelected.data.id===item.data.id)){
+                        final.push(item)
+                    }
+                }
+            }
+        )
+        return final
+    }
+    return currentResult
+}
 export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollContainer) => {
     if (e.target.dataset && e.target.dataset.index >= 0) {
         const index = parseInt(e.target.dataset.index)
