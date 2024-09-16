@@ -114,6 +114,17 @@ const genMaxWidth = () => {
 let idleCallbackId;
 let protyle
 let fn = () => {
+    fetch(thumbnail.getColor(cardData.data.type, cardData.data.path)).then(
+        res => {
+            return res.json()
+        }
+    ).then(
+        data => {
+            pallet.value = data.sort((a, b) => b.count - a.count)
+            firstColorString.value = rgb数组转字符串(pallet.value[0].color)
+            emit('palletAdded', pallet.value)
+        }
+    )
     showImage.value = true
     if (cardData.data.type === 'note' && cardData.width > 300) {
         showIframe.value = true
@@ -132,24 +143,15 @@ let fn = () => {
             resizeObserver.observe(protyleContainer.value);
         })
     }
+    
 }
 onMounted(() => {
     console.log(cardData)
-    fetch(thumbnail.getColor(cardData.data.type, cardData.data.path)).then(
-        res => {
-            return res.json()
-        }
-    ).then(
-        data => {
-            pallet.value = data.sort((a, b) => b.count - a.count)
-            firstColorString.value = rgb数组转字符串(pallet.value[0].color)
-            emit('palletAdded', pallet.value)
-        }
-    )
-    idleCallbackId = requestIdleCallback(fn, { timeout: 300 });
+  
+    idleCallbackId = setTimeout(fn,  300 );
 });
 onBeforeUnmount(() => {
-    cancelIdleCallback(idleCallbackId);
+    clearTimeout(idleCallbackId);
     nextTick(
         () => {
             protyle && protyle.destroy()
