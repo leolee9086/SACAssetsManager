@@ -4,6 +4,7 @@ import * as menuItems from "./galleryItemMenu/menuItems.js"
 import * as 文件移动菜单组 from "./galleryItemMenu/fileMoveMenuItems.js"
 import * as 元数据编辑菜单组 from "./editModeMenu/items.js"
 import * as 文件内容编辑菜单组  from "./galleryItemMenu/fileEditMenuItems.js"
+import * as 文件批处理菜单组 from "./batchMenu/batch.js"
 import { thumbnail } from "../../../server/endPoints.js";
 const { eventBus } = plugin
 const 创建模式菜单 = (模式, event, assets, options) => {
@@ -71,11 +72,31 @@ export const 打开附件组菜单 = (event, assets, options) => {
 
                     },
                     event, assets, options
+                ),
+                创建模式菜单(
+                    {
+                        label: "批处理",
+                        value: '批处理'
+
+                    },
+                    event, assets, options
                 )
             ]
         }
     )
+    if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
+        menu.addSeparator();
+        menu.addItem(文件批处理菜单组.删除所有ThumbsDB(options))
+        menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
+        menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
+        menu.addItem(文件批处理菜单组.扫描重复文件(options));
+        menu.addItem(文件批处理菜单组.快速扫描重复文件(options));
 
+        menu.addItem(文件批处理菜单组.处理重复文件(options));
+        menu.addItem(文件批处理菜单组.归集图片文件(options));
+        menu.addItem(文件批处理菜单组.扫描空文件夹(options));
+
+    }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '插件') {
         menu.addSeparator();
         menu.addItem(
@@ -144,8 +165,8 @@ export const 打开附件组菜单 = (event, assets, options) => {
                 });
         }
     }
-    添加通用菜单内容(menu, assets)
-    添加只读菜单内容(menu, assets)
+    assets&&assets[0]&&添加通用菜单内容(menu, assets)
+    assets&&assets[0]&&添加只读菜单内容(menu, assets)
     eventBus.emit(
         'contextmenu-galleryitem', { event, assets, menu, mode: plugin.附件编辑模式 }
     )

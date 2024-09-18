@@ -303,3 +303,4 @@ async function handleSymLink(sourcePath, targetPath) {
         await createSymLink(sourcePath, targetPath);
     }
 }
+

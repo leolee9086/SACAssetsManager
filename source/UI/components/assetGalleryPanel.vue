@@ -335,7 +335,9 @@ const openMenu = (event) => {
     打开附件组菜单(event, assets, {
         position: { y: event.y || e.detail.y, x: event.x || e.detail.x }, panelController: {
             refresh: () => refreshPanel()
-        }
+        },
+        tab:appData.value.tab,
+        layout:currentLayout
     })
 }
 </script>
