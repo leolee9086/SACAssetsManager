@@ -46,7 +46,6 @@ const 处理单个文件 = async (fullPath, fileHashes, duplicates, skippedFiles
     const fs = require('fs').promises;
     const stats = await fs.stat(fullPath);
     const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-
     if (!loose && stats.size > MAX_FILE_SIZE) {
         skippedFiles.push(fullPath);
         return { message: `已跳过大文件: ${fullPath}` };
@@ -58,7 +57,7 @@ const 处理单个文件 = async (fullPath, fileHashes, duplicates, skippedFiles
         const sizeGroup = fileHashes.get(sizeKey);
 
         if (sizeGroup.size > 0) {
-            const hash = loose ? await 宽松计算文件MD5(fullPath) : await 计算文件MD5(fullPath);
+            const hash = loose ? await 宽松计算文件MD5(fullPath) : await 全量计算文件MD5(fullPath);
             if (sizeGroup.has(hash)) {
                 duplicates.push({ original: sizeGroup.get(hash), duplicate: fullPath });
                 return { message: `发现重复文件: ${fullPath}` };
@@ -99,14 +98,12 @@ const 生成结果内容 = (duplicates, skippedFiles) => {
         duplicates: {},
         skippedFiles: skippedFiles
     };
-
     duplicates.forEach(({ original, duplicate }) => {
         if (!result.duplicates[original]) {
             result.duplicates[original] = [original];
         }
         result.duplicates[original].push(duplicate);
     });
-
     return JSON.stringify(result, null, 2);
 };
 

@@ -311,7 +311,6 @@ onMounted(async () => {
                 emitLayoutChange()
             }
         )
-
     }
     else if (appData.value.tab.data.localPath) {
         附件数据组 = []

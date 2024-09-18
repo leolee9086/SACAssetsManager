@@ -16,15 +16,15 @@ export const 执行按扩展名分组=async(localPath)=>{
             }, `移动文件失败: ${fullPath}`);
         }
     };
-    const 目录处理函数 = async (dirPath, controller, 添加任务) => {
+    const 目录处理函数 = async (fullPath, dirName,controller, 添加任务) => {
         await 添加任务(async () => {
-            const entries = await fs.readdir(dirPath, { withFileTypes: true });
+            const entries = await fs.readdir(fullPath, { withFileTypes: true });
             const files = entries.filter(entry => !entry.isDirectory());
             for (const file of files) {
-                await 文件处理函数(path.join(dirPath, file.name), file.name, controller, 添加任务);
+                await 文件处理函数(path.join(fullPath, file.name), file.name, controller, 添加任务);
             }
-            return { message: `处理完成目录: ${dirPath}` };
-        }, `处理目录失败: ${dirPath}`);
+            return { message: `处理完成目录: ${fullPath}` };
+        }, `处理目录失败: ${fullPath}`);
     };
     try {
         await 递归扫描文件夹并执行任务(localPath, taskController, 文件处理函数, 目录处理函数);

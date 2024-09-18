@@ -16,10 +16,10 @@ export const 删除所有ThumbsDB = (options) => {
                 `确认开始删除?`,
                 `开始后所有${localPath}中的Thumbs.db文件将会被永久删除,无法恢复`
             )
-            if(!confirm){
+            if (!confirm) {
                 return
             }
-           await 执行删除所有ThumbsDB(localPath)
+            await 执行删除所有ThumbsDB(localPath)
         }
     }
 }
@@ -38,7 +38,7 @@ export const 展平并按扩展名分组 = (options) => {
                 `确认开始删除?`,
                 `开始后所有${localPath}中的文件将会被移动按照扩展名移动到对应的文件夹,无法恢复`
             )
-            if(!confirm){
+            if (!confirm) {
                 return
             }
             await 执行按扩展名分组(localPath)
@@ -59,7 +59,7 @@ export const 整理纯色和接近纯色的图片 = (options) => {
                 `确认开始删除?`,
                 `开始后所有${localPath}中的纯色图片文件将会被移动到"待删除_纯色图片"文件夹,无法恢复`
             )
-            if(!confirm){
+            if (!confirm) {
                 return
             }
             await 执行归集纯色图片(localPath)
@@ -85,8 +85,8 @@ export const 扫描重复文件 = (options) => {
                 <p>超过100MB的文件将会被跳过</p>
                 `
             )
-            if(confirm){
-                await 执行扫描重复文件(localPath,false)
+            if (confirm) {
+                await 执行扫描重复文件(localPath, false)
             }
         }
     }
@@ -107,8 +107,8 @@ export const 快速扫描重复文件 = (options) => {
                 <p>文件扫描结果将被写入"重复文件扫描结果.txt"中</p>
                 `
             )
-            if(confirm){
-                await 执行扫描重复文件(localPath,true)
+            if (confirm) {
+                await 执行扫描重复文件(localPath, true)
             }
         }
     }
@@ -131,7 +131,7 @@ export const 扫描空文件夹 = (options) => {
                 <p>内部仅包含文件夹的文件夹不会被视为空文件夹,可能需要多次执行才能删除它们</p>
                 `
             )
-            if(confirm){
+            if (confirm) {
                 await 执行扫描空文件夹(localPath)
             }
             let confirm1 = await confirmAsPromise(
@@ -142,8 +142,8 @@ export const 扫描空文件夹 = (options) => {
                 <p>删除操作无法恢复</p>
                 `
             )
-            if(confirm1){
-                await 执行扫描空文件夹(localPath,true)
+            if (confirm1) {
+                await 执行扫描空文件夹(localPath, true)
 
             }
         }
@@ -342,3 +342,40 @@ export const 归集图片文件 = (options) => {
         }
     }
 };
+
+
+
+import { 执行复制文档树结构 } from './copyFileTree.js'
+export const 复制文档树结构 = (options) => {
+    const localPath = options.tab.data.localPath;
+
+    return {
+        label: '复制文件夹结构(markdown)',
+        submenu: [
+            {
+                label: "复制文档树结构 (按名称升序)",
+                click: () => 执行复制文档树结构(localPath, 'name', 'asc')
+            },
+            {
+                label: "复制文档树结构 (按名称降序)",
+                click: () => 执行复制文档树结构(localPath, 'name', 'desc')
+            },
+            {
+                label: "复制文档树结构 (按大小升序)",
+                click: () => 执行复制文档树结构(localPath, 'size', 'asc')
+            },
+            {
+                label: "复制文档树结构 (按大小降序)",
+                click: () => 执行复制文档树结构(localPath, 'size', 'desc')
+            },
+            {
+                label: "复制文档树结构 (按修改时间升序)",
+                click: () => 执行复制文档树结构(localPath, 'mtime', 'asc')
+            },
+            {
+                label: "复制文档树结构 (按修改时间降序)",
+                click: () => 执行复制文档树结构(localPath, 'mtime', 'desc')
+            }
+        ]
+    }
+}

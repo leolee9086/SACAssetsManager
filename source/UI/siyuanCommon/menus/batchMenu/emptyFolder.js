@@ -15,7 +15,7 @@ export const 执行扫描空文件夹 = async (localPath, $delete) => {
     return new Promise(async(resolve, reject) => {
         const emptyFolders = [];
         const taskController = 打开任务控制对话框('扫描空文件夹', '正在扫描空文件夹...');
-        const 文件夹处理函数 = async (fullPath, controller, 添加任务) => {
+        const 文件夹处理函数 = async (fullPath, dirName,controller, 添加任务) => {
             await 添加任务(async () => {
                 if (await 是否为空文件夹(fullPath)) {
                     if (!$delete) {

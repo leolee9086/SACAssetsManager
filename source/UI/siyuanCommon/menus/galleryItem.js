@@ -16,7 +16,53 @@ const 创建模式菜单 = (模式, event, assets, options) => {
         }
     }
 }
+const 模式切换菜单项=(event,assets,options)=>{
+    const result =        {
+        label: "切换模式",
+        submenu: [
+            创建模式菜单({
+                label: '移动',
+                value: "移动"
+            },
+                event, assets, options
+            ),
+            创建模式菜单(
+                {
+                    label: "插件",
+                    value: '插件'
+                },
+                event, assets, options
+            ),
+            创建模式菜单(
+                {
+                    label: "常规",
+                    value: '常规'
 
+                },
+                event, assets, options
+            ),
+            创建模式菜单(
+                {
+                    label: "编辑",
+                    value: '编辑'
+
+                },
+                event, assets, options
+            ),
+           
+        ]
+    }
+    options.tab.data.localPath&&result.submenu.push(
+            创建模式菜单(
+                {
+                    label: "批处理(实验性)",
+                    value: '批处理'
+                },
+                event, assets, options
+            )
+    )
+    return result
+}
 function 计算主标签(assets, 模式) {
     if (模式 && 模式.label) {
         return 模式 && 模式.label + ':' + '附件' + (assets.length === 0 ? `` : `(${assets.length})`)
@@ -40,61 +86,23 @@ export const 打开附件组菜单 = (event, assets, options) => {
         }
     )
     menu.addSeparator()
-    menu.addItem(
-        {
-            label: "切换模式",
-            submenu: [
-                创建模式菜单({
-                    label: '移动',
-                    value: "移动"
-                },
-                    event, assets, options
-                ),
-                创建模式菜单(
-                    {
-                        label: "插件",
-                        value: '插件'
-                    },
-                    event, assets, options
-                ),
-                创建模式菜单(
-                    {
-                        label: "常规",
-                        value: '常规'
-
-                    },
-                    event, assets, options
-                ),
-                创建模式菜单(
-                    {
-                        label: "编辑",
-                        value: '编辑'
-
-                    },
-                    event, assets, options
-                ),
-                创建模式菜单(
-                    {
-                        label: "批处理",
-                        value: '批处理'
-
-                    },
-                    event, assets, options
-                )
-            ]
-        }
-    )
+    menu.addItem(模式切换菜单项(event,assets,options))
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.删除所有ThumbsDB(options))
         menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
         menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
         menu.addItem(文件批处理菜单组.扫描重复文件(options));
+        menu.addSeparator();
+
         menu.addItem(文件批处理菜单组.快速扫描重复文件(options));
 
         menu.addItem(文件批处理菜单组.处理重复文件(options));
+        menu.addSeparator();
+
         menu.addItem(文件批处理菜单组.归集图片文件(options));
         menu.addItem(文件批处理菜单组.扫描空文件夹(options));
+        menu.addItem(文件批处理菜单组.复制文档树结构(options));
 
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '插件') {
@@ -121,9 +129,18 @@ export const 打开附件组菜单 = (event, assets, options) => {
         assets.length === 1&& menu.addItem(元数据编辑菜单组.上传缩略图(assets))
         assets.length === 1&& menu.addItem(元数据编辑菜单组.从剪贴板上传缩略图(assets))
         menu.addSeparator()
-        let png菜单组 =文件内容编辑菜单组.压缩图片为png菜单项(assets)
-        png菜单组.submenu=文件内容编辑菜单组.png压缩菜单组(assets)
+        let png菜单组 =文件内容编辑菜单组.压缩图片菜单项(assets,80,9,'png')
+        png菜单组.submenu=文件内容编辑菜单组.压缩菜单组(assets,'png')
         menu.addItem(png菜单组)
+
+        let jpg菜单组 =文件内容编辑菜单组.压缩图片菜单项(assets,80,9,'jpg')
+        jpg菜单组.submenu=文件内容编辑菜单组.压缩菜单组(assets,'jpg')
+        menu.addItem(jpg菜单组)
+
+        let webp菜单组 =文件内容编辑菜单组.压缩图片菜单项(assets,80,9,'webp')
+        webp菜单组.submenu=文件内容编辑菜单组.压缩菜单组(assets,'webp')
+        menu.addItem(webp菜单组)
+
         if (assets.length === 1) {
             const asset = assets[0];
             const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
