@@ -20,10 +20,8 @@
 </template>
 <script setup>
 import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../../data/siyuanAssets.js"
-import { applyURIStreamJson } from "../../../data/fetchStream.js";
 import { 表格视图阈值 } from "../../utils/threhold.js";
 import {
-    computed,
     ref,
     onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted
 } from 'vue'
@@ -296,9 +294,10 @@ onUnmounted(
     }
 
 )
+import { applyURIStreamJson,createCompatibleCallback,applyURIStreamJsonCompatible } from "../../../data/fetchStream.js";
 
 
-function 处理静态文件列表(附件数据组,静态文件列表) {
+function 处理静态文件列表(附件数据组, 静态文件列表) {
     附件数据组 = 静态文件列表
 }
 function 初始化布局() {
@@ -307,78 +306,75 @@ function 初始化布局() {
     定长加载(100)
     emitLayoutChange()
 }
-
+async function 处理本地文件夹数据() {
+    附件数据组 = []
+    try {
+        await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
+    } catch (e) {
+        console.warn(e)
+    }
+}
+async function 处理标签数据() {
+    附件数据组 = []
+    await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
+}
+async function 处理sql查询数据() {
+    附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
+    附件数据组.map(
+        (item, index) => {
+            return ref({
+                ...item,
+                index
+            })
+        }
+    )
+}
+async function 处理颜色查询数据() {
+    附件数据组 = []
+    let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
+    const compatibleCallback = createCompatibleCallback(附件数据组, sortLocalStream, 1);
+    await applyURIStreamJson(uri, compatibleCallback, 1, signal, globSetting.value)
+}
+async function 处理默认数据() {
+    附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
+    附件数据组.map(
+        (item, index) => {
+            return ref({
+                ...item,
+                index
+            })
+        }
+    )
+}
 onMounted(async () => {
     appData.value.tab.controllers = appData.value.tab.controllers || []
     appData.value.tab.controllers.push(controller)
-    /**
-     * 直接提供了文件列表的情况
-     */
+    //直接提供了文件列表的情况
     if (filListProvided.value) {
         处理静态文件列表(filListProvided.value)
         nextTick(初始化布局)
     }
+    //提供了本地文件夹路径
     else if (appData.value.tab.data.localPath) {
-        附件数据组 = []
-        try {
-            await 获取本地文件夹数据(globSetting.value, 附件数据组, sortLocalStream, 1, signal)
-        } catch (e) {
-            console.warn(e)
-        }
+        await 处理本地文件夹数据()
+        nextTick(初始化布局)
     }
+    //提供了标签
     else if (appData.value.tab.data.tagLabel) {
-        附件数据组 = []
-        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
+        await 处理标签数据()
+        nextTick(初始化布局)
     }
+    //sql查询
     else if (appData.value.tab.data.type === 'sql') {
-        附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
-        附件数据组.map(
-            (item, index) => {
-                return ref({
-                    ...item,
-                    index
-                })
-            }
-        )
-        nextTick(
-            () => {
-                布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-                监听尺寸函数(scrollContainer.value)
-                定长加载(100)
-                emitLayoutChange()
-            }
-        )
+        await 处理sql查询数据()
+        nextTick(初始化布局)
     } else if (appData.value.tab.data.color) {
-        附件数据组 = []
-        let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
-        await applyURIStreamJson(uri, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
-        nextTick(
-            () => {
-                布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-                监听尺寸函数(scrollContainer.value)
-                定长加载(100)
-                emitLayoutChange()
-            }
-        )
+        await 处理颜色查询数据()
+        nextTick(初始化布局)
     }
     else {
-        附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
-        附件数据组.map(
-            (item, index) => {
-                return ref({
-                    ...item,
-                    index
-                })
-            }
-        )
-        nextTick(
-            () => {
-                布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-                监听尺寸函数(scrollContainer.value)
-                定长加载(100)
-                emitLayoutChange()
-            }
-        )
+        await 处理默认数据()
+        nextTick(初始化布局)
     }
 })
 
