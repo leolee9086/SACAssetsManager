@@ -380,24 +380,15 @@ onMounted(async () => {
 /**
  * 一些工具函数
  */
+import { 根据宽度和尺寸计算列数和边距 } from "../../utils/layoutComputer/masonry/columnAndPadding.js";
 const 计算列数和边距 = (width) => {
-    columnCount.value = Math.max(Math.floor(width / size.value) - 1, 1)
-    paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-    if(paddingLR.value<0){
-        columnCount.value=columnCount.value-1
-        paddingLR.value = (width - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
-    }
-
-    if (size.value < 表格视图阈值) {
-        paddingLR.value =10
-        //如果宽度小于表格视图阈值，则只显示一列,因为此时是表格视图
-        columnCount.value = 1
-
-    }
-    emit('paddingChange',paddingLR.value)
-
-
+    const result = 根据宽度和尺寸计算列数和边距(width, size.value, 表格视图阈值);
+    columnCount.value = result.columnCount;
+    paddingLR.value = result.paddingLR;
+    emit('paddingChange', paddingLR.value);
 }   
+
+
 </script>
 <style scoped>
 .thumbnail-card:focus {

@@ -1,5 +1,6 @@
 import { 打开任务控制对话框 } from "../../dialog/tasks.js";
 import { 递归扫描文件夹并执行任务 } from "../../../../utils/fs/batch.js";
+const fs=require('fs').promises
 export const 执行删除所有ThumbsDB=async(localPath)=>{
     const taskController = 打开任务控制对话框('删除Thumbs.db文件', '正在扫描并删除Thumbs.db文件...');
     const 文件处理函数 = async (fullPath, fileName, controller, 添加任务) => {
