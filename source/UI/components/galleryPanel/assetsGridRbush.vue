@@ -6,10 +6,11 @@
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
                     <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
                         :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
-                        v-if="卡片数据 && 卡片数据.data " :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
+                        v-if="卡片数据 && 卡片数据.data" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
-                        <assetsThumbnailCard :selected="卡片数据.selected" :size="size" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
-                            :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
+                        <assetsThumbnailCard :selected="卡片数据.selected" :size="size"
+                            @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])" :cardData="卡片数据" @palletAdded="palletAdded"
+                            :filterColor="filterColor">
                         </assetsThumbnailCard>
                     </div>
                 </template>
@@ -33,7 +34,7 @@ import { plugin } from 'runtime'
  * 计算样式的部分
  */
 const 计算卡片样式 = (卡片数据) => {
- //   paddingLR.value = size.value > 表格视图阈值 ? paddingLR.value : 0
+    //   paddingLR.value = size.value > 表格视图阈值 ? paddingLR.value : 0
     return `
         transform: none;
         top: ${卡片数据.y}px;
@@ -50,7 +51,7 @@ const 计算卡片样式 = (卡片数据) => {
 const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'filListProvided'])
 const size = toRef(props, 'size')
 watch(
-    ()=>size.value,
+    () => size.value,
     () => {
         列数和边距监听器()
     }
@@ -127,7 +128,7 @@ const 更新可见区域 = (flag) => {
     布局对象.value.timeStep += 5
 
     try {
-        containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y),(附件数据组.length+布局对象.value.layout.length)*size.value/columnCount.value)
+        containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y), (附件数据组.length + 布局对象.value.layout.length) * size.value / columnCount.value)
     } catch (e) {
         console.warn(e)
     }
@@ -175,13 +176,13 @@ const 更新可见区域 = (flag) => {
 let 附件数据组
 
 import { 以函数创建尺寸监听 } from "../../utils/observers/resize.js"
-let lastWidth= 0
+let lastWidth = 0
 const 监听尺寸函数 = 以函数创建尺寸监听((stat) => {
-    if(stat.width===lastWidth){
+    if (stat.width === lastWidth) {
         return
     }
     列数和边距监听器(stat.width)
-    lastWidth=stat.width
+    lastWidth = stat.width
 }, true)
 const 列数和边距监听器 = async () => {
     if (!scrollContainer.value) {
@@ -196,7 +197,7 @@ const 列数和边距监听器 = async () => {
     计算列数和边距(scrollContainer.value.clientWidth)
     columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
     emitLayoutChange()
-  //  paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
+    //  paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
     可见卡片组.value = []
     nextTick(
         () => 更新可见区域(true)
@@ -297,20 +298,25 @@ onUnmounted(
 )
 
 
+function 处理静态文件列表(附件数据组,静态文件列表) {
+    附件数据组 = 静态文件列表
+}
+function 初始化布局() {
+    布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+    监听尺寸函数(scrollContainer.value)
+    定长加载(100)
+    emitLayoutChange()
+}
 
 onMounted(async () => {
     appData.value.tab.controllers = appData.value.tab.controllers || []
     appData.value.tab.controllers.push(controller)
+    /**
+     * 直接提供了文件列表的情况
+     */
     if (filListProvided.value) {
-        附件数据组 = filListProvided.value
-        nextTick(
-            () => {
-                布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-                监听尺寸函数(scrollContainer.value)
-                定长加载(100)
-                emitLayoutChange()
-            }
-        )
+        处理静态文件列表(filListProvided.value)
+        nextTick(初始化布局)
     }
     else if (appData.value.tab.data.localPath) {
         附件数据组 = []
@@ -378,7 +384,7 @@ onMounted(async () => {
 
 
 /**
- * 一些工具函数
+ * 计算布局使用的列宽和边距
  */
 import { 根据宽度和尺寸计算列数和边距 } from "../../utils/layoutComputer/masonry/columnAndPadding.js";
 const 计算列数和边距 = (width) => {
@@ -386,7 +392,7 @@ const 计算列数和边距 = (width) => {
     columnCount.value = result.columnCount;
     paddingLR.value = result.paddingLR;
     emit('paddingChange', paddingLR.value);
-}   
+}
 
 
 </script>
