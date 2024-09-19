@@ -19,7 +19,7 @@
     </div>
 </template>
 <script setup>
-import { 获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../../data/siyuanAssets.js"
+import { 以sql获取tab附件数据, 获取本地文件夹数据, 获取标签列表数据 } from "../../../data/siyuanAssets.js"
 import { 表格视图阈值 } from "../../utils/threhold.js";
 import {
     ref,
@@ -32,7 +32,6 @@ import { plugin } from 'runtime'
  * 计算样式的部分
  */
 const 计算卡片样式 = (卡片数据) => {
-    //   paddingLR.value = size.value > 表格视图阈值 ? paddingLR.value : 0
     return `
         transform: none;
         top: ${卡片数据.y}px;
@@ -112,7 +111,6 @@ let oldScrollTop
 let isUpdating
 const 更新可见区域 = (flag) => {
     emit("layoutCount", 附件数据组.length)
-
     let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
     emit('scrollTopChange', scrollTop)
     clientHeight = Math.min(clientHeight, window.innerHeight)
@@ -124,7 +122,6 @@ const 更新可见区域 = (flag) => {
         return
     }
     布局对象.value.timeStep += 5
-
     try {
         containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y), (附件数据组.length + 布局对象.value.layout.length) * size.value / columnCount.value)
     } catch (e) {
@@ -157,7 +154,6 @@ const 更新可见区域 = (flag) => {
                     let data = 附件数据组.shift && 附件数据组.shift()
                     data.id ? 布局对象.value.add(data) : _flag = false
                     emit("layoutLoadedCount", 布局对象.value.layout.length)
-
                 } else {
                     _flag = false
                 }
@@ -195,7 +191,6 @@ const 列数和边距监听器 = async () => {
     计算列数和边距(scrollContainer.value.clientWidth)
     columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
     emitLayoutChange()
-    //  paddingLR.value = (scrollContainer.value.clientWidth - (size.value / 6 * (columnCount.value - 1) + size.value * columnCount.value)) / 2
     可见卡片组.value = []
     nextTick(
         () => 更新可见区域(true)
@@ -247,18 +242,7 @@ const 定长加载 = (阈值) => {
 }
 
 const mounted = ref(null)
-watch(
-    mounted, (newVal, oldVal) => {
-        if (newVal === oldVal) {
-            return
-        }
-        布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-        nextTick(() => {
-            监听尺寸函数(scrollContainer.value)
-            定长加载(100)
-        })
-    }
-)
+
 let oldsize
 let lastSort = Date.now()
 //排序函数
@@ -271,11 +255,16 @@ async function sortLocalStream(total) {
     emit("layoutCount", 附件数据组.length)
     布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
     mounted.value = true
+    布局对象.value = 布局对象.value || 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 10) {
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
         更新可见区域(true)
     }
+    nextTick(() => {
+        监听尺寸函数(scrollContainer.value)
+    })
+
 }
 
 const controller = new AbortController();
@@ -293,7 +282,7 @@ onUnmounted(
     }
 
 )
-import { applyURIStreamJson,createCompatibleCallback } from "../../../data/fetchStream.js";
+import { applyURIStreamJson, createCompatibleCallback } from "../../../data/fetchStream.js";
 
 
 function 处理静态文件列表(附件数据组, 静态文件列表) {
@@ -318,7 +307,7 @@ async function 处理标签数据() {
     await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据组, sortLocalStream, 1, signal, globSetting.value)
 }
 async function 处理sql查询数据() {
-    附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
+    附件数据组 = await 以sql获取tab附件数据(appData.value.tab, 102400);
     附件数据组.map(
         (item, index) => {
             return ref({
@@ -335,7 +324,7 @@ async function 处理颜色查询数据() {
     await applyURIStreamJson(uri, compatibleCallback, 1, signal, globSetting.value)
 }
 async function 处理默认数据() {
-    附件数据组 = await 获取tab附件数据(appData.value.tab, 102400);
+    附件数据组 = await 以sql获取tab附件数据(appData.value.tab, 102400);
     附件数据组.map(
         (item, index) => {
             return ref({

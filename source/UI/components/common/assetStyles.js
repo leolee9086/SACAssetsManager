@@ -29,7 +29,6 @@ export const 计算素材缩略图样式 = (size, imageHeight, cardData) => {
     return style
 }
 export const 计算素材详情容器样式 = (size,cardData) => {
-    console.log(size,cardData)
     let style = {}
     style.position = size > 表格视图阈值 ? position.absolute : position.relative
     style.bottom = 0
