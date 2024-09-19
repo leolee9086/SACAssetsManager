@@ -1,16 +1,16 @@
 
-export function 根据宽度和尺寸计算列数和边距(width, size, 表格视图阈值) {
-    let columnCount = Math.max(Math.floor(width / size) - 1, 1);
-    let paddingLR = (width - (size / 6 * (columnCount - 1) + size * columnCount)) / 2;
+export function 根据宽度和尺寸计算列数和边距(容器宽度, 计划列宽, 表格视图阈值) {
+    let 列数 = Math.max(Math.floor(容器宽度 / 计划列宽) - 1, 1);
+    let 左右边距 = (容器宽度 - (计划列宽 / 6 * (列数 - 1) + 计划列宽 * 列数)) / 2;
     
-    if (paddingLR < 0) {
-        columnCount = columnCount - 1;
-        paddingLR = (width - (size / 6 * (columnCount - 1) + size * columnCount)) / 2;
+    if (左右边距 < 0) {
+        列数 = 列数 - 1;
+        左右边距 = (容器宽度 - (计划列宽 / 6 * (列数 - 1) + 计划列宽 * 列数)) / 2;
     }
 
-    if (size < 表格视图阈值) {
-        paddingLR = 10;
-        columnCount = 1;
+    if (计划列宽 < 表格视图阈值) {
+        左右边距 = 10;
+        列数 = 1;
     }
-    return { columnCount, paddingLR };
+    return { columnCount: 列数, paddingLR: 左右边距 };
 }
