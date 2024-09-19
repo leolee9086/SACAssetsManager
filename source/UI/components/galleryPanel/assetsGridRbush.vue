@@ -271,7 +271,6 @@ async function sortLocalStream(total) {
     emit("layoutCount", 附件数据组.length)
     布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
     mounted.value = true
-
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 10) {
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
@@ -294,7 +293,7 @@ onUnmounted(
     }
 
 )
-import { applyURIStreamJson,createCompatibleCallback,applyURIStreamJsonCompatible } from "../../../data/fetchStream.js";
+import { applyURIStreamJson,createCompatibleCallback } from "../../../data/fetchStream.js";
 
 
 function 处理静态文件列表(附件数据组, 静态文件列表) {

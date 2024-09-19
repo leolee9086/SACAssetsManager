@@ -1,5 +1,6 @@
 import { kernelApi, plugin } from '../asyncModules.js'
-import { applyStmt,applyURIStreamJson,applyURIStreamJsonCompatible } from './galleryDefine.js'
+import { applyURIStreamJson,applyURIStreamJsonCompatible,createCompatibleCallback } from './fetchStream.js'
+import {applyStmt}from './galleryDefine.js'
 import  {getTagAssets, queryTags} from './tags.js'
 export async function 获取tab附件数据(tab, limit, offset) {
     let query = `select * from assets limit ${limit || 100} offset ${offset || 0} `
