@@ -16,7 +16,8 @@ export async function 获取tab附件数据(tab, limit, offset) {
 }
 export async function 获取本地文件夹数据(globSetting, target, callback, step, signal) {
     let uri = `http://localhost:${plugin.http服务端口号}/glob-stream?setting=${encodeURIComponent(JSON.stringify(globSetting))}`
-    applyURIStreamJsonCompatible(uri, target, callback, step, signal)
+    const compatibleCallback = createCompatibleCallback(target, callback, step);
+    await applyURIStreamJson(uri, compatibleCallback, step, signal, globSetting.value)
 }
 export async function 获取标签列表数据(tagLabel, target, callback, step, signal,globSetting) {
     let tag = await queryTags(tagLabel)
