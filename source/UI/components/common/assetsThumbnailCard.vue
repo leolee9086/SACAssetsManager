@@ -100,9 +100,13 @@ const similarColor = computed(() => {
     let item = pallet.value.find(item => item && filterColor.value && diffColor(filterColor.value, item.color))
     return item ? filterColor.value : ''
 })
+
+
+
+import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 function 计算扩展名(data){
     if(data.type==='note'){
-        return `笔记:${data.$meta.type}`
+        return `笔记:${ 块类型语言对照表[data.$meta.type]  ||data.$meta.type}`
     }
     return size.value > 表格视图阈值 ? data.path.split('.').pop() : '' 
 }
@@ -119,7 +123,7 @@ const genMaxWidth = () => {
 
 let idleCallbackId;
 let protyle
-let fn = () => {
+let fn = async() => {
     fetch(thumbnail.getColor(cardData.data.type, cardData.data.path)).then(
         res => {
             return res.json()
@@ -154,12 +158,12 @@ let fn = () => {
 
 }
 onMounted(() => {
-    console.log(cardData)
+    idleCallbackId = requestIdleCallback(fn,{timeout:300})
 
-    idleCallbackId = setTimeout(fn, 300);
+//    idleCallbackId = setTimeout(fn, 300);
 });
 onBeforeUnmount(() => {
-    clearTimeout(idleCallbackId);
+    cancelIdleCallback(idleCallbackId);
     nextTick(
         () => {
             protyle && protyle.destroy()
