@@ -9,9 +9,8 @@ export const serverHost =()=> `${window.location.protocol}//${window.location.ho
 const thumbnailHost =(type,path,size,data)=>{
     if(type==='note'){
         let meta = data.$meta
-        if(meta.type==='d'){
-            return 获取文档图标(meta.id)
-        }
+            return 获取文档图标(meta)
+        
     }    
     let src=!type ? `${serverHost()}/thumbnail/?path=${encodeURIComponent(path)}&size=${size}` : `${serverHost()}/thumbnail/?localPath=${encodeURIComponent(path)}&size=${size}`
     let rawSrc=!type ? `${serverHost()}/raw/?path=${encodeURIComponent(path)}` : `${serverHost()}/raw/?localPath=${encodeURIComponent(path)}`

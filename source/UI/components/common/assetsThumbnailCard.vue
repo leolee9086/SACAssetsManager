@@ -86,7 +86,6 @@ const props = defineProps(['cardData', 'size', 'filterColor', 'selected'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
-const selected = toRef(props, 'selected')
 const emit = defineEmits()
 const cardHeight = ref(cardData.width + 0)
 const imageHeight = ref(cardData.width + 0)
@@ -137,7 +136,6 @@ let fn = async() => {
             }
         }
     )
-    showImage.value = true
     if (cardData.data.type === 'note' && cardData.width > 300) {
         showIframe.value = true
         nextTick(() => {
@@ -158,6 +156,8 @@ let fn = async() => {
 
 }
 onMounted(() => {
+    showImage.value = true
+
     idleCallbackId = requestIdleCallback(fn,{timeout:300})
 
 //    idleCallbackId = setTimeout(fn, 300);
