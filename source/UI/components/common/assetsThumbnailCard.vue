@@ -17,7 +17,7 @@ background-color:var(--b3-theme-background);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;
         flex:1;
         `">
-            {{ size > 表格视图阈值 ? cardData.data.path.split('.').pop() : '' }}
+            {{ 计算扩展名(cardData.data) }}
 
         </div>
         <div v-show="showIframe" ref="protyleContainer">
@@ -28,9 +28,9 @@ background-color:var(--b3-theme-background);
         </div>
         <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
             v-if="showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
-            :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size)" />
+            :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size, cardData.data)" />
         <div :style="$计算素材详情容器样式" ref="detailContainer">
-            {{ size > 表格视图阈值 ? cleanAssetPath(cardData.data.path) : '' }}
+            {{ size > 表格视图阈值 ? cleanAssetPath(cardData.data) : '' }}
             <div v-if="size < 表格视图阈值" :style="`
                 color:${similarColor ? rgb数组转字符串(similarColor) : ''};
                 height:${size}px;
@@ -45,17 +45,18 @@ background-color:var(--b3-theme-background);
                     padding:0px;
                     margin:0px;
                     overflow:hidden;
-                    width:${100 / (getProps(cardData.data).length+1)}%;
+                    width:${100 / (getProps(cardData.data).length + 1)}%;
                     text-overflow:ellipsis;
                     white-space:nowrap;`
-                        " class="ariaLabel" :aria-label="解析文件属性名标签(prop) + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
+                        " class="ariaLabel"
+                        :aria-label="解析文件属性名标签(prop) + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
                         {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
                     </div>
                 </template>
                 <div :style="`
                 display: grid;
-                width:${100 / (getProps(cardData.data).length+1)}%;
-                max-width:${100 / (getProps(cardData.data).length+1)}%;
+                width:${100 / (getProps(cardData.data).length + 1)}%;
+                max-width:${100 / (getProps(cardData.data).length + 1)}%;
                 grid-template-columns: repeat(auto-fill, minmax(16px, 1fr));`">
                     <template v-for="colorItem in pallet">
                         <colorPalletButton :colorItem="colorItem"></colorPalletButton>
@@ -81,7 +82,7 @@ import { plugin } from 'runtime'
 import { 表格视图阈值 } from '../../utils/threhold.js';
 import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import colorPalletButton from './pallets/colorPalletButton.vue';
-const props = defineProps(['cardData', 'size', 'filterColor','selected'])
+const props = defineProps(['cardData', 'size', 'filterColor', 'selected'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
@@ -99,9 +100,14 @@ const similarColor = computed(() => {
     let item = pallet.value.find(item => item && filterColor.value && diffColor(filterColor.value, item.color))
     return item ? filterColor.value : ''
 })
-
+function 计算扩展名(data){
+    if(data.type==='note'){
+        return `笔记:${data.$meta.type}`
+    }
+    return size.value > 表格视图阈值 ? data.path.split('.').pop() : '' 
+}
 function getProps(data) {
-    return Object.keys(data).filter(key => key !== 'id' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height'&&(文件系统内部属性表[key] ? 文件系统内部属性表[key].show : true))
+    return Object.keys(data).filter(key => key !== 'id' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height' && (文件系统内部属性表[key] ? 文件系统内部属性表[key].show : true))
 }
 const genMaxWidth = () => {
     if (size.value < 表格视图阈值) {
@@ -120,9 +126,11 @@ let fn = () => {
         }
     ).then(
         data => {
-            pallet.value = data.sort((a, b) => b.count - a.count)
-            firstColorString.value = rgb数组转字符串(pallet.value[0].color)
-            emit('palletAdded', pallet.value)
+            if (!data.error) {
+                pallet.value = data.sort((a, b) => b.count - a.count)
+                firstColorString.value = rgb数组转字符串(pallet.value[0].color)
+                emit('palletAdded', pallet.value)
+            }
         }
     )
     showImage.value = true
@@ -143,12 +151,12 @@ let fn = () => {
             resizeObserver.observe(protyleContainer.value);
         })
     }
-    
+
 }
 onMounted(() => {
     console.log(cardData)
-  
-    idleCallbackId = setTimeout(fn,  300 );
+
+    idleCallbackId = setTimeout(fn, 300);
 });
 onBeforeUnmount(() => {
     clearTimeout(idleCallbackId);
@@ -196,7 +204,7 @@ const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
 const $计算素材详情容器样式 = computed(() => 计算素材详情容器样式(
-    size.value,cardData
+    size.value, cardData
 ))
 </script>
 <style scoped></style>

@@ -31,7 +31,7 @@ export async function genColor(ctx, next) {
     return colors
     }catch(e){
         console.error(e)
-        ctx.res.status(500).send(`为${源文件地址}生成颜色色板\n${e.message}`);
+        ctx.res.status(500).json({error:`为${源文件地址}生成颜色色板错误\n${e.message}`});
         return
 
     }

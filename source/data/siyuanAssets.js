@@ -29,7 +29,8 @@ async function 转换笔记查询结果到附件项(blocks) {
             ctimeMs: item.created,
             mtimeMs: item.updated,
             path: item.path,
-            name: item.content
+            name: item.content,
+            $meta:item
         });
     }
     return result;

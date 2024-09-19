@@ -123,7 +123,7 @@ const 更新可见区域 = (flag) => {
     }
     布局对象.value.timeStep += 5
     try {
-        containerHeight.value = Math.max(...布局对象.value.columns.map(column => column.y), (附件数据组.length + 布局对象.value.layout.length) * size.value / columnCount.value)
+        containerHeight.value =Math.min(Math.max(...布局对象.value.columns.map(column => column.y), (附件数据组.length + 布局对象.value.layout.length) * size.value / columnCount.value),1024000)
     } catch (e) {
         console.warn(e)
     }

@@ -3,11 +3,15 @@ import { kernelApi } from "../../asyncModules.js";
 /**
  * 清理资产路径中的时间戳和随机字符串
  * 用于从思源的资产路径中提取文件名
- * @param {string} assetPath - 资产路径
+ * @param {string|object} asset - 资产路径
  * @returns {string} - 清理后的资产路径
  */
-export function cleanAssetPath(assetPath) {
-    return assetPath && assetPath.split('/').pop().replace(/-\d{14}-[a-z0-9]{7}/, '');
+export function cleanAssetPath(asset) {
+    let path =asset.path||asset
+    if(path&&asset.type==='note'){
+        return asset.$meta.content.slice(0,256)
+    }
+    return path && path.split('/').pop().replace(/-\d{14}-[a-z0-9]{7}/, '');
 }
 /**
  * 判断是否是思源的资产路径
