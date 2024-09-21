@@ -54,7 +54,7 @@ module.exports = class SACAssetsManager extends Plugin {
   添加资源信息边栏() {
     this.addDock({
       config: {
-        icon: "iconAssetsPannel",
+        icon: "iconInfo",
         position: "LeftBottom",
         size: { width: 200, height: 0 },
         title: "SACAssetsPanel",
@@ -76,7 +76,7 @@ module.exports = class SACAssetsManager extends Plugin {
     })
     this.addDock({
       config: {
-        icon: "iconCollectionPannel",
+        icon: "iconDatabase",
         position: "RightBottom",
         size: { width: 200, height: 0 },
         title: "SACAssetsCollectionPanel",
