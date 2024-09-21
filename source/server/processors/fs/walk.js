@@ -103,7 +103,7 @@ async function 更新目录索引(root) {
             let fixed = new Set(results.map(item => item.replace(/\\/g, '/')));
             let dbResults = await 查找子文件夹(root);
             dbResults.results.forEach(entry => {
-                let parsedEntry = JSON.parse(entry);
+                let parsedEntry = entry
                 let path = parsedEntry.path.replace(/\\/g, '/');
                 if (!fixed.has(path)) {
                     删除缩略图缓存行(path);
@@ -139,9 +139,8 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     console.log(results)
     results.map(
         item => {
-            let stat = JSON.parse(item)
             stats[item.path] = item
-            return stat
+            return item
         }
     ).forEach(
         async (result) => {

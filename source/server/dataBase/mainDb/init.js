@@ -57,12 +57,12 @@ async function 初始化数据库(dbPath, root) {
         }
         delete dbs[root]
     }
-
+    dbs[root].root=root
     return dbs[root]
 }
 
 import { getCachePath } from "../../processors/fs/cached/fs.js";
-const dbVersion = '07'
+const dbVersion = '08'
 export async function 根据文件名获取主数据库地址(filePath) {
     const { cachePath, root } = await getCachePath(filePath, `thumbnailIndex.${dbVersion}.db`)
     return { cachePath, root }
