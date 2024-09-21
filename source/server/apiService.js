@@ -125,7 +125,11 @@ app.get(
     }
 )
 
-app.listen(port, () => {
+app.listen(port, '127.0.0.1', () => {
+    console.log(`服务器运行在 http://127.0.0.1:${port}`);
+});
+
+app.listen(port, 'localhost', () => {
     window.channel.postMessage('serverReady')
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`服务器运行在 http://localhost:${port}`);
 });
