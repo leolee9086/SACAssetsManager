@@ -57,6 +57,13 @@ const 处理单个文件 = async (fullPath, fileHashes, duplicates, skippedFiles
         const sizeGroup = fileHashes.get(sizeKey);
 
         if (sizeGroup.size > 0) {
+            if (sizeGroup.has('placeholder')) {
+                // 如果存在占位符，先计算占位符文件的哈希
+                const placeholderPath = sizeGroup.get('placeholder');
+                const placeholderHash = loose ? await 宽松计算文件MD5(placeholderPath) : await 全量计算文件MD5(placeholderPath);
+                sizeGroup.delete('placeholder');
+                sizeGroup.set(placeholderHash, placeholderPath);
+            }
             const hash = loose ? await 宽松计算文件MD5(fullPath) : await 全量计算文件MD5(fullPath);
             if (sizeGroup.has(hash)) {
                 duplicates.push({ original: sizeGroup.get(hash), duplicate: fullPath });

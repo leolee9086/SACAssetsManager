@@ -98,6 +98,9 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addItem(文件批处理菜单组.快速扫描重复文件(options));
 
         menu.addItem(文件批处理菜单组.处理重复文件(options));
+        menu.addItem(文件批处理菜单组.图片去重(options));
+        menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
+
         menu.addSeparator();
 
         menu.addItem(文件批处理菜单组.归集图片文件(options));

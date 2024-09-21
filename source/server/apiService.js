@@ -116,6 +116,7 @@ app.use('/thumbnail',genThumbnailRouter)
 app.get(
     '/raw', async (req, res) => {
         const path = req.query.path || req.query.localPath
+        path=path.replace(/\\/g,'/')
         if (path.startsWith('assets')) {
             res.sendFile(require('path').join(siyuanConfig.system.workspaceDir, 'data', req.query.path))
         } else {

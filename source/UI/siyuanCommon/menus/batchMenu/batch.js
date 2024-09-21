@@ -233,6 +233,59 @@ export const 处理重复文件 = (options) => {
         }
     }
 };
+
+import { 执行图片去重 } from './duplicateImageScanner.js';
+export const 图片去重 = (options) => {
+    return {
+        label: '图片去重(基于粗略的像素比较)',
+        click: async () => {
+            const localPath = options.tab.data.localPath;
+            if (!localPath) {
+                console.error('无法获取本地路径');
+                return;
+            }
+            let confirm = await confirmAsPromise(
+                `确认开始图片去重?`,
+                `<p>开始后,将会对${localPath}中的图片文件的缩略图以灰度值计算简单哈希进行比较</p>
+                <p>这个过程可能需要较长时间,具体取决于图片数量和大小</p>
+                <p>识别并非完全准确,建议仅用于大量材质贴图等数量较大但准确性要求不高的场合</p>
+                <p>重复的图片将被移动到"待删除_重复图片"文件夹中</p>
+                `
+            )
+            
+            if (confirm) {
+                const taskController = 打开任务控制对话框('图片去重', '正在比较图片...');
+                await 执行图片去重(localPath, taskController,'simple');
+            }
+        }
+    }
+};
+export const 基于pHash的图片去重 = (options) => {
+    return {
+        label: '图片去重(基于phash)',
+        click: async () => {
+            const localPath = options.tab.data.localPath;
+            if (!localPath) {
+                console.error('无法获取本地路径');
+                return;
+            }
+            let confirm = await confirmAsPromise(
+                `确认开始图片去重?`,
+                `<p>开始后,将会对${localPath}中的图片文件的缩略图计算pHash进行比较</p>
+                <p>这个过程可能需要较长时间,具体取决于图片数量和大小</p>
+                <p>识别并非完全准确,建议仅用于大量材质贴图等数量较大但准确性要求不高的场合</p>
+                <p>重复的图片将被移动到"待删除_重复图片"文件夹中</p>
+                `
+            )
+            
+            if (confirm) {
+                const taskController = 打开任务控制对话框('图片去重', '正在比较图片...');
+                await 执行图片去重(localPath, taskController,'feature');
+            }
+        }
+    }
+};
+
 export const 归集图片文件 = (options) => {
     return {
         label: '归集图片文件',
@@ -243,60 +296,16 @@ export const 归集图片文件 = (options) => {
                 return;
             }
 
-            // 创建确认对话框
-            const confirmDialog = document.createElement('div');
-            confirmDialog.innerHTML = `
-                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                            background: white; padding: 20px; border-radius: 5px; 
-                            box-shadow: 0 0 10px rgba(0,0,0,0.1); z-index: 1000;
-                            color: var(--b3-theme-primary);">
-                    <h3>归集图片文件</h3>
-                    <p>
-                        <label>
-                            <input type="checkbox" id="includeSubfolders" checked> 
-                            包括子文件夹
-                        </label>
-                    </p>
-                    <button id="confirmButton">确认</button>
-                    <button id="cancelButton">取消</button>
-                </div>
-            `;
-            document.body.appendChild(confirmDialog);
+            const confirm = await confirmAsPromise(
+                '归集图片文件',
+                '是否包括子文件夹中的图片?',
+            );
 
-            // 等待用户确认
-            const userConfirmed = await new Promise((resolve) => {
-                document.getElementById('confirmButton').onclick = () => resolve(true);
-                document.getElementById('cancelButton').onclick = () => resolve(false);
-            });
+            if (confirm === null) return; // 用户取消操作
 
-            // 移除确认对话框
-            document.body.removeChild(confirmDialog);
+            const includeSubfolders = confirm;
 
-            if (!userConfirmed) return;
-
-            const includeSubfolders = document.getElementById('includeSubfolders').checked;
-
-            // 创建进度对话框
-            const progressDialog = document.createElement('div');
-            progressDialog.innerHTML = `
-                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                            background: white; padding: 20px; border-radius: 5px; 
-                            box-shadow: 0 0 10px rgba(0,0,0,0.1); z-index: 1000;
-                            color: var(--b3-theme-primary);">
-                    <h3>正在归集图片文件</h3>
-                    <p id="progressText">已处理: 0 个文件</p>
-                    <progress id="progressBar" value="0" max="100" style="width: 100%;"></progress>
-                </div>
-            `;
-            document.body.appendChild(progressDialog);
-
-            const updateProgress = (processed, total) => {
-                const progressText = document.getElementById('progressText');
-                const progressBar = document.getElementById('progressBar');
-                const percentage = total ? Math.round((processed / total) * 100) : 0;
-                progressText.textContent = `已处理: ${processed} / ${total} 个文件`;
-                progressBar.value = percentage;
-            };
+            const taskController = 打开任务控制对话框('归集图片文件', '正在归集图片文件...');
 
             try {
                 const fs = require('fs').promises;
@@ -311,33 +320,36 @@ export const 归集图片文件 = (options) => {
                 await fs.mkdir(targetFolder, { recursive: true });
 
                 let processedFiles = 0;
-                let totalFiles = 0;
 
                 const collectImages = async (dir) => {
                     const entries = await fs.readdir(dir, { withFileTypes: true });
                     for (const entry of entries) {
                         const fullPath = path.join(dir, entry.name);
                         if (entry.isDirectory() && includeSubfolders) {
-                            await collectImages(fullPath);
+                            await taskController.addTask(async()=>{
+                                await collectImages(fullPath)
+                            },0)
                         } else if (entry.isFile() && isImage(entry.name)) {
-                            totalFiles++;
-                            const newPath = path.join(targetFolder, entry.name);
-                            await fs.rename(fullPath, newPath);
-                            processedFiles++;
-                            updateProgress(processedFiles, totalFiles);
+                            await taskController.addTask(async () => {
+                                const newPath = path.join(targetFolder, entry.name);
+                                await fs.rename(fullPath, newPath);
+                                processedFiles++;
+                                return { message: `已移动: ${entry.name}` };
+                            },1);
                         }
                     }
                 };
 
                 await collectImages(localPath);
 
-                clientApi.showMessage(`归集完成，共处理 ${processedFiles} 个图片文件。`, 'info');
+                taskController.start();
+                taskController.on('allTasksCompleted', () => {
+                    clientApi.showMessage(`归集完成，共处理 ${processedFiles} 个图片文件。`, 'info');
+                });
             } catch (error) {
                 console.error('归集图片文件时发生错误:', error);
                 clientApi.showMessage('归集图片文件时发生错误', 'error');
-            } finally {
-                // 移除进度对话框
-                document.body.removeChild(progressDialog);
+                taskController.close();
             }
         }
     }
