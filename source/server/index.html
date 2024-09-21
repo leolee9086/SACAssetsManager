@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SACAssetsManager</title>
     <meta charset="utf-8">
-        <script type="module">
+    <script type="module">
         let path = require("path");
         let fs = require("fs");
         let remote = require(path.join(
@@ -202,17 +203,17 @@
             }
         };
         const channel = new BroadcastChannel('SACAssets')
-        window.channel=channel
+        window.channel = channel
         channel.onmessage = (e) => {
             if (!window.siyuanConfig && e.data && e.data.type && e.data.type === 'siyuanConfig') {
                 window.siyuanConfig = e.data.data
-                window.appID=e.data.app
-                window.siyuanPort=e.data.siyuanPort
+                window.appID = e.data.app
+                window.siyuanPort = e.data.siyuanPort
                 window.require.setExternalBase(path.join(siyuanConfig.system.workspaceDir, '/data/plugins/SACAssetsManager/node_modules/'))
                 window.require.setExternalDeps(path.join(siyuanConfig.system.workspaceDir, '/data/plugins/SACAssetsManager/node_modules/'))
-                console.log(siyuanConfig.system.workspaceDir,e.data)
+                console.log(siyuanConfig.system.workspaceDir, e.data)
                 window.workspaceDir = siyuanConfig.system.workspaceDir
-                window.port=e.data.port
+                window.port = e.data.port
                 if (window.require) {
                     import("./server.js")
                 }
@@ -220,84 +221,96 @@
         }
 
 
-</script>
-<script>
-    window.onload = () => {
-        const logAppContainer = document.getElementById('logApp')
-        logAppContainer.innerHTML = '<div>123</div>'
-        /*console.log=async(...args)=>{
-            let div = document.createElement('div')
-            div.innerHTML = args.join('')
-            div.style.whiteSpace = 'pre-wrap'
-            div.setAttribute('class','log')
-            logAppContainer.appendChild(div)
-            logAppContainer.scrollTop = logAppContainer.scrollHeight
-            shiftChild(logAppContainer,1000)
-        }*/
-       /* console.error=async(...args)=>{
-            let div = document.createElement('div')
-            div.innerHTML = args.join('')
-            div.style.whiteSpace = 'pre-wrap'
-            div.style.color = 'red'
-            div.setAttribute('class','log error')
-            logAppContainer.appendChild(div)
-            logAppContainer.scrollTop = logAppContainer.scrollHeight
-            shiftChild(logAppContainer,1000)
-        }*/
-        function shiftChild(container,num){
-            const children =Array.from(container.querySelectorAll('.log'))
-            //先进行第一次遍历,只删除非error
-            const timeOut= 1000
-            const startTime = Date.now()
-            while(children.length>=num){
-                if(Date.now()-startTime>timeOut){
-                    break
-                }
-                try{
-                    if(children.shift().getAttribute('class')!=='log error'){
-                        children.shift().remove()
+    </script>
+    <script>
+        window.onload = () => {
+            const logAppContainer = document.getElementById('logApp')
+            logAppContainer.innerHTML = '<button id="forceButton">强制取得数据库控制</button>'
+            /*console.log=async(...args)=>{
+                let div = document.createElement('div')
+                div.innerHTML = args.join('')
+                div.style.whiteSpace = 'pre-wrap'
+                div.setAttribute('class','log')
+                logAppContainer.appendChild(div)
+                logAppContainer.scrollTop = logAppContainer.scrollHeight
+                shiftChild(logAppContainer,1000)
+            }*/
+            /* console.error=async(...args)=>{
+                 let div = document.createElement('div')
+                 div.innerHTML = args.join('')
+                 div.style.whiteSpace = 'pre-wrap'
+                 div.style.color = 'red'
+                 div.setAttribute('class','log error')
+                 logAppContainer.appendChild(div)
+                 logAppContainer.scrollTop = logAppContainer.scrollHeight
+                 shiftChild(logAppContainer,1000)
+             }*/
+            document.getElementById('forceButton').addEventListener(
+                'click', async () => {
+                    if (confirm('确定要强制释放所有文件锁吗?当且仅当切换SACAssetsManager的主工作空间时使用。')) {
+                        await window.强制释放所有文件锁()
+                        window.location.reload()
                     }
-                }catch(e){
                 }
-            }
-            //再进行第二次遍历,删除error
-            while(children.length>=num){
-                if(Date.now()-startTime>timeOut){
-                    break
+            )
+            function shiftChild(container, num) {
+                const children = Array.from(container.querySelectorAll('.log'))
+                //先进行第一次遍历,只删除非error
+                const timeOut = 1000
+                const startTime = Date.now()
+                while (children.length >= num) {
+                    if (Date.now() - startTime > timeOut) {
+                        break
+                    }
+                    try {
+                        if (children.shift().getAttribute('class') !== 'log error') {
+                            children.shift().remove()
+                        }
+                    } catch (e) {
+                    }
                 }
-                try{
-                    children.shift().remove()
-                }catch(e){
+                //再进行第二次遍历,删除error
+                while (children.length >= num) {
+                    if (Date.now() - startTime > timeOut) {
+                        break
+                    }
+                    try {
+                        children.shift().remove()
+                    } catch (e) {
+                    }
                 }
             }
         }
-    }
-</script>
-<style>
-    body,html{
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        margin: 0;
-        padding: 0;
-    }
-    #logApp{
-        width: 100%;
-        height: 100%;
-        overflow-y: auto;
-        background-color: #000;
-        color: #fff;
-    }
-    .log{
-        white-space: pre-wrap;
-        margin-bottom: 10px;
-    }
-</style>
+    </script>
+    <style>
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        #logApp {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            background-color: #000;
+            color: #fff;
+        }
+
+        .log {
+            white-space: pre-wrap;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
+
 <body>
     <div id="logApp">
 
     </div>
 </body>
-</html>
 
+</html>
