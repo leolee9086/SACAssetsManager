@@ -23,9 +23,9 @@
         </div>
         <div v-if="IncludeSubfolders" @wheel="horizontalScroll" class="fn__flex subFolders">
             <div class="fn__space"></div>
-            <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i">
+            <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i+子文件夹信息.name">
                 <div v-if="i < 100" @click.left.stop="() => { toggleShow(子文件夹信息, i) }"
-                    @click.right.stop="() => { 右键菜单(子文件夹信息, i) }" :class="{ 'subfolderShown': 子文件夹信息.show }"
+                    @click.right.stop="(e) => { 右键菜单(子文件夹数组[i], e) }" :class="{ 'subfolderShown': 子文件夹信息.show }"
                     style="border-radius:15px;min-width:80px;width:80px;height:80px;background-color: var(--b3-theme-background-light);">
                     <img src="/stage/icon.png">
                     <div style="font-size: small;text-align: center;">{{ 子文件夹信息.name }}</div>
@@ -44,10 +44,16 @@ import { 构建搜索模式 } from '../../../../utils/globBuilder.js';
 import { plugin } from 'runtime'
 import { horizontalScroll } from '../../../utils/scroll.js'
 import { commonIcon } from '../icons.js'
+import { 打开文件夹图标菜单 } from '../../../siyuanCommon/menus/folderItem.js';
 const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
-const 右键菜单 = (子文件夹信息, i) => {
-
+const 右键菜单 = (子文件夹信息, event) => {
+    const 子文件夹路径 = window.require('path').join(localPath,子文件夹信息.name).replace(/\\/g,'/')
+    const position =  { y: event.y , x: event.x }
+    const options = {
+        position
+    }
+    打开文件夹图标菜单(event,子文件夹路径,options)
 }
 watch(() => IncludeSubfolders.value, () => {
     fetchSUbFolders()

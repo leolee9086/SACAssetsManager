@@ -61,3 +61,11 @@
     margin-top: 5px;
     text-align: right;
 }
+.cc-dialog__close{
+    cursor: pointer;
+    width: 18px;
+    height:18px;
+    opacity: .68;
+    color: var(--b3-theme-on-surface);
+    padding-right: 2px;
+}
