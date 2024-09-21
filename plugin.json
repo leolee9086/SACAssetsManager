@@ -2,8 +2,8 @@
   "name": "SACAssetsManager",
   "author": "椽承设计",
   "url": "https://github.com/leolee9086/SACAssetsManager",
-  "version": "0.0.2",
-  "minAppVersion": "3.0.12",
+  "version": "0.0.5",
+  "minAppVersion": "3.1.6",
 
   "backends": [
     "windows"
