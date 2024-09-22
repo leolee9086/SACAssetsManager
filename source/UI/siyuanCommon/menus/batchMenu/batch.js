@@ -81,7 +81,7 @@ export const 扫描重复文件 = (options) => {
                 `确认开始扫描?`,
                 `<p>开始后,将会开始查找${localPath}中的重复文件</p>
                 <p>可能会有大量读取文件操作并需要一定时间执行</p>
-                <p>文件扫描结果将被写入"重复文件扫描结果.txt"中</p>
+                <p>文件扫描结果将被写入"重复文件扫描结果.json"中,而不是直接删除</p>
                 <p>超过100MB的文件将会被跳过</p>
                 `
             )
@@ -104,7 +104,7 @@ export const 快速扫描重复文件 = (options) => {
                 `确认开始扫描?`,
                 `<p>开始后,将会开始查找${localPath}中的重复文件</p>
                 <p>可能会有大量读取文件操作并需要一定时间执行</p>
-                <p>文件扫描结果将被写入"重复文件扫描结果.txt"中</p>
+                <p>文件扫描结果将被写入"重复文件扫描结果.json"中,而不是直接删除</p>
                 `
             )
             if (confirm) {
@@ -158,6 +158,17 @@ export const 处理重复文件 = (options) => {
             if (!localPath) {
                 console.error('无法获取本地路径');
                 return;
+            }
+            let confirm = await confirmAsPromise(
+                `确认处理重复文件?`,
+                `<p>开始后,将会开始查找${localPath}中的重复文件</p>
+                <p>可能会有大量读取文件操作并需要一定时间执行</p>
+                <p>运行之前需要先使用扫描重复文件功能生成重复文件列表</p>
+                <p>重复文件中修改时间最近的结果将会保留在原始位置,其他文件将会被移入"待删除_重复文件"子文件夹</p>
+                `
+            )
+            if(!confirm){
+                return
             }
             const fs = require('fs').promises;
             const path = require('path');

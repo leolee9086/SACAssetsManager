@@ -30,17 +30,17 @@ export const 打开附件组菜单 = (event, assets, options) => {
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.删除所有ThumbsDB(options))
-        menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
-        menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
         menu.addItem(文件批处理菜单组.扫描重复文件(options));
-        menu.addSeparator();
         menu.addItem(文件批处理菜单组.快速扫描重复文件(options));
         menu.addItem(文件批处理菜单组.处理重复文件(options));
+        menu.addItem(文件批处理菜单组.扫描空文件夹(options));
+        menu.addSeparator();
+        menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
         menu.addItem(文件批处理菜单组.图片去重(options));
         menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
         menu.addSeparator();
+        menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
         menu.addItem(文件批处理菜单组.归集图片文件(options));
-        menu.addItem(文件批处理菜单组.扫描空文件夹(options));
         menu.addItem(文件批处理菜单组.复制文档树结构(options));
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '插件') {
