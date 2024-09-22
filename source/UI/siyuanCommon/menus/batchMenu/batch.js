@@ -245,10 +245,10 @@ export const 处理重复文件 = (options) => {
     }
 };
 
-import { 执行图片去重 } from './duplicateImageScanner.js';
-export const 图片去重 = (options) => {
+import { 执行图片去重, 执行图片去重_后处理 } from './duplicateImageScanner.js';
+export const 图片去重 = (options,扫描完成后选择) => {
     return {
-        label: '图片去重(基于粗略的像素比较)',
+        label: 扫描完成后选择?'图片去重(基于粗略的像素比较,扫描完成后选择)':'图片去重(基于粗略的像素比较)',
         click: async () => {
             const localPath = options.tab.data.localPath;
             if (!localPath) {
@@ -265,15 +265,16 @@ export const 图片去重 = (options) => {
             )
             
             if (confirm) {
-                const taskController = 打开任务控制对话框('图片去重', '正在比较图片...');
-                await 执行图片去重(localPath, taskController,'simple');
+                const taskController = 打开任务控制对话框('图片去重', '正在比较图片,使用像素哈希...');
+                扫描完成后选择?await 执行图片去重_后处理(localPath, taskController,'simple'):await 执行图片去重(localPath, taskController,'simple');
             }
         }
     }
 };
+
 export const 基于pHash的图片去重 = (options) => {
     return {
-        label: '图片去重(基于phash)',
+        label: 扫描完成后选择?'图片去重(基于phash,扫描完成后选择)':'图片去重(基于phash)',
         click: async () => {
             const localPath = options.tab.data.localPath;
             if (!localPath) {
@@ -290,8 +291,8 @@ export const 基于pHash的图片去重 = (options) => {
             )
             
             if (confirm) {
-                const taskController = 打开任务控制对话框('图片去重', '正在比较图片...');
-                await 执行图片去重(localPath, taskController,'feature');
+                const taskController = 打开任务控制对话框('图片去重', '正在比较图片,使用pahash...');
+                扫描完成后选择?await 执行图片去重_后处理(localPath, taskController,'feature'):await 执行图片去重(localPath, taskController,'feature');
             }
         }
     }

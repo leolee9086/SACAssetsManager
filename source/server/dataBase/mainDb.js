@@ -37,14 +37,7 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
         throw new Error('尝试写入缓存时未提供条目类型')
     }
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(fullName)
-
-
-    //显式指定的优先
     const hash = 计算哈希(stat)
-    // 检查 statHash 是否已存在
-    //console.log('写入缓存记录', fullName, hash, updateTime, stat, entryType)
-    // 检查哈希值是否已存在
-
     const stmt = 磁盘缩略图数据库.prepare(`
         INSERT OR REPLACE INTO thumbnails 
         (fullName, type, statHash, updateTime, stat, size, ctime, atime, mtime)
@@ -59,7 +52,6 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
     const mockStat= {
         ...stat,
         path:转换为相对磁盘根目录路径(stat.path),
-
     }
     const result = await stmt.run(
         转换为相对磁盘根目录路径(fullName),

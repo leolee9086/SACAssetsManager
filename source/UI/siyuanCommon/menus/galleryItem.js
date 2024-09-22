@@ -37,6 +37,8 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
         menu.addItem(文件批处理菜单组.图片去重(options));
+        menu.addItem(文件批处理菜单组.图片去重(options,true));
+
         menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
