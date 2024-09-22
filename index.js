@@ -14,6 +14,7 @@ module.exports = class SACAssetsManager extends Plugin {
     this.插件自身伺服地址 = `/plugins/${this.name}`
     this.selfURL = this.插件自身伺服地址
     this.初始化进程状态()
+    this.加载工具webview()
     this.添加全局事件监听()
     this.stayAlive = true
     this.创建web服务()
@@ -33,6 +34,10 @@ module.exports = class SACAssetsManager extends Plugin {
       资源界面项目右键: 'rightclick-galleryitem',
       打开附件所在路径: 'open-asset-folder'
     }
+  }
+  加载工具webview(){
+    //用于触发原生拖拽事件
+    import(`${this.插件自身伺服地址}/source/utilWebviews/drag.js`)
   }
   添加全局事件监听(){
     import(`${this.插件自身伺服地址}/source/events/globalEvents.js`)

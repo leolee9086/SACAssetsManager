@@ -121,6 +121,10 @@ export const 打开附件组菜单 = (event, assets, options) => {
         }
     }
     assets&&assets[0]&&添加通用菜单内容(menu, assets)
+    menu.addSeparator()
+    menu.addItem(menuItems.清理缓存并硬刷新())
+    menu.addSeparator()
+
     assets&&assets[0]&&添加只读菜单内容(menu, assets)
     eventBus.emit(
         'contextmenu-galleryitem', { event, assets, menu, mode: plugin.附件编辑模式 }
@@ -135,7 +139,6 @@ function 添加只读菜单内容(menu, assets) {
         disabled: 'ture',
         type: 'readonly'
     })
-
 }
 /**
  * 常规菜单内容
@@ -156,7 +159,6 @@ function 添加通用菜单内容(menu, assets) {
         menu.addItem(menuItems.复制文件缩略图地址(assets))
         menu.addItem(menuItems.上传到assets并复制链接(assets))
         menu.addSeparator();
-        menu.addItem(menuItems.清理缓存并硬刷新())
         menu.addSeparator();
     } else {
         //否则收缩到子菜单项目

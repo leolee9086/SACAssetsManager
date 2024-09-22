@@ -7,12 +7,14 @@ const 开始原生文件拖拽事件=async(event,files)=>{
     event.preventDefault();
     const remote = window.require('@electron/remote');
     const { webContents } = remote
-    const webContentsId = plugin.serverContainerWebContentsID
+   /* const webContentsId = plugin.serverContainerWebContentsID
     console.log(webContentsId)
-    const webviewWebContents = webContents.fromId(webContentsId)
+    const webviewWebContents = webContents.fromId(webContentsId)*/
+    console.log(plugin.dragListenerWebview)
+    const webviewWebContents=plugin.dragListenerWebview.$webContents
     let _webContents = remote.getCurrentWindow().webContents
     const dragOperation = event.ctrlKey ? 'copy' : 'move';
-    files[0] &&webContentsId&& webviewWebContents.send('startDrag',
+    files[0] && webviewWebContents.send('startDrag',
         {
             id: _webContents.id,
             data: {

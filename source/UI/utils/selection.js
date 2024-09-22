@@ -24,7 +24,6 @@ const handlePreviousSelection = (event, galleryContainer, currentLayout) => {
 // 计算选择框的坐标
 export const calculateSelectionCoordinates = (selectionBox, layoutRect, currentLayoutOffsetTop, paddingLR,size) => {
     const { startX, startY, endX, endY } = selectionBox;
-    console.log(Math.max(startX, endX) -paddingLR-layoutRect.x,paddingLR,layoutRect.x,size)
     return {
         minX: Math.min(startX, endX) - paddingLR-layoutRect.x,
         maxX: Math.max(startX, endX) -paddingLR-layoutRect.x,
@@ -62,7 +61,6 @@ export const clearSelectionWithLayout = (currentLayout) => {
 export  function diffByEventKey(previousResult, currentResult, event) {
     // 如果没有按下Ctrl或Shift键,直接返回当前结果
     let {ctrlKey,shiftKey,altKey}=event
-    console.log(ctrlKey,shiftKey,altKey)
     if (!event.ctrlKey && !event.shiftKey&&!event.altKey) {
         return currentResult;
     }
