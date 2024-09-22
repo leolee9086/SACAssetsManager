@@ -272,7 +272,7 @@ export const 图片去重 = (options,扫描完成后选择) => {
     }
 };
 
-export const 基于pHash的图片去重 = (options) => {
+export const 基于pHash的图片去重 = (options,扫描完成后选择) => {
     return {
         label: 扫描完成后选择?'图片去重(基于phash,扫描完成后选择)':'图片去重(基于phash)',
         click: async () => {
