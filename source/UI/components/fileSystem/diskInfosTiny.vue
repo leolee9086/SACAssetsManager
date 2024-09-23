@@ -81,10 +81,18 @@
                                             borderBottom: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
                                             zIndex: genVisible(folder) ? 1 : ''
                                         }"></span>
-                                        <div class="disk-tiny-item-text fn__flex fn__flex-1">{{ folderInfos[i].name }}
+                                        <div 
+                                        @click.right="(event)=>{
+                                            打开文件夹图标菜单(event,folderInfos[i].path,{
+                                                position:{
+                                                    x:event.x,
+                                                    y:event.y
+                                                }
+                                            })
+                                        }"
+                                        class="disk-tiny-item-text fn__flex fn__flex-1">{{ folderInfos[i].name }}
                                             <div class="fn__space fn__flex-1" style="">
                                             </div>
-
                                             <span>{{ folder.fileCount }}</span>
                                             <span class="fn__space"></span>
                                             <span>{{ folder.folderCount }}</span>
@@ -105,6 +113,7 @@ import { listLocalDisks } from '../../../data/diskInfo.js';
 import { plugin } from 'runtime'
 import { commonIcon } from '../common/icons.js'
 import { buildMultiClickListener } from '../../utils/click.js'
+import { 打开文件夹图标菜单 } from '../../siyuanCommon/menus/folderItem.js';
 const callbacks = (folder) =>{ 
     folder.callbacks =folder.callbacks ||    buildMultiClickListener(300, [
     (event) => {

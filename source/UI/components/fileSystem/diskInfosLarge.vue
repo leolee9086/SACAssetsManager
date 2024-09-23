@@ -35,11 +35,7 @@ import {plugin} from 'runtime'
 const diskInfos = ref([])
 // 调用函数
 onMounted(async () => {
-    console.log(diskInfos.value)
-
     diskInfos.value = await listLocalDisks();
-    console.log(diskInfos.value)
-
 })
 </script>
 <style scoped>

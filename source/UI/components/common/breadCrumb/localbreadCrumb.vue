@@ -64,8 +64,6 @@ watch(() => IncludeSubfolders.value, () => {
              * 内置属性
              */
             depth:1,
-           
-
         })
     } else {
         emit('globChange', 构建搜索模式(子文件夹数组.value, localPath.replace(/\\/g, '/')))
