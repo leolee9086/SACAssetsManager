@@ -52,7 +52,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addItem(
             menuItems.使用TEColors插件分析图像颜色(assets),
         )
-        添加插件菜单内容(menu.assets)
+        添加插件菜单内容(menu,assets)
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '移动') {
         menu.addSeparator();
