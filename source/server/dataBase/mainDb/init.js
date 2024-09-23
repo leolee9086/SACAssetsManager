@@ -43,10 +43,10 @@ async function 初始化数据库(dbPath, root) {
     `);
         dbs[root].prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_name ON thumbnails(fullName)').run();
         dbs[root].prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_statHash ON thumbnails(statHash)').run();
-    }else{
-        console.warn('数据库锁定中,以只读方式启动',dbPath)
+    } else {
+        console.warn('数据库锁定中,以只读方式启动', dbPath)
     }
-    dbs.readOnly=readOnly
+    dbs.readOnly = readOnly
 
     // 添加关闭数据库的方法，同时释放文件锁
     dbs[root].closeAndUnlock = async () => {
@@ -57,7 +57,7 @@ async function 初始化数据库(dbPath, root) {
         }
         delete dbs[root]
     }
-    dbs[root].root=root
+    dbs[root].root = root
     return dbs[root]
 }
 

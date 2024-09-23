@@ -114,9 +114,8 @@ export async function 查找文件hash(filePath) {
     return result;
 }
 export async function 查找文件状态(filePath) {
-    console.log(filePath)
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(filePath)
-    const stmt = 磁盘缩略图数据库.prepare(`SELECT * FROM thumbnails WHERE fullName like ? and type='file'`);
+    const stmt = 磁盘缩略图数据库.prepare(`SELECT * FROM thumbnails WHERE fullName = ? and type='file'`);
     const result = stmt.get(转换为相对磁盘根目录路径(filePath));
     return result;
 }
@@ -125,7 +124,6 @@ export async function 查找文件夹状态(filePath){
     const stmt = 磁盘缩略图数据库.prepare(`SELECT * FROM thumbnails WHERE fullName = ? and type='dir'`);
     const result = stmt.get(转换为相对磁盘根目录路径(filePath));
     return result;
-
 }
 
 export async function 查找并解析文件状态(filePath) {
