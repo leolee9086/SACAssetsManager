@@ -1,6 +1,6 @@
 import { kernelApi } from "../asyncModules.js";
 import { cleanAssetPath } from "./utils/assetsName.js";
-import { applyURIStreamJson,applyURIStreamJsonCompatible } from "./fetchStream.js";
+import { applyURIStreamJson, applyURIStreamJsonCompatible } from "./fetchStream.js";
 
 
 /***
@@ -36,4 +36,4 @@ export async function applyStmt(stmt) {
         }
     )
 }
-export { applyURIStreamJson,applyURIStreamJsonCompatible }
+export { applyURIStreamJson, applyURIStreamJsonCompatible }

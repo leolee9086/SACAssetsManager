@@ -8,7 +8,6 @@ function traverseTags(tags, callback) {
         }
     });
 }
-
 export async function saveTags(tags){
     await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify(tags));
     plugin.tags = tags
@@ -24,12 +23,11 @@ export async function queryTags(tagLabel){
     }
     return tag
 }
-export async function getTagAssets(tags) {
+async function getTagAssets(tags) {
     let data = [];
         tags = await kernelApi.getTag({sort:0})
     
     if (await workspace.exists(`/data/storage/petal/${plugin.name}/tags.json`)) {
-        console.log('tag assets', await workspace.readFile(`/data/storage/petal/${plugin.name}/tags.json`));
         data = JSON.parse(await workspace.readFile(`/data/storage/petal/${plugin.name}/tags.json`));
     } else {
         await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify([]));
