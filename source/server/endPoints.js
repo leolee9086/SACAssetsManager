@@ -32,6 +32,11 @@ const upload= (type, path) => {
     
     return `${baseUrl}?${params.toString()}`;
 }
+export const fs={
+    path:{
+        getPathExtensions(localPath){return `${serverHost()}/fs/path/extentions/?dirPath=${encodeURIComponent(localPath)}`}
+    }
+}
 export const thumbnail={
     genHref:thumbnailHost,
     getColor: (type, path, reGen = false) => {

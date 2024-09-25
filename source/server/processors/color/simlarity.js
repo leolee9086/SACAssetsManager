@@ -47,9 +47,6 @@ export function CIEDE2000RGBA(pix1, pix2) {
  */
 export function CIEDE2000(Lab_1, Lab_2) {
     const C_25_7 = 6103515625; // 25**7
-
-    //const [L1, a1, b1] = Lab_1;
-    //const [L2, a2, b2] = Lab_2;
     const L1 = Lab_1.L
     const a1 = Lab_1.a
     const b1 = Lab_1.b

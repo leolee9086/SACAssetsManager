@@ -140,13 +140,22 @@ export async function 查找并解析文件状态(filePath) {
 export async function 提取所有子目录文件扩展名(dirPath) {
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(dirPath)
     const sql = `
-        SELECT DISTINCT LOWER(SUBSTR(fullName, INSTR(fullName, '.') + 1)) AS extension
+        SELECT fullName
         FROM thumbnails
         WHERE fullName LIKE ? || '%'
         AND type = 'file'
-        AND INSTR(fullName, '.') > 0
     `;
     const stmt = 磁盘缩略图数据库.prepare(sql);
     const results = stmt.all(转换为相对磁盘根目录路径(dirPath) + "%");
-    return results.map(row => row.extension);
+    
+    // 使用JavaScript处理扩展名
+    const extensions = new Set();
+    for (let i = 0; i < results.length; i++) {
+        const fileName = results[i].fullName.split('/').pop(); // 获取文件名
+        const match = fileName.match(/\.([^.]+)$/);
+        if (match) {
+            extensions.add(match[1].toLowerCase());
+        }
+    }
+    return Array.from(extensions);
 }
