@@ -19,12 +19,22 @@
     </div>
 </template>
 <script setup>
-import { 获取本地文件夹数据, 获取标签列表数据,获取颜色查询数据,处理默认数据 } from "../../../data/siyuanAssets.js"
+import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据 } from "../../../data/siyuanAssets.js"
 
 import { 表格视图阈值 } from "../../utils/threhold.js";
 import {
     ref,
-    onMounted, inject, reactive, toRef, watch, defineProps, nextTick, defineEmits, shallowRef, onUnmounted
+    onMounted,
+     inject, 
+     reactive,
+      toRef, 
+      watch, 
+      defineProps, 
+      nextTick, 
+      defineEmits, 
+      shallowRef, 
+      onUnmounted,
+      defineExpose
 } from 'vue'
 import { 从数据源定量加载数据, 创建瀑布流布局 } from "../../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "../common/assetsThumbnailCard.vue";
@@ -41,8 +51,11 @@ const 计算卡片样式 = (卡片数据) => {
         position: absolute;
     `
 }
+//let 附件数据源数组 =shallowRef([])
+
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'filListProvided'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'filListProvided','assetsSource'])
+const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
 const filListProvided = toRef(props, 'filListProvided')
 const sorter = toRef(props, 'sorter')
@@ -97,22 +110,37 @@ function 更新素材高度(cardData, height) {
         更新可见区域(true)
     }
 }
-function 上报统计数据() {
-    let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
-    emit("layoutCount", 附件数据源数组.length)
-    emit('scrollTopChange', scrollTop)
+function 上报统计数据(total) {
+    if (total) {
+        emit("layoutCountTotal", total)
+        return
+    }
+    emit("layoutCount", 附件数据源数组.data.length)
+    emit("layoutCount", 附件数据源数组.data.length)
+    if (scrollContainer.value) {
+        let { scrollTop } = scrollContainer.value
+
+        emit('scrollTopChange', scrollTop)
+    }
+    布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
 }
 
 let isUpdating
 let oldScrollTop
 const 是否更新 = (flag) => {
+    if(!scrollContainer.value){
+        return
+    }
+    if(!布局对象.value){
+        return false
+    }
     if (oldScrollTop === scrollContainer.value.scrollTop && scrollContainer.value.scrollTop !== 0 && !flag) {
         return false;
     }
     if (isUpdating && !flag) {
         return false;
     }
-    布局对象.value.timeStep += 5;
+
     return true;
 }
 const 更新布局容器高度 = () => {
@@ -120,7 +148,7 @@ const 更新布局容器高度 = () => {
         containerHeight.value = Math.min(
             Math.max(
                 ...布局对象.value.columns.map(column => column.y),
-                (附件数据源数组.length + 布局对象.value.layout.length) * size.value / columnCount.value
+                (附件数据源数组.data.length + 布局对象.value.layout.length) * size.value / columnCount.value
             ),
             1024000
         )
@@ -135,7 +163,8 @@ const 加载更多卡片 = (scrollContainer, 布局对象, 附件数据组) => {
     clientHeight = Math.min(clientHeight, window.innerHeight)
     clientWidth = Math.min(clientWidth, window.innerWidth)
     let _flag = true
-    while (_flag) {
+    let max = 0
+    while (_flag&&max<1024) {
         try {
             let shortestColumn = 获取布局最短列(布局对象)
             if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight && 附件数据组.length) {
@@ -145,6 +174,8 @@ const 加载更多卡片 = (scrollContainer, 布局对象, 附件数据组) => {
             }
         } catch (e) {
             _flag = false
+        }finally{
+            max++
         }
     }
 }
@@ -177,21 +208,19 @@ const 更新可见区域 = (flag) => {
         return
     }
     更新布局容器高度()
-    布局对象.value.timeStep += 5
+    布局对象.value&&(布局对象.value.timeStep += 5);
     try {
         oldScrollTop = scrollTop
         const 可见框 = 计算可见框(scrollTop, clientHeight, clientWidth)
         更新可见卡片(可见框)
-        加载更多卡片(scrollContainer.value, 布局对象.value, 附件数据源数组)
-        emit("layoutLoadedCount", 布局对象.value.layout.length)
-
+        加载更多卡片(scrollContainer.value, 布局对象.value, 附件数据源数组.data)
+        上报统计数据()
     } catch (e) {
         console.warn(e)
     }
     isUpdating = false
 }
 
-let 附件数据源数组=[]
 
 import { 以函数创建尺寸监听 } from "../../utils/observers/resize.js"
 let lastWidth = 0
@@ -228,7 +257,7 @@ const emitLayoutChange = () => {
         layout: 布局对象.value,
         element: scrollContainer.value
     })
-    布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
+    上报统计数据()
 }
 watch(
     [布局对象, columnCount, size], () => {
@@ -250,15 +279,13 @@ const mounted = ref(null)
 let oldsize
 let lastSort = Date.now()
 async function 确认初始化界面并排序(total) {
-    if (total) {
-        emit("layoutCountTotal", total)
+    if(!scrollContainer.value){
         return
     }
-    emit("layoutCount", 附件数据源数组.length)
-    布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
+    上报统计数据(total)
     mounted.value = true
-    布局对象.value =布局对象.value|| 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-    布局对象.value.layout.length?null:定长加载(100)
+    布局对象.value = 布局对象.value || 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+    布局对象.value.layout.length ? null : 定长加载(100)
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 10) {
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
@@ -269,7 +296,9 @@ async function 确认初始化界面并排序(total) {
         监听尺寸函数(scrollContainer.value)
     })
 }
-
+defineExpose({
+  dataCallBack:确认初始化界面并排序
+})
 const controller = new AbortController();
 const signal = controller.signal;
 
@@ -288,7 +317,7 @@ onUnmounted(
 const 定长加载 = (阈值) => {
     let 校验函数 = data => data && data.id
     let 加载回调 = () => { 更新可见区域(true) }
-    从数据源定量加载数据(阈值, 布局对象.value, 附件数据源数组, 校验函数, 加载回调)
+    从数据源定量加载数据(阈值, 布局对象.value, 附件数据源数组.data, 校验函数, 加载回调)
 }
 
 
@@ -297,25 +326,12 @@ const 定长加载 = (阈值) => {
 onMounted(async () => {
     appData.value.tab.controllers = appData.value.tab.controllers || []
     appData.value.tab.controllers.push(controller)
-    //直接提供了文件列表的情况
-    if (filListProvided.value) {
-        附件数据源数组.push(...filListProvided.value);
-    }
-    //提供了本地文件夹路径
-    else if (appData.value.tab.data.localPath) {
-        await 获取本地文件夹数据(globSetting.value, 附件数据源数组, 确认初始化界面并排序, 1, signal)
-    }
-    //提供了标签
-    else if (appData.value.tab.data.tagLabel) {
-        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组, 确认初始化界面并排序, 1, signal, globSetting.value)
-    }
-     else if (appData.value.tab.data.color) {
-        await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组, 确认初始化界面并排序, 1, signal, globSetting.value)
-    }
-    else {
-        await 处理默认数据(appData.value.tab,附件数据源数组,()=>{nextTick(确认初始化界面并排序)})
-    }
-    nextTick(确认初始化界面并排序)
+    nextTick(
+        ()=>{
+            emit('ready')
+
+        }
+    )
 })
 
 

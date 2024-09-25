@@ -53,11 +53,14 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush :everthingEnabled="everthingEnabled" :everthingPort="everthingPort"
-                :filListProvided="filListProvided" @palletAdded="palletAdded" :globSetting="$realGlob"
-                v-if="showPanel && globSetting" :maxCount="maxCount" @layoutCountTotal="(e) => { layoutCountTotal = e }"
-                @ready="size = 300" @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange"
-                :sorter="sorter" @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
+            <assetsGridRbush 
+            @ready="创建回调并获取数据"
+            ref="grid" :assetsSource="附件数据源数组" :everthingEnabled="everthingEnabled"
+                :everthingPort="everthingPort" :filListProvided="filListProvided" @palletAdded="palletAdded"
+                :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
+                @layoutCountTotal="(e) => { layoutCountTotal = e }" @ready="size = 300"
+                @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
+                @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
                 :size="parseInt(size)">
             </assetsGridRbush>
@@ -71,6 +74,7 @@
     </div>
 </template>
 <script setup>
+import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据 } from "../../data/siyuanAssets.js"
 
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
@@ -78,11 +82,55 @@ import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
+
+/**
+ * 获取数据相关
+ */
+const 附件数据源数组 = shallowRef({ data: [] })
+const grid = ref(null)
+const controller = new AbortController();
+const signal = controller.signal;
+const 创建回调并获取数据 = async () => {
+    附件数据源数组.value.data = []
+
+    const callBack = (...args) => {
+        grid.value&&grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null
+    }
+    if (filListProvided.value) {
+        附件数据源数组.value.data.push(...filListProvided.value);
+    }
+    //提供了本地文件夹路径
+    else if (appData.value.tab.data.localPath) {
+        await 获取本地文件夹数据(globSetting.value, 附件数据源数组.value.data, callBack, 1, signal)
+    }
+    //提供了标签
+    else if (appData.value.tab.data.tagLabel) {
+        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, globSetting.value)
+    }
+    else if (appData.value.tab.data.color) {
+        await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组.value.data, callBack, 1, signal, globSetting.value)
+    }
+    else {
+        await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, () => { nextTick(callBack) })
+    }
+    nextTick(callBack)
+}
+const showPanel = ref(true)
+const refreshPanel = () => {
+    showPanel.value = false
+    layoutCount.found = 0
+    layoutCount.loaded = 0
+    layoutCountTotal.value = 0
+    nextTick(() => {
+        showPanel.value = true
+    })
+}
+
+
 /**
  * 缩放相关
  */
 import { 从滚轮事件计算 } from '../utils/scroll.js';
-
 const appData = toRef(inject('appData'))
 //全局设置
 const globSetting = ref({})
@@ -165,16 +213,7 @@ const layoutCount = reactive({ found: 0, loaded: 0 })
 let currentLayout = reactive({})
 let currentLayoutOffsetTop = 0
 let currentLayoutContainer
-const showPanel = ref(true)
-const refreshPanel = () => {
-    showPanel.value = false
-    layoutCount.found = 0
-    layoutCount.loaded = 0
-    layoutCountTotal.value = 0
-    nextTick(() => {
-        showPanel.value = true
-    })
-}
+
 const handlerLayoutChange = (data) => {
     currentLayout.value = data.layout || {}
     currentLayoutContainer = data.element
@@ -287,7 +326,7 @@ plugin.eventBus.on(globalKeyboardEvents.globalKeyDown, (e) => {
 /**
  * 拖放相关逻辑
  */
-import { reactive } from '../../../static/vue.esm-browser.js';
+import { reactive, shallowRef } from '../../../static/vue.esm-browser.js';
 import { onDragStartWithLayout, handlerDropWithTab } from '../utils/drag.js'
 import CommonBreadCrumb from './common/breadCrumb/commonBreadCrumb.vue';
 import { globalKeyboardEvents } from '../../events/eventNames.js';
