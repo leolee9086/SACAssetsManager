@@ -1,5 +1,5 @@
 import Rbush from '../../../../../static/rbush.js';
-
+import { 定长执行 } from '../../../../utils/functions/Iteration.js';
 export function 二分查找可见素材(位置序列, 查找起点, 窗口高度) {
     let 当前起始索引 = 0;
     let 当前截止索引 = 位置序列.length - 1;
@@ -121,7 +121,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
                 // 清空队列
             }
         )
-   
+
         staticSize && batchUpdateIndex()
         updateQueue = [];
         timeStep = 30
@@ -172,7 +172,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
              * 这里的批处理函数可能会在有大量文件时出错
              */
             if (!updateTimer) {
-                updateTimer = setTimeout( () => {
+                updateTimer = setTimeout(() => {
                     processUpdates();
                     updateTimer = null; // 处理完毕后重置定时器
                 }, timeStep); // 假设处理间隔为100毫秒
@@ -237,7 +237,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             updatedFromLastSearch = false
         }
 
-        let result= tree.search(可见框)
+        let result = tree.search(可见框)
         return result
     }
     return {
@@ -252,4 +252,41 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         timeStep,
         sort: (...args) => sort(...args)
     };
+}
+
+
+export const 获取布局最短列 = (布局对象) => {
+    let { columns } = 布局对象
+    let shortestColumn = columns[0];
+    for (let i = 1; i < columns.length; i++) {
+        if (columns[i].y < shortestColumn.y) {
+            shortestColumn = columns[i];
+        }
+    }
+    return shortestColumn
+}
+
+export const 从数据源添加新数据 = (布局对象, 数据源, 校验函数) => {
+    let data = 数据源.shift && 数据源.shift();
+    if (校验函数(data)) {
+        布局对象.add(data);
+        return true;
+    }
+    return false;
+}
+export const 从数据源定量加载数据 = (阈值, 布局对象, 数据源, 校验函数, 加载回调 = () => { }) => {
+    let 生成函数 = async () => {
+        return 数据源.shift && 数据源.shift()
+    }
+    let 迭代函数 = async (data) => {
+        if (校验函数(data)) {
+            布局对象.add(data)
+            加载回调()
+        }
+    }
+    let 忽略空值 = false
+    let 忽略迭代错误 = false
+    let 忽略执行错误 = false
+    定长执行(生成函数, 迭代函数, 阈值, 忽略空值, 忽略迭代错误, 忽略执行错误)
+
 }

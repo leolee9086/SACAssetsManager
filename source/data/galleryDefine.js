@@ -36,5 +36,4 @@ export async function applyStmt(stmt) {
         }
     )
 }
-
 export { applyURIStreamJson,applyURIStreamJsonCompatible }

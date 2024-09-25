@@ -229,7 +229,6 @@ const handleKeyDown = (event) => {
 * 选择相关逻辑
 */
 import { calculateSelectionCoordinates, updateSelectionStatus } from '../utils/selection.js'
-
 const isSelecting = ref(false);
 const selectionBox = ref({ startX: 0, startY: 0, endX: 0, endY: 0 });
 const selectedItems = ref([])
