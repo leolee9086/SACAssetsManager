@@ -53,7 +53,20 @@ export const 打开本地资源视图 = (localPath) => {
         },
     })
 }
-
+export const 打开efu文件视图页签 = (efuPath) => {
+    efuPath=efuPath.replace(/\\/g,'/')
+    console.log(efuPath)
+    /**
+     * plugin的最近打开文件列表是一个set
+     */
+    打开附件面板({
+        icon: "iconAssets",
+        title: "资源:efu文件列表",
+        data: {
+            efuPath
+        },
+    })
+}
 export const 打开颜色资源视图 = (color) => {
 
     打开附件面板({

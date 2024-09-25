@@ -1,4 +1,18 @@
 import { plugin, clientApi } from '../../../../asyncModules.js'
+import { 打开efu文件视图页签 } from '../../tabs/assetsTab.js'
+export const 打开efu文件视图=(assets)=>{
+    return {
+        label: "在新页签打开efu文件列表",
+        click:()=>{
+            assets.filter(item=>{
+                console.log(item)
+                return item.path.endsWith('.efu')
+            }).forEach(
+                item=>打开efu文件视图页签(item.path)
+            )
+        }
+    }
+}
 export const 打开资源文件所在笔记 = (assets) => {
     return {
         label: "所在笔记",

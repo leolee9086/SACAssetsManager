@@ -19,13 +19,10 @@
     </div>
 </template>
 <script setup>
-import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据 } from "../../../data/siyuanAssets.js"
-
 import { 表格视图阈值 } from "../../utils/threhold.js";
 import {
     ref,
     onMounted,
-     inject, 
      reactive,
       toRef, 
       watch, 
@@ -57,13 +54,10 @@ const 计算卡片样式 = (卡片数据) => {
 const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'filListProvided','assetsSource'])
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
-const filListProvided = toRef(props, 'filListProvided')
 const sorter = toRef(props, 'sorter')
-const globSetting = toRef(props, 'globSetting')
 const filterColor = toRef(props, 'filterColor')
 const root = ref(null)
 const scrollContainer = ref(null)
-const appData = toRef(inject('appData'))
 let 布局对象 = shallowRef(null)
 const columnCount = ref(1)
 const paddingLR = ref(100)
@@ -299,21 +293,7 @@ async function 确认初始化界面并排序(total) {
 defineExpose({
   dataCallBack:确认初始化界面并排序
 })
-const controller = new AbortController();
-const signal = controller.signal;
 
-onUnmounted(
-    () => {
-        try {
-            emit("layoutCount", 0)
-            emit("layoutLoadedCount", 0)
-            controller.abort('unmounted');
-        } catch (e) {
-            console.warn(e)
-        }
-    }
-
-)
 const 定长加载 = (阈值) => {
     let 校验函数 = data => data && data.id
     let 加载回调 = () => { 更新可见区域(true) }
@@ -324,8 +304,6 @@ const 定长加载 = (阈值) => {
 
 
 onMounted(async () => {
-    appData.value.tab.controllers = appData.value.tab.controllers || []
-    appData.value.tab.controllers.push(controller)
     nextTick(
         ()=>{
             emit('ready')
@@ -345,8 +323,6 @@ const 计算列数和边距 = (width) => {
     paddingLR.value = result.paddingLR;
     emit('paddingChange', paddingLR.value);
 }
-
-
 </script>
 <style scoped>
 .thumbnail-card:focus {

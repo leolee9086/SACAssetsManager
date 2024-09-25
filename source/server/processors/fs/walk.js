@@ -27,7 +27,7 @@ async function 更新目录索引(root) {
     let fixedroot = root.replace(/\\/g, '/')
     let 遍历优先级 = 0-Date.now()
     //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
-    let oldStat = await 查找文件夹状态(fixedroot)
+   let oldStat = await 查找文件夹状态(fixedroot)
     if(!oldStat){
         遍历优先级= 0-Date.now()-1000
     }else{
@@ -38,6 +38,7 @@ async function 更新目录索引(root) {
             遍历优先级=0-Date.now()
         }
     }
+
     setTimeout(索引遍历缓存.delete(root), 10 * root.length)
     let count=0
     let api = new fdir()
@@ -87,7 +88,7 @@ async function 更新目录索引(root) {
                                 }
                             }
                             return {path}
-                        }, 遍历优先级+count
+                        }, (遍历优先级+count-isDir?0:1000)/(fixedPath.replace(fixedroot,'')).length
                     )
                 )
             } catch (e) {

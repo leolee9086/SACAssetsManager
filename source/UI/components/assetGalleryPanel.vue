@@ -53,13 +53,11 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush 
-            @ready="创建回调并获取数据"
-            ref="grid" :assetsSource="附件数据源数组" :everthingEnabled="everthingEnabled"
+            <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :assetsSource="附件数据源数组" :everthingEnabled="everthingEnabled"
                 :everthingPort="everthingPort" :filListProvided="filListProvided" @palletAdded="palletAdded"
                 :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
-                @layoutCountTotal="(e) => { layoutCountTotal = e }" @ready="size = 300"
-                @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
+                @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
+                @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
                 @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
                 :size="parseInt(size)">
@@ -88,35 +86,54 @@ import { addUniquePalletColors } from '../../utils/color/filter.js';
  */
 const 附件数据源数组 = shallowRef({ data: [] })
 const grid = ref(null)
-const controller = new AbortController();
-const signal = controller.signal;
+let controller = new AbortController();
+let signal = controller.signal;
 const 创建回调并获取数据 = async () => {
-    附件数据源数组.value.data = []
 
-    const callBack = (...args) => {
-        grid.value&&grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null
+    附件数据源数组.value.data = []
+    try {
+        const callBack = (...args) => {
+            grid.value && grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null
+        }
+        if (filListProvided.value) {
+            附件数据源数组.value.data.push(...filListProvided.value);
+        } else if (appData.value.tab.data.efuPath) {
+            let data
+            try {
+                data = await parseEfuContentFromFile(appData.value.tab.data.efuPath)
+                附件数据源数组.value.data.push(...data);
+                callBack()
+            } catch (e) {
+                data = []
+            } finally {
+                callBack()
+            }
+        }
+
+        //提供了本地文件夹路径
+        else if (appData.value.tab.data.localPath) {
+            await 获取本地文件夹数据( $realGlob.value, 附件数据源数组.value.data, callBack, 1, signal)
+        }
+        //提供了标签
+        else if (appData.value.tab.data.tagLabel) {
+            await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组.value.data, callBack, 1, signal,  $realGlob.value)
+        }
+        else if (appData.value.tab.data.color) {
+            await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组.value.data, callBack, 1, signal,  $realGlob.value)
+        }
+        else {
+            await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, () => { nextTick(callBack) })
+        }
+        nextTick(callBack)
+    } catch (e) {
+        console.warn(e)
     }
-    if (filListProvided.value) {
-        附件数据源数组.value.data.push(...filListProvided.value);
-    }
-    //提供了本地文件夹路径
-    else if (appData.value.tab.data.localPath) {
-        await 获取本地文件夹数据(globSetting.value, 附件数据源数组.value.data, callBack, 1, signal)
-    }
-    //提供了标签
-    else if (appData.value.tab.data.tagLabel) {
-        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, globSetting.value)
-    }
-    else if (appData.value.tab.data.color) {
-        await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组.value.data, callBack, 1, signal, globSetting.value)
-    }
-    else {
-        await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, () => { nextTick(callBack) })
-    }
-    nextTick(callBack)
 }
 const showPanel = ref(true)
 const refreshPanel = () => {
+    controller.abort()
+    controller = new AbortController();
+    signal = controller.signal
     showPanel.value = false
     layoutCount.found = 0
     layoutCount.loaded = 0
@@ -185,7 +202,7 @@ const $realGlob = computed(() => {
 })
 
 
-import { searchByEverything } from '../../utils/thirdParty/everything.js';
+import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
 const everthingEnabled = ref(false)
 const filListProvided = ref(null)
 watch([everthingPort, $realGlob], async (e) => {
