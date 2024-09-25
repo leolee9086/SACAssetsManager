@@ -22,6 +22,12 @@ export function 计算哈希(stat) {
 }
 export async function 删除缩略图缓存行(fullName) {
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(fullName)
+    if(!磁盘缩略图数据库){
+        return
+    }
+    if(磁盘缩略图数据库.readOnly){
+        return
+    }
     const stmt = 磁盘缩略图数据库.prepare('DELETE FROM thumbnails WHERE fullName = ?');
     const result = stmt.run(转换为相对磁盘根目录路径(fullName));
     return result.changes; // 返回受影响的行数
@@ -37,36 +43,43 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
         throw new Error('尝试写入缓存时未提供条目类型')
     }
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(fullName)
-    const hash = 计算哈希(stat)
-    const stmt = 磁盘缩略图数据库.prepare(`
-        INSERT OR REPLACE INTO thumbnails 
-        (fullName, type, statHash, updateTime, stat, size, ctime, atime, mtime)
-        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
-        WHERE NOT EXISTS (
-            SELECT 1 FROM thumbnails 
-            WHERE fullName = ? AND statHash = ?
-        )
-    `);
-    const updateTimeValue = updateTime instanceof Date ? updateTime.getTime() : updateTime;
-    const type = entryType || stat.type;
-    const mockStat= {
-        ...stat,
-        path:转换为相对磁盘根目录路径(stat.path),
+    if(!磁盘缩略图数据库){
+        return
     }
-    const result = await stmt.run(
-        转换为相对磁盘根目录路径(fullName),
-        type,
-        hash,
-        updateTimeValue,
-        JSON.stringify(mockStat),
-        mockStat.size !== undefined ? mockStat.size : -1,
-        mockStat.ctime ? new Date(mockStat.ctime).getTime() : -1,
-        mockStat.atime ? new Date(mockStat.atime).getTime() : -1,
-        mockStat.mtime ? new Date(mockStat.mtime).getTime() : -1,
-        转换为相对磁盘根目录路径(fullName),
-        hash
-    );
-    return result
+    if(!磁盘缩略图数据库.readOnly){
+        const hash = 计算哈希(stat)
+        const stmt = 磁盘缩略图数据库.prepare(`
+            INSERT OR REPLACE INTO thumbnails 
+            (fullName, type, statHash, updateTime, stat, size, ctime, atime, mtime)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM thumbnails 
+                WHERE fullName = ? AND statHash = ?
+            )
+        `);
+        const updateTimeValue = updateTime instanceof Date ? updateTime.getTime() : updateTime;
+        const type = entryType || stat.type;
+        const mockStat= {
+            ...stat,
+            path:转换为相对磁盘根目录路径(stat.path),
+        }
+        const result = await stmt.run(
+            转换为相对磁盘根目录路径(fullName),
+            type,
+            hash,
+            updateTimeValue,
+            JSON.stringify(mockStat),
+            mockStat.size !== undefined ? mockStat.size : -1,
+            mockStat.ctime ? new Date(mockStat.ctime).getTime() : -1,
+            mockStat.atime ? new Date(mockStat.atime).getTime() : -1,
+            mockStat.mtime ? new Date(mockStat.mtime).getTime() : -1,
+            转换为相对磁盘根目录路径(fullName),
+            hash
+        );
+        return result
+    
+    }
+    return
 }
 
 export async function 查找子文件夹(dirPath, search) {

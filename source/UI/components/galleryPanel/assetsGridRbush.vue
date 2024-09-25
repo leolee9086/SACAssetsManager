@@ -19,7 +19,8 @@
     </div>
 </template>
 <script setup>
-import { 获取本地文件夹数据, 获取标签列表数据 } from "../../../data/siyuanAssets.js"
+import { 获取本地文件夹数据, 获取标签列表数据,获取颜色查询数据,处理默认数据 } from "../../../data/siyuanAssets.js"
+
 import { 表格视图阈值 } from "../../utils/threhold.js";
 import {
     ref,
@@ -27,7 +28,6 @@ import {
 } from 'vue'
 import { 从数据源定量加载数据, 创建瀑布流布局 } from "../../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "../common/assetsThumbnailCard.vue";
-import { plugin } from 'runtime'
 /**
  * 计算样式的部分
  */
@@ -148,11 +148,30 @@ const 加载更多卡片 = (scrollContainer, 布局对象, 附件数据组) => {
         }
     }
 }
-const 更新可见区域 = (flag) => {
-    let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
-    clientHeight = Math.min(clientHeight, window.innerHeight)
-    clientWidth = Math.min(clientWidth, window.innerWidth)
+const 计算可见框 = (scrollTop, clientHeight, clientWidth) => {
+    return {
+        minX: 0,
+        minY: scrollTop - clientHeight * 2,
+        maxY: scrollTop + clientHeight * 2,
+        maxX: clientWidth
+    }
+}
 
+const 获取可见区域尺寸 = () => {
+    let { scrollTop, clientWidth, clientHeight } = scrollContainer.value
+    return {
+        scrollTop,
+        clientWidth: Math.min(clientWidth, window.innerWidth),
+        clientHeight: Math.min(clientHeight, window.innerHeight)
+    }
+}
+const 更新可见卡片 = (可见框) => {
+    let result = Array.from(new Set(布局对象.value.search(可见框)))
+    可见卡片组.value.length = 0
+    可见卡片组.value.splice(0, 可见卡片组.value.length, ...result)
+}
+const 更新可见区域 = (flag) => {
+    const { scrollTop, clientWidth, clientHeight } = 获取可见区域尺寸()
     上报统计数据()
     if (!是否更新(flag)) {
         return
@@ -161,15 +180,8 @@ const 更新可见区域 = (flag) => {
     布局对象.value.timeStep += 5
     try {
         oldScrollTop = scrollTop
-        let 可见框 = {
-            minX: 0,
-            minY: scrollTop - clientHeight - clientHeight,
-            maxY: scrollTop + clientHeight + clientHeight,
-            maxX: clientWidth
-        }
-        let result = Array.from(new Set(布局对象.value.search(可见框)))
-        可见卡片组.value.length = 0
-        可见卡片组.value.splice(0, 可见卡片组.value.length, ...result);
+        const 可见框 = 计算可见框(scrollTop, clientHeight, clientWidth)
+        更新可见卡片(可见框)
         加载更多卡片(scrollContainer.value, 布局对象.value, 附件数据源数组)
         emit("layoutLoadedCount", 布局对象.value.layout.length)
 
@@ -209,7 +221,6 @@ const 列数和边距监听器 = async () => {
     )
 }
 watch(() => size.value, 列数和边距监听器)
-
 watch(() => scrollContainer.value && scrollContainer.value.clientWidth, 列数和边距监听器)
 
 const emitLayoutChange = () => {
@@ -235,11 +246,10 @@ watch(
 
 const mounted = ref(null)
 
+//排序函数
 let oldsize
 let lastSort = Date.now()
-//排序函数
-
-async function sortLocalStream(total) {
+async function 确认初始化界面并排序(total) {
     if (total) {
         emit("layoutCountTotal", total)
         return
@@ -247,16 +257,17 @@ async function sortLocalStream(total) {
     emit("layoutCount", 附件数据源数组.length)
     布局对象.value && emit("layoutLoadedCount", 布局对象.value.layout.length)
     mounted.value = true
-    布局对象.value = 布局对象.value || 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+    布局对象.value =布局对象.value|| 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+    布局对象.value.layout.length?null:定长加载(100)
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 10) {
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
         更新可见区域(true)
     }
+    emitLayoutChange()
     nextTick(() => {
         监听尺寸函数(scrollContainer.value)
     })
-
 }
 
 const controller = new AbortController();
@@ -274,26 +285,14 @@ onUnmounted(
     }
 
 )
-import { applyURIStreamJson, createCompatibleCallback } from "../../../data/fetchStream.js";
 const 定长加载 = (阈值) => {
     let 校验函数 = data => data && data.id
     let 加载回调 = () => { 更新可见区域(true) }
     从数据源定量加载数据(阈值, 布局对象.value, 附件数据源数组, 校验函数, 加载回调)
 }
 
-function 初始化布局() {
-    布局对象.value = 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-    监听尺寸函数(scrollContainer.value)
-    定长加载(100)
-    emitLayoutChange()
-}
 
-async function 处理颜色查询数据() {
-    let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(appData.value.tab.data.color))}`
-    const compatibleCallback = createCompatibleCallback(附件数据源数组, sortLocalStream, 1);
-    await applyURIStreamJson(uri, compatibleCallback, 1, signal, globSetting.value)
-}
-import { 处理默认数据 } from "../../utils/layoutComputer/fetcher.js";
+
 
 onMounted(async () => {
     appData.value.tab.controllers = appData.value.tab.controllers || []
@@ -304,20 +303,19 @@ onMounted(async () => {
     }
     //提供了本地文件夹路径
     else if (appData.value.tab.data.localPath) {
-        await 获取本地文件夹数据(globSetting.value, 附件数据源数组, sortLocalStream, 1, signal)
+        await 获取本地文件夹数据(globSetting.value, 附件数据源数组, 确认初始化界面并排序, 1, signal)
     }
     //提供了标签
     else if (appData.value.tab.data.tagLabel) {
-        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组, sortLocalStream, 1, signal, globSetting.value)
+        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组, 确认初始化界面并排序, 1, signal, globSetting.value)
     }
      else if (appData.value.tab.data.color) {
-        await 处理颜色查询数据()
+        await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组, 确认初始化界面并排序, 1, signal, globSetting.value)
     }
     else {
-        await 处理默认数据(appData.value.tab,附件数据源数组,()=>{nextTick(初始化布局)})
+        await 处理默认数据(appData.value.tab,附件数据源数组,()=>{nextTick(确认初始化界面并排序)})
     }
-    nextTick(初始化布局)
-
+    nextTick(确认初始化界面并排序)
 })
 
 
