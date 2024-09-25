@@ -23,7 +23,7 @@ export async function queryTags(tagLabel){
     }
     return tag
 }
-async function getTagAssets(tags) {
+export async function getTagAssets(tags) {
     let data = [];
         tags = await kernelApi.getTag({sort:0})
     

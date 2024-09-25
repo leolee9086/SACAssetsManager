@@ -116,7 +116,7 @@ app.get('/color', async (req, res) => {
 app.use('/thumbnail',genThumbnailRouter)
 app.get(
     '/raw', async (req, res) => {
-        const path = req.query.path || req.query.localPath
+        let path = req.query.path || req.query.localPath
         path=path.replace(/\\/g,'/')
         if (path.startsWith('assets')) {
             res.sendFile(require('path').join(siyuanConfig.system.workspaceDir, 'data', req.query.path))
@@ -129,7 +129,6 @@ app.get('/fs/path/extentions',响应文件夹扩展名请求)
 app.listen(port, '127.0.0.1', () => {
     console.log(`服务器运行在 http://127.0.0.1:${port}`);
 });
-
 app.listen(port, 'localhost', () => {
     window.channel.postMessage('serverReady')
     console.log(`服务器运行在 http://localhost:${port}`);
