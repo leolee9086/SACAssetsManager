@@ -1,5 +1,6 @@
 <template>
-    <div @wheel="scaleListener" class=" fn__flex-column" style="max-height: 100%;" ref="root">
+    <div @wheel.ctrl.stop.prevent="(event) => { size = 从滚轮事件计算(size, event, 1024, 32) }" class=" fn__flex-column"
+        style="max-height: 100%;" ref="root">
         <div class=" fn__flex " style="min-height:36px;align-items: center;">
             <div class="fn__space fn__flex-1">
                 <div v-if="everthingEnabled" style="color:green;float: left;overflow:visible">everthing已经连接</div>
@@ -70,12 +71,18 @@
     </div>
 </template>
 <script setup>
+
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
+/**
+ * 缩放相关
+ */
+import { 从滚轮事件计算 } from '../utils/scroll.js';
+
 const appData = toRef(inject('appData'))
 //全局设置
 const globSetting = ref({})
@@ -91,7 +98,6 @@ let searchTimer = null;
 watch(rawSearch, (data) => {
     // 每次 rawSearch 变化时，清除之前的定时器
     clearTimeout(searchTimer);
-
     // 设置一个新的定时器
     searchTimer = setTimeout(() => {
         // 半秒钟后，如果 rawSearch 没有变化，则更新 search 并触发搜索
@@ -147,7 +153,6 @@ watch([everthingPort, $realGlob], async (e) => {
 })
 watch(
     () => $realGlob.value, () => {
-        console.log($realGlob.value)
         refreshPanel()
     }
 )
@@ -178,24 +183,6 @@ const handlerLayoutChange = (data) => {
 const handlerScrollTopChange = (scrollTop) => {
     currentLayoutOffsetTop = scrollTop
 }
-/**
- * 缩放相关
- */
-function scaleListener(event) {
-    if (event.ctrlKey) {
-        let value = parseInt(size.value)
-        value -= event.deltaY / 10
-        if (value < 32) {
-            value = 32
-        }
-        if (value > 1024) {
-            value = 1024
-        }
-        size.value = value
-        event.preventDefault()
-        event.stopPropagation()
-    }
-}
 
 const 获取eagle标签列表 = () => {
     fetch(`http://localhost:${plugin.http服务端口号}/eagle-tags?path=${eaglePath.value}`).then(res => res.json()).then(json => {
@@ -209,6 +196,11 @@ const 获取ealge素材库路径 = () => {
 }
 onMounted(() => {
     获取ealge素材库路径()
+})
+/**
+ * 获取扩展名列表相关逻辑
+ */
+onMounted(() => {
     if (appData.value.tab.data.localPath) {
         const url = endPoints.fs.path.getPathExtensions(appData.value.tab.data.localPath)
         fetch(url).then(
@@ -220,7 +212,6 @@ onMounted(() => {
         )
     }
 })
-
 /**
  * 键盘相关逻辑
  */
@@ -333,7 +324,6 @@ const sorter = ref({
 })
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 import { 表格视图阈值 } from '../utils/threhold.js';
-import { fs } from '../../server/endPoints.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
     打开附件组菜单(event, assets, {

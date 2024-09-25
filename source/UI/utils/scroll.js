@@ -81,3 +81,11 @@ export function horizontalScroll(event) {
         container.scrollLeft = newScrollLeft; // 应用新的滚动位置
     }
 }
+export function 从滚轮事件计算(currentSize, event, max = 1024, min = 32) {
+    if (event.ctrlKey) {
+        let newSize = parseInt(currentSize) - event.deltaY / 10;
+        newSize = Math.max(min, Math.min(max, newSize));        
+        return newSize;
+    }
+    return currentSize;
+}
