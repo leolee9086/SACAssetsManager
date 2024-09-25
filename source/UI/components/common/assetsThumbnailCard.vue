@@ -77,7 +77,7 @@ import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { clientApi } from '../../../asyncModules.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
-import { diffColor } from '../../../server/processors/color/Kmeans.js';
+import { diffColor } from '../../../utils/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 表格视图阈值 } from '../../utils/threhold.js';
 import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';

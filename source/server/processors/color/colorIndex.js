@@ -1,4 +1,4 @@
-import { diffColor } from "./Kmeans.js"
+import { diffColor } from "../../../utils/color/Kmeans.js"
 import { getCachePath } from '../fs/cached/fs.js'
 import { 修正路径分隔符号为反斜杠, 修正路径分隔符号为正斜杠 } from "../../../utils/fs/fixPath.js"
 let colorIndex = []

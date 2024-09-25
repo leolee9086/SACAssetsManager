@@ -1,5 +1,5 @@
-import {kMeansPP} from "./Kmeans.js"
-import {CIEDE2000RGBA} from "./simlarity.js"
+import {kMeansPP} from "../../../utils/color/Kmeans.js"
+import {CIEDE2000RGBA} from "../../../utils/color/simlarity.js"
 export function 获取颜色(buffer){
     // 创建一个离线canvas
     const canvas = document.createElement("canvas")

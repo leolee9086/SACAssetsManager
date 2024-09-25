@@ -1,7 +1,7 @@
 import { buildCache } from '../cache/cache.js'
 import { statWithCatch } from '../fs/stat.js'
 import { getColor } from './color.js'
-import { diffColor } from '../color/Kmeans.js'
+import { diffColor } from '../../../utils/color/Kmeans.js'
 import { 获取哈希并写入数据库 } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions, 是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
