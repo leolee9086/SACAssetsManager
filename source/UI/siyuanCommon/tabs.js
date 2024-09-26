@@ -1,4 +1,4 @@
-import { clientApi,plugin } from "../../asyncModules.js";
+import { plugin } from "../../asyncModules.js";
 import {tabEvents} from './tabs/events.js'
 import {打开笔记本资源视图,
     打开标签资源视图,
