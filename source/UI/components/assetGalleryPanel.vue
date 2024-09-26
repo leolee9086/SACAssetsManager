@@ -52,14 +52,20 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :assetsSource="附件数据源数组" :everthingEnabled="everthingEnabled"
-                :everthingPort="everthingPort" :filListProvided="filListProvided" @palletAdded="palletAdded"
-                :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
-                @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
-                @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
-                @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
-                @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
-                :size="parseInt(size)">
+            <assetsGridRbush 
+            @ready="创建回调并获取数据" 
+            ref="grid" 
+            :assetsSource="附件数据源数组" 
+            @palletAdded="palletAdded"
+            :globSetting="$realGlob" 
+            v-if="showPanel && globSetting" 
+            :maxCount="maxCount"
+            @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
+            @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
+            @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
+            @paddingChange="(e) => paddingLR = e" 
+            @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
+            :size="parseInt(size)">
             </assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
                 (layoutCountTotal + '个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded

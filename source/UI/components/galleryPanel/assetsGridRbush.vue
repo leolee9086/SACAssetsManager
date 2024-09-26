@@ -51,7 +51,7 @@ const 计算卡片样式 = (卡片数据) => {
 //let 附件数据源数组 =shallowRef([])
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'filListProvided','assetsSource'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor','assetsSource'])
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
