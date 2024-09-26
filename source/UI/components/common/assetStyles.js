@@ -82,3 +82,8 @@ export const 计算卡片内容主体样式 = (cardData, size, firstColorString,
         .display(size < 表格视图阈值 ? display.flex : display.inlineBlock)
         .$raw;
 }
+
+
+/**
+ * 用于计算属性相关的一些数值
+ */

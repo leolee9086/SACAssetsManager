@@ -80,7 +80,8 @@ import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 表格视图阈值 } from '../../utils/threhold.js';
-import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
+import { 柯里化 } from '../../../utils/functions/currying.js';
+import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签,获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
 import colorPalletButton from './pallets/colorPalletButton.vue';
 const props = defineProps(['cardData', 'size', 'filterColor', 'selected'])
 const { cardData } = props
@@ -100,8 +101,6 @@ const similarColor = computed(() => {
     return item ? filterColor.value : ''
 })
 
-
-
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 function 计算扩展名(data){
     if(data.type==='note'){
@@ -109,9 +108,8 @@ function 计算扩展名(data){
     }
     return size.value > 表格视图阈值 ? data.path.split('.').pop() : '' 
 }
-function getProps(data) {
-    return Object.keys(data).filter(key => key !== 'id' && key !== 'type' && key !== 'index' && key !== 'indexInColumn' && key !== 'width' && key !== 'height' && (文件系统内部属性表[key] ? 文件系统内部属性表[key].show : true))
-}
+let 排除属性列表 =  ['id', 'type', 'index', 'indexInColumn', 'width', 'height'];
+const getProps=柯里化(获取属性显示定义)(排除属性列表)(文件系统内部属性表)
 const genMaxWidth = () => {
     if (size.value < 表格视图阈值) {
         return `100%`
@@ -186,22 +184,33 @@ const buildCardProtyle = (element) => {
     )
 }
 
-function 更新图片尺寸(e, cardData) {
-    const previewer = e.target
-    const dimensions = {
-        width: previewer.naturalWidth,
-        height: previewer.naturalHeight
+function 根据目标宽度计算新高度(原始高度, 原始宽度, 目标宽度, 表格视图阈值) {
+  const 缩放因子 = 原始高度 / 目标宽度;
+  const 新高度 = 原始宽度 / 缩放因子;
+  
+  if (目标宽度 < 表格视图阈值) {
+    return { 
+      cardHeight: 目标宽度,
+      imageHeight: 新高度
     };
-    const 缩放因子 = dimensions.width / size.value
-    const 新高度 = dimensions.height / 缩放因子
-    if (size.value < 表格视图阈值) {
-        cardHeight.value = size.value
-    } else {
-        cardHeight.value = 新高度 + 36
-    }
-    imageHeight.value = 新高度
-    emit('updateSize', { width: cardData.width, height: cardHeight.value })
+  } else {
+    return {
+      cardHeight: 新高度 + 36,
+      imageHeight: 新高度
+    };
+  }
 }
+
+function 更新图片尺寸(e, cardData) {
+  const previewer = e.target;
+  const { naturalWidth, naturalHeight } = previewer;
+  const { cardHeight: 新卡片高度, imageHeight: 新图片高度 } = 根据目标宽度计算新高度(naturalWidth, naturalHeight, size.value, 表格视图阈值);
+  
+  cardHeight.value = 新卡片高度;
+  imageHeight.value = 新图片高度;
+  emit('updateSize', { width: cardData.width, height: 新卡片高度 });
+}
+
 
 import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(

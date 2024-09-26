@@ -3,10 +3,9 @@
         style="max-height: 100%;" ref="root">
         <div class=" fn__flex " style="min-height:36px;align-items: center;">
             <div class="fn__space fn__flex-1">
-                <div v-if="everthingEnabled" style="color:green;float: left;overflow:visible">everthing已经连接</div>
             </div>
             <div class=" fn__flex ">
-                <input v-model="everthingPort" style="box-sizing: border-box;width:100px;" :value="100" type="number">
+                <portInputter v-model="everthingPort" :value="100" type="number"></portInputter>
                 <div class="fn__space fn__flex-1"></div>
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
                     class="b3-slider fn__block" max="1024" min="32" step="16" type="range">
@@ -73,14 +72,13 @@
 </template>
 <script setup>
 import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据 } from "../../data/siyuanAssets.js"
-
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
-
+import portInputter from "./everything/portInputter.vue";
 /**
  * 获取数据相关
  */

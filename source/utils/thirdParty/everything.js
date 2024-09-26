@@ -42,7 +42,7 @@ export const testEverythingService = async (host, port) => {
 
 
 export const searchByEverything = async (searchValue, port, options = {}) => {
-  if (!searchValue || searchValue.length < 2) {
+  if ((!searchValue || searchValue.length < 2)&&!options.count) {
     return { enabled: false, fileList: null };
   }
   const everythingURL = buildEverythingSearchURL('localhost', port, {
@@ -72,7 +72,9 @@ export const searchByEverything = async (searchValue, port, options = {}) => {
       return { enabled: true, fileList };
     }
   } catch (e) {
+    if(!options.noError){
     console.error(e);
+    }
   }
 
   return { enabled: false, fileList: null };
