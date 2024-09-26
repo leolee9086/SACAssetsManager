@@ -1,83 +1,79 @@
 import { default as workspace } from "../polyfills/fs.js";
 import { kernelApi, plugin } from "../asyncModules.js";
-function traverseTags(tags, callback) {
+function 递归解析标签数据(tags, callback) {
     tags.forEach(tag => {
         callback(tag);
         if (tag.children && tag.children.length > 0) {
-            traverseTags(tag.children, callback);
+            递归解析标签数据(tag.children, callback);
         }
     });
 }
-export async function saveTags(tags){
+export async function saveTags(tags) {
     await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify(tags));
     plugin.tags = tags
     return tags
 }
-export async function queryTags(tagLabel){
+export async function queryTags(tagLabel) {
     let tag
-    if(plugin.tags){
+    if (plugin.tags) {
         tag = plugin.tags.find(item => item.label === tagLabel)
-    }else{
+    } else {
         plugin.tags = await getTagAssets()
         tag = plugin.tags.find(item => item.label === tagLabel)
     }
     return tag
 }
-export async function getTagAssets(tags) {
+const 加载插件标签数据 = async () => {
     let data = [];
-        tags = await kernelApi.getTag({sort:0})
-    
     if (await workspace.exists(`/data/storage/petal/${plugin.name}/tags.json`)) {
         data = JSON.parse(await workspace.readFile(`/data/storage/petal/${plugin.name}/tags.json`));
     } else {
         await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify([]));
     }
-    /***
-     * 遍历tags的逻辑
-     * 如果data里面存在tags中不存在的内容记录,删除它
-     * 如果tag里面存在data中不存在对应记录的条目,初始化data中对应条目为[]
-     * 如果tag里面存在data中存在对应记录的条目,将data中对应条目的assets赋值给tag中对应条目的assets
-     * 使用for循环遍历避免异步问题
-     * 需要处理不能作为属性名的特殊字符的问题
-     */
+    return data;
+}
+/**
+ * 标记data中不存在于tags中的记录为removed
+ */
+const 清理已移除的标签 = (data, existingLabels) => {
+    data.forEach(item => {
+        if (!existingLabels.has(item.label) && !item.removed) {
+            item.removed = true;
+        }
+        if (item.removed) {
+            item.count = 0;
+        }
+        if (item.children) {
+            delete item.children;
+        }
+        if (item.assets) {
+            item.assets = Array.from(new Set(item.assets));
+        }
+    });
+}
+const 收集已经存在的标签 = (tags, data) => {
     let existingLabels = new Set();
-
     for (let i = 0; i < tags.length; i++) {
-        traverseTags([tags[i]], (item) => {
+        递归解析标签数据([tags[i]], (item) => {
             existingLabels.add(item.label);
             let dataItem = data.find(d => d.label === item.label);
             if (dataItem) {
-                // 移除removed标记（如果存在）
                 if (dataItem.removed) {
                     delete dataItem.removed;
                 }
-                dataItem.count = item.count
-
+                dataItem.count = item.count;
             } else {
                 data.push({ label: item.label, assets: [], ...item });
             }
         });
     }
-
-    /**
-     * 标记data中不存在于tags中的记录为removed
-     */
-    data.forEach(item => {
-        if (!existingLabels.has(item.label) && !item.removed) {
-            item.removed = true;
-        }
-        if(item.removed){
-            item.count = 0
-        }
-        if (item.children) {
-            delete item.children;
-        }
-        if(item.assets){
-            item.assets = Array.from(new Set(item.assets))
-        }
-    });
-    // 保存更新后的data
-    await workspace.writeFile(`/data/storage/petal/${plugin.name}/tags.json`, JSON.stringify(data));
-    plugin.tags = data
-    return data;
+    return existingLabels;
+}
+export async function getTagAssets(tags) {
+    let data = await 加载插件标签数据()
+    tags = await kernelApi.getTag({ sort: 0 })
+    let existingLabels = 收集已经存在的标签(tags, data)
+    清理已移除的标签(data, existingLabels)
+    await saveTags(data)
+    return data
 }
