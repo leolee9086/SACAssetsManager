@@ -1,0 +1,37 @@
+<template>
+    <li @click.right=" ()=>打开搜索面板(
+    `http://${api.host}:${api.port}`
+  )" class="api-list__subsubitem">
+        <everythingPortInputter
+        :host="api.host"
+        v-model="api.port"
+        v-if="api.type==='everything'">
+        </everythingPortInputter>
+        <input v-if="api.type!=='everything'" v-model="api.port" type="number" min="1" max="65535" :style="{color:isEnabled?'green':'red'}">
+    </li>
+  </template>
+  <script setup>
+  import everythingPortInputter from './everything/portInputter.vue';
+  import { 打开everything搜索面板,打开anytxt搜索面板 } from '../../siyuanCommon/tabs/assetsTab.js';
+  import { checkApiAvailability, performSearch } from './anytxt/anytext.js'; 
+  import { onMounted,ref } from 'vue';
+  const {api} = defineProps(['api']);
+  const isEnabled= ref(null)
+  onMounted(
+    async()=>{
+      if(api.type==='anytxt'){
+        isEnabled.value=await checkApiAvailability(api.port)
+      
+      }
+    }
+  )
+ const 打开搜索面板 = (apiLocation)=>{
+    if(api.type==='everything'){
+      打开everything搜索面板(apiLocation)
+    }
+    else{
+      打开anytxt搜索面板(apiLocation)
+    }
+ }
+
+  </script>

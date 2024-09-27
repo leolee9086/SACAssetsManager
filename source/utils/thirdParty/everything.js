@@ -41,11 +41,11 @@ export const testEverythingService = async (host, port) => {
 };
 
 
-export const searchByEverything = async (searchValue, port, options = {}) => {
+export const searchByEverything = async (searchValue, port, options = {host:'localhost'}) => {
   if ((!searchValue || searchValue.length < 2)&&!options.count) {
     return { enabled: false, fileList: null };
   }
-  const everythingURL = buildEverythingSearchURL('localhost', port, {
+  const everythingURL = buildEverythingSearchURL(options.host||'localhost', port, {
     search: searchValue,
     showPathColumn: true,
     showSizeColumn: true,

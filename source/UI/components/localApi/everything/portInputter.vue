@@ -8,30 +8,37 @@
                 <circle cx="10" cy="10" r="8" fill="transparent" />
             </svg>
             <svg class="icon-overlay icon-red" v-if="!isEnabled">
-                <use xlink:href="#iconClose" ></use>
+                <use xlink:href="#iconClose"></use>
             </svg>
         </span>
         <div class="fn__space fn__flex-1">
         </div>
         <input v-model="localPort" style="box-sizing: border-box;" type="number" min="1" max="65535">
         <div class="fn__space fn__flex-1">
-            </div>
+        </div>
 
     </div>
 </template>
 <script setup>
-import { ref, watch } from 'vue';
-import { searchByEverything } from '../../../utils/thirdParty/everything.js';
-
+import { ref, watch ,toRef} from 'vue';
+import { searchByEverything } from '../../../../utils/thirdParty/everything.js';
 const props = defineProps({
     modelValue: {
         type: Number,
         default: 100
+    },
+    host: {
+        type: String,
+        default: "localhost"
+    },
+    protocol: {
+        type: String,
+        default: "http"
     }
 });
 
 const emit = defineEmits(['update:modelValue']);
-
+const host = toRef(props, 'host')
 const localPort = ref(props.modelValue);
 const isEnabled = ref(false);
 let checkTimer = null;
@@ -39,7 +46,7 @@ const DEBOUNCE_DELAY = 300; // 防抖延迟时间，单位毫秒
 
 const checkEnable = async (port) => {
     try {
-        const { enabled, fileList } = await searchByEverything('', port, { count: 1, noError: true });
+        const { enabled, fileList } = await searchByEverything('', port, { count: 1, noError: true, host: host.value });
         isEnabled.value = enabled;
     } catch (error) {
         isEnabled.value = false;

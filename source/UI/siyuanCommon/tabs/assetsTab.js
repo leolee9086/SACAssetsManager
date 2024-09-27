@@ -68,12 +68,33 @@ export const 打开efu文件视图页签 = (efuPath) => {
     })
 }
 export const 打开颜色资源视图 = (color) => {
-
     打开附件面板({
         icon: "iconAssets",
         title: "资源:本地",
         data: {
             color
+        },
+    })
+}
+export const 打开everything搜索面板 = (everythingApiLocation) => {
+    打开附件面板({
+        icon: "iconAssets",
+        title: "资源:everything搜索",
+        data: {
+            type:"thirdParty",
+            provider:'everything',
+            everythingApiLocation
+        },
+    })
+}
+export const 打开anytxt搜索面板 = (anytxtApiLocation) => {
+    打开附件面板({
+        icon: "iconAssets",
+        title: "资源:anytxt搜索",
+        data: {
+            type:"thirdParty",
+            provider:'antxt',
+            anytxtApiLocation
         },
     })
 }

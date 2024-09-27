@@ -187,7 +187,7 @@ const buildCardProtyle = (element) => {
 function 根据目标宽度计算新高度(原始高度, 原始宽度, 目标宽度, 表格视图阈值) {
   const 缩放因子 = 原始高度 / 目标宽度;
   const 新高度 = 原始宽度 / 缩放因子;
-  
+
   if (目标宽度 < 表格视图阈值) {
     return { 
       cardHeight: 目标宽度,

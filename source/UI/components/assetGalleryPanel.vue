@@ -5,8 +5,18 @@
             <div class="fn__space fn__flex-1">
             </div>
             <div class=" fn__flex ">
-                <portInputter v-model="everthingPort" :value="100" type="number"></portInputter>
                 <div class="fn__space fn__flex-1"></div>
+                <span>
+                    <svg 
+                    v-if="()=>appData.value.tab.data.everythingApiLocation?true:false"
+                    class="icon-green icon-overlay" 
+                    :style="{width: '20px',
+                            height: '20px',
+                            color:everthingEnabled?'rgb(253, 128, 0)':'red'}
+                    ">
+                        <use xlink:href="#iconSearch"></use>
+                    </svg>
+                </span>
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
                     class="b3-slider fn__block" max="1024" min="32" step="16" type="range">
                 <div class="fn__space fn__flex-1"></div>
@@ -52,20 +62,13 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush 
-            @ready="创建回调并获取数据" 
-            ref="grid" 
-            :assetsSource="附件数据源数组" 
-            @palletAdded="palletAdded"
-            :globSetting="$realGlob" 
-            v-if="showPanel && globSetting" 
-            :maxCount="maxCount"
-            @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
-            @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
-            @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
-            @paddingChange="(e) => paddingLR = e" 
-            @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
-            :size="parseInt(size)">
+            <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :assetsSource="附件数据源数组" @palletAdded="palletAdded"
+                :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
+                @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
+                @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
+                @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
+                @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
+                :size="parseInt(size)">
             </assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
                 (layoutCountTotal + '个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded
@@ -84,7 +87,6 @@ import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
-import portInputter from "./everything/portInputter.vue";
 /**
  * 获取数据相关
  */
@@ -92,6 +94,12 @@ const 附件数据源数组 = shallowRef({ data: [] })
 const grid = ref(null)
 let controller = new AbortController();
 let signal = controller.signal;
+import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
+import { performSearch as searchByAnytxt } from "./localApi/anytxt/anytext.js";
+const everthingEnabled = ref(false)
+const filListProvided = ref(null)
+
+
 const 创建回调并获取数据 = async () => {
 
     附件数据源数组.value.data = []
@@ -116,14 +124,35 @@ const 创建回调并获取数据 = async () => {
 
         //提供了本地文件夹路径
         else if (appData.value.tab.data.localPath) {
-            await 获取本地文件夹数据( $realGlob.value, 附件数据源数组.value.data, callBack, 1, signal)
+            await 获取本地文件夹数据($realGlob.value, 附件数据源数组.value.data, callBack, 1, signal)
         }
         //提供了标签
         else if (appData.value.tab.data.tagLabel) {
-            await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组.value.data, callBack, 1, signal,  $realGlob.value)
+            await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value)
         }
         else if (appData.value.tab.data.color) {
-            await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组.value.data, callBack, 1, signal,  $realGlob.value)
+            await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value)
+        }
+        else if (appData.value.tab.data.everythingApiLocation) {
+            const url = new URL(appData.value.tab.data.everythingApiLocation)
+            const { enabled, fileList } = await searchByEverything(search.value, url.port,{count:10240});
+            if (enabled) {
+                everthingEnabled.value = true;
+                附件数据源数组.value.data.push(...fileList);
+            } else {
+                everthingEnabled.value = false;
+            }
+        }
+        else if (appData.value.tab.data.anytxtApiLocation) {
+            const url = new URL(appData.value.tab.data.anytxtApiLocation)
+            const fileList  = await searchByAnytxt(search.value, url.port,{count:10240});
+            if (fileList) {
+                console.log(fileList)
+                everthingEnabled.value = true;
+                附件数据源数组.value.data.push(...fileList);
+            } else {
+                everthingEnabled.value = false;
+            }
         }
         else {
             await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, () => { nextTick(callBack) })
@@ -192,7 +221,6 @@ const palletAdded = (data) => {
     pallet.value = addUniquePalletColors(pallet.value, newColors);
 
 }
-const everthingPort = ref(1000)
 
 const $realGlob = computed(() => {
     let realGlob = {
@@ -206,20 +234,6 @@ const $realGlob = computed(() => {
 })
 
 
-import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
-const everthingEnabled = ref(false)
-const filListProvided = ref(null)
-watch([everthingPort, $realGlob], async (e) => {
-    const { enabled, fileList } = await searchByEverything(search.value, everthingPort.value);
-    if (enabled) {
-        everthingEnabled.value = true;
-        filListProvided.value = fileList;
-        nextTick(refreshPanel);
-    } else {
-        everthingEnabled.value = false;
-    }
-
-})
 watch(
     () => $realGlob.value, () => {
         refreshPanel()
