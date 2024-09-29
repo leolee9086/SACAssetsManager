@@ -17,7 +17,7 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = async(cwd, filter, signal, res, timeout = 3000, walkController,maxDepth,search) => {
+const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController,maxDepth,search) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
     signal.addEventListener('abort', () => {
@@ -42,7 +42,7 @@ const createWalkStream = async(cwd, filter, signal, res, timeout = 3000, walkCon
         filterFun = undefined
     }
     let chunked = ''
-    await walkAsyncWithFdir(cwd, filterFun, {
+     walkAsyncWithFdir(cwd, filterFun, {
         ifFile: (statProxy) => {
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)

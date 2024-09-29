@@ -75,7 +75,7 @@ async function 更新目录索引(root) {
                     globalTaskQueue.priority(
                         async () => {
                             reportHeartbeat()
-                            for (let i = 0; i < Math.max((Math.min(15 / (batch.time || 0.1), 100)), 1); i += 1) {
+                            for (let i = 0; i < Math.max((Math.min(15 / (batch.time || 0.1), 30)), 1); i += 1) {
                                 const _path = batch.pop()
                                 if (_path) {
                                     if (isThumbnail(_path) || isMetaData(_path)) {
@@ -138,12 +138,10 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     console.log(Date.now() - startTime)
     const stats = {}
     for await (const result of results) {
-
         stats[result.path] = result
         if (result.type !== 'file') {
             continue
         }
-
         reportHeartbeat()
         let flag = await filter(result)
         if (flag) {
