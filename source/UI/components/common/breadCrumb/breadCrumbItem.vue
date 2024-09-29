@@ -15,6 +15,7 @@
 </template>
 <script setup>
 import {toRefs,defineProps} from 'vue'
+import { isSvg } from '../../../../utils/siyuanData/icon.js';
 const props = defineProps({
     label: {
         type: String,
@@ -27,7 +28,4 @@ const props = defineProps({
 
 })
 const {label,icon} = toRefs(props)
-const isSvg = (icon) => {
-    return icon&&icon.startsWith('#')
-}
 </script>

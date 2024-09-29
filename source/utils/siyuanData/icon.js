@@ -82,3 +82,6 @@ export function 获取文档图标(block) {
     }
     return 思源软件图标URL
 }
+export const isSvg=(iconString)=>{
+    return iconString&&iconString.startsWith('#')
+}
