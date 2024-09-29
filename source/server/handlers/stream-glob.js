@@ -17,7 +17,7 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController,maxDepth,search) => {
+const createWalkStream = async(cwd, filter, signal, res, timeout = 3000, walkController,maxDepth,search) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
     signal.addEventListener('abort', () => {
@@ -42,7 +42,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
         filterFun = undefined
     }
     let chunked = ''
-    walkAsyncWithFdir(cwd, filterFun, {
+    await walkAsyncWithFdir(cwd, filterFun, {
         ifFile: (statProxy) => {
             statPromisesArray.paused = true
             let data = stat2assetsItemStringLine(statProxy)
@@ -74,7 +74,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
 
 };
 export const globStream = (req, res) => {
-    let fn = () => {
+    let fn = async() => {
         let scheme
         statPromisesArray.paused = true
         if (req.query && req.query.setting) {
@@ -142,7 +142,7 @@ export const globStream = (req, res) => {
         //没有compression中间件的情况下,也就没有res.flush方法
         res.flushHeaders()
         const { signal } = controller;
-        createWalkStream(cwd, filter, signal, res, timeout, walkController,scheme.depth,scheme.search)
+        await createWalkStream(cwd, filter, signal, res, timeout, walkController,scheme.depth,scheme.search)
         statPromisesArray.start()
         //前端请求关闭时,触发中止信号
         //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发

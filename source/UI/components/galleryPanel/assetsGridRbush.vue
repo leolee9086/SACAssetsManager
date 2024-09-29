@@ -279,7 +279,6 @@ async function 确认初始化界面并排序(total) {
     上报统计数据(total)
     mounted.value = true
     布局对象.value = 布局对象.value || 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
-    布局对象.value.layout.length ? null : 定长加载(100)
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 10) {
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)

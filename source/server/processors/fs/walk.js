@@ -25,22 +25,22 @@ const timouters = {}
 const batch = []
 async function 更新目录索引(root) {
     let fixedroot = root.replace(/\\/g, '/')
-    let 遍历优先级 = 0-Date.now()
+    let 遍历优先级 = 0 - Date.now()
     //构建目录树,这样下一次遍历的时候,可以跳过已经遍历过的目录
-   let oldStat = await 查找文件夹状态(fixedroot)
-    if(!oldStat){
-        遍历优先级= 0-Date.now()-1000
-    }else{
+    let oldStat = await 查找文件夹状态(fixedroot)
+    if (!oldStat) {
+        遍历优先级 = 0 - Date.now() - 1000
+    } else {
         let stat = require('fs').statSync(fixedroot)
-        if (new Date(stat.mtime).getTime() <= oldStat.mtime) {  
-            遍历优先级=0-Date.now()+1000
-        }else{
-            遍历优先级=0-Date.now()
+        if (new Date(stat.mtime).getTime() <= oldStat.mtime) {
+            遍历优先级 = 0 - Date.now() + 1000
+        } else {
+            遍历优先级 = 0 - Date.now()
         }
     }
 
     setTimeout(索引遍历缓存.delete(root), 10 * root.length)
-    let count=0
+    let count = 0
     let api = new fdir()
         .withFullPaths()
         .withDirs()
@@ -87,8 +87,8 @@ async function 更新目录索引(root) {
                                     batch.time = performance.now() - start
                                 }
                             }
-                            return {path}
-                        }, (遍历优先级+count-isDir?0:1000)/(fixedPath.replace(fixedroot,'')).length
+                            return { path }
+                        }, (遍历优先级 + count - isDir ? 0 : 1000) / (fixedPath.replace(fixedroot, '')).length
                     )
                 )
             } catch (e) {
@@ -137,24 +137,19 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     countCallBack(approximateCount)
     console.log(Date.now() - startTime)
     const stats = {}
-    console.log(results)
-    results.map(
-        item => {
-            stats[item.path] = item
-            return item
+    for await (const result of results) {
+
+        stats[result.path] = result
+        if (result.type !== 'file') {
+            continue
         }
-    ).forEach(
-        async (result) => {
-            if (result.type !== 'file') {
-                return
-            }
-            reportHeartbeat()
-            let flag = await filter(result)
-            if (flag) {
-                stepCallback(result)
-            }
+
+        reportHeartbeat()
+        let flag = await filter(result)
+        if (flag) {
+            await stepCallback(result)
         }
-    )
+    }
     更新目录索引(root, stats, signal)
 }
 
