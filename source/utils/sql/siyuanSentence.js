@@ -10,3 +10,13 @@ export const 查询所有附件=(limit, offset)=>{
 export const 按文档ID查询所有子文档附件=(docId, limit, offset)=>{
     return `select * from assets where docpath like '%${docId}%' limit ${limit || 100} offset ${offset || 0}`
 }
+export const 按文档ID查询file链接=(docId, limit, offset)=>{
+    return `
+    SELECT *
+    FROM spans
+    WHERE type = "textmark a"
+      AND markdown LIKE "%\]\(file\:\/\/\/%"
+      AND root_id = "${docId}"
+    LIMIT ${limit || 100} OFFSET ${offset || 0}
+    `
+}

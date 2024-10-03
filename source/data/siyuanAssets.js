@@ -3,7 +3,7 @@ import { applyURIStreamJson, applyURIStreamJsonCompatible, createCompatibleCallb
 import { queryTags } from './tags.js'
 import { 转换笔记查询结果到附件项 } from './transform/toAssetItem.js'
 import { 异步数组转存 } from '../utils/array/pipe.js'
-import { 查询块id数组 } from '../utils/sql/siyuanSentence.js'
+import { 按文档ID查询file链接, 查询块id数组 } from '../utils/sql/siyuanSentence.js'
 import { applyStmt } from './galleryDefine.js'
 import { 按笔记本查询附件, 查询所有附件, 按文档ID查询所有子文档附件 } from '../utils/sql/siyuanSentence.js'
 export async function 获取本地文件夹数据(globSetting, target, callback, step, signal) {
@@ -32,7 +32,10 @@ export async function 获取标签列表数据(tagLabel, target, callback, step,
 }
 export async function 获取本地文件列表数据(fileList, target, callback, step, signal) {
     let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream?setting=${encodeURIComponent(JSON.stringify(fileList))}`
-    applyURIStreamJsonCompatible(uri, target, callback, step, signal)
+  //  applyURIStreamJsonCompatible(uri, target, callback, step, signal)
+  const compatibleCallback = createCompatibleCallback(target, callback, step);
+  await applyURIStreamJson(uri, compatibleCallback, step, signal, { method: 'POST', body: fileList.join('\n') })
+
 }
 export async function 获取颜色查询数据(color, target, callback, step = 1, signal, globSetting) {
     let uri = `http://localhost:${plugin.http服务端口号}/getPathseByColor?color=${encodeURIComponent(JSON.stringify(color))}`;
@@ -74,7 +77,20 @@ function 获取查询语句(tab, limit, offset) {
     }
     return 查询所有附件(limit, offset)
 }
+export async function 获取文档中的文件链接(docId, limit = 100, offset = 0) {
+    const query = 按文档ID查询file链接(docId, limit, offset)
+    const result = await kernelApi.sql({ stmt: query })
+    
+    const filePaths = result.map(row => {
+        const match = row.markdown.match(/\[.*?\]\((file:\/\/\/.+?\.d5a)\)/)
+        if (match) {
+            return decodeURIComponent(match[1].replace('file:///', ''))
+        }
+        return null
+    }).filter(path => path !== null)
 
+    return filePaths
+}
 export async function 以sql获取tab附件数据(tab, limit, offset) {
     const query = 获取查询语句(tab, limit, offset)
     return await applyStmt({ query })

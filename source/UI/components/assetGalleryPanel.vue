@@ -7,13 +7,13 @@
             <div class=" fn__flex ">
                 <div class="fn__space fn__flex-1"></div>
                 <span>
-                    <svg 
-                    v-if="()=>appData.value.tab.data.everythingApiLocation?true:false"
-                    class="icon-green icon-overlay" 
-                    :style="{width: '20px',
+                    <svg v-if="() => appData.value.tab.data.everythingApiLocation ? true : false"
+                        class="icon-green icon-overlay" :style="{
+                            width: '20px',
                             height: '20px',
-                            color:everthingEnabled?'rgb(253, 128, 0)':'red'}
-                    ">
+                            color: everthingEnabled ? 'rgb(253, 128, 0)' : 'red'
+                        }
+                            ">
                         <use xlink:href="#iconSearch"></use>
                     </svg>
                 </span>
@@ -80,7 +80,7 @@
     </div>
 </template>
 <script setup>
-import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据 } from "../../data/siyuanAssets.js"
+import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据, 获取文档中的文件链接,获取本地文件列表数据 } from "../../data/siyuanAssets.js"
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import { plugin } from 'runtime'
@@ -135,7 +135,7 @@ const 创建回调并获取数据 = async () => {
         }
         else if (appData.value.tab.data.everythingApiLocation) {
             const url = new URL(appData.value.tab.data.everythingApiLocation)
-            const { enabled, fileList } = await searchByEverything(search.value, url.port,{count:10240});
+            const { enabled, fileList } = await searchByEverything(search.value, url.port, { count: 10240 });
             if (enabled) {
                 everthingEnabled.value = true;
                 附件数据源数组.value.data.push(...fileList);
@@ -145,7 +145,7 @@ const 创建回调并获取数据 = async () => {
         }
         else if (appData.value.tab.data.anytxtApiLocation) {
             const url = new URL(appData.value.tab.data.anytxtApiLocation)
-            const fileList  = await searchByAnytxt(search.value, url.port,{count:10240});
+            const fileList = await searchByAnytxt(search.value, url.port, { count: 10240 });
             if (fileList) {
                 console.log(fileList)
                 everthingEnabled.value = true;
@@ -155,7 +155,14 @@ const 创建回调并获取数据 = async () => {
             }
         }
         else {
-            await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, () => { nextTick(callBack) })
+            await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, async () => {
+                if (appData.value.tab.data.block_id) {
+                    let files = await 获取文档中的文件链接(appData.value.tab.data.block_id)
+                    获取本地文件列表数据(files,附件数据源数组.value.data,callBack,1,signal)
+                    return
+                }
+                nextTick(callBack)
+            })
         }
         nextTick(callBack)
     } catch (e) {
