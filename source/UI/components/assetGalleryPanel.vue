@@ -156,6 +156,7 @@ const 创建回调并获取数据 = async () => {
         }
         else {
             await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, async () => {
+                //支持file链接
                 if (appData.value.tab.data.block_id) {
                     let files = await 获取文档中的文件链接(appData.value.tab.data.block_id)
                     获取本地文件列表数据(files,附件数据源数组.value.data,callBack,1,signal)
