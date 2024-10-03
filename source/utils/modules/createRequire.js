@@ -1,3 +1,5 @@
+import { pluginName } from "../../pluginSymbolRegistry.js"
+
 /***
  * 创建一个require函数,用于在代码中引入模块
  * @param {Object} modeuleCache 模块缓存
@@ -22,4 +24,11 @@ const createRequire = (modeuleCache, parser, codeFixer, runner, currentModule) =
         modeuleCache.set(moduleName, rawModule)
         return rawModule
     }
+}
+/**
+ * 
+ */
+export const requirePluginBased =(moduleName)=>{
+    const modulePath =require('path').join(window.siyuan.config.system.workspaceDir,'data','plugins',pluginName,'node_modules',moduleName)
+    return window.require(modulePath)
 }

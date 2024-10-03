@@ -67,6 +67,10 @@ export const 打开附件组菜单 = (event, assets, options) => {
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '编辑') {
         menu.addSeparator();
+        if(assets.find(item=>item.path.endsWith('.d5a'))){
+            menu.addItem(元数据编辑菜单组.d5a内置缩略图(assets))
+
+        }
         menu.addItem(元数据编辑菜单组.重新计算文件颜色(assets))
         assets.length === 1&& menu.addItem(元数据编辑菜单组.上传缩略图(assets))
         assets.length === 1&& menu.addItem(元数据编辑菜单组.从剪贴板上传缩略图(assets))

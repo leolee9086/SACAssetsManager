@@ -1,4 +1,6 @@
 import { thumbnail } from "../../../../server/endPoints.js"
+import { confirmAsPromise } from "../../../../utils/siyuanUI/confirm.js"
+import { addFileToZip } from "../../../../utils/zip/modify.js"
 export const 重新计算文件颜色 = (assets)=>{
     return {
         'label':'重新计算文件颜色',
@@ -12,7 +14,45 @@ export const 重新计算文件颜色 = (assets)=>{
         }
     }
 }
-
+export const d5a内置缩略图=(assets)=>{
+    const d5aCount = assets.filter(
+        item=>{
+            return item.path.endsWith('.d5a')
+        }
+    ).length
+    return {
+        label:`尝试寻找并内置缩略图(${d5aCount}个d5a文件)`,
+        click: async () => {
+            const path = require('path')
+            const fs = require('fs')
+            for await (const asset of assets) {
+                // 找到文件夹下的.cache文件夹下的同名子文件夹,
+                // 并将其中的icon.jpg文件写入到d5a中(d5a文件实际上是一个zip)
+                if (asset && asset.path.endsWith('.d5a')) {
+                    const dirname = path.dirname(asset.path)
+                    const cachePath = path.join(dirname, '.cache', path.basename(asset.path))
+                    const iconPath = path.join(cachePath, 'icon.jpg')
+                    
+                    if (fs.existsSync(iconPath)) {
+                        const fileUrl = `file://${iconPath.replace(/\\/g, '/')}`
+                        const writeIcon = await confirmAsPromise(
+                            '确定修改?',
+                            `确认后将${iconPath}写入d5a文件中<br><img src="${fileUrl}" alt="缩略图预览" style="max-width: 200px; max-height: 200px;">`
+                        )
+                        if (writeIcon) {
+                            try {
+                                await addFileToZip(asset.path, iconPath, 'icon.jpg')
+                                console.log(`成功将缩略图${iconPath}写入 ${asset.path}`)
+                            } catch (error) {
+                                console.error(`写入缩略图到 ${asset.path} 失败:`, error)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 export const 上传缩略图 = (assets) => {
     return {
         'label': '上传缩略图',
