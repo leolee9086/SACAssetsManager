@@ -69,7 +69,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addSeparator();
         if(assets.find(item=>item.path.endsWith('.d5a'))){
             menu.addItem(元数据编辑菜单组.d5a内置缩略图(assets))
-
+            menu.addItem(元数据编辑菜单组.d5a内置缩略图单次确认(assets))
         }
         menu.addItem(元数据编辑菜单组.重新计算文件颜色(assets))
         assets.length === 1&& menu.addItem(元数据编辑菜单组.上传缩略图(assets))

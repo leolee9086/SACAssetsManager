@@ -1,30 +1,81 @@
 import { thumbnail } from "../../../../server/endPoints.js"
 import { confirmAsPromise } from "../../../../utils/siyuanUI/confirm.js"
 import { addFileToZip } from "../../../../utils/zip/modify.js"
-export const 重新计算文件颜色 = (assets)=>{
+export const 重新计算文件颜色 = (assets) => {
     return {
-        'label':'重新计算文件颜色',
-        'click':()=>{
+        'label': '重新计算文件颜色',
+        'click': () => {
             assets.forEach(
-                asset=>{
-                    let url = thumbnail.getColor(asset.type,asset.path,true)
+                asset => {
+                    let url = thumbnail.getColor(asset.type, asset.path, true)
                     fetch(url)
                 }
             )
         }
     }
 }
-export const d5a内置缩略图=(assets)=>{
+export const d5a内置缩略图单次确认 = (assets) => {
+    const d5aCount = assets.filter(item => item.path.endsWith('.d5a')).length
+    return {
+        label: `尝试寻找并内置缩略图(${d5aCount}个d5a文件，单次确认)`,
+        click: async () => {
+            const path = require('path')
+            const fs = require('fs')
+
+            const writeIcon = await confirmAsPromise(
+                '确定修改?',
+                `确认后将尝试为${d5aCount}个d5a文件内置缩略图。此操作不可撤销，是否继续？`
+            )
+            let successCount = 0
+            let failCount = 0
+
+
+            if (writeIcon) {
+                for (const asset of assets) {
+                    if (asset && asset.path.endsWith('.d5a')) {
+                        const dirname = path.dirname(asset.path)
+                        const cachePath = path.join(dirname, '.cache', path.basename(asset.path))
+                        const iconPath = path.join(cachePath, 'icon.jpg')
+
+                        if (fs.existsSync(iconPath)) {
+                            try {
+                                await addFileToZip(asset.path, iconPath, 'icon.jpg')
+                                console.log(`成功将缩略图${iconPath}写入 ${asset.path}`)
+                                successCount++
+
+                            } catch (error) {
+                                console.error(`写入缩略图到 ${asset.path} 失败:`, error)
+                                failCount++
+
+                            }
+                        }
+                    }
+                }
+            }
+            await confirmAsPromise(
+                '处理完成',
+                `处理完成！成功：${successCount}个，失败：${failCount}个。`
+            )
+
+
+        }
+    }
+}
+export const d5a内置缩略图 = (assets) => {
     const d5aCount = assets.filter(
-        item=>{
+        item => {
             return item.path.endsWith('.d5a')
         }
     ).length
     return {
-        label:`尝试寻找并内置缩略图(${d5aCount}个d5a文件)`,
+        label: `尝试寻找并内置缩略图(${d5aCount}个d5a文件)`,
         click: async () => {
             const path = require('path')
             const fs = require('fs')
+            let successCount = 0
+            let failCount = 0
+
+
             for await (const asset of assets) {
                 // 找到文件夹下的.cache文件夹下的同名子文件夹,
                 // 并将其中的icon.jpg文件写入到d5a中(d5a文件实际上是一个zip)
@@ -32,7 +83,7 @@ export const d5a内置缩略图=(assets)=>{
                     const dirname = path.dirname(asset.path)
                     const cachePath = path.join(dirname, '.cache', path.basename(asset.path))
                     const iconPath = path.join(cachePath, 'icon.jpg')
-                    
+
                     if (fs.existsSync(iconPath)) {
                         const fileUrl = `file://${iconPath.replace(/\\/g, '/')}`
                         const writeIcon = await confirmAsPromise(
@@ -43,13 +94,21 @@ export const d5a内置缩略图=(assets)=>{
                             try {
                                 await addFileToZip(asset.path, iconPath, 'icon.jpg')
                                 console.log(`成功将缩略图${iconPath}写入 ${asset.path}`)
+                                successCount++
                             } catch (error) {
                                 console.error(`写入缩略图到 ${asset.path} 失败:`, error)
+                                failCount++
                             }
                         }
                     }
                 }
             }
+            // 处理完所有文件后弹出确认框
+            await confirmAsPromise(
+                '处理完成',
+                `处理完成！成功：${successCount}个，失败：${failCount}个。`
+            )
+
         }
     }
 }
@@ -58,23 +117,23 @@ export const 上传缩略图 = (assets) => {
         'label': '上传缩略图',
         'click': () => {
             assets.forEach(asset => {
-                    // 创建文件输入元素
-                    const fileInput = document.createElement('input');
-                    fileInput.type = 'file';
-                    fileInput.accept = 'image/*';
-                    
-                    fileInput.onchange = (event) => {
-                        const file = event.target.files[0];
-                        if (file) {
-                            const formData = new FormData();
-                            formData.append('image', file);
-                            formData.append('assetPath', asset.path);
+                // 创建文件输入元素
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
 
-                            let url = thumbnail.upload(asset.type, asset.path);
-                            fetch(url, {
-                                method: 'POST',
-                                body: formData
-                            })
+                fileInput.onchange = (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        formData.append('assetPath', asset.path);
+
+                        let url = thumbnail.upload(asset.type, asset.path);
+                        fetch(url, {
+                            method: 'POST',
+                            body: formData
+                        })
                             .then(response => response.json())
                             .then(data => {
                                 console.log('缩略图上传成功:', data);
@@ -82,12 +141,12 @@ export const 上传缩略图 = (assets) => {
                             .catch(error => {
                                 console.error('缩略图上传失败:', error);
                             });
-                        }
-                    };
+                    }
+                };
 
-                    // 触发文件选择对话框
-                    fileInput.click();
-                
+                // 触发文件选择对话框
+                fileInput.click();
+
             });
         }
     }
@@ -112,13 +171,13 @@ export const 从剪贴板上传缩略图 = (assets) => {
                                             method: 'POST',
                                             body: formData
                                         })
-                                        .then(response => response.json())
-                                        .then(data => {
-                                            console.log('剪贴板缩略图上传成功:', data);
-                                        })
-                                        .catch(error => {
-                                            console.error('剪贴板缩略图上传失败:', error);
-                                        });
+                                            .then(response => response.json())
+                                            .then(data => {
+                                                console.log('剪贴板缩略图上传成功:', data);
+                                            })
+                                            .catch(error => {
+                                                console.error('剪贴板缩略图上传失败:', error);
+                                            });
                                     });
                                 break;
                             }
