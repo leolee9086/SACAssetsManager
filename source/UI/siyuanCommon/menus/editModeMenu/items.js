@@ -1,3 +1,4 @@
+import { kernelApi } from "../../../../asyncModules.js"
 import { thumbnail } from "../../../../server/endPoints.js"
 import { confirmAsPromise } from "../../../../utils/siyuanUI/confirm.js"
 import { addFileToZip } from "../../../../utils/zip/modify.js"
@@ -28,22 +29,21 @@ export const d5a内置缩略图单次确认 = (assets) => {
             )
             let successCount = 0
             let failCount = 0
-
-
             if (writeIcon) {
                 for (const asset of assets) {
                     if (asset && asset.path.endsWith('.d5a')) {
                         const dirname = path.dirname(asset.path)
                         const cachePath = path.join(dirname, '.cache', path.basename(asset.path))
                         const iconPath = path.join(cachePath, 'icon.jpg')
-
                         if (fs.existsSync(iconPath)) {
                             try {
                                 await addFileToZip(asset.path, iconPath, 'icon.jpg')
                                 console.log(`成功将缩略图${iconPath}写入 ${asset.path}`)
+                                await kernelApi.pushMsg({'msg':`成功将缩略图${iconPath}写入 ${asset.path}`})
                                 successCount++
-
                             } catch (error) {
+                                await kernelApi.pushErrMsg({'msg':`写入缩略图到 ${asset.path} 失败:${error}`})
+
                                 console.error(`写入缩略图到 ${asset.path} 失败:`, error)
                                 failCount++
 
@@ -74,8 +74,6 @@ export const d5a内置缩略图 = (assets) => {
             const fs = require('fs')
             let successCount = 0
             let failCount = 0
-
-
             for await (const asset of assets) {
                 // 找到文件夹下的.cache文件夹下的同名子文件夹,
                 // 并将其中的icon.jpg文件写入到d5a中(d5a文件实际上是一个zip)
@@ -108,7 +106,6 @@ export const d5a内置缩略图 = (assets) => {
                 '处理完成',
                 `处理完成！成功：${successCount}个，失败：${failCount}个。`
             )
-
         }
     }
 }

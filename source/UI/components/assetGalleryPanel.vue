@@ -101,7 +101,6 @@ const filListProvided = ref(null)
 
 
 const 创建回调并获取数据 = async () => {
-
     附件数据源数组.value.data = []
     try {
         const callBack = (...args) => {
@@ -109,7 +108,8 @@ const 创建回调并获取数据 = async () => {
         }
         if (filListProvided.value) {
             附件数据源数组.value.data.push(...filListProvided.value);
-        } else if (appData.value.tab.data.efuPath) {
+        } 
+        else if (appData.value.tab.data.efuPath) {
             let data
             try {
                 data = await parseEfuContentFromFile(appData.value.tab.data.efuPath)
@@ -121,7 +121,6 @@ const 创建回调并获取数据 = async () => {
                 callBack()
             }
         }
-
         //提供了本地文件夹路径
         else if (appData.value.tab.data.localPath) {
             await 获取本地文件夹数据($realGlob.value, 附件数据源数组.value.data, callBack, 1, signal)
@@ -147,7 +146,6 @@ const 创建回调并获取数据 = async () => {
             const url = new URL(appData.value.tab.data.anytxtApiLocation)
             const fileList = await searchByAnytxt(search.value, url.port, { count: 10240 });
             if (fileList) {
-                console.log(fileList)
                 everthingEnabled.value = true;
                 附件数据源数组.value.data.push(...fileList);
             } else {
@@ -355,7 +353,6 @@ const endSelection = (event) => {
     selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
     clearSelectionWithLayout(currentLayout.value)
     updateSelectionStatus(selectedItems.value, event)
-
     plugin.eventBus.emit('assets-select', selectedItems.value)
 };
 plugin.eventBus.on(globalKeyboardEvents.globalKeyDown, (e) => {
@@ -395,7 +392,6 @@ const selectionBoxStyle = computed(() => {
         width: `${Math.abs(startX - endX)}px`,
         height: `${Math.abs(startY - endY)}px`,
         pointerEvents: 'none'
-
     };
 });
 const sorter = ref({
