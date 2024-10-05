@@ -131,6 +131,13 @@ export const 打开附件组菜单 = (event, assets, options) => {
     assets&&assets[0]&&添加通用菜单内容(menu, assets)
     menu.addSeparator()
     menu.addItem(menuItems.清理缓存并硬刷新())
+    menu.addItem({
+        'label':plugin.启用AI翻译?plugin.翻译`停用AI翻译`:plugin.翻译`启用AI翻译`,
+        click:()=>{
+            plugin.启用AI翻译=!plugin.启用AI翻译
+        }
+    })
+
     menu.addSeparator()
 
     assets&&assets[0]&&添加只读菜单内容(menu, assets)

@@ -1,14 +1,6 @@
 {
-  "addTopBarIcon": "Add a top bar icon by plugin",
-  "cancel": "Cancel",
-  "save": "Save",
-  "byeMenu": "Bye, Menu!",
-  "helloPlugin": "Hello, Plugin!",
-  "byePlugin": "Bye, Plugin!",
-  "showDialog": "Show dialog",
-  "getTab": "Print out all opened custom tabs in the debugger",
-  "removedData": "Data deleted",
-  "confirmRemove": "Confirm to delete the data in ${name}?",
-  "insertEmoji": "Insert Emoji",
-  "removeSpace": "Remove Space"
+  "上传缩略图": "Upload thumbnail",
+  "从剪贴板上传缩略图": "Copyclip thumbnail upload",
+  "重新计算__VAR_0__个文件的颜色": "Re-calculate the colors of __VAR_0__ files.",
+  "从系统剪贴板更新缩略图": "Update thumbnail from clipboard"
 }

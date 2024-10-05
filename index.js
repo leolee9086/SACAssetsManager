@@ -21,8 +21,65 @@ module.exports = class SACAssetsManager extends Plugin {
     this.添加资源信息边栏()
     this.创建资源Tab类型()
     this.添加菜单()
+    this.加载i18n工具()
   }
-  初始化进程状态(){
+  async 写入i18n(lang, content) {
+    let targetPath = this.插件自身工作空间路径 + '/i18n/' + `${lang}.json`
+    let workspace = await import(`${this.插件自身伺服地址}/source/polyfills/fs.js`)
+    await workspace.writeFile(targetPath, JSON.stringify(content, undefined, 2))
+  }
+  加载i18n工具() {
+    this.$翻译 = function (字符串数组, ...插值) {
+      // 直接使用原始的模板字符串
+      return 字符串数组.reduce((结果, 字符串, 索引) =>
+        结果 + 字符串 + (插值[索引] || ''), '');
+    };
+    import(`${this.插件自身伺服地址}/source/utils/i18n/aiI18n.js`).then(
+      module => {
+        this.翻译 = (字符串数组, ...插值) => {
+          let 完整模板 = '';
+          字符串数组.forEach((字符串, 索引) => {
+            完整模板 += 字符串;
+            if (索引 < 插值.length) {
+              完整模板 += `__VAR_${索引}__`;
+            }
+          });
+          if(!this.启用AI翻译){
+            let 翻译结果 = 完整模板
+            插值.forEach((值, 索引) => {
+              翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
+            });
+            return 翻译结果
+          }
+          if (this.i18n[完整模板]) {
+            let 翻译结果 = this.i18n[完整模板]
+            插值.forEach((值, 索引) => {
+              翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
+            });
+            return 翻译结果
+          } else {
+            if (siyuan.config.lang === 'zh_CN') {
+              this.i18n[完整模板] = 完整模板
+              this.写入i18n(siyuan.config.lang, this.i18n)
+              let 翻译结果 = this.i18n[完整模板]
+              插值.forEach((值, 索引) => {
+                翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
+              });
+              return 翻译结果
+            }
+            (async () => {
+              let result = (module.创建可选AI翻译标签函数(() => { return true }))(字符串数组, ...插值)
+              this.i18n[完整模板] = result.template
+              await this.写入i18n(siyuan.config.lang, this.i18n)
+            })()
+            return this.$翻译(字符串数组, ...插值)
+          }
+        }
+      }
+    )
+
+  }
+  初始化进程状态() {
     this.最近打开本地文件夹列表 = new Set()
   }
   /**
@@ -35,11 +92,11 @@ module.exports = class SACAssetsManager extends Plugin {
       打开附件所在路径: 'open-asset-folder'
     }
   }
-  加载工具webview(){
+  加载工具webview() {
     //用于触发原生拖拽事件
     import(`${this.插件自身伺服地址}/source/utilWebviews/drag.js`)
   }
-  添加全局事件监听(){
+  添加全局事件监听() {
     import(`${this.插件自身伺服地址}/source/events/globalEvents.js`)
   }
   emitEvent(eventName, detail, options) {
@@ -70,7 +127,7 @@ module.exports = class SACAssetsManager extends Plugin {
       type: "config",
       init() {
         const UI容器父元素 = this.element
-        this.contollers=[]
+        this.contollers = []
         const UI容器 = 插入UI面板容器(UI容器父元素)
         import('/plugins/SACAssetsManager/source/UI/tab.js').then(
           module => {
@@ -99,13 +156,13 @@ module.exports = class SACAssetsManager extends Plugin {
           }
         )
       },
-      
+
     })
   }
   async 创建web服务() {
     const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
     this.http服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_http", 6992)
-    this.https服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_https",6993)
+    this.https服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_https", 6993)
     await import(`${this.插件自身伺服地址}/source/server/main.js`)
   }
   /**
@@ -137,7 +194,7 @@ module.exports = class SACAssetsManager extends Plugin {
       },
       beforeDestroy() {
         this.element.innerHTML = ""
-        this.controllers&&this.controllers.forEach(controller=>{
+        this.controllers && this.controllers.forEach(controller => {
           controller.abort()
         })
       }

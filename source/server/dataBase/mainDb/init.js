@@ -19,9 +19,7 @@ async function 初始化数据库(dbPath, root) {
         locks[root] = await 创建文件锁(dbPath)
     }
     const readOnly = !locks[root]
-
     dbs[root] = new Database(dbPath, { readonly: readOnly });
-
     dbs[root].pragma('journal_mode = WAL');
     dbs[root].pragma('synchronous = NORMAL');
     dbs[root].pragma('cache_size = 1000');
@@ -47,7 +45,6 @@ async function 初始化数据库(dbPath, root) {
         console.warn('数据库锁定中,以只读方式启动', dbPath)
     }
     dbs.readOnly = readOnly
-
     // 添加关闭数据库的方法，同时释放文件锁
     dbs[root].closeAndUnlock = async () => {
         dbs[root].close()
@@ -75,3 +72,5 @@ export async function 根据路径查找并加载主数据库(filePath) {
      */
     return await 初始化数据库(cachePath, root);
 }
+
+

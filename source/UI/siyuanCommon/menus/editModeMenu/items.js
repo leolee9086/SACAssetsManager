@@ -1,10 +1,9 @@
-import { kernelApi } from "../../../../asyncModules.js"
 import { thumbnail } from "../../../../server/endPoints.js"
-import { confirmAsPromise } from "../../../../utils/siyuanUI/confirm.js"
-import { addFileToZip } from "../../../../utils/zip/modify.js"
+import { 从文件加载菜单项目 } from "../utils/menuItemloader.js"
+import { plugin } from "../../../../pluginSymbolRegistry.js"
 export const 重新计算文件颜色 = (assets) => {
     return {
-        'label': '重新计算文件颜色',
+        'label':plugin.翻译`重新计算${assets.length}个文件的颜色`,
         'click': () => {
             assets.forEach(
                 asset => {
@@ -15,103 +14,10 @@ export const 重新计算文件颜色 = (assets) => {
         }
     }
 }
-export const d5a内置缩略图单次确认 = (assets) => {
-    const d5aCount = assets.filter(item => item.path.endsWith('.d5a')).length
-    return {
-        label: `尝试寻找并内置缩略图(${d5aCount}个d5a文件，单次确认)`,
-        click: async () => {
-            const path = require('path')
-            const fs = require('fs')
-
-            const writeIcon = await confirmAsPromise(
-                '确定修改?',
-                `确认后将尝试为${d5aCount}个d5a文件内置缩略图。此操作不可撤销，是否继续？`
-            )
-            let successCount = 0
-            let failCount = 0
-            if (writeIcon) {
-                for (const asset of assets) {
-                    if (asset && asset.path.endsWith('.d5a')) {
-                        const dirname = path.dirname(asset.path)
-                        const cachePath = path.join(dirname, '.cache', path.basename(asset.path))
-                        const iconPath = path.join(cachePath, 'icon.jpg')
-                        if (fs.existsSync(iconPath)) {
-                            try {
-                                await addFileToZip(asset.path, iconPath, 'icon.jpg')
-                                console.log(`成功将缩略图${iconPath}写入 ${asset.path}`)
-                                await kernelApi.pushMsg({'msg':`成功将缩略图${iconPath}写入 ${asset.path}`})
-                                successCount++
-                            } catch (error) {
-                                await kernelApi.pushErrMsg({'msg':`写入缩略图到 ${asset.path} 失败:${error}`})
-
-                                console.error(`写入缩略图到 ${asset.path} 失败:`, error)
-                                failCount++
-
-                            }
-                        }
-                    }
-                }
-            }
-            await confirmAsPromise(
-                '处理完成',
-                `处理完成！成功：${successCount}个，失败：${failCount}个。`
-            )
-
-
-        }
-    }
-}
-export const d5a内置缩略图 = (assets) => {
-    const d5aCount = assets.filter(
-        item => {
-            return item.path.endsWith('.d5a')
-        }
-    ).length
-    return {
-        label: `尝试寻找并内置缩略图(${d5aCount}个d5a文件)`,
-        click: async () => {
-            const path = require('path')
-            const fs = require('fs')
-            let successCount = 0
-            let failCount = 0
-            for await (const asset of assets) {
-                // 找到文件夹下的.cache文件夹下的同名子文件夹,
-                // 并将其中的icon.jpg文件写入到d5a中(d5a文件实际上是一个zip)
-                if (asset && asset.path.endsWith('.d5a')) {
-                    const dirname = path.dirname(asset.path)
-                    const cachePath = path.join(dirname, '.cache', path.basename(asset.path))
-                    const iconPath = path.join(cachePath, 'icon.jpg')
-
-                    if (fs.existsSync(iconPath)) {
-                        const fileUrl = `file://${iconPath.replace(/\\/g, '/')}`
-                        const writeIcon = await confirmAsPromise(
-                            '确定修改?',
-                            `确认后将${iconPath}写入d5a文件中<br><img src="${fileUrl}" alt="缩略图预览" style="max-width: 200px; max-height: 200px;">`
-                        )
-                        if (writeIcon) {
-                            try {
-                                await addFileToZip(asset.path, iconPath, 'icon.jpg')
-                                console.log(`成功将缩略图${iconPath}写入 ${asset.path}`)
-                                successCount++
-                            } catch (error) {
-                                console.error(`写入缩略图到 ${asset.path} 失败:`, error)
-                                failCount++
-                            }
-                        }
-                    }
-                }
-            }
-            // 处理完所有文件后弹出确认框
-            await confirmAsPromise(
-                '处理完成',
-                `处理完成！成功：${successCount}个，失败：${failCount}个。`
-            )
-        }
-    }
-}
+export const [d5a内置缩略图,d5a内置缩略图单次确认]=await 从文件加载菜单项目(import.meta.resolve('./formats/d5a.js'))
 export const 上传缩略图 = (assets) => {
     return {
-        'label': '上传缩略图',
+        'label':plugin.翻译`上传缩略图`,
         'click': () => {
             assets.forEach(asset => {
                 // 创建文件输入元素
@@ -150,7 +56,7 @@ export const 上传缩略图 = (assets) => {
 }
 export const 从剪贴板上传缩略图 = (assets) => {
     return {
-        'label': '从剪贴板上传缩略图',
+        'label': plugin.翻译`从系统剪贴板更新缩略图`,
         'click': () => {
             assets.forEach(asset => {
                 navigator.clipboard.read()
