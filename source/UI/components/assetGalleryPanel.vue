@@ -24,7 +24,7 @@
                     :value="1000" type="number">
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
-                    <button @click="refreshPanel">刷新</button>
+                    <button @click="refreshPanel">{{plugin.翻译`刷新`}}</button>
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">

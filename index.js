@@ -51,7 +51,7 @@ module.exports = class SACAssetsManager extends Plugin {
             });
             return 翻译结果
           }
-          if (this.i18n[完整模板]) {
+          if (this.i18n[完整模板]&&this.i18n[完整模板]!==完整模板) {
             let 翻译结果 = this.i18n[完整模板]
             插值.forEach((值, 索引) => {
               翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
@@ -67,11 +67,11 @@ module.exports = class SACAssetsManager extends Plugin {
               });
               return 翻译结果
             }
-            (async () => {
+            setTimeout(async () => {
               let result = (module.创建可选AI翻译标签函数(() => { return true }))(字符串数组, ...插值)
               this.i18n[完整模板] = result.template
               await this.写入i18n(siyuan.config.lang, this.i18n)
-            })()
+            })
             return this.$翻译(字符串数组, ...插值)
           }
         }

@@ -104,7 +104,7 @@ const similarColor = computed(() => {
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 function 计算扩展名(data){
     if(data.type==='note'){
-        return `笔记:${ 块类型语言对照表[data.$meta.type]  ||data.$meta.type}`
+        return  `笔记:${ 块类型语言对照表[data.$meta.type]  ||data.$meta.type}`
     }
     return size.value > 表格视图阈值 ? data.path.split('.').pop() : '' 
 }

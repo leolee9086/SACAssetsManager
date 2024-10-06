@@ -1,6 +1,20 @@
 {
-  "上传缩略图": "Upload thumbnail",
-  "从剪贴板上传缩略图": "Copyclip thumbnail upload",
-  "重新计算__VAR_0__个文件的颜色": "Re-calculate the colors of __VAR_0__ files.",
-  "从系统剪贴板更新缩略图": "Update thumbnail from clipboard"
+  "addTopBarIcon": "使用插件添加一个顶栏按钮",
+  "byeMenu": "再见，菜单！",
+  "byePlugin": "再见，插件！",
+  "cancel": "取消",
+  "confirmRemove": "确认删除 ${name} 中的数据？",
+  "getTab": "在日志中打印出已打开的所有自定义页签",
+  "helloPlugin": "你好，插件！",
+  "insertEmoji": "插入表情",
+  "removeSpace": "移除空格",
+  "removedData": "数据已删除",
+  "save": "保存",
+  "showDialog": "弹出一个对话框",
+  "上传缩略图": "上传缩略图",
+  "从系统剪贴板更新缩略图": "从系统剪贴板更新缩略图",
+  "停用AI翻译": "Disable AI translation",
+  "启用AI界面翻译": "启用AI界面翻译",
+  "重新计算__VAR_0__个文件的颜色": "Recalculate the colors of __VAR_0__ files.",
+  "刷新": "Refresh"
 }
