@@ -34,7 +34,11 @@ const upload= (type, path) => {
 }
 export const fs={
     path:{
-        getPathExtensions(localPath){return `${serverHost()}/fs/path/extentions/?dirPath=${encodeURIComponent(localPath)}`}
+        getPathExtensions(localPath){return `${serverHost()}/fs/path/extentions/?dirPath=${encodeURIComponent(localPath)}`},
+        getFolderThumbnail(localPath) {
+            return `${serverHost()}/fs/path/folderThumbnail?dirPath=${encodeURIComponent(localPath)}`;
+        }
+
     },
     disk:{
         listLocalDisks(){return `${serverHost()}/listDisk`}

@@ -27,7 +27,11 @@
                 <div v-if="i < 100" @click.left.stop="() => { toggleShow(子文件夹信息, i) }"
                     @click.right.stop="(e) => { 右键菜单(子文件夹数组[i], e) }" :class="{ 'subfolderShown': 子文件夹信息.show }"
                     style="border-radius:15px;min-width:80px;width:80px;height:80px;background-color: var(--b3-theme-background-light);">
-                    <img src="/stage/icon.png">
+                    <div style="border-radius:15px;min-width:80px;width:80px;height:80px;overflow: hidden;">
+                        <img :src="子文件夹信息.thumbnailUrl" @error="使用默认图标($event)" style="    width: 100%;
+    height: 100%;
+    object-fit: contain;">
+                    </div>
                     <div style="font-size: small;text-align: center;">{{ 子文件夹信息.name }}</div>
                     <div style="font-size: x-small;text-align: center;">{{ 子文件夹信息.fileCount }}个文件</div>
                     <div style="font-size: x-small;text-align: center;">{{ 子文件夹信息.folderCount }}个目录</div>
@@ -45,15 +49,16 @@ import { plugin } from 'runtime'
 import { horizontalScroll } from '../../../utils/scroll.js'
 import { commonIcon } from '../icons.js'
 import { 打开文件夹图标菜单 } from '../../../siyuanCommon/menus/folderItem.js';
+import { fs } from '../../../../server/endPoints.js';
 const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 const 右键菜单 = (子文件夹信息, event) => {
-    const 子文件夹路径 = window.require('path').join(localPath,子文件夹信息.name).replace(/\\/g,'/')
-    const position =  { y: event.y , x: event.x }
+    const 子文件夹路径 = window.require('path').join(localPath, 子文件夹信息.name).replace(/\\/g, '/')
+    const position = { y: event.y, x: event.x }
     const options = {
         position
     }
-    打开文件夹图标菜单(event,子文件夹路径,options)
+    打开文件夹图标菜单(event, 子文件夹路径, options)
 }
 watch(() => IncludeSubfolders.value, () => {
     fetchSUbFolders()
@@ -63,7 +68,7 @@ watch(() => IncludeSubfolders.value, () => {
             /***
              * 内置属性
              */
-            depth:1,
+            depth: 1,
         })
     } else {
         emit('globChange', 构建搜索模式(子文件夹数组.value, localPath.replace(/\\/g, '/')))
@@ -90,6 +95,10 @@ const { localPath } = defineProps(
 )
 let fetching = false
 let retry = 0
+const 使用默认图标 = (event) => {
+    event.target.src = '/stage/icon.png'  // 设置默认图标路径
+}
+
 const fetchSUbFolders = async () => {
     if (子文件夹数组.value[0] || fetching || retry > 8) {
         return
@@ -97,7 +106,12 @@ const fetchSUbFolders = async () => {
     fetching = true
     retry += 1
     try {
-        子文件夹数组.value = await (await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(localPath.trim())}`)).json()
+        const response = await fetch(`http://localhost:${plugin.http服务端口号}/count-etries?root=${encodeURIComponent(localPath.trim())}`)
+        const data = await response.json()
+        子文件夹数组.value = data.map(folder => ({
+            ...folder,
+            thumbnailUrl: fs.path.getFolderThumbnail(window.require('path').join(localPath, folder.name).replace(/\\/g, '/'))
+        }))
     } catch (e) {
         console.warn(e)
         子文件夹数组.value = []
