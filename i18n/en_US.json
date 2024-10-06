@@ -11,10 +11,10 @@
   "removedData": "数据已删除",
   "save": "保存",
   "showDialog": "弹出一个对话框",
-  "上传缩略图": "上传缩略图",
-  "从系统剪贴板更新缩略图": "从系统剪贴板更新缩略图",
+  "上传缩略图": "Upload thumbnail",
+  "从系统剪贴板更新缩略图": "Update thumbnail from the system clipboard",
   "停用AI翻译": "Disable AI translation",
+  "刷新": "Refresh",
   "启用AI界面翻译": "启用AI界面翻译",
-  "重新计算__VAR_0__个文件的颜色": "Recalculate the colors of __VAR_0__ files.",
-  "刷新": "Refresh"
+  "重新计算__VAR_0__个文件的颜色": "Recalculate the colors of __VAR_0__ files."
 }

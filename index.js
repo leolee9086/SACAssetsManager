@@ -45,7 +45,7 @@ module.exports = class SACAssetsManager extends Plugin {
             }
           });
           if(!this.启用AI翻译){
-            let 翻译结果 = 完整模板
+            let 翻译结果 =this.i18n[完整模板]|| 完整模板
             插值.forEach((值, 索引) => {
               翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
             });
