@@ -8,7 +8,6 @@ import { globalTaskQueue } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
 import { 查找子文件夹, 删除缩略图缓存行, 计算哈希 } from '../thumbnail/indexer.js'
 import { getCachePath } from './cached/fs.js'
-import { 永久监听文件夹条目 } from './watch.js'
 import { 查找文件夹状态 } from '../../dataBase/mainDb.js'
 /**
  * 使用修改后的fdir,遍历指定目录
@@ -38,7 +37,6 @@ async function 更新目录索引(root) {
             遍历优先级 = 0 - Date.now()
         }
     }
-
     setTimeout(索引遍历缓存.delete(root), 10 * root.length)
     let count = 0
     let api = new fdir()
@@ -46,14 +44,8 @@ async function 更新目录索引(root) {
         .withDirs()
         .withCache(索引遍历缓存)
         //   .withAbortSignal(signal)
-        .exclude((name, path) => {
-            for (let dir of ignoreDir) {
-                if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
-                    return true
-                }
-            }
-            return false
-        }).filter(async (path, isDir) => {
+        .exclude(判定路径排除)
+        .filter(async (path, isDir) => {
             let fixedPath = path.replace(/\\/g, '/')
             reportHeartbeat()
             try {
@@ -107,21 +99,7 @@ async function 更新目录索引(root) {
                 let parsedEntry = entry
                 let path = parsedEntry.path.replace(/\\/g, '/');
                 if (!fixed.has(path)) {
-                    删除缩略图缓存行(path);
-                    async () => {
-                        let hash = 计算哈希(entry)
-                        let hashedName = `${数据库查询结果.path.pop().replace(/\./g, '_')}_${hash}`
-                        const 缓存目录 = (await getCachePath(path, 'thumbnails', true)).cachePath
-                        let 缓存路径 = require('path').join(缓存目录, hashedName)
-                        if (require('fs').existsSync(缓存路径)) {
-                            console.log('删除多余缩略图', 缓存路径);
-                            require('fs').unlink(
-                                缓存路径, (err) => {
-                                    console.warn('删除多余缩略图出错')
-                                }
-                            )
-                        }
-                    }
+                    处理缓存文件(path, entry)
                 }
                 return path;
             }
@@ -129,13 +107,33 @@ async function 更新目录索引(root) {
         }
     )
 }
+const  判定路径排除=(name,path)=>{
+    for (let dir of ignoreDir) {
+        if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
+            return true
+        }
+    }
+    return false
+
+}
+async function 处理缓存文件(path, entry) {
+    删除缩略图缓存行(path);
+    let hash = 计算哈希(entry)
+    let hashedName = `${entry.path.split('/').pop().replace(/\./g, '_')}_${hash}`
+    const 缓存目录 = (await getCachePath(path, 'thumbnails', true)).cachePath
+    let 缓存路径 = require('path').join(缓存目录, hashedName)
+    if (require('fs').existsSync(缓存路径)) {
+        console.log('删除多余缩略图', 缓存路径);
+        require('fs').unlink(缓存路径, (err) => {
+            if (err) console.warn('删除多余缩略图出错', err)
+        })
+    }
+}
 export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth = Infinity, search) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
-    const startTime = Date.now()
     let { results, approximateCount } = await 查找子文件夹(root, search)
     countCallBack(approximateCount)
-    console.log(Date.now() - startTime)
     const stats = {}
     for await (const result of results) {
         stats[result.path] = result

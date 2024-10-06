@@ -14,9 +14,9 @@ export async function processFilesFrontEnd(assets, targetPath, operation, callBa
             await performOperation(operation, asset, targetFilePath);
             await callBack(operation, asset, targetFilePath)
         } catch (error) {
-            console.error(error);
+            callBack&& console.error(error);
             errors.push(`处理文件 ${asset.name} 时出错: ${error.message}`);
-            await callBack(operation, asset, targetFilePath, error)
+            callBack&&await callBack(operation, asset, targetFilePath, error)
 
         }
     }

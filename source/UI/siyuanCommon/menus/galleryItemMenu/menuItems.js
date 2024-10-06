@@ -209,7 +209,7 @@ export const 上传到assets并复制链接 = (assets) => {
 
 export const 清理缓存并硬刷新 =  () => {
     return {
-        label:"清理缓存并硬刷新当前窗口",
+        label:plugin.翻译`清理缓存并硬刷新当前窗口`,
         click: async () => {
             const remote = require('@electron/remote')
             try {

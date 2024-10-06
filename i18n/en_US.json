@@ -15,6 +15,11 @@
   "从系统剪贴板更新缩略图": "Update thumbnail from the system clipboard",
   "停用AI翻译": "Disable AI translation",
   "刷新": "Refresh",
-  "启用AI界面翻译": "启用AI界面翻译",
-  "重新计算__VAR_0__个文件的颜色": "Recalculate the colors of __VAR_0__ files."
+  "启用AI界面翻译": "AI Interface Translation (Experimental)",
+  "尝试寻找并内置缩略图(__VAR_0__个d5a文件)": "Try to find and embed thumbnails (__VAR_0__ d5a files)",
+  "尝试寻找并内置缩略图(__VAR_0__个d5a文件，单次确认)": "Try to find and include thumbnails (__VAR_0__ d5a files, one-time confirmation)",
+  "确定修改?": "Is the modification confirmed?",
+  "确认后将尝试为__VAR_0__个d5a文件内置缩略图。此操作不可撤销，是否继续？": "Try to build thumbnails for __VAR_0__ 'd5a' files. This action is irreversible, shall we proceed?",
+  "重新计算__VAR_0__个文件的颜色": "Recalculate the colors of __VAR_0__ files.",
+  "清理缓存并硬刷新当前窗口": "Clear cache and hard refresh the current window."
 }

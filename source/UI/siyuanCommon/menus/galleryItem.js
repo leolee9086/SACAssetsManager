@@ -132,7 +132,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
     menu.addSeparator()
     menu.addItem(menuItems.清理缓存并硬刷新())
     menu.addItem({
-        'label':plugin.启用AI翻译?plugin.翻译`停用AI翻译`:plugin.翻译`启用AI翻译`,
+        'label':plugin.启用AI翻译?plugin.翻译`停用AI翻译`:plugin.翻译`启用AI翻译(实验性)`,
         click:()=>{
             plugin.启用AI翻译=!plugin.启用AI翻译
         }

@@ -40,6 +40,11 @@
 
 重复文件检测等功能，注意这些功能的存在主要是因为作者自己需要使用，存在一定的风险，如果你不知道他们会对文件系统做出怎样的改动请不要使用。
 
+## Simple AI Interface Translation (Experimental)
+
+因为实在没有时间完成多语言界面,所以做了一个使用思源的AI配置翻译插件界面的小功能,如果实在看不懂界面中文的话就让AI翻译一下吧
+
+Because there wasn't enough time to complete a multi-language interface, a small feature was added that uses Siyuan's AI configuration to translate the plugin interface. If you really can't understand the Chinese interface,  let the AI translate it for you.
 
 ## 说明
 
