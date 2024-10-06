@@ -110,9 +110,9 @@ export const 移动到目录 = (assets, targetPath, event) => {
             if (result) {
                 const errors = await processFilesFrontEnd(assets, targetPath, operation.func,(operation, asset, targetFilePath, error)=>{
                     if(!error){
-                        kernelApi.pushMsg({'msg':`${operation.label} ${asset.path}至${targetFilePath}成功`})
+                        kernelApi.pushMsg({'msg':`${operation} ${asset.path}至${targetFilePath}成功`})
                     }else{
-                        kernelApi.pushErrMsg({'msg':`${operation.label} ${asset.path}至${targetFilePath}成功`})
+                        kernelApi.pushErrMsg({'msg':`${operation} ${asset.path}至${targetFilePath}失败`})
 
                     }
                 });
