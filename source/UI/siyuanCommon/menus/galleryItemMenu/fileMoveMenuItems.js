@@ -61,12 +61,28 @@ export const 移动到回收站 = (assets, panelController) => {
 }
 export const 移动到最近目录菜单组 = (assets, event) => {
     let 最近打开本地文件夹数组 = Array.from(plugin.最近打开本地文件夹列表)
-    return 最近打开本地文件夹数组.map(
-        targetPath => {
-            return 移动到目录(assets, targetPath, event)
-        }
-    )
+    return [
+        {
+            label: "选择目标目录并移动",
+            click: async () => {
+                const result = await require('@electron/remote').dialog.showOpenDialog({
+                    properties: ['openDirectory']
+                })
+                if (!result.canceled && result.filePaths.length > 0) {
+                    const targetPath = result.filePaths[0]
+                    const moveMenuItem = 移动到目录(assets, targetPath, event)
+                    moveMenuItem.click()
+                }
+            }
+        },
+        ...最近打开本地文件夹数组.map(
+            targetPath => {
+                return 移动到目录(assets, targetPath, event)
+            }
+        )
+    ]
 }
+
 export const 移动到目录 = (assets, targetPath, event) => {
     const operations = {
         move: { label: "移动到", action: "移动", func: 'move' },
@@ -88,18 +104,24 @@ export const 移动到目录 = (assets, targetPath, event) => {
         label: `${operation.label}${targetPath}`,
         click: async () => {
             let result = await confirmAsPromise(
-                `确认${operation.action}${assets.length}个文件到${targetPath}?`,
-                `由于插件作者水平所限,不保证${operation.action}操作安全性,请优先考虑使用系统资源管理器进行操作`
+                plugin.翻译`确认${operation.action}${assets.length}个文件到${targetPath}?`,
+                plugin.翻译`由于插件作者水平所限,不保证${operation.action}操作安全性,请优先考虑使用系统资源管理器进行操作`
             );
             if (result) {
-                const errors = await processFilesFrontEnd(assets, targetPath, operation.func);
-                if (errors.length > 0) {
-                    clientApi.showMessage(`操作完成,但有以下错误:\n${errors.join('\n')}`, 'error');
-                } else {
-                    clientApi.showMessage(`${operation.action}操作成功完成`, 'success');
-                }
+                const errors = await processFilesFrontEnd(assets, targetPath, operation.func,(operation, asset, targetFilePath, error)=>{
+                    if(!error){
+                        kernelApi.pushMsg({'msg':`${operation.label} ${asset.path}至${targetFilePath}成功`})
+                    }else{
+                        kernelApi.pushErrMsg({'msg':`${operation.label} ${asset.path}至${targetFilePath}成功`})
 
-
+                    }
+                });
+                console.error(errors)
+                // 添加操作完成后的确认提示
+                 await confirmAsPromise(
+                    plugin.翻译`${operation.action}操作已完成`,
+                    errors.length > 0 ? plugin.翻译`有${errors.length}个文件处理失败` : plugin.翻译`所有文件处理成功`
+                );
             }
         }
     };

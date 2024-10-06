@@ -1,23 +1,19 @@
-import { clientApi } from '../../asyncModules.js';
 import { confirmAsPromise } from '../siyuanUI/confirm.js';
 const fs = require('fs').promises
 const path = require('path')
 const MAX_PATH_LENGTH = 260; // Windows 的最大路径长度限制
 export async function processFilesFrontEnd(assets, targetPath, operation, callBack) {
     const errors = [];
-    console.log(assets, targetPath);
-
     for (const asset of assets) {
         const targetFilePath = path.join(targetPath, path.basename(asset.path));
         try {
             await handleLongPath(targetFilePath, MAX_PATH_LENGTH);
             await performOperation(operation, asset, targetFilePath);
-            await callBack(operation, asset, targetFilePath)
+            callBack&&await callBack(operation, asset, targetFilePath)
         } catch (error) {
             callBack&& console.error(error);
             errors.push(`处理文件 ${asset.name} 时出错: ${error.message}`);
             callBack&&await callBack(operation, asset, targetFilePath, error)
-
         }
     }
     return errors;

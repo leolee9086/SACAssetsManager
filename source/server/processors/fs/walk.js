@@ -107,7 +107,7 @@ async function 更新目录索引(root) {
         }
     )
 }
-const  判定路径排除=(name,path)=>{
+const 判定路径排除 = (name, path) => {
     for (let dir of ignoreDir) {
         if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
             return true
