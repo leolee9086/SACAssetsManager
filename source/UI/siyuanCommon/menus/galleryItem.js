@@ -38,14 +38,15 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
         menu.addItem(文件批处理菜单组.图片去重(options));
         menu.addItem(文件批处理菜单组.图片去重(options,true));
-
         menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
         menu.addItem(文件批处理菜单组.基于pHash的图片去重(options,true));
-
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
         menu.addItem(文件批处理菜单组.归集图片文件(options));
         menu.addItem(文件批处理菜单组.复制文档树结构(options));
+        menu.addSeparator();
+        menu.addItem(文件批处理菜单组.批量打包文件(options));
+
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '插件') {
         menu.addSeparator();
@@ -58,10 +59,11 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addSeparator();
         menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
         menu.addItem(文件移动菜单组.移动到回收站(assets,panelController))
+        menu.addItem(文件移动菜单组.创建文件夹并移动(assets,panelController))
+
         文件移动菜单组.移动到最近目录菜单组(assets,event).forEach(
             item=>{
                 menu.addItem(item)
-
             }
         )
     }

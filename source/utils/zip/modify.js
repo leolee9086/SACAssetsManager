@@ -1,6 +1,7 @@
 import { requirePluginBased } from '../modules/createRequire.js';
 const JSZip = requirePluginBased('jszip')
 const fs = require('fs').promises
+export  {JSZip}
 export async function addFileToZip(zipFilePath, fileToAddPath, fileNameInZip) {
     try {
         // 读取现有的zip文件

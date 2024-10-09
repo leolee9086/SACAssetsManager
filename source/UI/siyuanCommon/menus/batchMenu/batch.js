@@ -1,5 +1,5 @@
+import { plugin } from '../../../../pluginSymbolRegistry.js'
 import { 打开任务控制对话框 } from '../../dialog/tasks.js'
-import { 递归扫描文件夹并执行任务 } from '../../../../utils/fs/batch.js'
 import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
 
 import { 执行删除所有ThumbsDB } from './removeThumbsDb.js'
@@ -403,3 +403,25 @@ export const 复制文档树结构 = (options) => {
         ]
     }
 }
+import { 执行批量打包文件 } from './zip.js'
+export const 批量打包文件 = (options) => {
+    return {
+        label: plugin.翻译`批量打包文件（每10个一组,无序地）`,
+        click: async () => {
+            const localPath = options.tab.data.localPath;
+            if (!localPath) {
+                console.error('无法获取本地路径');
+                return;
+            }
+            let confirm = await confirmAsPromise(
+                `确认开始批量打包?`,
+                `开始后，${localPath}中的文件将会被每10个打包成一个zip文件。`
+            )
+            if (!confirm) {
+                return;
+            }
+            const taskController = 打开任务控制对话框('批量打包文件', '正在打包文件...');
+            await 执行批量打包文件(localPath, taskController);
+        }
+    }
+};

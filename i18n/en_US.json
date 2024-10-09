@@ -1,4 +1,5 @@
 {
+  "__VAR_0__操作已完成": "Operation __VAR_0__ is complete.",
   "addTopBarIcon": "使用插件添加一个顶栏按钮",
   "byeMenu": "再见，菜单！",
   "byePlugin": "再见，插件！",
@@ -18,12 +19,12 @@
   "启用AI界面翻译": "AI Interface Translation (Experimental)",
   "尝试寻找并内置缩略图(__VAR_0__个d5a文件)": "Try to find and embed thumbnails (__VAR_0__ d5a files)",
   "尝试寻找并内置缩略图(__VAR_0__个d5a文件，单次确认)": "Try to find and include thumbnails (__VAR_0__ d5a files, one-time confirmation)",
+  "有__VAR_0__个文件处理失败": "There are __VAR_0__ files that failed to process.",
   "清理缓存并硬刷新当前窗口": "Clear cache and hard refresh the current window.",
+  "由于插件作者水平所限,不保证__VAR_0__操作安全性,请优先考虑使用系统资源管理器进行操作": "Due to the limitations of the plugin author, no guarantee can be provided for the operational security of __VAR_0__. Please prioritize using the system resource manager for such operations.",
   "确定修改?": "Is the modification confirmed?",
+  "确认__VAR_0____VAR_1__个文件到__VAR_2__?": "Confirm __VAR_1__ files to __VAR_2__?",
   "确认后将尝试为__VAR_0__个d5a文件内置缩略图。此操作不可撤销，是否继续？": "Try to build thumbnails for __VAR_0__ 'd5a' files. This action is irreversible, shall we proceed?",
   "重新计算__VAR_0__个文件的颜色": "Recalculate the colors of __VAR_0__ files.",
-  "确认__VAR_0____VAR_1__个文件到__VAR_2__?": "Confirm __VAR_1__ files to __VAR_2__?",
-  "由于插件作者水平所限,不保证__VAR_0__操作安全性,请优先考虑使用系统资源管理器进行操作": "Due to the limitations of the plugin author, no guarantee can be provided for the operational security of __VAR_0__. Please prioritize using the system resource manager for such operations.",
-  "__VAR_0__操作已完成": "Operation __VAR_0__ is complete.",
-  "有__VAR_0__个文件处理失败": "There are __VAR_0__ files that failed to process."
+  "批量打包文件（每10个一组,无序地）": "Batch zip files (every 10 in groups, unordered)"
 }
