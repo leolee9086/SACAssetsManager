@@ -1,7 +1,7 @@
 import { plugin } from '../../../../pluginSymbolRegistry.js'
 import { 打开任务控制对话框 } from '../../dialog/tasks.js'
 import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
-
+import { showInputDialogPromise } from '../../dialog/inputDialog.js'
 import { 执行删除所有ThumbsDB } from './removeThumbsDb.js'
 export const 删除所有ThumbsDB = (options) => {
     return {
@@ -405,23 +405,58 @@ export const 复制文档树结构 = (options) => {
 }
 import { 执行批量打包文件 } from './zip.js'
 export const 批量打包文件 = (options) => {
-    return {
-        label: plugin.翻译`批量打包文件（每10个一组,无序地）`,
-        click: async () => {
-            const localPath = options.tab.data.localPath;
-            if (!localPath) {
-                console.error('无法获取本地路径');
-                return;
-            }
-            let confirm = await confirmAsPromise(
-                `确认开始批量打包?`,
-                `开始后，${localPath}中的文件将会被每10个打包成一个zip文件。`
-            )
-            if (!confirm) {
-                return;
-            }
-            const taskController = 打开任务控制对话框('批量打包文件', '正在打包文件...');
-            await 执行批量打包文件(localPath, taskController);
+    const localPath = options.tab.data.localPath;
+
+    const 执行打包 = async (每包文件数) => {
+        if (!localPath) {
+            console.error('无法获取本地路径');
+            return;
         }
+        let confirm = await confirmAsPromise(
+            `确认开始批量打包?`,
+            `开始后，${localPath}中的文件将会被每${每包文件数}个打包成一个zip文件。`
+        )
+        if (!confirm) {
+            return;
+        }
+        const taskController = 打开任务控制对话框('批量打包文件', '正在打包文件...');
+        await 执行批量打包文件(localPath, taskController, 每包文件数);
+    };
+
+    return {
+        label: plugin.翻译`批量打包文件`,
+        click: async () => {
+            const result = await showInputDialogPromise('每个压缩包的文件数量', '请输入每个压缩包要包含的文件数量：', '10');
+            if (result) {
+                const 每包文件数 = parseInt(result, 10);
+                if (isNaN(每包文件数) || 每包文件数 <= 0) {
+                    clientApi.showMessage('请输入有效的正整数', 'error');
+                    return;
+                }
+                await 执行打包(每包文件数);
+            }
+        },
+        submenu: [
+            {
+                label: "每5个文件打包",
+                click: () => 执行打包(5)
+            },
+            {
+                label: "每10个文件打包",
+                click: () => 执行打包(10)
+            },
+            {
+                label: "每20个文件打包",
+                click: () => 执行打包(20)
+            },
+            {
+                label: "每50个文件打包",
+                click: () => 执行打包(50)
+            },
+            {
+                label: "每100个文件打包",
+                click: () => 执行打包(100)
+            }
+        ]
     }
 };
