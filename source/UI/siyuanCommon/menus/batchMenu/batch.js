@@ -406,7 +406,6 @@ export const 复制文档树结构 = (options) => {
 import { 执行批量打包文件 } from './zip.js'
 export const 批量打包文件 = (options) => {
     const localPath = options.tab.data.localPath;
-
     const 执行打包 = async (每包文件数) => {
         if (!localPath) {
             console.error('无法获取本地路径');
