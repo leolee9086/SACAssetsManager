@@ -81,17 +81,13 @@ export async function 获取文档中的文件链接(docId, limit = 100, offset 
     const query = 按文档ID查询file链接(docId, limit, offset)
     const result = await kernelApi.sql({ stmt: query })
     let lute = window.Lute.New()
-
     // 合并所有markdown文本为一个字符串
     let combinedMarkdown = result.map(row => row.markdown).join('\n')
-
     // 解析合并后的markdown为HTML
     const html = lute.Md2HTML(combinedMarkdown)
-
     // 创建一个DOM解析器
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
-
     // 使用for循环获取所有链接
     const filePaths = []
     const links = doc.querySelectorAll('a[href^="file:///"]')
@@ -99,7 +95,6 @@ export async function 获取文档中的文件链接(docId, limit = 100, offset 
         const filePath = decodeURIComponent(link.getAttribute('href').replace('file:///', ''))
         filePaths.push(filePath)
     }
-
     return filePaths
 }
 export async function 以sql获取tab附件数据(tab, limit, offset) {
