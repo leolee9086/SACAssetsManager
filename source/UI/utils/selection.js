@@ -60,7 +60,6 @@ export const clearSelectionWithLayout = (currentLayout) => {
 }
 export  function diffByEventKey(previousResult, currentResult, event) {
     // 如果没有按下Ctrl或Shift键,直接返回当前结果
-    let {ctrlKey,shiftKey,altKey}=event
     if (!event.ctrlKey && !event.shiftKey&&!event.altKey) {
         return currentResult;
     }
@@ -69,7 +68,8 @@ export  function diffByEventKey(previousResult, currentResult, event) {
     if (event.ctrlKey) {
         return [...new Set([...previousResult, ...currentResult])];
     }
-    if (event.altKey) {
+
+    if (event.shiftKey) {
         let final= []
         const allItems = [...new Set([...previousResult, ...currentResult])]
         allItems.forEach(
