@@ -370,35 +370,69 @@ export const 归集图片文件 = (options) => {
 
 
 import { 执行复制文档树结构 } from './copyFileTree.js'
+
 export const 复制文档树结构 = (options) => {
     const localPath = options.tab.data.localPath;
-
     return {
-        label: '复制文件夹结构(markdown)',
+        label: '复制文件夹结构',
         submenu: [
             {
-                label: "复制文档树结构 (按名称升序)",
-                click: () => 执行复制文档树结构(localPath, 'name', 'asc')
+                label: '列表形式',
+                submenu: [
+                    {
+                        label: "按名称升序",
+                        click: () => 执行复制文档树结构(localPath, 'name', 'asc', 'list')
+                    },
+                    {
+                        label: "按名称降序",
+                        click: () => 执行复制文档树结构(localPath, 'name', 'desc', 'list')
+                    },
+                    {
+                        label: "按大小升序",
+                        click: () => 执行复制文档树结构(localPath, 'size', 'asc', 'list')
+                    },
+                    {
+                        label: "按大小降序",
+                        click: () => 执行复制文档树结构(localPath, 'size', 'desc', 'list')
+                    },
+                    {
+                        label: "按修改时间升序",
+                        click: () => 执行复制文档树结构(localPath, 'mtime', 'asc', 'list')
+                    },
+                    {
+                        label: "按修改时间降序",
+                        click: () => 执行复制文档树结构(localPath, 'mtime', 'desc', 'list')
+                    }
+                ]
             },
             {
-                label: "复制文档树结构 (按名称降序)",
-                click: () => 执行复制文档树结构(localPath, 'name', 'desc')
-            },
-            {
-                label: "复制文档树结构 (按大小升序)",
-                click: () => 执行复制文档树结构(localPath, 'size', 'asc')
-            },
-            {
-                label: "复制文档树结构 (按大小降序)",
-                click: () => 执行复制文档树结构(localPath, 'size', 'desc')
-            },
-            {
-                label: "复制文档树结构 (按修改时间升序)",
-                click: () => 执行复制文档树结构(localPath, 'mtime', 'asc')
-            },
-            {
-                label: "复制文档树结构 (按修改时间降序)",
-                click: () => 执行复制文档树结构(localPath, 'mtime', 'desc')
+                label: '段落形式',
+                submenu: [
+                    {
+                        label: "按名称升序",
+                        click: () => 执行复制文档树结构(localPath, 'name', 'asc', 'paragraph')
+                    },
+                    {
+                        label: "按名称降序",
+                        click: () => 执行复制文档树结构(localPath, 'name', 'desc', 'paragraph')
+                    },
+                    {
+                        label: "按大小升序",
+                        click: () => 执行复制文档树结构(localPath, 'size', 'asc', 'paragraph')
+                    },
+                    {
+                        label: "按大小降序",
+                        click: () => 执行复制文档树结构(localPath, 'size', 'desc', 'paragraph')
+                    },
+                    {
+                        label: "按修改时间升序",
+                        click: () => 执行复制文档树结构(localPath, 'mtime', 'asc', 'paragraph')
+                    },
+                    {
+                        label: "按修改时间降序",
+                        click: () => 执行复制文档树结构(localPath, 'mtime', 'desc', 'paragraph')
+                    }
+                ]
             }
         ]
     }
@@ -459,3 +493,8 @@ export const 批量打包文件 = (options) => {
         ]
     }
 };
+
+
+
+
+
