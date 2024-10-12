@@ -99,6 +99,7 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
         let targetIndex = index
         const isCtrl = e.ctrlKey
         const isShift = e.shiftKey
+        console.log(isCtrl,isShift)
         switch (e.key) {
             case 'ArrowUp':
                 targetIndex = index - columnCount
@@ -154,10 +155,9 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
         }
         if (element) {
             setFocus(element)
-
         }
         if (targetItem) {
-            if (isShift) {
+            if (isShift&&targetItem!==currentItem) {
                 targetItem.selected = !targetItem.selected
             } else {
                 targetItem.selected = true
