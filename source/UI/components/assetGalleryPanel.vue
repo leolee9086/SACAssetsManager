@@ -230,8 +230,6 @@ const $realGlob = computed(() => {
     }
     return realGlob
 })
-
-
 watch(
     () => $realGlob.value, () => {
         refreshPanel()
