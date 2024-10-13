@@ -105,7 +105,7 @@ onUnmounted(() => {
     flex-shrink: 0; /* 防止箭头缩小 */
     position: absolute; /* 绝对定位箭头 */
     right: 5px; /* 距离右侧5px */
-    background-color: var(--b3-theme-background);
+    background-color: var(--b3-menu-background);
 }
 .arrow.open {
     transform: rotate(180deg);
@@ -114,7 +114,7 @@ onUnmounted(() => {
 .dropdown {
     border: 1px solid #ccc;
     position: absolute;
-    background-color: var(--b3-theme-background-light);
+    background-color: var(--b3-menu-background);
     z-index: 1000;
     width: 100%;
     max-width: 100px;

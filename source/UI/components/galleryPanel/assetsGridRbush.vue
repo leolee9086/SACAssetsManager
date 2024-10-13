@@ -23,15 +23,15 @@ import { 表格视图阈值 } from "../../utils/threhold.js";
 import {
     ref,
     onMounted,
-     reactive,
-      toRef, 
-      watch, 
-      defineProps, 
-      nextTick, 
-      defineEmits, 
-      shallowRef, 
-      onUnmounted,
-      defineExpose
+    reactive,
+    toRef,
+    watch,
+    defineProps,
+    nextTick,
+    defineEmits,
+    shallowRef,
+    onUnmounted,
+    defineExpose
 } from 'vue'
 import { 从数据源定量加载数据, 创建瀑布流布局 } from "../../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "../common/assetsThumbnailCard.vue";
@@ -51,7 +51,7 @@ const 计算卡片样式 = (卡片数据) => {
 //let 附件数据源数组 =shallowRef([])
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor','assetsSource'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'assetsSource'])
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
@@ -121,10 +121,10 @@ function 上报统计数据(total) {
 let isUpdating
 let oldScrollTop
 const 是否更新 = (flag) => {
-    if(!scrollContainer.value){
+    if (!scrollContainer.value) {
         return
     }
-    if(!布局对象.value){
+    if (!布局对象.value) {
         return false
     }
     if (oldScrollTop === scrollContainer.value.scrollTop && scrollContainer.value.scrollTop !== 0 && !flag) {
@@ -157,7 +157,7 @@ const 加载更多卡片 = (scrollContainer, 布局对象, 附件数据组) => {
     clientWidth = Math.min(clientWidth, window.innerWidth)
     let _flag = true
     let max = 0
-    while (_flag&&max<1024) {
+    while (_flag && max < 1024) {
         try {
             let shortestColumn = 获取布局最短列(布局对象)
             if (shortestColumn.y < scrollTop + clientHeight + clientHeight + clientHeight && 附件数据组.length) {
@@ -167,7 +167,7 @@ const 加载更多卡片 = (scrollContainer, 布局对象, 附件数据组) => {
             }
         } catch (e) {
             _flag = false
-        }finally{
+        } finally {
             max++
         }
     }
@@ -201,7 +201,7 @@ const 更新可见区域 = (flag) => {
         return
     }
     更新布局容器高度()
-    布局对象.value&&(布局对象.value.timeStep += 5);
+    布局对象.value && (布局对象.value.timeStep += 5);
     try {
         oldScrollTop = scrollTop
         const 可见框 = 计算可见框(scrollTop, clientHeight, clientWidth)
@@ -272,7 +272,7 @@ const mounted = ref(null)
 let oldsize
 let lastSort = Date.now()
 async function 确认初始化界面并排序(total) {
-    if(!scrollContainer.value){
+    if (!scrollContainer.value) {
         return
     }
     上报统计数据(total)
@@ -289,7 +289,7 @@ async function 确认初始化界面并排序(total) {
     })
 }
 defineExpose({
-  dataCallBack:确认初始化界面并排序
+    dataCallBack: 确认初始化界面并排序
 })
 
 const 定长加载 = (阈值) => {
@@ -303,7 +303,7 @@ const 定长加载 = (阈值) => {
 
 onMounted(async () => {
     nextTick(
-        ()=>{
+        () => {
             emit('ready')
 
         }

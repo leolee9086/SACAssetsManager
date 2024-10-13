@@ -151,3 +151,70 @@ export async function parseEfuContentFromFile(filePath) {
     throw error;
   }
 }
+
+const fs = require('fs')
+export class EfuFileHandler {
+  constructor() {
+    this.fileEntries = [];
+  }
+  addFile(fileName) {
+    if (!fs.existsSync(fileName)) {
+      throw new Error(`文件不存在: ${fileName}`);
+    }
+    const stats = fs.statSync(fileName);
+    const size = stats.size;
+    const dateModified = stats.mtimeMs;
+    const dateCreated = stats.ctimeMs;
+    this.fileEntries.push({
+      fileName: fileName.replace(/\\/g, '/'),
+      size,
+      dateModified,
+      dateCreated
+    });
+  }
+  async batchAdd(fileNames) {
+    const fsPromises = require('fs').promises;
+  
+    try {
+      for (const fileName of fileNames) {
+        try {
+          // 检查文件是否存在
+          await fsPromises.access(fileName);
+  
+          // 获取文件信息
+          const stats = await fsPromises.stat(fileName);
+          const size = stats.size;
+          const dateModified = stats.mtimeMs;
+          const dateCreated = stats.ctimeMs;
+  
+          this.fileEntries.push({
+            fileName: fileName.replace(/\\/g, '/'),
+            size,
+            dateModified,
+            dateCreated
+          });
+        } catch (error) {
+          console.error(`处理文件 ${fileName} 时出错:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('批量添加文件时出错:', error);
+      throw error;
+    }
+  }
+  async save(targetFilePath) {
+    try {
+      const headers = '"Filename","Size","Date Modified","Date Created"';
+      const efuContent = this.fileEntries.map(entry => {
+        return `"${entry.fileName}",${entry.size},${entry.dateModified},${entry.dateCreated}`;
+      });
+
+      const contentToSave = [headers, ...efuContent].join('\n');
+      await fs.writeFile(targetFilePath, contentToSave, 'utf-8');
+      console.log(`EFU 文件列表已成功保存到 ${targetFilePath}`);
+    } catch (error) {
+      console.error('保存 EFU 文件列表时出错:', error);
+      throw error;
+    }
+  }
+}

@@ -12,7 +12,33 @@ eventBus.on(
             }
         })
     })
+    eventBus.on(
+        'open-menu-doctree', (event) => {
+            event.detail.menu.addItem({
+                label: "打开附件管理视图",
+                click: () => {
+                    console.log(event)
+                    let type = event.detail.type
+                    if(type==='doc'){
+                        let id=event.detail.elements[0].dataset.nodeId
+                        eventBus.emit(tabEvents.打开笔记资源视图, id)
+                    }   
+                    if(type==='docs'){
+                        let ids=Array.from(event.detail.elements).map(element=>element.dataset.nodeId)
+                        ids.forEach(
+                            id=>{
+                                eventBus.emit(tabEvents.打开笔记资源视图, id)
 
+                            }
+                        )
+                    }          
+                    if(type==='notebook'){
+                        let notebook = event.detail.elements[0].parentElement.dataset.url
+                        打开笔记本资源视图(notebook)
+                    }    
+                }
+            })
+        })
 /**
  * 点击笔记内容中的图片
  */
@@ -101,34 +127,34 @@ eventBus.on('open-menu-tag', (event) => {
     )
 })
 
-import { 打开附件面板 } from './tabs/assetsTab.js'
+import { 打开笔记本资源视图, 打开附件面板 } from './tabs/assetsTab.js'
 eventBus.on(
-    'click-blockicon',(e)=>{
-        const {blockElements,menu,protyle}=e.detail
-        let sqlBlock=blockElements.filter(
-            item=>{
-                let span= item.querySelector('.protyle-action__language')
-                return span&&span.textContent==='sql'
+    'click-blockicon', (e) => {
+        const { blockElements, menu, protyle } = e.detail
+        let sqlBlock = blockElements.filter(
+            item => {
+                let span = item.querySelector('.protyle-action__language')
+                return span && span.textContent === 'sql'
             }
         )
-        if(sqlBlock[0]){
+        if (sqlBlock[0]) {
             menu.addItem({
-                label:"在assetsManager中打开",
-                click(){
+                label: "在assetsManager中打开",
+                click() {
                     sqlBlock.forEach(
-                        block=> 打开附件面板(
+                        block => 打开附件面板(
                             {
                                 icon: "iconAssets",
                                 title: "资源:sql查询",
                                 data: {
-                                    type:'sql',
-                                    stmt:block.querySelector('[contenteditable="true"]').textContent
+                                    type: 'sql',
+                                    stmt: block.querySelector('[contenteditable="true"]').textContent
                                 },
-                        
+
                             }
                         )
                     )
-            
+
                 }
             })
         }

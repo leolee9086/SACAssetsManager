@@ -43,7 +43,7 @@
                     <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
                 </div>
                 <div class="grid__container" v-if="showPallet"
-                    :style="`position:absolute;top:${palletButton.offsetTop + palletButton.offsetHeight + 10}px;left:${palletButton.offsetLeft - 100}px;width:200px;max-height:300px;background:rgba(0,0,0,0.5);height:300px;overflow:auto;z-index:10;`">
+                    :style="`position:absolute;top:${palletButton.offsetTop + palletButton.offsetHeight + 10}px;left:${palletButton.offsetLeft - 100}px;width:200px;max-height:300px;background:var(--b3-menu-background);height:300px;overflow:auto;z-index:10;`">
                     <template v-for="item in pallet">
                         <div @click.left="() => { filterColor = item; showPallet = false; refreshPanel() }"
                             :style="{ backgroundColor: `rgb(${item[0]},${item[1]},${item[2]})`, height: 36 + 'px', width: 36 + 'px', display: 'inline-block', margin: '0 2px' }">
@@ -91,6 +91,8 @@ import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
+import { shiftWithFilter } from "../../utils/array/walk.js";
+import { 柯里化 } from "../../utils/functions/currying.js";
 /**
  * 获取数据相关
  */
@@ -102,13 +104,41 @@ import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdPa
 import { performSearch as searchByAnytxt } from "./localApi/anytxt/anytext.js";
 const everthingEnabled = ref(false)
 const filListProvided = ref(null)
-
+let filterFunc = () => {
+    return true
+}
 
 const 创建回调并获取数据 = async () => {
     附件数据源数组.value.data = []
+    const originalPush = 附件数据源数组.value.data.push;
+    const uniqueExtensions = new Set();
+
+    附件数据源数组.value.data.push = function (...args) {
+        console.log(args)
+        // 遍历每个传入的项目
+        args.forEach(arg => {
+            if (arg && arg.path && arg.path.indexOf('.') >= 0) {
+                const fileExtension = arg.path.split('.').pop().toLowerCase();
+                if (arg.type === 'note') {
+                    uniqueExtensions.add('note');
+                } else {
+                    uniqueExtensions.add(fileExtension);
+                }
+            }
+        });
+        extensions.value = Array.from(uniqueExtensions);
+
+        // 调用原始的 push 方法
+        const filteredArgs = args.filter(arg => filterFunc(arg));
+        if (filteredArgs.length > 0) {
+            originalPush.apply(this, filteredArgs);
+        }
+        return true
+    };
     try {
         const callBack = (...args) => {
             grid.value && grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null
+
         }
         if (filListProvided.value) {
             附件数据源数组.value.data.push(...filListProvided.value);
@@ -188,8 +218,8 @@ const refreshPanel = () => {
 /**
  * 获取扩展名列表相关逻辑
  */
- const extensions = ref([])
-const selectedExtensions=ref([])
+const extensions = ref([])
+const selectedExtensions = ref([])
 onMounted(() => {
     if (appData.value.tab.data.localPath) {
         const url = endPoints.fs.path.getPathExtensions(appData.value.tab.data.localPath)
@@ -203,8 +233,26 @@ onMounted(() => {
     }
 })
 watch(selectedExtensions, (newValue, oldValue) => {
-    console.log('Selected extensions changed:', newValue);
-    refreshPanel()
+
+    // 更新过滤函数以支持扩展名过滤
+    filterFunc = (item) => {
+        // 如果没有选择任何扩展名，则不过滤
+        if (newValue.length === 0) {
+            return true;
+        }
+        console.log(item)
+        // 获取文件的扩展名
+        if (item.type !== 'note') {
+            const fileExtension = item.name.split('.').pop().toLowerCase();
+
+            // 检查文件的扩展名是否在选中的扩展名列表中
+            return newValue.includes(fileExtension)
+        } else {
+            return newValue.includes('note')
+        }
+    };
+
+    refreshPanel();
     // 在这里可以添加其他逻辑，比如更新界面或触发其他操作
 });
 
@@ -225,8 +273,8 @@ const $realGlob = computed(() => {
     if (search.value) {
         realGlob.search = search.value
     }
-    if(selectedExtensions.value[0]){
-        realGlob.extensions=selectedExtensions.value
+    if (selectedExtensions.value[0]) {
+        realGlob.extensions = selectedExtensions.value
     }
     return realGlob
 })
@@ -427,7 +475,8 @@ const openMenu = (event) => {
             refresh: () => refreshPanel()
         },
         tab: appData.value.tab,
-        layout: currentLayout
+        layout: currentLayout,
+        files: 附件数据源数组.value.data
     })
 }
 </script>
