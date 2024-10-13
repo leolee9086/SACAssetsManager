@@ -1,5 +1,5 @@
 import { plugin, clientApi } from '../../../../asyncModules.js'
-import { 打开efu文件视图页签 } from '../../tabs/assetsTab.js'
+import { 打开efu文件视图页签, 打开本地资源视图 } from '../../tabs/assetsTab.js'
 export const 打开efu文件视图=(assets)=>{
     return {
         label: "在新页签打开efu文件列表",
@@ -76,16 +76,10 @@ export const 在新页签打开文件所在路径 = (assets) => {
         click: () => {
             assets.forEach(asset => {
                 if (asset.type === 'local') {
-                    plugin.eventBus.emit(
-                        'open-localfoldertab',
-                        asset.path
-                    )
+                    打开本地资源视图(require('path').dirname(asset.path))
                     return
                 }
-                plugin.eventBus.emit(
-                    'open-localfoldertab',
-                    siyuan.config.system.workspaceDir + '\\data\\' + asset.path
-                )
+                打开本地资源视图(siyuan.config.system.workspaceDir + '\\data\\' + require('path').dirname(asset.path))
             });
         }
     }

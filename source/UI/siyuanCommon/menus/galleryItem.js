@@ -3,19 +3,35 @@ import { 解析文件属性数组内部属性显示 } from "../../../data/attrib
 import * as menuItems from "./galleryItemMenu/menuItems.js"
 import * as 文件移动菜单组 from "./galleryItemMenu/fileMoveMenuItems.js"
 import * as 元数据编辑菜单组 from "./editModeMenu/items.js"
-import * as 文件内容编辑菜单组  from "./galleryItemMenu/fileEditMenuItems.js"
+import * as 文件内容编辑菜单组 from "./galleryItemMenu/fileEditMenuItems.js"
 import * as 文件批处理菜单组 from "./batchMenu/batch.js"
 import { thumbnail } from "../../../server/endPoints.js";
 import { 模式切换菜单项 } from "./modeMenu/modeSwitch.js";
 import { 计算主标签 } from "./common/menuHead.js";
 import { 添加插件菜单内容 } from "./pluginMenu/pluginMenu.js";
-const { eventBus } = plugin
+import { isValidFilePath } from "../../../utils/strings/regexs/index.js";
+import { 打开本地资源视图 } from "../tabs/assetsTab.js";
+async function checkClipboardForFilePath() {
+    try {
+        const text = await navigator.clipboard.readText();
+        // 将剪贴板内容按行分割
+        const lines = text.split('\n').map(item=>item.trim());
+        // 对每一行进行路径验证，并返回有效路径的数组
+        console.log(lines)
+        const validPaths = lines.map(line => isValidFilePath(line)).filter(item=>item);
+       
+        return validPaths;
+    } catch (error) {
+        console.error("无法读取剪贴板内容:", error);
+    }
+}
 
+const { eventBus } = plugin
 export const 打开附件组菜单 = (event, assets, options) => {
-    const {position,panelController}=options
-    plugin.附件编辑模式=plugin.附件编辑模式||{
-        label:'常规',
-        value:"常规"
+    const { position, panelController } = options
+    plugin.附件编辑模式 = plugin.附件编辑模式 || {
+        label: '常规',
+        value: "常规"
     }
     const menu = new clientApi.Menu('sac-galleryitem-menu')
     menu.addItem(
@@ -26,7 +42,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
         }
     )
     menu.addSeparator()
-    menu.addItem(模式切换菜单项(event,assets,options))
+    menu.addItem(模式切换菜单项(event, assets, options))
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.删除所有ThumbsDB(options))
@@ -37,9 +53,9 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
         menu.addItem(文件批处理菜单组.图片去重(options));
-        menu.addItem(文件批处理菜单组.图片去重(options,true));
+        menu.addItem(文件批处理菜单组.图片去重(options, true));
         menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
-        menu.addItem(文件批处理菜单组.基于pHash的图片去重(options,true));
+        menu.addItem(文件批处理菜单组.基于pHash的图片去重(options, true));
         menu.addSeparator();
         menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
         menu.addItem(文件批处理菜单组.归集图片文件(options));
@@ -53,46 +69,46 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addItem(
             menuItems.使用TEColors插件分析图像颜色(assets),
         )
-        添加插件菜单内容(menu,assets)
+        添加插件菜单内容(menu, assets)
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '移动') {
         menu.addSeparator();
         menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
-        menu.addItem(文件移动菜单组.移动到回收站(assets,panelController))
-        menu.addItem(文件移动菜单组.创建文件夹并移动(assets,panelController))
+        menu.addItem(文件移动菜单组.移动到回收站(assets, panelController))
+        menu.addItem(文件移动菜单组.创建文件夹并移动(assets, panelController))
 
-        文件移动菜单组.移动到最近目录菜单组(assets,event).forEach(
-            item=>{
+        文件移动菜单组.移动到最近目录菜单组(assets, event).forEach(
+            item => {
                 menu.addItem(item)
             }
         )
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '编辑') {
         menu.addSeparator();
-        if(assets.find(item=>item.path.endsWith('.d5a'))){
+        if (assets.find(item => item.path.endsWith('.d5a'))) {
             menu.addItem(元数据编辑菜单组.d5a内置缩略图(assets))
             menu.addItem(元数据编辑菜单组.d5a内置缩略图单次确认(assets))
         }
         menu.addItem(元数据编辑菜单组.重新计算文件颜色(assets))
-        assets.length === 1&& menu.addItem(元数据编辑菜单组.上传缩略图(assets))
-        assets.length === 1&& menu.addItem(元数据编辑菜单组.从剪贴板上传缩略图(assets))
+        assets.length === 1 && menu.addItem(元数据编辑菜单组.上传缩略图(assets))
+        assets.length === 1 && menu.addItem(元数据编辑菜单组.从剪贴板上传缩略图(assets))
         menu.addSeparator()
-        let png菜单组 =文件内容编辑菜单组.压缩图片菜单项(assets,80,9,'png')
-        png菜单组.submenu=文件内容编辑菜单组.压缩菜单组(assets,'png')
+        let png菜单组 = 文件内容编辑菜单组.压缩图片菜单项(assets, 80, 9, 'png')
+        png菜单组.submenu = 文件内容编辑菜单组.压缩菜单组(assets, 'png')
         menu.addItem(png菜单组)
 
-        let jpg菜单组 =文件内容编辑菜单组.压缩图片菜单项(assets,80,9,'jpg')
-        jpg菜单组.submenu=文件内容编辑菜单组.压缩菜单组(assets,'jpg')
+        let jpg菜单组 = 文件内容编辑菜单组.压缩图片菜单项(assets, 80, 9, 'jpg')
+        jpg菜单组.submenu = 文件内容编辑菜单组.压缩菜单组(assets, 'jpg')
         menu.addItem(jpg菜单组)
 
-        let webp菜单组 =文件内容编辑菜单组.压缩图片菜单项(assets,80,9,'webp')
-        webp菜单组.submenu=文件内容编辑菜单组.压缩菜单组(assets,'webp')
+        let webp菜单组 = 文件内容编辑菜单组.压缩图片菜单项(assets, 80, 9, 'webp')
+        webp菜单组.submenu = 文件内容编辑菜单组.压缩菜单组(assets, 'webp')
         menu.addItem(webp菜单组)
 
         if (assets.length === 1) {
             const asset = assets[0];
             const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
-            
+
             fetch(colorUrl)
                 .then(response => response.json())
                 .then(colorData => {
@@ -117,7 +133,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
                                         }
                                     },
                                     {
-                                        label: `颜色占比: ${colorInfo.percent*100}%`,
+                                        label: `颜色占比: ${colorInfo.percent * 100}%`,
                                         disabled: true
                                     }
                                 ]
@@ -130,26 +146,26 @@ export const 打开附件组菜单 = (event, assets, options) => {
                 });
         }
     }
-    assets&&assets[0]&&添加通用菜单内容(menu, assets)
+    assets && assets[0] && 添加通用菜单内容(menu, assets)
     menu.addSeparator()
     menu.addItem(menuItems.清理缓存并硬刷新())
     menu.addItem({
-        'label':plugin.启用AI翻译?plugin.翻译`停用AI翻译`:plugin.翻译`启用AI翻译(实验性)`,
-        click:()=>{
-            plugin.启用AI翻译=!plugin.启用AI翻译
+        'label': plugin.启用AI翻译 ? plugin.翻译`停用AI翻译` : plugin.翻译`启用AI翻译(实验性)`,
+        click: () => {
+            plugin.启用AI翻译 = !plugin.启用AI翻译
         }
     })
 
     menu.addSeparator()
 
-    assets&&assets[0]&&添加只读菜单内容(menu, assets)
+    assets && assets[0] && 添加只读菜单内容(menu, assets)
     eventBus.emit(
         'contextmenu-galleryitem', { event, assets, menu, mode: plugin.附件编辑模式 }
     )
     menu.open(position)
     document.addEventListener('mousedown', () => { menu.close }, { once: true })
 }
-plugin.打开附件组菜单=打开附件组菜单
+plugin.打开附件组菜单 = 打开附件组菜单
 function 添加只读菜单内容(menu, assets) {
     menu.addItem({
         label: `创建时间:${解析文件属性数组内部属性显示('ctimeMs', assets)}`,
@@ -164,14 +180,41 @@ function 添加只读菜单内容(menu, assets) {
  */
 function 添加通用菜单内容(menu, assets) {
     //常规模式下展开所有常规菜单
-    if ((plugin.附件编辑模式.value==='常规')) {
+    if ((plugin.附件编辑模式.value === '常规')) {
         menu.addSeparator();
+        checkClipboardForFilePath().then(paths => {
+            if (paths && paths.length > 0) {
+                console.log(paths);
+                if (paths.length === 1) {
+                    menu.addItem({
+                        label: `在新页签中打开${paths[0]}`,
+                        click: () => {
+                            打开本地资源视图(paths[0]);
+                        }
+                    });
+                } else {
+                    menu.addItem({
+                        label: `在新页签中打开剪贴板中所有路径`,
+                        click: () => {
+                            paths.forEach(path => {
+                                打开本地资源视图(path);
+                            });
+                        },
+                        submenu: paths.map(path => ({
+                            label: `打开${path}`,
+                            click: () => {
+                                打开本地资源视图(path);
+                            }
+                        }))
+                    });
+                }
+            }
+        })
         menu.addItem(menuItems.打开资源文件所在笔记(assets))
         menu.addItem(menuItems.使用默认应用打开附件(assets))
         menu.addItem(menuItems.在文件管理器打开附件(assets))
         menu.addItem(menuItems.在新页签打开文件所在路径(assets))
         menu.addItem(menuItems.打开efu文件视图(assets))
-
         menu.addSeparator();
         menu.addItem(menuItems.复制文件地址(assets))
         menu.addItem(menuItems.复制文件链接(assets))

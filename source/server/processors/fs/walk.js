@@ -129,10 +129,10 @@ async function 处理缓存文件(path, entry) {
         })
     }
 }
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth = Infinity, search) {
+export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth = Infinity, search,extensions) {
     const stepCallback = buildStepCallback(_stepCallback)
     const filter = buildFilter(_filter, signal)
-    let { results, approximateCount } = await 查找子文件夹(root, search)
+    let { results, approximateCount } = await 查找子文件夹(root, search,extensions)
     countCallBack(approximateCount)
     const stats = {}
     for await (const result of results) {

@@ -47,3 +47,26 @@ export function measureRegexComplexity(regexString) {
 
     return complexity;
 }
+
+export function isValidFilePath(filePath) {
+    // 去除两侧的引号
+    if (filePath.startsWith('"') && filePath.endsWith('"')) {
+        filePath = filePath.slice(1, -1);
+    }
+
+    // Windows 文件路径正则表达式
+    const windowsPattern = /^[a-zA-Z]:\\(?:[^\\/:*?"<>|\r\n]+\\)*[^\\/:*?"<>|\r\n]*$/;
+    // Unix/Linux 文件路径正则表达式
+    const unixPattern = /^(\/[^\/\0]+)+\/?$/;
+
+    // 校验 Windows 和 Unix/Linux 文件路径
+    if (windowsPattern.test(filePath) || unixPattern.test(filePath)) {
+        // 正规化路径为以 '/' 结尾
+        if (!filePath.endsWith('/')) {
+            filePath += '/';
+        }
+        return filePath.replace(/\\/g,'/');
+    }
+
+    return null; // 如果路径无效，返回 null
+}

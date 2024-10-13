@@ -24,7 +24,7 @@
                     :value="1000" type="number">
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
-                    <button @click="refreshPanel">{{plugin.翻译`刷新`}}</button>
+                    <button @click="refreshPanel">{{ plugin.翻译`刷新` }}</button>
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
@@ -49,6 +49,9 @@
                             :style="{ backgroundColor: `rgb(${item[0]},${item[1]},${item[2]})`, height: 36 + 'px', width: 36 + 'px', display: 'inline-block', margin: '0 2px' }">
                         </div>
                     </template>
+                </div>
+                <div>
+                    <multiple v-model="selectedExtensions" :options="extensions"></multiple>
                 </div>
             </div>
             <div class="fn__space fn__flex-1"></div>
@@ -80,13 +83,14 @@
     </div>
 </template>
 <script setup>
-import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据, 获取文档中的文件链接,获取本地文件列表数据 } from "../../data/siyuanAssets.js"
+import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据, 获取文档中的文件链接, 获取本地文件列表数据 } from "../../data/siyuanAssets.js"
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
+import multiple from "./common/selection/multiple.vue";
 /**
  * 获取数据相关
  */
@@ -108,7 +112,7 @@ const 创建回调并获取数据 = async () => {
         }
         if (filListProvided.value) {
             附件数据源数组.value.data.push(...filListProvided.value);
-        } 
+        }
         else if (appData.value.tab.data.efuPath) {
             let data
             try {
@@ -157,7 +161,7 @@ const 创建回调并获取数据 = async () => {
                 //支持file链接
                 if (appData.value.tab.data.block_id) {
                     let files = await 获取文档中的文件链接(appData.value.tab.data.block_id)
-                    获取本地文件列表数据(files,附件数据源数组.value.data,callBack,1,signal)
+                    获取本地文件列表数据(files, 附件数据源数组.value.data, callBack, 1, signal)
                     return
                 }
                 nextTick(callBack)
@@ -181,6 +185,58 @@ const refreshPanel = () => {
         showPanel.value = true
     })
 }
+/**
+ * 获取扩展名列表相关逻辑
+ */
+ const extensions = ref([])
+const selectedExtensions=ref([])
+onMounted(() => {
+    if (appData.value.tab.data.localPath) {
+        const url = endPoints.fs.path.getPathExtensions(appData.value.tab.data.localPath)
+        fetch(url).then(
+            res => res.json()
+        ).then(
+            data => {
+                data.extensions.forEach(extension => extensions.value.push(extension))
+            }
+        )
+    }
+})
+watch(selectedExtensions, (newValue, oldValue) => {
+    console.log('Selected extensions changed:', newValue);
+    refreshPanel()
+    // 在这里可以添加其他逻辑，比如更新界面或触发其他操作
+});
+
+
+/**
+ * 遍历选项相关逻辑
+ */
+//全局设置
+const globSetting = ref({})
+//最大显示数量
+const maxCount = ref(1000)
+const search = ref('');
+const $realGlob = computed(() => {
+    let realGlob = {
+        ...globSetting.value,
+        timeout: maxCount.value,
+    }
+    if (search.value) {
+        realGlob.search = search.value
+    }
+    if(selectedExtensions.value[0]){
+        realGlob.extensions=selectedExtensions.value
+    }
+    return realGlob
+})
+
+
+watch(
+    () => $realGlob.value, () => {
+        refreshPanel()
+    }
+)
 
 
 /**
@@ -188,12 +244,7 @@ const refreshPanel = () => {
  */
 import { 从滚轮事件计算 } from '../utils/scroll.js';
 const appData = toRef(inject('appData'))
-//全局设置
-const globSetting = ref({})
-//最大显示数量
-const maxCount = ref(1000)
 const layoutCountTotal = ref(0)
-const search = ref('');
 const rawSearch = ref('');
 const paddingLR = ref(100)
 
@@ -228,23 +279,6 @@ const palletAdded = (data) => {
 
 }
 
-const $realGlob = computed(() => {
-    let realGlob = {
-        ...globSetting.value,
-        timeout: maxCount.value,
-    }
-    if (search.value) {
-        realGlob.search = search.value
-    }
-    return realGlob
-})
-
-
-watch(
-    () => $realGlob.value, () => {
-        refreshPanel()
-    }
-)
 
 //缩略图大小
 const size = ref(250)
@@ -277,21 +311,8 @@ const 获取ealge素材库路径 = () => {
 onMounted(() => {
     获取ealge素材库路径()
 })
-/**
- * 获取扩展名列表相关逻辑
- */
-onMounted(() => {
-    if (appData.value.tab.data.localPath) {
-        const url = endPoints.fs.path.getPathExtensions(appData.value.tab.data.localPath)
-        fetch(url).then(
-            res => res.json()
-        ).then(
-            data => {
-                console.log(data)
-            }
-        )
-    }
-})
+
+
 /**
  * 键盘相关逻辑
  */

@@ -17,7 +17,7 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController,maxDepth,search) => {
+const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController,maxDepth,search,extensions) => {
     //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
     //当signal触发中止时,walkController也中止
     signal.addEventListener('abort', () => {
@@ -70,7 +70,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
             }
         }, { timeout: 17, deadline: 18 })
 
-    }, walkSignal, timeout,maxDepth,search);
+    }, walkSignal, timeout,maxDepth,search,extensions);
 
 };
 export const globStream = (req, res) => {
@@ -97,7 +97,6 @@ export const globStream = (req, res) => {
                 test: (statProxy) => {
                     if (signal.aborted) {
                         walkController.abort()
-
                         return false
                     }
                     if (walkController.signal.aborted) {
@@ -109,7 +108,7 @@ export const globStream = (req, res) => {
         } else {
             filter = _filter
         }
-        if (scheme.queryPro && scheme.queryPro.color) {
+      /*  if (scheme.queryPro && scheme.queryPro.color) {
             if (_filter) {
                 filter.test = async (statProxy) => {
                     if (signal.aborted) {
@@ -132,7 +131,7 @@ export const globStream = (req, res) => {
                     }
                 }
             }
-        }
+        }*/
         const timeout = parseInt(scheme.timeout) || 1000
         const cwd = scheme.cwd
         //设置响应头
@@ -142,7 +141,7 @@ export const globStream = (req, res) => {
         //没有compression中间件的情况下,也就没有res.flush方法
         res.flushHeaders()
         const { signal } = controller;
-        await createWalkStream(cwd, filter, signal, res, timeout, walkController,scheme.depth,scheme.search)
+        await createWalkStream(cwd, filter, signal, res, timeout, walkController,scheme.depth,scheme.search,scheme.extensions)
         statPromisesArray.start()
         //前端请求关闭时,触发中止信号
         //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
