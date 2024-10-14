@@ -44,6 +44,16 @@ export const fs={
         listLocalDisks(){return `${serverHost()}/listDisk`}
     }
 }
+
+export const metadata = {
+    exif: (localPath) => {
+        let baseUrl = `${serverHost()}/metadata/exif`;
+        let params = new URLSearchParams();
+        params.append('localPath', localPath);
+        return `${baseUrl}?${params.toString()}`;
+    }
+}
+
 export const thumbnail={
     genHref:thumbnailHost,
     getColor: (type, path, reGen = false) => {

@@ -136,6 +136,7 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
     countCallBack(approximateCount)
     const stats = {}
     for await (const result of results) {
+        globalTaskQueue.pause()
         stats[result.path] = result
         if (result.type !== 'file') {
             continue

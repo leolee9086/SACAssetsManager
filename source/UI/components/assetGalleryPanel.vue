@@ -115,19 +115,21 @@ const 创建回调并获取数据 = async () => {
 
     附件数据源数组.value.data.push = function (...args) {
         console.log(args)
-        // 遍历每个传入的项目
-        args.forEach(arg => {
-            if (arg && arg.path && arg.path.indexOf('.') >= 0) {
-                const fileExtension = arg.path.split('.').pop().toLowerCase();
-                if (arg.type === 'note') {
-                    uniqueExtensions.add('note');
-                } else {
-                    uniqueExtensions.add(fileExtension);
+        // 遍历每个传入的项,获取扩展名
+        // 由于插件自身的本地文件夹遍历函数是通过接口直接获取扩展名,所以并不需要这个过程
+        if (!appData.value.tab.data.localPath) {
+            args.forEach(arg => {
+                if (arg && arg.path && arg.path.indexOf('.') >= 0) {
+                    const fileExtension = arg.path.split('.').pop().toLowerCase();
+                    if (arg.type === 'note') {
+                        uniqueExtensions.add('note');
+                    } else {
+                        uniqueExtensions.add(fileExtension);
+                    }
                 }
-            }
-        });
-        extensions.value = Array.from(uniqueExtensions);
-
+            });
+            extensions.value = Array.from(uniqueExtensions);
+        }
         // 调用原始的 push 方法
         const filteredArgs = args.filter(arg => filterFunc(arg));
         if (filteredArgs.length > 0) {

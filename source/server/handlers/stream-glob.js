@@ -108,30 +108,6 @@ export const globStream = (req, res) => {
         } else {
             filter = _filter
         }
-      /*  if (scheme.queryPro && scheme.queryPro.color) {
-            if (_filter) {
-                filter.test = async (statProxy) => {
-                    if (signal.aborted) {
-                        walkController.abort()
-                        return false
-                    }
-                    if (_filter.test(statProxy)) {
-                        return await diffFileColor(statProxy.path, scheme.queryPro.color)
-                    }
-                    return false
-                }
-            } else {
-                filter = {
-                    test: async (statProxy) => {
-                        if (signal.aborted) {
-                            walkController.abort()
-                            return false
-                        }
-                        return await diffFileColor(statProxy.path, scheme.queryPro.color)
-                    }
-                }
-            }
-        }*/
         const timeout = parseInt(scheme.timeout) || 1000
         const cwd = scheme.cwd
         //设置响应头

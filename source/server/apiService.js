@@ -34,6 +34,7 @@ import { 获取ealge素材库路径,获取ealge素材库标签列表 } from './h
 import { 删除文件颜色记录 } from './processors/color/colorIndex.js';
 import { buildCache } from './middlewares/runtime_cache.js';
 import { 响应文件夹扩展名请求, 获取文件夹第一张图片 } from './handlers/fs-handeler.js';
+import { readExifCommentHandler } from './handlers/metaData.js';
 
 /***
  * 获取eagle素材库路径
@@ -127,7 +128,7 @@ app.get(
 )
 app.get('/fs/path/extentions',响应文件夹扩展名请求)
 app.get('/fs/path/folderThumbnail',获取文件夹第一张图片 )
-
+app.get('/metadata/exif',readExifCommentHandler)
 app.listen(port, '127.0.0.1', () => {
     console.log(`服务器运行在 http://127.0.0.1:${port}`);
 });

@@ -22,6 +22,9 @@ globalTaskQueue.priority=(fn,num)=>{
     fn.priority=num
     return fn
 }
+globalTaskQueue.pause=()=>{
+    globalTaskQueue.paused=true
+}
 globalTaskQueue.start= function($timeout=0,force){
     console.log('恢复后台任务',"执行间隔:"+$timeout,force?"强制开始:":'')
     if(this.started){
