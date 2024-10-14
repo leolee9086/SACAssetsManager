@@ -39,7 +39,6 @@
         </div>
         <button @click="exportImage">导出</button>
         <button @click="importEagleMetas" v-if="eagleMetas[0]">导入{{ eagleMetas.length }}个eagle元数据</button>
-
       </div>
     </div>
   </div>
@@ -51,8 +50,8 @@ import { plugin } from 'runtime'
 import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
 import _path from '../../polyfills/path.js'
 import { kernelApi } from '../../asyncModules.js';
-import { findTagsByFilePath } from '../../data/tags.js';
 import tagsGrid from './assetInfoPanel/tags.vue';
+import { watchStatu,状态注册表 } from '../../globalStatus/index.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
@@ -74,8 +73,8 @@ const eagleMetas = ref([])
 const doc = ref('')
 const lastAssetPaths = ref([]);
 
-plugin.eventBus.on('assets-select', async (e) => {
-  const assets = Array.from(new Set(e.detail))
+watchStatu(状态注册表.选中的资源, async (newVal) => {
+  const assets = Array.from(new Set(newVal))
   const assetPaths = assets.map(asset => asset.data.path);
   // 检查是否与上次的路径列表相同
   if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {

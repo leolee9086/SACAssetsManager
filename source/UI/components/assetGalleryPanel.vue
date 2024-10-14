@@ -30,7 +30,9 @@
                 <div class="fn__flex">
                     <input v-model="rawSearch" style="box-sizing: border-box;width:100px;">
                 </div>
-                <div class="fn__flex">
+                <div class="fn__space fn__flex-1"></div>
+
+                <div class="fn__flex" style="margin:auto">
                     <button @click.right.stop.prevent="() => { filterColor = []; refreshPanel() }" ref="palletButton"
                         @click.left="showPallet = !showPallet"
                         :style="{ padding: 0, margin: 0, width: 24 + 'px', height: 24 + 'px', backgroundColor: filterColor.length ? `rgb(${filterColor.join(',')})` : '' }">
@@ -39,9 +41,11 @@
                         </svg>
                     </button>
                 </div>
+
                 <div class="fn__flex">
                     <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
                 </div>
+
                 <div class="grid__container" v-if="showPallet"
                     :style="`position:absolute;top:${palletButton.offsetTop + palletButton.offsetHeight + 10}px;left:${palletButton.offsetLeft - 100}px;width:200px;max-height:300px;background:var(--b3-menu-background);height:300px;overflow:auto;z-index:10;`">
                     <template v-for="item in pallet">
@@ -50,6 +54,8 @@
                         </div>
                     </template>
                 </div>
+                <div class="fn__space fn__flex-1"></div>
+
                 <div>
                     <multiple v-model="selectedExtensions" :options="extensions"></multiple>
                 </div>
@@ -94,6 +100,17 @@ import multiple from "./common/selection/multiple.vue";
 import { shiftWithFilter } from "../../utils/array/walk.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
 /**
+ * 监听相关事件刷新面板
+ */
+ plugin.eventBus.on('need-refresh-gallery-panel',(e)=>{
+    const { type, data } = e.detail;
+    if (type === 'tag') {
+        appData.value.tab.data.tagLabel?refreshPanel():null;
+    }
+
+ })
+
+/**
  * 获取数据相关
  */
 const 附件数据源数组 = shallowRef({ data: [] })
@@ -114,7 +131,6 @@ const 创建回调并获取数据 = async () => {
     const uniqueExtensions = new Set();
 
     附件数据源数组.value.data.push = function (...args) {
-        console.log(args)
         // 遍历每个传入的项,获取扩展名
         // 由于插件自身的本地文件夹遍历函数是通过接口直接获取扩展名,所以并不需要这个过程
         if (!appData.value.tab.data.localPath) {

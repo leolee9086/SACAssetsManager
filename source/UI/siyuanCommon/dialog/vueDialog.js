@@ -1,6 +1,6 @@
 import { clientApi } from "../../../asyncModules.js";
 import { initVueApp } from "../../utils/componentsLoader.js";
-export function openDialog(appURL, name, mixinOptions = {}, directory, data,title,width,height) {
+export function openDialog(appURL, name, mixinOptions = {}, directory, data,title,width,height,transparent=true) {
     const dialog = new clientApi.Dialog(
         {
             title: !title?"TEColors":title,
@@ -12,7 +12,7 @@ export function openDialog(appURL, name, mixinOptions = {}, directory, data,titl
 `,
             width: width||'200px',
             height: height||'auto',
-            transparent: true,
+            transparent: transparent,
             disableClose: true,
             disableAnimation: false,
             

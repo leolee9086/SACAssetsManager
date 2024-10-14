@@ -97,3 +97,79 @@ export function findTagsByFilePath(filePath) {
 
     return relatedTags;
 }
+export async  function removeFilesFromTag(fileNames, tagLabel) {
+    try {
+        if (plugin.tags) {
+            const tag = plugin.tags.find(item => item.label === tagLabel);
+            if (tag && tag.assets) {
+                // 移除指定文件名
+                tag.assets = tag.assets.filter(asset => !fileNames.includes(asset));
+                // 保存更新后的标签数据
+                await saveTags(plugin.tags);
+            }
+        }
+    } catch (error) {
+        console.error("Error removing files from tag:", error);
+    }
+}
+export async function removeFilesFromMultiTags(fileNames, tagLabels) {
+    try {
+        if (plugin.tags) {
+            tagLabels.forEach(tagLabel => {
+                const tag = plugin.tags.find(item => item.label === tagLabel);
+                if (tag && tag.assets) {
+                    // 移除指定文件名
+                    tag.assets = tag.assets.filter(asset => !fileNames.includes(asset));
+                }
+            });
+            // 保存更新后的标签数据
+            await saveTags(plugin.tags);
+        }
+    } catch (error) {
+        console.error("Error removing files from multiple tags:", error);
+    }
+}
+export async function addFilesToTag(fileNames, tagLabel) {
+    try {
+        if (plugin.tags) {
+            const tag = plugin.tags.find(item => item.label === tagLabel);
+            if (tag) {
+                if (!tag.assets) {
+                    tag.assets = [];
+                }
+                // 添加文件名到资产列表中
+                tag.assets = Array.from(new Set([...tag.assets, ...fileNames]));
+                // 保存更新后的标签数据
+                await saveTags(plugin.tags);
+            }
+        }
+    } catch (error) {
+        console.error("Error adding files to tag:", error);
+    }
+}
+export async function addFilesToMultiTags(fileNames, tagLabels) {
+    try {
+        if (!plugin.tags) {
+            plugin.tags = [];
+        }
+
+        tagLabels.forEach(tagLabel => {
+            let tag = plugin.tags.find(item => item.label === tagLabel);
+            if (!tag) {
+                // 如果标签不存在，则创建新标签
+                tag = { label: tagLabel, assets: [] };
+                plugin.tags.push(tag);
+            }
+            if (!tag.assets) {
+                tag.assets = [];
+            }
+            // 添加文件名到资产列表中
+            tag.assets = Array.from(new Set([...tag.assets, ...fileNames]));
+        });
+
+        // 保存更新后的标签数据
+        await saveTags(plugin.tags);
+    } catch (error) {
+        console.error("Error adding files to tags:", error);
+    }
+}

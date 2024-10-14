@@ -13,6 +13,7 @@ module.exports = class SACAssetsManager extends Plugin {
     this.工作空间根路径 = window.siyuan.config.system.workspaceDir
     this.插件自身伺服地址 = `/plugins/${this.name}`
     this.selfURL = this.插件自身伺服地址
+    this.加载状态控制器()
     this.初始化进程状态()
     this.加载工具webview()
     this.添加全局事件监听()
@@ -22,6 +23,9 @@ module.exports = class SACAssetsManager extends Plugin {
     this.创建资源Tab类型()
     this.添加菜单()
     this.加载i18n工具()
+  }
+  async 加载状态控制器(){
+    import(`${this.插件自身伺服地址}/source/globalStatus/index.js`)
   }
   async 写入i18n(lang, content) {
     let targetPath = this.插件自身工作空间路径 + '/i18n/' + `${lang}.json`

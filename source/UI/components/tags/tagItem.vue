@@ -30,6 +30,7 @@
 <script setup>
 import { clientApi, plugin } from '../../../asyncModules.js';
 import {toRef} from 'vue'
+import { 打开标签资源视图 } from '../../siyuanCommon/tabs/assetsTab.js';
 const deleteTag=()=>{
     emit('delete:tag',tag.value)
 }
@@ -44,7 +45,7 @@ const openTagNotes = () => {
     });
 }
 const openTagAssets=()=>{
-    plugin.eventBus.emit('click-tag-item',tag.value.label)
+    打开标签资源视图(tag.value.label)
 }
 const handleDragover=(e)=>{
     e.preventDefault();
