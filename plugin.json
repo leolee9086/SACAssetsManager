@@ -4,7 +4,6 @@
   "url": "https://github.com/leolee9086/SACAssetsManager",
   "version": "0.0.21",
   "minAppVersion": "3.1.6",
-
   "backends": [
     "windows"
   ],

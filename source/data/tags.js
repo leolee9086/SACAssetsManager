@@ -85,16 +85,13 @@ export async function getTagAssets(tags) {
  */
 export function findTagsByFilePath(filePath) {
     let relatedTags = [];
-
     if (plugin.tags) {
-        console.log(plugin.tags)
         递归解析标签数据(plugin.tags, (tag) => {
             if (tag.assets && tag.assets.find(item=>item === filePath)) {
                 relatedTags.push(tag);
             }
         });
     }
-
     return relatedTags;
 }
 export async  function removeFilesFromTag(fileNames, tagLabel) {

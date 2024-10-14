@@ -41,7 +41,7 @@
                 </template>
                 <div class="fn__flex-center">
                     <button class="b3-button b3-button--small" style="margin-top: 0" data-menu="true" data-type="tag"
-                        @click="addTagToFile(fileTags.map(file => file.asset.path))">
+                        @click="编辑选中文件标签(fileTags.map(file => file.asset.path))">
                         <svg>
                             <use xlink:href="#iconAdd"></use>
                         </svg>
@@ -100,7 +100,7 @@ async function 从标签移除文件路径数组并刷新(文件路径数组, ta
         }
     })
 }
-function addTagToFile(fileNames) {
+function 编辑选中文件标签(fileNames) {
     // 在这里实现为所有文件添加标签的逻辑
     选择标签(`为${fileNames.length}个文件选择标签`)
     console.log('Adding tags to files:', fileNames);

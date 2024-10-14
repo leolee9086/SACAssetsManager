@@ -76,7 +76,7 @@ watch(
             const count = globalSelectedAssets.value.length;
             headerElement.textContent = `为${count}个元素选择标签`;
             headerElement.insertAdjacentHTML('afterBegin',`<svg class="cc-dialog__close" style="position:absolute;top:2px;left:2px"><use xlink:href="#iconCloseRound"></use></svg>`)
-            headerElement.querySelector(".cc-dialog__close").addEventListener('click',()=>{dialog.destroy()})
+            headerElement.querySelector(".cc-dialog__close").addEventListener('click',()=>{appData.$dialog.destroy()})
 
         }
     }

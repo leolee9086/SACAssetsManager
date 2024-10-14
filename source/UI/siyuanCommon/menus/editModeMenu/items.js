@@ -1,6 +1,15 @@
 import { thumbnail } from "../../../../server/endPoints.js"
 import { 从文件加载菜单项目 } from "../utils/menuItemloader.js"
 import { plugin } from "../../../../pluginSymbolRegistry.js"
+import { 选择标签 } from "../../dialog/tagPicker.js"
+export const 编辑附件标签组=(assets)=>{
+    return {
+        'label':plugin.翻译`编辑${assets.length}个文件的标签`,
+        'click': () => {
+            选择标签()
+        }
+    }
+}
 export const 重新计算文件颜色 = (assets) => {
     return {
         'label':plugin.翻译`重新计算${assets.length}个文件的颜色`,
