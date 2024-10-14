@@ -18,7 +18,7 @@
         <input v-model="link" placeholder="http://" />
         <div class="tags">
           <label>标签</label>
-          <input v-model="tags" placeholder="添加标签" />
+          <tagsGrid></tagsGrid>
         </div>
         <div class="folder-info">
           <label>本地文件夹</label>
@@ -38,27 +38,27 @@
           <div>修改日期: <span>{{ modifiedDate }}</span></div>
         </div>
         <button @click="exportImage">导出</button>
-        <button @click="importEagleMetas" v-if="eagleMetas[0]">导入{{eagleMetas.length}}个eagle元数据</button>
+        <button @click="importEagleMetas" v-if="eagleMetas[0]">导入{{ eagleMetas.length }}个eagle元数据</button>
 
       </div>
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref } from 'vue';
 import multiSrcImage from './common/multiSrcImage.vue';
 import { plugin } from 'runtime'
 import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
-import  _path from '../../polyfills/path.js'
+import _path from '../../polyfills/path.js'
 import { kernelApi } from '../../asyncModules.js';
+import { findTagsByFilePath } from '../../data/tags.js';
+import tagsGrid from './assetInfoPanel/tags.vue';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
 const name = ref('无选择');
 const note = ref('');
 const link = ref('');
-const tags = ref('');
 const folder = ref('浮雕');
 const rating = ref('★★★★★');
 const dimensions = ref('多种');
@@ -71,17 +71,16 @@ const exportImage = () => {
   console.log('导出图片');
 };
 const eagleMetas = ref([])
-const doc=ref('')
+const doc = ref('')
 const lastAssetPaths = ref([]);
 
-plugin.eventBus.on('assets-select', async(e) => {
+plugin.eventBus.on('assets-select', async (e) => {
   const assets = Array.from(new Set(e.detail))
   const assetPaths = assets.map(asset => asset.data.path);
-  
   // 检查是否与上次的路径列表相同
   if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
     console.log('路径列表未变化，跳过查询');
-    return 
+    return
   }
   lastAssetPaths.value = assetPaths;
 
@@ -91,7 +90,7 @@ plugin.eventBus.on('assets-select', async(e) => {
   format.value = 获取文件格式(assets.map(item => item.data))
   folder.value = 获取本地文件夹(assets.map(item => item.data))
   eagleMetas.value = await 搜集eagle元数据(assets.map(item => item.data))
-  doc.value =(await 获取所在笔记(lastAssetPaths.value)).map(item=>item.root_id).join(',')
+  doc.value = (await 获取所在笔记(lastAssetPaths.value)).map(item => item.root_id).join(',')
 })
 
 const 获取所在笔记 = async (assetPaths) => {
@@ -99,7 +98,7 @@ const 获取所在笔记 = async (assetPaths) => {
   // 更新最后处理的路径列表
 
   const sql = `select * from assets where path in ('${assetPaths.join("','")}')`
-  const result = await kernelApi.sql({stmt:sql})
+  const result = await kernelApi.sql({ stmt: sql })
   console.log(result)
   return result
 }
@@ -108,10 +107,10 @@ const 搜集eagle元数据 = async (assets) => {
   const results = [];
   for (const asset of assets) {
     const assetDir = path.dirname(asset.path);
-    const metadataPath = path.join(assetDir, 'metadata.json').replace(/\\/g,'/')
+    const metadataPath = path.join(assetDir, 'metadata.json').replace(/\\/g, '/')
     try {
       // 检查 metadata.json 文件是否存在
-      if( window.require('fs').existsSync(metadataPath)){
+      if (window.require('fs').existsSync(metadataPath)) {
         results.push({
           path: asset.path,
           metaPath: metadataPath
@@ -144,10 +143,10 @@ const 获取本地文件夹 = (assets) => {
   const paths = new Set(assets.map(asset => {
     console.log(asset.path)
     if (asset.path.startsWith('assets/')) {
-      const parts = path.dirname(siyuan.config.system.workspaceDir + '/data/' + asset.path).replace(/\\/g,'/')
+      const parts = path.dirname(siyuan.config.system.workspaceDir + '/data/' + asset.path).replace(/\\/g, '/')
       return parts
     } else {
-      const parts = path.dirname(asset.path).replace(/\\/g,'/')
+      const parts = path.dirname(asset.path).replace(/\\/g, '/')
       return parts
     }
   }));
@@ -216,10 +215,12 @@ input {
 .basic-info div {
   margin: 5px 0;
 }
+
 input[disabled] {
   background-color: #333;
   color: #ccc;
 }
+
 button {
   width: 100%;
   padding: 10px;

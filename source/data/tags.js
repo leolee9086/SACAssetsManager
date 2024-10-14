@@ -77,3 +77,23 @@ export async function getTagAssets(tags) {
     await saveTags(data)
     return data
 }
+
+/**
+ * 从文件路径中找到所有相关的标签
+ * @param {string} filePath - 文件路径
+ * @returns {Array} - 相关标签的数组
+ */
+export function findTagsByFilePath(filePath) {
+    let relatedTags = [];
+
+    if (plugin.tags) {
+        console.log(plugin.tags)
+        递归解析标签数据(plugin.tags, (tag) => {
+            if (tag.assets && tag.assets.find(item=>item === filePath)) {
+                relatedTags.push(tag);
+            }
+        });
+    }
+
+    return relatedTags;
+}
