@@ -127,7 +127,7 @@ export const 文件系统内部属性表 = {
         default: 0,
         description: '创建时间',
         label: '创建时间',
-        show: true,
+        show: false,
         parser: dateParser
     },
     mtimeMs: {

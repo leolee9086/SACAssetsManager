@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="image-preview fn__flex">
+        <div class="image-preview fn__flex" @wheel="handleWheel">
             <button class="arrow left" @click="previousImage"><svg>
                     <use xlink:href="#iconLeft"></use>
                 </svg></button>
@@ -27,6 +27,21 @@ import { watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
 import { getCommonThumbnailsFromAssets } from '../../utils/tumbnail.js';
 import multiSrcImage from '../common/multiSrcImage.vue';
 import { plugin } from '../../../pluginSymbolRegistry.js';
+const debounce = (func, delay) => {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), delay);
+    };
+};
+
+const handleWheel = debounce((event) => {
+    if (event.deltaY < 0) {
+        previousImage();
+    } else {
+        nextImage();
+    }
+}, 200);
 
 const imageSrc = ref([`/plugins/${plugin.name}/assets/wechatDonate.jpg`]);
 const lastAssetPaths = ref([]);
@@ -52,7 +67,6 @@ const toArray = (value) => {
 }
 const updateImageSrc = () => {
     if (assetsData.value.length > 0) {
-      
         imageSrc.value = getCommonThumbnailsFromAssets(toArray(assetsData.value[currentIndex.value ]));
     } else {
         imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
@@ -81,11 +95,13 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
         return
     }
     lastAssetPaths.value = assetPaths;
+
     assetsData.value = assets.map(item => item.data);
+    getLabel(assetsData.value);
+
     assetsData.value = [assetsData.value].concat(assetsData.value)
     currentIndex.value = 0;
     updateImageSrc();
-    getLabel(assetsData.value);
 })
 </script>
 <style scoped>

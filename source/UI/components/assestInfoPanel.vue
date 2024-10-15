@@ -2,11 +2,7 @@
   <div class="fn__flex-column fn__flex-1">
     <div class="image-details fn__flex-column fn__flex-1">
       <assetsImage></assetsImage>
-      <div 
-      class="image-info fn__flex-column fn__flex-1" 
-      style="overflow-y: hidden;"
-      @wheel = verticalScrollFirst
-      >
+      <div class="image-info fn__flex-column fn__flex-1" style="overflow-y: hidden;" @wheel=verticalScrollFirst>
         <label>注释</label>
         <input v-model="note" placeholder="添加注释,可以引用思源的块" />
         <label>来源</label>
@@ -15,9 +11,12 @@
           <label>标签</label>
           <tagsGrid></tagsGrid>
         </div>
-        <div class="folder-info">
+        <div class="folder-info" @dblclick="openFolder">
           <label>本地文件夹</label>
-          <input v-model="folder" disabled placeholder="文件夹" />
+          <div @dblclick.stop="openFolder" 
+          @click.right.stop ="openFolderAssetsTab"
+          class="input-like ariaLabel" placeholder="文件夹"
+            :aria-label="`双击在资源管理器打开,右键在新页签打开:\n${Array.from(new Set(currentFolderArray)).join('\n')}`">{{ folder }}</div>
         </div>
         <div class="folder-info">
           <label>所在笔记</label>
@@ -45,16 +44,17 @@ import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
 import _path from '../../polyfills/path.js'
 import { kernelApi } from '../../asyncModules.js';
 import tagsGrid from './assetInfoPanel/tags.vue';
-import { watchStatu,状态注册表 } from '../../globalStatus/index.js';
+import { watchStatu, 状态注册表 } from '../../globalStatus/index.js';
 import { verticalScrollFirst } from '../utils/scroll.js';
 import assetsImage from './assetInfoPanel/assetsImage.vue';
+import { 打开本地资源视图 } from '../siyuanCommon/tabs/assetsTab.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
 const name = ref('无选择');
 const note = ref('');
 const link = ref('');
-const folder = ref('浮雕');
+const folder = ref('无选择');
 const rating = ref('★★★★★');
 const dimensions = ref('多种');
 const fileSize = ref('多种');
@@ -68,7 +68,30 @@ const exportImage = () => {
 const eagleMetas = ref([])
 const doc = ref('')
 const lastAssetPaths = ref([]);
+const openFolder = () => {
+  const shell = window.require('@electron/remote').shell;
+  if (currentFolderArray.value.length > 0) {
+    Array.from(new Set(currentFolderArray.value)).forEach(folderPath => {
+      if (folderPath !== '/') {
+        shell.openPath(folderPath);
+      }
+    });
+  } else {
+    console.log('没有可打开的文件夹');
+  }
+};
+const openFolderAssetsTab =()=>{
+  if (currentFolderArray.value.length > 0) {
+    Array.from(new Set(currentFolderArray.value)).forEach(folderPath => {
+      if (folderPath !== '/') {
+        打开本地资源视图(folderPath);
+      }
+    });
+  } else {
+    console.log('没有可打开的文件夹');
+  }
 
+}
 watchStatu(状态注册表.选中的资源, async (newVal) => {
   const assets = Array.from(new Set(newVal))
   const assetPaths = assets.map(asset => asset.data.path);
@@ -128,18 +151,23 @@ const 获取文件格式 = (assets) => {
   }
 }
 
+const currentFolderArray = ref([])
 const 获取本地文件夹 = (assets) => {
-  if (assets.length === 0) return '';
-  const paths = new Set(assets.map(asset => {
-    console.log(asset.path)
+  if (assets.length === 0) {
+    currentFolderArray.value = []
+    return '无选择'
+  };
+
+  currentFolderArray.value = assets.map(asset => {
+    console.log(asset.path);
     if (asset.path.startsWith('assets/')) {
-      const parts = path.dirname(siyuan.config.system.workspaceDir + '/data/' + asset.path).replace(/\\/g, '/')
-      return parts
+      return path.dirname(siyuan.config.system.workspaceDir + '/data/' + asset.path).replace(/\\/g, '/');
     } else {
-      const parts = path.dirname(asset.path).replace(/\\/g, '/')
-      return parts
+      return path.dirname(asset.path).replace(/\\/g, '/');
     }
-  }));
+  });
+
+  const paths = new Set(currentFolderArray.value);
 
   if (paths.size === 1) {
     return Array.from(paths)[0];
@@ -162,8 +190,8 @@ const getLabel = (assets) => {
 .image-details {
   display: flex;
   flex-direction: column;
-  background-color: #2c2c2c;
-  color: #fff;
+  background-color: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface);
   padding: 10px;
   border-radius: 8px;
 }
@@ -223,5 +251,25 @@ button {
 
 button:hover {
   background-color: #45a049;
+}
+
+.input-like {
+  width: 100%;
+  padding: 5px;
+  margin: 5px 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  background-color: #f9f9f9;
+  color: #333;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.input-like:disabled {
+  background-color: #333;
+  color: #ccc;
 }
 </style>

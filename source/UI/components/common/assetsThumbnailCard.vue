@@ -49,10 +49,37 @@ background-color:var(--b3-theme-background);
                     text-overflow:ellipsis;
                     white-space:nowrap;`
                         " class="ariaLabel"
-                        :aria-label="解析文件属性名标签(prop) + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
+                        :aria-label="解析文件属性名标签(prop) + `(${prop})` + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
                         {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
                     </div>
                 </template>
+                <div 
+                class="ariaLabel"
+                @click.right.stop="选择标签()"
+
+                :aria-label="`标签\n右键编辑\n左键打开标签面板`"
+                :style="`border:1px solid var(--b3-theme-background-light);
+                    padding:0px;
+                    margin:0px;
+                    overflow:hidden;
+                    width:${100 / (getProps(cardData.data).length + 1)}%;
+                    text-overflow:ellipsis;
+                    white-space:nowrap;`
+
+                    ">
+                    <template v-if="tags.length > 0">
+                        <span v-for="item in tags" :key="item.label" :style="tagStyle"
+                        class="ariaLabel"
+                        :aria-label="item.label"
+                        @click.right.stop="选择标签()"
+                        @click.stop="打开标签资源视图(item.label)"
+
+                        >
+                            {{ item.label.length > 6 ? item.label.substring(0, 6) + '...' : item.label }}
+                        </span>
+                    </template>
+                    <span v-else :style="noTagStyle">未标签</span>
+                </div>
                 <div :style="`
                 display: grid;
                 width:${100 / (getProps(cardData.data).length + 1)}%;
@@ -81,8 +108,9 @@ import { diffColor } from '../../../utils/color/Kmeans.js';
 import { plugin } from 'runtime'
 import { 表格视图阈值 } from '../../utils/threhold.js';
 import { 柯里化 } from '../../../utils/functions/currying.js';
-import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签,获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
+import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签, 获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
 import colorPalletButton from './pallets/colorPalletButton.vue';
+import { findTagsByFilePath } from '../../../data/tags.js';
 const props = defineProps(['cardData', 'size', 'filterColor', 'selected'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
@@ -102,14 +130,14 @@ const similarColor = computed(() => {
 })
 
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
-function 计算扩展名(data){
-    if(data.type==='note'){
-        return  `笔记:${ 块类型语言对照表[data.$meta.type]  ||data.$meta.type}`
+function 计算扩展名(data) {
+    if (data.type === 'note') {
+        return `笔记:${块类型语言对照表[data.$meta.type] || data.$meta.type}`
     }
-    return size.value > 表格视图阈值 ? data.path.split('.').pop() : '' 
+    return size.value > 表格视图阈值 ? data.path.split('.').pop() : ''
 }
-let 排除属性列表 =  ['id', 'type', 'index', 'indexInColumn', 'width', 'height'];
-const getProps=柯里化(获取属性显示定义)(排除属性列表)(文件系统内部属性表)
+let 排除属性列表 = ['id', 'type', 'index', 'indexInColumn', 'width', 'height'];
+const getProps = 柯里化(获取属性显示定义)(排除属性列表)(文件系统内部属性表)
 const genMaxWidth = () => {
     if (size.value < 表格视图阈值) {
         return `100%`
@@ -120,7 +148,8 @@ const genMaxWidth = () => {
 
 let idleCallbackId;
 let protyle
-let fn = async() => {
+const tags = ref([])
+let fn = async () => {
     fetch(thumbnail.getColor(cardData.data.type, cardData.data.path)).then(
         res => {
             return res.json()
@@ -151,14 +180,16 @@ let fn = async() => {
             resizeObserver.observe(protyleContainer.value);
         })
     }
-
+    if (cardData.data && cardData.data.path) {
+        tags.value = findTagsByFilePath(cardData.data.path)
+    }
 }
 onMounted(() => {
     showImage.value = true
 
-    idleCallbackId = requestIdleCallback(fn,{timeout:300})
+    idleCallbackId = requestIdleCallback(fn, { timeout: 300 })
 
-//    idleCallbackId = setTimeout(fn, 300);
+    //    idleCallbackId = setTimeout(fn, 300);
 });
 onBeforeUnmount(() => {
     cancelIdleCallback(idleCallbackId);
@@ -183,36 +214,54 @@ const buildCardProtyle = (element) => {
         }
     )
 }
-
+const noTagStyle = {
+    color: 'red',
+    fontSize: '12px'
+};
+const tagStyle = {
+    display: 'inline-block',
+    backgroundColor: 'var(--b3-theme-background-light)',
+    color: 'black',
+    padding: '2px 4px',
+    margin: '2px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    maxWidth: '6ch',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+};
 function 根据目标宽度计算新高度(原始高度, 原始宽度, 目标宽度, 表格视图阈值) {
-  const 缩放因子 = 原始高度 / 目标宽度;
-  const 新高度 = 原始宽度 / 缩放因子;
+    const 缩放因子 = 原始高度 / 目标宽度;
+    const 新高度 = 原始宽度 / 缩放因子;
 
-  if (目标宽度 < 表格视图阈值) {
-    return { 
-      cardHeight: 目标宽度,
-      imageHeight: 新高度
-    };
-  } else {
-    return {
-      cardHeight: 新高度 + 36,
-      imageHeight: 新高度
-    };
-  }
+    if (目标宽度 < 表格视图阈值) {
+        return {
+            cardHeight: 目标宽度,
+            imageHeight: 新高度
+        };
+    } else {
+        return {
+            cardHeight: 新高度 + 36,
+            imageHeight: 新高度
+        };
+    }
 }
 
 function 更新图片尺寸(e, cardData) {
-  const previewer = e.target;
-  const { naturalWidth, naturalHeight } = previewer;
-  const { cardHeight: 新卡片高度, imageHeight: 新图片高度 } = 根据目标宽度计算新高度(naturalWidth, naturalHeight, size.value, 表格视图阈值);
-  
-  cardHeight.value = 新卡片高度;
-  imageHeight.value = 新图片高度;
-  emit('updateSize', { width: cardData.width, height: 新卡片高度 });
+    const previewer = e.target;
+    const { naturalWidth, naturalHeight } = previewer;
+    const { cardHeight: 新卡片高度, imageHeight: 新图片高度 } = 根据目标宽度计算新高度(naturalWidth, naturalHeight, size.value, 表格视图阈值);
+
+    cardHeight.value = 新卡片高度;
+    imageHeight.value = 新图片高度;
+    emit('updateSize', { width: cardData.width, height: 新卡片高度 });
 }
 
 
 import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
+import { 选择标签 } from '../../siyuanCommon/dialog/tagPicker.js';
+import { 打开标签资源视图 } from '../../siyuanCommon/tabs/assetsTab.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
