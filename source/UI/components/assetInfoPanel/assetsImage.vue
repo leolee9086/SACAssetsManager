@@ -66,11 +66,11 @@ const toArray = (value) => {
     return Array.isArray(value) ? value : [value];
 }
 const updateImageSrc = () => {
-    if (assetsData.value.length > 0) {
+    if (assetsData.value.length > 0&&assetsData.value[0]) {
         imageSrc.value = getCommonThumbnailsFromAssets(toArray(assetsData.value[currentIndex.value]));
-        return
+        
     }
-    imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
+    imageSrc.value[0]?null: imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
 
 }
 
@@ -89,7 +89,6 @@ const nextImage = () => {
 }
 
 watchStatu(状态注册表.选中的资源, async (newVal) => {
-    imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
 
     const assets = Array.from(new Set(newVal))
     const assetPaths = assets.map(asset => asset.data.path);
@@ -97,6 +96,7 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
         console.log('路径列表未变化，跳过查询');
         return
     }
+
     lastAssetPaths.value = assetPaths;
     assetsData.value = assets.map(item => item.data);
     getLabel(assetsData.value);
