@@ -44,7 +44,7 @@
   
   return {
     zIndex: totalImages - index,
-    transform: `rotate(${rotation}deg)`,
+    transform: ` translate(-50%, -50%) rotate(${rotation}deg)`,
   };
 };
 
@@ -104,29 +104,33 @@ const loadImages = () => {
   watch(() => props.src, loadImages);
   </script>
   <style scoped>
-  .multi-src-image {
-    position: relative;
-    width: 90%;
-    height: 90%;
-    border-radius: 10px;
-  }
-  
-  .stacked-images {
-    position: relative;
-    width: 90%;
-    height: 90%;
-  }
-  
-  .stacked-images img {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 90%;
-    height: 90%;
-    object-fit: cover;
-  }
-  
-  .stacked-images  {
-    border-radius: 10px;
-  }
+ .multi-src-image {
+  position: relative;
+  width: 90%;
+  height: 90%;
+  border-radius: 10px;
+}
+
+.stacked-images {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.stacked-images img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: cover;
+}
+
+.stacked-images {
+  border-radius: 10px;
+}
   </style>
