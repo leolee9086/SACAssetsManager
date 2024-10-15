@@ -39,7 +39,6 @@
 </template>
 <script setup>
 import { ref } from 'vue';
-import multiSrcImage from './common/multiSrcImage.vue';
 import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
 import _path from '../../polyfills/path.js'
 import { kernelApi } from '../../asyncModules.js';

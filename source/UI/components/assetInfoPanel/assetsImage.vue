@@ -29,7 +29,7 @@ import multiSrcImage from '../common/multiSrcImage.vue';
 import { plugin } from '../../../pluginSymbolRegistry.js';
 const debounce = (func, delay) => {
     let timeout;
-    return function(...args) {
+    return function (...args) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), delay);
     };
@@ -67,27 +67,30 @@ const toArray = (value) => {
 }
 const updateImageSrc = () => {
     if (assetsData.value.length > 0) {
-        imageSrc.value = getCommonThumbnailsFromAssets(toArray(assetsData.value[currentIndex.value ]));
-    } else {
-        imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
+        imageSrc.value = getCommonThumbnailsFromAssets(toArray(assetsData.value[currentIndex.value]));
+        return
     }
+    imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
+
 }
 
 const previousImage = () => {
     if (assetsData.value.length > 0) {
-        currentIndex.value = (currentIndex.value - 1 + assetsData.value.length) % (assetsData.value.length );
+        currentIndex.value = (currentIndex.value - 1 + assetsData.value.length) % (assetsData.value.length);
         updateImageSrc();
     }
 }
 
 const nextImage = () => {
     if (assetsData.value.length > 0) {
-        currentIndex.value = (currentIndex.value + 1) % (assetsData.value.length );
+        currentIndex.value = (currentIndex.value + 1) % (assetsData.value.length);
         updateImageSrc();
     }
 }
 
 watchStatu(状态注册表.选中的资源, async (newVal) => {
+    imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
+
     const assets = Array.from(new Set(newVal))
     const assetPaths = assets.map(asset => asset.data.path);
     if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
@@ -95,10 +98,8 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
         return
     }
     lastAssetPaths.value = assetPaths;
-
     assetsData.value = assets.map(item => item.data);
     getLabel(assetsData.value);
-
     assetsData.value = [assetsData.value].concat(assetsData.value)
     currentIndex.value = 0;
     updateImageSrc();
@@ -121,7 +122,7 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
 
 .arrow.left {
     left: 0;
-    background-color:var(--b3-theme-primary-lightest);
+    background-color: var(--b3-theme-primary-lightest);
     /* 浅灰色背景 */
     color: #fff;
     /* 白色箭头 */
@@ -140,7 +141,7 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
 
 .arrow.right {
     right: 0;
-    background-color:var(--b3-theme-primary-lightest);
+    background-color: var(--b3-theme-primary-lightest);
     /* 浅灰色背景 */
     color: #fff;
     /* 白色箭头 */
