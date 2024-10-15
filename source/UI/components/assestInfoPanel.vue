@@ -1,15 +1,7 @@
 <template>
   <div class="fn__flex-column fn__flex-1">
     <div class="image-details fn__flex-column fn__flex-1">
-      <div class="image-preview fn__flex">
-        <div class="fn__space fn__flex-1"></div>
-        <multiSrcImage :multiple="true" :src="imageSrc" alt="Image Preview"
-          style="width: 256px;height:256px;object-fit: contain" />
-        <div class="fn__space fn__flex-1"></div>
-      </div>
-      <div class="fn__flex">
-          <div class="image-name">{{ name }}</div>
-        </div>
+      <assetsImage></assetsImage>
       <div 
       class="image-info fn__flex-column fn__flex-1" 
       style="overflow-y: hidden;"
@@ -49,13 +41,13 @@
 <script setup>
 import { ref } from 'vue';
 import multiSrcImage from './common/multiSrcImage.vue';
-import { plugin } from 'runtime'
 import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
 import _path from '../../polyfills/path.js'
 import { kernelApi } from '../../asyncModules.js';
 import tagsGrid from './assetInfoPanel/tags.vue';
 import { watchStatu,状态注册表 } from '../../globalStatus/index.js';
 import { verticalScrollFirst } from '../utils/scroll.js';
+import assetsImage from './assetInfoPanel/assetsImage.vue';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
