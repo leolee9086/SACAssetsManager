@@ -23,7 +23,6 @@ export function verticalScrollFirst(event) {
     const container = event.currentTarget;
     const maxScrollTop = container.scrollHeight - container.clientHeight;
     const newScrollTop = container.scrollTop + event.deltaY;
-
     if ((newScrollTop <= 0 && event.deltaY < 0) || (newScrollTop >= maxScrollTop && event.deltaY > 0)) {
         if (newScrollTop <= 0) {
             container.scrollTop = 0;

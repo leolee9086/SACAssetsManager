@@ -6,12 +6,15 @@
         <multiSrcImage :multiple="true" :src="imageSrc" alt="Image Preview"
           style="width: 256px;height:256px;object-fit: contain" />
         <div class="fn__space fn__flex-1"></div>
-
       </div>
-      <div class="image-info">
-        <div class="fn__flex">
+      <div class="fn__flex">
           <div class="image-name">{{ name }}</div>
         </div>
+      <div 
+      class="image-info fn__flex-column fn__flex-1" 
+      style="overflow-y: hidden;"
+      @wheel = verticalScrollFirst
+      >
         <label>注释</label>
         <input v-model="note" placeholder="添加注释,可以引用思源的块" />
         <label>来源</label>
@@ -52,6 +55,7 @@ import _path from '../../polyfills/path.js'
 import { kernelApi } from '../../asyncModules.js';
 import tagsGrid from './assetInfoPanel/tags.vue';
 import { watchStatu,状态注册表 } from '../../globalStatus/index.js';
+import { verticalScrollFirst } from '../utils/scroll.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
@@ -82,9 +86,7 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
     return
   }
   lastAssetPaths.value = assetPaths;
-
   assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item => item.data)))
-
   getLabel(assets.map(item => item.data))
   format.value = 获取文件格式(assets.map(item => item.data))
   folder.value = 获取本地文件夹(assets.map(item => item.data))
@@ -93,12 +95,9 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
 })
 
 const 获取所在笔记 = async (assetPaths) => {
-
   // 更新最后处理的路径列表
-
   const sql = `select * from assets where path in ('${assetPaths.join("','")}')`
   const result = await kernelApi.sql({ stmt: sql })
-  console.log(result)
   return result
 }
 
