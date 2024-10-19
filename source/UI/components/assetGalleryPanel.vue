@@ -7,7 +7,7 @@
             <div class=" fn__flex ">
                 <div class="fn__space fn__flex-1"></div>
                 <span>
-                    <svg v-if="() => appData.value.tab.data.everythingApiLocation ? true : false"
+                    <svg v-if="() => appData.value.everythingApiLocation ? true : false"
                         class="icon-green icon-overlay" :style="{
                             width: '20px',
                             height: '20px',
@@ -99,15 +99,17 @@ import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { shiftWithFilter } from "../../utils/array/walk.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
+import { 获取数据模型提供者类型 } from "../../data/appDataGetter.js";
+const appData = toRef(inject('appData'))
+
 /**
  * 监听相关事件刷新面板
  */
  plugin.eventBus.on('need-refresh-gallery-panel',(e)=>{
     const { type, data } = e.detail;
     if (type === 'tag') {
-        appData.value.tab.data.tagLabel?refreshPanel():null;
+        appData.value.tagLabel?refreshPanel():null;
     }
-
  })
 /**
  * 启动之后聚焦到关键词输入框
@@ -127,7 +129,6 @@ let controller = new AbortController();
 let signal = controller.signal;
 import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
 import { performSearch as searchByAnytxt } from "./localApi/anytxt/anytext.js";
-import { fetchGridData } from "../../data/fetchGridData.js";
 const everthingEnabled = ref(false)
 const filListProvided = ref(null)
 let filterFunc = () => {
@@ -154,7 +155,7 @@ const setupDataPush = () => {
     const uniqueExtensions = new Set();
 
     附件数据源数组.value.data.push = function (...args) {
-        if (!appData.value.tab.data.localPath) {
+        if (!appData.value.localPath) {
             args.forEach(arg => {
                 if (arg && arg.path && arg.path.indexOf('.') >= 0) {
                     const fileExtension = arg.path.split('.').pop().toLowerCase();
@@ -176,39 +177,55 @@ const setupDataPush = () => {
 };
 
 const initializeSize = () => {
-    if (appData.value.tab.data && appData.value.tab.data.ui && appData.value.tab.data.ui.size) {
-        size.value = parseInt(appData.value.tab.data.ui.size);
+    if (appData.value && appData.value.ui && appData.value.ui.size) {
+        size.value = parseInt(appData.value.ui.size);
     }
 };
 
-const fetchDataBasedOnCondition = async () => {
-    if (appData.value.tab.data.efuPath) {
+/*const fetchDataBasedOnCondition = async () => {
+    
+    if (appData.value.efuPath) {
         await fetchEfuData();
-    } else if (appData.value.tab.data.localPath) {
+    } else if (appData.value.localPath) {
         await 获取本地文件夹数据($realGlob.value, 附件数据源数组.value.data, callBack, 1, signal);
-    } else if (appData.value.tab.data.tagLabel) {
-        await 获取标签列表数据(appData.value.tab.data.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value);
-    } else if (appData.value.tab.data.color) {
-        await 获取颜色查询数据(appData.value.tab.data.color, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value);
-    } else if (appData.value.tab.data.everythingApiLocation) {
+    } else if (appData.value.tagLabel) {
+        await 获取标签列表数据(appData.value.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value);
+    } else if (appData.value.color) {
+        await 获取颜色查询数据(appData.value.color, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value);
+    } else if (appData.value.everythingApiLocation) {
         await fetchEverythingData();
-    } else if (appData.value.tab.data.anytxtApiLocation) {
+    } else if (appData.value.anytxtApiLocation) {
         await fetchAnytxtData();
     } else {
         await fetchDefaultData();
     }
-};
+};*/
+const fetchDataBasedOnCondition = async () => {
+    const dataProviderType = 获取数据模型提供者类型(appData.value);
+    console.log(dataProviderType)
+    const dataFetchers = {
+        'efu文件列表': ()=>fetchEfuData(appData.value.efuPath,附件数据源数组.value.data,callBack),
+        '本地文件系统': () => 获取本地文件夹数据($realGlob.value, 附件数据源数组.value.data, callBack, 1, signal),
+        '思源标签': () => 获取标签列表数据(appData.value.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value),
+        '内部颜色索引': () => 获取颜色查询数据(appData.value.color, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value),
+        'everything': fetchEverythingData,
+        'anytxt': fetchAnytxtData,
+        '默认': fetchDefaultData
+    };
 
-const fetchEfuData = async () => {
+    const fetcher = dataFetchers[dataProviderType] || fetchDefaultData;
+    await fetcher();
+};
+const fetchEfuData = async (efuPath,dataTarget,callBack) => {
     let data;
     try {
-        data = await parseEfuContentFromFile(appData.value.tab.data.efuPath);
-        附件数据源数组.value.data.push(...data);
-        callBack();
+        data = await parseEfuContentFromFile(efuPath);
+        dataTarget.push(...data);
+        callBack&&callBack();
     } catch (e) {
         data = [];
     } finally {
-        callBack();
+        callBack&&callBack();
     }
 };
 
@@ -222,17 +239,17 @@ const fetchData = async (apiLocation, searchFunction) => {
 };
 
 const fetchEverythingData = async () => {
-    await fetchData(appData.value.tab.data.everythingApiLocation, searchByEverything);
+    await fetchData(appData.value.everythingApiLocation, searchByEverything);
 };
 
 const fetchAnytxtData = async () => {
-    await fetchData(appData.value.tab.data.anytxtApiLocation, searchByAnytxt);
+    await fetchData(appData.value.anytxtApiLocation, searchByAnytxt);
 };
 
 const fetchDefaultData = async () => {
     await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, async () => {
-        if (appData.value.tab.data.block_id) {
-            let files = await 获取文档中的文件链接(appData.value.tab.data.block_id);
+        if (appData.value.block_id) {
+            let files = await 获取文档中的文件链接(appData.value.block_id);
             获取本地文件列表数据(files, 附件数据源数组.value.data, callBack, 1, signal);
             return;
         }
@@ -264,8 +281,8 @@ const refreshPanel = () => {
 const extensions = ref([])
 const selectedExtensions = ref([])
 onMounted(() => {
-    if (appData.value.tab.data.localPath) {
-        const url = endPoints.fs.path.getPathExtensions(appData.value.tab.data.localPath)
+    if (appData.value.localPath) {
+        const url = endPoints.fs.path.getPathExtensions(appData.value.localPath)
         fetch(url).then(
             res => res.json()
         ).then(
@@ -283,7 +300,6 @@ watch(selectedExtensions, (newValue, oldValue) => {
         if (newValue.length === 0) {
             return true;
         }
-        console.log(item)
         // 获取文件的扩展名
         if (item.type !== 'note') {
             const fileExtension = item.name.split('.').pop().toLowerCase();
@@ -332,7 +348,6 @@ watch(
  * 缩放相关
  */
 import { 从滚轮事件计算 } from '../utils/scroll.js';
-const appData = toRef(inject('appData'))
 const layoutCountTotal = ref(0)
 const rawSearch = ref('');
 const paddingLR = ref(100)
@@ -352,7 +367,7 @@ watch(rawSearch, (data) => {
 const palletButton = ref(null)
 const showPallet = ref(false)
 const pallet = ref([])
-const filterColor = ref(appData.value.tab.data.color || [])
+const filterColor = ref(appData.value.color || [])
 const eaglePath = ref('')
 watch(
     filterColor, (data) => {
@@ -393,7 +408,7 @@ const 获取eagle标签列表 = () => {
     })
 }
 const 获取ealge素材库路径 = () => {
-    fetch(`http://localhost:${plugin.http服务端口号}/eagle-path?path=${appData.value.tab.data.localPath}`).then(res => res.json()).then(json => {
+    fetch(`http://localhost:${plugin.http服务端口号}/eagle-path?path=${appData.value.localPath}`).then(res => res.json()).then(json => {
         eaglePath.value = json.finded
     })
 }
@@ -485,7 +500,7 @@ const onDragStart = async (event) => {
     onDragStartWithLayout(event, currentLayout.value)
 }
 plugin.eventBus.on('update-tag', (event) => {
-    if (event.detail.label === appData.value.tab.data.tagLabel) {
+    if (event.detail.label === appData.value.tagLabel) {
         refreshPanel()
     }
 })

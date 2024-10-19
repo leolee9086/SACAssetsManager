@@ -8,7 +8,7 @@ const appData = toRef(inject('appData'))
 import DocBreadCrumb from './docbreadCrumb.vue'
 import LocalBreadCrumb from './localBreadCrumb.vue'
 import TagCrumb from './tagCrumb.vue'
-const { block_id, box, localPath,tagLabel } = appData.value.tab.data
+const { block_id, box, localPath,tagLabel } = appData.value
 
 const breadCrumbType = computed(()=>{
     if(block_id){
