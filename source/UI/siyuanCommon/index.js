@@ -11,3 +11,8 @@ import  './tabs.js'
  * shell相关事件和shell项定义
  */
 import  './shell.js'
+
+/**
+ * 斜杠菜单
+ */
+import './slash.js'

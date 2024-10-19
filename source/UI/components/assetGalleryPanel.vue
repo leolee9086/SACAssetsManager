@@ -158,9 +158,17 @@ const 创建回调并获取数据 = async () => {
             grid.value && grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null
 
         }
+        if(appData.value.tab.data){
+            if(appData.value.tab.data.ui){
+                if(appData.value.tab.data.ui.size){
+                    size.value =parseInt(appData.value.tab.data.ui.size)
+                }
+            }
+        }
         if (filListProvided.value) {
             附件数据源数组.value.data.push(...filListProvided.value);
         }
+      
         else if (appData.value.tab.data.efuPath) {
             let data
             try {
@@ -439,6 +447,7 @@ const endSelection = (event) => {
     clearSelectionWithLayout(currentLayout.value)
     updateSelectionStatus(selectedItems.value, event)
     plugin.eventBus.emit('assets-select', selectedItems.value)
+    appData.value.selectedItems = selectedItems.value
 };
 plugin.eventBus.on(globalKeyboardEvents.globalKeyDown, (e) => {
     const { key } = e.detail
@@ -486,6 +495,7 @@ const sorter = ref({
 })
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 import { 表格视图阈值 } from '../utils/threhold.js';
+import { imgeWithConut } from "../utils/decorations/iconGenerator.js";
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
     打开附件组菜单(event, assets, {
