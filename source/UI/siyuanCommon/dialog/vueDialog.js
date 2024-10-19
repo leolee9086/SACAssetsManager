@@ -13,7 +13,7 @@ export function openDialog(appURL, name, mixinOptions = {}, directory, data,titl
             width: width||'200px',
             height: height||'auto',
             transparent: transparent,
-            disableClose: true,
+            disableClose: transparent,
             disableAnimation: false,
             
         }
