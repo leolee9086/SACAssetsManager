@@ -28,7 +28,7 @@
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
-                    <input v-model="rawSearch" style="box-sizing: border-box;width:100px;">
+                    <input v-model="rawSearch" ref="searchInputter" style="box-sizing: border-box;width:100px;">
                 </div>
                 <div class="fn__space fn__flex-1"></div>
 
@@ -109,7 +109,15 @@ import { 柯里化 } from "../../utils/functions/currying.js";
     }
 
  })
-
+/**
+ * 启动之后聚焦到关键词输入框
+ */
+const searchInputter=ref(null)
+onMounted(()=>{
+    nextTick(
+        ()=>searchInputter.value.focus()
+    )
+})
 /**
  * 获取数据相关
  */

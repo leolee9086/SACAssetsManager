@@ -13,14 +13,14 @@ export function openDialog(appURL, name, mixinOptions = {}, directory, data,titl
             width: width||'200px',
             height: height||'auto',
             transparent: transparent,
-            disableClose: !transparent,
+            disableClose: true,
             disableAnimation: false,
             
         }
     )
     data&&(data.$dialog=dialog);
-   !transparent?dialog.element.style.pointerEvents = 'none':null
-    dialog.element.querySelector(".b3-dialog__container").style.pointerEvents = 'auto'
+    transparent?dialog.element.style.pointerEvents = 'none':dialog.element.style.pointerEvents = 'auto'
+    transparent?dialog.element.querySelector(".b3-dialog__container").style.pointerEvents = 'auto':null
     dialog.element.querySelector(".b3-dialog__header").style.padding ='0px 24px'
     dialog.element.querySelector(".b3-dialog__header").insertAdjacentHTML('afterBegin',`<svg class="cc-dialog__close" style="position:absolute;top:2px;left:2px"><use xlink:href="#iconCloseRound"></use></svg>`)
     dialog.element.querySelector(".cc-dialog__close").addEventListener('click',()=>{dialog.destroy()})
