@@ -19,6 +19,7 @@ export function openDialog(appURL, name, mixinOptions = {}, directory, data,titl
         }
     )
     data&&(data.$dialog=dialog);
+    dialog.element.querySelector(".b3-dialog__close").style.display='none'
     transparent?dialog.element.style.pointerEvents = 'none':dialog.element.style.pointerEvents = 'auto'
     transparent?dialog.element.querySelector(".b3-dialog__container").style.pointerEvents = 'auto':null
     dialog.element.querySelector(".b3-dialog__header").style.padding ='0px 24px'
