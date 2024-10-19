@@ -182,27 +182,8 @@ const initializeSize = () => {
     }
 };
 
-/*const fetchDataBasedOnCondition = async () => {
-    
-    if (appData.value.efuPath) {
-        await fetchEfuData();
-    } else if (appData.value.localPath) {
-        await 获取本地文件夹数据($realGlob.value, 附件数据源数组.value.data, callBack, 1, signal);
-    } else if (appData.value.tagLabel) {
-        await 获取标签列表数据(appData.value.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value);
-    } else if (appData.value.color) {
-        await 获取颜色查询数据(appData.value.color, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value);
-    } else if (appData.value.everythingApiLocation) {
-        await fetchEverythingData();
-    } else if (appData.value.anytxtApiLocation) {
-        await fetchAnytxtData();
-    } else {
-        await fetchDefaultData();
-    }
-};*/
 const fetchDataBasedOnCondition = async () => {
     const dataProviderType = 获取数据模型提供者类型(appData.value);
-    console.log(dataProviderType)
     const dataFetchers = {
         'efu文件列表': ()=>fetchEfuData(appData.value.efuPath,附件数据源数组.value.data,callBack),
         '本地文件系统': () => 获取本地文件夹数据($realGlob.value, 附件数据源数组.value.data, callBack, 1, signal),
