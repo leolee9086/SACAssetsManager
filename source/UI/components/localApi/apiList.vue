@@ -43,26 +43,11 @@
     </div>
 </template>
 <script setup>
+import { getStatu, 状态注册表 } from '../../../globalStatus/index.js';
 import ApiPortItem from './ApiPortItem.vue';
 import { ref } from 'vue'
 // 定义一个API接口的结构
-const apiList = ref([
-    {
-        host: 'localhost',
-        port: 9999,
-        type: 'everything'
-    },
-      {
-        host: 'localhost',
-        port: 9920,
-        type: 'anytxt'
-    },
-  /*{
-        host: 'localhost',
-        port: 8082,
-        type: 'alist'
-    }*/
-]);
+const apiList = getStatu(状态注册表.本地文件搜索接口)
 // 定义groupByTypeAndHost函数
 function groupByTypeAndHost(apiList) {
     return apiList.reduce((acc, api) => {
@@ -78,7 +63,7 @@ function groupByTypeAndHost(apiList) {
 }
 
 // 使用groupByTypeAndHost函数将apiList组织成树状图
-const groupedApiList = ref(groupByTypeAndHost(apiList.value));
+const groupedApiList = ref(groupByTypeAndHost(apiList));
 
 // 定义折叠状态
 const typeFoldState = ref({});

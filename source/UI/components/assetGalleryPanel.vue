@@ -212,26 +212,21 @@ const fetchEfuData = async () => {
     }
 };
 
-const fetchEverythingData = async () => {
-    const url = new URL(appData.value.tab.data.everythingApiLocation);
-    const { enabled, fileList } = await searchByEverything(search.value, url.port, { count: 10240 });
-    if (enabled) {
-        everthingEnabled.value = true;
+const fetchData = async (apiLocation, searchFunction) => {
+    const url = new URL(apiLocation);
+    const { enabled, fileList } = await searchFunction(search.value, url.port, { count: 10240 });
+    everthingEnabled.value = enabled;
+    if (enabled && fileList) {
         附件数据源数组.value.data.push(...fileList);
-    } else {
-        everthingEnabled.value = false;
     }
 };
 
+const fetchEverythingData = async () => {
+    await fetchData(appData.value.tab.data.everythingApiLocation, searchByEverything);
+};
+
 const fetchAnytxtData = async () => {
-    const url = new URL(appData.value.tab.data.anytxtApiLocation);
-    const fileList = await searchByAnytxt(search.value, url.port, { count: 10240 });
-    if (fileList) {
-        everthingEnabled.value = true;
-        附件数据源数组.value.data.push(...fileList);
-    } else {
-        everthingEnabled.value = false;
-    }
+    await fetchData(appData.value.tab.data.anytxtApiLocation, searchByAnytxt);
 };
 
 const fetchDefaultData = async () => {
