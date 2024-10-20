@@ -7,8 +7,8 @@
             <div class=" fn__flex ">
                 <div class="fn__space fn__flex-1"></div>
                 <span>
-                    <svg v-if="() => appData.value.everythingApiLocation ? true : false"
-                        class="icon-green icon-overlay" :style="{
+                    <svg v-if="() => appData.value.everythingApiLocation ? true : false" class="icon-green icon-overlay"
+                        :style="{
                             width: '20px',
                             height: '20px',
                             color: everthingEnabled ? 'rgb(253, 128, 0)' : 'red'
@@ -106,19 +106,19 @@ const appData = toRef(inject('appData'))
 /**
  * 监听相关事件刷新面板
  */
- plugin.eventBus.on('need-refresh-gallery-panel',(e)=>{
+plugin.eventBus.on('need-refresh-gallery-panel', (e) => {
     const { type, data } = e.detail;
     if (type === 'tag') {
-        appData.value.tagLabel?refreshPanel():null;
+        appData.value.tagLabel ? refreshPanel() : null;
     }
- })
+})
 /**
  * 启动之后聚焦到关键词输入框
  */
-const searchInputter=ref(null)
-onMounted(()=>{
+const searchInputter = ref(null)
+onMounted(() => {
     nextTick(
-        ()=>searchInputter.value.focus()
+        () => searchInputter.value.focus()
     )
 })
 /**
@@ -143,7 +143,8 @@ const 创建回调并获取数据 = async () => {
         if (filListProvided.value) {
             附件数据源数组.value.data.push(...filListProvided.value);
         } else {
-            await fetchDataBasedOnCondition();
+            const dataModel = extractDataModelFromVue(appData, 附件数据源数组, $realGlob);
+            await fetchDataBasedOnCondition(dataModel);
         }
         nextTick(callBack);
     } catch (e) {
@@ -151,30 +152,34 @@ const 创建回调并获取数据 = async () => {
     }
 };
 const setupDataPush = () => {
-    const uniqueExtensions = new Set();
+    创建带中间件的Push方法(
+        附件数据源数组.value.data,
+        {},
+        updateExtensionsMiddleware,
+        filterArgsMiddleware
+    );
+};
 
-    const updateExtensionsMiddleware = (args) => {
-        if (!appData.value.localPath) {
-            args.forEach(arg => {
-                if (arg && arg.path && arg.path.indexOf('.') >= 0) {
-                    const fileExtension = arg.path.split('.').pop().toLowerCase();
-                    if (arg.type === 'note') {
-                        uniqueExtensions.add('note');
-                    } else {
-                        uniqueExtensions.add(fileExtension);
-                    }
+const updateExtensionsMiddleware = (args) => {
+    if (!appData.value.localPath) {
+        const uniqueExtensions = new Set();
+        args.forEach(arg => {
+            if (arg && arg.path && arg.path.indexOf('.') >= 0) {
+                const fileExtension = arg.path.split('.').pop().toLowerCase();
+                if (arg.type === 'note') {
+                    uniqueExtensions.add('note');
+                } else {
+                    uniqueExtensions.add(fileExtension);
                 }
-            });
-            extensions.value = Array.from(uniqueExtensions);
-        }
-        return args;
-    };
+            }
+        });
+        extensions.value = Array.from(uniqueExtensions);
+    }
+    return args;
+};
 
-    const filterArgsMiddleware = (args) => {
-        return args.filter(arg => filterFunc(arg));
-    };
-
-    创建带中间件的Push方法(附件数据源数组.value.data, {}, updateExtensionsMiddleware, filterArgsMiddleware);
+const filterArgsMiddleware = (args) => {
+    return args.filter(arg => filterFunc(arg));
 };
 
 
@@ -183,32 +188,54 @@ const initializeSize = () => {
         size.value = parseInt(appData.value.ui.size);
     }
 };
-
-const fetchDataBasedOnCondition = async () => {
-    const dataProviderType = 获取数据模型提供者类型(appData.value);
-    const dataFetchers = {
-        'efu文件列表': ()=>fetchEfuData(appData.value.efuPath,附件数据源数组.value.data,callBack),
-        '本地文件系统': () => 获取本地文件夹数据($realGlob.value, 附件数据源数组.value.data, callBack, 1, signal),
-        '思源标签': () => 获取标签列表数据(appData.value.tagLabel, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value),
-        '内部颜色索引': () => 获取颜色查询数据(appData.value.color, 附件数据源数组.value.data, callBack, 1, signal, $realGlob.value),
-        'everything': fetchEverythingData,
-        'anytxt': fetchAnytxtData,
-        '默认': fetchDefaultData
+const extractDataModelFromVue = (appData, 附件数据源数组, $realGlob) => {
+    return {
+        dataProviderType: 获取数据模型提供者类型(appData.value),
+        efuPath: appData.value.efuPath,
+        tagLabel: appData.value.tagLabel,
+        color: appData.value.color,
+        everythingApiLocation: appData.value.everythingApiLocation,
+        anytxtApiLocation: appData.value.anytxtApiLocation,
+        tab: appData.value.tab,
+        block_id: appData.value.block_id,
+        附件数据源: 附件数据源数组.value.data,
+        realGlob: $realGlob.value
     };
+};
 
-    const fetcher = dataFetchers[dataProviderType] || fetchDefaultData;
+// 独立的数据获取函数
+const fetchDataBasedOnCondition = async (data) => {
+    const dataFetchers = {
+        'efu文件列表': () => fetchEfuData(data.efuPath, data.附件数据源, callBack),
+        '本地文件系统': () => 获取本地文件夹数据(data.realGlob, data.附件数据源, callBack, 1, signal),
+        '思源标签': () => 获取标签列表数据(data.tagLabel, data.附件数据源, callBack, 1, signal, data.realGlob),
+        '内部颜色索引': () => 获取颜色查询数据(data.color, data.附件数据源, callBack, 1, signal, data.realGlob),
+        'everything': () => fetchData(data.everythingApiLocation, searchByEverything),
+        'anytxt': () => fetchData(data.anytxtApiLocation, searchByAnytxt),
+        '默认': () => 处理默认数据(data.tab, data.附件数据源, async () => {
+            if (data.block_id) {
+                let files = await 获取文档中的文件链接(data.block_id);
+                获取本地文件列表数据(files, data.附件数据源, callBack, 1, signal);
+                return;
+            }
+            nextTick(callBack);
+        })
+    };
+    const fetcher = dataFetchers[data.dataProviderType] || fetchDefaultData;
     await fetcher();
 };
-const fetchEfuData = async (efuPath,dataTarget,callBack) => {
+
+
+const fetchEfuData = async (efuPath, dataTarget, callBack) => {
     let data;
     try {
         data = await parseEfuContentFromFile(efuPath);
         dataTarget.push(...data);
-        callBack&&callBack();
+        callBack && callBack();
     } catch (e) {
         data = [];
     } finally {
-        callBack&&callBack();
+        callBack && callBack();
     }
 };
 
@@ -221,24 +248,7 @@ const fetchData = async (apiLocation, searchFunction) => {
     }
 };
 
-const fetchEverythingData = async () => {
-    await fetchData(appData.value.everythingApiLocation, searchByEverything);
-};
 
-const fetchAnytxtData = async () => {
-    await fetchData(appData.value.anytxtApiLocation, searchByAnytxt);
-};
-
-const fetchDefaultData = async () => {
-    await 处理默认数据(appData.value.tab, 附件数据源数组.value.data, async () => {
-        if (appData.value.block_id) {
-            let files = await 获取文档中的文件链接(appData.value.block_id);
-            获取本地文件列表数据(files, 附件数据源数组.value.data, callBack, 1, signal);
-            return;
-        }
-        nextTick(callBack);
-    });
-};
 
 const callBack = (...args) => {
     grid.value && grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null;
