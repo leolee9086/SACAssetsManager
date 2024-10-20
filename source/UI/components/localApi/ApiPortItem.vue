@@ -14,7 +14,8 @@
   import everythingPortInputter from './everything/portInputter.vue';
   import { 打开everything搜索面板,打开anytxt搜索面板 } from '../../siyuanCommon/tabs/assetsTab.js';
   import { checkApiAvailability, performSearch } from './anytxt/anytext.js'; 
-  import { onMounted,ref } from 'vue';
+  import { onMounted,ref,watch } from 'vue';
+import { updateStatu } from '../../../globalStatus/index.js';
   const {api} = defineProps(['api']);
   const isEnabled= ref(null)
   onMounted(
@@ -25,6 +26,16 @@
       }
     }
   )
+  watch(() => api.port, () => {
+    updateStatu(状态注册表.本地文件搜索接口, (currentValue) => {
+        return currentValue.map(item => {
+            if (item.type === api.type) {
+                return { ...item, port: api.port };
+            }
+            return item;
+        });
+    });
+})
  const 打开搜索面板 = (apiLocation)=>{
     if(api.type==='everything'){
       打开everything搜索面板(apiLocation)

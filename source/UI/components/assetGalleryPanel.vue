@@ -99,6 +99,7 @@ import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { shiftWithFilter } from "../../utils/array/walk.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
+import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 获取数据模型提供者类型 } from "../../data/appDataGetter.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 const appData = toRef(inject('appData'))
@@ -144,7 +145,7 @@ const 创建回调并获取数据 = async () => {
             附件数据源数组.value.data.push(...filListProvided.value);
         } else {
             const dataModel = extractDataModelFromVue(appData, 附件数据源数组, $realGlob);
-            await fetchDataBasedOnCondition(dataModel);
+            await fetchDataBasedOnCondition(dataModel,signal);
         }
         nextTick(callBack);
     } catch (e) {
@@ -159,21 +160,9 @@ const setupDataPush = () => {
         filterArgsMiddleware
     );
 };
-
 const updateExtensionsMiddleware = (args) => {
     if (!appData.value.localPath) {
-        const uniqueExtensions = new Set();
-        args.forEach(arg => {
-            if (arg && arg.path && arg.path.indexOf('.') >= 0) {
-                const fileExtension = arg.path.split('.').pop().toLowerCase();
-                if (arg.type === 'note') {
-                    uniqueExtensions.add('note');
-                } else {
-                    uniqueExtensions.add(fileExtension);
-                }
-            }
-        });
-        extensions.value = Array.from(uniqueExtensions);
+        extensions.value = extractFileExtensions(args);
     }
     return args;
 };
@@ -204,7 +193,8 @@ const extractDataModelFromVue = (appData, 附件数据源数组, $realGlob) => {
 };
 
 // 独立的数据获取函数
-const fetchDataBasedOnCondition = async (data) => {
+const fetchDataBasedOnCondition = async (data,signal) => {
+    console.log(data)
     const dataFetchers = {
         'efu文件列表': () => fetchEfuData(data.efuPath, data.附件数据源, callBack),
         '本地文件系统': () => 获取本地文件夹数据(data.realGlob, data.附件数据源, callBack, 1, signal),
@@ -221,7 +211,7 @@ const fetchDataBasedOnCondition = async (data) => {
             nextTick(callBack);
         })
     };
-    const fetcher = dataFetchers[data.dataProviderType] || fetchDefaultData;
+    const fetcher = dataFetchers[data.dataProviderType] ;
     await fetcher();
 };
 

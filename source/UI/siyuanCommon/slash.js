@@ -1,3 +1,4 @@
+import { getStatu, 状态注册表 } from "../../globalStatus/index.js";
 import { plugin } from "../../pluginSymbolRegistry.js";
 import { openDialog } from "./dialog/vueDialog.js";
 function handleDialogDestroy(data, protyle) {
@@ -16,15 +17,14 @@ function handleDialogDestroy(data, protyle) {
 }
 
 function openEverythingDialog(protyle) {
+    console.log(getStatu(状态注册表.本地文件搜索接口).find(item => item.type === 'everything').port)
     const data = {
-        tab: {
-            data: {
-                everythingApiLocation: 'http://localhost:9999',
-                ui: {
-                    size: '64'
-                }
-            }
+
+        everythingApiLocation:'http://localhost:'+ getStatu(状态注册表.本地文件搜索接口).find(item => item.type === 'everything').port,
+        ui: {
+            size: '64'
         }
+
     };
     const { app, dialog } = openDialog(
         `/plugins/${plugin.name}/source/UI/components/assetGalleryPanel.vue`,
@@ -39,14 +39,12 @@ function openEverythingDialog(protyle) {
 }
 function openAnytxtDialog(protyle) {
     const data = {
-        tab: {
-            data: {
-                anytxtApiLocation: 'http://localhost:9992',
-                ui: {
-                    size: '64'
-                }
-            }
+
+        anytxtApiLocation: 'http://localhost:'+getStatu(状态注册表.本地文件搜索接口).find(item => item.type === 'anytxt').port,
+        ui: {
+            size: '64'
         }
+
     };
     const { app, dialog } = openDialog(
         `/plugins/${plugin.name}/source/UI/components/assetGalleryPanel.vue`,
@@ -65,7 +63,7 @@ plugin.protyleSlash = [
         html: '<div class="b3-list-item__first"><span class="b3-list-item__text">everything 搜索文件</span><span class="b3-list-item__meta">😊</span></div>',
         id: "sacFile",
         callback: openEverythingDialog
-    },{
+    }, {
         filter: ['file', 'anytxt'],
         html: '<div class="b3-list-item__first"><span class="b3-list-item__text">anytxt 搜索文件</span><span class="b3-list-item__meta">😊</span></div>',
         id: "sacFile",

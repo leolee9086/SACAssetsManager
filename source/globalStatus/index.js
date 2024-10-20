@@ -47,6 +47,12 @@ setStatu(状态注册表.本地文件搜索接口,[
         type: 'alist'
     }*/
 ])
+export function updateStatu(key, updateFn) {
+    const currentValue = getStatu(key);
+    const newValue = updateFn(currentValue);
+    setStatu(key, newValue);
+}
+
 watchStatu(状态注册表.选中的资源,(newVal,oldVal)=>{
     console.log(newVal,oldVal)
 })
