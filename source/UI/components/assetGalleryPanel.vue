@@ -100,6 +100,7 @@ import multiple from "./common/selection/multiple.vue";
 import { shiftWithFilter } from "../../utils/array/walk.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
 import { 获取数据模型提供者类型 } from "../../data/appDataGetter.js";
+import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 const appData = toRef(inject('appData'))
 
 /**
@@ -149,12 +150,10 @@ const 创建回调并获取数据 = async () => {
         console.warn(e);
     }
 };
-
 const setupDataPush = () => {
-    const originalPush = 附件数据源数组.value.data.push;
     const uniqueExtensions = new Set();
 
-    附件数据源数组.value.data.push = function (...args) {
+    const updateExtensionsMiddleware = (args) => {
         if (!appData.value.localPath) {
             args.forEach(arg => {
                 if (arg && arg.path && arg.path.indexOf('.') >= 0) {
@@ -168,13 +167,16 @@ const setupDataPush = () => {
             });
             extensions.value = Array.from(uniqueExtensions);
         }
-        const filteredArgs = args.filter(arg => filterFunc(arg));
-        if (filteredArgs.length > 0) {
-            originalPush.apply(this, filteredArgs);
-        }
-        return true;
+        return args;
     };
+
+    const filterArgsMiddleware = (args) => {
+        return args.filter(arg => filterFunc(arg));
+    };
+
+    创建带中间件的Push方法(附件数据源数组.value.data, {}, updateExtensionsMiddleware, filterArgsMiddleware);
 };
+
 
 const initializeSize = () => {
     if (appData.value && appData.value.ui && appData.value.ui.size) {
