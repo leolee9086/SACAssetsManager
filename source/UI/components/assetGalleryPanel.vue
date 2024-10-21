@@ -71,7 +71,7 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :assetsSource="附件数据源数组" @palletAdded="palletAdded"
+            <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :assetsSource="数据缓存" @palletAdded="palletAdded"
                 :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
                 @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
                 @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
@@ -102,9 +102,8 @@ import { 获取数据模型提供者类型 } from "../../data/appDataGetter.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
 import { performSearch } from "./localApi/anytxt/anytext.js";
-
+//主要数据对象
 const appData = toRef(inject('appData'))
-
 /**
  * 监听相关事件刷新面板
  */
@@ -114,6 +113,50 @@ plugin.eventBus.on('need-refresh-gallery-panel', (e) => {
         appData.value.tagLabel ? refreshPanel() : null;
     }
 })
+
+/**
+ * 获取扩展名列表相关逻辑
+ */
+const extensions = ref([])
+const selectedExtensions = ref([])
+onMounted(() => {
+    if (appData.value.localPath) {
+        const url = endPoints.fs.path.getPathExtensions(appData.value.localPath)
+        fetch(url).then(
+            res => res.json()
+        ).then(
+            data => {
+                data.extensions.forEach(extension => extensions.value.push(extension))
+            }
+        )
+    }
+})
+watch(selectedExtensions, (newValue, oldValue) => {
+    console.log(newValue)
+
+    // 更新过滤函数以支持扩展名过滤
+    filterFunc = (item) => {
+        // 如果没有选择任何扩展名，则不过滤
+        console.log(newValue.length)
+        if (newValue.length === 0) {
+            return true;
+        }
+        // 获取文件的扩展名
+        if (item.type !== 'note') {
+            const fileExtension = item.name.split('.').pop().toLowerCase();
+
+            // 检查文件的扩展名是否在选中的扩展名列表中
+            return newValue.includes(fileExtension)
+        } else {
+            return newValue.includes('note')
+        }
+    };
+
+    refreshPanel();
+    // 在这里可以添加其他逻辑，比如更新界面或触发其他操作
+});
+
+
 /**
  * 启动之后聚焦到关键词输入框
  */
@@ -126,7 +169,41 @@ onMounted(() => {
 /**
  * 获取数据相关
  */
-const 附件数据源数组 = shallowRef({ data: [] })
+const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
+    return (数据) => {
+        if (!获取配置().localPath) {
+            let extensions=extractFileExtensions(数据)
+            extensions.forEach(
+                item=>获取扩展名缓存().push(item)
+
+            )
+        }
+        return 数据;
+    }
+};
+
+const filterArgsMiddleware = (args) => {
+    let result= args.filter(arg => filterFunc(arg));
+    return result
+};
+
+
+const 初始化数据缓存 = () => {
+    const 数据缓存 = { data: [] }
+    数据缓存.clear=()=>{
+        数据缓存.data.length=0
+    }
+    extensions.value = []
+    创建带中间件的Push方法(
+        数据缓存.data,
+        {},
+        updateExtensionsMiddleware(()=>appData.value, ()=>extensions.value),
+        filterArgsMiddleware
+    );
+    return 数据缓存
+};
+
+let 数据缓存 = shallowRef(初始化数据缓存())
 const grid = ref(null)
 let controller = new AbortController();
 let signal = controller.signal;
@@ -135,39 +212,21 @@ const filListProvided = ref(null)
 let filterFunc = () => {
     return true
 }
+
 const 创建回调并获取数据 = async () => {
-    附件数据源数组.value.data = [];
-    setupDataPush();
+    数据缓存.value.clear()
     try {
         initializeSize();
         if (filListProvided.value) {
-            附件数据源数组.value.data.push(...filListProvided.value);
+            数据缓存.value.data.push(...filListProvided.value);
         } else {
-            const dataModel = extractDataModelFromVue(appData, 附件数据源数组, $realGlob);
+            const dataModel = extractDataModelFromVue(appData, 数据缓存, $realGlob);
             await fetchDataBasedOnCondition(dataModel, signal);
         }
         nextTick(callBack);
     } catch (e) {
         console.warn(e);
     }
-};
-const setupDataPush = () => {
-    创建带中间件的Push方法(
-        附件数据源数组.value.data,
-        {},
-        updateExtensionsMiddleware,
-        filterArgsMiddleware
-    );
-};
-const updateExtensionsMiddleware = (args) => {
-    if (!appData.value.localPath) {
-        extensions.value = extractFileExtensions(args);
-    }
-    return args;
-};
-
-const filterArgsMiddleware = (args) => {
-    return args.filter(arg => filterFunc(arg));
 };
 
 
@@ -176,7 +235,7 @@ const initializeSize = () => {
         size.value = parseInt(appData.value.ui.size);
     }
 };
-const extractDataModelFromVue = (appData, 附件数据源数组, $realGlob) => {
+const extractDataModelFromVue = (appData, 数据缓存, $realGlob) => {
     return {
         dataProviderType: 获取数据模型提供者类型(appData.value),
         efuPath: appData.value.efuPath,
@@ -186,7 +245,7 @@ const extractDataModelFromVue = (appData, 附件数据源数组, $realGlob) => {
         anytxtApiLocation: appData.value.anytxtApiLocation,
         tab: appData.value.tab,
         block_id: appData.value.block_id,
-        附件数据源: 附件数据源数组.value.data,
+        附件数据源: 数据缓存.value.data,
         realGlob: $realGlob.value
     };
 };
@@ -246,7 +305,7 @@ const fetchData = async (apiLocation, searchFunction) => {
     everthingEnabled.value = enabled;
     console.log(fileList)
     if (enabled && fileList) {
-        附件数据源数组.value.data.push(...fileList);
+        数据缓存.value.data.push(...fileList);
     }
 };
 
@@ -270,45 +329,6 @@ const refreshPanel = () => {
         showPanel.value = true
     })
 }
-/**
- * 获取扩展名列表相关逻辑
- */
-const extensions = ref([])
-const selectedExtensions = ref([])
-onMounted(() => {
-    if (appData.value.localPath) {
-        const url = endPoints.fs.path.getPathExtensions(appData.value.localPath)
-        fetch(url).then(
-            res => res.json()
-        ).then(
-            data => {
-                data.extensions.forEach(extension => extensions.value.push(extension))
-            }
-        )
-    }
-})
-watch(selectedExtensions, (newValue, oldValue) => {
-
-    // 更新过滤函数以支持扩展名过滤
-    filterFunc = (item) => {
-        // 如果没有选择任何扩展名，则不过滤
-        if (newValue.length === 0) {
-            return true;
-        }
-        // 获取文件的扩展名
-        if (item.type !== 'note') {
-            const fileExtension = item.name.split('.').pop().toLowerCase();
-
-            // 检查文件的扩展名是否在选中的扩展名列表中
-            return newValue.includes(fileExtension)
-        } else {
-            return newValue.includes('note')
-        }
-    };
-
-    refreshPanel();
-    // 在这里可以添加其他逻辑，比如更新界面或触发其他操作
-});
 
 
 /**
@@ -531,7 +551,7 @@ const openMenu = (event) => {
         },
         tab: appData.value.tab,
         layout: currentLayout,
-        files: 附件数据源数组.value.data,
+        files: 数据缓存.value.data,
         data: appData.value
     })
 }
