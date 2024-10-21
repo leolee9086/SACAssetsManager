@@ -102,6 +102,8 @@ import { 获取数据模型提供者类型 } from "../../data/appDataGetter.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
 import { performSearch } from "./localApi/anytxt/anytext.js";
+import { 获取数据到缓存 } from "./galleryPanelData.js";
+
 //主要数据对象
 const appData = toRef(inject('appData'))
 /**
@@ -213,13 +215,24 @@ let filterFunc = () => {
 const 创建回调并获取数据 = async () => {
     数据缓存.value.clear()
     extensions.value =[]
+    if (appData.value.localPath) {
+        const url = endPoints.fs.path.getPathExtensions(appData.value.localPath)
+        fetch(url).then(
+            res => res.json()
+        ).then(
+            data => {
+                data.extensions.forEach(extension => extensions.value.push(extension))
+            }
+        )
+    }
     try {
         initializeSize();
         if (filListProvided.value) {
             数据缓存.value.data.push(...filListProvided.value);
         } else {
             const dataModel = extractDataModelFromVue(appData, 数据缓存, $realGlob);
-            await fetchDataBasedOnCondition(dataModel, signal);
+            const fetcher= 获取数据到缓存BasedOnCondition(dataModel, signal);
+            await fetcher()
         }
         nextTick(callBack);
     } catch (e) {
@@ -262,14 +275,14 @@ const searchByAnytxt = async (...args) => {
         return { enabled: false }
     }
 }
-const fetchDataBasedOnCondition = async (data, signal) => {
+const 获取数据到缓存BasedOnCondition =  (data, signal) => {
     const dataFetchers = {
         'efu文件列表': () => fetchEfuData(data.efuPath, data.附件数据源, callBack),
         '本地文件系统': () => 获取本地文件夹数据(data.realGlob, data.附件数据源, callBack, 1, signal),
         '思源标签': () => 获取标签列表数据(data.tagLabel, data.附件数据源, callBack, 1, signal, data.realGlob),
         '内部颜色索引': () => 获取颜色查询数据(data.color, data.附件数据源, callBack, 1, signal, data.realGlob),
-        'everything': () => fetchData(data.everythingApiLocation, searchByEverything),
-        'anytxt': () => fetchData(data.anytxtApiLocation, searchByAnytxt),
+        'everything': () => 获取数据到缓存(data.everythingApiLocation, searchByEverything,search.value,everthingEnabled,data.附件数据源),
+        'anytxt': () => 获取数据到缓存(data.anytxtApiLocation, searchByAnytxt,search.value,everthingEnabled,data.附件数据源),
         '默认': () => 处理默认数据(data.tab, data.附件数据源, async () => {
             if (data.block_id) {
                 let files = await 获取文档中的文件链接(data.block_id);
@@ -280,7 +293,7 @@ const fetchDataBasedOnCondition = async (data, signal) => {
         })
     };
     const fetcher = dataFetchers[data.dataProviderType];
-    await fetcher();
+    return fetcher
 };
 
 
@@ -297,15 +310,6 @@ const fetchEfuData = async (efuPath, dataTarget, callBack) => {
     }
 };
 
-const fetchData = async (apiLocation, searchFunction) => {
-    const url = new URL(apiLocation);
-    const { enabled, fileList } = await searchFunction(search.value, url.port, { count: 10240 });
-    everthingEnabled.value = enabled;
-    console.log(fileList)
-    if (enabled && fileList) {
-        数据缓存.value.data.push(...fileList);
-    }
-};
 
 
 
