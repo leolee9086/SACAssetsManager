@@ -97,11 +97,12 @@ import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
-import { shiftWithFilter } from "../../utils/array/walk.js";
-import { 柯里化 } from "../../utils/functions/currying.js";
 import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 获取数据模型提供者类型 } from "../../data/appDataGetter.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
+import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
+import { performSearch } from "./localApi/anytxt/anytext.js";
+
 const appData = toRef(inject('appData'))
 
 /**
@@ -129,8 +130,6 @@ const 附件数据源数组 = shallowRef({ data: [] })
 const grid = ref(null)
 let controller = new AbortController();
 let signal = controller.signal;
-import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
-import { performSearch as searchByAnytxt } from "./localApi/anytxt/anytext.js";
 const everthingEnabled = ref(false)
 const filListProvided = ref(null)
 let filterFunc = () => {
@@ -145,7 +144,7 @@ const 创建回调并获取数据 = async () => {
             附件数据源数组.value.data.push(...filListProvided.value);
         } else {
             const dataModel = extractDataModelFromVue(appData, 附件数据源数组, $realGlob);
-            await fetchDataBasedOnCondition(dataModel,signal);
+            await fetchDataBasedOnCondition(dataModel, signal);
         }
         nextTick(callBack);
     } catch (e) {
@@ -193,8 +192,20 @@ const extractDataModelFromVue = (appData, 附件数据源数组, $realGlob) => {
 };
 
 // 独立的数据获取函数
-const fetchDataBasedOnCondition = async (data,signal) => {
-    console.log(data)
+const searchByAnytxt = async (...args) => {
+    try {
+        let result = await performSearch(...args)
+        if (result) {
+            return {
+                fileList: result,
+                enabled: true
+            }
+        }
+    } catch (e) {
+        return { enabled: false }
+    }
+}
+const fetchDataBasedOnCondition = async (data, signal) => {
     const dataFetchers = {
         'efu文件列表': () => fetchEfuData(data.efuPath, data.附件数据源, callBack),
         '本地文件系统': () => 获取本地文件夹数据(data.realGlob, data.附件数据源, callBack, 1, signal),
@@ -211,7 +222,7 @@ const fetchDataBasedOnCondition = async (data,signal) => {
             nextTick(callBack);
         })
     };
-    const fetcher = dataFetchers[data.dataProviderType] ;
+    const fetcher = dataFetchers[data.dataProviderType];
     await fetcher();
 };
 
@@ -233,6 +244,7 @@ const fetchData = async (apiLocation, searchFunction) => {
     const url = new URL(apiLocation);
     const { enabled, fileList } = await searchFunction(search.value, url.port, { count: 10240 });
     everthingEnabled.value = enabled;
+    console.log(fileList)
     if (enabled && fileList) {
         附件数据源数组.value.data.push(...fileList);
     }
@@ -519,7 +531,8 @@ const openMenu = (event) => {
         },
         tab: appData.value.tab,
         layout: currentLayout,
-        files: 附件数据源数组.value.data
+        files: 附件数据源数组.value.data,
+        data: appData.value
     })
 }
 </script>

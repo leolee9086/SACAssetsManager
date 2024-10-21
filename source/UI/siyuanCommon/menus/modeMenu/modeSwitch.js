@@ -44,7 +44,7 @@ export const 模式切换菜单项=(event,assets,options)=>{
            
         ]
     }
-    options.tab.data.localPath&&result.submenu.push(
+    options.data.localPath&&result.submenu.push(
             创建模式菜单(
                 {
                     label: "批处理(实验性)",
