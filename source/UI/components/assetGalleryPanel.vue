@@ -132,8 +132,6 @@ onMounted(() => {
     }
 })
 watch(selectedExtensions, (newValue, oldValue) => {
-    console.log(newValue)
-
     // 更新过滤函数以支持扩展名过滤
     filterFunc = (item) => {
         // 如果没有选择任何扩展名，则不过滤
@@ -175,7 +173,6 @@ const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
             let extensions=extractFileExtensions(数据)
             extensions.forEach(
                 item=>获取扩展名缓存().push(item)
-
             )
         }
         return 数据;
@@ -215,6 +212,7 @@ let filterFunc = () => {
 
 const 创建回调并获取数据 = async () => {
     数据缓存.value.clear()
+    extensions.value =[]
     try {
         initializeSize();
         if (filListProvided.value) {
