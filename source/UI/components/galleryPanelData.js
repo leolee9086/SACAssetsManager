@@ -1,6 +1,6 @@
 import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
 import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据, 获取文档中的文件链接, 获取本地文件列表数据 } from "../../data/siyuanAssets.js"
-
+import {searchByAnytxt} from './localApi/anytxt/anytext.js'
 export const 获取数据到缓存 = async (接口位置, 搜索函数, 搜索, 接口启用, 数据缓存) => {
     const url = new URL(接口位置);
 
@@ -99,19 +99,3 @@ const fetchEfuData = async (efuPath, dataTarget, callBack) => {
         callBack && callBack();
     }
 };
-
-// 独立的数据获取函数
-const searchByAnytxt = async (...args) => {
-    try {
-        let result = await performSearch(...args)
-        if (result) {
-            return {
-                fileList: result,
-                enabled: true
-            }
-        }
-    } catch (e) {
-        return { enabled: false }
-    }
-}
-

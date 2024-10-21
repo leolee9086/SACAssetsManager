@@ -1,4 +1,18 @@
 import { listLocalDisks } from "../../../../data/diskInfo.js";
+export const searchByAnytxt = async (...args) => {
+    try {
+        let result = await performSearch(...args)
+        if (result) {
+            return {
+                fileList: result,
+                enabled: true
+            }
+        }
+    } catch (e) {
+        return { enabled: false }
+    }
+}
+
 
 export const performSearch = async (search, port, options = {
     host: 'localhost',
