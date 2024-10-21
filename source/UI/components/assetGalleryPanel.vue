@@ -89,7 +89,6 @@
     </div>
 </template>
 <script setup>
-import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据, 获取文档中的文件链接, 获取本地文件列表数据 } from "../../data/siyuanAssets.js"
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import { plugin } from 'runtime'
@@ -99,9 +98,7 @@ import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
-import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
-import { performSearch } from "./localApi/anytxt/anytext.js";
-import { 校验数据项扩展名, 获取数据到缓存,获取数据模型提供者类型 } from "./galleryPanelData.js";
+import { 校验数据项扩展名,解析数据模型,根据数据配置获取数据到缓存 } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
 //主要数据对象
 const appData = toRef(inject('appData'))
@@ -236,8 +233,8 @@ const 创建回调并获取数据 = async () => {
         if (filListProvided.value) {
             数据缓存.value.data.push(...filListProvided.value);
         } else {
-            const dataModel = extractDataModelFromVue(appData.value, 数据缓存.value, $realGlob.value);
-            const fetcher = 获取数据到缓存BasedOnCondition(dataModel, signal);
+            const dataModel = 解析数据模型(appData.value, 数据缓存.value, $realGlob.value,everthingEnabled);
+            const fetcher = 根据数据配置获取数据到缓存(dataModel, signal,callBack);
             await fetcher()
         }
         nextTick(callBack);
@@ -252,69 +249,7 @@ const initializeSize = () => {
         size.value = parseInt(appData.value.ui.size);
     }
 };
-const extractDataModelFromVue = (appData, 数据缓存, $realGlob) => {
-    return {
-        dataProviderType: 获取数据模型提供者类型(appData),
-        efuPath: appData.efuPath,
-        tagLabel: appData.tagLabel,
-        color: appData.color,
-        everythingApiLocation: appData.everythingApiLocation,
-        anytxtApiLocation: appData.anytxtApiLocation,
-        tab: appData.tab,
-        block_id: appData.block_id,
-        附件数据源: 数据缓存.data,
-        realGlob: $realGlob
-    };
-};
 
-// 独立的数据获取函数
-const searchByAnytxt = async (...args) => {
-    try {
-        let result = await performSearch(...args)
-        if (result) {
-            return {
-                fileList: result,
-                enabled: true
-            }
-        }
-    } catch (e) {
-        return { enabled: false }
-    }
-}
-const 获取数据到缓存BasedOnCondition = (data, signal) => {
-    const dataFetchers = {
-        'efu文件列表': () => fetchEfuData(data.efuPath, data.附件数据源, callBack),
-        '本地文件系统': () => 获取本地文件夹数据(data.realGlob, data.附件数据源, callBack, 1, signal),
-        '思源标签': () => 获取标签列表数据(data.tagLabel, data.附件数据源, callBack, 1, signal, data.realGlob),
-        '内部颜色索引': () => 获取颜色查询数据(data.color, data.附件数据源, callBack, 1, signal, data.realGlob),
-        'everything': () => 获取数据到缓存(data.everythingApiLocation, searchByEverything, search.value, everthingEnabled, data.附件数据源),
-        'anytxt': () => 获取数据到缓存(data.anytxtApiLocation, searchByAnytxt, search.value, everthingEnabled, data.附件数据源),
-        '默认': () => 处理默认数据(data.tab, data.附件数据源, async () => {
-            if (data.block_id) {
-                let files = await 获取文档中的文件链接(data.block_id);
-                获取本地文件列表数据(files, data.附件数据源, callBack, 1, signal);
-                return;
-            }
-            nextTick(callBack);
-        })
-    };
-    const fetcher = dataFetchers[data.dataProviderType];
-    return fetcher
-};
-
-
-const fetchEfuData = async (efuPath, dataTarget, callBack) => {
-    let data;
-    try {
-        data = await parseEfuContentFromFile(efuPath);
-        dataTarget.push(...data);
-        callBack && callBack();
-    } catch (e) {
-        data = [];
-    } finally {
-        callBack && callBack();
-    }
-};
 
 
 

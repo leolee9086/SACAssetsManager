@@ -1,3 +1,6 @@
+import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
+import { 获取本地文件夹数据, 获取标签列表数据, 获取颜色查询数据, 处理默认数据, 获取文档中的文件链接, 获取本地文件列表数据 } from "../../data/siyuanAssets.js"
+
 export const 获取数据到缓存 = async (接口位置, 搜索函数, 搜索, 接口启用, 数据缓存) => {
     const url = new URL(接口位置);
 
@@ -47,3 +50,68 @@ export const 获取数据模型提供者类型 = (appData) => {
         return '默认';
     }
 };
+export const 解析数据模型 = (appData, 数据缓存, $realGlob,apiEnabled) => {
+    return {
+        dataProviderType: 获取数据模型提供者类型(appData),
+        efuPath: appData.efuPath,
+        tagLabel: appData.tagLabel,
+        color: appData.color,
+        everythingApiLocation: appData.everythingApiLocation,
+        anytxtApiLocation: appData.anytxtApiLocation,
+        tab: appData.tab,
+        block_id: appData.block_id,
+        附件数据源: 数据缓存.data,
+        realGlob: $realGlob,
+        status:{
+            apiEnabled
+        }
+    };
+};
+export const 根据数据配置获取数据到缓存 = (数据模型, signal,callBack) => {
+    const dataFetchers = {
+        'efu文件列表': () => fetchEfuData(数据模型.efuPath, 数据模型.附件数据源, callBack),
+        '本地文件系统': () => 获取本地文件夹数据(数据模型.realGlob, 数据模型.附件数据源, callBack, 1, signal),
+        '思源标签': () => 获取标签列表数据(数据模型.tagLabel, 数据模型.附件数据源, callBack, 1, signal, 数据模型.realGlob),
+        '内部颜色索引': () => 获取颜色查询数据(数据模型.color, 数据模型.附件数据源, callBack, 1, signal, 数据模型.realGlob),
+        'everything': () => 获取数据到缓存(数据模型.everythingApiLocation, searchByEverything, 数据模型.realGlob.search, 数据模型.status.apiEnabled, 数据模型.附件数据源),
+        'anytxt': () => 获取数据到缓存(数据模型.anytxtApiLocation, searchByAnytxt, 数据模型.realGlob.search, 数据模型.status.apiEnabled, 数据模型.附件数据源),
+        '默认': () => 处理默认数据(数据模型.tab, 数据模型.附件数据源, async () => {
+            if (数据模型.block_id) {
+                let files = await 获取文档中的文件链接(数据模型.block_id);
+                获取本地文件列表数据(files, 数据模型.附件数据源, callBack, 1, signal);
+                return;
+            }
+            nextTick(callBack);
+        })
+    };
+    const fetcher = dataFetchers[数据模型.dataProviderType];
+    return fetcher
+};
+const fetchEfuData = async (efuPath, dataTarget, callBack) => {
+    let data;
+    try {
+        data = await parseEfuContentFromFile(efuPath);
+        dataTarget.push(...data);
+        callBack && callBack();
+    } catch (e) {
+        data = [];
+    } finally {
+        callBack && callBack();
+    }
+};
+
+// 独立的数据获取函数
+const searchByAnytxt = async (...args) => {
+    try {
+        let result = await performSearch(...args)
+        if (result) {
+            return {
+                fileList: result,
+                enabled: true
+            }
+        }
+    } catch (e) {
+        return { enabled: false }
+    }
+}
+
