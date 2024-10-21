@@ -338,7 +338,6 @@ watch(
 const palletAdded = (data) => {
     const newColors = data.map(item => item.color);
     pallet.value = addUniquePalletColors(pallet.value, newColors);
-
 }
 
 

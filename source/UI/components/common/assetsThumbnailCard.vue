@@ -53,33 +53,7 @@ background-color:var(--b3-theme-background);
                         {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
                     </div>
                 </template>
-                <div 
-                class="ariaLabel"
-                @click.right.stop="选择标签()"
-
-                :aria-label="`标签\n右键编辑\n左键打开标签面板`"
-                :style="`border:1px solid var(--b3-theme-background-light);
-                    padding:0px;
-                    margin:0px;
-                    overflow:hidden;
-                    width:${100 / (getProps(cardData.data).length + 1)}%;
-                    text-overflow:ellipsis;
-                    white-space:nowrap;`
-
-                    ">
-                    <template v-if="tags.length > 0">
-                        <span v-for="item in tags" :key="item.label" :style="tagStyle"
-                        class="ariaLabel"
-                        :aria-label="item.label"
-                        @click.right.stop="选择标签()"
-                        @click.stop="打开标签资源视图(item.label)"
-
-                        >
-                            {{ item.label.length > 6 ? item.label.substring(0, 6) + '...' : item.label }}
-                        </span>
-                    </template>
-                    <span v-else :style="noTagStyle">未标签</span>
-                </div>
+                <tagsCell :cardData="cardData" :width="`${100 / (getProps(cardData.data).length + 1)}%`"></tagsCell>
                 <div :style="`
                 display: grid;
                 width:${100 / (getProps(cardData.data).length + 1)}%;
@@ -109,8 +83,12 @@ import { plugin } from 'runtime'
 import { 表格视图阈值 } from '../../utils/threhold.js';
 import { 柯里化 } from '../../../utils/functions/currying.js';
 import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签, 获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
+import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import colorPalletButton from './pallets/colorPalletButton.vue';
 import { findTagsByFilePath } from '../../../data/tags.js';
+import tagsCell from './assetCard/tagsCell.vue';
+
+
 const props = defineProps(['cardData', 'size', 'filterColor', 'selected'])
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
@@ -129,7 +107,6 @@ const similarColor = computed(() => {
     return item ? filterColor.value : ''
 })
 
-import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 function 计算扩展名(data) {
     if (data.type === 'note') {
         return `笔记:${块类型语言对照表[data.$meta.type] || data.$meta.type}`

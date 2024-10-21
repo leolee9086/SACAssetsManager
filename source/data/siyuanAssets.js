@@ -32,9 +32,9 @@ export async function 获取标签列表数据(tagLabel, target, callback, step,
 }
 export async function 获取本地文件列表数据(fileList, target, callback, step, signal) {
     let uri = `http://localhost:${plugin.http服务端口号}/file-list-stream`
-  //  applyURIStreamJsonCompatible(uri, target, callback, step, signal)
-  const compatibleCallback = createCompatibleCallback(target, callback, step);
-  await applyURIStreamJson(uri, compatibleCallback, step, signal, { method: 'POST', body: fileList.join('\n') })
+    //  applyURIStreamJsonCompatible(uri, target, callback, step, signal)
+    const compatibleCallback = createCompatibleCallback(target, callback, step);
+    await applyURIStreamJson(uri, compatibleCallback, step, signal, { method: 'POST', body: fileList.join('\n') })
 
 }
 export async function 获取颜色查询数据(color, target, callback, step = 1, signal, globSetting) {

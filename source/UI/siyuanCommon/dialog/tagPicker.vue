@@ -70,7 +70,6 @@ const globalSelectedAssets = computed(
 watch(
     ()=>globalSelectedAssets?.value,()=>{
         appData.$dialog
-        console.log(appData.$dialog)
         const headerElement = appData.$dialog.element.querySelector('.resize__move.b3-dialog__header');
         if (headerElement) {
             const count = globalSelectedAssets.value.length;
@@ -91,7 +90,6 @@ const currentFileTags = computed(() => {
 });
 
 const toggleTagSelection = (label) => {
-    console.log(label)
     const index = selectedTags.value.indexOf(label);
     if (index === -1) {
         selectedTags.value.push(label);
