@@ -98,12 +98,11 @@ import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { extractFileExtensions } from "../../utils/fs/extension.js";
-import { 获取数据模型提供者类型 } from "../../data/appDataGetter.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 import { parseEfuContentFromFile, searchByEverything } from '../../utils/thirdParty/everything.js';
 import { performSearch } from "./localApi/anytxt/anytext.js";
-import { 获取数据到缓存 } from "./galleryPanelData.js";
-
+import { 校验数据项扩展名, 获取数据到缓存,获取数据模型提供者类型 } from "./galleryPanelData.js";
+import { 柯里化 } from "../../utils/functions/currying.js";
 //主要数据对象
 const appData = toRef(inject('appData'))
 /**
@@ -122,6 +121,7 @@ plugin.eventBus.on('need-refresh-gallery-panel', (e) => {
 const extensions = ref([])
 const selectedExtensions = ref([])
 onMounted(() => {
+    //当有本地路径时,使用接口获取文件缩略图
     if (appData.value.localPath) {
         const url = endPoints.fs.path.getPathExtensions(appData.value.localPath)
         fetch(url).then(
@@ -172,32 +172,41 @@ onMounted(() => {
 const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
     return (数据) => {
         if (!获取配置().localPath) {
-            let extensions=extractFileExtensions(数据)
+            let extensions = extractFileExtensions(数据)
             extensions.forEach(
-                item=>获取扩展名缓存().push(item)
+                item => 获取扩展名缓存().push(item)
             )
         }
         return 数据;
     }
 };
 
-const filterArgsMiddleware = (args) => {
-    let result= args.filter(arg => filterFunc(arg));
-    return result
-};
+const filterArgsMiddleware = (filterFunc) => {
+    return (args) => {
+        let result = args.filter(arg => filterFunc(arg));
+        return result
+    };
+}
 
+let filterFunc = (item) => {
+    if(!selectedExtensions.value){
+        return true
+    }else{
+        return 柯里化(校验数据项扩展名)(selectedExtensions.value)(item)
+    }
+}
 
 const 初始化数据缓存 = () => {
     const 数据缓存 = { data: [] }
-    数据缓存.clear=()=>{
-        数据缓存.data.length=0
+    数据缓存.clear = () => {
+        数据缓存.data.length = 0
     }
     extensions.value = []
     创建带中间件的Push方法(
         数据缓存.data,
         {},
-        updateExtensionsMiddleware(()=>appData.value, ()=>extensions.value),
-        filterArgsMiddleware
+        updateExtensionsMiddleware(() => appData.value, () => extensions.value),
+        filterArgsMiddleware(filterFunc)
     );
     return 数据缓存
 };
@@ -208,13 +217,10 @@ let controller = new AbortController();
 let signal = controller.signal;
 const everthingEnabled = ref(false)
 const filListProvided = ref(null)
-let filterFunc = () => {
-    return true
-}
 
 const 创建回调并获取数据 = async () => {
     数据缓存.value.clear()
-    extensions.value =[]
+    extensions.value = []
     if (appData.value.localPath) {
         const url = endPoints.fs.path.getPathExtensions(appData.value.localPath)
         fetch(url).then(
@@ -230,8 +236,8 @@ const 创建回调并获取数据 = async () => {
         if (filListProvided.value) {
             数据缓存.value.data.push(...filListProvided.value);
         } else {
-            const dataModel = extractDataModelFromVue(appData, 数据缓存, $realGlob);
-            const fetcher= 获取数据到缓存BasedOnCondition(dataModel, signal);
+            const dataModel = extractDataModelFromVue(appData.value, 数据缓存.value, $realGlob.value);
+            const fetcher = 获取数据到缓存BasedOnCondition(dataModel, signal);
             await fetcher()
         }
         nextTick(callBack);
@@ -248,16 +254,16 @@ const initializeSize = () => {
 };
 const extractDataModelFromVue = (appData, 数据缓存, $realGlob) => {
     return {
-        dataProviderType: 获取数据模型提供者类型(appData.value),
-        efuPath: appData.value.efuPath,
-        tagLabel: appData.value.tagLabel,
-        color: appData.value.color,
-        everythingApiLocation: appData.value.everythingApiLocation,
-        anytxtApiLocation: appData.value.anytxtApiLocation,
-        tab: appData.value.tab,
-        block_id: appData.value.block_id,
-        附件数据源: 数据缓存.value.data,
-        realGlob: $realGlob.value
+        dataProviderType: 获取数据模型提供者类型(appData),
+        efuPath: appData.efuPath,
+        tagLabel: appData.tagLabel,
+        color: appData.color,
+        everythingApiLocation: appData.everythingApiLocation,
+        anytxtApiLocation: appData.anytxtApiLocation,
+        tab: appData.tab,
+        block_id: appData.block_id,
+        附件数据源: 数据缓存.data,
+        realGlob: $realGlob
     };
 };
 
@@ -275,14 +281,14 @@ const searchByAnytxt = async (...args) => {
         return { enabled: false }
     }
 }
-const 获取数据到缓存BasedOnCondition =  (data, signal) => {
+const 获取数据到缓存BasedOnCondition = (data, signal) => {
     const dataFetchers = {
         'efu文件列表': () => fetchEfuData(data.efuPath, data.附件数据源, callBack),
         '本地文件系统': () => 获取本地文件夹数据(data.realGlob, data.附件数据源, callBack, 1, signal),
         '思源标签': () => 获取标签列表数据(data.tagLabel, data.附件数据源, callBack, 1, signal, data.realGlob),
         '内部颜色索引': () => 获取颜色查询数据(data.color, data.附件数据源, callBack, 1, signal, data.realGlob),
-        'everything': () => 获取数据到缓存(data.everythingApiLocation, searchByEverything,search.value,everthingEnabled,data.附件数据源),
-        'anytxt': () => 获取数据到缓存(data.anytxtApiLocation, searchByAnytxt,search.value,everthingEnabled,data.附件数据源),
+        'everything': () => 获取数据到缓存(data.everythingApiLocation, searchByEverything, search.value, everthingEnabled, data.附件数据源),
+        'anytxt': () => 获取数据到缓存(data.anytxtApiLocation, searchByAnytxt, search.value, everthingEnabled, data.附件数据源),
         '默认': () => 处理默认数据(data.tab, data.附件数据源, async () => {
             if (data.block_id) {
                 let files = await 获取文档中的文件链接(data.block_id);
@@ -544,7 +550,6 @@ const sorter = ref({
 })
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 import { 表格视图阈值 } from '../utils/threhold.js';
-import { imgeWithConut } from "../utils/decorations/iconGenerator.js";
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
     打开附件组菜单(event, assets, {
