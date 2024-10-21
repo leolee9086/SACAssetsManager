@@ -8,7 +8,7 @@
                     white-space:nowrap;`
 
         ">
-        <template v-if="tags.length > 0">
+        <template v-if="tags[0]">
             <span v-for="item in tags" :key="item.label" :style="tagStyle" class="ariaLabel" :aria-label="item.label"
                 @click.right.stop="选择标签()" @click.stop="打开标签资源视图(item.label)">
                 {{ item.label.length > 6 ? item.label.substring(0, 6) + '...' : item.label }}
@@ -20,16 +20,35 @@
 </template>
 
 <script setup>
-import { onMounted,ref } from 'vue';
-import { findTagsByFilePath } from '../../../../data/tags.js';
+import { onMounted, ref, nextTick } from 'vue';
+import { findTagsByFilePath, findTagsByNoteID } from '../../../../data/tags.js';
 import { 选择标签 } from '../../../siyuanCommon/dialog/tagPicker.js';
 import { 打开标签资源视图 } from '../../../siyuanCommon/tabs/assetsTab.js';
-const props = defineProps(['cardData','width']);
-const {cardData}=props
-const {width} = props
+const props = defineProps(['cardData', 'width']);
+const { cardData } = props
+const { width } = props
 const tags = ref([])
 onMounted(
     () => {
+        if (cardData.data && cardData.data.type === 'note') {
+            findTagsByNoteID(cardData.data.id).then(
+                data => {
+                    nextTick(() => {
+                        data.forEach(
+                            tagData => {
+                                tags.value.push(
+                                    {
+                                        label: tagData
+                                    }
+                                )
+                            }
+                        )
+
+                    })
+
+                }
+            )
+        }
         if (cardData.data && cardData.data.path) {
             tags.value = findTagsByFilePath(cardData.data.path)
         }

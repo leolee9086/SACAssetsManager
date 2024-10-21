@@ -94,6 +94,19 @@ export function findTagsByFilePath(filePath) {
     }
     return relatedTags;
 }
+export async function findTagsByNoteID(id) {
+    let sql = `select tag from blocks where id = "${id}" `;
+    let result = await kernelApi.sql({ stmt: sql });
+    let tags = result[0].tag.split(' ');
+    let cleanedTags = [];
+
+    for (let i = 0; i < tags.length; i++) {
+        let tagLabel = tags[i].replace(/^#|#$/g, '');
+        tagLabel&&cleanedTags.push(tagLabel);
+    }
+
+    return cleanedTags;
+}
 export async  function removeFilesFromTag(fileNames, tagLabel) {
     try {
         if (plugin.tags) {
