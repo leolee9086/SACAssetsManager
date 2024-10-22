@@ -74,11 +74,35 @@ async function 处理索引文件(indexFiles, dirPath, root) {
         }
     }
 }
-
 async function 创建备份文件(filePath, data) {
     const today = new Date().toISOString().split('T')[0];
     const backupPath = filePath.replace('.json', `-${today}.json`);
     await fs.promises.writeFile(backupPath, JSON.stringify(data));
+
+    // 获取所有备份文件
+    const dirPath = path.dirname(filePath);
+    const files = await fs.promises.readdir(dirPath);
+    const backupFiles = files.filter(file => file.startsWith(path.basename(filePath, '.json')) && file.endsWith('.json'));
+
+    // 按日期排序备份文件
+    backupFiles.sort((a, b) => {
+        const dateRegex = /-(\d{4}-\d{2}-\d{2})\.json$/;
+        const matchA = a.match(dateRegex);
+        const matchB = b.match(dateRegex);
+
+        // 确保匹配成功
+        if (matchA && matchB) {
+            const dateA = matchA[1];
+            const dateB = matchB[1];
+            return new Date(dateB) - new Date(dateA);
+        }
+        return 0; // 如果匹配失败，保持原顺序
+    });
+
+    // 删除多余的备份文件，保留最近三个
+    for (let i = 3; i < backupFiles.length; i++) {
+        await fs.promises.unlink(path.join(dirPath, backupFiles[i]));
+    }
 }
 
 function 更新颜色索引(data, root) {
