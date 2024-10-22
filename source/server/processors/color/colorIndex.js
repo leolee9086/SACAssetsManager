@@ -1,6 +1,7 @@
 import { diffColor } from "../../../utils/color/Kmeans.js"
 import { getCachePath } from '../fs/cached/fs.js'
 import { 修正路径分隔符号为反斜杠, 修正路径分隔符号为正斜杠 } from "../../../utils/fs/fixPath.js"
+const path = require('path')
 let colorIndex = []
 let fileIndex = []
 let loaded = {}
@@ -27,6 +28,83 @@ export async function 根据路径查找并加载颜色索引(path) {
     从路径加载颜色索引(cachePath, root)
 }
 export async function 从路径加载颜色索引(cachePath, root) {
+    const path = require('path');
+
+    try {
+        if (loaded[cachePath]) {
+            return;
+        }
+        const dirPath = path.dirname(cachePath) + '\\';
+        const indexFiles = await 获取索引文件(dirPath);
+
+        if (indexFiles.length === 0) {
+            console.log('没有找到索引文件', cachePath);
+            loaded[cachePath] = true;
+            return;
+        }
+
+        await 处理索引文件(indexFiles, dirPath, root);
+        loaded[cachePath] = true;
+
+        await 清理颜色索引(colorIndex);
+    } catch (e) {
+        console.error('从路径加载颜色索引失败', e, cachePath, root);
+    }
+}
+
+async function 获取索引文件(dirPath) {
+    const files = await fs.promises.readdir(dirPath);
+    return files.filter(file => file.startsWith("colorIndex") && file.endsWith('_chunk.json'));
+}
+
+async function 处理索引文件(indexFiles, dirPath, root) {
+    for (const file of indexFiles) {
+        const filePath = path.join(dirPath, file);
+        if (!loaded[filePath]) {
+            if (fs.existsSync(filePath)) {
+                console.log('从', filePath, '加载缓存');
+                loaded[filePath] = true;
+
+                const data = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
+                await 创建备份文件(filePath, data);
+                更新颜色索引(data, root);
+            } else {
+                loaded[filePath] = true;
+            }
+        }
+    }
+}
+
+async function 创建备份文件(filePath, data) {
+    const today = new Date().toISOString().split('T')[0];
+    const backupPath = filePath.replace('.json', `-${today}.json`);
+    await fs.promises.writeFile(backupPath, JSON.stringify(data));
+}
+
+function 更新颜色索引(data, root) {
+    for (let item of data) {
+        item.assets = item.assets && item.assets.map(asset => {
+            if (asset.path.startsWith(root)) {
+                return asset;
+            }
+            return { ...asset, path: 修正路径分隔符号为正斜杠(path.join(root, asset.path)) };
+        });
+        if (item.assets) {
+            colorIndex.push(item);
+            item.assets.forEach(
+                asset => {
+                    fileIndex[asset.path] = fileIndex[asset.path] || [];
+                    fileIndex[asset.path].push({
+                        color: item.color,
+                        percent: asset.percent,
+                        count: asset.count
+                    });
+                }
+            );
+        }
+    }
+}
+/*export async function 从路径加载颜色索引(cachePath, root) {
     const path = require('path')
 
     try {
@@ -91,7 +169,7 @@ export async function 从路径加载颜色索引(cachePath, root) {
     } catch (e) {
         console.error('从路径加载颜色索引失败', e, cachePath, root);
     }
-}
+}*/
 
 
 export async function 添加到颜色索引(colorItem, assetPath) {

@@ -54,21 +54,9 @@ background-color:var(--b3-theme-background);
                     </div>
                 </template>
                 <tagsCell :cardData="cardData" :width="`${100 / (getProps(cardData.data).length + 1)}%`"></tagsCell>
-                <div :style="`
-                display: grid;
-                width:${100 / (getProps(cardData.data).length + 1)}%;
-                max-width:${100 / (getProps(cardData.data).length + 1)}%;
-                grid-template-columns: repeat(auto-fill, minmax(16px, 1fr));`">
-                    <template v-for="colorItem in pallet">
-                        <colorPalletButton :colorItem="colorItem"></colorPalletButton>
-                    </template>
-                </div>
+                <colorPalletCell  :cardData="cardData" :width="`${100 / (getProps(cardData.data).length + 1)}%`"></colorPalletCell>
             </div>
-            <div v-if="size >= 表格视图阈值">
-                <template v-for="colorItem in pallet">
-                    <colorPalletButton :colorItem="colorItem"></colorPalletButton>
-                </template>
-            </div>
+            <colorPalletCell   v-if="size >= 表格视图阈值" :cardData="cardData" width="100%"></colorPalletCell>
         </div>
     </div>
 </template>
@@ -85,9 +73,11 @@ import { 柯里化 } from '../../../utils/functions/currying.js';
 import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签, 获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import colorPalletButton from './pallets/colorPalletButton.vue';
-import { findTagsByFilePath } from '../../../data/tags.js';
-import tagsCell from './assetCard/tagsCell.vue';
 
+import { findTagsByFilePath } from '../../../data/tags.js';
+
+import tagsCell from './assetCard/tagsCell.vue';
+import colorPalletCell from '../common/assetCard/paletteCell.vue'
 
 const props = defineProps(['cardData', 'size', 'filterColor', 'selected'])
 const { cardData } = props
