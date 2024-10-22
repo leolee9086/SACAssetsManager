@@ -91,7 +91,6 @@ async function 更新目录索引(root) {
     api = api.crawl(root)
     api.withPromise().then(
         async (results) => {
-            console.log(results)
             globalTaskQueue.start()
             let fixed = new Set(results.map(item => item.replace(/\\/g, '/')));
             let dbResults = await 查找子文件夹(root);

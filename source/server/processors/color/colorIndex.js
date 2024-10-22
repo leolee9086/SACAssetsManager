@@ -82,7 +82,7 @@ async function 创建备份文件(filePath, data) {
     // 获取所有备份文件
     const dirPath = path.dirname(filePath);
     const files = await fs.promises.readdir(dirPath);
-    const backupFiles = files.filter(file => file.startsWith(path.basename(filePath, '.json')) && file.endsWith('.json'));
+    const backupFiles = files.filter(file => file.startsWith(path.basename(filePath, '.json')) && file.endsWith('.json')&&!file.endsWith('chunk.json'));
 
     // 按日期排序备份文件
     backupFiles.sort((a, b) => {
