@@ -27,7 +27,7 @@ background-color:var(--b3-theme-background);
 
         </div>
         <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
-            v-if="showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true' :onload="(e) => 更新图片尺寸(e, cardData)"
+            v-if="showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true' :onload="(e) => handleImageLoad(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size, cardData.data)" />
         <div :style="$计算素材详情容器样式" ref="detailContainer">
             {{ size > 表格视图阈值 ? cleanAssetPath(cardData.data) : '' }}
@@ -176,34 +176,15 @@ const buildCardProtyle = (element) => {
         }
     )
 }
-function 根据目标宽度计算新高度(原始高度, 原始宽度, 目标宽度, 表格视图阈值) {
-    const 缩放因子 = 原始高度 / 目标宽度;
-    const 新高度 = 原始宽度 / 缩放因子;
 
-    if (目标宽度 < 表格视图阈值) {
-        return {
-            cardHeight: 目标宽度,
-            imageHeight: 新高度
-        };
-    } else {
-        return {
-            cardHeight: 新高度 + 36,
-            imageHeight: 新高度
-        };
-    }
+import { 更新图片尺寸 } from '../../utils/layoutComputer/masonry/dataItem.js';
+function handleImageLoad(e,cardData) {
+    更新图片尺寸(e, cardData,size.value ,表格视图阈值,({ width, height }) => {
+        cardHeight.value = height;
+        imageHeight.value = height;
+        emit('updateSize', { width, height });
+    });
 }
-
-function 更新图片尺寸(e, cardData) {
-    const previewer = e.target;
-    const { naturalWidth, naturalHeight } = previewer;
-    const { cardHeight: 新卡片高度, imageHeight: 新图片高度 } = 根据目标宽度计算新高度(naturalWidth, naturalHeight, size.value, 表格视图阈值);
-
-    cardHeight.value = 新卡片高度;
-    imageHeight.value = 新图片高度;
-    emit('updateSize', { width: cardData.width, height: 新卡片高度 });
-}
-
-
 import { 计算素材缩略图样式, 计算素材详情容器样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
