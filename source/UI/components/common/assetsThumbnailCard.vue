@@ -72,8 +72,6 @@ import { 表格视图阈值 } from '../../utils/threhold.js';
 import { 柯里化 } from '../../../utils/functions/currying.js';
 import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签, 获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
-import colorPalletButton from './pallets/colorPalletButton.vue';
-
 import { findTagsByFilePath } from '../../../data/tags.js';
 
 import tagsCell from './assetCard/tagsCell.vue';
@@ -153,10 +151,7 @@ let fn = async () => {
 }
 onMounted(() => {
     showImage.value = true
-
     idleCallbackId = requestIdleCallback(fn, { timeout: 300 })
-
-    //    idleCallbackId = setTimeout(fn, 300);
 });
 onBeforeUnmount(() => {
     cancelIdleCallback(idleCallbackId);
@@ -181,23 +176,6 @@ const buildCardProtyle = (element) => {
         }
     )
 }
-const noTagStyle = {
-    color: 'red',
-    fontSize: '12px'
-};
-const tagStyle = {
-    display: 'inline-block',
-    backgroundColor: 'var(--b3-theme-background-light)',
-    color: 'black',
-    padding: '2px 4px',
-    margin: '2px',
-    borderRadius: '4px',
-    fontSize: '12px',
-    maxWidth: '6ch',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap'
-};
 function 根据目标宽度计算新高度(原始高度, 原始宽度, 目标宽度, 表格视图阈值) {
     const 缩放因子 = 原始高度 / 目标宽度;
     const 新高度 = 原始宽度 / 缩放因子;
@@ -227,8 +205,6 @@ function 更新图片尺寸(e, cardData) {
 
 
 import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
-import { 选择标签 } from '../../siyuanCommon/dialog/tagPicker.js';
-import { 打开标签资源视图 } from '../../siyuanCommon/tabs/assetsTab.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
