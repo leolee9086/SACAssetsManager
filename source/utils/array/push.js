@@ -36,7 +36,6 @@ export function 创建带中间件的Push方法(array, { ignoreErrors = false } 
                 break; // 如果忽略错误，跳出中间件循环
             }
         }
-        console.log(args)
         return originalPush.apply(this, args);
     };
 }

@@ -204,7 +204,7 @@ function 更新图片尺寸(e, cardData) {
 }
 
 
-import { 计算素材缩略图样式, 计算素材详情容器样式, 计算素材颜色按钮样式 } from './assetStyles.js';
+import { 计算素材缩略图样式, 计算素材详情容器样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
