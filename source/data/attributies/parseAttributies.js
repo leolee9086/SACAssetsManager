@@ -1,3 +1,5 @@
+import { 柯里化 } from '../../utils/functions/currying.js'
+
 const numberParser = (value) => {
     const num = Number(value)
     if (isNaN(num)) {
@@ -209,4 +211,5 @@ export function 获取属性显示定义(排除属性列表,文件系统内部�
       return attributeInfo ? attributeInfo.show : true;
     });
   }
-  
+  export const 瀑布流视图排除属性列表 =  ['id', 'type', 'index', 'indexInColumn', 'width', 'height'];
+  export const 获取瀑布流视图属性定义 =柯里化(获取属性显示定义)(瀑布流视图排除属性列表)(文件系统内部属性表)

@@ -10,7 +10,7 @@
     position:${size > 表格视图阈值 ? 'absolute' : 'relative'};
     top: ${cardData.width / 24}px;
     left: ${cardData.width / 24}px;
-    max-width: ${genMaxWidth()};
+    max-width: ${根据阈值计算最大宽度(size)};
     max-height: 1.5em;
     border-radius: 5px;
 background-color:var(--b3-theme-background);
@@ -40,12 +40,12 @@ background-color:var(--b3-theme-background);
                 width:100%
                 `
                 ">
-                <template v-for="prop in getProps(cardData.data)">
+                <template v-for="prop in 获取瀑布流视图属性定义(cardData.data)">
                     <div v-if="prop && (文件系统内部属性表[prop] ? 文件系统内部属性表[prop].show : true)" :style="`border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     overflow:hidden;
-                    width:${100 / (getProps(cardData.data).length + 1)}%;
+                    width:${100 / (获取瀑布流视图属性定义(cardData.data).length + 1)}%;
                     text-overflow:ellipsis;
                     white-space:nowrap;`
                         " class="ariaLabel"
@@ -53,8 +53,8 @@ background-color:var(--b3-theme-background);
                         {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
                     </div>
                 </template>
-                <tagsCell :cardData="cardData" :width="`${100 / (getProps(cardData.data).length + 1)}%`"></tagsCell>
-                <colorPalletCell  :cardData="cardData" :width="`${100 / (getProps(cardData.data).length + 1)}%`"></colorPalletCell>
+                <tagsCell :cardData="cardData" :width="`${100 / (获取瀑布流视图属性定义(cardData.data).length + 1)}%`"></tagsCell>
+                <colorPalletCell  :cardData="cardData" :width="`${100 / (获取瀑布流视图属性定义(cardData.data).length + 1)}%`"></colorPalletCell>
             </div>
             <colorPalletCell   v-if="size >= 表格视图阈值" :cardData="cardData" width="100%"></colorPalletCell>
         </div>
@@ -66,9 +66,8 @@ import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
-import { 表格视图阈值 } from '../../utils/threhold.js';
-import { 柯里化 } from '../../../utils/functions/currying.js';
-import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签, 获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
+import { 表格视图阈值,根据阈值计算最大宽度 } from '../../utils/threhold.js';
+import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签,获取瀑布流视图属性定义 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
 import { 更新图片尺寸 } from '../../utils/layoutComputer/masonry/dataItem.js';
@@ -100,16 +99,6 @@ function 计算扩展名(data) {
     }
     return size.value > 表格视图阈值 ? data.path.split('.').pop() : ''
 }
-let 排除属性列表 = ['id', 'type', 'index', 'indexInColumn', 'width', 'height'];
-const getProps = 柯里化(获取属性显示定义)(排除属性列表)(文件系统内部属性表)
-const genMaxWidth = () => {
-    if (size.value < 表格视图阈值) {
-        return `100%`
-    } else {
-        return `${size.value}px`
-    }
-}
-
 let idleCallbackId;
 let protyle
 const tags = ref([])
