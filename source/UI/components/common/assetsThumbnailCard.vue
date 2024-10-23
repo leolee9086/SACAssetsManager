@@ -64,16 +64,15 @@ background-color:var(--b3-theme-background);
 import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick } from 'vue';
 import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
-import { clientApi } from '../../../asyncModules.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
-import { plugin } from 'runtime'
 import { 表格视图阈值 } from '../../utils/threhold.js';
 import { 柯里化 } from '../../../utils/functions/currying.js';
 import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签, 获取属性显示定义 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
-
+import { 更新图片尺寸 } from '../../utils/layoutComputer/masonry/dataItem.js';
+import { 根据块ID创建protyle } from '../../../utils/siyuanUI/protyle/build.js';
 import tagsCell from './assetCard/tagsCell.vue';
 import colorPalletCell from '../common/assetCard/paletteCell.vue'
 
@@ -131,7 +130,7 @@ let fn = async () => {
     if (cardData.data.type === 'note' && cardData.width > 300) {
         showIframe.value = true
         nextTick(() => {
-            protyle = buildCardProtyle(protyleContainer.value.firstElementChild)
+            protyle = 根据块ID创建protyle(protyleContainer.value.firstElementChild,cardData.data.id)
             showImage.value = false
             const resizeObserver = new ResizeObserver((entries) => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
@@ -140,7 +139,6 @@ let fn = async () => {
 
                 }
                 emit('updateSize', { width: cardData.width, height: cardHeight.value })
-
             });
             resizeObserver.observe(protyleContainer.value);
         })
@@ -162,22 +160,6 @@ onBeforeUnmount(() => {
         }
     )
 });
-const buildCardProtyle = (element) => {
-    return new clientApi.Protyle(
-        plugin.app,
-        element,
-        {
-            blockId: cardData.data.id,
-            render: {
-                breadcrumb: true,
-                background: true,
-                title: true
-            }
-        }
-    )
-}
-
-import { 更新图片尺寸 } from '../../utils/layoutComputer/masonry/dataItem.js';
 function handleImageLoad(e,cardData) {
     更新图片尺寸(e, cardData,size.value ,表格视图阈值,({ width, height }) => {
         cardHeight.value = height;
