@@ -125,7 +125,6 @@ let fn = async () => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
                 if (size.value < 表格视图阈值) {
                     cardHeight.value = protyle.protyle.contentElement.scrollHeight
-
                 }
                 emit('updateSize', { width: cardData.width, height: cardHeight.value })
             });

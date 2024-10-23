@@ -78,46 +78,34 @@ export const buildStepCallback = (stepCallback) => {
 
 const fs = require('fs')
 
-export const statWithNew = (path) => {
-    return new Promise((resolve, reject) => {
-
-
-        path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
-        try {
-            fs.stat(path, async (error, stat) => {
-                if (error) {
-                    console.error(error)
-                    resolve()
-                    return
-                }
-                /* let result = await 查找并解析文件状态(path)
-                 if(result&&result.updateTime>new Date(stat.mtime).getTime()-5000){
-                     console.log('时间不足')
-                     return
-                 }*/
-                stat.name = path.split('/').pop()
-                stat.path = path
-                if (stat.isFile()) {
-                    stat.type = 'file'
-                }
-                if (stat.isDirectory()) {
-                    stat.type = 'dir'
-                }
-                if (stat.isSymbolicLink()) {
-                    stat.type = 'link'
-                }
-                await 写入缩略图缓存行(path, Date.now(), stat)
-                resolve()
-
-            })
-
-        } catch (e) {
-            console.warn('获取文件状态失败', path, e)
-            resolve()
-
-            return undefined
+export const statWithNew = async (path) => {
+    path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
+    try {
+        if (! fs.existsSync(path)) {
+            删除文件颜色记录(path);
+            删除缩略图缓存行(path);
+            return;
         }
-    })
+        try {
+            const stat = await fs.promises.stat(path);
+            stat.name = path.split('/').pop();
+            stat.path = path;
+            if (stat.isFile()) {
+                stat.type = 'file';
+            }
+            if (stat.isDirectory()) {
+                stat.type = 'dir';
+            }
+            if (stat.isSymbolicLink()) {
+                stat.type = 'link';
+            }
+            await 写入缩略图缓存行(path, Date.now(), stat);
+        } catch (error) {
+            console.error(error);
+        }
+    } catch (e) {
+        console.warn('获取文件状态失败', path, e);
+    }
 }
 export const statWithCatch = async (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');

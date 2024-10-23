@@ -11,6 +11,9 @@ export function getLoader(imagePath, loaderID,loaders) {
     loader = loader || new commonLoader()
     return loader
 }
+export  function getCommonLoader(){
+    return new commonLoader() 
+}
 function getLoaderByID(loaderID,loaders) {
     return loaders.find(item => item.id === loaderID)
 }

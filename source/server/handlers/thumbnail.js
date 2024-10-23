@@ -8,9 +8,10 @@ import {
     生成缩略图响应,
     生成默认缩略图路径
 } from '../middlewares/defaultIcon.js'
+import { buildCache, statWithCatch } from '../middlewares/runtime_cache.js'
+import { 获取哈希并写入数据库 } from '../processors/fs/stat.js'
 router.get('/', async (req, res, next) => {
     globalTaskQueue.paused = true
-    console.log(req, res)
     try {
         await next()
     } catch (e) {
@@ -33,7 +34,14 @@ router.post('/upload', upload.single('image'), async (req, res, next) => {
             return res.status(400).json({ error: '没有上传文件' });
         }
         const thumbnailPath = await 生成默认缩略图路径(path || localPath)
-        require('fs').renameSync(file.path, thumbnailPath)
+        // 使用 copyFileSync 和 unlinkSync 代替 renameSync
+        require('fs').copyFileSync(file.path, thumbnailPath);
+        require('fs').unlinkSync(file.path);
+        const tumbnailCache = buildCache('thumbnailCache')
+        const stat = await statWithCatch(path||localPath)
+        const rawBuffer = require('fs').readFileSync(thumbnailPath)
+        const hash = await 获取哈希并写入数据库(stat)
+        tumbnailCache.set(hash,rawBuffer)
         // 这里可以添加将缩略图路径保存到数据库的逻辑
         res.json({ success: true, thumbnailPath });
     } catch (error) {

@@ -3,7 +3,9 @@ let _inTernalLoderPaths = [
     '../internalGeneraters/svg.js',
     '../internalGeneraters/sharp.js',
     '../internalGeneraters/systermThumbnailWin64.js',
-    '../internalGeneraters/sy.js'
+    '../internalGeneraters/sy.js',
+    '../internalGeneraters/d5m.js'
+
 ]
 let inTernalLoderPaths = _inTernalLoderPaths.map(
     url=>{

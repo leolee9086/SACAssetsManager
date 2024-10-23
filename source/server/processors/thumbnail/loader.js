@@ -6,7 +6,7 @@ import { 获取哈希并写入数据库 } from '../fs/stat.js'
 import { noThumbnailList, imageExtensions, 是否不需要单独缩略图 } from './utils/lists.js'
 import { globalTaskQueue } from '../queue/taskQueue.js'
 import { 内置缩略图生成器序列 } from './loaders/internal.js'
-import { getLoader } from './loaders/query.js'
+import { getCommonLoader, getLoader } from './loaders/query.js'
 import { getCachePath } from '../fs/cached/fs.js'
 
 const sharp = require('sharp')
@@ -36,7 +36,7 @@ const 创建缩略图生成上下文 = async (imagePath, loaderID = null) => {
 
     let loader = await getLoader(imagePath, loaderID, 内置缩略图生成器序列)
     if (!loader) {
-        return null
+        loader = await getCommonLoader()
     }
     const stat = await statWithCatch(imagePath)
     if (!stat) {
@@ -113,9 +113,14 @@ async function 查询扩展名缩略图硬盘缓存(ctx, callback) {
     }
 }
 async function 计算缩略图(ctx, callback) {
-    console.log(`使用${ctx.loader}为${ctx.fixedPath}生成缩略图到${ctx.targetPath}`)
+    console.log(`为${ctx.fixedPath}生成缩略图到${ctx.targetPath}`,ctx.loader)
+    try{
     let thumbnailBuffer = await ctx.loader.generateThumbnail(ctx.fixedPath, ctx.targetPath)
     callback(thumbnailBuffer)
+    }catch(e){
+        let thumbnailBuffer = await getCommonLoader().generateThumbnail(ctx.fixedPath, ctx.targetPath,e)
+        callback(thumbnailBuffer)
+    }
 }
 export const 生成缩略图 = async (imagePath, loaderID = null) => {
     const ctx = await 创建缩略图生成上下文(imagePath, loaderID)
@@ -256,7 +261,10 @@ export async function genThumbnailColor(filePath, loaderID = null) {
     if (!thumbnailBuffer) {
         return null
     }
+    console.log(thumbnailBuffer)
+
     const colors = await getColor(thumbnailBuffer, filePath)
+    console.log(colors)
     return colors
 }
 export async function diffFileColor(filePath, color) {
