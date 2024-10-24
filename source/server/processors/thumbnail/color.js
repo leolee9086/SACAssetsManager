@@ -4,7 +4,7 @@ import { 添加到颜色索引 } from '../color/colorIndex.js'
 import { awaitForEach } from '../../../utils/array/walk.js'
 const sharp = require('sharp')
 export async function getColor(buffer, filePath) {
-    if (!buffer.type && !buffer.isImage) {
+    if (!buffer.type && !buffer.isImage&&!Buffer.isBuffer(buffer)) {
         return
     }
     if (
