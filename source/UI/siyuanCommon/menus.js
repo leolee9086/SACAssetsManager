@@ -199,9 +199,36 @@ eventBus.on(
                 return span && span.textContent === 'sql'
             }
         )
+        let embedBlock = blockElements.filter(
+            item => {
+                return item.getAttribute('data-type')==="NodeBlockQueryEmbed"
+            }
+        )
+        if(embedBlock[0]){
+            menu.addItem({
+                label: "在assetsManager中打开嵌入块",
+                click() {
+                    embedBlock.forEach(
+                        block => 打开附件面板(
+                            {
+                                icon: "iconAssets",
+                                title: "资源:嵌入块",
+                                data: {
+                                    type: 'sql',
+                                    stmt: block.getAttribute('data-content')
+                                },
+
+                            }
+                        )
+                    )
+
+                }
+            })
+
+        }
         if (sqlBlock[0]) {
             menu.addItem({
-                label: "在assetsManager中打开",
+                label: "在assetsManager中打开sql代码查询结果",
                 click() {
                     sqlBlock.forEach(
                         block => 打开附件面板(
@@ -220,5 +247,6 @@ eventBus.on(
                 }
             })
         }
+        
     }
 )
