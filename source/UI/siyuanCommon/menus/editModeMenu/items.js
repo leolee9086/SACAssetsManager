@@ -1,10 +1,10 @@
-import { thumbnail } from "../../../../server/endPoints.js"
+import { thumbnail, uploadThumbnail } from "../../../../server/endPoints.js"
 import { 从文件加载菜单项目 } from "../utils/menuItemloader.js"
 import { plugin } from "../../../../pluginSymbolRegistry.js"
 import { 选择标签 } from "../../dialog/tagPicker.js"
-export const 编辑附件标签组=(assets)=>{
+export const 编辑附件标签组 = (assets) => {
     return {
-        'label':plugin.翻译`编辑${assets.length}个文件的标签`,
+        'label': plugin.翻译`编辑${assets.length}个文件的标签`,
         'click': () => {
             选择标签()
         }
@@ -12,7 +12,7 @@ export const 编辑附件标签组=(assets)=>{
 }
 export const 重新计算文件颜色 = (assets) => {
     return {
-        'label':plugin.翻译`重新计算${assets.length}个文件的颜色`,
+        'label': plugin.翻译`重新计算${assets.length}个文件的颜色`,
         'click': () => {
             assets.forEach(
                 asset => {
@@ -23,10 +23,10 @@ export const 重新计算文件颜色 = (assets) => {
         }
     }
 }
-export const [d5a内置缩略图,d5a内置缩略图单次确认]=await 从文件加载菜单项目(import.meta.resolve('./formats/d5a.js'))
+export const [d5a内置缩略图, d5a内置缩略图单次确认] = await 从文件加载菜单项目(import.meta.resolve('./formats/d5a.js'))
 export const 上传缩略图 = (assets) => {
     return {
-        'label':plugin.翻译`上传缩略图`,
+        'label': plugin.翻译`上传缩略图`,
         'click': () => {
             assets.forEach(asset => {
                 // 创建文件输入元素
@@ -36,24 +36,7 @@ export const 上传缩略图 = (assets) => {
 
                 fileInput.onchange = (event) => {
                     const file = event.target.files[0];
-                    if (file) {
-                        const formData = new FormData();
-                        formData.append('image', file);
-                        formData.append('assetPath', asset.path);
-
-                        let url = thumbnail.upload(asset.type, asset.path);
-                        fetch(url, {
-                            method: 'POST',
-                            body: formData
-                        })
-                            .then(response => response.json())
-                            .then(data => {
-                                console.log('缩略图上传成功:', data);
-                            })
-                            .catch(error => {
-                                console.error('缩略图上传失败:', error);
-                            });
-                    }
+                    uploadThumbnail(asset, file)
                 };
 
                 // 触发文件选择对话框
@@ -74,22 +57,7 @@ export const 从剪贴板上传缩略图 = (assets) => {
                             if (clipboardItem.types.includes('image/png') || clipboardItem.types.includes('image/jpeg')) {
                                 clipboardItem.getType('image/png')
                                     .then(blob => {
-                                        const formData = new FormData();
-                                        formData.append('image', blob, 'clipboard_image.png');
-                                        formData.append('assetPath', asset.path);
-
-                                        let url = thumbnail.upload(asset.type, asset.path);
-                                        fetch(url, {
-                                            method: 'POST',
-                                            body: formData
-                                        })
-                                            .then(response => response.json())
-                                            .then(data => {
-                                                console.log('剪贴板缩略图上传成功:', data);
-                                            })
-                                            .catch(error => {
-                                                console.error('剪贴板缩略图上传失败:', error);
-                                            });
+                                        uploadThumbnail(asset, blob)
                                     });
                                 break;
                             }

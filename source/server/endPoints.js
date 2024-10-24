@@ -81,3 +81,21 @@ export const metaRecords = {
         return await fetch(`${baseUrl}?${params.toString()}`)
     }
 }
+
+export  function uploadThumbnail(asset, file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('assetPath', asset.path);
+    let url = upload(asset.type, asset.path);
+    fetch(url, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('缩略图上传成功:', data);
+    })
+    .catch(error => {
+        console.error('缩略图上传失败:', error);
+    });
+}
