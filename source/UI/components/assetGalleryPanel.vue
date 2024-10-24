@@ -6,9 +6,10 @@
             </div>
             <div class=" fn__flex ">
                 <div class="fn__space fn__flex-1"></div>
-                <apiIcon v-if="() => appData.value.everythingApiLocation ? true : false" :apiEnabled="everthingEnabled"></apiIcon>
+                <apiIcon v-if="() => appData.value.everythingApiLocation ? true : false" :apiEnabled="everthingEnabled">
+                </apiIcon>
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
-                    class="b3-slider fn__block" max="1024" min="32" step="16" type="range">
+                    class="b3-slider fn__block" :max="$max" min="32" step="1" type="range">
                 <div class="fn__space fn__flex-1"></div>
                 <input v-if="!everthingEnabled" v-model="maxCount" style="box-sizing: border-box;width:100px;"
                     :value="1000" type="number">
@@ -89,7 +90,7 @@ import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
-import { 校验数据项扩展名,解析数据模型,根据数据配置获取数据到缓存 } from "./galleryPanelData.js";
+import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存 } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
 //主要数据对象
 const appData = toRef(inject('appData'))
@@ -177,9 +178,9 @@ const filterArgsMiddleware = (filterFunc) => {
 }
 
 let filterFunc = (item) => {
-    if(!selectedExtensions.value){
+    if (!selectedExtensions.value) {
         return true
-    }else{
+    } else {
         return 柯里化(校验数据项扩展名)(selectedExtensions.value)(item)
     }
 }
@@ -223,8 +224,8 @@ const 创建回调并获取数据 = async () => {
         if (filListProvided.value) {
             数据缓存.value.data.push(...filListProvided.value);
         } else {
-            const dataModel = 解析数据模型(appData.value, 数据缓存.value, $realGlob.value,everthingEnabled);
-            const fetcher = 根据数据配置获取数据到缓存(dataModel, signal,callBack);
+            const dataModel = 解析数据模型(appData.value, 数据缓存.value, $realGlob.value, everthingEnabled);
+            const fetcher = 根据数据配置获取数据到缓存(dataModel, signal, callBack);
             await fetcher()
         }
         nextTick(callBack);
@@ -237,7 +238,7 @@ const 创建回调并获取数据 = async () => {
 const initializeSize = () => {
     if (appData.value && appData.value.ui && appData.value.ui.size) {
         size.value = parseInt(appData.value.ui.size);
-        
+
     }
 };
 
@@ -332,15 +333,19 @@ const palletAdded = (data) => {
 
 //缩略图大小
 const size = ref(250)
-
-const $size = computed(
+const $max = computed(
     ()=>{
-        let raw= parseInt(size.value)
-        root.value?raw= Math.min(raw,root.value.getBoundingClientRect().width-20):null
-        let columnCount 
-        root.value&&(columnCount= 根据宽度和尺寸计算列数和边距(root.value.getBoundingClientRect().width,raw,表格视图阈值).columnCount);
-         columnCount===1&&(raw>表格视图阈值)?raw=root.value.getBoundingClientRect().width-20:null
-         return raw
+        return grid.value?grid.value.getContainerWidth():1024
+    }
+)
+const $size = computed(
+    () => {
+        let raw = parseInt(size.value)
+        grid.value ? raw = Math.min(raw, grid.value.getContainerWidth() - 20) : null
+        let columnCount
+        grid.value && (columnCount = 根据宽度和尺寸计算列数和边距(grid.value.getContainerWidth(), raw, 表格视图阈值).columnCount);
+        columnCount === 1 && (raw > 表格视图阈值) ? raw = grid.value.getContainerWidth() - 20 : null
+        return raw
     }
 )
 //最大显示数量

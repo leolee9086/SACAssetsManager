@@ -292,7 +292,8 @@ async function 确认初始化界面并排序(total) {
 }
 defineExpose({
     dataCallBack: 确认初始化界面并排序,
-    getColumnCount:()=>columnCount.value
+    getColumnCount:()=>columnCount.value,
+    getContainerWidth:()=>scrollContainer.value.clientWidth
 })
 
 onMounted(async () => {
