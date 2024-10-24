@@ -235,7 +235,7 @@ const 列数和边距监听器 = async () => {
         return
     }
     计算列数和边距(scrollContainer.value.clientWidth)
-    columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, size.value / 6, [], reactive))
+    columnCount.value && 布局对象.value && (布局对象.value = 布局对象.value.rebuild(columnCount.value, size.value, gutter(), [], reactive))
     emitLayoutChange()
     可见卡片组.value = []
     nextTick(
@@ -267,7 +267,9 @@ watch(
 
 
 const mounted = ref(null)
-
+const gutter = ()=>{
+    return columnCount.value===1?10 :size.value/6
+}
 //排序函数
 let oldsize
 let lastSort = Date.now()
@@ -277,7 +279,7 @@ async function 确认初始化界面并排序(total) {
     }
     上报统计数据(total)
     mounted.value = true
-    布局对象.value = 布局对象.value || 创建瀑布流布局(columnCount.value, size.value, size.value / 6, [], reactive)
+    布局对象.value = 布局对象.value || 创建瀑布流布局(columnCount.value, size.value, gutter(), [], reactive)
     if (布局对象.value && 布局对象.value.layout.length !== oldsize && Date.now() - lastSort >= 10) {
         oldsize = 布局对象.value.layout.length
         布局对象.value = 布局对象.value.sort(sorter.value.fn)
@@ -315,6 +317,7 @@ onMounted(async () => {
  * 计算布局使用的列宽和边距
  */
 import { 根据宽度和尺寸计算列数和边距 } from "../../utils/layoutComputer/masonry/columnAndPadding.js";
+import { computed } from "../../../../static/vue.esm-browser.js";
 const 计算列数和边距 = (width) => {
     const result = 根据宽度和尺寸计算列数和边距(width, size.value, 表格视图阈值);
     columnCount.value = result.columnCount;

@@ -6,17 +6,7 @@
             </div>
             <div class=" fn__flex ">
                 <div class="fn__space fn__flex-1"></div>
-                <span>
-                    <svg v-if="() => appData.value.everythingApiLocation ? true : false" class="icon-green icon-overlay"
-                        :style="{
-                            width: '20px',
-                            height: '20px',
-                            color: everthingEnabled ? 'rgb(253, 128, 0)' : 'red'
-                        }
-                            ">
-                        <use xlink:href="#iconSearch"></use>
-                    </svg>
-                </span>
+                <apiIcon v-if="() => appData.value.everythingApiLocation ? true : false" :apiEnabled="everthingEnabled"></apiIcon>
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
                     class="b3-slider fn__block" max="1024" min="32" step="16" type="range">
                 <div class="fn__space fn__flex-1"></div>
@@ -77,7 +67,7 @@
                 @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
                 @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
-                :size="parseInt(size)">
+                :size="$size">
             </assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
                 (layoutCountTotal + '个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded
@@ -91,6 +81,7 @@
 <script setup>
 import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
+import apiIcon from './galleryPanel/apiIcon.vue';
 import { plugin } from 'runtime'
 import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
@@ -214,7 +205,6 @@ let controller = new AbortController();
 let signal = controller.signal;
 const everthingEnabled = ref(false)
 const filListProvided = ref(null)
-
 const 创建回调并获取数据 = async () => {
     数据缓存.value.clear()
     extensions.value = []
@@ -247,6 +237,7 @@ const 创建回调并获取数据 = async () => {
 const initializeSize = () => {
     if (appData.value && appData.value.ui && appData.value.ui.size) {
         size.value = parseInt(appData.value.ui.size);
+        
     }
 };
 
@@ -309,9 +300,7 @@ import { 从滚轮事件计算 } from '../utils/scroll.js';
 const layoutCountTotal = ref(0)
 const rawSearch = ref('');
 const paddingLR = ref(100)
-
 let searchTimer = null;
-
 watch(rawSearch, (data) => {
     // 每次 rawSearch 变化时，清除之前的定时器
     clearTimeout(searchTimer);
@@ -343,8 +332,15 @@ const palletAdded = (data) => {
 
 //缩略图大小
 const size = ref(250)
+const $size = computed(
+    ()=>{
+        let raw= parseInt(size.value)
+        root.value?raw= Math.min(raw,root.value.getBoundingClientRect().width-20):null
+        return raw
+    }
+)
 //最大显示数量
-const root = ref('null')
+const root = ref(null)
 const layoutCount = reactive({ found: 0, loaded: 0 })
 let currentLayout = reactive({})
 let currentLayoutOffsetTop = 0
@@ -416,8 +412,8 @@ const updateSelection = (event) => {
         selectionBox.value.endY = event.y;
         const galleryContainer = root.value.querySelector('.gallery_container');
         const layoutRect = galleryContainer.getBoundingClientRect();
-        const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, size.value)
-        selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, size.value < 表格视图阈值)
+        const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, $size.value)
+        selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, $size.value < 表格视图阈值)
         selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
         clearSelectionWithLayout(currentLayout.value)
         updateSelectionStatus(selectedItems.value, event)
@@ -430,8 +426,8 @@ const endSelection = (event) => {
     selectionBox.value.endY = event.y;
     const galleryContainer = root.value.querySelector('.gallery_container');
     const layoutRect = galleryContainer.getBoundingClientRect();
-    const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, size.value)
-    selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, size.value < 表格视图阈值)
+    const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, $size.value)
+    selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, $size.value < 表格视图阈值)
     selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
     clearSelectionWithLayout(currentLayout.value)
     updateSelectionStatus(selectedItems.value, event)
