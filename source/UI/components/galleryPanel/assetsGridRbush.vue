@@ -294,15 +294,6 @@ defineExpose({
     dataCallBack: 确认初始化界面并排序
 })
 
-const 定长加载 = (阈值) => {
-    let 校验函数 = data => data && data.id
-    let 加载回调 = () => { 更新可见区域(true) }
-    从数据源定量加载数据(阈值, 布局对象.value, 附件数据源数组.data, 校验函数, 加载回调)
-}
-
-
-
-
 onMounted(async () => {
     nextTick(
         () => {
@@ -311,13 +302,10 @@ onMounted(async () => {
         }
     )
 })
-
-
 /**
  * 计算布局使用的列宽和边距
  */
 import { 根据宽度和尺寸计算列数和边距 } from "../../utils/layoutComputer/masonry/columnAndPadding.js";
-import { computed } from "../../../../static/vue.esm-browser.js";
 const 计算列数和边距 = (width) => {
     const result = 根据宽度和尺寸计算列数和边距(width, size.value, 表格视图阈值);
     columnCount.value = result.columnCount;
