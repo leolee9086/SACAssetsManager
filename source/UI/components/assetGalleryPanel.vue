@@ -80,7 +80,7 @@
     </div>
 </template>
 <script setup>
-import { ref, inject, computed, nextTick, watch, toRef, onMounted } from 'vue'
+import { ref, inject, computed, nextTick, watch, toRef, onMounted,onUnmounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import apiIcon from './galleryPanel/apiIcon.vue';
 import { plugin } from 'runtime'
@@ -333,11 +333,30 @@ const palletAdded = (data) => {
 
 //缩略图大小
 const size = ref(250)
-const $max = computed(
-    ()=>{
-        return grid.value?grid.value.getContainerWidth():1024
+
+const $max = ref(1024);
+
+onMounted(() => {
+    const resizeObserver = new ResizeObserver(() => {
+        let result =root.value?.getBoundingClientRect().width
+        if(result){
+            result=result/2-result/6
+        }
+        $max.value = result || 1024;
+        if(parseInt(size.value)>$max.value){
+            size.value = $max.value
+        }
+    });
+
+    if (root.value) {
+        resizeObserver.observe(root.value);
     }
-)
+
+    onUnmounted(() => {
+        resizeObserver.disconnect();
+    });
+});
+
 const $size = computed(
     () => {
         let raw = parseInt(size.value)

@@ -74,7 +74,6 @@ export const d5a内置缩略图 = (assets) => {
                         if (writeIcon) {
                             const success = await 修改d5a缩略图(asset.path, iconPath, {
                                 onSuccess: ()=>kernelApi.pushMsg({'msg':`成功将缩略图${iconPath}写入 ${asset.path}`}),
-
                                 onError:(error)=>kernelApi.pushErrMsg({'msg':`写入缩略图到 ${asset.path} 失败:${error}`})
                             })
                             if (success) {
