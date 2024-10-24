@@ -291,7 +291,8 @@ async function 确认初始化界面并排序(total) {
     })
 }
 defineExpose({
-    dataCallBack: 确认初始化界面并排序
+    dataCallBack: 确认初始化界面并排序,
+    getColumnCount:()=>columnCount.value
 })
 
 onMounted(async () => {
@@ -311,6 +312,7 @@ const 计算列数和边距 = (width) => {
     columnCount.value = result.columnCount;
     paddingLR.value = result.paddingLR;
     emit('paddingChange', paddingLR.value);
+    emit('columnCountChange', columnCount.value);
 }
 </script>
 <style scoped>

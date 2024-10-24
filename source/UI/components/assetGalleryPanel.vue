@@ -332,11 +332,15 @@ const palletAdded = (data) => {
 
 //缩略图大小
 const size = ref(250)
+
 const $size = computed(
     ()=>{
         let raw= parseInt(size.value)
         root.value?raw= Math.min(raw,root.value.getBoundingClientRect().width-20):null
-        return raw
+        let columnCount 
+        root.value&&(columnCount= 根据宽度和尺寸计算列数和边距(root.value.getBoundingClientRect().width,raw,表格视图阈值).columnCount);
+         columnCount===1&&(raw>表格视图阈值)?raw=root.value.getBoundingClientRect().width-20:null
+         return raw
     }
 )
 //最大显示数量
@@ -480,6 +484,7 @@ const sorter = ref({
 })
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 import { 表格视图阈值 } from '../utils/threhold.js';
+import { 根据宽度和尺寸计算列数和边距 } from '../utils/layoutComputer/masonry/columnAndPadding.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)
     打开附件组菜单(event, assets, {
