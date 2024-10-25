@@ -2,12 +2,13 @@
     <div class="thumbnail-card-content" :style="`width:100%;
     border:none;
     border-radius: ${cardData.width / 24}px;
-    height:${size < 表格视图阈值 ? size : cardHeight}px;
+    height:${displayMode === LAYOUT_ROW ? size : cardHeight}px;
     background-color:${firstColorString};
-    display:${size < 表格视图阈值 ? 'flex' : 'inline-block'};
+    display:flex;
+    flex-direction:${displayMode}
     `">
-        <div v-if="size > 表格视图阈值" :style="`
-    position:${size > 表格视图阈值 ? 'absolute' : 'relative'};
+        <div v-if="displayMode === LAYOUT_COLUMN" :style="`
+    position:${displayMode === LAYOUT_COLUMN ? 'absolute' : 'relative'};
     top: ${cardData.width / 24}px;
     left: ${cardData.width / 24}px;
     max-width: ${根据阈值计算最大宽度(size)};
@@ -27,11 +28,12 @@ background-color:var(--b3-theme-background);
 
         </div>
         <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
-            v-if="showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true' :onload="(e) => handleImageLoad(e, cardData)"
+            v-if="showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true'
+            :onload="(e) => handleImageLoad(e, cardData)"
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size, cardData.data)" />
         <div :style="$计算素材详情容器样式" ref="detailContainer">
-            {{ size > 表格视图阈值 ? cleanAssetPath(cardData.data) : '' }}
-            <div v-if="size < 表格视图阈值" :style="`
+            {{ displayMode === LAYOUT_COLUMN ? cleanAssetPath(cardData.data) : '' }}
+            <div v-if="displayMode === LAYOUT_ROW" :style="`
                 color:${similarColor ? rgb数组转字符串(similarColor) : ''};
                 height:${size}px;
                 display:flex;
@@ -41,7 +43,7 @@ background-color:var(--b3-theme-background);
                 `
                 ">
                 <template v-for="prop in tableViewAttributes">
-                    <div v-if="prop &&tableViewAttributes.includes(prop) " :style="`border:1px solid var(--b3-theme-background-light);
+                    <div v-if="prop && tableViewAttributes.includes(prop)" :style="`border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     overflow:hidden;
@@ -54,9 +56,10 @@ background-color:var(--b3-theme-background);
                     </div>
                 </template>
                 <tagsCell :cardData="cardData" :width="`${100 / (tableViewAttributes.length + 2)}%`"></tagsCell>
-                <colorPalletCell  :cardData="cardData" :width="`${100 / (tableViewAttributes.length + 2)}%`"></colorPalletCell>
+                <colorPalletCell :cardData="cardData" :width="`${100 / (tableViewAttributes.length + 2)}%`">
+                </colorPalletCell>
             </div>
-            <colorPalletCell   v-if="size >= 表格视图阈值" :cardData="cardData" width="100%"></colorPalletCell>
+            <colorPalletCell v-if="displayMode === LAYOUT_COLUMN" :cardData="cardData" width="100%"></colorPalletCell>
         </div>
     </div>
 </template>
@@ -66,17 +69,26 @@ import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
-import { 表格视图阈值,根据阈值计算最大宽度 } from '../../utils/threhold.js';
-import {  解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
+import { 表格视图阈值, 根据阈值计算最大宽度,LAYOUT_COLUMN,LAYOUT_ROW,根据尺寸获取显示模式 } from '../../utils/threhold.js';
+import { 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
 import { 更新图片尺寸 } from '../../utils/layoutComputer/masonry/dataItem.js';
 import { 根据块ID创建protyle } from '../../../utils/siyuanUI/protyle/build.js';
 import tagsCell from './assetCard/tagsCell.vue';
 import colorPalletCell from '../common/assetCard/paletteCell.vue'
+/**
+ * 计算显示模式，当小于表格视图阈值时，切换为表格显示
+ */
 
-const props = defineProps(['cardData', 'size', 'filterColor', 'selected','tableViewAttributes'])
-const tableViewAttributes=toRef(props,'tableViewAttributes')
+// ... existing code ...
+
+const displayMode = computed(() => 根据尺寸获取显示模式(size.value));
+
+
+
+const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes'])
+const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
@@ -98,7 +110,7 @@ function 计算扩展名(data) {
     if (data.type === 'note') {
         return `笔记:${块类型语言对照表[data.$meta.type] || data.$meta.type}`
     }
-    return size.value > 表格视图阈值 ? data.path.split('.').pop() : ''
+    return displayMode===LAYOUT_COLUMN ? data.path.split('.').pop() : ''
 }
 let idleCallbackId;
 let protyle
@@ -120,11 +132,11 @@ let fn = async () => {
     if (cardData.data.type === 'note' && cardData.width > 300) {
         showIframe.value = true
         nextTick(() => {
-            protyle = 根据块ID创建protyle(protyleContainer.value.firstElementChild,cardData.data.id)
+            protyle = 根据块ID创建protyle(protyleContainer.value.firstElementChild, cardData.data.id)
             showImage.value = false
             const resizeObserver = new ResizeObserver((entries) => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
-                if (size.value < 表格视图阈值) {
+                if (displayMode===LAYOUT_ROW) {
                     cardHeight.value = protyle.protyle.contentElement.scrollHeight
                 }
                 emit('updateSize', { width: cardData.width, height: cardHeight.value })
@@ -149,8 +161,8 @@ onBeforeUnmount(() => {
         }
     )
 });
-function handleImageLoad(e,cardData) {
-    更新图片尺寸(e, cardData,size.value ,表格视图阈值,({ width, height }) => {
+function handleImageLoad(e, cardData) {
+    更新图片尺寸(e, cardData, size.value, 表格视图阈值, ({ width, height }) => {
         cardHeight.value = height;
         imageHeight.value = height;
         emit('updateSize', { width, height });
