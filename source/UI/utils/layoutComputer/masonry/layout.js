@@ -39,7 +39,82 @@ export function 二分查找可见素材(位置序列, 查找起点, 窗口高�
     return { start: 起始索引, end: 截止索引 };
 }
 
+export function 创建分段瀑布流布局(columnCount, columnWidth, gutter, datas, reactive, staticSize) {
+    const MAX_ITEMS_PER_LAYOUT = 1000;
+    const layouts = [];
+    let currentYOffset = 0; // 当前的Y偏移量
+    // 将数据分段
+    for (let i = 0; i < datas.length; i += MAX_ITEMS_PER_LAYOUT) {
+        const segmentData = datas.slice(i, i + MAX_ITEMS_PER_LAYOUT);
+        const layout = 创建单个瀑布流布局(columnCount, columnWidth, gutter, segmentData, reactive, staticSize);
+        
+        // 调整每个布局的Y偏移
+        layout.layout.forEach(item => {
+            item.y += currentYOffset;
+            item.minY += currentYOffset;
+            item.maxY += currentYOffset;
+        });
 
+        // 更新当前的Y偏移量
+        const maxColumnHeight = Math.max(...layout.columns.map(column => column.y));
+        currentYOffset += maxColumnHeight;
+
+        layouts.push(layout);
+    }
+
+    // 获取总高度
+    const getTotalHeight = () => {
+        if (layouts.length === 0) return 0;
+        const lastLayout = layouts[layouts.length - 1];
+        return Math.max(...lastLayout.columns.map(column => column.y));
+    };
+
+    // 对外接口不变
+    return {
+        layout: {
+            length: layouts.reduce((total, layout) => total + layout.layout.length, 0) // 计算总数据数量
+        },
+        subLayouts: layouts,
+        add: (data, height, width, selected) => {
+            // 添加到最后一个布局
+            const lastLayout = layouts[layouts.length - 1];
+            if (lastLayout.layout.length < MAX_ITEMS_PER_LAYOUT) {
+                lastLayout.add(data, height, width, selected);
+            } else {
+                // 创建新的布局
+                const newLayout = 创建单个瀑布流布局(columnCount, columnWidth, gutter, [data], reactive, staticSize);
+                layouts.push(newLayout);
+            }
+        },
+        update: (index, newHeight) => {
+            // 找到对应的布局并更新
+            let currentIndex = index;
+            for (const layout of layouts) {
+                if (currentIndex < layout.layout.length) {
+                    layout.update(currentIndex, newHeight);
+                    break;
+                }
+                currentIndex -= layout.layout.length;
+            }
+        },
+        rebuild: (columnCount, columnWidth, gutter, datas, reactive) => {
+            return 创建瀑布流布局(columnCount, columnWidth, gutter, datas, reactive, staticSize);
+        },
+        search: (可见框) => {
+            // 合并所有布局的搜索结果
+            return layouts.flatMap(layout => layout.search(可见框));
+        },
+        searchByRect: (可见框) => {
+            // 合并所有布局的搜索结果
+            return layouts.flatMap(layout => layout.searchByRect(可见框));
+        },
+        sort: (sorter) => {
+            // 对每个布局进行排序
+            layouts.forEach(layout => layout.sort(sorter));
+        },
+        getTotalHeight // 添加获取总高度的方法
+    };
+}
 export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, reactive, staticSize) {
     const layout = [];
     const columns = [];
@@ -250,7 +325,10 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         search: (...args) => search(...args),
         searchByRect,
         timeStep,
-        sort: (...args) => sort(...args)
+        sort: (...args) => sort(...args),
+        getTotalHeight:()=>{
+            return Math.max(...columns.map(column => column.y))
+        }
     };
 }
 

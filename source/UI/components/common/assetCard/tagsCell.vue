@@ -4,6 +4,8 @@
                     margin:0px;
                     overflow:hidden;
                     width:${width};
+                    min-width:${width};
+                    max-width:${width};
                     text-overflow:ellipsis;
                     white-space:nowrap;`
 
@@ -20,13 +22,13 @@
 </template>
 
 <script setup>
-import { onMounted, ref, nextTick } from 'vue';
+import { onMounted, ref,toRef, nextTick } from 'vue';
 import { findTagsByFilePath, findTagsByNoteID } from '../../../../data/tags.js';
 import { 选择标签 } from '../../../siyuanCommon/dialog/tagPicker.js';
 import { 打开标签资源视图 } from '../../../siyuanCommon/tabs/assetsTab.js';
 const props = defineProps(['cardData', 'width']);
 const { cardData } = props
-const { width } = props
+const  width  =toRef(props,'width')
 const tags = ref([])
 onMounted(
     () => {

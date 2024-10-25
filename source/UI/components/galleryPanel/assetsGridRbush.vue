@@ -9,6 +9,7 @@
                         v-if="卡片数据 && 卡片数据.data" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
                         <assetsThumbnailCard :selected="卡片数据.selected" :size="size"
+                        :tableViewAttributes="tableViewAttributes"
                             @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])" :cardData="卡片数据" @palletAdded="palletAdded"
                             :filterColor="filterColor">
                         </assetsThumbnailCard>
@@ -51,7 +52,8 @@ const 计算卡片样式 = (卡片数据) => {
 //let 附件数据源数组 =shallowRef([])
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'assetsSource'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'assetsSource','tableViewAttributes'])
+const tableViewAttributes=toRef(props,'tableViewAttributes')
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
@@ -140,7 +142,7 @@ const 更新布局容器高度 = () => {
     try {
         containerHeight.value = Math.min(
             Math.max(
-                ...布局对象.value.columns.map(column => column.y),
+                布局对象.value.getTotalHeight(),
                 (附件数据源数组.data.length + 布局对象.value.layout.length) * size.value / columnCount.value
             ),
             1024000
@@ -207,6 +209,7 @@ const 更新可见区域 = (flag) => {
         const 可见框 = 计算可见框(scrollTop, clientHeight, clientWidth)
         更新可见卡片(可见框)
         加载更多卡片(scrollContainer.value, 布局对象.value, 附件数据源数组.data)
+        更新布局容器高度()
         上报统计数据()
     } catch (e) {
         console.warn(e)

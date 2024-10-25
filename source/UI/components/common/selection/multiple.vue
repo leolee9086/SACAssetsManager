@@ -1,15 +1,15 @@
 <template>
     <div ref="dropdownContainer">
         <div @click="toggleDropdown" class="multi-select">
-            <span v-if="selectedExtensions.length === 0">扩展名</span>
+            <span v-if="selectedExtensions.length === 0">{{ placeholder }}</span> <!-- 使用参数 -->
             <span v-else>{{ selectedExtensions.join(', ') }}</span>
             <span class="arrow" :class="{ open: dropdownOpen }">▼</span>
         </div>
         <div v-if="dropdownOpen" class="dropdown">
-            <input type="text" v-model="searchQuery" placeholder="搜索扩展名" class="search-input" />
+            <input type="text" v-model="searchQuery" :placeholder="searchPlaceholder" class="search-input" /> <!-- 使用参数 -->
             <div>
                 <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected" />
-                <label>全选/取消全选</label>
+                <label>{{ selectAllLabel }}</label> <!-- 使用参数 -->
             </div>
             <div v-for="extension in filteredExtensions" :key="extension" class="dropdown-item">
                 <input type="checkbox" :value="extension" v-model="selectedExtensions" />
@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted,watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { defineProps, defineEmits } from 'vue';
 
 const props = defineProps({
@@ -31,6 +31,18 @@ const props = defineProps({
     modelValue: {
         type: Array,
         default: () => []
+    },
+    placeholder: {
+        type: String,
+        default: '扩展名' // 默认占位符
+    },
+    searchPlaceholder: {
+        type: String,
+        default: '搜索扩展名' // 默认搜索框占位符
+    },
+    selectAllLabel: {
+        type: String,
+        default: '全选/取消全选' // 默认全选标签
     }
 });
 const emit = defineEmits(['update:modelValue']);

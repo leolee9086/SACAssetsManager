@@ -40,12 +40,12 @@ background-color:var(--b3-theme-background);
                 width:100%
                 `
                 ">
-                <template v-for="prop in 获取瀑布流视图属性定义(cardData.data)">
-                    <div v-if="prop && (文件系统内部属性表[prop] ? 文件系统内部属性表[prop].show : true)" :style="`border:1px solid var(--b3-theme-background-light);
+                <template v-for="prop in tableViewAttributes">
+                    <div v-if="prop &&tableViewAttributes.includes(prop) " :style="`border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     overflow:hidden;
-                    width:${100 / (获取瀑布流视图属性定义(cardData.data).length + 1)}%;
+                    width:${100 / (tableViewAttributes.length + 2)}%;
                     text-overflow:ellipsis;
                     white-space:nowrap;`
                         " class="ariaLabel"
@@ -53,8 +53,8 @@ background-color:var(--b3-theme-background);
                         {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
                     </div>
                 </template>
-                <tagsCell :cardData="cardData" :width="`${100 / (获取瀑布流视图属性定义(cardData.data).length + 1)}%`"></tagsCell>
-                <colorPalletCell  :cardData="cardData" :width="`${100 / (获取瀑布流视图属性定义(cardData.data).length + 1)}%`"></colorPalletCell>
+                <tagsCell :cardData="cardData" :width="`${100 / (tableViewAttributes.length + 2)}%`"></tagsCell>
+                <colorPalletCell  :cardData="cardData" :width="`${100 / (tableViewAttributes.length + 2)}%`"></colorPalletCell>
             </div>
             <colorPalletCell   v-if="size >= 表格视图阈值" :cardData="cardData" width="100%"></colorPalletCell>
         </div>
@@ -67,7 +67,7 @@ import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
 import { 表格视图阈值,根据阈值计算最大宽度 } from '../../utils/threhold.js';
-import { 文件系统内部属性表, 解析文件内部属性显示, 解析文件属性名标签,获取瀑布流视图属性定义 } from '../../../data/attributies/parseAttributies.js';
+import {  解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
 import { 更新图片尺寸 } from '../../utils/layoutComputer/masonry/dataItem.js';
@@ -75,7 +75,8 @@ import { 根据块ID创建protyle } from '../../../utils/siyuanUI/protyle/build.
 import tagsCell from './assetCard/tagsCell.vue';
 import colorPalletCell from '../common/assetCard/paletteCell.vue'
 
-const props = defineProps(['cardData', 'size', 'filterColor', 'selected'])
+const props = defineProps(['cardData', 'size', 'filterColor', 'selected','tableViewAttributes'])
+const tableViewAttributes=toRef(props,'tableViewAttributes')
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')

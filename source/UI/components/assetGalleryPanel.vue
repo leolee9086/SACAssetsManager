@@ -45,6 +45,12 @@
                 <div class="fn__space fn__flex-1"></div>
                 <div>
                     <multiple v-model="selectedExtensions" :options="extensions"></multiple>
+                
+                </div>
+                <div>
+                    <multiple v-model="selectedAttributes" placeholder="显示的属性"  :options="Attributes"></multiple>
+
+
                 </div>
             </div>
             <div class="fn__space fn__flex-1"></div>
@@ -58,7 +64,12 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :assetsSource="数据缓存" @palletAdded="palletAdded"
+            <assetsGridRbush 
+
+            @ready="创建回调并获取数据" 
+            ref="grid" 
+            :tableViewAttributes="selectedAttributes"
+            :assetsSource="数据缓存" @palletAdded="palletAdded"
                 :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
                 @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
                 @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
@@ -122,7 +133,6 @@ watch(selectedExtensions, (newValue, oldValue) => {
     // 更新过滤函数以支持扩展名过滤
     filterFunc = (item) => {
         // 如果没有选择任何扩展名，则不过滤
-        console.log(newValue.length)
         if (newValue.length === 0) {
             return true;
         }
@@ -154,12 +164,19 @@ onMounted(() => {
 /**
  * 获取数据相关
  */
+ const 扩展名map = new Map();
+
 const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
     return (数据) => {
         if (!获取配置().localPath) {
             let extensions = extractFileExtensions(数据)
             extensions.forEach(
-                item => 获取扩展名缓存().push(item)
+                item => {
+                    if(!扩展名map.get(item)){
+                        获取扩展名缓存().push(item)
+                        扩展名map.set(item,true)
+                    }
+                }
             )
         }
         return 数据;
@@ -180,6 +197,19 @@ let filterFunc = (item) => {
         return 柯里化(校验数据项扩展名)(selectedExtensions.value)(item)
     }
 }
+const Attributes =ref([])
+const 属性Map = new Map();
+const selectedAttributes=ref([])
+// ... existing code ...
+const 提取属性中间件 = (数据缓存) => {
+    数据缓存.forEach(item => {
+        if (!属性Map.has(item.type)) {
+            属性Map.set(item.type, Object.keys(item));
+        }
+    });
+    Attributes.value=Array.from(属性Map.values()).flat();
+    return 数据缓存
+};
 
 const 初始化数据缓存 = () => {
     const 数据缓存 = { data: [] }
@@ -190,6 +220,7 @@ const 初始化数据缓存 = () => {
     创建带中间件的Push方法(
         数据缓存.data,
         {},
+        提取属性中间件,
         updateExtensionsMiddleware(() => appData.value, () => extensions.value),
         filterArgsMiddleware(filterFunc)
     );
