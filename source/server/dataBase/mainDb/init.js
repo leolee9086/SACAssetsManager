@@ -15,9 +15,19 @@ async function 初始化数据库(dbPath, root) {
     if (dbs[root]) {
         return dbs[root]
     }
-    if (!locks[root]) {
-        locks[root] = await 创建文件锁(dbPath)
+    const lockDb = async () => {
+        try {
+            locks[root] = await 创建文件锁(dbPath);
+            console.log(`成功创建文件锁: ${dbPath}`);
+        } catch (error) {
+            console.error(`创建文件锁失败: ${dbPath}`, error);
+            throw new Error(`无法创建文件锁: ${dbPath}`);
+        }
     }
+    if (!locks[root]) {
+        await lockDb()
+    }
+
     const readOnly = !locks[root]
     dbs[root] = new Database(dbPath, { readonly: readOnly });
     dbs[root].pragma('journal_mode = WAL');
@@ -25,7 +35,6 @@ async function 初始化数据库(dbPath, root) {
     dbs[root].pragma('cache_size = 1000');
     dbs[root].pragma('temp_store = MEMORY');
     if (!readOnly) {
-
         dbs[root].exec(`
         CREATE TABLE IF NOT EXISTS thumbnails (
             fullName TEXT PRIMARY KEY,
@@ -46,15 +55,55 @@ async function 初始化数据库(dbPath, root) {
     }
     dbs.readOnly = readOnly
     // 添加关闭数据库的方法，同时释放文件锁
-    dbs[root].closeAndUnlock = async () => {
-        dbs[root].close()
+    dbs[root].lock = async () => {
         if (!readOnly) {
-            await 释放文件锁(dbPath)
-            locks[root] = false
+            await lockDb()
         }
-        delete dbs[root]
-    }
+    };
+    let unlockTimeout;
+
+    dbs[root].unlock = async () => {
+        if (!readOnly) {
+            // 清除之前的计时器
+            if (unlockTimeout) {
+                clearTimeout(unlockTimeout);
+            }
+
+            // 设置新的计时器，延迟10秒后执行解锁操作
+            unlockTimeout = setTimeout(async () => {
+                try {
+                    await 释放文件锁(dbPath);
+                    console.log(`成功释放文件锁: ${dbPath}`);
+                    locks[root] = false;
+                } catch (error) {
+                    console.error(`释放文件锁失败: ${dbPath}`, error);
+                }
+            }, 10000); // 10秒延迟
+        } else {
+            console.warn(`数据库以只读方式启动，无法释放文件锁: ${dbPath}`);
+        }
+    };
+    dbs[root].closeAndUnlock = async () => {
+        dbs[root].close();
+        if (!readOnly) {
+            try {
+                await 释放文件锁(dbPath);
+                console.log(`成功释放文件锁: ${dbPath}`);
+                locks[root] = false;
+            } catch (error) {
+                console.error(`释放文件锁失败: ${dbPath}`, error);
+            }
+        }
+        delete dbs[root];
+    };
+    // 添加 reloadDb 方法
+    dbs[root].reload = async () => {
+        console.log(`重新加载数据库: ${dbPath}`);
+        await dbs[root].closeAndUnlock(); // 关闭并解锁现有数据库
+        return await 初始化数据库(dbPath, root); // 重新初始化数据库
+    };
     dbs[root].root = root
+    dbs[root].unlock()
     return dbs[root]
 }
 

@@ -47,6 +47,7 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
         return
     }
     if(!磁盘缩略图数据库.readOnly){
+        await 磁盘缩略图数据库.lock()
         const hash = 计算哈希(stat)
         const stmt = 磁盘缩略图数据库.prepare(`
             INSERT OR REPLACE INTO thumbnails 
@@ -76,8 +77,10 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
             转换为相对磁盘根目录路径(fullName),
             hash
         );
+        await 磁盘缩略图数据库.unlock()
         return result
-    
+    }else{
+        磁盘缩略图数据库.reload()
     }
     return
 }

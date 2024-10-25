@@ -35,15 +35,31 @@ export async function 创建文件锁(dbPath) {
 }
 
 export async function 释放文件锁(dbPath) {
-    const lockPath = `${dbPath}.lock`
+    const lockPath = `${dbPath}.lock`;
     try {
-        const existingLock = await fs.readFile(lockPath, 'utf-8')
+        // 检查锁文件是否存在
+        await fs.access(lockPath);
+
+        // 读取锁文件内容
+        const existingLock = await fs.readFile(lockPath, 'utf-8');
+
+        // 检查锁文件内容是否与当前实例匹配
         if (existingLock === lockContent) {
-            await fs.unlink(lockPath)
-            活跃锁.delete(lockPath)
+            // 尝试删除锁文件
+            await fs.unlink(lockPath);
+            活跃锁.delete(lockPath);
+            console.log(`成功释放文件锁: ${lockPath}`);
+        } else {
+            console.warn(`锁文件内容不匹配，无法释放: ${lockPath}`);
         }
     } catch (error) {
-        console.error('释放文件锁时出错:', error)
+        if (error.code === 'ENOENT') {
+            console.warn(`锁文件不存在: ${lockPath}`);
+        } else if (error.code === 'EACCES') {
+            console.error(`没有权限释放文件锁: ${lockPath}`);
+        } else {
+            console.error('释放文件锁时出错:', error);
+        }
     }
 }
 export async function 自动释放所有文件锁() {

@@ -22,7 +22,6 @@
                     <input v-model="rawSearch" ref="searchInputter" style="box-sizing: border-box;width:100px;">
                 </div>
                 <div class="fn__space fn__flex-1"></div>
-
                 <div class="fn__flex" style="margin:auto">
                     <button @click.right.stop.prevent="() => { filterColor = []; refreshPanel() }" ref="palletButton"
                         @click.left="showPallet = !showPallet"
@@ -32,11 +31,9 @@
                         </svg>
                     </button>
                 </div>
-
                 <div class="fn__flex">
                     <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
                 </div>
-
                 <div class="grid__container" v-if="showPallet"
                     :style="`position:absolute;top:${palletButton.offsetTop + palletButton.offsetHeight + 10}px;left:${palletButton.offsetLeft - 100}px;width:200px;max-height:300px;background:var(--b3-menu-background);height:300px;overflow:auto;z-index:10;`">
                     <template v-for="item in pallet">
@@ -46,7 +43,6 @@
                     </template>
                 </div>
                 <div class="fn__space fn__flex-1"></div>
-
                 <div>
                     <multiple v-model="selectedExtensions" :options="extensions"></multiple>
                 </div>
@@ -404,7 +400,7 @@ onMounted(() => {
 onMounted(() => {
     window.addEventListener('keydown', handleKeyDown);
 });
-import { clearSelectionWithLayout, diffByEventKey, handleMultiSelection } from '../utils/selection.js'
+import { clearSelectionWithLayout, diffByEventKey, endSelectionWithController, handleMultiSelection, startSelectionWithController } from '../utils/selection.js'
 
 const handleKeyDown = (event) => {
     if (event.key === 'Escape') {
@@ -419,20 +415,31 @@ const isSelecting = ref(false);
 const selectionBox = ref({ startX: 0, startY: 0, endX: 0, endY: 0 });
 const selectedItems = ref([])
 const previousSelectedItem = ref([])
-const startSelection = (event) => {
-    if (isSelecting.value) {
-        endSelection(event)
-        return
-    }
-    isSelecting.value = true;
-    selectionBox.value.startX = event.x;
-    selectionBox.value.startY = event.y;
-    selectionBox.value.endX = event.x;
-    selectionBox.value.endY = event.y;
-    if (event.ctrlKey || event.shiftKey || event.altKey) {
-        previousSelectedItem.value = selectedItems.value
-    }
+const endSelection = (event) => {
+    endSelectionWithController(event,selectionController)
+    const galleryContainer = root.value.querySelector('.gallery_container');
+    const layoutRect = galleryContainer.getBoundingClientRect();
+    const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, $size.value)
+    selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, $size.value < 表格视图阈值)
+    selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
+    clearSelectionWithLayout(currentLayout.value)
+    updateSelectionStatus(selectedItems.value, event)
+    plugin.eventBus.emit('assets-select', selectedItems.value)
+    appData.value.selectedItems = selectedItems.value
 };
+
+
+const selectionController={
+    endSelection,
+    isSelecting,
+    selectionBox,
+    previousSelectedItem,
+    selectedItems,
+    root,
+}
+
+const startSelection =(e)=>{startSelectionWithController(e,selectionController)}
+
 
 const updateSelection = (event) => {
     if (isSelecting.value) {
@@ -448,20 +455,6 @@ const updateSelection = (event) => {
     }
 };
 
-const endSelection = (event) => {
-    isSelecting.value = false;
-    selectionBox.value.endX = event.x;
-    selectionBox.value.endY = event.y;
-    const galleryContainer = root.value.querySelector('.gallery_container');
-    const layoutRect = galleryContainer.getBoundingClientRect();
-    const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, $size.value)
-    selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, $size.value < 表格视图阈值)
-    selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
-    clearSelectionWithLayout(currentLayout.value)
-    updateSelectionStatus(selectedItems.value, event)
-    plugin.eventBus.emit('assets-select', selectedItems.value)
-    appData.value.selectedItems = selectedItems.value
-};
 plugin.eventBus.on(globalKeyboardEvents.globalKeyDown, (e) => {
     const { key } = e.detail
     if (key === 'Escape') {

@@ -8,25 +8,25 @@ const handlePreviousSelection = (event, galleryContainer, currentLayout) => {
         cardElement = cardElement.parentElement;
         if (cardElement === galleryContainer) break;
     }
-    let result =[]
+    let result = []
     if (cardElement.getAttribute('data-id')) {
-        result= [currentLayout.layout.find(item => item.data && item.data.id === cardElement.getAttribute('data-id'))]
+        result = [currentLayout.layout.find(item => item.data && item.data.id === cardElement.getAttribute('data-id'))]
     }
     //如果按住了功能键需要用之前的选择进行计算
-    if(event.ctrlKey||event.shiftKey){
-        result =result.concat(currentLayout.layout.filter(item=>{
-            return   item.data&&item.selected
+    if (event.ctrlKey || event.shiftKey) {
+        result = result.concat(currentLayout.layout.filter(item => {
+            return item.data && item.selected
         }))
     }
     return result
 }
 
 // 计算选择框的坐标
-export const calculateSelectionCoordinates = (selectionBox, layoutRect, currentLayoutOffsetTop, paddingLR,size) => {
+export const calculateSelectionCoordinates = (selectionBox, layoutRect, currentLayoutOffsetTop, paddingLR, size) => {
     const { startX, startY, endX, endY } = selectionBox;
     return {
-        minX: Math.min(startX, endX) - paddingLR-layoutRect.x,
-        maxX: Math.max(startX, endX) -paddingLR-layoutRect.x,
+        minX: Math.min(startX, endX) - paddingLR - layoutRect.x,
+        maxX: Math.max(startX, endX) - paddingLR - layoutRect.x,
         minY: Math.min(startY, endY) + currentLayoutOffsetTop - layoutRect.y,
         maxY: Math.max(startY, endY) + currentLayoutOffsetTop - layoutRect.y
     };
@@ -42,7 +42,7 @@ export const handleMultiSelection = (currentLayout, coordinates, YPositionOnly) 
 }
 
 // 更新选择状态
-export  const updateSelectionStatus = (result, event) => {
+export const updateSelectionStatus = (result, event) => {
     result.forEach(data => {
         if (event && event.shiftKey) {
             data.selected = !data.selected;
@@ -58,9 +58,9 @@ export const clearSelectionWithLayout = (currentLayout) => {
     })
     plugin.eventBus.emit('assets-select', [])
 }
-export  function diffByEventKey(previousResult, currentResult, event) {
+export function diffByEventKey(previousResult, currentResult, event) {
     // 如果没有按下Ctrl或Shift键,直接返回当前结果
-    if (!event.ctrlKey && !event.shiftKey&&!event.altKey) {
+    if (!event.ctrlKey && !event.shiftKey && !event.altKey) {
         return currentResult;
     }
 
@@ -70,17 +70,17 @@ export  function diffByEventKey(previousResult, currentResult, event) {
     }
 
     if (event.shiftKey) {
-        let final= []
+        let final = []
         const allItems = [...new Set([...previousResult, ...currentResult])]
         allItems.forEach(
-            item=>{
-                if(previousResult.find(previouSelected=>previouSelected.data.id===item.data.id)){
-                    if(!currentResult.find(currentSelected=>currentSelected.data.id===item.data.id)){
+            item => {
+                if (previousResult.find(previouSelected => previouSelected.data.id === item.data.id)) {
+                    if (!currentResult.find(currentSelected => currentSelected.data.id === item.data.id)) {
                         final.push(item)
                     }
                 }
-                if(currentResult.find(currentSelected=>currentSelected.data.id===item.data.id)){
-                    if(!previousResult.find(previouSelected=>previouSelected.data.id===item.data.id)){
+                if (currentResult.find(currentSelected => currentSelected.data.id === item.data.id)) {
+                    if (!previousResult.find(previouSelected => previouSelected.data.id === item.data.id)) {
                         final.push(item)
                     }
                 }
@@ -99,7 +99,7 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
         let targetIndex = index
         const isCtrl = e.ctrlKey
         const isShift = e.shiftKey
-        console.log(isCtrl,isShift)
+        console.log(isCtrl, isShift)
         switch (e.key) {
             case 'ArrowUp':
                 targetIndex = index - columnCount
@@ -157,7 +157,7 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
             setFocus(element)
         }
         if (targetItem) {
-            if (isShift&&targetItem!==currentItem) {
+            if (isShift && targetItem !== currentItem) {
                 targetItem.selected = !targetItem.selected
             } else {
                 targetItem.selected = true
@@ -174,3 +174,22 @@ export const handlerKeyDownWithLayout = (e, currentLayout, columnCount, scrollCo
     }
 }
 
+export const startSelectionWithController = (event, controller) => {
+    if (controller.isSelecting.value) {
+        controller.endSelection(event)
+        return
+    }
+    controller.isSelecting.value = true;
+    controller.selectionBox.value.startX = event.x;
+    controller.selectionBox.value.startY = event.y;
+    controller.selectionBox.value.endX = event.x;
+    controller.selectionBox.value.endY = event.y;
+    if (event.ctrlKey || event.shiftKey || event.altKey) {
+        controller.previousSelectedItem.value = controller.selectedItems.value
+    }
+}
+export const endSelectionWithController =(event,controller)=>{
+    controller.isSelecting.value = false;
+    controller.selectionBox.value.endX = event.x;
+    controller.selectionBox.value.endY = event.y;
+}
