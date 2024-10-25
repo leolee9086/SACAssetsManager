@@ -5,10 +5,13 @@
             <div class="fn__flex-column fn__flex-1" :style="`height:${containerHeight}px`">
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
                     <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
-                        :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
+                    :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
-                        <assetsThumbnailCard :selected="卡片数据.selected" :size="size"
+                        <assetsThumbnailCard 
+                        :displayMode="cardDisplayMode"    
+
+                        :selected="卡片数据.selected" :size="size"
                         :tableViewAttributes="tableViewAttributes"
                             @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])" :cardData="卡片数据" @palletAdded="palletAdded"
                             :filterColor="filterColor">
@@ -52,12 +55,13 @@ const 计算卡片样式 = (卡片数据) => {
 //let 附件数据源数组 =shallowRef([])
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'assetsSource','tableViewAttributes'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'assetsSource','tableViewAttributes','cardDisplayMode'])
 const tableViewAttributes=toRef(props,'tableViewAttributes')
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
 const filterColor = toRef(props, 'filterColor')
+const cardDisplayMode = toRef(props,'cardDisplayMode')
 const root = ref(null)
 const scrollContainer = ref(null)
 let 布局对象 = shallowRef(null)

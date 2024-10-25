@@ -10,5 +10,6 @@ export const 根据阈值计算最大宽度 = (size) => {
 export const LAYOUT_COLUMN = 'column';
 export const LAYOUT_ROW = 'row';
 export const 根据尺寸获取显示模式=(size)=>{
-    return size >= 表格视图阈值 ? LAYOUT_COLUMN : LAYOUT_ROW;
+    let mode= size >= 表格视图阈值 ? LAYOUT_COLUMN : LAYOUT_ROW;
+    return mode
 }

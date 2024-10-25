@@ -69,7 +69,9 @@
             @ready="创建回调并获取数据" 
             ref="grid" 
             :tableViewAttributes="selectedAttributes"
-            :assetsSource="数据缓存" @palletAdded="palletAdded"
+            :assetsSource="数据缓存" 
+            :cardDisplayMode="卡片显示模式"
+            @palletAdded="palletAdded"
                 :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
                 @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
                 @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
@@ -111,6 +113,10 @@ plugin.eventBus.on('need-refresh-gallery-panel', (e) => {
     }
 })
 
+/**
+ * 显示模式相关逻辑
+ */
+const 卡片显示模式 = computed(() => 根据尺寸获取显示模式($size.value));
 /**
  * 获取扩展名列表相关逻辑
  */
@@ -531,7 +537,7 @@ const sorter = ref({
     }
 })
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
-import { 表格视图阈值 } from '../utils/threhold.js';
+import { 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
 import { 根据宽度和尺寸计算列数和边距 } from '../utils/layoutComputer/masonry/columnAndPadding.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)

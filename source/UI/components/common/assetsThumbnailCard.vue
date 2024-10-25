@@ -6,7 +6,9 @@
     background-color:${firstColorString};
     display:flex;
     flex-direction:${displayMode}
-    `">
+    `"
+    ref="cardRoot"
+    >
         <div v-if="displayMode === LAYOUT_COLUMN" :style="`
     position:${displayMode === LAYOUT_COLUMN ? 'absolute' : 'relative'};
     top: ${cardData.width / 24}px;
@@ -69,26 +71,38 @@ import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
-import { 表格视图阈值, 根据阈值计算最大宽度,LAYOUT_COLUMN,LAYOUT_ROW,根据尺寸获取显示模式 } from '../../utils/threhold.js';
+import {  根据阈值计算最大宽度,LAYOUT_COLUMN,LAYOUT_ROW } from '../../utils/threhold.js';
 import { 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
-import { 更新图片尺寸 } from '../../utils/layoutComputer/masonry/dataItem.js';
 import { 根据块ID创建protyle } from '../../../utils/siyuanUI/protyle/build.js';
 import tagsCell from './assetCard/tagsCell.vue';
 import colorPalletCell from '../common/assetCard/paletteCell.vue'
+const cardRoot = ref(null)
+
 /**
  * 计算显示模式，当小于表格视图阈值时，切换为表格显示
  */
+function handleImageLoad(e, cardData) {
+    更新图片尺寸(e, cardData, size.value, ({ width, height }) => {
+        cardHeight.value = height;
+        imageHeight.value = height;
+        emit('updateSize', { width, height });
+    });
+}
+function 更新图片尺寸(e, 卡片数据, 目标宽度, 更新尺寸回调) {
+    const 预览器 = e.target;
+    const { naturalWidth, naturalHeight } = 预览器;
+    const 缩放因子 = naturalWidth / 目标宽度;
+    let 新高度 = naturalHeight / 缩放因子;
+    displayMode.value===LAYOUT_ROW?新高度=size.value:null
+    // 使用回调函数来更新 Vue 的状态
+    更新尺寸回调({ width: 卡片数据.width, height: 新高度 });
+}
 
-// ... existing code ...
-
-const displayMode = computed(() => 根据尺寸获取显示模式(size.value));
-
-
-
-const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes'])
+const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes','displayMode'])
 const tableViewAttributes = toRef(props, 'tableViewAttributes')
+const displayMode = toRef(props, 'displayMode')
 const { cardData } = props
 const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
@@ -161,13 +175,7 @@ onBeforeUnmount(() => {
         }
     )
 });
-function handleImageLoad(e, cardData) {
-    更新图片尺寸(e, cardData, size.value, 表格视图阈值, ({ width, height }) => {
-        cardHeight.value = height;
-        imageHeight.value = height;
-        emit('updateSize', { width, height });
-    });
-}
+
 import { 计算素材缩略图样式, 计算素材详情容器样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
