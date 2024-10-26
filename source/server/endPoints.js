@@ -82,7 +82,7 @@ export const metaRecords = {
     }
 }
 
-export  function uploadThumbnail(asset, file) {
+export function uploadThumbnail(asset, file) {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('assetPath', asset.path);
@@ -91,11 +91,11 @@ export  function uploadThumbnail(asset, file) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-        console.log('缩略图上传成功:', data);
-    })
-    .catch(error => {
-        console.error('缩略图上传失败:', error);
-    });
+        .then(response => response.json())
+        .then(data => {
+            console.log('缩略图上传成功:', data);
+        })
+        .catch(error => {
+            console.error('缩略图上传失败:', error);
+        });
 }

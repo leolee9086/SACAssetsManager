@@ -15,24 +15,16 @@
 <script setup>
 import {  onMounted, ref, toRef } from 'vue';
 import colorPalletButton from '../pallets/colorPalletButton.vue';
-import { thumbnail } from '../../../../server/endPoints.js';
+import { getAssetItemColor } from '../../../../data/attributies/getAsyncAttributes.js';
 const props = defineProps(['pallet', 'cardData', 'width']);
 const { cardData } = props
 const width = toRef(props, 'width')
 const pallet = ref([])
 onMounted(
     () => {
-        fetch(thumbnail.getColor(cardData.data.type, cardData.data.path)).then(
-            res => {
-                return res.json()
-            }
-        ).then(
-            data => {
-                if (!data.error) {
-                    pallet.value = data.sort((a, b) => b.count - a.count)
-                }
-            }
-        )
+        !cardData.data.colorPllet? getAssetItemColor(cardData.data).then(
+            ()=>{pallet.value=cardData.data.colorPllet}
+        ):pallet.value=cardData.data.colorPllet
     }
 )
 
