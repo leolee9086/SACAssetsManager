@@ -6,14 +6,9 @@
         <div v-show="showIframe" ref="protyleContainer">
             <div></div>
         </div>
-        <div class="alt-text" v-if="!showImage" :style="$计算素材缩略图样式">
-
-        </div>
-        <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
-            v-if="showImage" :style="$计算素材缩略图样式" loading="lazy" draggable='true'
-            :onload="(e) => handleImageLoad(e, cardData)"
-            :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size, cardData.data)" />
         <div :style="$计算素材详情容器样式" ref="detailContainer">
+            <imageCell :cardData="cardData" :displayMode="displayMode" :showImage="showImage" :showIframe="showIframe"
+                :size="size" @imageLoaded="(e) => handleImageLoad(e, cardData)" />
             {{ displayMode === LAYOUT_COLUMN ? cleanAssetPath(cardData.data) : '' }}
             <div v-if="displayMode === LAYOUT_ROW" :style="$计算卡片属性容器样式">
                 <template v-for="prop in tableViewAttributes">
@@ -36,13 +31,14 @@ import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
-import {  LAYOUT_COLUMN, LAYOUT_ROW } from '../../utils/threhold.js';
+import { LAYOUT_COLUMN, LAYOUT_ROW } from '../../utils/threhold.js';
 import { 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
 import { 根据块ID创建protyle } from '../../../utils/siyuanUI/protyle/build.js';
 import tagsCell from './assetCard/tagsCell.vue';
-import colorPalletCell from '../common/assetCard/paletteCell.vue'
+import colorPalletCell from './assetCard/paletteCell.vue'
+import imageCell from './assetCard/imageCell.vue';
 const cardRoot = ref(null)
 
 /**
@@ -62,7 +58,7 @@ function 更新图片尺寸(e, 卡片数据, 目标宽度, 更新尺寸回调) {
     let 新高度 = naturalHeight / 缩放因子;
     displayMode.value === LAYOUT_ROW ? 新高度 = size.value : null
     // 使用回调函数来更新 Vue 的状态
-    更新尺寸回调({ width: 卡片数据.width, height: cardRoot.value?cardRoot.value.getBoundingClientRect().height:size.value })
+    更新尺寸回调({ width: 卡片数据.width, height: cardRoot.value ? cardRoot.value.getBoundingClientRect().height : size.value })
 }
 
 const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes', 'displayMode'])
@@ -74,7 +70,6 @@ const size = toRef(props, 'size')
 const emit = defineEmits()
 const cardHeight = ref(cardData.width + 0)
 const imageHeight = ref(cardData.width + 0)
-const image = ref(null)
 const showIframe = ref(false)
 const showImage = ref('')
 const protyleContainer = ref(null)
@@ -175,13 +170,13 @@ const $计算卡片属性容器样式 = computed(
                 `
     }
 )
-const $计算卡片属性单元格样式= computed(
-    ()=>{
+const $计算卡片属性单元格样式 = computed(
+    () => {
         return `border:1px solid var(--b3-theme-background-light);
                     padding:0px;
                     margin:0px;
                     overflow:hidden;
-                    width:${100 / (tableViewAttributes.length.value + 2)}%;
+                    width:${100 / (tableViewAttributes.value.length + 2)}%;
                     text-overflow:ellipsis;
                     white-space:nowrap;`
     }

@@ -373,7 +373,7 @@ onMounted(() => {
     const resizeObserver = new ResizeObserver(() => {
         let result =root.value?.getBoundingClientRect().width
         if(result){
-            result=result/2-result/6
+            result=result/2-result/6+32
         }
         $max.value = result || 1024;
         if(parseInt(size.value)>$max.value){
