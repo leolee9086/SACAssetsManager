@@ -11,7 +11,7 @@
         <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
              :style="imageLoaded?$计算素材缩略图样式:placeholderStyle" loading="lazy" draggable='true'
             :onload="(e) => handleImageLoad(e)"
-            :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size, cardData.data)" />
+            :src="cardData.data.thumbnailURL.get()" />
     </div>
 </template>
 

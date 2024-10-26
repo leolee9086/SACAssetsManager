@@ -4,6 +4,10 @@
                     width:${width};
                     min-width:${width};
                     max-width:${width};
+                    height:${height};
+                    min-height:${height};
+                    max-height:${height};
+
     gridTemplateColumns: 'repeat(auto-fill, minmax(16px, 1fr))';
 `">
         <template v-for="colorItem in pallet" :key="colorItem.color">
@@ -13,17 +17,19 @@
 </template>
 
 <script setup>
-import {  onMounted, ref, toRef } from 'vue';
+import { onMounted, ref, toRef } from 'vue';
 import colorPalletButton from '../pallets/colorPalletButton.vue';
 import { getAssetItemColor } from '../../../../data/attributies/getAsyncAttributes.js';
-const props = defineProps(['pallet', 'cardData', 'width']);
+const props = defineProps(['pallet', 'cardData', 'width', 'height']);
 const { cardData } = props
 const width = toRef(props, 'width')
+const height = toRef(props, 'height')
+
 const pallet = ref([])
 onMounted(
     () => {
-       getAssetItemColor(cardData.data).then(
-            ()=>{pallet.value=cardData.data.colorPllet})
+        getAssetItemColor(cardData.data).then(
+            () => { pallet.value = cardData.data.colorPllet })
     }
 )
 

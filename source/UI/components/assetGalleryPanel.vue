@@ -48,9 +48,8 @@
                 
                 </div>
                 <div>
-                    <multiple v-model="selectedAttributes" placeholder="显示的属性"  :options="Attributes"></multiple>
-
-
+                    <multiple v-if='卡片显示模式===LAYOUT_ROW' v-model="selectedAttributes" placeholder="显示的属性"  :options="Attributes"></multiple>
+                    <multiple v-if='卡片显示模式===LAYOUT_COLUMN' v-model="selectedMosanicAttributes" placeholder="显示的属性"  :options="Attributes"></multiple>
                 </div>
             </div>
             <div class="fn__space fn__flex-1"></div>
@@ -68,7 +67,7 @@
 
             @ready="创建回调并获取数据" 
             ref="grid" 
-            :tableViewAttributes="selectedAttributes"
+            :tableViewAttributes="displayAttributes"
             :assetsSource="数据缓存" 
             :cardDisplayMode="卡片显示模式"
             @palletAdded="palletAdded"
@@ -101,6 +100,8 @@ import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存 } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
+import { LAYOUT_COLUMN,LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
+
 //主要数据对象
 const appData = toRef(inject('appData'))
 /**
@@ -206,6 +207,10 @@ let filterFunc = (item) => {
 const Attributes =ref([])
 const 属性Map = new Map();
 const selectedAttributes=ref([])
+const selectedMosanicAttributes=ref([])
+const displayAttributes=computed(
+    ()=>卡片显示模式.value===LAYOUT_COLUMN?selectedMosanicAttributes.value:selectedAttributes.value
+)
 // ... existing code ...
 const 提取属性中间件 = (数据缓存) => {
     数据缓存.forEach(item => {
@@ -216,7 +221,14 @@ const 提取属性中间件 = (数据缓存) => {
     Attributes.value=Array.from(属性Map.values()).flat();
     return 数据缓存
 };
-
+const 提取缩略图路径中间件=(数据缓存)=>{
+    数据缓存.forEach(item => {
+        item.thumbnailURL={
+            get:()=>endPoints.thumbnail.genHref(item.type,item.path,size.value,item)
+        }
+    });
+    return 数据缓存
+}
 const 初始化数据缓存 = () => {
     const 数据缓存 = { data: [] }
     数据缓存.clear = () => {
@@ -226,9 +238,11 @@ const 初始化数据缓存 = () => {
     创建带中间件的Push方法(
         数据缓存.data,
         {},
+        提取缩略图路径中间件,
+
         提取属性中间件,
         updateExtensionsMiddleware(() => appData.value, () => extensions.value),
-        filterArgsMiddleware(filterFunc)
+        filterArgsMiddleware(filterFunc),
     );
     return 数据缓存
 };
@@ -537,7 +551,6 @@ const sorter = ref({
     }
 })
 import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
-import { 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
 import { 根据宽度和尺寸计算列数和边距 } from '../utils/layoutComputer/masonry/columnAndPadding.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)

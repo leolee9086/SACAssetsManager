@@ -170,6 +170,12 @@ export function 解析文件内部属性显示(属性名, 属性值) {
     } catch (e) {
         console.warn(e)
     }
+    if(!result){
+        return
+    }
+    if(result.get){
+        return result.get()
+    }
     return result
 }
 export function 解析文件属性数组内部属性显示(属性名, 属性数组) {
