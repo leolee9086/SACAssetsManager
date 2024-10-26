@@ -22,9 +22,8 @@ const width = toRef(props, 'width')
 const pallet = ref([])
 onMounted(
     () => {
-        !cardData.data.colorPllet? getAssetItemColor(cardData.data).then(
-            ()=>{pallet.value=cardData.data.colorPllet}
-        ):pallet.value=cardData.data.colorPllet
+       getAssetItemColor(cardData.data).then(
+            ()=>{pallet.value=cardData.data.colorPllet})
     }
 )
 

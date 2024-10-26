@@ -1,5 +1,10 @@
 import { thumbnail } from "../../server/endPoints.js";
 export const getAssetItemColor = async (assetData) => {
+    if (assetData.colorPllet) {
+
+        return Promise.resolve(assetData.colorPllet);
+
+    }
     return new Promise((resolve, reject) => {
         try {
             fetch(thumbnail.getColor(assetData.type, assetData.path))
