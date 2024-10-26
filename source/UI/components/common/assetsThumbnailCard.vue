@@ -1,27 +1,7 @@
 <template>
-    <div class="thumbnail-card-content" :style="`width:100%;
-    border:none;
-    border-radius: ${cardData.width / 24}px;
-    height:${displayMode === LAYOUT_ROW ? size : cardHeight}px;
-    background-color:${firstColorString};
-    display:flex;
-    flex-direction:${displayMode}
-    `"
-    ref="cardRoot"
-    >
-        <div v-if="displayMode === LAYOUT_COLUMN" :style="`
-    position:${displayMode === LAYOUT_COLUMN ? 'absolute' : 'relative'};
-    top: ${cardData.width / 24}px;
-    left: ${cardData.width / 24}px;
-    max-width: ${根据阈值计算最大宽度(size)};
-    max-height: 1.5em;
-    border-radius: 5px;
-background-color:var(--b3-theme-background);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;height:36px;
-        flex:1;
-        `">
+    <div class="thumbnail-card-content" :style="$计算卡片内容样式" ref="cardRoot">
+        <div v-if="displayMode === LAYOUT_COLUMN" :style="$计算扩展名标签样式">
             {{ 计算扩展名(cardData.data) }}
-
         </div>
         <div v-show="showIframe" ref="protyleContainer">
             <div></div>
@@ -35,24 +15,9 @@ background-color:var(--b3-theme-background);
             :src="thumbnail.genHref(cardData.data.type, cardData.data.path, size, cardData.data)" />
         <div :style="$计算素材详情容器样式" ref="detailContainer">
             {{ displayMode === LAYOUT_COLUMN ? cleanAssetPath(cardData.data) : '' }}
-            <div v-if="displayMode === LAYOUT_ROW" :style="`
-                color:${similarColor ? rgb数组转字符串(similarColor) : ''};
-                height:${size}px;
-                display:flex;
-                flex:1;
-                max-width:100%;
-                width:100%
-                `
-                ">
+            <div v-if="displayMode === LAYOUT_ROW" :style="$计算卡片属性容器样式">
                 <template v-for="prop in tableViewAttributes">
-                    <div v-if="prop && tableViewAttributes.includes(prop)" :style="`border:1px solid var(--b3-theme-background-light);
-                    padding:0px;
-                    margin:0px;
-                    overflow:hidden;
-                    width:${100 / (tableViewAttributes.length + 2)}%;
-                    text-overflow:ellipsis;
-                    white-space:nowrap;`
-                        " class="ariaLabel"
+                    <div v-if="prop && tableViewAttributes.includes(prop)" :style="$计算卡片属性单元格样式" class="ariaLabel"
                         :aria-label="解析文件属性名标签(prop) + `(${prop})` + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
                         {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
                     </div>
@@ -65,13 +30,13 @@ background-color:var(--b3-theme-background);
         </div>
     </div>
 </template>
-<script setup>
+<script setup lang="jsx">
 import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick } from 'vue';
 import { thumbnail } from '../../../server/endPoints.js';
 import { cleanAssetPath } from '../../../data/utils/assetsName.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
-import {  根据阈值计算最大宽度,LAYOUT_COLUMN,LAYOUT_ROW } from '../../utils/threhold.js';
+import {  LAYOUT_COLUMN, LAYOUT_ROW } from '../../utils/threhold.js';
 import { 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
@@ -95,12 +60,12 @@ function 更新图片尺寸(e, 卡片数据, 目标宽度, 更新尺寸回调) {
     const { naturalWidth, naturalHeight } = 预览器;
     const 缩放因子 = naturalWidth / 目标宽度;
     let 新高度 = naturalHeight / 缩放因子;
-    displayMode.value===LAYOUT_ROW?新高度=size.value:null
+    displayMode.value === LAYOUT_ROW ? 新高度 = size.value : null
     // 使用回调函数来更新 Vue 的状态
-    更新尺寸回调({ width: 卡片数据.width, height: 新高度 });
+    更新尺寸回调({ width: 卡片数据.width, height: cardRoot.value?cardRoot.value.getBoundingClientRect().height:size.value })
 }
 
-const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes','displayMode'])
+const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes', 'displayMode'])
 const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const displayMode = toRef(props, 'displayMode')
 const { cardData } = props
@@ -124,7 +89,7 @@ function 计算扩展名(data) {
     if (data.type === 'note') {
         return `笔记:${块类型语言对照表[data.$meta.type] || data.$meta.type}`
     }
-    return displayMode===LAYOUT_COLUMN ? data.path.split('.').pop() : ''
+    return displayMode === LAYOUT_COLUMN ? data.path.split('.').pop() : ''
 }
 let idleCallbackId;
 let protyle
@@ -150,7 +115,7 @@ let fn = async () => {
             showImage.value = false
             const resizeObserver = new ResizeObserver((entries) => {
                 cardHeight.value = protyle.protyle.contentElement.scrollHeight + 36 + 18
-                if (displayMode===LAYOUT_ROW) {
+                if (displayMode === LAYOUT_ROW) {
                     cardHeight.value = protyle.protyle.contentElement.scrollHeight
                 }
                 emit('updateSize', { width: cardData.width, height: cardHeight.value })
@@ -176,12 +141,50 @@ onBeforeUnmount(() => {
     )
 });
 
-import { 计算素材缩略图样式, 计算素材详情容器样式 } from './assetStyles.js';
+import { 计算素材缩略图样式, 计算素材详情容器样式, 计算扩展名标签样式 } from './assetStyles.js';
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(
     size.value, imageHeight.value, cardData
 ))
 const $计算素材详情容器样式 = computed(() => 计算素材详情容器样式(
     size.value, cardData
 ))
+const $计算扩展名标签样式 = computed(
+    () => 计算扩展名标签样式(displayMode.value, cardData, size.value)
+)
+const $计算卡片内容样式 = computed(
+    () => {
+        return `width:100%;
+    border:none;
+    border-radius: ${cardData.width / 24}px;
+
+    background-color:${firstColorString.value};
+    display:flex;
+    flex-direction:${displayMode.value}
+    `
+    }
+)
+const $计算卡片属性容器样式 = computed(
+    () => {
+        return `
+                color:${similarColor.value ? rgb数组转字符串(similarColor.value) : ''};
+                height:${size.value}px;
+                display:flex;
+                flex:1;
+                max-width:100%;
+                width:100%
+                `
+    }
+)
+const $计算卡片属性单元格样式= computed(
+    ()=>{
+        return `border:1px solid var(--b3-theme-background-light);
+                    padding:0px;
+                    margin:0px;
+                    overflow:hidden;
+                    width:${100 / (tableViewAttributes.length.value + 2)}%;
+                    text-overflow:ellipsis;
+                    white-space:nowrap;`
+    }
+)
 </script>
 <style scoped></style>
