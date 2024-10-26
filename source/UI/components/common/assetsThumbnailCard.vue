@@ -29,7 +29,6 @@ import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { diffColor } from '../../../utils/color/Kmeans.js';
 import { LAYOUT_COLUMN, LAYOUT_ROW } from '../../utils/threhold.js';
 import { 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
-import { 块类型语言对照表 } from '../../../utils/siyuanData/block.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
 import { 根据块ID创建protyle } from '../../../utils/siyuanUI/protyle/build.js';
 import tagsCell from './assetCard/tagsCell.vue';
