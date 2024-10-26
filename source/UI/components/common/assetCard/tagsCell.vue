@@ -9,6 +9,7 @@
                                         height:${height};
                     min-height:${height};
                     max-height:${height};
+                    background-color:var(--b3-theme-background);
 
                     text-overflow:ellipsis;
                     white-space:nowrap;`

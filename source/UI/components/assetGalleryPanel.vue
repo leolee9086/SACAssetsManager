@@ -45,11 +45,14 @@
                 <div class="fn__space fn__flex-1"></div>
                 <div>
                     <multiple v-model="selectedExtensions" :options="extensions"></multiple>
-                
+
                 </div>
                 <div>
-                    <multiple v-if='卡片显示模式===LAYOUT_ROW' v-model="selectedAttributes" placeholder="显示的属性"  :options="Attributes"></multiple>
-                    <multiple v-if='卡片显示模式===LAYOUT_COLUMN' v-model="selectedMosanicAttributes" placeholder="显示的属性"  :options="Attributes"></multiple>
+                    <multiple v-if='卡片显示模式 === LAYOUT_ROW' v-model="selectedAttributes" placeholder="显示的属性"
+                        :options="Attributes">
+                    </multiple>
+                    <multiple v-if='卡片显示模式 === LAYOUT_COLUMN' v-model="selectedMosanicAttributes" placeholder="显示的属性"
+                        :options="Attributes"></multiple>
                 </div>
             </div>
             <div class="fn__space fn__flex-1"></div>
@@ -63,17 +66,10 @@
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
-            <assetsGridRbush 
-
-            @ready="创建回调并获取数据" 
-            ref="grid" 
-            :tableViewAttributes="displayAttributes"
-            :assetsSource="数据缓存" 
-            :cardDisplayMode="卡片显示模式"
-            @palletAdded="palletAdded"
-                :globSetting="$realGlob" v-if="showPanel && globSetting" :maxCount="maxCount"
-                @layoutCountTotal="(e) => { layoutCountTotal = e }" @layoutChange="handlerLayoutChange"
-                @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
+            <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :tableViewAttributes="displayAttributes" :assetsSource="数据缓存"
+                :cardDisplayMode="卡片显示模式" @palletAdded="palletAdded" :globSetting="$realGlob"
+                v-if="showPanel && globSetting" :maxCount="maxCount" @layoutCountTotal="(e) => { layoutCountTotal = e }"
+                @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
                 @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
                 :size="$size">
@@ -88,7 +84,7 @@
     </div>
 </template>
 <script setup>
-import { ref, inject, computed, nextTick, watch, toRef, onMounted,onUnmounted } from 'vue'
+import { ref, inject, computed, nextTick, watch, toRef, onMounted, onUnmounted } from 'vue'
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import apiIcon from './galleryPanel/apiIcon.vue';
 import { plugin } from 'runtime'
@@ -100,7 +96,7 @@ import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存 } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
-import { LAYOUT_COLUMN,LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
+import { LAYOUT_COLUMN, LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
 
 //主要数据对象
 const appData = toRef(inject('appData'))
@@ -171,7 +167,7 @@ onMounted(() => {
 /**
  * 获取数据相关
  */
- const 扩展名map = new Map();
+const 扩展名map = new Map();
 
 const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
     return (数据) => {
@@ -179,9 +175,9 @@ const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
             let extensions = extractFileExtensions(数据)
             extensions.forEach(
                 item => {
-                    if(!扩展名map.get(item)){
+                    if (!扩展名map.get(item)) {
                         获取扩展名缓存().push(item)
-                        扩展名map.set(item,true)
+                        扩展名map.set(item, true)
                     }
                 }
             )
@@ -204,12 +200,12 @@ let filterFunc = (item) => {
         return 柯里化(校验数据项扩展名)(selectedExtensions.value)(item)
     }
 }
-const Attributes =ref([])
+const Attributes = ref([])
 const 属性Map = new Map();
-const selectedAttributes=ref([])
-const selectedMosanicAttributes=ref([])
-const displayAttributes=computed(
-    ()=>卡片显示模式.value===LAYOUT_COLUMN?selectedMosanicAttributes.value:selectedAttributes.value
+const selectedAttributes = ref([])
+const selectedMosanicAttributes = ref([])
+const displayAttributes = computed(
+    () => 卡片显示模式.value === LAYOUT_COLUMN ? selectedMosanicAttributes.value : selectedAttributes.value
 )
 // ... existing code ...
 const 提取属性中间件 = (数据缓存) => {
@@ -218,14 +214,14 @@ const 提取属性中间件 = (数据缓存) => {
             属性Map.set(item.type, Object.keys(item));
         }
     });
-    Attributes.value=Array.from(属性Map.values()).flat();
+    Attributes.value = Array.from(属性Map.values()).flat();
     return 数据缓存
 };
-const 提取缩略图路径中间件=(数据缓存)=>{
+const 提取缩略图路径中间件 = (数据缓存) => {
     数据缓存.forEach(item => {
-        item.thumbnailURL={
-            get:()=>endPoints.thumbnail.genHref(item.type,item.path,size.value,item)
-        }
+        item.thumbnailURL =
+            () => endPoints.thumbnail.genHref(item.type, item.path, size.value, item)
+
     });
     return 数据缓存
 }
@@ -385,12 +381,12 @@ const $max = ref(1024);
 
 onMounted(() => {
     const resizeObserver = new ResizeObserver(() => {
-        let result =root.value?.getBoundingClientRect().width
-        if(result){
-            result=result/2-result/6+32
+        let result = root.value?.getBoundingClientRect().width
+        if (result) {
+            result = result / 2 - result / 6 + 32
         }
         $max.value = result || 1024;
-        if(parseInt(size.value)>$max.value){
+        if (parseInt(size.value) > $max.value) {
             size.value = $max.value
         }
     });
@@ -467,7 +463,7 @@ const selectionBox = ref({ startX: 0, startY: 0, endX: 0, endY: 0 });
 const selectedItems = ref([])
 const previousSelectedItem = ref([])
 const endSelection = (event) => {
-    endSelectionWithController(event,selectionController)
+    endSelectionWithController(event, selectionController)
     const galleryContainer = root.value.querySelector('.gallery_container');
     const layoutRect = galleryContainer.getBoundingClientRect();
     const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, $size.value)
@@ -480,7 +476,7 @@ const endSelection = (event) => {
 };
 
 
-const selectionController={
+const selectionController = {
     endSelection,
     isSelecting,
     selectionBox,
@@ -489,7 +485,7 @@ const selectionController={
     root,
 }
 
-const startSelection =(e)=>{startSelectionWithController(e,selectionController)}
+const startSelection = (e) => { startSelectionWithController(e, selectionController) }
 
 
 const updateSelection = (event) => {

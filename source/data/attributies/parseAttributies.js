@@ -1,4 +1,5 @@
 import { 柯里化 } from '../../utils/functions/currying.js'
+import { 块类型语言对照表 } from '../../utils/siyuanData/block.js'
 
 const numberParser = (value) => {
     const num = Number(value)
@@ -170,10 +171,10 @@ export function 解析文件内部属性显示(属性名, 属性值) {
     } catch (e) {
         console.warn(e)
     }
-    if(!result){
+    if (!result) {
         return
     }
-    if(result.get){
+    if (result.get) {
         return result.get()
     }
     return result
@@ -195,27 +196,39 @@ export function 解析文件属性数组内部属性显示(属性名, 属性数�
         return allSame ? 解析文件内部属性显示(属性名, firstValue) : "多种";
     }
 }
-export function 解析文件属性名标签(属性名){
-    return (文件系统内部属性表[属性名]&&文件系统内部属性表[属性名].label)||属性名
+export function 解析文件属性名标签(属性名) {
+    return (文件系统内部属性表[属性名] && 文件系统内部属性表[属性名].label) || 属性名
 }
 /**
  * 获取要显示的数据属性
  * @param {Object} data - 文件数据对象
  * @returns {string[]} 过滤后的属性键数组
  */
-export function 获取属性显示定义(排除属性列表,文件系统内部属性表,data) {
+export function 获取属性显示定义(排除属性列表, 文件系统内部属性表, data) {
     // 需要排除的属性列表
-    
+
     return Object.keys(data).filter(key => {
-      // 排除特定属性
-      if (排除属性列表.includes(key)) {
-        return false;
-      }
-      
-      // 检查属性是否应该显示
-      const attributeInfo = 文件系统内部属性表[key];
-      return attributeInfo ? attributeInfo.show : true;
+        // 排除特定属性
+        if (排除属性列表.includes(key)) {
+            return false;
+        }
+
+        // 检查属性是否应该显示
+        const attributeInfo = 文件系统内部属性表[key];
+        return attributeInfo ? attributeInfo.show : true;
     });
-  }
-  export const 瀑布流视图排除属性列表 =  ['id', 'type', 'index', 'indexInColumn', 'width', 'height'];
-  export const 获取瀑布流视图属性定义 =柯里化(获取属性显示定义)(瀑布流视图排除属性列表)(文件系统内部属性表)
+}
+
+
+
+export const 获取素材属性值 = (data, key) => {
+    const value = data[key];
+    return typeof value === 'function' ? value() : value;
+}
+
+export const 计算素材类型角标 =(data)=>{
+    if (data.type === 'note') {
+        return `笔记:${块类型语言对照表[data.$meta.type] || data.$meta.type}`;
+    }
+    return data.path.split('.').pop()
+}
