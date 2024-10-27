@@ -22,3 +22,14 @@ createAnnotationsTableWithDb(db)
 
 
 export default db
+
+
+function 更新图片尺寸(e, 卡片数据, 目标宽度, 更新尺寸回调) {
+    const 预览器 = e.target;
+    const { naturalWidth, naturalHeight } = 预览器;
+    const 缩放因子 = naturalWidth / 目标宽度;
+    let 新高度 = naturalHeight / 缩放因子;
+    displayMode.value === LAYOUT_ROW ? 新高度 = size.value : null
+    // 使用回调函数来更新 Vue 的状态
+    更新尺寸回调({ width: 卡片数据.width, height: cardRoot.value ? cardRoot.value.getBoundingClientRect().height : size.value })
+}

@@ -18,7 +18,7 @@ import { LAYOUT_COLUMN } from '../../../utils/threhold.js';
 import { getAssetItemColor } from '../../../../data/attributies/getAsyncAttributes.js';
 import { rgb数组转字符串 } from '../../../../utils/color/convert.js';
 import { 获取素材属性值, 计算素材类型角标 } from '../../../../data/attributies/parseAttributies.js';
-const props = defineProps(['cardData', 'displayMode','attributeName', 'showImage', 'showIframe', 'size']);
+const props = defineProps(['cardData', 'displayMode','attributeName', 'showImage', 'showIframe', 'size','cellReady']);
 const attributeName =toRef(props,'attributeName')
 const displayMode = toRef(props, 'displayMode');
 const {cardData} = props
@@ -37,7 +37,7 @@ onMounted(
 
 const handleImageLoad = (e) => {
     imageLoaded.value = true; // 图片加载后隐藏占位框
-    emit('image-loaded', e);
+    emit('cell-ready', e);
 }
 const placeholderStyle = computed(() => ({
     width: size.value+'px', // 设置占位框的宽度

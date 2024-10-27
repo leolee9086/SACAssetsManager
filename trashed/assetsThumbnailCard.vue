@@ -1,21 +1,22 @@
 <template>
     <div class="thumbnail-card-content" :style="$计算卡片内容样式" ref="cardRoot">
         <div :style="$计算素材详情容器样式" ref="detailContainer">
-            <protyleCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="note_id">
-            </protyleCell>
+            <protyleCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="thumbnailURL"></protyleCell>
             <imageCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="thumbnailURL"
-                @cellReady="(e) => handleImageLoad(e, cardData)" />
-            <template v-for="prop in tableViewAttributes">
-                <div v-if="prop && tableViewAttributes.includes(prop)" :style="$计算卡片属性单元格样式" class="ariaLabel"
-                    :aria-label="解析文件属性名标签(prop) + `(${prop})` + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
-                    {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
-                </div>
+                @imageLoaded="(e) => handleImageLoad(e, cardData)" />
+            <template v-if="true || displayMode === LAYOUT_ROW" :style="$计算卡片属性容器样式">
+                <template v-for="prop in tableViewAttributes">
+                    <div v-if="prop && tableViewAttributes.includes(prop)" :style="$计算卡片属性单元格样式" class="ariaLabel"
+                        :aria-label="解析文件属性名标签(prop) + `(${prop})` + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
+                        {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
+                    </div>
+                </template>
+                <tagsCell :cardData="cardData" :width="attributeCellWidth()" :height="attributeCellHeight()"
+                    :displayMode="displayMode">
+                </tagsCell>
+                <colorPalletCell :cardData="cardData" :width="attributeCellWidth()" :height="attributeCellHeight()">
+                </colorPalletCell>
             </template>
-            <tagsCell :cardData="cardData" :width="attributeCellWidth()" :height="attributeCellHeight()"
-                :displayMode="displayMode">
-            </tagsCell>
-            <colorPalletCell :cardData="cardData" :width="attributeCellWidth()" :height="attributeCellHeight()">
-            </colorPalletCell>
         </div>
     </div>
 </template>
@@ -23,6 +24,7 @@
 import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick } from 'vue';
 import { thumbnail } from '../../../server/endPoints.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
+import { diffColor } from '../../../utils/color/Kmeans.js';
 import { LAYOUT_COLUMN, LAYOUT_ROW } from '../../utils/threhold.js';
 import { 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
@@ -45,7 +47,7 @@ const heightMap = new Map();
 const observer = new MutationObserver(() => {
     observerCallCount.value += 1;
     const newHeight = cardRoot.value ? cardRoot.value.getBoundingClientRect().height : size.value;
-
+    
     // 更新 Map
     heightMap.set(observerCallCount.value, newHeight);
     if (heightMap.size > 1000) {
@@ -78,11 +80,20 @@ const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'table
 const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const displayMode = toRef(props, 'displayMode')
 const { cardData } = props
+console.log(cardData)
+const filterColor = toRef(props, 'filterColor')
 const size = toRef(props, 'size')
 const emit = defineEmits()
+const cardHeight = ref(cardData.width + 0)
+const imageHeight = ref(cardData.width + 0)
+const showIframe = ref(false)
 const showImage = ref('')
 const pallet = ref([])
 const firstColorString = ref('var(--b3-theme-background-light)')
+const similarColor = computed(() => {
+    let item = pallet.value.find(item => item && filterColor.value && diffColor(filterColor.value, item.color))
+    return item ? filterColor.value : ''
+})
 
 let idleCallbackId;
 let protyle
