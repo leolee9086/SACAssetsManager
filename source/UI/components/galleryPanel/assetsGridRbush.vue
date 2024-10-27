@@ -104,9 +104,9 @@ function 更新图片尺寸(dimensions, cardData) {
 }
 function 更新素材高度(cardData, height) {
     const oldHeight = cardData.height
-    if (Math.abs(height + 0 - oldHeight + 0) >= oldHeight * 0.1 && !cardData.ready) {
+    if (Math.abs(height + 0 - oldHeight + 0) >= oldHeight * 0.05 ) {
         布局对象.value.update(cardData.index, height + 0)
-        更新可见区域(true)
+        requestIdleCallback(()=> 更新可见区域(true))
     }
 }
 function 上报统计数据(total) {
