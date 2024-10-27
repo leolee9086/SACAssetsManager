@@ -6,11 +6,11 @@
                     width:${width};
                     min-width:${width};
                     max-width:${width};
-                                        height:${height};
+                    height:${height};
                     min-height:${height};
                     max-height:${height};
                     background-color:var(--b3-theme-background);
-
+                    
                     text-overflow:ellipsis;
                     white-space:nowrap;`
 
@@ -28,10 +28,9 @@
 
 <script setup>
 import { onMounted, ref, toRef, nextTick, computed } from 'vue';
-import { findTagsByFilePath, findTagsByNoteID } from '../../../../data/tags.js';
 import { 选择标签 } from '../../../siyuanCommon/dialog/tagPicker.js';
 import { 打开标签资源视图 } from '../../../siyuanCommon/tabs/assetsTab.js';
-const props = defineProps(['cardData', 'width','height', 'displayMode']);
+const props = defineProps(['cardData', 'width', 'height', 'displayMode']);
 const { cardData } = props
 const width = toRef(props, 'width')
 const height = toRef(props, 'height')
@@ -41,28 +40,11 @@ const displayMode = toRef(props, 'displayMode')
 const tags = ref([])
 onMounted(
     () => {
-        if (cardData.data && cardData.data.type === 'note') {
-            findTagsByNoteID(cardData.data.id).then(
-                data => {
-                    nextTick(() => {
-                        data.forEach(
-                            tagData => {
-                                tags.value.push(
-                                    {
-                                        label: tagData
-                                    }
-                                )
-                            }
-                        )
-
-                    })
-
-                }
-            )
-        }
-        if (cardData.data && cardData.data.path) {
-            tags.value = findTagsByFilePath(cardData.data.path)
-        }
+        cardData.data.tags().then(
+            data => {
+                tags.value.push(...data)
+            }
+        )
     }
 )
 const noTagStyle = {

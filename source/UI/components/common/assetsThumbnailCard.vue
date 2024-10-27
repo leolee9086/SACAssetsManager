@@ -1,21 +1,28 @@
 <template>
     <div class="thumbnail-card-content" :style="$计算卡片内容样式" ref="cardRoot">
         <div :style="$计算素材详情容器样式" ref="detailContainer">
-            <protyleCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="note_id">
+            <protyleCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="noteID">
             </protyleCell>
             <imageCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="thumbnailURL"
                 @cellReady="(e) => handleImageLoad(e, cardData)" />
-            <template v-for="prop in tableViewAttributes">
-                <div v-if="prop && tableViewAttributes.includes(prop)" :style="$计算卡片属性单元格样式" class="ariaLabel"
-                    :aria-label="解析文件属性名标签(prop) + `(${prop})` + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
-                    {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
-                </div>
-            </template>
             <tagsCell :cardData="cardData" :width="attributeCellWidth()" :height="attributeCellHeight()"
                 :displayMode="displayMode">
             </tagsCell>
             <colorPalletCell :cardData="cardData" :width="attributeCellWidth()" :height="attributeCellHeight()">
             </colorPalletCell>
+
+            <template v-for="prop in tableViewAttributes">
+                <div v-if="prop && tableViewAttributes.includes(prop)" :style="$计算卡片属性单元格样式" class="ariaLabel"
+                    :aria-label="解析文件属性名标签(prop) + `(${prop})` + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
+                    <span><strong>{{ 解析文件属性名标签(prop) }}:</strong></span>
+                    <span v-if="cardData.data[prop] !== undefined">
+                        {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
+                    </span>
+                    <span v-else style="color: yellow;">
+                        无
+                    </span>
+                </div>
+            </template>
         </div>
     </div>
 </template>

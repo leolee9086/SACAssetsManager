@@ -1,15 +1,15 @@
 <template>
     <div :style="`border: 1px solid var(--b3-theme-background-light);
                     background-color:var(--b3-theme-background);
+    grid-template-columns: repeat(auto-fill, minmax(16px, 1fr));
 
-    display: 'grid';
+    display: grid;
                     width:${width};
                     min-width:${width};
                     max-width:${width};
                     height:${height};
                     min-height:${height};
                     max-height:${height};
-    gridTemplateColumns: 'repeat(auto-fill, minmax(16px, 1fr))';
 
 `">
         <template v-for="colorItem in pallet" :key="colorItem.color">

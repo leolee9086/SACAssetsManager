@@ -225,6 +225,34 @@ const 提取缩略图路径中间件 = (数据缓存) => {
     });
     return 数据缓存
 }
+const 提取NoteID中间件 = (数据缓存) => {
+    数据缓存.forEach(item => {
+        item.noteID = () => item.type === 'note' ? item.id : undefined; // 假设 noteID 是数据项的一个属性
+    });
+    return 数据缓存;
+};
+import { findTagsByFilePath, findTagsByNoteID } from '../../data/tags.js';
+
+const 提取tags中间件 = (数据缓存) => {
+    数据缓存.forEach(
+        item => {
+            item.tags = async () => {
+                const tags = [];
+                if (item && item.type === 'note') {
+                    const data = await findTagsByNoteID(item.id);
+                    data.forEach(tagData => {
+                        tags.push({ label: tagData });
+                    });
+                }
+                if (item && item.path) {
+                    const fileTags = findTagsByFilePath(item.path);
+                    tags.push(...fileTags);
+                }
+                return tags;
+            };
+        }
+    )
+}
 const 初始化数据缓存 = () => {
     const 数据缓存 = { data: [] }
     数据缓存.clear = () => {
@@ -235,7 +263,8 @@ const 初始化数据缓存 = () => {
         数据缓存.data,
         {},
         提取缩略图路径中间件,
-
+        提取tags中间件,
+        提取NoteID中间件,
         提取属性中间件,
         updateExtensionsMiddleware(() => appData.value, () => extensions.value),
         filterArgsMiddleware(filterFunc),
