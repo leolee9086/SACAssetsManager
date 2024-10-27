@@ -27,7 +27,8 @@ export const 计算素材缩略图样式 = (size, imageHeight) => {
     style.border = 'none'
     let borderRadius = px(根据尺寸计算圆角(size))
     style.borderRadius = `${borderRadius} ${borderRadius} 0 0`
-    style.height = size > 表格视图阈值 ? imageHeight || px(size) : px(size)
+   // style.height = size > 表格视图阈值 ? imageHeight || px(size) : px(size)
+   style.height='auto'
     return style
 }
 export const 计算素材详情容器样式 = (size, cardData) => {
