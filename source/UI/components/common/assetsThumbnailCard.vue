@@ -75,42 +75,45 @@ watch(attributesToFetch, async (newProps) => {
 
 
 
-
 const observerCallCount = ref(0);
-const heightMap = new Map();
+let heightCounts = {};
+let consecutiveSuccessCount = 0;
+const observer = new ResizeObserver(entries => {
+    for (let entry of entries) {
+        observerCallCount.value += 1;
+        const newHeight = entry.contentRect.height;
+        console.log(newHeight);
 
-const observer = new MutationObserver(() => {
-    observerCallCount.value += 1;
-    const newHeight = cardRoot.value ? cardRoot.value.getBoundingClientRect().height : size.value;
+        // 更新 heightCounts
+        heightCounts[newHeight] = (heightCounts[newHeight] || 0) + 1;
 
-    // 更新 Map
-    heightMap.set(observerCallCount.value, newHeight);
-    if (heightMap.size > 1000) {
-        const oldestKey = heightMap.keys().next().value;
-        heightMap.delete(oldestKey);
-    }
-
-    // 检查是否有 100 个相同的高度
-    const heightCounts = {};
-    for (let height of heightMap.values()) {
-        heightCounts[height] = (heightCounts[height] || 0) + 1;
-        if (heightCounts[height] >= 100) {
+        // 检查 newHeight 是否触发超过 100 次
+        if (heightCounts[newHeight] >= 100) {
             console.warn('相同高度值触发次数超过 100 次', cardData.data.id);
-            return
+            return;
         }
-    }
 
-    emit('updateSize', { width: size.value, height: newHeight });
+        // 如果成功更新大小，增加连续成功计数
+        consecutiveSuccessCount += 1;
+
+        // 检查连续成功次数是否超过三次
+        if (consecutiveSuccessCount > 3) {
+            console.log('连续成功触发超过三次，清空触发记录');
+            heightCounts = {}; // 清空触发记录
+            consecutiveSuccessCount = 0; // 重置连续成功计数
+        }
+
+        emit('updateSize', { width: size.value, height: newHeight });
+    }
 });
+
 onBeforeUnmount(() => {
     observer.disconnect();
 });
-onMounted(
-    () => {
-        observer.observe(cardRoot.value, { childList: true, attributes: true, subtree: true });
 
-    }
-)
+onMounted(() => {
+    observer.observe(cardRoot.value);
+});
 
 
 let idleCallbackId;

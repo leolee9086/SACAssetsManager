@@ -1,5 +1,5 @@
 <template>
-    <div  ref="protyleContainer">
+    <div  ref="protyleContainer" :style="{backgroundColor:'var(--b3-theme-background)', backgroundImage:'url(/stage/loading-pure.svg)',backgroundSize: 'contain',minHeight:size+'px',minWidth:size+'px'}">
         <div></div>
     </div>
 </template>
@@ -22,8 +22,9 @@ onMounted(async () => {
             let blockID = await 获取素材属性值(cardData.data, attributeName.value);
 
         requestIdleCallback(() => {
-            blockID && (protyle = 根据块ID创建protyle(protyleContainer.value.firstElementChild, blockID));
-        }, {timeout:15});
+            blockID&&protyleContainer.value && (protyle = 根据块ID创建protyle(protyleContainer.value.firstElementChild, blockID));
+            protyle&&protyleContainer.value &&(protyleContainer.value.style.minHeight=0)
+        }, {timeout:100});
     }
 });
 

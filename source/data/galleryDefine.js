@@ -21,21 +21,19 @@ export async function applyStmt(stmt) {
         sql = siyuanSqlParser(query, params)
     }
     const sqlParts = sql.split(/\s+/);
-
-
-
     let data = await kernelApi.sql(
         {
             stmt: sql,
         }
     )
+    console.log(sql)
     // 检查SQL语句的关键字顺序
     if (
         sqlParts[0].toLowerCase() === "select" &&
         sqlParts[1] === "*" &&
         sqlParts[2].toLowerCase() === "from" &&
-        sqlParts[3].toLowerCase() === "blocks") {
-    } {
+        sqlParts[3].toLowerCase() === "blocks") 
+    {
         return await 转换笔记查询结果到附件项(data)
     }
     return data.map(

@@ -12,10 +12,12 @@ import imageCell from './imageCell.vue';
 const props = defineProps(['cardData', 'displayMode', 'size']);
 
 const currentComponent = computed(() => {
-    return props.size > 300 ? protyleCell : imageCell;
+    return currentAttributeName.value==='noteID' ? protyleCell : imageCell;
 });
 
 const currentAttributeName = computed(() => {
-    return props.size > 300 ? 'noteID' : 'thumbnailURL';
+    //尺寸超过300时,显示编辑器,对于笔记来说就是protyle
+    console.log(props.cardData.data.type)
+    return props.size > 300&&props.cardData.data.type==='note' ? 'noteID' : 'thumbnailURL';
 });
 </script>

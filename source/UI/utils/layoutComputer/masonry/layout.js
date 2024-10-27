@@ -217,8 +217,12 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
     function update(index, newHeight) {
         timeStep += 1
         updatedFromLastSearch = true
+        const item = layout[index];
+        const oldHeight = item.height;
+      
 
-        const oldHeight = layout[index].height;
+
+
         const heightDifference = parseInt(newHeight) - oldHeight;
         if (index >= 0 && index < layout.length && Math.abs(heightDifference) >= oldHeight * 0.1) {
             const item = layout[index];
