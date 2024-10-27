@@ -5,32 +5,38 @@
         </div>
         <div class="alt-text" v-if="!imageLoaded" :style="$计算素材缩略图样式"></div>
         <img v-bind="$attrs" class="thumbnail-card-image ariaLabel" :aria-label="`${cardData.data.path}`" ref="image"
-             :style="imageLoaded?$计算素材缩略图样式:placeholderStyle" loading="lazy" draggable='true'
-            :onload="(e) => handleImageLoad(e)"
-            :src="获取素材属性值(cardData.data,attributeName)" />
+            :style="imageLoaded ? $计算素材缩略图样式 : placeholderStyle" loading="lazy" draggable='true'
+            :onload="(e) => handleImageLoad(e)" :src="imageSrc" />
     </div>
 </template>
 
 <script setup lang="jsx">
-import { computed, toRef,defineEmits,ref,onMounted } from 'vue';
+import { computed, toRef, defineEmits, ref, onMounted } from 'vue';
 import { 计算素材缩略图样式, 计算扩展名标签样式 } from '../assetStyles.js';
 import { LAYOUT_COLUMN } from '../../../utils/threhold.js';
 import { getAssetItemColor } from '../../../../data/attributies/getAsyncAttributes.js';
 import { rgb数组转字符串 } from '../../../../utils/color/convert.js';
 import { 获取素材属性值, 计算素材类型角标 } from '../../../../data/attributies/parseAttributies.js';
-const props = defineProps(['cardData', 'displayMode','attributeName', 'showImage', 'showIframe', 'size','cellReady']);
-const attributeName =toRef(props,'attributeName')
+const props = defineProps(['cardData', 'displayMode', 'attributeName', 'showImage', 'showIframe', 'size', 'cellReady']);
+const attributeName = toRef(props, 'attributeName')
 const displayMode = toRef(props, 'displayMode');
-const {cardData} = props
+const { cardData } = props
 const size = toRef(props, 'size');
 const emit = defineEmits(['image-loaded'])
 const imageLoaded = ref(false); // 新增状态变量
 const imagePallet = ref([])
+const imageSrc = ref('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAgAB/ax5LIAAAAAASUVORK5CYII='); // 使用 base64 编码的透明图片
+
 onMounted(
     () => {
-       getAssetItemColor(cardData.data).then(
-            ()=>{
-                imagePallet.value=cardData.data.colorPllet
+        // 异步获取素材属性值
+        获取素材属性值(cardData.data, attributeName.value).then((src) => {
+            imageSrc.value = src; // 更新图片的 src
+        });
+
+        getAssetItemColor(cardData.data).then(
+            () => {
+                imagePallet.value = cardData.data.colorPllet
             })
     }
 )
@@ -40,13 +46,13 @@ const handleImageLoad = (e) => {
     emit('cell-ready', e);
 }
 const placeholderStyle = computed(() => ({
-    width: size.value+'px', // 设置占位框的宽度
-    height: size.value+'px', // 设置占位框的高度
-    minWidth: size.value+'px', // 设置占位框的宽度
-    minHeight: size.value+'px', // 设置占位框的高度
-    maxWidth: size.value+'px', // 设置占位框的宽度
-    maxHeight: size.value+'px', // 设置占位框的高度
-    backgroundColor: !imagePallet.value[0]?"":rgb数组转字符串(imagePallet.value[0].color), // 设置占位框的背景色
+    width: size.value + 'px', // 设置占位框的宽度
+    height: size.value + 'px', // 设置占位框的高度
+    minWidth: size.value + 'px', // 设置占位框的宽度
+    minHeight: size.value + 'px', // 设置占位框的高度
+    maxWidth: size.value + 'px', // 设置占位框的宽度
+    maxHeight: size.value + 'px', // 设置占位框的高度
+    backgroundColor: !imagePallet.value[0] ? "" : rgb数组转字符串(imagePallet.value[0].color), // 设置占位框的背景色
 }));
 const $计算素材缩略图样式 = computed(() => 计算素材缩略图样式(size.value, cardData));
 const $计算扩展名标签样式 = computed(() => 计算扩展名标签样式(displayMode.value, cardData, size.value));

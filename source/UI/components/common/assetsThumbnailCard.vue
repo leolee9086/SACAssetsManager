@@ -1,10 +1,7 @@
 <template>
     <div class="thumbnail-card-content" :style="$计算卡片内容样式" ref="cardRoot">
         <div :style="$计算素材详情容器样式" ref="detailContainer">
-            <protyleCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="noteID">
-            </protyleCell>
-            <imageCell :cardData="cardData" :displayMode="displayMode" :size="size" attributeName="thumbnailURL"
-                @cellReady="(e) => handleImageLoad(e, cardData)" />
+            <mainPreviewCell :cardData="cardData" :displayMode="displayMode" :size="size" />
             <tagsCell :cardData="cardData" :width="attributeCellWidth()" :height="attributeCellHeight()"
                 :displayMode="displayMode">
             </tagsCell>
@@ -15,10 +12,15 @@
                 <div v-if="prop && tableViewAttributes.includes(prop)" :style="$计算卡片属性单元格样式" class="ariaLabel"
                     :aria-label="解析文件属性名标签(prop) + `(${prop})` + ':' + 解析文件内部属性显示(prop, cardData.data[prop])">
                     <span><strong>{{ 解析文件属性名标签(prop) }}:</strong></span>
-                    <span v-if="cardData.data[prop] !== undefined">
-                        {{ 解析文件内部属性显示(prop, cardData.data[prop]) }}
-                    </span>
-                    <span v-else style="color: yellow;">
+                    <template v-if="resolvedValues[prop] !== UNDEFINED_MARKER">
+                        <span v-if="cardData.data[prop] !== undefined && resolvedValues[prop] !== undefined">
+                            {{ 解析文件内部属性显示(prop, resolvedValues[prop]) }}
+                        </span>
+                        <span v-else="cardData.data[prop] !== undefined">
+                            加载中...
+                        </span>
+                    </template>
+                    <span v-else style="color: var(--b3-card-warning-background);">
                         无
                     </span>
                 </div>
@@ -27,16 +29,27 @@
     </div>
 </template>
 <script setup lang="jsx">
-import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick } from 'vue';
+import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick, watch } from 'vue';
 import { thumbnail } from '../../../server/endPoints.js';
 import { rgb数组转字符串 } from '../../../utils/color/convert.js';
 import { LAYOUT_COLUMN, LAYOUT_ROW } from '../../utils/threhold.js';
-import { 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
+import { 获取素材属性值, UNDEFINED_MARKER, 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { findTagsByFilePath } from '../../../data/tags.js';
 import tagsCell from './assetCard/tagsCell.vue';
 import colorPalletCell from './assetCard/paletteCell.vue'
 import imageCell from './assetCard/imageCell.vue';
 import protyleCell from './assetCard/protyleCell.vue'
+import mainPreviewCell from './assetCard/mainPreviewCell.vue';
+const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes', 'displayMode'])
+const tableViewAttributes = toRef(props, 'tableViewAttributes')
+const displayMode = toRef(props, 'displayMode')
+const { cardData } = props
+const size = toRef(props, 'size')
+const emit = defineEmits()
+const showImage = ref('')
+const pallet = ref([])
+const firstColorString = ref('var(--b3-theme-background-light)')
+
 const cardRoot = ref(null)
 
 /**
@@ -45,6 +58,23 @@ const cardRoot = ref(null)
 function handleImageLoad(e, cardData) {
 
 }
+
+// 计算需要获取值的属性
+const resolvedValues = ref({});
+
+const attributesToFetch = computed(() => {
+    return tableViewAttributes.value.filter(prop => cardData.data[prop] !== undefined && resolvedValues.value[prop] === undefined);
+});
+
+// 监听需要获取值的属性变化
+watch(attributesToFetch, async (newProps) => {
+    for (const prop of newProps) {
+        resolvedValues.value[prop] = await 获取素材属性值(cardData.data, prop);
+    }
+}, { immediate: true });
+
+
+
 
 const observerCallCount = ref(0);
 const heightMap = new Map();
@@ -65,7 +95,8 @@ const observer = new MutationObserver(() => {
     for (let height of heightMap.values()) {
         heightCounts[height] = (heightCounts[height] || 0) + 1;
         if (heightCounts[height] >= 100) {
-            throw new Error('相同高度值触发次数超过 100 次', cardData.data.id);
+            console.warn('相同高度值触发次数超过 100 次', cardData.data.id);
+            return
         }
     }
 
@@ -81,15 +112,6 @@ onMounted(
     }
 )
 
-const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes', 'displayMode'])
-const tableViewAttributes = toRef(props, 'tableViewAttributes')
-const displayMode = toRef(props, 'displayMode')
-const { cardData } = props
-const size = toRef(props, 'size')
-const emit = defineEmits()
-const showImage = ref('')
-const pallet = ref([])
-const firstColorString = ref('var(--b3-theme-background-light)')
 
 let idleCallbackId;
 let protyle
@@ -161,7 +183,9 @@ const $计算卡片属性单元格样式 = computed(
                     width:${attributeCellWidth()};
                     height:${attributeCellHeight()};
                     text-overflow:ellipsis;
-                    white-space:nowrap;`
+                    white-space:nowrap;
+                    background-color:var(--b3-theme-background)
+                    `
     }
 )
 </script>

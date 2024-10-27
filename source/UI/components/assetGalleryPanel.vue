@@ -227,7 +227,33 @@ const 提取缩略图路径中间件 = (数据缓存) => {
 }
 const 提取NoteID中间件 = (数据缓存) => {
     数据缓存.forEach(item => {
-        item.noteID = () => item.type === 'note' ? item.id : undefined; // 假设 noteID 是数据项的一个属性
+        let $noteID=item.noteID
+        item.noteID = {
+            type:'sy_note_id',
+            get: async () => {
+                // 假设需要异步获取
+                let id= item.type === 'note' ? item.id : $noteID;
+                console.log(id)
+                return id
+            },
+            set: async (newID) => {
+                if (item.type === 'note') {
+                    item.id = newID;
+                } else {
+                    throw new Error('Cannot set ID for non-note type');
+                }
+            },
+            render: async () => {
+                return item.type === 'note' ? `Note ID: ${item.id}` : 'Not a note';
+            },
+            isEditable: async () => {
+                // 只有当类型是笔不是笔记时,绑定的笔记ID才可以编辑
+                return item.type !== 'note';
+            },
+            checker:async()=>{
+                return false
+            }
+        };
     });
     return 数据缓存;
 };
