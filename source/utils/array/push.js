@@ -23,11 +23,12 @@ export function 创建带中间件的Push方法(array, { ignoreErrors = false } 
         throw new TypeError('All middlewares must be functions.');
     }
 
-    const originalPush = array.push;
+    const originalPush = Array.prototype.push; // 使用 Array.prototype.push 而不是 array.push
     array.push = function (...args) {
+        let modifiedArgs = args;
         for (const middleware of middlewares) {
             try {
-                args = middleware(args) || args;
+                modifiedArgs = middleware(modifiedArgs) || modifiedArgs;
             } catch (error) {
                 console.error('Error in middleware:', error);
                 if (!ignoreErrors) {
@@ -36,6 +37,6 @@ export function 创建带中间件的Push方法(array, { ignoreErrors = false } 
                 break; // 如果忽略错误，跳出中间件循环
             }
         }
-        return originalPush.apply(this, args);
+        return originalPush.apply(array, modifiedArgs); // 使用原始的 Array.prototype.push
     };
 }

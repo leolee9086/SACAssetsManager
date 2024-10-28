@@ -217,14 +217,7 @@ const 提取属性中间件 = (数据缓存) => {
     Attributes.value = Array.from(属性Map.values()).flat();
     return 数据缓存
 };
-const 提取缩略图路径中间件 = (数据缓存) => {
-    数据缓存.forEach(item => {
-        item.thumbnailURL =
-            () => endPoints.thumbnail.genHref(item.type, item.path, size.value, item)
 
-    });
-    return 数据缓存
-}
 const 提取NoteID中间件 = (数据缓存) => {
     数据缓存.forEach(item => {
         let $noteID=item.noteID
@@ -279,6 +272,7 @@ const 提取tags中间件 = (数据缓存) => {
         }
     )
 }
+import { 提取缩略图路径中间件 } from '../../data/attributies/attributeParsers.js';
 const 初始化数据缓存 = () => {
     const 数据缓存 = { data: [] }
     数据缓存.clear = () => {
@@ -288,7 +282,9 @@ const 初始化数据缓存 = () => {
     创建带中间件的Push方法(
         数据缓存.data,
         {},
-        提取缩略图路径中间件,
+        柯里化(提取缩略图路径中间件)({getCardSize:()=>{
+            return size.value
+        }}),
         提取tags中间件,
         提取NoteID中间件,
         提取属性中间件,

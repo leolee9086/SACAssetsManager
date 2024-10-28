@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本显示器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .container {
+            width: 80%;
+            height: 80%;
+            overflow: auto;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+        }
+        .line-numbers {
+            padding: 10px;
+            background-color: #f7f7f7;
+            border-right: 1px solid #ccc;
+            text-align: right;
+            user-select: none;
+        }
+        .content {
+            padding: 10px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            flex-grow: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="line-numbers" id="lineNumbers"></div>
+        <div class="content" id="content"></div>
+    </div>
+
+    <script>
+        function displayTextWithLineNumbers(text) {
+            const lines = text.split('\n');
+            const lineNumbersElement = document.getElementById('lineNumbers');
+            const contentElement = document.getElementById('content');
+
+            lineNumbersElement.innerHTML = lines.map((_, index) => (index + 1)).join('\n');
+            contentElement.textContent = text;
+        }
+
+        // 示例文本
+        const exampleText = `这是第一行
+这是第二行
+这是第三行
+这是第四行
+这是第五行
+这是第六行
+这是第七行
+这是第八行
+这是第九行
+这是第十行`;
+
+        displayTextWithLineNumbers(exampleText);
+    </script>
+</body>
+</html>

@@ -222,16 +222,12 @@ export function 获取属性显示定义(排除属性列表, 文件系统内部�
 export const UNDEFINED_MARKER = Symbol.for('undefined_marker');
 
 export const 获取素材属性值 = async (data, key) => {
-
     // 检查缓存中是否已有值
     if (data.$valueCache && data.$valueCache[key] !== undefined) {
         return data.$valueCache[key] === UNDEFINED_MARKER ? undefined : data.$valueCache[key];
-
     }
-
     const value = data[key];
     let result;
-
     // 扩展到所有属性：如果属性值是对象并且有 get 方法，调用 get 方法获取值
     if (typeof value === 'object' && typeof value.get === 'function') {
         result = await value.get();
@@ -239,23 +235,17 @@ export const 获取素材属性值 = async (data, key) => {
     } else {
         result = typeof value === 'function' ? value() : value;
     }
-
     // 将结果存储到缓存中
     if (!data.$valueCache) {
-
         data.$valueCache = {};
-
     }
-
     data.$valueCache[key] = result === undefined ? UNDEFINED_MARKER : result;
-
-
+    console.log(result)
     return result;
-
 }
 export const 计算素材类型角标 =(data)=>{
     if (data.type === 'note') {
         return `笔记:${块类型语言对照表[data.$meta.type] || data.$meta.type}`;
     }
-    return data.path.split('.').pop()
+    return data.path?.split('.').pop()||'未知的类型'
 }

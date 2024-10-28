@@ -1,7 +1,7 @@
 import { kernelApi } from "../asyncModules.js";
 import { cleanAssetPath } from "./utils/assetsName.js";
 import { applyURIStreamJson, applyURIStreamJsonCompatible } from "./fetchStream.js";
-import { 转换笔记查询结果到附件项 } from "./transform/toAssetItem.js";
+import { 转换笔记查询结果到附件项,转换笔记附件查询结果到附件项 } from "./transform/toAssetItem.js";
 
 
 /***
@@ -36,12 +36,20 @@ export async function applyStmt(stmt) {
     {
         return await 转换笔记查询结果到附件项(data)
     }
+    if (
+        sqlParts[0].toLowerCase() === "select" &&
+        sqlParts[1] === "*" &&
+        sqlParts[2].toLowerCase() === "from" &&
+        sqlParts[3].toLowerCase() === "assets") 
+    {
+        return await 转换笔记附件查询结果到附件项(data)
+    }
     return data.map(
         (item, i) => {
             return {
                 index: i,
-                format: item.path.split('.').pop(),
-                cleanPath: cleanAssetPath(item.path),
+                format: item.path?.split('.').pop(),
+                cleanPath: item.path&&cleanAssetPath(item.path),
                 path: item.path,
                 ...item
             }

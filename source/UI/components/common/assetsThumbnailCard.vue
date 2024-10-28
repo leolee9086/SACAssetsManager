@@ -92,17 +92,14 @@ const observer = new ResizeObserver(entries => {
             console.warn('相同高度值触发次数超过 100 次', cardData.data.id);
             return;
         }
-
         // 如果成功更新大小，增加连续成功计数
         consecutiveSuccessCount += 1;
-
         // 检查连续成功次数是否超过三次
         if (consecutiveSuccessCount > 3) {
             console.log('连续成功触发超过三次，清空触发记录');
             heightCounts = {}; // 清空触发记录
             consecutiveSuccessCount = 0; // 重置连续成功计数
         }
-
         emit('updateSize', { width: size.value, height: newHeight });
     }
 });

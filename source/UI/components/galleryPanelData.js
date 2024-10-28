@@ -15,7 +15,7 @@ export const 获取数据到缓存 = async (接口位置, 搜索函数, 搜索, 
 };
 const 获取文件扩展名 = (项目) => {
     if (项目.type !== 'note') {
-        return 项目.name.split('.').pop().toLowerCase();
+        return 项目.path?.split('.').pop().toLowerCase();
     }
     return 'note';
 };
