@@ -149,7 +149,6 @@ watch(selectedExtensions, (newValue, oldValue) => {
             return newValue.includes('note')
         }
     };
-
     refreshPanel();
     // 在这里可以添加其他逻辑，比如更新界面或触发其他操作
 });
@@ -208,55 +207,59 @@ const displayAttributes = computed(
     () => 卡片显示模式.value === LAYOUT_COLUMN ? selectedMosanicAttributes.value : selectedAttributes.value
 )
 // ... existing code ...
-const 提取属性中间件 = (数据缓存) => {
-    数据缓存.forEach(item => {
-        if (!属性Map.has(item.type)) {
-            属性Map.set(item.type, Object.keys(item));
+const 提取属性名中间件 = (布局控制器, 数据缓存) => {
+    for (let i = 0; i < 数据缓存.length; i++) {
+        const item = 数据缓存[i];
+        for (const name in item) {
+            if (item.hasOwnProperty(name)) {
+                布局控制器.addAttributeName(item.type, name);
+            }
         }
-    });
-    Attributes.value = Array.from(属性Map.values()).flat();
-    return 数据缓存
+    }
+    return 数据缓存;
 };
 
-import { findTagsByFilePath, findTagsByNoteID } from '../../data/tags.js';
 
-const 提取tags中间件 = (数据缓存) => {
-    数据缓存.forEach(
-        item => {
-            item.tags = async () => {
-                const tags = [];
-                if (item && item.type === 'note') {
-                    const data = await findTagsByNoteID(item.id);
-                    data.forEach(tagData => {
-                        tags.push({ label: tagData });
-                    });
-                }
-                if (item && item.path) {
-                    const fileTags = findTagsByFilePath(item.path);
-                    tags.push(...fileTags);
-                }
-                return tags;
-            };
-        }
-    )
-    return 数据缓存
-}
-import { 提取缩略图路径中间件,提取NoteID中间件 } from '../../data/attributies/attributeParsers.js';
+import { 提取缩略图路径中间件, 提取NoteID中间件, 提取tags中间件 } from '../../data/attributies/attributeParsers.js';
 const 初始化数据缓存 = () => {
     const 数据缓存 = { data: [] }
     数据缓存.clear = () => {
         数据缓存.data.length = 0
     }
+    const processedAttributes = new Set();
+
+    const 布局控制器 = {
+        getCardSize: () => {
+            return size.value
+        },
+        addAttributeName: (type, name) => {
+            const attributeKey = `${type}:${name}`;
+            if (processedAttributes.has(attributeKey)) {
+                return; // 跳过已经处理过的组合
+            }
+            processedAttributes.add(attributeKey);
+
+            if (!属性Map.has(type)) {
+                属性Map.set(type, [name]);
+            } else {
+                const existingAttributes = 属性Map.get(type);
+                if (!existingAttributes.includes(name)) {
+                    existingAttributes.push(name);
+                    属性Map.set(type, existingAttributes);
+                }
+            }
+            Attributes.value = Array.from(属性Map.values()).flat();
+        }
+
+    }
     extensions.value = []
     创建带中间件的Push方法(
         数据缓存.data,
         {},
-        柯里化(提取缩略图路径中间件)({getCardSize:()=>{
-            return size.value
-        }}),
+        柯里化(提取缩略图路径中间件)(布局控制器),
         提取tags中间件,
         提取NoteID中间件,
-        提取属性中间件,
+        柯里化(提取属性名中间件)(布局控制器),
         updateExtensionsMiddleware(() => appData.value, () => extensions.value),
         filterArgsMiddleware(filterFunc),
     );
@@ -396,9 +399,7 @@ const palletAdded = (data) => {
 
 //缩略图大小
 const size = ref(250)
-
 const $max = ref(1024);
-
 onMounted(() => {
     const resizeObserver = new ResizeObserver(() => {
         let result = root.value?.getBoundingClientRect().width
@@ -410,11 +411,9 @@ onMounted(() => {
             size.value = $max.value
         }
     });
-
     if (root.value) {
         resizeObserver.observe(root.value);
     }
-
     onUnmounted(() => {
         resizeObserver.disconnect();
     });

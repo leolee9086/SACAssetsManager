@@ -33,8 +33,8 @@ export const 提取缩略图路径中间件 = (布局控制器, 数据组) => {
     });
     return 数据组;
 }
-export const 提取NoteID中间件 = (数据缓存) => {
-    数据缓存.forEach(item => {
+export const 提取NoteID中间件 = (数据组) => {
+    数据组.forEach(item => {
         let $noteID=item.noteID
         item.noteID = {
             type:'sy_note_id',
@@ -60,7 +60,32 @@ export const 提取NoteID中间件 = (数据缓存) => {
             checker:async()=>{
                 return false
             }
+            
         };
     });
-    return 数据缓存;
+    return 数据组;
 };
+
+
+import { findTagsByFilePath,findTagsByNoteID } from '../tags.js';
+export const 提取tags中间件 = (数据缓存) => {
+    数据缓存.forEach(
+        item => {
+            item.tags = async () => {
+                const tags = [];
+                if (item && item.type === 'note') {
+                    const data = await findTagsByNoteID(item.id);
+                    data.forEach(tagData => {
+                        tags.push({ label: tagData });
+                    });
+                }
+                if (item && item.path) {
+                    const fileTags = findTagsByFilePath(item.path);
+                    tags.push(...fileTags);
+                }
+                return tags;
+            };
+        }
+    )
+    return 数据缓存
+}

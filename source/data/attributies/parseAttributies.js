@@ -240,7 +240,6 @@ export const 获取素材属性值 = async (data, key) => {
         data.$valueCache = {};
     }
     data.$valueCache[key] = result === undefined ? UNDEFINED_MARKER : result;
-    console.log(result)
     return result;
 }
 export const 计算素材类型角标 =(data)=>{
