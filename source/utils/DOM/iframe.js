@@ -40,7 +40,7 @@ export async function writeHljsIframe(contentFrame, data) {
                     }
                     window.onload = function() {
                         resizeIframe();
-                        hljs.highlightAll(); // 确保在页面加载完成后进行代码高亮
+                        requestIdleCallback( hljs.highlightAll)
                     };
                 </script>
             </body>

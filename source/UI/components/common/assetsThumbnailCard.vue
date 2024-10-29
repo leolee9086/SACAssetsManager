@@ -79,6 +79,7 @@ const observerCallCount = ref(0);
 let heightCounts = {};
 let consecutiveSuccessCount = 0;
 let newHeight
+let sizeidleCallbackId
 const observer = new ResizeObserver(entries => {
     for (let entry of entries) {
         observerCallCount.value += 1;
@@ -100,29 +101,28 @@ const observer = new ResizeObserver(entries => {
             consecutiveSuccessCount = 0; // 重置连续成功计数
         }
         // 使用闲时回调循环更新大小
+        let interval = 15; // 初始间隔时间
         const updateSize = () => {
-            if (cardData.height !== newHeight) {
-                requestIdleCallback(() => {
-                    if (cardData.height !== newHeight) {
+            if (cardData.height !== newHeight && Math.abs(cardData.height - newHeight) >= 1) {
+               // requestIdleCallback(() => {
+                //    if (cardData.height !== newHeight && Math.abs(cardData.height - newHeight) >= 1) {
 
                         emit('updateSize', {
-
                             width: size.value, height: newHeight
                         })
                     }
-                }
-
-                )
-                idleCallbackId = requestIdleCallback(updateSize, { timeout: 30 });
-            }
+               // });
+                interval *= 2; // 指数级增长间隔时间
+                sizeidleCallbackId = requestIdleCallback(updateSize, { timeout: interval });
+           // }
         };
-
-        idleCallbackId = requestIdleCallback(updateSize, { timeout: 30 });
-    }
+        sizeidleCallbackId = requestIdleCallback(updateSize, { timeout: interval });    }
 });
 
 onBeforeUnmount(() => {
     observer.disconnect();
+    sizeidleCallbackId && cancelIdleCallback(sizeidleCallbackId);
+
 });
 
 onMounted(() => {

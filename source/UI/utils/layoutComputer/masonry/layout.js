@@ -39,82 +39,6 @@ export function 二分查找可见素材(位置序列, 查找起点, 窗口高�
     return { start: 起始索引, end: 截止索引 };
 }
 
-export function 创建分段瀑布流布局(columnCount, columnWidth, gutter, datas, reactive, staticSize) {
-    const MAX_ITEMS_PER_LAYOUT = 1000;
-    const layouts = [];
-    let currentYOffset = 0; // 当前的Y偏移量
-    // 将数据分段
-    for (let i = 0; i < datas.length; i += MAX_ITEMS_PER_LAYOUT) {
-        const segmentData = datas.slice(i, i + MAX_ITEMS_PER_LAYOUT);
-        const layout = 创建单个瀑布流布局(columnCount, columnWidth, gutter, segmentData, reactive, staticSize);
-        
-        // 调整每个布局的Y偏移
-        layout.layout.forEach(item => {
-            item.y += currentYOffset;
-            item.minY += currentYOffset;
-            item.maxY += currentYOffset;
-        });
-
-        // 更新当前的Y偏移量
-        const maxColumnHeight = Math.max(...layout.columns.map(column => column.y));
-        currentYOffset += maxColumnHeight;
-
-        layouts.push(layout);
-    }
-
-    // 获取总高度
-    const getTotalHeight = () => {
-        if (layouts.length === 0) return 0;
-        const lastLayout = layouts[layouts.length - 1];
-        return Math.max(...lastLayout.columns.map(column => column.y));
-    };
-
-    // 对外接口不变
-    return {
-        layout: {
-            length: layouts.reduce((total, layout) => total + layout.layout.length, 0) // 计算总数据数量
-        },
-        subLayouts: layouts,
-        add: (data, height, width, selected) => {
-            // 添加到最后一个布局
-            const lastLayout = layouts[layouts.length - 1];
-            if (lastLayout.layout.length < MAX_ITEMS_PER_LAYOUT) {
-                lastLayout.add(data, height, width, selected);
-            } else {
-                // 创建新的布局
-                const newLayout = 创建单个瀑布流布局(columnCount, columnWidth, gutter, [data], reactive, staticSize);
-                layouts.push(newLayout);
-            }
-        },
-        update: (index, newHeight) => {
-            // 找到对应的布局并更新
-            let currentIndex = index;
-            for (const layout of layouts) {
-                if (currentIndex < layout.layout.length) {
-                    layout.update(currentIndex, newHeight);
-                    break;
-                }
-                currentIndex -= layout.layout.length;
-            }
-        },
-        rebuild: (columnCount, columnWidth, gutter, datas, reactive) => {
-            return 创建瀑布流布局(columnCount, columnWidth, gutter, datas, reactive, staticSize);
-        },
-        search: (可见框) => {
-            // 合并所有布局的搜索结果
-            return layouts.flatMap(layout => layout.search(可见框));
-        },
-        searchByRect: (可见框) => {
-            // 合并所有布局的搜索结果
-            return layouts.flatMap(layout => layout.searchByRect(可见框));
-        },
-        sort: (sorter) => {
-            // 对每个布局进行排序
-            layouts.forEach(layout => layout.sort(sorter));
-        },
-        getTotalHeight // 添加获取总高度的方法
-    };
-}
 export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, reactive, staticSize) {
     const layout = [];
     const columns = [];
@@ -213,18 +137,75 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             pendingUpdates.add(column.items[i])
         }
     }
-    // 更新数据高度的方法
+    const updateRequests = new Map(); // 用于存储更新请求
+
     function update(index, newHeight) {
+        timeStep += 1;
+        updatedFromLastSearch = true;
+        const item = layout[index];
+        const oldHeight = item.height;
+        const heightDifference = parseInt(newHeight) - oldHeight;
+
+        if (index >= 0 && index < layout.length) {
+            // 存储最新的更新请求
+            updateRequests.set(index, { newHeight, timestamp: Date.now() });
+
+            // 如果定时器未设置，设置一个定时器来处理更新
+            if (!updateTimer) {
+                updateTimer = setTimeout(() => {
+                    processPendingUpdates();
+                    updateTimer = null; // 处理完毕后重置定时器
+                }, 15); // 15毫秒的处理间隔
+            }
+        }
+    }
+
+    function processPendingUpdates() {
+        updateRequests.forEach((request, index) => {
+            const item = layout[index];
+            const oldHeight = item.height;
+            const heightDifference = parseInt(request.newHeight) - oldHeight;
+
+            staticSize && tree.remove(item);
+            item.height = request.newHeight;
+            item.maxY = item.y + item.height;
+            let columnIndex = item.columnIndex;
+            let currentColumn = columns[columnIndex];
+            currentColumn.y += heightDifference;
+
+            // 立即更新同一列中的下一个元素
+            const nextItemIndex = item.indexInColumn + 1;
+            if (nextItemIndex < currentColumn.items.length) {
+                const nextItem = currentColumn.items[nextItemIndex];
+                nextItem.y += heightDifference;
+                nextItem.minY = nextItem.y;
+                nextItem.maxY = nextItem.y + nextItem.height;
+            }
+
+            // 添加到更新队列
+            updateQueue.push({
+                indexInColumn: item.indexInColumn + 1,
+                heightChange: heightDifference,
+                columnIndex: columnIndex,
+                timestamp: Date.now() // 记录更新的时间戳
+            });
+
+            // 重新插入到 Rbush
+            staticSize && tree.insert(item);
+        });
+
+        updateRequests.clear(); // 清空更新请求
+        processUpdates();
+        timeStep = 30;
+    }
+    // 更新数据高度的方法
+    function $update(index, newHeight) {
         timeStep += 1
         updatedFromLastSearch = true
         const item = layout[index];
         const oldHeight = item.height;
-      
-
-
-
         const heightDifference = parseInt(newHeight) - oldHeight;
-        if (index >= 0 && index < layout.length && Math.abs(heightDifference) >= oldHeight * 0.1) {
+        if (index >= 0 && index < layout.length) {
             const item = layout[index];
             staticSize && tree.remove(item)
             item.height = newHeight;
@@ -232,15 +213,25 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
             let columnIndex = item.columnIndex;
             let currentColumn = columns[columnIndex];
             currentColumn.y += heightDifference;
+            // 立即更新同一列中的下一个元素
+            const nextItemIndex = item.indexInColumn + 1;
+            if (nextItemIndex < currentColumn.items.length) {
+                const nextItem = currentColumn.items[nextItemIndex];
+                nextItem.y += heightDifference;
+                nextItem.minY = nextItem.y;
+                nextItem.maxY = nextItem.y + nextItem.height;
+            }
+
             //添加到更新队列
             updateQueue.push({
-                indexInColumn: item.indexInColumn,
+                indexInColumn: item.indexInColumn+1,
                 heightChange: heightDifference,
                 columnIndex: columnIndex,
                 timestamp: Date.now() // 记录更新的时间戳
             });
             // 重新插入到 Rbush
             staticSize && tree.insert(item)
+
             // 如果定时器未设置，设置一个定时器来处理更新
             if (layout.length <= 5000) {
                 processUpdates();
@@ -293,19 +284,35 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         )
     }
     function search(可见框) {
-        let { minX, minY, maxX, maxY } = 可见框
-        let 查找起点 = minY
-        let 窗口高度 = maxY - minY
-        let result = []
+        let { minX, minY, maxX, maxY } = 可见框;
+        let 查找起点 = minY;
+        let 窗口高度 = maxY - minY;
+        let result = [];
+
         for (let i = 0; i < columns.length; i++) {
-            let items = columns[i].items
-            let range = 二分查找可见素材(items, 查找起点, 窗口高度)
-            for (let i = range.start; i <= range.end; i++) {
-                result.push(items[i])
+            let items = columns[i].items;
+            let range = 二分查找可见素材(items, 查找起点, 窗口高度);
+            let columnResult = [];
+            for (let j = range.start; j <= range.end; j++) {
+                columnResult.push(items[j]);
             }
+
+            // 二次更新，避免重叠
+            columnResult.sort((a, b) => a.y - b.y); // 按y坐标排序
+            for (let k = 1; k < columnResult.length; k++) {
+                if (columnResult[k].y < columnResult[k - 1].maxY) {
+                    columnResult[k].y = columnResult[k - 1].maxY + gutter; // 调整y坐标
+                    columnResult[k].minY = columnResult[k].y;
+                    columnResult[k].maxY = columnResult[k].y + columnResult[k].height;
+                }
+            }
+
+            result = result.concat(columnResult);
         }
-        return result
+
+        return result;
     }
+
 
     let tree = new Rbush()
     function searchByRect(可见框) {
@@ -322,6 +329,7 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
     return {
         layout: layout,
         columns: columns,
+        gutter: gutter,
         add: add,
         update: (...args) => update(...args),
         rebuild: rebuild,
@@ -330,12 +338,18 @@ export function 创建瀑布流布局(columnCount, columnWidth, gutter, datas, r
         searchByRect,
         timeStep,
         sort: (...args) => sort(...args),
-        getTotalHeight:()=>{
+        getTotalHeight: () => {
             return Math.max(...columns.map(column => column.y))
         }
     };
 }
-
+export function getColumnNextSiblingByIndex(columns, columnIndex, itemIndex) {
+    const column = columns[columnIndex];
+    if (!column || itemIndex < 0 || itemIndex >= column.items.length - 1) {
+        return null; // 如果列不存在或索引无效，返回null
+    }
+    return column.items[itemIndex + 1]; // 返回下一个元素
+}
 
 export const 获取布局最短列 = (布局对象) => {
     let { columns } = 布局对象

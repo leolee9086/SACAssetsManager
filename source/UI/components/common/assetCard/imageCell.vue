@@ -22,7 +22,7 @@ const attributeName = toRef(props, 'attributeName')
 const displayMode = toRef(props, 'displayMode');
 const { cardData } = props
 const size = toRef(props, 'size');
-const emit = defineEmits(['image-loaded'])
+const emit = defineEmits(['cell-ready'])
 const imageLoaded = ref(false); // 新增状态变量
 const imagePallet = ref([])
 const imageSrc = ref('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAgAB/ax5LIAAAAAASUVORK5CYII='); // 使用 base64 编码的透明图片

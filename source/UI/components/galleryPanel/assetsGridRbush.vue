@@ -5,16 +5,12 @@
             <div class="fn__flex-column fn__flex-1" :style="`height:${containerHeight}px`">
                 <template v-for="(卡片数据, i) in 可见卡片组" :key="(卡片数据&&卡片数据.data?卡片数据.data.id+卡片数据.data.index:Date.now())">
                     <div @click="handleClick" :tabindex="卡片数据.index" @keydown.stop="handleKeyDown"
-                    :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
+                        :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
-                        <assetsThumbnailCard 
-                        :displayMode="cardDisplayMode"    
-
-                        :selected="卡片数据.selected" :size="size"
-                        :tableViewAttributes="tableViewAttributes"
-                            @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])" :cardData="卡片数据" @palletAdded="palletAdded"
-                            :filterColor="filterColor">
+                        <assetsThumbnailCard :displayMode="cardDisplayMode" :selected="卡片数据.selected" :size="size"
+                            :tableViewAttributes="tableViewAttributes" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
+                            :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
                         </assetsThumbnailCard>
                     </div>
                 </template>
@@ -37,7 +33,7 @@ import {
     onUnmounted,
     defineExpose
 } from 'vue'
-import { 从数据源定量加载数据, 创建瀑布流布局 } from "../../utils/layoutComputer/masonry/layout.js";
+import { 从数据源定量加载数据, 创建瀑布流布局, getColumnNextSiblingByIndex } from "../../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "../common/assetsThumbnailCard.vue";
 /**
  * 计算样式的部分
@@ -55,13 +51,13 @@ const 计算卡片样式 = (卡片数据) => {
 //let 附件数据源数组 =shallowRef([])
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'assetsSource','tableViewAttributes','cardDisplayMode'])
-const tableViewAttributes=toRef(props,'tableViewAttributes')
+const props = defineProps(['size', 'sorter', 'globSetting', 'maxCount', 'filterColor', 'assetsSource', 'tableViewAttributes', 'cardDisplayMode'])
+const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
 const filterColor = toRef(props, 'filterColor')
-const cardDisplayMode = toRef(props,'cardDisplayMode')
+const cardDisplayMode = toRef(props, 'cardDisplayMode')
 const root = ref(null)
 const scrollContainer = ref(null)
 let 布局对象 = shallowRef(null)
@@ -103,11 +99,8 @@ function 更新图片尺寸(dimensions, cardData) {
     更新素材高度(cardData, dimensions.height)
 }
 function 更新素材高度(cardData, height) {
-    const oldHeight = cardData.height
-    if (Math.abs(height + 0 - oldHeight + 0) >= oldHeight * 0.05 ) {
-        布局对象.value.update(cardData.index, height + 0)
-        requestIdleCallback(()=> 更新可见区域(true))
-    }
+    布局对象.value.update(cardData.index, height)
+    requestIdleCallback(() => 更新可见区域(true))
 }
 function 上报统计数据(total) {
     if (total) {
@@ -204,8 +197,21 @@ const 更新可见卡片 = (可见框) => {
         // 否则，按可见框计算可见卡片
         result = Array.from(new Set(布局对象.value.search(可见框)));
     }
+    try {
+        result.forEach(item => {
+            const nextSibling = getColumnNextSiblingByIndex(布局对象.value.columns, item.columnIndex, item.indexInColumn);
+            if (nextSibling && nextSibling.y < item.maxY) {
+                nextSibling.y = item.maxY + 布局对象.value.gutter; // 调整y坐标
+                nextSibling.minY = nextSibling.y;
+                nextSibling.maxY = nextSibling.y + nextSibling.height;
+            }
+        });
+    } catch (e) {
+        console.warn(e)
+    }
     可见卡片组.value.length = 0;
     可见卡片组.value.splice(0, 可见卡片组.value.length, ...result);
+    // 微调卡片下一个元素的y坐标以避免重叠
 }
 const 更新可见区域 = (flag) => {
     const { scrollTop, clientWidth, clientHeight } = 获取可见区域尺寸()
@@ -281,8 +287,8 @@ watch(
 
 
 const mounted = ref(null)
-const gutter = ()=>{
-    return columnCount.value===1?10 :size.value/6
+const gutter = () => {
+    return columnCount.value === 1 ? 10 : size.value / 6
 }
 //排序函数
 let oldsize
@@ -306,8 +312,8 @@ async function 确认初始化界面并排序(total) {
 }
 defineExpose({
     dataCallBack: 确认初始化界面并排序,
-    getColumnCount:()=>columnCount.value,
-    getContainerWidth:()=>scrollContainer.value.clientWidth
+    getColumnCount: () => columnCount.value,
+    getContainerWidth: () => scrollContainer.value.clientWidth
 })
 
 onMounted(async () => {
