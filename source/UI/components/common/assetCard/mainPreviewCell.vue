@@ -14,6 +14,7 @@ import imageCell from './imageCell.vue';
 import hljsTextCell from './hljsTextCell.vue';
 import videoCell from './videoCell.vue';
 import audioCell from './audioCell.vue'
+import gltfCell from './gltfCell.vue';
 const props = defineProps(['cardData', 'displayMode', 'size']);
 
 const currentComponent = shallowRef(null);
@@ -42,6 +43,14 @@ function isAudioFile(path) {
     // 检查扩展名是否在音频文件扩展名列表中
     return audioFileExtensions.some(ext => extension.toLowerCase() === ext.toLowerCase());
 }
+function isGLTFFile(path) {
+    // 支持的GLTF文件扩展名
+    const gltfFileExtensions = ['gltf','glb','fbx'];
+    // 获取文件的扩展名
+    const extension = path.split('.').pop().toLowerCase();
+    // 检查扩展名是否在GLTF文件扩展名列表中
+    return gltfFileExtensions.includes(extension);
+}
 // 异步函数同时判定展示组件和所使用的属性
 async function determineComponentAndAttribute() {
     if (props.size > 300) {
@@ -61,6 +70,10 @@ async function determineComponentAndAttribute() {
                 currentComponent.value = audioCell;
                 currentAttributeName.value = 'path';
             }
+            else if (await isGLTFFile(props.cardData.data.path)) {
+                    currentComponent.value = gltfCell; // GLTF预览组件
+                    currentAttributeName.value = 'path';
+                }
             else {
                 currentComponent.value = imageCell;
                 currentAttributeName.value = 'thumbnailURL';
