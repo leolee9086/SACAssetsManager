@@ -24,42 +24,62 @@ const webviewHTML = ref('');
 // 使用 window.require 引入 fs 模块
 const fs = window.require('fs');
 
-const readFirstNBytes = (filePath, bytesToRead, callback) => {
-    fs.open(filePath, 'r', (err, fd) => {
-        if (err) {
-            callback(err, null);
+const readFileInChunks = (filePath, chunkSize, maxBytes, callback) => {
+    let bytesReadTotal = 0;
+    let position = 0;
+
+    const readNextChunk = () => {
+        if (bytesReadTotal >= maxBytes) {
+            callback(null, null); // 已达到最大读取字节数
             return;
         }
-        const buffer = Buffer.alloc(bytesToRead);
-        fs.read(fd, buffer, 0, bytesToRead, 0, (err, bytesRead, buffer) => {
+
+        fs.open(filePath, 'r', (err, fd) => {
             if (err) {
                 callback(err, null);
                 return;
             }
-            callback(null, buffer.toString('utf8', 0, bytesRead));
-            fs.close(fd, (err) => {
-                if (err) console.error(err);
+            const buffer = Buffer.alloc(chunkSize);
+            fs.read(fd, buffer, 0, chunkSize, position, (err, bytesRead, buffer) => {
+                if (err) {
+                    callback(err, null);
+                    return;
+                }
+                if (bytesRead > 0) {
+                    bytesReadTotal += bytesRead;
+                    position += bytesRead;
+                    callback(null, buffer.toString('utf8', 0, bytesRead));
+                    setTimeout(readNextChunk, 0); // 使用闲时回调
+                } else {
+                    callback(null, null); // 文件读取完毕
+                }
+                fs.close(fd, (err) => {
+                    if (err) console.error(err);
+                });
             });
         });
-    });
+    };
+
+    readNextChunk();
 };
 
 const loadAndHighlightFile = async () => {
     const path = await 获取素材属性值(cardData.data, attributeName.value);
-    // 读取前1000个字符
-    readFirstNBytes(path, 1000, (err, data) => {
+    const maxBytes = 10000; // 最大读取字节数
+    const chunkSize = 1000; // 每次读取的字节数
+
+    readFileInChunks(path, chunkSize, maxBytes, (err, data) => {
         if (err) {
             console.error(err);
             return;
         }
-        nextTick(() => {
-            writeHljsIframe(contentFrame.value, data)
-        });
-        // 这里可以继续处理 data，比如进行语法高亮
+        if (data) {
+            nextTick(() => {
+                writeHljsIframe(contentFrame.value, data);
+            });
+        }
     });
-    // webviewHTML.value = getTextEditorWebview(path);
 }
-
 onMounted(() => {
     loadAndHighlightFile();
 });
