@@ -57,9 +57,10 @@ export const 处理默认数据 = (tab, target, callback) => {
         }
     ).then(
         mapped => {
-            console.log(mapped)
-            target.push(...mapped)
-            callback()
+            mapped.forEach(item => {
+                target.push(item);
+                callback();
+            });
         }
     )
 }

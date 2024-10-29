@@ -116,8 +116,9 @@ const observer = new ResizeObserver(entries => {
                 sizeidleCallbackId = requestIdleCallback(updateSize, { timeout: interval });
            // }
         };
-        sizeidleCallbackId = requestIdleCallback(updateSize, { timeout: interval });    }
-});
+        //sizeidleCallbackId = requestIdleCallback(updateSize, { timeout: interval });    }
+        updateSize()}
+    });
 
 onBeforeUnmount(() => {
     observer.disconnect();
