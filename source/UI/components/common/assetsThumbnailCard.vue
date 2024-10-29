@@ -78,12 +78,11 @@ watch(attributesToFetch, async (newProps) => {
 const observerCallCount = ref(0);
 let heightCounts = {};
 let consecutiveSuccessCount = 0;
+let newHeight
 const observer = new ResizeObserver(entries => {
     for (let entry of entries) {
         observerCallCount.value += 1;
-        const newHeight = entry.contentRect.height;
-        console.log(newHeight);
-
+        newHeight = entry.contentRect.height;
         // 更新 heightCounts
         heightCounts[newHeight] = (heightCounts[newHeight] || 0) + 1;
 
@@ -100,7 +99,25 @@ const observer = new ResizeObserver(entries => {
             heightCounts = {}; // 清空触发记录
             consecutiveSuccessCount = 0; // 重置连续成功计数
         }
-        emit('updateSize', { width: size.value, height: newHeight });
+        // 使用闲时回调循环更新大小
+        const updateSize = () => {
+            if (cardData.height !== newHeight) {
+                requestIdleCallback(() => {
+                    if (cardData.height !== newHeight) {
+
+                        emit('updateSize', {
+
+                            width: size.value, height: newHeight
+                        })
+                    }
+                }
+
+                )
+                idleCallbackId = requestIdleCallback(updateSize, { timeout: 30 });
+            }
+        };
+
+        idleCallbackId = requestIdleCallback(updateSize, { timeout: 30 });
     }
 });
 

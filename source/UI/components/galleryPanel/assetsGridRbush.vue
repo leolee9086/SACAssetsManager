@@ -196,9 +196,16 @@ const 获取可见区域尺寸 = () => {
     }
 }
 const 更新可见卡片 = (可见框) => {
-    let result = Array.from(new Set(布局对象.value.search(可见框)))
-    可见卡片组.value.length = 0
-    可见卡片组.value.splice(0, 可见卡片组.value.length, ...result)
+    let result;
+    if (布局对象.value.layout.length < 20) {
+        // 如果元素数量少于20个，显示所有元素
+        result = 布局对象.value.layout;
+    } else {
+        // 否则，按可见框计算可见卡片
+        result = Array.from(new Set(布局对象.value.search(可见框)));
+    }
+    可见卡片组.value.length = 0;
+    可见卡片组.value.splice(0, 可见卡片组.value.length, ...result);
 }
 const 更新可见区域 = (flag) => {
     const { scrollTop, clientWidth, clientHeight } = 获取可见区域尺寸()

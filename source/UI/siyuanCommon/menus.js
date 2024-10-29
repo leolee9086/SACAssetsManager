@@ -201,10 +201,10 @@ eventBus.on(
         )
         let embedBlock = blockElements.filter(
             item => {
-                return item.getAttribute('data-type')==="NodeBlockQueryEmbed"
+                return item.getAttribute('data-type') === "NodeBlockQueryEmbed"
             }
         )
-        if(embedBlock[0]){
+        if (embedBlock[0]) {
             menu.addItem({
                 label: "在assetsManager中打开嵌入块",
                 click() {
@@ -247,6 +247,6 @@ eventBus.on(
                 }
             })
         }
-        
+
     }
 )
