@@ -6,7 +6,7 @@ import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
 import { parseQuery } from '../middlewares/ctx/parseQuery.js'
-import { statPromisesArray } from '../../../trashed/tree.js'
+import { globalTaskQueue } from '../middlewares/runtime_queue.js';
 import { statWithCatch } from '../processors/fs/stat.js';
 import { buildCache } from '../processors/cache/cache.js';
 import { reportHeartbeat } from '../utils/heartBeat.js';
@@ -44,7 +44,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     let chunked = ''
     walkAsyncWithFdir(cwd, filterFun, {
         ifFile: (statProxy) => {
-            statPromisesArray.paused = true
+            globalTaskQueue.paused = true
             let data = stat2assetsItemStringLine(statProxy)
             reportHeartbeat()
             res.write(data)
@@ -52,7 +52,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
         end: () => {
 
             walkController.abort()
-            statPromisesArray.paused = false
+            globalTaskQueue.paused = false
             if (chunked) {
                 res.write(chunked)
                 chunked = ''
@@ -63,7 +63,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
         chunked += `data:${JSON.stringify({ walkCount })}\n`
         requestIdleCallback(() => {
 
-            statPromisesArray.paused = true
+            globalTaskQueue.paused = true
             if (chunked) {
                 res.write(chunked)
                 chunked = ''
@@ -76,7 +76,7 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
 export const globStream = (req, res) => {
     let fn = async () => {
         let scheme
-        statPromisesArray.paused = true
+        globalTaskQueue.paused = true
         if (req.query && req.query.setting) {
             try {
                 scheme = JSON.parse(req.query.setting)
@@ -118,14 +118,14 @@ export const globStream = (req, res) => {
         res.flushHeaders()
         const { signal } = controller;
         await createWalkStream(cwd, filter, signal, res, timeout, walkController, scheme.depth, scheme.search, scheme.extensions)
-        statPromisesArray.start()
+        globalTaskQueue.start()
         //前端请求关闭时,触发中止信号
         //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
 
         res.on('close', () => {
             reportHeartbeat()
 
-            statPromisesArray.paused = false
+            globalTaskQueue.paused = false
         });
         return new Promise((resolve, reject) => {
             resolve({
@@ -134,8 +134,8 @@ export const globStream = (req, res) => {
         })
     }
     fn.priority = 0
-    statPromisesArray.push(fn)
-    statPromisesArray.start(0, true)
+    globalTaskQueue.push(fn)
+    globalTaskQueue.start(0, true)
 };
 export const fileListStream = async (req, res) => {
     const controller = new AbortController();

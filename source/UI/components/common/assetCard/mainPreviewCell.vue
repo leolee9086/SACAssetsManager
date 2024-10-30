@@ -45,7 +45,7 @@ function isAudioFile(path) {
 }
 function isGLTFFile(path) {
     // 支持的GLTF文件扩展名
-    const gltfFileExtensions = ['gltf','glb','fbx'];
+    const gltfFileExtensions = ['gltf','glb','fbx','obj','dae','stl','ply'];
     // 获取文件的扩展名
     const extension = path.split('.').pop().toLowerCase();
     // 检查扩展名是否在GLTF文件扩展名列表中

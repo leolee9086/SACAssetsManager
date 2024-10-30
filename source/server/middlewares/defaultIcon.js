@@ -3,7 +3,7 @@ import { getCachePath } from "../processors/fs/cached/fs.js"
 import { buildCache } from "../processors/cache/cache.js"
 import { statWithCatch } from "../processors/fs/stat.js"
 import { 获取哈希并写入数据库 } from "../processors/fs/stat.js"
-import { statPromisesArray } from "../../../trashed/tree.js"
+import { globalTaskQueue } from "./runtime_queue.js"
 import { 生成缩略图 } from "../processors/thumbnail/loader.js"
 export const sendDefaultIcon = (req, res) => {
     const iconPath = process.execPath.replace('SiYuan.exe', 'resources\\stage\\icon-large.png')
@@ -16,7 +16,7 @@ export const 默认图片响应 = async (req, res, next) => {
 }
 
 export const getSourcePath = (req, res, next) => {
-    statPromisesArray.paused = true;
+    globalTaskQueue.paused = true;
     const path = require('path')
     let 源文件地址 = ''
     if (req.query.localPath) {
@@ -40,9 +40,9 @@ export const 生成默认缩略图路径=async(path)=>{
 
 
 export const 生成缩略图响应 = async (req, res, next) => {
-    statPromisesArray.paused = true;
+    globalTaskQueue.paused = true;
     await genThumbnail(req, res, next);
-    statPromisesArray.paused = false
+    globalTaskQueue.paused = false
     return 
 }
 export async function genThumbnail(req, res, next) {
@@ -61,7 +61,7 @@ export async function genThumbnail(req, res, next) {
             缓存对象: thumbnailCache
         }
     }
-    statPromisesArray.paused = true
+    globalTaskQueue.paused = true
     let loaderID = ctx.query.loaderID
 
     if (!源文件地址) {
@@ -88,6 +88,6 @@ export async function genThumbnail(req, res, next) {
         console.warn(e)
         res.status(500).send('Error processing image: ' + e.message);
     }
-    statPromisesArray.paused = false
+    globalTaskQueue.paused = false
     next && next()
 }

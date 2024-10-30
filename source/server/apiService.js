@@ -12,7 +12,7 @@ import { statWithCatch } from './processors/fs/stat.js';
 import * as headers from './middlewares/headers.js';
 import { genColor, getFilesByColor } from './handlers/get-color.js'
 import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
-import { statPromisesArray } from '../../trashed/tree.js';
+import { globalTaskQueue  } from './middlewares/runtime_queue.js';
 const siyuanBroadcastChannel = await createSiyuanBroadcastChannel('sacAssetsManager', window.siyuanPort)
 siyuanBroadcastChannel.onmessage = (e) => {
     console.log(e)
@@ -106,7 +106,7 @@ app.get('/color', async (req, res) => {
     genColor(ctx).then(
         colors => {
             res.json(colors)
-            statPromisesArray.paused = false;   
+            globalTaskQueue.paused = false;   
         }
     )
 })

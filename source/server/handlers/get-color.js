@@ -1,11 +1,11 @@
 import { genThumbnailColor } from '../processors/thumbnail/loader.js'
 import { 找到文件颜色, 删除文件颜色记录, 流式根据颜色查找内容 } from '../processors/color/colorIndex.js'
 import { statWithCatch } from '../processors/fs/stat.js';
-import { statPromisesArray } from '../../../trashed/tree.js'
+import { globalTaskQueue } from '../middlewares/runtime_queue.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
 
 export async function genColor(ctx, next) {
-    statPromisesArray.paused = true
+    globalTaskQueue.paused = true
     let { 源文件地址, 缓存键, 重新计算文件颜色 } = ctx.stats
     if (!源文件地址) {
         ctx.res.status(400).send('Invalid request: missing source file address');
@@ -26,7 +26,7 @@ export async function genColor(ctx, next) {
     }
 
     const colors = await genThumbnailColor(源文件地址)
-    statPromisesArray.paused = false
+    globalTaskQueue.paused = false
     return colors
     }catch(e){
         console.error(e)
@@ -38,7 +38,7 @@ export async function genColor(ctx, next) {
 
 
 export async function getFilesByColor(ctx, next) {
-    statPromisesArray.paused = true
+    globalTaskQueue.paused = true
     let { color, accurity } = ctx.stats
     //设置响应头
     ctx.res.writeHead(200, {
@@ -58,5 +58,5 @@ export async function getFilesByColor(ctx, next) {
         count===0 &&ctx.res.end()
     }, { timeout: 17, deadline: 18 })
     流式根据颜色查找内容(color, accurity, cb,ctx.res.end)
-    statPromisesArray.paused = false
+    globalTaskQueue.paused = false
 }
