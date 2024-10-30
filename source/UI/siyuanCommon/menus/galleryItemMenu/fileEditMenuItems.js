@@ -1,10 +1,7 @@
-import { plugin } from '../../../../pluginSymbolRegistry.js'
 import { isImagePath } from '../../../../utils/fs/pathType.js'
 import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
-const workspaceDir = window.siyuan.config.system.workspaceDir
-const sharpPath = require('path').join(workspaceDir, 'data', 'plugins', plugin.name, 'node_modules', 'sharp')
-const sharp = require(sharpPath)
-
+import { 压缩单个图片 } from '../../../../utils/image/compress.js'
+import { 打开文件夹,批量打开文件夹 } from './electron-frontEnd.js/folder.js'
 const 生成压缩目标文件名 = (imagePath, 压缩质量, 文件格式) => {
     return imagePath.replace(/\.[^.]+$/, '') + `_sac_${压缩质量}.${文件格式}`
 }
@@ -17,35 +14,6 @@ const 生成确认压缩信息 = (imageAssets, 压缩质量) => {
     压缩文件以<原文件名>_${压缩质量}.png的形式保存在原文件同目录\n
     ${imageAssets.map(item => 生成压缩目标文件名(item.path, 压缩质量, 'png')).join('\n')}
     `;
-}
-const 压缩单个图片 = async (inputPath, outputPath, 压缩质量, 压缩级别, 文件格式) => {
-    try {
-        let sharpInstance = sharp(inputPath);
-        
-        switch (文件格式) {
-            case 'jpg':
-            case 'jpeg':
-                sharpInstance = sharpInstance.jpeg({ quality: 压缩质量 });
-                break;
-            case 'webp':
-                sharpInstance = sharpInstance.webp({ quality: 压缩质量 });
-                break;
-            case 'png':
-            default:
-                sharpInstance = sharpInstance.png({
-                    compressionLevel: 压缩级别,
-                    quality: 压缩质量
-                });
-                break;
-        }
-
-        await sharpInstance.toFile(outputPath);
-        console.log(`图片 ${inputPath} 压缩完成，保存为 ${outputPath}`);
-        return outputPath;
-    } catch (error) {
-        console.error(`压缩图片 ${inputPath} 时出错: ${error}`);
-        return ''
-    }
 }
 const 压缩所有图片 = async (imageAssets, 压缩质量, 压缩级别, 文件格式) => {
     const compressionPromises = imageAssets.map(asset => {
@@ -112,13 +80,4 @@ export const 压缩菜单组 = (assets,格式) => {
     const 常用压缩质量 = [40, 50, 60, 70, 80, 90]
     return    常用压缩质量.map(质量 => 压缩图片菜单项(assets, 质量, 9, 格式))
     
-}
-const 打开文件夹 = (path) => {
-    const { shell } = require('@electron/remote');
-    shell.showItemInFolder(path);
-}
-const 批量打开文件夹 = (pathArray) => {
-    pathArray.forEach(element => {
-        打开文件夹(element)
-    });
 }
