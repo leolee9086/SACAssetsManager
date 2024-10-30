@@ -27,6 +27,68 @@ async function checkClipboardForFilePath() {
 }
 
 const { eventBus } = plugin
+function 添加批处理菜单组(menu,options){
+    menu.addSeparator();
+    menu.addItem(文件批处理菜单组.删除所有ThumbsDB(options))
+    menu.addItem(文件批处理菜单组.扫描重复文件(options));
+    menu.addItem(文件批处理菜单组.快速扫描重复文件(options));
+    menu.addItem(文件批处理菜单组.处理重复文件(options));
+    menu.addItem(文件批处理菜单组.扫描空文件夹(options));
+    menu.addSeparator();
+    menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
+    menu.addItem(文件批处理菜单组.图片去重(options));
+    menu.addItem(文件批处理菜单组.图片去重(options, true));
+    menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
+    menu.addItem(文件批处理菜单组.基于pHash的图片去重(options, true));
+    menu.addSeparator();
+    menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
+    menu.addItem(文件批处理菜单组.归集图片文件(options));
+    menu.addItem(文件批处理菜单组.复制文档树结构(options));
+    menu.addSeparator();
+    menu.addItem(文件批处理菜单组.批量打包文件(options));
+}
+async function 添加颜色操作菜单(menu, asset) {
+    const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
+    try {
+        const response = await fetch(colorUrl);
+        const colorData = await response.json();
+        
+        if (colorData && Array.isArray(colorData)) {
+            colorData.forEach(colorInfo => {
+                const colorHex = `#${colorInfo.color.map(c => c.toString(16).padStart(2, '0')).join('')}`;
+                menu.addItem({
+                    label: `颜色操作: ${colorHex}`,
+                    icon: `<span style="background-color: ${colorHex}; width: 16px; height: 16px; display: inline-block; margin-right: 5px;"></span>`,
+                    submenu: 生成颜色子菜单(colorHex, colorInfo)
+                });
+            });
+        }
+    } catch (error) {
+        console.error('获取颜色信息失败:', error);
+    }
+}
+function 生成颜色子菜单(colorHex, colorInfo) {
+    return [
+        {
+            label: `复制颜色代码: ${colorHex}`,
+            click: () => {
+                navigator.clipboard.writeText(colorHex);
+            }
+        },
+        {
+            label: `删除此颜色记录`,
+            click: () => {
+                // 调用删除颜色记录的函数
+            }
+        },
+        {
+            label: `颜色占比: ${colorInfo.percent * 100}%`,
+            disabled: true
+        }
+    ];
+}
+
+
 export const 打开附件组菜单 = (event, assets, options) => {
     const { position, panelController } = options
     plugin.附件编辑模式 = plugin.附件编辑模式 || {
@@ -44,25 +106,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
     menu.addSeparator()
     menu.addItem(模式切换菜单项(event, assets, options))
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
-        menu.addSeparator();
-        menu.addItem(文件批处理菜单组.删除所有ThumbsDB(options))
-        menu.addItem(文件批处理菜单组.扫描重复文件(options));
-        menu.addItem(文件批处理菜单组.快速扫描重复文件(options));
-        menu.addItem(文件批处理菜单组.处理重复文件(options));
-        menu.addItem(文件批处理菜单组.扫描空文件夹(options));
-        menu.addSeparator();
-        menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
-        menu.addItem(文件批处理菜单组.图片去重(options));
-        menu.addItem(文件批处理菜单组.图片去重(options, true));
-        menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
-        menu.addItem(文件批处理菜单组.基于pHash的图片去重(options, true));
-        menu.addSeparator();
-        menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
-        menu.addItem(文件批处理菜单组.归集图片文件(options));
-        menu.addItem(文件批处理菜单组.复制文档树结构(options));
-        menu.addSeparator();
-        menu.addItem(文件批处理菜单组.批量打包文件(options));
-
+        添加批处理菜单组(menu,options)
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '插件') {
         menu.addSeparator();
@@ -108,44 +152,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addItem(webp菜单组)
 
         if (assets.length === 1) {
-            const asset = assets[0];
-            const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
-
-            fetch(colorUrl)
-                .then(response => response.json())
-                .then(colorData => {
-                    if (colorData && Array.isArray(colorData)) {
-                        colorData.forEach(colorInfo => {
-                            const colorHex = `#${colorInfo.color.map(c => c.toString(16).padStart(2, '0')).join('')}`;
-                            menu.addItem({
-                                label: `颜色操作: ${colorHex}`,
-                                icon: `<span style="background-color: ${colorHex}; width: 16px; height: 16px; display: inline-block; margin-right: 5px;"></span>`,
-                                submenu: [
-                                    {
-                                        label: `复制颜色代码: ${colorHex}`,
-                                        click: () => {
-                                            navigator.clipboard.writeText(colorHex);
-                                        }
-                                    },
-                                    {
-                                        label: `删除此颜色记录`,
-                                        click: () => {
-                                            // 调用删除颜色记录的函数
-
-                                        }
-                                    },
-                                    {
-                                        label: `颜色占比: ${colorInfo.percent * 100}%`,
-                                        disabled: true
-                                    }
-                                ]
-                            });
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('获取颜色信息失败:', error);
-                });
+            添加颜色操作菜单(menu, assets[0]);
         }
     }
     assets && assets[0] && 添加通用菜单内容(menu, assets)

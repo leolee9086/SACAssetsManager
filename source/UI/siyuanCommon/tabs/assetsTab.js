@@ -18,7 +18,6 @@ export const 打开笔记本资源视图 = (box) => {
     })
 }
 export const 打开笔记资源视图 = (block_id) => {
-    console.log(block_id)
     打开附件面板({
         icon: "iconAssets",
         title: "资源:笔记",
