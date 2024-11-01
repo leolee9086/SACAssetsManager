@@ -51,34 +51,27 @@ function setupTransferNode(processNet, transferCardId, transferActionId, toCard,
 }
 
 
-
-
 // 主函数
 export async function connectNodes(manager, fromCardOrId, fromInterfaceId, toCardOrId, toInterfaceId) {
     // 获取节点对象
     const fromCard = getCardFromIdOrInstance(manager.cards, fromCardOrId);
     const toCard = getCardFromIdOrInstance(manager.cards, toCardOrId);
-
     // 验证节点
     validateCards(fromCard, toCard);
-
     // 获取并验证接口
     const fromInterface = manager.getInterface(fromCard, fromInterfaceId);
     const toInterface = manager.getInterface(toCard, toInterfaceId);
     validateInterfaces(fromInterface, toInterface);
-
     // 检查循环依赖
     if (manager.detectCycle(fromCard.id, fromInterfaceId, toCard.id)) {
         throw new Error('检测到循环依赖');
     }
-
     // 创建连接标识符
     const {
         connectionKey,
         transferCardId,
         transferActionId
     } = createConnectionIds(fromCard, fromInterfaceId, toCard, toInterfaceId);
-
     // 设置传输节点和动作
     setupTransferNode(
         manager.processNet,
@@ -87,10 +80,8 @@ export async function connectNodes(manager, fromCardOrId, fromInterfaceId, toCar
         toCard,
         toInterfaceId
     );
-
     // 更新连接映射
     manager.connections.set(connectionKey, `${toCard.id}:${toInterfaceId}`);
-
     // 触发事件
     manager.emitEvent('connection', {
         fromCard,
