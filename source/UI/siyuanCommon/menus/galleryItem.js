@@ -11,15 +11,14 @@ import { 计算主标签 } from "./common/menuHead.js";
 import { 添加插件菜单内容 } from "./pluginMenu/pluginMenu.js";
 import { isValidFilePath } from "../../../utils/strings/regexs/index.js";
 import { 打开本地资源视图 } from "../tabs/assetsTab.js";
+import { isImage } from "../../../utils/image/isImage.js";
 async function checkClipboardForFilePath() {
     try {
         const text = await navigator.clipboard.readText();
         // 将剪贴板内容按行分割
         const lines = text.split('\n').map(item=>item.trim());
         // 对每一行进行路径验证，并返回有效路径的数组
-        console.log(lines)
         const validPaths = lines.map(line => isValidFilePath(line)).filter(item=>item);
-       
         return validPaths;
     } catch (error) {
         console.error("无法读取剪贴板内容:", error);
@@ -132,6 +131,10 @@ export const 打开附件组菜单 = (event, assets, options) => {
         if (assets.find(item => item.path.endsWith('.d5a'))) {
             menu.addItem(元数据编辑菜单组.d5a内置缩略图(assets))
             menu.addItem(元数据编辑菜单组.d5a内置缩略图单次确认(assets))
+        }
+     
+        if (assets.find(item =>item&&isImage(item.path))) {
+            menu.addItem(元数据编辑菜单组.打开图片编辑器对话框(assets))
         }
         menu.addItem(元数据编辑菜单组.重新计算文件颜色(assets))
         menu.addItem(元数据编辑菜单组.编辑附件标签组(assets))

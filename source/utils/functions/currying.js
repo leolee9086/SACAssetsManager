@@ -12,14 +12,30 @@
 * console.log(curriedAdd(1, 2, 3));  // 输出 6
 */
 export function 柯里化(原始函数) {
+    // 检查输入参数是否为函数
+    if (typeof 原始函数 !== 'function') {
+        throw new TypeError(`柯里化函数期望接收一个函数作为参数，但收到了 ${typeof 原始函数}`);
+    }
+
+    // 获取原始函数名称，用于错误提示
+    const 函数名 = 原始函数.name || '匿名函数';
+    
     return function 柯里化版本函数(...输入参数) {
-        //原始函数.length
-        if (输入参数.length >= 原始函数.length) {
-            return 原始函数.apply(this, 输入参数);
-        } else {
-            return function (...args2) {
-                return 柯里化版本函数.apply(this, 输入参数.concat(args2));
+        try {
+            if (输入参数.length >= 原始函数.length) {
+                return 原始函数.apply(this, 输入参数);
+            } else {
+                return function (...args2) {
+                    return 柯里化版本函数.apply(this, 输入参数.concat(args2));
+                }
             }
+        } catch (错误) {
+            throw new Error(
+                `执行柯里化函数"${函数名}"时发生错误:\n` +
+                `预期参数数量: ${原始函数.length}\n` +
+                `实际接收参数: ${输入参数.length}\n` +
+                `错误信息: ${错误.message}`
+            );
         }
     };
 }

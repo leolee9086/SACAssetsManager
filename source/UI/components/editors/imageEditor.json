@@ -1,0 +1,71 @@
+{
+    "name": "图片编辑器",
+    "cards": [
+      {
+        "id": "imageInput",
+        "type": "localImageInput",
+        "title": "图片输入",
+        "position": {
+          "x": 20,
+          "y": 20,
+          "width": 300,
+          "height": 200
+        }
+      },
+      {
+        "id": "imageCompressor",
+        "type": "ImageCompressor",
+        "title": "图片压缩",
+        "position": {
+          "x": 20,
+          "y": 220,
+          "width": 300,
+          "height": 200
+        }
+      },
+      {
+        "id": "imageComparison",
+        "type": "ImageComparison",
+        "title": "压缩结果",
+        "position": {
+          "x": 340,
+          "y": 20,
+          "width": 800,
+          "height": 600
+        }
+      },
+      {
+        "id": "processControl",
+        "type": "ProcessControl",
+        "title": "流程控制",
+        "position": {
+          "x": 20,
+          "y": 440,
+          "width": 300,
+          "height": 100
+        }
+      }
+    ],
+    "connections": [
+      {
+        "from": {
+          "cardId": "imageInput",
+          "anchorId": "output"
+        },
+        "to": {
+          "cardId": "imageCompressor",
+          "anchorId": "input"
+        }
+      },
+      {
+        "from": {
+          "cardId": "imageCompressor",
+          "anchorId": "output"
+        },
+        "to": {
+          "cardId": "imageComparison",
+          "anchorId": "input"
+        }
+      }
+    ]
+  }

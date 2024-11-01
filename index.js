@@ -24,7 +24,7 @@ module.exports = class SACAssetsManager extends Plugin {
     this.添加菜单()
     this.加载i18n工具()
   }
-  async 加载状态控制器(){
+  async 加载状态控制器() {
     import(`${this.插件自身伺服地址}/source/globalStatus/index.js`)
   }
   async 写入i18n(lang, content) {
@@ -48,14 +48,14 @@ module.exports = class SACAssetsManager extends Plugin {
               完整模板 += `__VAR_${索引}__`;
             }
           });
-          if(!this.启用AI翻译){
-            let 翻译结果 =this.i18n[完整模板]|| 完整模板
+          if (!this.启用AI翻译) {
+            let 翻译结果 = this.i18n[完整模板] || 完整模板
             插值.forEach((值, 索引) => {
               翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
             });
             return 翻译结果
           }
-          if (this.i18n[完整模板]&&this.i18n[完整模板]!==完整模板) {
+          if (this.i18n[完整模板] && this.i18n[完整模板] !== 完整模板) {
             let 翻译结果 = this.i18n[完整模板]
             插值.forEach((值, 索引) => {
               翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
@@ -187,6 +187,16 @@ module.exports = class SACAssetsManager extends Plugin {
         )
       }
     )
+    // 添加editor-tab相关代码
+    eventBus.on('editor-tab-open', (e) => {
+      let tab = e.detail;
+      import('/plugins/SACAssetsManager/source/UI/tab.js').then(
+        module => {
+          module.创建编辑器界面(tab)
+        }
+      )
+    })
+
     let plugin = this
     this.AsseatsTabDefine = this.addTab({
       type: 'AssetsTab',
@@ -203,6 +213,22 @@ module.exports = class SACAssetsManager extends Plugin {
         })
       }
 
+    })
+      // 添加EditorTab定义
+      this.EditorTabDefine = this.addTab({
+        type: 'EditorTab',
+        init() {
+            this.element.innerHTML = `<div class="plugin-sample__editor-tab">${this.data.text}</div>`;
+            plugin.eventBus.emit(
+                'editor-tab-open', this
+            )
+        },
+        beforeDestroy() {
+            this.element.innerHTML = ""
+            this.controllers && this.controllers.forEach(controller => {
+                controller.abort()
+            })
+        }
     })
   }
 }

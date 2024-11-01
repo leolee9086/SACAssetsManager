@@ -78,6 +78,6 @@ export const 压缩图片菜单项 = (assets, 压缩质量 = 80, 压缩级别 = 
 
 export const 压缩菜单组 = (assets,格式) => {
     const 常用压缩质量 = [40, 50, 60, 70, 80, 90]
-    return    常用压缩质量.map(质量 => 压缩图片菜单项(assets, 质量, 9, 格式))
+    return 常用压缩质量.map(质量 => 压缩图片菜单项(assets, 质量, 9, 格式))
     
 }

@@ -37,6 +37,14 @@ export function 创建图库界面(tab) {
     'assetsColumn'
   );
 }
+export function 创建编辑器界面(tab) {
+  return 创建Vue组件界面(
+    tab,
+    '/plugins/SACAssetsManager/source/UI/components/editors/image.vue',
+    'assetsColumn'
+  );
+}
+
 export function 创建资源信息面板(UI容器){
   const 资源信息面板 =  initVueApp(import.meta.resolve('./components/assestInfoPanel.vue'))
   资源信息面板.mount(UI容器);
