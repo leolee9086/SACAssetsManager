@@ -97,22 +97,7 @@ import CardContainer from './containers/cardContainer.vue';
 import _Konva from '../../../../static/konva.js'
 import { 已经连接, 执行Petri网 } from '../../../utils/graph/PetriNet.js';
 import ConnectionCanvas from './ConnectionCanvas.vue';
-const Konva = _Konva.default
-// Konva stage 和 layer 的设置
-const stage = ref(null)
-const layer = ref(null)
-// 初始化 Konva
-const initKonva = () => {
-  const container = connectionCanvas.value
-  stage.value = new Konva.Stage({
-    container: container,
-    width: container.offsetWidth,
-    height: container.offsetHeight
-  })
 
-  layer.value = new Konva.Layer()
-  stage.value.add(layer.value)
-}
 
 // 使用同步函数加载异步组件
 import InfoPanel from './InfoPanel.vue';
@@ -425,187 +410,17 @@ const connections = ref([]); // 存储连线信息
 const config = ref(editorConfig);
 // 组件属性映射
 // 绘制连线
-const drawConnections = () => {
-  if (!ctx.value) return;
 
-  const canvas = connectionCanvas.value;
-  ctx.value.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 设置连线样式
-  ctx.value.strokeStyle = '#409EFF';
-  ctx.value.lineWidth = 2;
-
-  connections.value.forEach(conn => {
-    const startAnchor = anchors.value.get(conn.start);
-    const endAnchor = anchors.value.get(conn.end);
-
-    if (startAnchor?.position && endAnchor?.position) {
-      drawBezierConnection(
-        startAnchor.position,
-        endAnchor.position,
-        startAnchor.side,
-        endAnchor.side
-      );
-    }
-  });
-};
-// 改进的贝塞尔曲线连线绘制
-const drawBezierConnection = (start, end, startSide, endSide, id) => {
-  const offset = 50 // 控制点偏移量
-
-  // 计算控制点
-  let cp1x, cp1y, cp2x, cp2y
-
-  // 根据起点锚点方向计算第一个控制点
-  switch (startSide) {
-    case 'right':
-      cp1x = start.x + offset
-      cp1y = start.y
-      break
-    case 'left':
-      cp1x = start.x - offset
-      cp1y = start.y
-      break
-    case 'top':
-      cp1x = start.x
-      cp1y = start.y - offset
-      break
-    case 'bottom':
-      cp1x = start.x
-      cp1y = start.y + offset
-      break
-    default:
-      cp1x = start.x
-      cp1y = start.y
-  }
-
-  // 根据终点锚点方向计算第二个控制点
-  switch (endSide) {
-    case 'right':
-      cp2x = end.x + offset
-      cp2y = end.y
-      break
-    case 'left':
-      cp2x = end.x - offset
-      cp2y = end.y
-      break
-    case 'top':
-      cp2x = end.x
-      cp2y = end.y - offset
-      break
-    case 'bottom':
-      cp2x = end.x
-      cp2y = end.y + offset
-      break
-    default:
-      cp2x = end.x
-      cp2y = end.y
-  }
-  // 创建贝塞尔曲线路径
-  const path = new Konva.Path({
-    data: `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${end.x} ${end.y}`,
-    stroke: '#409EFF',
-    strokeWidth: 2,
-    lineCap: 'round',
-    lineJoin: 'round',
-    // 添加渐变
-    strokeLinearGradientStartPoint: { x: start.x, y: start.y },
-    strokeLinearGradientEndPoint: { x: end.x, y: end.y },
-    strokeLinearGradientColorStops: [0, '#409EFF', 1, '#67C23A']
-  })
-
-
-  // 计算箭头位置和角度
-  const arrowLength = 15
-  const arrowAngle = Math.atan2(end.y - cp2y, end.x - cp2x)
-
-  // 计算箭头的起点(稍微偏离终点)
-  const arrowStart = {
-    x: end.x - Math.cos(arrowAngle) * arrowLength,
-    y: end.y - Math.sin(arrowAngle) * arrowLength
-  }
-
-  // 创建箭头
-  const arrow = new Konva.Arrow({
-    points: [arrowStart.x, arrowStart.y, end.x, end.y],
-    pointerLength: 10,
-    pointerWidth: 8,
-    fill: '#67C23A',
-    stroke: '#67C23A',
-    strokeWidth: 2
-  })
-  layer.value.find(`.${id}`).forEach(conn => conn.destroy())
-
-  // 创建一个组来包含路径和箭头
-  const connectionGroup = new Konva.Group({
-    name: id
-  })
-
-  // 添加交互效果
-  connectionGroup.on('mouseover', () => {
-    document.body.style.cursor = 'pointer'
-    path.strokeWidth(3)
-    arrow.strokeWidth(3)
-    layer.value.batchDraw()
-  })
-
-  connectionGroup.on('mouseout', () => {
-    document.body.style.cursor = 'default'
-    path.strokeWidth(2)
-    arrow.strokeWidth(2)
-    layer.value.batchDraw()
-  })
-
-  // 将路径和箭头添加到组中
-  connectionGroup.add(path)
-  connectionGroup.add(arrow)
-
-  // 将组添加到层
-  layer.value.add(connectionGroup)
-  layer.value.batchDraw()
-
-  // 返回创建的组,方便后续管理
-  return connectionGroup
-}
-
-
-
-// 设置 canvas 尺寸
-const resizeCanvas = () => {
-  const canvas = connectionCanvas.value;
-  const editorElement = canvas.parentElement;
-  const rect = editorElement.getBoundingClientRect();
-  // 设置画布尺寸为编辑器容器的尺寸
-  canvas.width = rect.width;
-  canvas.height = rect.height;
-  // 重新绘制连线
-  drawConnections();
-};
 
 // 初始化 canvas 和连接
 onMounted(async () => {
   await loadConfig();
-
-  resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
-
   // 将配置文件中的连接转换为内部连接格式
   connections.value = config.value.connections.map(conn => ({
     start: `${conn.from.cardId}-${conn.from.anchorId}`,
     end: `${conn.to.cardId}-${conn.to.anchorId}`
   }));
 });
-
-// 清理事件监听
-onUnmounted(() => {
-  window.removeEventListener('resize', resizeCanvas);
-});
-
-
-
-
-
-
 
 // 在组件挂载时初始化Petri网
 onMounted(() => {
@@ -779,14 +594,6 @@ const updateConnectionPath = (connection) => {
         y: toPos.y
       }
     };
-    drawBezierConnection(
-      connection.path.start,
-      connection.path.end,
-      fromAnchor.side,
-      toAnchor.side,
-      connection.from.cardId + connection.to.cardId + connection.from.anchorId + connection.to.anchorId
-    )
-
   }
 };
 
@@ -811,7 +618,6 @@ const onCardMove = (cardId, newPosition) => {
 
 // 在窗口大小改变时可能也需要更新
 onMounted(() => {
-  initKonva()
   window.addEventListener('resize', () => updateAnchorsPosition());
 });
 
@@ -829,48 +635,7 @@ onUnmounted(() => {
 }
 
 
-.image {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
 
-.compressed {
-  clip-path: inset(0 0 0 50%);
-}
-
-.slider {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 40px;
-  transform: translateX(-50%);
-  cursor: ew-resize;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.slider-line {
-  position: absolute;
-  width: 2px;
-  height: 100%;
-  background-color: #fff;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
-}
-
-.slider-button {
-  position: absolute;
-  width: 40px;
-  height: 40px;
-  background-color: #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
-  pointer-events: none;
-}
 
 .input-group {
   display: flex;
@@ -878,106 +643,6 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 
-.path-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.path-input:focus {
-  border-color: #409eff;
-  outline: none;
-}
-
-.upload-btn {
-  background: #409eff;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-}
-
-.upload-btn:hover {
-  background: #66b1ff;
-}
-
-.file-input-wrapper input[type="file"] {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.load-btn {
-  width: 100%;
-  padding: 8px;
-  background: #67c23a;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.load-btn:hover {
-  background: #85ce61;
-}
-
-.load-btn:disabled {
-  background: #c0c4cc;
-  cursor: not-allowed;
-}
-
-.control-btn {
-  width: 100%;
-  padding: 8px;
-  background: #409eff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: background-color 0.3s;
-}
-
-.control-btn:hover {
-  background: #66b1ff;
-}
-
-.control-btn:disabled {
-  background: #c0c4cc;
-  cursor: not-allowed;
-}
-
-.control-btn.is-playing {
-  background: #67c23a;
-}
-
-.control-btn.is-playing:hover {
-  background: #85ce61;
-}
-
-/* 添加 canvas 样式 */
-.connection-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
-}
 
 .image-editor {
   position: relative;
