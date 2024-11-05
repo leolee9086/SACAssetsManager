@@ -1,9 +1,12 @@
 <template>
   <div class="image-editor">
-    <div ref="connectionCanvas" class="connection-canvas">
+    <div v-show="false" ref="connectionCanvas" class="connection-canvas">
 
     </div>
-
+    <ConnectionCanvas 
+      :cards="parsedCards" 
+      :connections="config.connections"
+    />
     <!-- 动态渲染卡片 -->
     <template v-for="card in parsedCards" :key="card.id">
       <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
@@ -93,6 +96,7 @@ import { ref, onMounted, computed, toRef, inject, onUnmounted, shallowRef, watch
 import CardContainer from './containers/cardContainer.vue';
 import _Konva from '../../../../static/konva.js'
 import { 已经连接, 执行Petri网 } from '../../../utils/graph/PetriNet.js';
+import ConnectionCanvas from './ConnectionCanvas.vue';
 const Konva = _Konva.default
 // Konva stage 和 layer 的设置
 const stage = ref(null)
