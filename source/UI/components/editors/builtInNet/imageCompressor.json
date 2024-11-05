@@ -33,38 +33,38 @@
           "width": 800,
           "height": 600
         }
-      },
-      {
-        "id": "processControl",
-        "type": "ProcessControl",
-        "title": "流程控制",
-        "position": {
-          "x": 20,
-          "y": 440,
-          "width": 300,
-          "height": 100
-        }
       }
+  
     ],
     "connections": [
       {
         "from": {
           "cardId": "imageInput",
-          "anchorId": "output"
+          "anchorId": "filePath"
+        },
+        "to": {
+          "cardId": "imageComparison",
+          "anchorId": "originalImage"
+        }
+      },
+      {
+        "from": {
+          "cardId": "imageInput",
+          "anchorId": "file"
         },
         "to": {
           "cardId": "imageCompressor",
-          "anchorId": "input"
+          "anchorId": "source"
         }
       },
       {
         "from": {
           "cardId": "imageCompressor",
-          "anchorId": "output"
+          "anchorId": "compressedImage"
         },
         "to": {
           "cardId": "imageComparison",
-          "anchorId": "input"
+          "anchorId": "processedImage"
         }
       }
     ]

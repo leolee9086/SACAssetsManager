@@ -15,7 +15,9 @@ const 创建流程图 = (名称) => {
         动作: new Map(),
         连接: new Map(),
         输入连接索引: new Map(),
-        输出连接索引: new Map()
+        输出连接索引: new Map(),
+        入口节点索引: new Set(),
+        出口节点索引: new Set()
     }
 }
 
@@ -30,7 +32,8 @@ const 创建流程图 = (名称) => {
  */
 const 添加节点 = 柯里化((流程图, 节点ID, 配置) => {
     if (流程图.节点.has(节点ID)) {
-        throw new Error(`节点 ${节点ID} 已存在`);
+        console.warn(`节点 ${节点ID} 已存在,添加未执行,请确保这符合你的预期`);
+        return
     }
 
     if (!配置 || typeof 配置 !== 'object') {
@@ -47,8 +50,13 @@ const 添加节点 = 柯里化((流程图, 节点ID, 配置) => {
 
     流程图.节点.set(节点ID, {
         type: 配置.type,
-        数值: 配置.tokens
+        数值: 配置.tokens,
+        内容: 配置.content
     });
+
+    // 初始时将节点标记为入口和出口
+    流程图.入口节点索引.add(节点ID);
+    流程图.出口节点索引.add(节点ID);
 });
 
 /**
@@ -60,7 +68,8 @@ const 添加节点 = 柯里化((流程图, 节点ID, 配置) => {
  */
 const 添加动作 = 柯里化((流程图, 动作ID, 执行动作) => {
     if (流程图.动作.has(动作ID)) {
-        throw new Error(`动作 ${动作ID} 已存在`);
+        console.warn(`动作 ${动作ID} 已存在,添加未执行,请确保这符合你的预期`);
+        return 
     }
     
     if (typeof 执行动作 !== 'function') {
@@ -70,6 +79,11 @@ const 添加动作 = 柯里化((流程图, 动作ID, 执行动作) => {
     流程图.动作.set(动作ID, {
         执行: 执行动作
     });
+});
+
+const 已经连接 = 柯里化((流程图, 起始ID, 目标ID) => {
+    const 连接ID = `${起始ID}->${目标ID}`;
+    return 流程图.连接.has(连接ID);
 });
 
 /**
@@ -96,7 +110,8 @@ const 添加连接 = 柯里化((流程图, 起始ID, 目标ID, 数值要求 = 1)
 
     const 连接ID = `${起始ID}->${目标ID}`;
     if (流程图.连接.has(连接ID)) {
-        throw new Error(`连接 ${连接ID} 已存在`);
+        console.warn(`连接 ${连接ID} 已存在,添加未执行,请确保这符合你的预期`);
+        return
     }
 
     const 连接信息 = { 起始: 起始ID, 目标: 目标ID, 数值要求 };
@@ -112,7 +127,11 @@ const 添加连接 = 柯里化((流程图, 起始ID, 目标ID, 数值要求 = 1)
         流程图.输出连接索引.set(起始ID, []);
     }
     流程图.输出连接索引.get(起始ID).push(连接信息);
-})
+
+    // 更新入口和出口节点索引
+    流程图.出口节点索引.delete(起始ID);
+    流程图.入口节点索引.delete(目标ID);
+});
 
 /**
  * 判断变迁是否可以触发
@@ -140,28 +159,28 @@ const 动作可触发 = 柯里化((流程图, 动作ID) => {
             原因: `动作 ${动作ID} 没有输入连接`
         };
     }
-
+    let token满足=true
+    let 原因 = []
     // 检查所有输入节点的令牌是否足够
     for (const 连接 of 输入连接) {
         const 节点 = 流程图.节点.get(连接.起始);
         if (!节点) {
-            return {
-                可触发: false,
-                原因: `输入节点 ${连接.起始} 不存在`
-            };
+            token满足=false
+            
+                原因.push(`输入节点 ${连接.起始} 不存在`)
+            
         }
         if (节点.数值 < 连接.数值要求) {
-            return {
-                可触发: false,
-                原因: `节点 ${连接.起始} 的令牌数不足 (当前: ${节点.数值}, 需要: ${连接.数值要求})`
-            };
+            token满足=false
+
+            原因.push(`节点 ${连接.起始} 的令牌数不足 (当前: ${节点.数值}, 需要: ${连接.数值要求})`)
+            
         }
     }
-
     // 所有检查都通过
     return {
-        可触发: true,
-        原因: '所有条件满足'
+        可触发: token满足,
+        原因: 原因.join('\n')
     };
 });
 
@@ -211,19 +230,62 @@ const 触发动作 = 柯里化(async (流程图, 动作ID, ...参数) => {
 });
 
 /**
- * @exports {Object} 导出所有Petri网相关函数
- * @property {Function} 创建流程图 - 创建新的流程图实例
- * @property {Function} 添加节点 - 添加状态节点
- * @property {Function} 添加动作 - 添加动作节点
- * @property {Function} 添加连接 - 添加连接关系
- * @property {Function} 触发变迁 - 触发变迁执行
- * @property {Function} 变迁可触发 - 判断变迁是否可以触发
+ * 找到入口节点
+ * @param {Object} 流程图 - 流程图实例
+ * @returns {Array} 入口节点ID数组
  */
+const 找到入口节点 = (流程图) => {
+    return Array.from(流程图.入口节点索引);
+}
+
+/**
+ * 找到出口节点
+ * @param {Object} 流程图 - 流程图实例
+ * @returns {Array} 出口节点ID数组
+ */
+const 找到出口节点 = (流程图) => {
+    return Array.from(流程图.出口节点索引);
+}
+/**
+ * 执行 Petri 网
+ * @param {Object} 流程图 - 流程图实例
+ * @returns {Promise<void>} 执行完成的 Promise
+ */
+const 执行Petri网 = async (流程图) => {
+    let 变迁触发 = true;
+
+    while (变迁触发) {
+        变迁触发 = false;
+
+        for (const [动作ID, 动作] of 流程图.动作.entries()) {
+            const 检查结果 = 动作可触发(流程图, 动作ID);
+            if (检查结果.可触发) {
+                try {
+                    await 触发动作(流程图, 动作ID);
+                    变迁触发 = true;
+                    console.log(`动作 ${动作ID} 已触发`);
+                } catch (错误) {
+                    console.error(`触发动作 ${动作ID} 时出错: ${错误.message}`);
+                }
+            }else{
+                console.error(检查结果.原因)
+
+            }
+        }
+    }
+
+    console.log('Petri 网执行完成');
+}
+// 在导出中添加新函数
 export {
     创建流程图,
     添加节点,
     添加动作,
     添加连接,
     触发动作,
-    动作可触发 
+    动作可触发,
+    已经连接,
+    找到入口节点,
+    找到出口节点,
+    执行Petri网
 }

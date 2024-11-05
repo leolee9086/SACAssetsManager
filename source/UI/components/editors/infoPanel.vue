@@ -25,15 +25,15 @@
         <div class="info-group">
           <h4>卡片与锚点</h4>
           <div class="card-list">
-            <div v-for="(card, cardId) in stats.cardAnchors" 
+            <div v-for="(card, cardId) in stats.cards" 
                  :key="cardId" 
                  class="card-item">
               <div class="card-header">
-                <span class="card-title">{{ card.title }}</span>
-                <span class="anchor-count">{{ card.anchors.length }}个锚点</span>
+                <span class="card-title">{{ card.title }}({{ card.id }})</span>
+                <span class="anchor-count">{{ card.controller.anchors.length }}个锚点</span>
               </div>
               <div class="anchor-list">
-                <div v-for="anchor in card.anchors" 
+                <div v-for="anchor in card.controller.anchors" 
                      :key="anchor.id" 
                      class="anchor-item">
                   <div class="anchor-info">
@@ -42,8 +42,8 @@
                     <span class="anchor-label">{{ anchor.label || anchor.id }}</span>
                   </div>
                   <div class="anchor-position" v-if="anchor.position">
-                    <span class="coord">x: {{ Math.round(anchor.position.x) }}</span>
-                    <span class="coord">y: {{ Math.round(anchor.position.y) }}</span>
+                    <span class="coord">x: {{ Math.round(anchor.absolutePosition?.x) }}</span>
+                    <span class="coord">y: {{ Math.round(anchor.absolutePosition?.y) }}</span>
                   </div>
                 </div>
               </div>
@@ -65,13 +65,13 @@
               <div class="connection-coords" v-if="conn.startAnchor?.position && conn.endAnchor?.position">
                 <div class="coord-item">
                   <span class="coord-label">起点:</span>
-                  <span class="coord">x: {{ Math.round(conn.startAnchor.position.x) }}</span>
-                  <span class="coord">y: {{ Math.round(conn.startAnchor.position.y) }}</span>
+                  <span class="coord">x: {{ Math.round(conn.startAnchor.absolutePosition?.x) }}</span>
+                  <span class="coord">y: {{ Math.round(conn.startAnchor.absolutePosition?.y) }}</span>
                 </div>
                 <div class="coord-item">
                   <span class="coord-label">终点:</span>
-                  <span class="coord">x: {{ Math.round(conn.endAnchor.position.x) }}</span>
-                  <span class="coord">y: {{ Math.round(conn.endAnchor.position.y) }}</span>
+                  <span class="coord">x: {{ Math.round(conn.endAnchor.absolutePosition?.x) }}</span>
+                  <span class="coord">y: {{ Math.round(conn.endAnchor.absolutePosition?.y) }}</span>
                 </div>
               </div>
             </div>
@@ -110,28 +110,34 @@
   
   // 获取锚点显示标签
   const getAnchorLabel = (anchorId) => {
+    console.log(props.stats)
     // 从stats中查找对应的锚点信息
-    for (const card of Object.values(props.stats.cardAnchors)) {
+   // console.log(anchorId)
+
+   /* for (const card of Object.values(props.stats.cards)) {
+      console.log(card)
       const anchor = card.anchors.find(a => a.id === anchorId);
       if (anchor) {
         return `${card.title}:${anchor.label || anchor.id}`;
       }
-    }
+    }*/
     return anchorId;
   };
   </script>
   
   <style scoped>
   .info-panel {
-    position: fixed;
-    bottom: 20px;
+    position: absolute;
+    top: 20px;
     right: 20px;
     width: 360px;
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
+    z-index: 1;
     font-size: 14px;
+    max-height: 90%;
+    overflow: auto;
   }
   
   .info-header {

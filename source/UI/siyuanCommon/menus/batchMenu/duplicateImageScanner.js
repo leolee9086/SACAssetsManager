@@ -1,5 +1,3 @@
-import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js';
-
 const fs = require('fs').promises;
 const path = require('path');
 const THUMBNAIL_SIZE = 32; // 用于比较的缩略图大小
@@ -136,26 +134,6 @@ export async function 执行图片去重(localPath, taskController, mode = 'simp
     }
 
     return `处理完成。共处理 ${processedFiles} 个文件，发现 ${imageHashes.size} 个唯一图片。`;
-}
-async function 显示重复图片确认对话框(file, originalFile, targetFolder) {
-    return confirmAsPromise(
-        '找到重复文件',
-        `
-        <div style="display: flex; justify-content: space-around; align-items: center;">
-            <div>
-                <p>原始图片:</p>
-                <img src="${originalFile}" style="max-width: 200px; max-height: 200px;">
-                <p>${originalFile}</p>
-            </div>
-            <div>
-                <p>重复图片:</p>
-                <img src="${file}" style="max-width: 200px; max-height: 200px;">
-                <p>${file}</p>
-            </div>
-        </div>
-        <p>是否移动重复图片到 "${targetFolder}"?</p>
-        `
-    );
 }
 async function 获取图片文件列表(dir) {
     const entries = await fs.readdir(dir, { withFileTypes: true });

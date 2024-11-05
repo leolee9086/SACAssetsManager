@@ -1,8 +1,93 @@
 import * as Vue from '../../../static/vue.esm-browser.js'
 import { loadModule } from '../../../static/vue3-sfc-loader.esm.js'
+import * as loader from "../../../static/vue3-sfc-loader.esm.js"
 import * as runtime from '../../asyncModules.js';
 import pickr from '../../../static/pickr-esm2022.js'
 
+/**
+ * 同步函数，返回一个异步组件封装，组件名称是动态的。
+ * 
+ * @param {string} sfcUrl - Vue SFC文件的URL。
+ * @returns {Object} - 包含动态组件名称、异步组件和接口获取方法的对象。
+ */
+export function loadVueComponentAsNodeSync(sfcUrl) {
+    const moduleCache = {
+        vue: Vue
+    };
+    
+    const asyncModules={
+        
+    }
+    let nodeDefine = null;
+    const styleElements = [];
+    const mixinOptions = {
+        moduleCache: {
+            ...moduleCache
+        },
+        handleModule(type, source, path, options) {
+            if (type === '.json') {
+                return JSON.parse(source);
+            }
+            if (type === '.js') {
+                return asyncModules[path]
+            }
+
+        },
+        async getFile(url) {
+            let realURL=url
+            const urlObj1 = new URL(url, window.location.origin);
+            if(urlObj1.pathname.endsWith('.vue.mjs')){
+                realURL=url.replace('.vue.mjs','.vue')
+            }
+            if (url.endsWith('.js')) {
+                if (!asyncModules[url]) {
+                    let module = await import(url)
+                    asyncModules[url] = module
+                }
+            }
+            const res = await fetch(realURL);
+            if (!res.ok) {
+                throw new Error(`Failed to fetch ${url}: ${res.statusText}`);
+            }
+            const content = await res.text();
+            const urlObj = new URL(url, window.location.origin);
+            // 检查 URL 是否为 .vue 文件且包含 ?asNode=true 参数
+            if (urlObj.pathname.endsWith('.vue.mjs') && urlObj.searchParams.get('asNode') === 'true') {
+                // 仅解析 nodeDefine 块
+                const nodeDefineMatch = content.match(/<script nodeDefine>([\s\S]*?)<\/script>/);
+                if (nodeDefineMatch) {
+                    try {
+                        nodeDefine = nodeDefineMatch[1];
+                    } catch (error) {
+                        console.error('Failed to parse nodeDefine block:', error);
+                    }
+                }
+                return { getContentData:asBinary=>nodeDefineMatch ? nodeDefineMatch[1] : `` };
+            }
+
+            return {
+                getContentData: asBinary => asBinary ? res.arrayBuffer() : content,
+            };
+        },
+        addStyle(textContent) {
+            const style = Object.assign(document.createElement('style'), { textContent });
+            const ref = document.head.getElementsByTagName('style')[0] || null;
+            document.head.insertBefore(style, ref);
+            styleElements.push(style);
+        },
+    };
+
+
+    return {
+        getComponent: async() => {
+            
+            return   await loadModule(sfcUrl, mixinOptions)
+        },
+        getNodeDefine:async ()=>{
+            return (await loader.loadModule(sfcUrl.trim()+'.mjs?asNode=true', mixinOptions)).nodeDefine
+        }
+    };
+}
 const moduleCache = {
     vue: Vue,
     runtime: runtime,

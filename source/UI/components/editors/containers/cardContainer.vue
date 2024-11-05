@@ -1,62 +1,56 @@
 <template>
-  <div class="floating-card" 
-       :style="cardStyle"
-       :data-card-id="cardId"
-
-       @mouseenter="showHandles"
-       @mouseleave="hideHandles"
-       ref="card">
+  <div class="floating-card" :style="cardStyle" :data-card-id="props.cardID" @mouseenter="showHandles"
+    @mouseleave="hideHandles" ref="card">
     <!-- 渲染四个方向的接口锚点 -->
     <template v-for="(anchors, side) in groupedAnchors" :key="side">
       <div :class="['anchor-container', `anchor-${side}`]">
-        <div v-for="anchor in anchors" 
-             :key="anchor.id"
-             :class="['anchor-point', `anchor-${anchor.type}`]"
-             :style="getAnchorStyle(anchor, side)"
-             :title="anchor.label">
+        <div v-for="anchor in anchors" :key="anchor.id" :class="['anchor-point', `anchor-${anchor.type}`]"
+          :style="getAnchorStyle(anchor, side)" :title="anchor.label">
           <div class="anchor-dot"></div>
           <span class="anchor-label">{{ anchor.label }}</span>
         </div>
       </div>
     </template>
-
     <!-- 四周的缩放手柄 -->
-    <div v-for="handle in resizeHandles" 
-         :key="handle.position"
-         class="resize-handle"
-         :class="[`resize-${handle.position}`, { 'handle-visible': isHandleVisible }]"
-         @mousedown.stop="(e) => startResize(e, handle.position)">
+    <div v-for="handle in resizeHandles" :key="handle.position" class="resize-handle"
+      :class="[`resize-${handle.position}`, { 'handle-visible': isHandleVisible }]"
+      @mousedown.stop="(e) => startResize(e, handle.position)">
     </div>
-    
     <!-- 原有的拖拽区域和内容 -->
-    <div class="drag-handle" 
-         @mousedown.stop="startDrag"
-         :class="{ 'handle-visible': isHandleVisible }">
+    <div class="drag-handle" @mousedown.stop="startDrag" :class="{ 'handle-visible': isHandleVisible }">
       <div class="handle-icon">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M2 5h12M2 8h12M2 11h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M2 5h12M2 8h12M2 11h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg>
       </div>
       <div class="card-header" v-if="title">
         {{ title }}
       </div>
     </div>
-    
     <div class="card-content">
-      <slot></slot>
+      <template v-if="props.component&&component.template||component.render">      
+        <component 
+      :is="component" 
+      v-bind="componentProps" 
+      v-on="componentEvents" 
+      />
+    </template>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, provide, inject, watch, onMounted, nextTick } from 'vue'
-import { v4 as uuidv4 } from '../../../../../static/uuid.mjs'
-
+import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick ,shallowRef} from 'vue'
 // Props 定义
 const props = defineProps({
   title: {
     type: String,
     default: ''
+  },
+  card:{
+    type: Object,
+
   },
   position: {
     type: Object,
@@ -66,8 +60,29 @@ const props = defineProps({
       width: 280,
       height: 160
     })
+  },
+  component: {
+    type: Function,
+    default: null
+  },
+  componentProps: {
+    type: Object,
+    default: () => ({})
+  },
+  componentEvents: {
+    type: Object,
+    default: () => ({})
+  },
+  anchors:{
+    type:Array,
+    default:[]
+  },
+  cardID:{
+    type: String,
+    required:true
   }
 })
+
 
 // Refs
 const card = ref(null)
@@ -85,56 +100,56 @@ const dragStart = ref({
 // 添加位置和尺寸的验证函数
 const validatePosition = (pos) => {
   const defaultPos = { x: 20, y: 20 }
-  
+
   if (!pos) {
     console.warn('[CardContainer] 位置信息缺失，使用默认值:', defaultPos)
     return defaultPos
   }
-  
+
   if (typeof pos.x !== 'number') {
     console.warn('[CardContainer] x坐标无效，应为数字类型，当前值:', pos.x)
     return { ...defaultPos, y: pos.y }
   }
-  
+
   if (typeof pos.y !== 'number') {
     console.warn('[CardContainer] y坐标无效，应为数字类型，当前值:', pos.y)
     return { ...defaultPos, x: pos.x }
   }
-  
+
   return { x: pos.x, y: pos.y }
 }
 
 const validateSize = (size) => {
   const defaultSize = { width: 280, height: 160 }
   const minSize = { width: 232, height: 132 }
-  
+
   if (!size) {
     console.warn('[CardContainer] 尺寸信息缺失，使用默认值:', defaultSize)
     return defaultSize
   }
-  
+
   const errors = []
-  
+
   if (typeof size.width !== 'number') {
     errors.push(`宽度无效，应为数字类型，当前值: ${size.width}`)
   } else if (size.width < minSize.width) {
     errors.push(`宽度小于最小值 ${minSize.width}px，当前值: ${size.width}px`)
   }
-  
+
   if (typeof size.height !== 'number') {
     errors.push(`高度无效，应为数字类型，当前值: ${size.height}`)
   } else if (size.height < minSize.height) {
     errors.push(`高度小于最小值 ${minSize.height}px，当前值: ${size.height}px`)
   }
-  
+
   if (errors.length > 0) {
     console.warn('[CardContainer] 尺寸验证失败：\n', errors.join('\n'), '\n使用默认值:', defaultSize)
     return defaultSize
   }
-  
-  return { 
-    width: Math.max(minSize.width, size.width), 
-    height: Math.max(minSize.height, size.height) 
+
+  return {
+    width: Math.max(minSize.width, size.width),
+    height: Math.max(minSize.height, size.height)
   }
 }
 
@@ -159,93 +174,42 @@ const resizeHandles = [
 
 // Computed
 const cardStyle = computed(() => ({
-  left: `${props.position.x + currentPos.value.x - 16}px`,
-  top: `${props.position.y + currentPos.value.y - 16}px`,
+  left: `${ currentPos.value.x - 16}px`,
+  top: `${ currentPos.value.y - 16}px`,
   width: `${currentSize.value.width}px`,
   height: `${currentSize.value.height}px`,
-  position:'absolute'
+  position: 'absolute',
+  color:error.value?`var(--b3-card-error-color)`:"",
+  border:error.value?`1px solid var(--b3-card-error-color)`:"",
+  backgroundColor:error.value?`var(--b3-card-error-background)`:""
 }))
 
 // 定义接口锚点数据结构
-const anchors = ref([])
+const anchors = toRef(props,'anchors')
 
-// 为卡片生成唯一ID
-const cardId = uuidv4()
 
-// 添加全局锚点注册方法
-const registerGlobalAnchor = inject('registerGlobalAnchor');
 
-// 修改锚点注册逻辑
-const registerAnchor = (anchorConfig) => {
-  const globalId = `${cardId}-${anchorConfig.id}`;
-  
-  // 注册到全局
-  registerGlobalAnchor(cardId, {
-    ...anchorConfig,
-    globalId
-  });
-  
-  // 添加到本地锚点列表
-  anchors.value.push({
-    ...anchorConfig,
-    id: globalId
-  });
-  
-  return globalId;
-};
 
-// 修改 unregisterAnchor 方法
-const unregisterAnchor = (localId) => {
-  const globalId = `${cardId}-${localId}`
-  const index = anchors.value.findIndex(a => a.id === globalId)
-  if (index !== -1) {
-    anchors.value.splice(index, 1)
-  }
-}
-
-// 提供给子组件的方法和数据
-provide('registerAnchor', registerAnchor)
-provide('unregisterAnchor', unregisterAnchor)
-provide('cardId', cardId)
-
-// 按方向分组锚点
-const groupedAnchors = computed(() => {
-  const groups = {
-    left: [],
-    right: [],
-    top: [],
-    bottom: []
-  }
-  
-  anchors.value.forEach(anchor => {
-    groups[anchor.side].push(anchor)
-  })
-  
-  // 对每个方向的锚点按位置排序
-  Object.values(groups).forEach(group => {
-    group.sort((a, b) => a.position - b.position)
-  })
-  
-  return groups
-})
 
 // 计算锚点位置样式
 const getAnchorStyle = (anchor, side) => {
   const style = {
     '--anchor-position': `${anchor.position * 100}%`
   }
-  
+
   return style
 }
 
-// Methods
 const startDrag = (e) => {
   isDragging.value = true
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
     startX: currentPos.value.x,
-    startY: currentPos.value.y
+    startY: currentPos.value.y,
+    // 保存初始鼠标位置相对于卡片的偏移
+    offsetX: e.clientX - currentPos.value.x,
+    offsetY: e.clientY - currentPos.value.y
   }
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
@@ -253,26 +217,29 @@ const startDrag = (e) => {
 
 const onDrag = (e) => {
   if (!isDragging.value) return
-  
-  const deltaX = e.clientX - dragStart.value.x
-  const deltaY = e.clientY - dragStart.value.y
-  
+
+  // 计算新位置时考虑初始偏移量
   currentPos.value = {
-    x: dragStart.value.startX + deltaX,
-    y: dragStart.value.startY + deltaY
+    x: e.clientX - dragStart.value.offsetX,
+    y: e.clientY - dragStart.value.offsetY
   }
 }
-
-const stopDrag = () => {
+const stopDrag = (e) => {
   isDragging.value = false
+  
+  // 计算新位置时考虑初始偏移量，并确保不小于0
+  currentPos.value = {
+    x: Math.max(0, e.clientX - dragStart.value.offsetX),
+    y: Math.max(0, e.clientY - dragStart.value.offsetY)
+  }
+  
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
 }
-
 const startResize = (e, position) => {
   e.preventDefault()
   isResizing.value = true
-  
+
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
@@ -282,23 +249,23 @@ const startResize = (e, position) => {
     top: currentPos.value.y,
     position
   }
-  
+
   document.addEventListener('mousemove', onResize)
   document.addEventListener('mouseup', stopResize)
 }
 
 const onResize = (e) => {
   if (!isResizing.value) return
-  
+
   const deltaX = e.clientX - dragStart.value.x
   const deltaY = e.clientY - dragStart.value.y
   const pos = dragStart.value.position
-  
+
   let newWidth = dragStart.value.width
   let newHeight = dragStart.value.height
   let newLeft = dragStart.value.left
   let newTop = dragStart.value.top
-  
+
   // 根据不同方向处理缩放
   if (pos.includes('e')) newWidth = dragStart.value.width + deltaX
   if (pos.includes('w')) {
@@ -310,16 +277,16 @@ const onResize = (e) => {
     newHeight = dragStart.value.height - deltaY
     newTop = dragStart.value.top + deltaY
   }
-  
+
   // 应用最小尺寸限制
   const minWidth = 200
   const minHeight = 100
-  
+
   if (newWidth >= minWidth) {
     currentSize.value.width = newWidth
     if (pos.includes('w')) currentPos.value.x = newLeft
   }
-  
+
   if (newHeight >= minHeight) {
     currentSize.value.height = newHeight
     if (pos.includes('n')) currentPos.value.y = newTop
@@ -341,8 +308,31 @@ const hideHandles = () => {
     isHandleVisible.value = false
   }
 }
-
+let component=shallowRef({})
+let error = ref('')
 // 生命周期钩子
+onMounted(()=>{
+  currentPos.value = {
+    x: props.position.x,
+    y: props.position.y
+  }
+  currentSize.value = {
+    width: props.position.width,
+    height: props.position.height
+  }
+  component.value=props.component();
+
+  //这个需要提到最外面
+  (async()=>{
+    try {
+     // await props.card.controller.exec()
+    }catch(e){
+      console.error('aaa',e)
+      error.value=e
+    }
+
+  })()
+})
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
@@ -350,66 +340,37 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', stopResize)
 })
 
-// 修改计算锚点位置的方法
-const calculateAnchorPosition = (anchor) => {
-  const cardElement = card.value;
-  if (!cardElement) return null;
-  
-  const cardRect = cardElement.getBoundingClientRect();
-  const position = { x: 0, y: 0 };
-  
-  // 根据锚点的方向计算位置
-  switch (anchor.side) {
-    case 'left':
-      position.x = cardRect.left;
-      position.y = cardRect.top + (cardRect.height * anchor.position);
-      break;
-    case 'right':
-      position.x = cardRect.right;
-      position.y = cardRect.top + (cardRect.height * anchor.position);
-      break;
-    case 'top':
-      position.x = cardRect.left + (cardRect.width * anchor.position);
-      position.y = cardRect.top;
-      break;
-    case 'bottom':
-      position.x = cardRect.left + (cardRect.width * anchor.position);
-      position.y = cardRect.bottom;
-      break;
-  }
-  
-  return position;
-};
 
 // 定义 emit
-const emit = defineEmits(['updateAnchorPosition']);
-
-// 更新所有锚点位置
-const updateAnchorsPosition = () => {
-  anchors.value.forEach(anchor => {
-    const position = calculateAnchorPosition(anchor);
-    if (position) {
-      emit('updateAnchorPosition', cardId, anchor.id, position);
-    }
-  });
-};
+const emit = defineEmits(['onCardMove']);
 
 // 监听卡片位置和尺寸变化
-watch([currentPos, currentSize], () => {
+watch(cardStyle, () => {
   nextTick(() => {
-    updateAnchorsPosition();
+    console.log(currentSize.value)
+    emit('onCardMove',props.cardID,{...currentPos.value,...currentSize.value})
   });
 });
 
-// 在组件挂载后初始化位置
-onMounted(() => {
-  updateAnchorsPosition();
-  window.addEventListener('resize', updateAnchorsPosition);
+// 按方向分组锚点
+const groupedAnchors = computed(() => {
+  const groups = {
+    left: [],
+    right: [],
+    top: [],
+    bottom: []
+  };
+  anchors.value.forEach(anchor => {
+    groups[anchor.side].push(anchor);
+  });
+  // 对每个方向的锚点按位置排序
+  Object.values(groups).forEach(group => {
+    group.sort((a, b) => a.position - b.position);
+  });
+  return groups;
 });
 
-onUnmounted(() => {
-  window.removeEventListener('resize', updateAnchorsPosition);
-});
+
 </script>
 
 <style scoped>
@@ -431,7 +392,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(to bottom, rgba(249, 250, 251, 0.8), rgba(244, 245, 246, 0.8));
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   opacity: 0;
   transition: all 0.2s ease;
@@ -439,7 +399,7 @@ onUnmounted(() => {
   margin: -16px -16px 0;
   position: sticky;
   top: 0;
-  background: white;
+  background: linear-gradient(to bottom, rgba(249, 250, 251, 0.8), rgba(244, 245, 246, 0.8));
   z-index: 1;
 }
 
@@ -498,14 +458,69 @@ onUnmounted(() => {
 }
 
 /* 添加新的缩放手柄样式 */
-.resize-n { top: 0; left: 0; right: 0; height: 4px; cursor: n-resize; }
-.resize-s { bottom: 0; left: 0; right: 0; height: 4px; cursor: s-resize; }
-.resize-e { top: 0; right: 0; bottom: 0; width: 4px; cursor: e-resize; }
-.resize-w { top: 0; left: 0; bottom: 0; width: 4px; cursor: w-resize; }
-.resize-ne { top: 0; right: 0; width: 8px; height: 8px; cursor: ne-resize; }
-.resize-nw { top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize; }
-.resize-se { bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize; }
-.resize-sw { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }
+.resize-n {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: n-resize;
+}
+
+.resize-s {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: s-resize;
+}
+
+.resize-e {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: e-resize;
+}
+
+.resize-w {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: w-resize;
+}
+
+.resize-ne {
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: ne-resize;
+}
+
+.resize-nw {
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  cursor: nw-resize;
+}
+
+.resize-se {
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: se-resize;
+}
+
+.resize-sw {
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  cursor: sw-resize;
+}
 
 /* 悬停时显示手柄 */
 .floating-card:hover .handle-visible {
@@ -520,7 +535,7 @@ onUnmounted(() => {
 }
 
 .anchor-left {
-  left: -32px;
+  left: -12px;
   top: 0;
   bottom: 0;
   width: 32px;
@@ -528,7 +543,7 @@ onUnmounted(() => {
 }
 
 .anchor-right {
-  right: -32px;
+  right: -12px;
   top: 0;
   bottom: 0;
   width: 32px;
@@ -536,7 +551,7 @@ onUnmounted(() => {
 }
 
 .anchor-top {
-  top: -32px;
+  top: -12px;
   left: 0;
   right: 0;
   height: 32px;
@@ -544,7 +559,7 @@ onUnmounted(() => {
 }
 
 .anchor-bottom {
-  bottom: -32px;
+  bottom: -12px;
   left: 0;
   right: 0;
   height: 32px;
@@ -594,7 +609,7 @@ onUnmounted(() => {
   background: #94a3b8;
   border: 2px solid white;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
-              0 2px 4px rgba(0, 0, 0, 0.1);
+    0 2px 4px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
 }
 
@@ -626,7 +641,7 @@ onUnmounted(() => {
 .anchor-point:hover .anchor-dot {
   transform: scale(1.3);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
-              0 4px 8px rgba(0, 0, 0, 0.15);
+    0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .anchor-point:hover .anchor-label {

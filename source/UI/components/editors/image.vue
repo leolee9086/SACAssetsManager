@@ -1,31 +1,21 @@
 <template>
   <div class="image-editor">
-    <canvas ref="connectionCanvas" class="connection-canvas"></canvas>
-    
-    <!-- 动态渲染卡片 -->
-    <template v-for="card in config.cards" :key="card.id">
-      <cardContainer 
-        :title="card.title" 
-        :position="card.position"
-        :data-card-id="card.id">
-             <component 
-          :is="componentMap[card.type]"
-          v-bind="getComponentProps(card)"
-          v-on="getComponentEvents(card)"
-        />
+    <div ref="connectionCanvas" class="connection-canvas">
 
-      </cardContainer>
+    </div>
+
+    <!-- 动态渲染卡片 -->
+    <template v-for="card in parsedCards" :key="card.id">
+      <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
+        :component="card.controller.component" :component-props="card.controller.componentProps"
+        :component-events="card.events" :anchors="card.controller.anchors" :card="card" @onCardMove="onCardMove" />
     </template>
 
     <InfoPanel :stats="systemStats" />
   </div>
 </template>
-
-<script setup>
-import { ref, onMounted, provide, computed ,toRef,inject,onUnmounted,watch  } from 'vue';
-import './nodeInterfaceTest.js'
-//import editorConfig from './imageEditor.json';
-const editorConfig ={
+<script>
+const editorConfig = {
   "name": "图片编辑器",
   "cards": [
     {
@@ -61,180 +51,390 @@ const editorConfig ={
         "height": 600
       }
     },
-   
+
   ],
   "connections": [
     {
       "from": {
         "cardId": "imageInput",
-        "anchorId": "output"
+        "anchorId": "filePath"
+      },
+      "to": {
+        "cardId": "imageComparison",
+        "anchorId": "originalImage"
+      }
+    },
+    {
+      "from": {
+        "cardId": "imageInput",
+        "anchorId": "file"
       },
       "to": {
         "cardId": "imageCompressor",
-        "anchorId": "input"
+        "anchorId": "source"
       }
     },
     {
       "from": {
         "cardId": "imageCompressor",
-        "anchorId": "output"
+        "anchorId": "compressedImage"
       },
       "to": {
         "cardId": "imageComparison",
-        "anchorId": "input"
+        "anchorId": "processedImage"
       }
     }
   ]
 }
-import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
-import CardContainer  from './containers/cardContainer.vue';
-import ImageComparison from './ImageComparison.vue';
-import LocalImageInput from './localImageInput.vue';
-import ImageCompressor from './ImageCompressor.vue';
-// 组件映射表
-const componentMap = {
-  localImageInput: LocalImageInput,
-  ImageCompressor: ImageCompressor,
-  ImageComparison: ImageComparison,
-};
 
-// 注册所有组件
-const components = {
-  CardContainer,
-  ImageComparison,
-  LocalImageInput,
-  ImageCompressor,
-  InfoPanel,
-};
+</script>
+<script setup>
+import { ref, onMounted, computed, toRef, inject, onUnmounted, shallowRef, watch } from 'vue';
+import CardContainer from './containers/cardContainer.vue';
+import _Konva from '../../../../static/konva.js'
+import { 已经连接, 执行Petri网 } from '../../../utils/graph/PetriNet.js';
+const Konva = _Konva.default
+// Konva stage 和 layer 的设置
+const stage = ref(null)
+const layer = ref(null)
+// 初始化 Konva
+const initKonva = () => {
+  const container = connectionCanvas.value
+  stage.value = new Konva.Stage({
+    container: container,
+    width: container.offsetWidth,
+    height: container.offsetHeight
+  })
 
+  layer.value = new Konva.Layer()
+  stage.value.add(layer.value)
+}
+
+// 使用同步函数加载异步组件
 import InfoPanel from './InfoPanel.vue';
 //用于流程构建和控制
-import { 创建流程图, 添加节点, 添加动作, 添加连接, 触发动作,动作可触发} from '../../../utils/graph/PetriNet.js';
-const sharp = requirePluginDeps('sharp')
+import { parseNodeDefine } from './containers/nodeDefineParser.js';
+import { validateUUID } from '../../../utils/uuid/index.js';
+// 组件映射表
+const componentMap = {
+  localImageInput: '/plugins/SACAssetsManager/source/UI/components/editors/localImageInput.vue',
+  ImageCompressor: '/plugins/SACAssetsManager/source/UI/components/editors/ImageCompressor.vue',
+  ImageComparison: '/plugins/SACAssetsManager/source/UI/components/editors/ImageComparison.vue',
+};
+const parsedCards = ref([]);
+// 新增函数：解析组件定义
+const parseComponentDefinition = async (cardType) => {
+  const componentURL = componentMap[cardType];
+  return await parseNodeDefine(componentURL);
+};
+let componentDefinitions = {}
+/**
+ * 添加或更新卡片
+ * @param {Object} cardConfig 卡片配置
+ * @param {Object} [options] 额外选项
+ * @param {boolean} [options.skipExisting=false] 是否跳过已存在的卡片
+ * @returns {Promise<Object>} 添加或更新的卡片对象
+ */
+const addCard = async (cardConfig, options = {}) => {
+  try {
+    // 验证必要参数
+    const requiredFields = ['id', 'type', 'title', 'position'];
+    const missingFields = requiredFields.filter(field => !cardConfig[field]);
+    if (missingFields.length > 0) {
+      throw new Error(`缺少必要的卡片配置: ${missingFields.join(', ')}`);
+    }
+
+    // 检查组件类型是否支持
+    if (!componentMap[cardConfig.type]) {
+      throw new Error(`不支持的卡片类型: ${cardConfig.type}`);
+    }
+
+    // 获取或解析组件定义
+    let controller;
+    if (componentDefinitions[cardConfig.type]) {
+      controller = componentDefinitions[cardConfig.type];
+    } else {
+      controller = await parseComponentDefinition(cardConfig.type);
+      componentDefinitions[cardConfig.type] = controller;
+    }
+
+    // 创建新卡片对象
+    const newCard = {
+      controller,
+      id: cardConfig.id,
+      position: {
+        x: cardConfig.position.x || 0,
+        y: cardConfig.position.y || 0,
+        width: cardConfig.position.width || 300,
+        height: cardConfig.position.height || 200
+      },
+      title: cardConfig.title
+    };
+
+    // 查找是否存在同ID的卡片
+    const existingIndex = parsedCards.value.findIndex(card => card.id === cardConfig.id);
+
+    if (existingIndex !== -1) {
+      if (options.skipExisting) {
+        // 如果设置了跳过，则返回现有卡片
+        return parsedCards.value[existingIndex];
+      }
+
+      // 更新现有卡片
+      const existingCard = parsedCards.value[existingIndex];
+
+      // 如果类型改变，需要更新controller
+      if (cardConfig.type !== existingCard.type) {
+        existingCard.controller = controller;
+      }
+
+      // 更新其他属性
+      existingCard.title = newCard.title;
+      existingCard.position = newCard.position;
+
+      // 更新配置中的卡片
+      const configIndex = config.value.cards.findIndex(card => card.id === cardConfig.id);
+      if (configIndex !== -1) {
+        config.value.cards[configIndex] = { ...cardConfig };
+      } else {
+        config.value.cards.push(cardConfig);
+      }
+
+      return existingCard;
+    } else {
+      // 添加新卡片
+      parsedCards.value.push(newCard);
+      config.value.cards.push(cardConfig);
+      return newCard;
+    }
+  } catch (error) {
+    console.error('添加或更新卡片失败:', error);
+    throw error;
+  }
+};
 
 
-const originalImage = ref('');
-const compressedImage = ref('');
+/**
+ * 从保存的卡片加载配置文件
+ */
+const loadConfig = async () => {
+  try {
+    // 清空现有卡片和定义缓存
+    parsedCards.value = [];
+    componentDefinitions = {};
+    // 创建ID映射表
+    const idMap = new Map();
+    // 验证并修正所有卡片的ID
+    config.value.cards = config.value.cards.map(card => {
+      const oldId = card.id;
+      const newId = validateUUID(oldId);
+      if (oldId !== newId) {
+        console.warn(`卡片ID不是有效的UUID，已修正: ${oldId} -> ${newId}`);
+        idMap.set(oldId, newId);
+      }
+      return {
+        ...card,
+        id: newId
+      };
+    });
+    // 更新所有连接中的卡片ID
+    if (idMap.size > 0) {
+      const oldConnections = [...config.value.connections];
+      config.value.connections = oldConnections.map(conn => ({
+        from: {
+          cardId: idMap.get(conn.from.cardId) || conn.from.cardId,
+          anchorId: conn.from.anchorId
+        },
+        to: {
+          cardId: idMap.get(conn.to.cardId) || conn.to.cardId,
+          anchorId: conn.to.anchorId
+        }
+      }));
+      // 记录连接的修改
+      const modifiedConnections = config.value.connections.filter((conn, index) => {
+        const oldConn = oldConnections[index];
+        return conn.from.cardId !== oldConn.from.cardId ||
+          conn.to.cardId !== oldConn.to.cardId;
+      });
+      if (modifiedConnections.length > 0) {
+        console.warn('已更新以下连接的卡片ID:', modifiedConnections);
+      }
+    }
+    // 使用 addCard 添加所有卡片
+    for (const cardConfig of config.value.cards) {
+      await addCard(cardConfig, { skipExisting: true });
+    }
+    // 验证连接的有效性
+    config.value.connections = config.value.connections.filter(conn => {
+      const fromCard = parsedCards.value.find(card => card.id === conn.from.cardId);
+      const toCard = parsedCards.value.find(card => card.id === conn.to.cardId);
+      if (!fromCard || !toCard) {
+        console.warn('移除无效连接:', conn);
+        return false;
+      }
+      const fromAnchor = fromCard.controller.anchors.find(a => a.id === conn.from.anchorId);
+      const toAnchor = toCard.controller.anchors.find(a => a.id === conn.to.anchorId);
+      if (!fromAnchor || !toAnchor) {
+        console.warn('移除无效锚点连接:', conn);
+        return false;
+      }
+      return true;
+    });
+    buildPetriNet()
+  } catch (error) {
+    console.error('加载配置失败:', error);
+    throw error;
+  }
+};
+import { 创建流程图, 添加节点, 添加动作, 添加连接, 找到入口节点, 找到出口节点 } from '../../../utils/graph/PetriNet.js';
+
+// Petri 网构建函数
+function buildPetriNet(connections) {
+  // 创建一个新的 Petri 网
+  const petriNet = 创建流程图(`PetriNet_${config.value.name}`);
+  config.value.connections.forEach(
+    conn => {
+      // 处理锚点（anchors）
+      const fromCard = parsedCards.value.find(card => card.id === conn.from.cardId);
+      const toCard = parsedCards.value.find(card => card.id === conn.to.cardId);
+      const fromAnchor = fromCard.controller.anchors.find(a => a.id === conn.from.anchorId);
+      const toAnchor = toCard.controller.anchors.find(a => a.id === conn.to.anchorId);
+      if (!fromAnchor || !toAnchor) {
+        console.warn('无效的锚点，无法构建 Petri 网');
+        return;
+      }
+      // 为卡片间连接添加状态节点
+      const fromPlaceId = `place_${fromCard.id}_${fromAnchor.id}`;
+      const toPlaceId = `place_${toCard.id}_${toAnchor.id}`;
+      if (!petriNet.节点.has(fromPlaceId)) {
+        添加节点(petriNet, fromPlaceId, { type: 'process', tokens: 0, content: fromAnchor });
+      }
+      if (!petriNet.节点.has(toPlaceId)) {
+        添加节点(petriNet, toPlaceId, { type: 'process', tokens: 0, content: toAnchor })
+      }
+      // 为卡片间连接添加动作节点
+      const transitionId = `transition_${fromCard.id}-${fromAnchor.id}_to_${toCard.id}-${toAnchor.id}`;
+      if (!petriNet.动作.has(transitionId)) {
+        添加动作(petriNet, transitionId, async () => {
+          console.log(`执行动作: ${transitionId}`);
+          const value = fromAnchor.getValue()
+          console.log(value)
+          toAnchor.setValue(value)
+        });
+      }
+      if (!已经连接(petriNet, fromPlaceId, transitionId)) {
+        添加连接(petriNet, fromPlaceId, transitionId)
+
+      }
+      if (!已经连接(petriNet, transitionId, toPlaceId)) {
+        添加连接(petriNet, transitionId, toPlaceId)
+      }
+      // 为卡片内部输入输出连接添加状态节点
+      构建卡片内部连接结构(petriNet, fromCard)
+      构建卡片内部连接结构(petriNet, toCard)
+
+    }
+  )
+  // 输出 Petri 网结构
+  console.log('构建的 Petri 网:', petriNet, '入口节点:', 找到入口节点(petriNet), '出口节点:', 找到出口节点(petriNet));
+  //为入口节点赋值
+  找到入口节点(petriNet).forEach(
+    节点id => {
+      let 节点内容 = petriNet.节点.get(节点id).内容
+      console.log(节点内容)
+      节点内容&&节点内容.define&&节点内容.setValue(节点内容.define.default)
+      petriNet.节点.get(节点id).数值 = 1
+      console.log(节点id, petriNet.节点.get(节点id))
+    }
+  )
+  执行Petri网(petriNet)
+}
+function 构建卡片内部连接结构(petriNet, card) {
+  console.log(card)
+  const inputAnchors = card.controller.anchors.filter(a => a.type === 'input');
+  const outputAnchors = card.controller.anchors.filter(a => a.type === 'output');
+  if (inputAnchors.length) {
+    const internalTransitionId = `internal_transition_${card.id}_${card.title}`;
+    if (!petriNet.动作.has(internalTransitionId)) {
+      添加动作(petriNet, internalTransitionId, async () => {
+        console.log(`执行内部动作: ${internalTransitionId}`);
+        // 在这里实现卡片内部的处理逻辑
+        await card.controller.exec()
+
+      });
+    }
+    inputAnchors.forEach(inputAnchor => {
+      const inputPlaceId = `place_${card.id}_${inputAnchor.id}`;
+      if (!petriNet.节点.has(inputPlaceId)) {
+        添加节点(petriNet, inputPlaceId, { type: 'process', tokens: 0, content: inputAnchor });
+      }
+      if (!已经连接(petriNet, inputPlaceId, internalTransitionId)) {
+        添加连接(petriNet, inputPlaceId, internalTransitionId);
+
+      }
+    });
+    outputAnchors.forEach(outputAnchor => {
+      const outputPlaceId = `place_${card.id}_${outputAnchor.id}`;
+      if (!petriNet.节点.has(outputPlaceId)) {
+        添加节点(petriNet, outputPlaceId, { type: 'process', tokens: 0, content: outputAnchor });
+      }
+      if (!已经连接(petriNet, internalTransitionId, outputPlaceId)) {
+        添加连接(petriNet, internalTransitionId, outputPlaceId);
+      }
+    });
+  } else {
+    const internalPalaceId = `internal_palace_${card.id}_${card.title}`;
+    const internalTransitionId = `internal_transition_${card.id}_${card.title}`;
+    if (!petriNet.节点.has(internalPalaceId)) {
+      添加节点(petriNet, internalPalaceId, { type: 'start', tokens: 1, content: card });
+    }
+    if (!petriNet.动作.has(internalTransitionId)) {
+      添加动作(petriNet, internalTransitionId, async() => {
+        console.log(`执行无参内部动作: ${internalTransitionId}`);
+        await card.controller.exec(appData.value)
+      });
+    }
+    if (!已经连接(petriNet, internalPalaceId, internalTransitionId)) {
+        添加连接(petriNet, internalPalaceId, internalTransitionId);
+      }
+
+    outputAnchors.forEach(outputAnchor => {
+      const outputPlaceId = `place_${card.id}_${outputAnchor.id}`;
+      if (!petriNet.节点.has(outputPlaceId)) {
+        添加节点(petriNet, outputPlaceId, { type: 'process', tokens: 0, content: outputAnchor });
+      }
+      if (!已经连接(petriNet, internalTransitionId, outputPlaceId)) {
+        添加连接(petriNet, internalTransitionId, outputPlaceId);
+      }
+    });
+  }
+}
 const container = ref(null);
-const sliderPosition = ref(50);
-const isDragging = ref(false);
-const scalePercentage = ref(100);
-const quality = ref(80);
 const appData = toRef(inject('appData'))
-const filePath = ref('');
-
-// 定义流程图实例
-const processNet = ref(null);
-
-// 添加一个控制变量
-const autoProcessEnabled = ref(false);
-
+console.log('appData', appData)
 // 修改连线相关的状态管理
 const connectionCanvas = ref(null);
 const ctx = ref(null);
 const anchors = ref(new Map()); // 存储所有锚点信息
 const connections = ref([]); // 存储连线信息
-
 // 配置相关
 const config = ref(editorConfig);
-
 // 组件属性映射
-const componentPropsMap = {
-  localImageInput: {
-    props: ['filePath'],
-    events: ['fileSelected', 'update:filePath']
-  },
-  ImageCompressor: {
-    props: ['source'],
-    events: ['update:compressed']
-  },
-  ImageComparison: {
-    props: ['originalImage', 'processedImage'],
-    events: ['load']
-  },
-  ProcessControl: {
-    props: ['enabled'],
-    events: ['toggle']
-  }
-};
-
-// 获取组件属性
-const getComponentProps = (card) => {
-  const baseProps = componentPropsMap[card.type]?.props || [];
-  const props = {};
-  
-  // 根据组件类型设置特定属性
-  switch (card.type) {
-    case 'localImageInput':
-      props.filePath = filePath.value;
-      break;
-    case 'ImageCompressor':
-      props.source = originalImage.value;
-      break;
-    case 'ImageComparison':
-      props.originalImage = originalImage.value;
-      props.processedImage = compressedImage.value;
-      break;
-    case 'ProcessControl':
-      props.enabled = autoProcessEnabled.value;
-      break;
-  }
-  
-  return props;
-};
-
-// 获取组件事件处理器
-const getComponentEvents = (card) => {
-  const events = {};
-  
-  switch (card.type) {
-    case 'localImageInput':
-      events['fileSelected'] = handleFileUpload;
-      events['update:filePath'] = (val) => filePath.value = val;
-      break;
-    case 'ImageCompressor':
-      events['update:compressed'] = handleCompressed;
-      break;
-    case 'ImageComparison':
-      events['load'] = handleComparisonLoad;
-      break;
-    case 'ProcessControl':
-      events['toggle'] = toggleAutoProcess;
-      break;
-  }
-  
-  return events;
-};
-
-// 注册锚点的方法
-const registerGlobalAnchor = (cardId, anchorConfig) => {
-  const key = `${cardId}-${anchorConfig.id}`;
-  anchors.value.set(key, {
-    ...anchorConfig,
-    cardId,
-    position: null // 将在更新位置时设置
-  });
-};
-
-// 提供给子组件的方法
-provide('registerGlobalAnchor', registerGlobalAnchor);
-
-
 // 绘制连线
 const drawConnections = () => {
   if (!ctx.value) return;
-  
+
   const canvas = connectionCanvas.value;
   ctx.value.clearRect(0, 0, canvas.width, canvas.height);
-  
+
   // 设置连线样式
   ctx.value.strokeStyle = '#409EFF';
   ctx.value.lineWidth = 2;
-  
+
   connections.value.forEach(conn => {
     const startAnchor = anchors.value.get(conn.start);
     const endAnchor = anchors.value.get(conn.end);
-    
+
     if (startAnchor?.position && endAnchor?.position) {
       drawBezierConnection(
         startAnchor.position,
@@ -245,133 +445,146 @@ const drawConnections = () => {
     }
   });
 };
-
 // 改进的贝塞尔曲线连线绘制
-const drawBezierConnection = (start, end, startSide, endSide) => {
-  ctx.value.beginPath();
-  ctx.value.moveTo(start.x, start.y);
+const drawBezierConnection = (start, end, startSide, endSide, id) => {
+  const offset = 50 // 控制点偏移量
 
-  // 计算控制点的偏移量
-  const offset = 50; // 控制曲线的弯曲程度
-  let cp1x, cp1y, cp2x, cp2y;
+  // 计算控制点
+  let cp1x, cp1y, cp2x, cp2y
 
-  // 根据锚点的方向调整控制点
+  // 根据起点锚点方向计算第一个控制点
   switch (startSide) {
     case 'right':
-      cp1x = start.x + offset;
-      cp1y = start.y;
-      break;
+      cp1x = start.x + offset
+      cp1y = start.y
+      break
     case 'left':
-      cp1x = start.x - offset;
-      cp1y = start.y;
-      break;
+      cp1x = start.x - offset
+      cp1y = start.y
+      break
     case 'top':
-      cp1x = start.x;
-      cp1y = start.y - offset;
-      break;
+      cp1x = start.x
+      cp1y = start.y - offset
+      break
     case 'bottom':
-      cp1x = start.x;
-      cp1y = start.y + offset;
-      break;
+      cp1x = start.x
+      cp1y = start.y + offset
+      break
     default:
-      cp1x = start.x;
-      cp1y = start.y;
+      cp1x = start.x
+      cp1y = start.y
   }
 
+  // 根据终点锚点方向计算第二个控制点
   switch (endSide) {
     case 'right':
-      cp2x = end.x + offset;
-      cp2y = end.y;
-      break;
+      cp2x = end.x + offset
+      cp2y = end.y
+      break
     case 'left':
-      cp2x = end.x - offset;
-      cp2y = end.y;
-      break;
+      cp2x = end.x - offset
+      cp2y = end.y
+      break
     case 'top':
-      cp2x = end.x;
-      cp2y = end.y - offset;
-      break;
+      cp2x = end.x
+      cp2y = end.y - offset
+      break
     case 'bottom':
-      cp2x = end.x;
-      cp2y = end.y + offset;
-      break;
+      cp2x = end.x
+      cp2y = end.y + offset
+      break
     default:
-      cp2x = end.x;
-      cp2y = end.y;
+      cp2x = end.x
+      cp2y = end.y
+  }
+  // 创建贝塞尔曲线路径
+  const path = new Konva.Path({
+    data: `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${end.x} ${end.y}`,
+    stroke: '#409EFF',
+    strokeWidth: 2,
+    lineCap: 'round',
+    lineJoin: 'round',
+    // 添加渐变
+    strokeLinearGradientStartPoint: { x: start.x, y: start.y },
+    strokeLinearGradientEndPoint: { x: end.x, y: end.y },
+    strokeLinearGradientColorStops: [0, '#409EFF', 1, '#67C23A']
+  })
+
+
+  // 计算箭头位置和角度
+  const arrowLength = 15
+  const arrowAngle = Math.atan2(end.y - cp2y, end.x - cp2x)
+
+  // 计算箭头的起点(稍微偏离终点)
+  const arrowStart = {
+    x: end.x - Math.cos(arrowAngle) * arrowLength,
+    y: end.y - Math.sin(arrowAngle) * arrowLength
   }
 
-  // 绘制贝塞尔曲线
-  ctx.value.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, end.x, end.y);
-  
-  // 添加渐变效果
-  const gradient = ctx.value.createLinearGradient(start.x, start.y, end.x, end.y);
-  gradient.addColorStop(0, '#409EFF');
-  gradient.addColorStop(1, '#67C23A');
-  ctx.value.strokeStyle = gradient;
-  
-  // 绘制主线
-  ctx.value.stroke();
+  // 创建箭头
+  const arrow = new Konva.Arrow({
+    points: [arrowStart.x, arrowStart.y, end.x, end.y],
+    pointerLength: 10,
+    pointerWidth: 8,
+    fill: '#67C23A',
+    stroke: '#67C23A',
+    strokeWidth: 2
+  })
+  layer.value.find(`.${id}`).forEach(conn => conn.destroy())
 
-  // 绘制箭头
-  drawArrow(end, endSide);
-};
+  // 创建一个组来包含路径和箭头
+  const connectionGroup = new Konva.Group({
+    name: id
+  })
 
-// 添加箭头绘制函数
-const drawArrow = (point, side) => {
-  const arrowSize = 8;
-  ctx.value.beginPath();
-  
-  // 根据锚点方向调整箭头方向
-  switch (side) {
-    case 'left':
-      ctx.value.moveTo(point.x, point.y);
-      ctx.value.lineTo(point.x + arrowSize, point.y - arrowSize);
-      ctx.value.lineTo(point.x + arrowSize, point.y + arrowSize);
-      break;
-    case 'right':
-      ctx.value.moveTo(point.x, point.y);
-      ctx.value.lineTo(point.x - arrowSize, point.y - arrowSize);
-      ctx.value.lineTo(point.x - arrowSize, point.y + arrowSize);
-      break;
-    case 'top':
-      ctx.value.moveTo(point.x, point.y);
-      ctx.value.lineTo(point.x - arrowSize, point.y + arrowSize);
-      ctx.value.lineTo(point.x + arrowSize, point.y + arrowSize);
-      break;
-    case 'bottom':
-      ctx.value.moveTo(point.x, point.y);
-      ctx.value.lineTo(point.x - arrowSize, point.y - arrowSize);
-      ctx.value.lineTo(point.x + arrowSize, point.y - arrowSize);
-      break;
-  }
-  
-  ctx.value.closePath();
-  ctx.value.fillStyle = '#67C23A';
-  ctx.value.fill();
-};
+  // 添加交互效果
+  connectionGroup.on('mouseover', () => {
+    document.body.style.cursor = 'pointer'
+    path.strokeWidth(3)
+    arrow.strokeWidth(3)
+    layer.value.batchDraw()
+  })
+
+  connectionGroup.on('mouseout', () => {
+    document.body.style.cursor = 'default'
+    path.strokeWidth(2)
+    arrow.strokeWidth(2)
+    layer.value.batchDraw()
+  })
+
+  // 将路径和箭头添加到组中
+  connectionGroup.add(path)
+  connectionGroup.add(arrow)
+
+  // 将组添加到层
+  layer.value.add(connectionGroup)
+  layer.value.batchDraw()
+
+  // 返回创建的组,方便后续管理
+  return connectionGroup
+}
+
+
 
 // 设置 canvas 尺寸
 const resizeCanvas = () => {
   const canvas = connectionCanvas.value;
   const editorElement = canvas.parentElement;
   const rect = editorElement.getBoundingClientRect();
-
   // 设置画布尺寸为编辑器容器的尺寸
   canvas.width = rect.width;
   canvas.height = rect.height;
-  
   // 重新绘制连线
   drawConnections();
 };
 
 // 初始化 canvas 和连接
-onMounted(() => {
-  const canvas = connectionCanvas.value;
-  ctx.value = canvas.getContext('2d');
-  
+onMounted(async () => {
+  await loadConfig();
+
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
-  
+
   // 将配置文件中的连接转换为内部连接格式
   connections.value = config.value.connections.map(conn => ({
     start: `${conn.from.cardId}-${conn.from.anchorId}`,
@@ -384,184 +597,25 @@ onUnmounted(() => {
   window.removeEventListener('resize', resizeCanvas);
 });
 
-// 初始化Petri网流程
-const initProcessNet = () => {
-  processNet.value = 创建流程图('图片压缩流程');
-  
-  // 添加节点
-  添加节点(processNet.value, '开始', { type: 'start', tokens: 1 });
-  添加节点(processNet.value, '已加载', { type: 'process', tokens: 0 });
-  添加节点(processNet.value, '已处理', { type: 'process', tokens: 0 });
-  添加节点(processNet.value, '完成', { type: 'end', tokens: 0 });
-  
-  // 添加动作
-  添加动作(processNet.value, '加载图片动作', async (buffer) => {
-    originalImage.value = await bufferToBase64Image(buffer);
-    return buffer;
-  });
-  
-  添加动作(processNet.value, '处理图片动作', async (buffer) => {
-    compressedImage.value = await bufferToBase64Image(buffer, {
-      scale: Number(scalePercentage.value),
-      quality: Number(quality.value)
-    });
-    return true;
-  });
-  
-  // 添加连接
-  添加连接(processNet.value, '开始', '加载图片动作');
-  添加连接(processNet.value, '加载图片动作', '已加载');
-  添加连接(processNet.value, '已加载', '处理图片动作');
-  添加连接(processNet.value, '处理图片动作', '已处理');
-  添加连接(processNet.value, '已处理', '完成');
-};
 
-// 将文件转换为 buffer
-const fileToBuffer = async (file) => {
-  return await file.arrayBuffer();
-};
 
-// 将 buffer 转换为 base64 图片
-const bufferToBase64Image = async (buffer, options = {}) => {
-  try {
-    const sharpInstance = sharp(buffer);
-    const metadata = await sharpInstance.metadata();
-    
-    // 应用转换
-    if (options.scale && options.scale !== 100) {
-      const targetWidth = Math.round(metadata.width * (options.scale / 100));
-      sharpInstance.resize({ width: targetWidth, withoutEnlargement: true });
-    }
 
-    if (options.quality) {
-      // 确保 quality 是数字类型
-      const qualityValue = parseInt(options.quality);
-      // 根据原始格式选择压缩方式
-      switch(metadata.format) {
-        case 'jpeg':
-          sharpInstance.jpeg({ quality: qualityValue });
-          break;
-        case 'png':
-          sharpInstance.png({ quality: qualityValue });
-          break;
-        case 'webp':
-          sharpInstance.webp({ quality: qualityValue });
-          break;
-        default:
-          sharpInstance.jpeg({ quality: qualityValue });
-      }
-    }
 
-    const data = await sharpInstance.toBuffer();
-    return `data:image/${metadata.format};base64,${data.toString('base64')}`;
-  } catch (error) {
-    console.error('图片处理失败:', error);
-    throw error;
-  }
-};
 
-// 修改文件上传处理函数
-const handleFileUpload = async (file) => {
-  if (!file) return;
-
-  try {
-    // 重置所有节点的令牌状态
-    for (const [_, node] of processNet.value.节点) {
-      node.数值 = 0;  // 首先清零所有节点
-    }
-    
-    // 设置开始节点的令牌
-    const 开始节点 = processNet.value.节点.get('开始');
-    if (开始节点) {
-      开始节点.数值 = 1;
-    }
-
-    const buffer = await fileToBuffer(file);
-    await 触发动作(processNet.value, '加载图片动作', buffer);
-    await 触发动作(processNet.value, '处理图片动作', buffer);
-  } catch (error) {
-    console.error('图片处理失败:', error);
-  }
-};
-
-// 修改从路径加载图片的函数
-const loadImageFromPath = async (path) => {
-  try {
-    const fs = window.require('fs').promises;
-    const buffer = await fs.readFile(path);
-    await 触发动作(processNet.value, '加载图片动作', buffer);
-    await 触发动作(processNet.value, '处理图片动作', buffer);
-  } catch (error) {
-    console.error('加载本地图片失败:', error);
-  }
-};
-
-// 修改重新生成压缩图片的函数
-const regenerateCompressedImage = async () => {
-    if (!originalImage.value) return;
-
-    try {
-        // 完全重置所有节点的令牌状态
-        for (const [_, node] of processNet.value.节点) {
-          node.数值 = 0;  // 首先清零所有节点
-        }
-        
-        // 只在必要的节点设置令牌
-        const 已加载节点 = processNet.value.节点.get('已加载');
-        if (已加载节点) {
-            已加载节点.数值 = 1;  
-        }
-        
-        const buffer = await fetch(originalImage.value)
-            .then(res => res.arrayBuffer());
-        
-        // 检查变迁是否可触发
-        const 可触发 = 动作可触发(processNet.value, '处理图片动作');
-        if (!可触发.可触发) {
-            console.warn('变迁无法触发：处理图片动作', 可触发.原因);
-            return;
-        }
-        
-        await 触发动作(processNet.value, '处理图片动作', buffer);
-    } catch (error) {
-        console.error('压缩图片生成失败:', error);
-    }
-};
 
 // 在组件挂载时初始化Petri网
 onMounted(() => {
-  initProcessNet();
-  
   // 处理初始加载
   const { type, subtype, meta } = appData?.value || {};
   if (type === 'local' && subtype === 'file') {
     const { path } = meta;
     if (path) {
-      loadImageFromPath(path);
+      console.log(path)
     }
   }
 });
 
 // 修改自动处理开关函数
-const toggleAutoProcess = async () => {
-  autoProcessEnabled.value = !autoProcessEnabled.value;
-  
-  if (autoProcessEnabled.value && originalImage.value) {
-    // 启动时立即执行一次处理
-    await regenerateCompressedImage();
-  }
-};
-
-// 修改参数监听器
-watch([scalePercentage, quality], async () => {
-  if (autoProcessEnabled.value && originalImage.value) {
-    await regenerateCompressedImage();
-  }
-}, { 
-  flush: 'post'
-});
-
-
 const handleDragging = (e) => {
   if (!isDragging.value || !container.value) return;
 
@@ -592,51 +646,25 @@ onUnmounted(() => {
 });
 
 
-// 可选：处理图片对比组件加载完成的事件
-const handleComparisonLoad = () => {
-  // 在这里处理图片加载完成后的逻辑
-  console.log('图片对比加载完成');
-};
-
-
-// 处理压缩结果
-const handleCompressed = (result) => {
-  compressedImage.value = result.base64;
-};
 
 // 更新系统状态计算
 const systemStats = computed(() => {
   // 获取所有卡片
-  const cards = document.querySelectorAll('.floating-card');
-  
-  // 按卡片分组的锚点信息
-  const cardAnchors = {};
-  
-  // 遍历所有锚点并按卡片分组
-  for (const [key, anchor] of anchors.value.entries()) {
-    const cardId = anchor.cardId;
-    if (!cardAnchors[cardId]) {
-      // 获取卡片标题
-      const cardElement = document.querySelector(`[data-card-id="${cardId}"]`);
-      cardAnchors[cardId] = {
-        title: cardElement?.querySelector('.card-header')?.textContent || cardId,
-        anchors: []
-      };
-    }
-    cardAnchors[cardId].anchors.push({
-      id: key,
-      type: anchor.type,
-      side: anchor.side,
-      label: anchor.label,
-      position: anchor.position
-    });
-  }
+  const cards = parsedCards.value
 
-  let result= {
+  // 按卡片分组的锚点信息
+  const cardAnchors = [];
+  cards.forEach(
+    card => {
+      cardAnchors.push(...card.controller.anchors)
+    }
+  )
+
+  let result = {
     cardCount: cards.length,
-    anchorCount: anchors.value.size,
+    anchorCount: cardAnchors.length,
     connectionCount: connections.value.length,
-    cardAnchors,
+    cards,
     connections: connections.value.map(conn => ({
       start: conn.start,
       end: conn.end,
@@ -647,46 +675,146 @@ const systemStats = computed(() => {
   return result
 });
 
-// 提供锚点注册方法
-provide('nodeInterface', {
-  register: (componentId, interfaceConfig) => {
-    const registeredAnchors = [];
-    
-    // 注册输入锚点
-    if (interfaceConfig.inputs) {
-      Object.entries(interfaceConfig.inputs).forEach(([key, config]) => {
-        const anchorId = `${componentId}-${key}`;
-        anchors.value.set(anchorId, {
-          ...config,
-          cardId: componentId,
-          id: key
-        });
-        registeredAnchors.push(anchorId);
-      });
-    }
-    
-    // 注册输出锚点
-    if (interfaceConfig.outputs) {
-      Object.entries(interfaceConfig.outputs).forEach(([key, config]) => {
-        const anchorId = `${componentId}-${key}`;
-        anchors.value.set(anchorId, {
-          ...config,
-          cardId: componentId,
-          id: key
-        });
-        registeredAnchors.push(anchorId);
-      });
-    }
-    
-    return registeredAnchors;
-  },
-  
-  unregister: (anchorIds) => {
-    anchorIds.forEach(id => {
-      anchors.value.delete(id);
-    });
+/**
+ * 计算锚点的绝对坐标
+ * @param {Object} card 卡片对象
+ * @param {Object} anchor 锚点对象
+ * @returns {Object} 锚点的绝对坐标
+ */
+const calculateAnchorPosition = (card, anchor) => {
+  const cardPos = card.position;
+  const ANCHOR_OFFSET = 8; // 锚点的偏移量
+
+  // 根据锚点在卡片上的位置计算坐标
+  switch (anchor.side) {
+    case 'left':
+      return {
+        x: cardPos.x - ANCHOR_OFFSET,
+        y: cardPos.y + (cardPos.height * anchor.position)
+      };
+    case 'right':
+      return {
+        x: cardPos.x + cardPos.width + ANCHOR_OFFSET,
+        y: cardPos.y + (cardPos.height * anchor.position)
+      };
+    case 'top':
+      return {
+        x: cardPos.x + (cardPos.width * anchor.position),
+        y: cardPos.y - ANCHOR_OFFSET
+      };
+    case 'bottom':
+      return {
+        x: cardPos.x + (cardPos.width * anchor.position),
+        y: cardPos.y + cardPos.height + ANCHOR_OFFSET
+      };
+    default:
+      console.warn(`未知的锚点方向: ${anchor.side}`);
+      return { x: cardPos.x, y: cardPos.y };
   }
+};
+
+/**
+ * 更新所有锚点的坐标
+ * @param {Object} [options] 更新选项
+ * @param {string} [options.cardId] 指定要更新的卡片ID，不指定则更新所有卡片
+ */
+const updateAnchorsPosition = (options = {}) => {
+  const cardsToUpdate = options.cardId
+    ? parsedCards.value.filter(card => card.id === options.cardId)
+    : parsedCards.value;
+  cardsToUpdate.forEach(card => {
+    if (!card.controller) return;
+
+    card.controller.anchors.forEach(anchor => {
+      const pos = calculateAnchorPosition(card, anchor);
+      // 更新锚点的绝对坐标
+      anchor.absolutePosition = pos;
+      // 如果有连接，也更新连接线的路径
+      const relatedConnections = config.value.connections.filter(conn =>
+        (conn.from.cardId === card.id && conn.from.anchorId === anchor.id) ||
+        (conn.to.cardId === card.id && conn.to.anchorId === anchor.id)
+      );
+
+      relatedConnections.forEach(conn => {
+        updateConnectionPath(conn);
+      });
+    });
+  });
+};
+
+/**
+ * 更新连接线的路径
+ * @param {Object} connection 连接对象
+ */
+const updateConnectionPath = (connection) => {
+  const fromCard = parsedCards.value.find(card => card.id === connection.from.cardId);
+  const toCard = parsedCards.value.find(card => card.id === connection.to.cardId);
+
+  if (!fromCard || !toCard) return;
+
+  const fromAnchor = fromCard.controller.anchors
+    .find(anchor => anchor.id === connection.from.anchorId);
+  const toAnchor = toCard.controller.anchors
+    .find(anchor => anchor.id === connection.to.anchorId);
+  if (!fromAnchor || !toAnchor) return;
+
+  // 计算贝塞尔曲线控制点
+  const fromPos = fromAnchor.absolutePosition;
+  const toPos = toAnchor.absolutePosition;
+  const controlPointOffset = 50; // 控制点偏移量
+  if (fromPos && toPos) {
+    connection.path = {
+      start: fromPos,
+      end: toPos,
+      control1: {
+        x: fromPos.x + (fromAnchor.side === 'left' ? -controlPointOffset : controlPointOffset),
+        y: fromPos.y
+      },
+      control2: {
+        x: toPos.x + (toAnchor.side === 'left' ? -controlPointOffset : controlPointOffset),
+        y: toPos.y
+      }
+    };
+    drawBezierConnection(
+      connection.path.start,
+      connection.path.end,
+      fromAnchor.side,
+      toAnchor.side,
+      connection.from.cardId + connection.to.cardId + connection.from.anchorId + connection.to.anchorId
+    )
+
+  }
+};
+
+// 在需要的地方调用更新函数
+watch(() => parsedCards.value.map(card => ({
+  id: card.id,
+  position: { ...card.position }
+})), () => {
+  // 卡片位置变化时更新锚点
+  updateAnchorsPosition();
+}, { deep: true });
+
+// 在卡片移动时调用
+const onCardMove = (cardId, newPosition) => {
+  const card = parsedCards.value.find(c => c.id === cardId);
+  if (card) {
+    card.position = newPosition;
+    // 只更新移动的卡片的锚点
+    updateAnchorsPosition({ cardId });
+  }
+};
+
+// 在窗口大小改变时可能也需要更新
+onMounted(() => {
+  initKonva()
+  window.addEventListener('resize', () => updateAnchorsPosition());
 });
+
+onUnmounted(() => {
+  window.removeEventListener('resize', () => updateAnchorsPosition());
+});
+
 </script>
 
 <style scoped>
@@ -696,15 +824,6 @@ provide('nodeInterface', {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-.image-comparison {
-  margin: 20px;
-  position: relative;
-  max-width: 1200px;
-  width: 100%;
-  height: 600px;
-  overflow: hidden;
-  margin: 0
-}
 
 .image {
   position: absolute;
@@ -859,7 +978,8 @@ provide('nodeInterface', {
 .image-editor {
   position: relative;
   width: 100%;
-  height: 100vh; /* 设置一个固定高度 */
+  height: 100vh;
+  /* 设置一个固定高度 */
   overflow: hidden;
 }
 
@@ -868,4 +988,5 @@ provide('nodeInterface', {
   position: absolute;
   z-index: 2;
 }
+</style>}
 </style>

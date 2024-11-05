@@ -95,61 +95,113 @@
     </div>
   </template>
   
-  <script setup>
-  import { ref, watch, computed, inject, onMounted, onUnmounted } from 'vue';
-  import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
-  const sharp = requirePluginDeps('sharp');
-  
-// 定义节点接口配置
-const nodeInterface = {
-  inputs: {
-    image: {
-      type: 'input',
-      side: 'left',
-      position: 0.3,
-      label: '输入图片',
-      dataType: 'image'
+<script nodeDefine>
+import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
+const sharp = requirePluginDeps('sharp');
+
+export const nodeDefine = {
+  inputs: [
+    { name: 'source', type: 'File|ArrayBuffer|string', default: null, label: '输入图片' },
+    { name: 'scale', type: 'number', default: 100, label: '缩放比例' },
+    { name: 'quality', type: 'number', default: 80, label: '压缩质量' }
+  ],
+  outputs: [
+    { name: 'compressedImage', type: 'Buffer', value: null, label: '压缩后的图片' },
+    { name: 'compressionRatio', type: 'number', value: 0, label: '压缩率' }
+  ],
+  async process(inputs) {
+    const { source, scale, quality } = inputs
+    console.log('aaa',inputs)
+    if (!source.value) {
+      console.error(`Source image is missing`)
+      return {  compressedImage: null ,
+        compressionRatio:  0 }
     }
-  },
-  outputs: {
-    compressed: {
-      type: 'output', 
-      side: 'right',
-      position: 0.3,
-      label: '压缩结果',
-      dataType: 'image'
+    
+    try {
+      let buffer;
+      if (source instanceof File) {
+        buffer = await source.arrayBuffer();
+      } else if (source instanceof ArrayBuffer) {
+        buffer = source;
+      } else if (typeof source === 'string') {
+        if (source.startsWith('data:')) {
+          const base64Data = source.split(',')[1];
+          buffer = Buffer.from(base64Data, 'base64');
+        } else {
+          const fs = window.require('fs').promises;
+          buffer = await fs.readFile(source);
+        }
+      }
+
+      const sharpInstance = sharp(buffer);
+      const metadata = await sharpInstance.metadata();
+
+      if (scale !== 100) {
+        const targetWidth = Math.round(metadata.width * (scale / 100));
+        sharpInstance.resize({ width: targetWidth, withoutEnlargement: true });
+      }
+
+      switch(metadata.format) {
+        case 'jpeg':
+          sharpInstance.jpeg({ quality });
+          break;
+        case 'png':
+          sharpInstance.png({ quality });
+          break;
+        case 'webp':
+          sharpInstance.webp({ quality });
+          break;
+        default:
+          sharpInstance.jpeg({ quality });
+      }
+
+      const outputBuffer = await sharpInstance.toBuffer();
+      const compressionRatio = ((buffer.byteLength - outputBuffer.byteLength) / buffer.byteLength) * 100;
+      return {
+        compressedImage:outputBuffer,
+        compressionRatio:Math.round(compressionRatio)
+      }
+      
+    
+    } catch (error) {
+      console.error('图片压缩失败:', error);
+      return        {  compressedImage: null ,
+        compressionRatio:  0 }
+
     }
   }
-}
+
+};
+</script>
+
+<script setup>
+import { ref, watch, computed, defineProps, defineEmits } from 'vue';
+defineExpose({ nodeDefine });
 
 const props = defineProps({
-  componentId: {
-    type: String,
-    required: true
-  },
   source: {
     type: [File, ArrayBuffer, String],
     required: true
+  },
+  scale: {
+    type: Number,
+    default: 100,
+    validator: (value) => value >= 10 && value <= 100
+  },
+  quality: {
+    type: Number,
+    default: 80,
+    validator: (value) => value >= 1 && value <= 100
   }
 });
 
-// 注入接口注册方法
-const { register = () => [], unregister = () => {} } = inject('nodeInterface', {}) || {};
-const registeredAnchors = ref([]);
-
-// 在组件挂载时注册接口
-onMounted(() => {
-  if (register) {
-    registeredAnchors.value = register(props.componentId, nodeInterface)
-  }
-})
-
-// 在组件卸载时注销接口
-onUnmounted(() => {
-  if (unregister && registeredAnchors.value.length) {
-    unregister(registeredAnchors.value)
-  }
-})
+// 添加所有需要的事件
+const emits = defineEmits([
+  'update:compressed',
+  'update:compressedImage',
+  'update:compressionRatio'
+]);
 
 // 2. 抽取图片信息管理逻辑
 const useImageInfo = () => {
@@ -218,7 +270,6 @@ const useCompressionControls = (emit) => {
 }
 
 // 4. 主要组件逻辑
-const emits = defineEmits(['update:compressed']);
 
 // 初始化各个功能模块
 const { 
@@ -314,7 +365,11 @@ const compressImage = async (input) => {
     previewUrl.value = outputBase64;
     compressedSize.value = `${(outputBuffer.length / 1024).toFixed(2)} KB`;
   
-    // 发出压缩后的结果
+    // 触发所有必要的事件
+    emits('update:compressedImage', outputBuffer);
+    emits('update:compressionRatio', compressionRatio.value);
+    
+    // 保持原有的事件触发
     emits('update:compressed', {
       buffer: outputBuffer,
       base64: outputBase64,
@@ -324,6 +379,10 @@ const compressImage = async (input) => {
   
   } catch (error) {
     console.error('图片压缩失败:', error);
+    // 发生错误时，发送空值
+    emits('update:compressedImage', null);
+    emits('update:compressionRatio', 0);
+    emits('update:compressed', null);
   }
 };
   
@@ -333,137 +392,137 @@ const compressImage = async (input) => {
       await compressImage(props.source);
     }
   }, { immediate: true });
-  </script>
-  
-  <style scoped>
-  .image-compressor {
-    padding: 16px;
-  }
-  
-  .compression-controls {
-    margin-bottom: 16px;
-  }
-  
-  .control-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  
-  .slider-input {
-    flex: 1;
-  }
-  
-  .number-input {
-    width: 60px;
-    padding: 4px;
-    text-align: center;
-  }
-  
-  .preview-area {
-    border: 1px solid #ddd;
-    padding: 8px;
-    border-radius: 4px;
-  }
-  
-  .preview-image {
-    max-width: 100%;
-    max-height: 200px;
-    object-fit: contain;
-  }
-  
-  .image-info {
-    margin-top: 8px;
-    font-size: 12px;
-    color: #666;
-  }
-  
-  .preview-container {
-    border: 1px solid #e4e7ed;
-    border-radius: 4px;
-    padding: 16px;
-    margin-top: 16px;
-  }
-  
-  .image-info-panel {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    padding: 12px;
-    background: #f5f7fa;
-    border-radius: 4px;
-  }
-  
-  .info-section {
-    flex: 1;
-  }
-  
-  .info-section h4 {
-    margin: 0 0 8px 0;
-    color: #303133;
-    font-size: 14px;
-  }
-  
-  .info-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .info-list li {
-    font-size: 12px;
-    color: #606266;
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-  }
-  
-  .info-label {
-    color: #909399;
-    margin-right: 8px;
-    min-width: 48px;
-  }
-  
-  .compression-ratio {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 0 20px;
-    position: relative;
-  }
-  
-  .ratio-value {
-    font-size: 24px;
-    font-weight: bold;
-    color: #409eff;
-  }
-  
-  .ratio-label {
-    font-size: 12px;
-    color: #909399;
-    margin-top: 4px;
-  }
-  
-  .ratio-arrow {
-    font-size: 20px;
-    color: #409eff;
-    margin-top: 4px;
-  }
-  
-  .preview-wrapper {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: #f5f7fa;
-    border-radius: 4px;
-    padding: 8px;
-  }
-  
-  .preview-image {
-    max-width: 100%;
-    max-height: 200px;
-    object-fit: contain;
-  }
-  </style>
+</script>
+
+<style scoped>
+.image-compressor {
+  padding: 16px;
+}
+
+.compression-controls {
+  margin-bottom: 16px;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.slider-input {
+  flex: 1;
+}
+
+.number-input {
+  width: 60px;
+  padding: 4px;
+  text-align: center;
+}
+
+.preview-area {
+  border: 1px solid #ddd;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+.image-info {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.preview-container {
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.image-info-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.info-section {
+  flex: 1;
+}
+
+.info-section h4 {
+  margin: 0 0 8px 0;
+  color: #303133;
+  font-size: 14px;
+}
+
+.info-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.info-list li {
+  font-size: 12px;
+  color: #606266;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.info-label {
+  color: #909399;
+  margin-right: 8px;
+  min-width: 48px;
+}
+
+.compression-ratio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 20px;
+  position: relative;
+}
+
+.ratio-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #409eff;
+}
+
+.ratio-label {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.ratio-arrow {
+  font-size: 20px;
+  color: #409eff;
+  margin-top: 4px;
+}
+
+.preview-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f5f7fa;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+</style>

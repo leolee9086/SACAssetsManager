@@ -13,21 +13,69 @@
     </button>
 </template>
 
-<script setup>
-import { ref, watch, onMounted, inject, onUnmounted } from 'vue';
-
-const props = defineProps({
-    filePath: {
-        type: String,
-        default: ''
+<script nodeDefine>
+export const nodeDefine = {
+  flowType:"start",
+ 
+  outputs: {
+    file:{
+        type:File,
+        lebel:'文件对象',
     },
-    componentId: {
-        type: String,
-        required: true
+    filePath:{
+        type:String,
+        lebel:'文件路径',
     }
-});
+  },
+  async process(inputs) {
+    console.log(inputs)
+    let filePath = inputs.filePath?.value;
+    console.log(inputs.meta.path)
+    if(inputs.meta?.filePath||inputs.meta?.path){
+        filePath = inputs.meta.filePath||inputs.meta.path
+    }
+    if (!filePath) {
+      console.error("File path is missing.");
+      return {
+        filePath:'',
+        file:undefined
+      }
+    }
 
-const emit = defineEmits(['update:filePath', 'fileSelected']);
+    try {
+      const response = await fetch(filePath);
+      const blob = await response.blob();
+      const file = new File([blob], 'image.jpg', { type: blob.type });
+      return {
+        file,
+        filePath
+      }
+    } catch (error) {
+      console.error('加载图片失败:', error);
+      return   {
+        filePath,
+        file:undefined
+      }
+    }
+  },
+ 
+};
+</script>
+
+<script setup>
+import { ref, watch, onMounted, inject, onUnmounted, defineExpose } from 'vue';
+
+defineExpose(
+  {nodeDefine}
+)
+
+const props = defineProps(nodeDefine.inputs);
+
+const emit = defineEmits({
+    "update:filePath":(value)=>value instanceof nodeDefine.outputs.filePath.type,
+    "update:file":(value)=>value  instanceof nodeDefine.outputs.file.type
+}
+);
 
 const localFilePath = ref(props.filePath);
 
@@ -59,7 +107,6 @@ const loadFromPath = async () => {
     }
 };
 
-
 const nodeInterface = {
     outputs: {
         image: {
@@ -71,8 +118,6 @@ const nodeInterface = {
         }
     }
 }
-
-
 
 const { register = () => [], unregister = () => {} } = inject('nodeInterface', {}) || {};
 const registeredAnchors = ref([]);
@@ -87,7 +132,8 @@ onUnmounted(() => {
     if (unregister && registeredAnchors.value.length) {
         unregister(registeredAnchors.value)
     }
-})  </script>
+})
+</script>
 
 <style scoped>
 .input-group {

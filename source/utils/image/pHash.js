@@ -30,7 +30,20 @@ export function 计算图像感知哈希(data,THUMBNAIL_SIZE) {
 
     return hash;
 }
-
+export function 计算图像相似度(hash1, hash2) {
+    if (hash1.length !== hash2.length) {
+        throw new Error('哈希值长度不一致，无法计算相似度');
+    }
+    let distance = 0;
+    for (let i = 0; i < hash1.length; i++) {
+        if (hash1[i] !== hash2[i]) {
+            distance++;
+        }
+    }
+    // 计算相似度，1 - (汉明距离 / 哈希长度)
+    const similarity = 1 - (distance / hash1.length);
+    return similarity;
+}
 function 应用离散余弦变换(data, N) {
     const output = new Float64Array(N * N);
     for (let u = 0; u < N; u++) {
