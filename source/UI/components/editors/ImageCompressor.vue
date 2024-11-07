@@ -202,6 +202,7 @@ export let nodeDefine = {
   ],
   async process(inputs) {
     let { source, scale, quality } = inputs
+    console.log(source, scale, quality)
     if (!source.value) {
       console.error(`Source image is missing`)
       return {

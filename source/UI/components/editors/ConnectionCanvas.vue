@@ -190,7 +190,6 @@
         .find(anchor => anchor.id === conn.to.anchorId);
   
       if (!fromAnchor || !toAnchor || !fromAnchor.absolutePosition || !toAnchor.absolutePosition) return;
-      console.error(fromAnchor,toAnchor)
       drawBezierConnection(
         fromAnchor.absolutePosition,
         toAnchor.absolutePosition,

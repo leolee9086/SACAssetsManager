@@ -346,7 +346,7 @@ onMounted(() => {
         };
       }
     } catch (e) {
-      console.error('aaa', e)
+      console.error('组件定义获取失败', e)
       error.value = e
     }
   })()
@@ -365,7 +365,6 @@ const emit = defineEmits(['onCardMove']);
 // 监听卡片位置和尺寸变化
 watch(cardStyle, () => {
   nextTick(() => {
-    console.log(currentSize.value)
     emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value })
   });
 });

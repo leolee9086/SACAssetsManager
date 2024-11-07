@@ -148,7 +148,6 @@ import ConnectionCanvas from './ConnectionCanvas.vue';
 // 使用同步函数加载异步组件
 import InfoPanel from './InfoPanel.vue';
 //用于流程构建和控制
-import { validateUUID } from '../../../utils/uuid/index.js';
 import { CardManager } from './cardManager.js';
 // 在 setup 中
 const cardManager = new CardManager();
@@ -157,6 +156,7 @@ const parsedCards = ref([]);
 // 修改 addCard 函数
 const addCard = async (cardConfig, options = {}) => {
   const card = await cardManager.addCard(cardConfig, options);
+
   parsedCards.value = cardManager.cards;
   return card;
 };

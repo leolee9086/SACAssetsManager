@@ -96,7 +96,6 @@ async getComponentDefinition(type, cardConfig) {
    */
   handleExistingCard(newCard, cardConfig, options) {
     const existingIndex = this.cards.findIndex(card => card.id === cardConfig.id);
-    console.error(existingIndex)
     if (existingIndex !== -1) {
       if (options.skipExisting) {
         return this.cards[existingIndex];

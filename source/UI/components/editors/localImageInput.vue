@@ -7,64 +7,128 @@
             </button>
         </div>
     </div>
-    <button class="load-btn" @click="loadFromPath" :disabled="!localFilePath">
-        加载图片
-    </button>
+
+    <div v-if="previewUrl" class="preview-container">
+        <img :src="previewUrl" class="preview-image" />
+    </div>
 </template>
 <script nodeDefine>
-import { ref, watch } from 'vue';
-let file 
+import { ref } from 'vue';
+
+let file;
 const localFilePath = ref('');
-export const getDefaultInput=()=>{
-    return localFilePath.value||undefined
-}
+const previewUrl = ref('');
+const fileInfo = ref(null);
+
+const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 export let nodeDefine = {
     flowType: "start",
     outputs: {
         file: {
             type: File,
-            lebel: '文件对象',
+            label: '文件对象',
         },
         filePath: {
             type: String,
-            lebel: '文件路径',
+            label: '文件路径',
+        },
+        fileSize: {
+            type: Number,
+            label: '文件大小(B)',
+        },
+        formattedSize: {
+            type: String,
+            label: '格式化大小',
+        },
+        fileType: {
+            type: String,
+            label: '文件类型',
+        },
+        fileName: {
+            type: String,
+            label: '文件名',
+        },
+        lastModified: {
+            type: Number,
+            label: '最后修改时间',
         }
     },
-    //当在编辑器运行的时候这个函数会自动通知锚点
     async process(filePath) {
         if (!filePath) {
-            console.error("File path is missing.");
+            previewUrl.value = '';
+            fileInfo.value = null;
             return {
                 filePath: '',
-                file: undefined
+                file: undefined,
+                fileSize: 0,
+                formattedSize: '0 B',
+                fileType: '',
+                fileName: '',
+                lastModified: 0
             }
         }
-        if(localFilePath.value===filePath){
-            return {
-                file,
-                filePath
-            }
-        }
+      
         try {
             const response = await fetch(filePath);
             const blob = await response.blob();
-             file = new File([blob], 'image.jpg', { type: blob.type });
-            localFilePath.value= filePath
+            file = new File([blob], filePath.split('/').pop(), { type: blob.type });
+            localFilePath.value = filePath;
+            
+            if (previewUrl.value) {
+                URL.revokeObjectURL(previewUrl.value);
+            }
+            previewUrl.value = URL.createObjectURL(file);
+            
+            const fileSize = file.size;
+            const formattedSize = formatFileSize(fileSize);
+            const fileType = file.type;
+            const fileName = file.name;
+            const lastModified = file.lastModified;
+
+            fileInfo.value = {
+                size: fileSize,
+                formattedSize,
+                type: fileType,
+                name: fileName,
+                lastModified
+            };
+            
             return {
                 file,
-                filePath
+                filePath,
+                fileSize,
+                formattedSize,
+                fileType,
+                fileName,
+                lastModified
             }
         } catch (error) {
             console.error('加载图片失败:', error);
+            previewUrl.value = '';
+            fileInfo.value = null;
             return {
                 filePath,
-                file: undefined
+                file: undefined,
+                fileSize: 0,
+                formattedSize: '0 B',
+                fileType: '',
+                fileName: '',
+                lastModified: 0
             }
         }
     },
-
 };
 
+export const getDefaultInput = () => {
+    return localFilePath.value || undefined;
+}
 </script>
 <script setup>
 const { dialog } = window.require('@electron/remote');

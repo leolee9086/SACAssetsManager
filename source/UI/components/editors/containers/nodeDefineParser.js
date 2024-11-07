@@ -282,15 +282,12 @@ function createRuntimeController(anchorControllers, component, componentName, sc
         }, {});
     },
     getInput: (name) => {
-      console.log(name, anchorControllers)
-
       const controller = anchorControllers.find(
         c => c.type === 'input' && c.id === name
       );
       return controller ? controller.getValue() : undefined;
     },
     getInputs: (inputs, cardInfo, globalInputs, nodeDefine, scope) => {
-      console.log(inputs, cardInfo, globalInputs, nodeDefine, scope)
       //有明确输入,说明是组件定义内部调用直接返回就可以
       if (inputs) {
         return inputs
@@ -346,32 +343,37 @@ function createNodeController(anchorControllers, scope, component, componentName
     try {
       // 验证输入
       const inputControllers = anchorControllers.filter(c => c.type === 'input');
-      for await (const controller of inputControllers) {
+      for (const controller of inputControllers) {
         if (controller.define.required && !controller.getValue()) {
           throw new Error(`缺少必需的输入: ${controller.label || controller.id}`);
         }
       }
+      
       let runtimeInput = runtime.getInputs(inputs, cardInfo, globalInputs, nodeDefine, scope)
       //如果没有输入锚点需要将输入值传递给cardInfo
       if(!inputControllers[0]){
         cardInfo.runtimeInputValue = runtimeInput
       }
+      
       // 执行处理
-     
       const result = await process(runtimeInput);
+      
       // 处理返回值
       if (result && typeof result === 'object') {
-        Object.entries(result).forEach(([name, value]) => {
-          runtime.setOutput(name, value);
-        });
+        // 使用 for...of 替换 forEach
+        for (const [name, value] of Object.entries(result)) {
+          await runtime.setOutput(name, value);
+        }
       }
       return result
+      
     } catch (error) {
       runtime.error('执行失败:', error);
       // 重置所有输出
-      anchorControllers
-        .filter(c => c.type === 'output')
-        .forEach(c => c.reset());
+      const outputControllers = anchorControllers.filter(c => c.type === 'output');
+      for (const controller of outputControllers) {
+        await controller.reset();
+      }
       throw error;
     }
   }

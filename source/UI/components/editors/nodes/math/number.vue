@@ -25,11 +25,10 @@ const nodeDefine = {
     "number": {
       type: "number",
       default: 80,
-      side:'bottom'
+      side:'right'
     }
   },
   process(input) {
-    console.log(input)
     outputNumber.value=(input.value||input)
     return {
       number:input.value||input

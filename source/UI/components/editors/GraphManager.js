@@ -117,7 +117,6 @@ export class GraphManager {
             添加动作(this.petriNet, transitionId, async () => {
                 console.log(`执行动作: ${transitionId}`);
                 const value = fromAnchor.getValue();
-                console.log(value);
                 toAnchor.setValue(value);
             });
         }
@@ -289,7 +288,6 @@ export class GraphManager {
 
                 // 收集出口节点的结果
                 let result = this.collectExitOutputs();
-                console.log(result)
                 return result
             }
         } catch (error) {
@@ -391,7 +389,6 @@ export class GraphManager {
         const entryNodes = 找到入口节点(this.petriNet);
         for (const nodeId of entryNodes) {
             const node = this.petriNet.节点.get(nodeId);
-            console.log(node.内容, node.内容.controller)
             //如果入口节点是暴露的裸输入锚点
             if (!node.内容.controller) {
                 values.set(nodeId, node.内容?.value);
