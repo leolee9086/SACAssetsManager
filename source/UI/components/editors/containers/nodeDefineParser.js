@@ -1,262 +1,12 @@
 import { loadVueComponentAsNodeSync } from "../../../utils/componentsLoader.js";
 import { shallowRef } from "../../../../../static/vue.esm-browser.js";
-/**
- * 自定义错误类
- */
-class ValidationError extends Error {
-  constructor(message, details) {
-    super(message);
-    this.name = 'ValidationError';
-    this.details = details;
-  }
-}
-
-/**
- * 用于校验一个卡片节点的输入定义是否与它的显示组件的属性定义是否兼容
- * @param {Object|Array} props 组件的属性定义
- * @param {Object|Array} inputs 节点的输入定义
- * @param {String} componentName 组件名称
- * @returns {Object} 校验结果
- */
-function checkInputs(props, inputs, componentName) {
-  try {
-    // 标准化 props
-    const propsObj = Array.isArray(props)
-      ? props.reduce((acc, prop) => {
-        if (typeof prop === 'string') {
-          acc[prop] = { type: 'any' };
-        }
-        return acc;
-      }, {})
-      : props || {};
-
-    // 标准化 inputs
-    const inputsObj = normalizeInputs(inputs);
-    const errors = [];
-
-    // 校验每个输入
-    Object.entries(inputsObj).forEach(([inputName, inputDef]) => {
-      const propDef = propsObj[inputName];
-
-      // 检查是否存在对应的 prop
-      if (!propDef) {
-        errors.push({
-          type: 'missing_prop',
-          input: inputName,
-          message: `组件 ${componentName} 缺少属性 "${inputName}"`,
-          suggestion: `请在组件中添加属性定义: props: { ${inputName}: { type: ${inputDef.type || 'Any'} } }`
-        });
-        return;
-      }
-
-      // 检查类型兼容性
-      const propType = utils.normalizeType(propDef.type);
-      const inputType = utils.normalizeType(inputDef.type);
-
-      if (propType && inputType && propType !== inputType) {
-        errors.push({
-          type: 'type_mismatch',
-          input: inputName,
-          message: `属性 "${inputName}" 类型不匹配: 期望 ${propType.name}，实际 ${inputType.name}`,
-          suggestion: `请修改输入定义类型为 ${propType.name} 或修改组件属性类型为 ${inputType.name}`
-        });
-      }
-
-      // 检查默认值
-      if (inputDef.default !== undefined) {
-        if (!utils.validateValue(inputDef.default, inputDef.type)) {
-          errors.push({
-            type: 'invalid_default',
-            input: inputName,
-            message: `属性 "${inputName}" 的默认值类型错误`,
-            suggestion: `请确保默认值类型与定义的类型 ${inputDef.type} 匹配`
-          });
-        }
-      }
-    });
-
-    // 如果存在错误，抛出异常
-    if (errors.length > 0) {
-      console.warn(
-        `组件 ${componentName} 输入定义验证失败`,
-        errors
-      );
-    }
-
-    return {
-      parsedInputs: inputsObj,
-      isValid: true
-    };
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      // 格式化错误信息
-      const errorMessage = [
-        `组件 ${componentName} 输入定义验证失败:`,
-        ...error.details.map(detail =>
-          `- ${detail.message}\n  建议: ${detail.suggestion}`
-        )
-      ].join('\n');
-
-      console.error(errorMessage);
-      throw error;
-    }
-
-    console.error(`检查输入定义时发生错误:`, error);
-    throw error;
-  }
-}
-
-/**
- * 校验组件的事件定义是否包含节点定义中的所有输出
- * @param {Object|Array} emits 组件的事件定义
- * @param {Object|Array} outputs 节点的输出定义
- * @param {String} componentName 组件名称
- * @returns {Object} 校验结果
- */
-function checkOutputs(emits, outputs, componentName) {
-  try {
-    // 标准化 outputs
-    const outputsObj = normalizeOutputs(outputs);
-
-    // 转换为数组形式用于后续处理
-    const outputsArray = Object.entries(outputsObj).map(([name, def]) => ({
-      name,
-      type: def.type || 'any',
-      description: def.description || '',
-      validator: def.validator,
-      side:def.side
-    }));
-
-    const warnings = [];
-
-    // 标准化 emits
-    const normalizedEmits = Array.isArray(emits)
-      ? emits
-      : (typeof emits === 'object' ? Object.keys(emits) : []);
-
-    // 验证事件
-    outputsArray.forEach(output => {
-      const emitName = `update:${output.name}`;
-      if (!normalizedEmits.includes(emitName)) {
-        warnings.push({
-          type: 'missing_emit',
-          output: output.name,
-          message: `组件 ${componentName} 缺少输出事件 "${emitName}"`,
-          suggestion: `请在组件中添加事件定义: emits: ['${emitName}']`
-        });
-      }
-    });
-
-    // 输出警告信息
-    if (warnings.length > 0) {
-      const warningMessage = [
-        `组件 ${componentName} 输出定义检查结果:`,
-        ...warnings.map(warning =>
-          `⚠️ ${warning.message}\n  建议: ${warning.suggestion}`
-        )
-      ].join('\n');
-
-      console.warn(warningMessage);
-    }
-
-    return {
-      parsedOutputs: outputsArray,
-      warnings
-    };
-  } catch (error) {
-    console.error(`检查输出定义时发生错误:`, error);
-    throw error;
-  }
-}
-
-/**
- * 将输入定义标准化为对象形式
- * @param {Array|Object} inputs 输入定义
- * @returns {Object} 标准化后的输入定义
- */
-function normalizeInputs(inputs) {
-  if (!inputs) return {};
-
-  // 如果已经是对象形式，直接返回
-  if (!Array.isArray(inputs) && typeof inputs === 'object') {
-    return inputs;
-  }
-
-  // 处理数组形式
-  return Array.isArray(inputs) ? inputs.reduce((acc, input) => {
-    // 处理字符串形式: ['name', 'age']
-    if (typeof input === 'string') {
-      acc[input] = { type: 'any' };
-    }
-    // 处理对象形式: [{ name: 'age', type: 'number' }]
-    else if (input && typeof input === 'object') {
-      const name = input.name || input.id;
-      if (name) {
-        acc[name] = {
-          type: input.type || 'any',
-          required: !!input.required,
-          default: input.default,
-          validator: input.validator,
-          description: input.description
-        };
-      }
-    }
-    return acc;
-  }, {}) : {};
-}
-
-/**
- * 将输出定义标准化为对象形式
- * @param {Array|Object} outputs 输出定义
- * @returns {Object} 标准化后的输出定义
- */
-function normalizeOutputs(outputs) {
-  if (!outputs) return {};
-
-  // 如果已经是对形式，直接返回
-  if (!Array.isArray(outputs) && typeof outputs === 'object') {
-    return outputs;
-  }
-
-  // 处理数组形式
-  return Array.isArray(outputs) ? outputs.reduce((acc, output) => {
-    // 处理字符串形式: ['result', 'error']
-    if (typeof output === 'string') {
-      acc[output] = { type: 'any' };
-    }
-    // 处理对象形式: [{ name: 'result', type: 'number' }]
-    else if (output && typeof output === 'object') {
-      const name = output.name || output.id;
-      if (name) {
-        acc[name] = {
-          type: output.type || 'any',
-          description: output.description,
-          validator: output.validator
-        };
-      }
-    }
-    return acc;
-  }, {}) : {};
-}
+import { checkInputs, checkOutputs } from "./nodeDefineParser/validators.js";
+import { AnchorTypes, Sides, LogTypes, TYPE_MAP, NodeError } from "./nodeDefineParser/types.js";
 
 /**
  * 创建锚点控制器
  */
-function createAnchorController(anchor,cardInfo) {
-  return {
-    ...anchor,
-    setValue: (newValue) => {
-      anchor.value.value = newValue;
-    },
-    getValue: () => anchor.value.value,
-    reset: () => {
-      const defaultValue = anchor.type === 'input' ? anchor.define.default : null;
-      anchor.value.value = defaultValue;
-    },
-    cardId:cardInfo.id,
-    anchorId:anchor.id
-  };
-}
+import { createAnchorControllers } from "./nodeDefineParser/controllers/anchor.js";
 
 /**
  * 创建运行时控制器
@@ -265,17 +15,17 @@ function createRuntimeController(anchorControllers, component, componentName, sc
   return {
     setOutput: (name, value) => {
       const controller = anchorControllers.find(
-        c => c.type === 'output' && c.id === name
+        c => c.type === AnchorTypes.OUTPUT && c.id === name
       );
       if (controller) {
         controller.setValue(value);
       } else {
-        console.warn(`[${componentName}] 未找到输出锚点: ${name}`);
+        console[LogTypes.WARN](`[${componentName}] 未找到输出锚点: ${name}`);
       }
     },
     getOutputs: () => {
       return anchorControllers
-        .filter(c => c.type === 'output')
+        .filter(c => c.type === AnchorTypes.OUTPUT)
         .reduce((acc, c) => {
           acc[c.id] = c.value;
           return acc;
@@ -283,7 +33,7 @@ function createRuntimeController(anchorControllers, component, componentName, sc
     },
     getInput: (name) => {
       const controller = anchorControllers.find(
-        c => c.type === 'input' && c.id === name
+        c => c.type === AnchorTypes.INPUT && c.id === name
       );
       return controller ? controller.getValue() : undefined;
     },
@@ -292,38 +42,18 @@ function createRuntimeController(anchorControllers, component, componentName, sc
       if (inputs) {
         return inputs
       }
-      //没有输入的卡片,从全局输入中获取输入i
-      if (!anchorControllers.filter(c => c.type === 'input')[0]) {
-        let input
-        //直接以卡片id获取输入
-        input = globalInputs[cardInfo.id]
-        //尝试从图文件中存储的输入中获取输入
-        if (cardInfo.savedInputs) {
-          input = cardInfo.savedInputs.value
-        } else if (nodeDefine.getDefaultInput) {
-          //尝试从卡片内部定义的输入获取算法中获取输入
-          let result= nodeDefine.getDefaultInput()
-          result!==undefined?input=result:null
-        } else if (scope.getDefaultInput) {
-          //尝试从卡片的定义上下文中获取输入
-          let result = scope.getDefaultInput()
-          result!==undefined?input=result:null
-
-        }
-        return input
+      // 2. 检查是否有输入锚点
+      const hasInputAnchors = anchorControllers.some(c => c.type === AnchorTypes.INPUT);
+      // 3. 无输入锚点的情况
+      if (!hasInputAnchors) {
+        // 优先使用全局输入
+        const globalInput = globalInputs[cardInfo.id];
+        if (globalInput !== undefined) return globalInput;
+        // 尝试获取默认输入
+        return getDefaultInputs(cardInfo, nodeDefine, scope);
       }
-      //由有输入链接的卡片,如果输入链接有连接值,从连接中获取输入
-      //否则从全局输入中获取数据
-      return anchorControllers
-        .filter(c => c.type === 'input')
-        .reduce((acc, c) => {
-          if (c.value !== undefined) {
-            //此时由图引擎从赋值并输入
-            acc[c.id] = c.value
-          }
-
-          return acc;
-        }, {});
+      // 4. 有输入锚点的情况
+      return getInputsFromControllers(anchorControllers);
     },
     componentName,
     log: (...args) => console.log(`[${componentName}]`, ...args),
@@ -336,28 +66,31 @@ function createRuntimeController(anchorControllers, component, componentName, sc
  * 创建节点控制器
  */
 function createNodeController(anchorControllers, scope, component, componentName, componentProps, componentURL, cardInfo) {
+  if (!anchorControllers || !scope || !component) {
+    throw new NodeError('创建节点控制器缺少必要参数');
+  }
   const runtime = createRuntimeController(anchorControllers, component, componentName, scope);
   const { nodeDefine } = scope
   let process = nodeDefine.process
   let exec = async (inputs, globalInputs) => {
     try {
       // 验证输入
-      const inputControllers = anchorControllers.filter(c => c.type === 'input');
+      const inputControllers = anchorControllers.filter(c => c.type === AnchorTypes.INPUT);
       for (const controller of inputControllers) {
         if (controller.define.required && !controller.getValue()) {
           throw new Error(`缺少必需的输入: ${controller.label || controller.id}`);
         }
       }
-      
+
       let runtimeInput = runtime.getInputs(inputs, cardInfo, globalInputs, nodeDefine, scope)
       //如果没有输入锚点需要将输入值传递给cardInfo
-      if(!inputControllers[0]){
+      if (!inputControllers[0]) {
         cardInfo.runtimeInputValue = runtimeInput
       }
-      
+
       // 执行处理
       const result = await process(runtimeInput);
-      
+
       // 处理返回值
       if (result && typeof result === 'object') {
         // 使用 for...of 替换 forEach
@@ -366,11 +99,11 @@ function createNodeController(anchorControllers, scope, component, componentName
         }
       }
       return result
-      
+
     } catch (error) {
       runtime.error('执行失败:', error);
       // 重置所有输出
-      const outputControllers = anchorControllers.filter(c => c.type === 'output');
+      const outputControllers = anchorControllers.filter(c => c.type === AnchorTypes.OUTPUT);
       for (const controller of outputControllers) {
         await controller.reset();
       }
@@ -404,11 +137,11 @@ function createNodeController(anchorControllers, scope, component, componentName
     },
     // 获取所有输入控制器
     getInputAnchors() {
-      return anchorControllers.filter(c => c.type === 'input');
+      return anchorControllers.filter(c => c.type === AnchorTypes.INPUT);
     },
     // 获取所有输出控制器
     getOutputAnchors() {
-      return anchorControllers.filter(c => c.type === 'output');
+      return anchorControllers.filter(c => c.type === AnchorTypes.OUTPUT);
     }
   };
 }
@@ -418,23 +151,17 @@ export async function parseNodeDefine(componentURL, cardInfo) {
     const component = await loadVueComponentAsNodeSync(componentURL).getComponent();
     const scope = await loadVueComponentAsNodeSync(componentURL).getNodeDefineScope(cardInfo.id);
     const nodeDefine = scope.nodeDefine
-
     const componentName = new URL(componentURL, window.location.origin).pathname;
-
     if (!nodeDefine) {
       throw new Error(`组件 ${componentName} 未暴露 nodeDefine`);
     }
-
     const componentProps = {};
     const parsedInputs = parseInputs(component.props, nodeDefine.inputs, componentName, componentProps, nodeDefine);
     const parsedOutputs = parseOutputs(component.emits, nodeDefine.outputs, componentName, nodeDefine);
-
     const anchorControllers = createAnchorControllers(parsedInputs, parsedOutputs, nodeDefine, componentProps, cardInfo);
-
     return createNodeController(anchorControllers, scope, component, componentName, componentProps, componentURL, cardInfo);
   } catch (error) {
-    console.error(`解析节点定义失败:`, error);
-    throw error;
+    throw new NodeError('解析节点定义失败', cardInfo.id, { error });
   }
 }
 
@@ -446,8 +173,8 @@ function parseInputs(props, inputs, componentName, componentProps, nodeDefine) {
       id: name,
       label: def.label || name,
       define: def,
-      type: 'input',
-      side: def.side || 'left',
+      type: AnchorTypes.INPUT,
+      side: def.side || Sides.LEFT,
       value: shallowRef(def.default),
       position: (index + 1) / (array.length + 1)
     }));
@@ -465,17 +192,13 @@ function parseOutputs(emits, outputs, componentName) {
     id: output.name,
     label: output.label || output.name,
     define: output,
-    type: 'output',
-    side: output.side || 'right',
+    type: AnchorTypes.OUTPUT,
+    side: output.side || Sides.RIGHT,
     value: shallowRef(null),
     position: (index + 1) / (array.length + 1)
   }));
 }
 
-function createAnchorControllers(inputAnchors, outputAnchors, nodeDefine, componentProps,cardInfo) {
-  const anchorPoints = inputAnchors.concat(outputAnchors);
-  return anchorPoints.map(anchor => createAnchorController(anchor,cardInfo));
-}
 
 /**
  * 判断输出锚点是否可以连接到输入锚点
@@ -510,20 +233,6 @@ export function linkAble(outputAnchor, inputAnchor) {
     return false;
   }
 }
-
-// 类型定义和常量
-const TYPE_MAP = {
-  'string': String,
-  'number': Number,
-  'boolean': Boolean,
-  'object': Object,
-  'array': Array,
-  'function': Function,
-  'date': Date,
-  'regexp': RegExp,
-  'promise': Promise,
-  'any': null
-};
 
 // 工具函数
 const utils = {
@@ -562,30 +271,33 @@ const utils = {
       return null;
     }
   },
-
-  /**
-   * 验证值是否符合类型要求
-   * @param {*} value 要验证的值
-   * @param {*} type 类型定义
-   * @returns {boolean} 验证结果
-   */
-  validateValue(value, type) {
-    if (!type || type === 'any') return true;
-
-    const normalizedType = this.normalizeType(type);
-    if (!normalizedType) return true;
-
-    // 处理 null 和 undefined
-    if (value === null || value === undefined) {
-      return false;
-    }
-
-    // 处理基本类型
-    if (normalizedType === String) return typeof value === 'string';
-    if (normalizedType === Number) return typeof value === 'number' && !isNaN(value);
-    if (normalizedType === Boolean) return typeof value === 'boolean';
-
-    // 处理复杂类型
-    return value instanceof normalizedType;
-  }
 };
+
+function getDefaultInputs(cardInfo, nodeDefine, scope) {
+  if (cardInfo.savedInputs) {
+    return cardInfo.savedInputs.value;
+  }
+
+  if (nodeDefine.getDefaultInput) {
+    const result = nodeDefine.getDefaultInput();
+    if (result !== undefined) return result;
+  }
+
+  if (scope.getDefaultInput) {
+    const result = scope.getDefaultInput();
+    if (result !== undefined) return result;
+  }
+
+  return undefined;
+}
+
+function getInputsFromControllers(anchorControllers) {
+  return anchorControllers
+    .filter(c => c.type === AnchorTypes.INPUT)
+    .reduce((acc, c) => {
+      if (c.value !== undefined) {
+        acc[c.id] = c.value;
+      }
+      return acc;
+    }, {});
+}
