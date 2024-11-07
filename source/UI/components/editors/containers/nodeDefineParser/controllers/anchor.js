@@ -18,5 +18,4 @@ export function createAnchorController(anchor, cardInfo) {
 export function createAnchorControllers(inputAnchors, outputAnchors, nodeDefine, componentProps, cardInfo) {
     const anchorPoints = inputAnchors.concat(outputAnchors);
     return anchorPoints.map(anchor => createAnchorController(anchor, cardInfo));
-  }
-  
+}

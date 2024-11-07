@@ -2,7 +2,7 @@ import { loadVueComponentAsNodeSync } from "../../../utils/componentsLoader.js";
 import { shallowRef } from "../../../../../static/vue.esm-browser.js";
 import { checkInputs, checkOutputs } from "./nodeDefineParser/validators.js";
 import { AnchorTypes, Sides, LogTypes, TYPE_MAP, NodeError } from "./nodeDefineParser/types.js";
-
+import { utils as typeUtils } from "./nodeDefineParser/utils.js";
 /**
  * 创建锚点控制器
  */
@@ -212,8 +212,8 @@ export function linkAble(outputAnchor, inputAnchor) {
       return true;
     }
 
-    const outputType = utils.normalizeType(outputAnchor.define.type);
-    const inputType = utils.normalizeType(inputAnchor.define.type);
+    const outputType = typeUtils.normalizeType(outputAnchor.define.type);
+    const inputType = typeUtils.normalizeType(inputAnchor.define.type);
 
     // 如果任一类型为 null (any)，允许连接
     if (!outputType || !inputType) {
@@ -234,44 +234,7 @@ export function linkAble(outputAnchor, inputAnchor) {
   }
 }
 
-// 工具函数
-const utils = {
-  /**
-   * 规范化类型定义
-   * @param {*} type 原始类型定义
-   * @returns {Function|null} 规范化后的类型
-   */
-  normalizeType(type) {
-    try {
-      if (!type) return null;
 
-      // 处理字符串类型
-      if (typeof type === 'string') {
-        return TYPE_MAP[type.toLowerCase()] || null;
-      }
-
-      // 处理函数类型
-      if (typeof type === 'function') {
-        return type;
-      }
-
-      // 处理数组类型 [String]
-      if (Array.isArray(type)) {
-        return type[0] || null;
-      }
-
-      // 处理对象类型 { type: String }
-      if (typeof type === 'object' && type.type) {
-        return this.normalizeType(type.type);
-      }
-
-      return null;
-    } catch (error) {
-      console.warn('类型规范化失败:', error);
-      return null;
-    }
-  },
-};
 
 function getDefaultInputs(cardInfo, nodeDefine, scope) {
   if (cardInfo.savedInputs) {
