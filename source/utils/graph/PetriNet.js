@@ -358,6 +358,62 @@ async function 执行变迁(petriNet, transitionId) {
     }
 }
 
+/**
+ * 验证连接的合法性
+ * @param {Array} connections 所有连接
+ * @param {Object} newConnection 新的连接
+ * @param {Array} cards 所有卡片
+ * @returns {Object} 验证结果 {isValid: boolean, error: string}
+ */
+export function validateConnection(connections, newConnection, cards) {
+    // 1. 检查是否是自环
+    if (newConnection.from.cardId === newConnection.to.cardId) {
+        return {
+            isValid: false,
+            error: '不能连接到自己'
+        };
+    }
+
+    // 2. 检查是否存在重复连接
+    const isDuplicate = connections.some(conn => 
+        conn.from.cardId === newConnection.from.cardId &&
+        conn.from.anchorId === newConnection.from.anchorId &&
+        conn.to.cardId === newConnection.to.cardId &&
+        conn.to.anchorId === newConnection.to.anchorId
+    );
+    if (isDuplicate) {
+        return {
+            isValid: false,
+            error: '连接已存在'
+        };
+    }
+
+    // 3. 检查类型匹配
+    const fromCard = cards.find(card => card.id === newConnection.from.cardId);
+    const toCard = cards.find(card => card.id === newConnection.to.cardId);
+    const fromAnchor = fromCard?.controller.anchors.find(a => a.id === newConnection.from.anchorId);
+    const toAnchor = toCard?.controller.anchors.find(a => a.id === newConnection.to.anchorId);
+
+    if (!fromAnchor || !toAnchor) {
+        return {
+            isValid: false,
+            error: '无效的锚点'
+        };
+    }
+
+    if (fromAnchor.type !== 'output' || toAnchor.type !== 'input') {
+        return {
+            isValid: false,
+            error: '锚点类型不匹配'
+        };
+    }
+
+    return {
+        isValid: true,
+        error: null
+    };
+}
+
 // 在导出中添加新函数
 export {
     创建流程图,

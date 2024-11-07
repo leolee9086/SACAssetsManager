@@ -40,19 +40,19 @@ function createRuntimeController(anchorControllers, component, componentName, sc
     getInputs: (inputs, cardInfo, globalInputs, nodeDefine, scope) => {
       //有明确输入,说明是组件定义内部调用直接返回就可以
       if (inputs) {
-        return inputs
+        cardInfo.savedInputs={value:inputs}
+        return inputs;
       }
-      // 2. 检查是否有输入锚点
+
+      // 检查是否有输入锚点
       const hasInputAnchors = anchorControllers.some(c => c.type === AnchorTypes.INPUT);
-      // 3. 无输入锚点的情况
+      
+      // 无输入锚点的情况
       if (!hasInputAnchors) {
-        // 优先使用全局输入
-        const globalInput = globalInputs[cardInfo.id];
-        if (globalInput !== undefined) return globalInput;
-        // 尝试获取默认输入
-        return getDefaultInputs(cardInfo, nodeDefine, scope);
+        return handleNoInputAnchors(cardInfo, globalInputs, nodeDefine, scope);
       }
-      // 4. 有输入锚点的情况
+      
+      // 有输入锚点的情况
       return getInputsFromControllers(anchorControllers);
     },
     componentName,
@@ -238,15 +238,21 @@ export function linkAble(outputAnchor, inputAnchor) {
 
 function getDefaultInputs(cardInfo, nodeDefine, scope) {
   if (cardInfo.savedInputs) {
+    console.log('从保存的输入获取成功')
+
     return cardInfo.savedInputs.value;
   }
 
   if (nodeDefine.getDefaultInput) {
+    console.log('从节点定义的默认的输入获取成功')
+
     const result = nodeDefine.getDefaultInput();
     if (result !== undefined) return result;
   }
 
   if (scope.getDefaultInput) {
+    console.log('从节点定义的默认的输入获取成功')
+
     const result = scope.getDefaultInput();
     if (result !== undefined) return result;
   }
@@ -263,4 +269,35 @@ function getInputsFromControllers(anchorControllers) {
       }
       return acc;
     }, {});
+}
+
+// 新增处理无输入锚点的辅助函数
+function handleNoInputAnchors(cardInfo, globalInputs, nodeDefine, scope) {
+  let inputValue;
+
+  // 1. 优先使用已保存的输入
+  if (cardInfo.savedInputs?.value !== undefined) {
+    inputValue = cardInfo.savedInputs.value;
+    console.log('使用已保存的输入值');
+    return inputValue;
+  }
+
+  // 2. 其次使用全局输入
+  const globalInput = globalInputs[cardInfo.id];
+  if (globalInput !== undefined) {
+    // 保存全局输入到 savedInputs
+    cardInfo.savedInputs = { value: globalInput };
+    console.log('使用并保存全局输入值');
+    return globalInput;
+  }
+
+  // 3. 最后尝试获取默认输入
+  inputValue = getDefaultInputs(cardInfo, nodeDefine, scope);
+  if (inputValue !== undefined) {
+    // 保存默认输入到 savedInputs
+    cardInfo.savedInputs = { value: inputValue };
+    console.log('使用并保存默认输入值');
+  }
+
+  return inputValue;
 }

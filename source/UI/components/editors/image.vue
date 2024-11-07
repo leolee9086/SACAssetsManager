@@ -1,9 +1,27 @@
 <template>
   <div class="image-editor">
-    <div v-show="false" ref="connectionCanvas" class="connection-canvas">
-
+    <!-- 添加样式选择器 -->
+    <div class="connection-style-selector">
+      <select v-model="connectionStyle.geometry" class="style-select">
+        <option v-for="(label, value) in GEOMETRY_OPTIONS" 
+                :key="value" 
+                :value="value">{{ label }}</option>
+      </select>
+      <select v-model="connectionStyle.drawingStyle" class="style-select">
+        <option v-for="(label, value) in DRAWING_STYLE_OPTIONS" 
+                :key="value" 
+                :value="value">{{ label }}</option>
+      </select>
     </div>
-    <ConnectionCanvas :cards="parsedCards" :connections="config.connections" />
+
+    <div v-show="false" ref="connectionCanvas" class="connection-canvas">
+    </div>
+    <ConnectionCanvas 
+      :cards="parsedCards" 
+      :connections="config.connections" 
+      :coordinateManager="coordinateManager"
+      :connectionStyle="connectionStyle"
+      @connectionCreated="handleNewConnection" />
     <!-- 动态渲染卡片 -->
     <template v-for="card in parsedCards" :key="card.id">
       <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
@@ -149,6 +167,7 @@ import ConnectionCanvas from './ConnectionCanvas.vue';
 import InfoPanel from './InfoPanel.vue';
 //用于流程构建和控制
 import { CardManager } from './cardManager.js';
+import { CoordinateManager } from './CoordinateManager.js';
 // 在 setup 中
 const cardManager = new CardManager();
 const parsedCards = ref([]);
@@ -193,7 +212,7 @@ const loadConfig = async () => {
       usedIds.add(oldId);
       return card;
     });
-   
+
     // 更新所有连接中的卡片ID
     if (idMap.size > 0) {
       const oldConnections = [...config.value.connections];
@@ -237,11 +256,11 @@ const loadConfig = async () => {
       }
       return true;
     })
-    console.error("connections",config.value.connections)
-    ;
+    console.error("connections", config.value.connections)
+      ;
     let pn = buildPetriNet()
 
-    pn.exec(undefined,true);
+    pn.exec(undefined, true);
     pn.startAutoExec()
   } catch (error) {
     console.error('加载配置失败:', error);
@@ -277,7 +296,7 @@ onMounted(async () => {
     start: `${conn.from.cardId}-${conn.from.anchorId}`,
     end: `${conn.to.cardId}-${conn.to.anchorId}`
   }));
-  console.error(connections.value,config.value.connections)
+  console.error(connections.value, config.value.connections)
 });
 // 在组件挂载时初始化Petri网
 onMounted(() => {
@@ -342,63 +361,8 @@ const systemStats = computed(() => {
   return result
 });
 
-/**
- * 计算锚点的绝对坐标
- * @param {Object} card 卡片对象
- * @param {Object} anchor 锚点对象
- * @returns {Object} 锚点的绝对坐标
- */
-const calculateAnchorPosition = (card, anchor) => {
-  const cardPos = card.position;
-  const ANCHOR_OFFSET = 10; // 锚点的偏移量
-  // 根据锚点在卡片上的位置计算坐标
-  switch (anchor.side) {
-    case 'left':
-      return {
-        x: cardPos.x - ANCHOR_OFFSET,
-        y: cardPos.y + (cardPos.height * anchor.position)
-      };
-    case 'right':
-      return {
-        x: cardPos.x + cardPos.width + ANCHOR_OFFSET,
-        y: cardPos.y + (cardPos.height * anchor.position)
-      };
-    case 'top':
-      return {
-        x: cardPos.x + (cardPos.width * anchor.position),
-        y: cardPos.y - ANCHOR_OFFSET
-      };
-    case 'bottom':
-      console.log(anchor,cardPos.width)
-      return {
-        x: cardPos.x + (cardPos.width * anchor.position),
-        y: cardPos.y + cardPos.height + ANCHOR_OFFSET
-      };
-    default:
-      console.warn(`未知的锚点方向: ${anchor.side}`);
-      return { x: cardPos.x, y: cardPos.y };
-  }
-};
+import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
 
-/**
- * 更新所有锚点的坐标
- * @param {Object} [options] 更新选项
- * @param {string} [options.cardId] 指定要更新的卡片ID，不指定则更新所有卡片
- */
-const updateAnchorsPosition = (options = {}) => {
-  const cardsToUpdate = options.cardId
-    ? parsedCards.value.filter(card => card.id === options.cardId)
-    : parsedCards.value;
-  cardsToUpdate.forEach(card => {
-    if (!card.controller) return;
-
-    card.controller.anchors.forEach(anchor => {
-      const pos = calculateAnchorPosition(card, anchor);
-      // 更新锚点的绝对坐标
-      anchor.absolutePosition = pos;
-    });
-  });
-};
 
 // 在需要的地方调用更新函数
 watch(() => parsedCards.value.map(card => ({
@@ -406,7 +370,7 @@ watch(() => parsedCards.value.map(card => ({
   position: { ...card.position }
 })), () => {
   // 卡片位置变化时更新锚点
-  updateAnchorsPosition();
+  updateAnchorsPosition(parsedCards.value);
 }, { deep: true });
 
 // 在卡片移动时调用
@@ -414,17 +378,100 @@ const onCardMove = (cardId, newPosition) => {
   const card = parsedCards.value.find(c => c.id === cardId);
   if (card) {
     card.position = newPosition;
-    // 只更新移动的卡片的锚点
-    updateAnchorsPosition({ cardId });
+    updateAnchorsPosition([card]);
   }
 };
 // 在窗口大小改变时可能也需要更新
 onMounted(() => {
-  window.addEventListener('resize', () => updateAnchorsPosition());
+  window.addEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
 onUnmounted(() => {
-  window.removeEventListener('resize', () => updateAnchorsPosition());
+  window.removeEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
+
+const handleStartConnection = (event) => {
+  // 传递事件到 ConnectionCanvas
+  connectionCanvas.value.startConnection(event);
+};
+
+const connectionCanvasRef = ref(null);
+const coordinateManager = ref(null);
+
+onMounted(() => {
+  coordinateManager.value = new CoordinateManager(connectionCanvasRef.value);
+});
+
+// 连接样式常量
+const GEOMETRY_OPTIONS = {
+  'circuit': '电路板式',
+  'bezier': '贝塞尔曲线',
+  'arc': '弧线'
+};
+
+const DRAWING_STYLE_OPTIONS = {
+  'normal': '普通',
+  'handDrawn': '手绘'
+};
+
+// 连接样式状态
+const connectionStyle = ref({
+  geometry: 'circuit',
+  drawingStyle: 'normal'
+});
+
+import { validateConnection } from '../../../utils/graph/PetriNet.js';
+
+const handleNewConnection = async (newConnection) => {
+    // 1. 检查是否存在需要替换的连接
+    const existingConnectionIndex = config.value.connections.findIndex(conn => 
+        conn.to.cardId === newConnection.to.cardId && 
+        conn.to.anchorId === newConnection.to.anchorId
+    );
+
+    // 2. 验证新连接的有效性（除了输入锚点已连接的检查）
+    const validationResult = validateConnection(
+        config.value.connections.filter((_, index) => index !== existingConnectionIndex),
+        newConnection,
+        parsedCards.value
+    );
+
+    if (!validationResult.isValid) {
+        console.error('连接验证失败:', validationResult.error);
+        return;
+    }
+
+    try {
+        // 3. 保存当前状态以便回滚
+        const previousConnections = [...config.value.connections];
+
+        // 4. 更新连接
+        if (existingConnectionIndex !== -1) {
+            // 替换已有连接
+            config.value.connections.splice(existingConnectionIndex, 1, newConnection);
+        } else {
+            // 添加新连接
+            config.value.connections.push(newConnection);
+        }
+
+        // 5. 强制更新连接数组的引用，触发视图更新
+        config.value.connections = [...config.value.connections];
+
+        // 6. 等待下一个 tick，确保视图更新
+        await nextTick();
+
+        // 7. 重建并验证整个 Petri 网络
+        let pn = buildPetriNet();
+        pn.exec(undefined, true);
+        pn.startAutoExec();
+    } catch (error) {
+        // 8. 如果出错，回滚到之前的状态
+        config.value.connections = [...previousConnections];
+        console.error('Petri网络构建失败:', error);
+        
+        // 9. 强制更新视图
+        await nextTick();
+    }
+};
 </script>
 <style scoped>
 .image-editor {
@@ -451,5 +498,37 @@ onUnmounted(() => {
 :deep(.floating-card) {
   position: absolute;
   z-index: 2;
+}
+
+.connection-style-selector {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+  display: flex;
+  gap: 10px;
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.style-select {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 14px;
+  color: #606266;
+  cursor: pointer;
+  outline: none;
+}
+
+.style-select:hover {
+  border-color: #c0c4cc;
+}
+
+.style-select:focus {
+  border-color: #409eff;
 }
 </style>

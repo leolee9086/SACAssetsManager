@@ -5,7 +5,10 @@
     <template v-for="(anchors, side) in groupedAnchors" :key="side">
       <div :class="['anchor-container', `anchor-${side}`]">
         <div v-for="anchor in anchors" :key="anchor.id" :class="['anchor-point', `anchor-${anchor.type}`]"
-          :style="getAnchorStyle(anchor, side)" :title="anchor.label">
+          :style="getAnchorStyle(anchor, side)" :title="anchor.label"
+          @mousedown.stop="startConnectionDrag(anchor, side)"
+          :data-anchor-id="anchor.id"
+          :data-card-id="props.cardID">
           <div class="anchor-dot"></div>
           <span class="anchor-label">{{ anchor.label }}</span>
         </div>
@@ -360,7 +363,7 @@ onUnmounted(() => {
 
 
 // 定义 emit
-const emit = defineEmits(['onCardMove']);
+const emit = defineEmits(['onCardMove', 'startConnection']);
 
 // 监听卡片位置和尺寸变化
 watch(cardStyle, () => {
@@ -387,6 +390,10 @@ const groupedAnchors = computed(() => {
   return groups;
 });
 
+const startConnectionDrag = (anchor, side) => {
+  // 触发自定义事件，通知父组件开始连接
+  anchor.emit('startConnection', { anchor, side, cardID: props.cardID });
+};
 
 </script>
 
@@ -417,6 +424,7 @@ const groupedAnchors = computed(() => {
   background: linear-gradient(to bottom, rgba(249, 250, 251, 0.8), rgba(244, 245, 246, 0.8));
   border-radius: 8px 8px 0 0;
   backdrop-filter: blur(4px);
+  z-index: 2;
 }
 
 .handle-icon {
@@ -454,6 +462,7 @@ const groupedAnchors = computed(() => {
   position: relative;
   width: 100%;
   height: 100%;
+  z-index: 1;
 }
 
 .resize-handle {
@@ -462,6 +471,7 @@ const groupedAnchors = computed(() => {
   transition: opacity 0.2s ease;
   background: transparent;
   z-index: 3;
+  pointer-events: auto;
 }
 
 .resize-handle::after {
@@ -470,6 +480,7 @@ const groupedAnchors = computed(() => {
   background: #e2e8f0;
   border-radius: 3px;
   transition: all 0.2s ease;
+  pointer-events: none;
 }
 
 /* 添加新的缩放手柄样式 */
@@ -479,6 +490,7 @@ const groupedAnchors = computed(() => {
   right: 0;
   height: 4px;
   cursor: n-resize;
+  margin: 4px 0;
 }
 
 .resize-s {
@@ -487,6 +499,7 @@ const groupedAnchors = computed(() => {
   right: 0;
   height: 4px;
   cursor: s-resize;
+  margin: 4px 0;
 }
 
 .resize-e {
@@ -495,6 +508,7 @@ const groupedAnchors = computed(() => {
   bottom: 0;
   width: 4px;
   cursor: e-resize;
+  margin: 0 4px;
 }
 
 .resize-w {
@@ -503,6 +517,7 @@ const groupedAnchors = computed(() => {
   bottom: 0;
   width: 4px;
   cursor: w-resize;
+  margin: 0 4px;
 }
 
 .resize-ne {
@@ -511,6 +526,7 @@ const groupedAnchors = computed(() => {
   width: 8px;
   height: 8px;
   cursor: ne-resize;
+  margin: 4px;
 }
 
 .resize-nw {
@@ -519,6 +535,7 @@ const groupedAnchors = computed(() => {
   width: 8px;
   height: 8px;
   cursor: nw-resize;
+  margin: 4px;
 }
 
 .resize-se {
@@ -527,6 +544,7 @@ const groupedAnchors = computed(() => {
   width: 8px;
   height: 8px;
   cursor: se-resize;
+  margin: 4px;
 }
 
 .resize-sw {
@@ -535,6 +553,7 @@ const groupedAnchors = computed(() => {
   width: 8px;
   height: 8px;
   cursor: sw-resize;
+  margin: 4px;
 }
 
 /* 悬停时显示手柄 */
@@ -545,7 +564,7 @@ const groupedAnchors = computed(() => {
 /* 锚点容器样式 */
 .anchor-container {
   position: absolute;
-  z-index: 2;
+  z-index: 4;
   pointer-events: none;
 }
 
@@ -592,6 +611,7 @@ const groupedAnchors = computed(() => {
   align-items: center;
   gap: 4px;
   pointer-events: auto;
+  z-index: 4;
 }
 
 .anchor-left .anchor-point {
