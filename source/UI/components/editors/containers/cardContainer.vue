@@ -17,7 +17,7 @@
       @mousedown.stop="(e) => startResize(e, handle.position)">
     </div>
     <!-- 原有的拖拽区域和内容 -->
-    <div class="drag-handle" @mousedown.stop="startDrag" :class="{ 'handle-visible': isHandleVisible }">
+    <div class="drag-handle" @mousedown.stop="startDrag" :class="{ 'handle-visible': true }">
       <div class="handle-icon">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M2 5h12M2 8h12M2 11h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -28,27 +28,23 @@
       </div>
     </div>
     <div class="card-content">
-      <template v-if="props.component&&component.template||component.render">      
-        <component 
-      :is="component" 
-      v-bind="componentProps" 
-      v-on="componentEvents" 
-      />
-    </template>
+      <template v-if="props.component && component.template || component.render">
+        <component :is="component" v-bind="componentProps" v-on="componentEvents" />
+      </template>
 
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick ,shallowRef} from 'vue'
+import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef } from 'vue'
 // Props 定义
 const props = defineProps({
   title: {
     type: String,
     default: ''
   },
-  card:{
+  card: {
     type: Object,
 
   },
@@ -60,6 +56,9 @@ const props = defineProps({
       width: 280,
       height: 160
     })
+  },
+  nodeDefine: {
+    type: Object
   },
   component: {
     type: Function,
@@ -73,13 +72,13 @@ const props = defineProps({
     type: Object,
     default: () => ({})
   },
-  anchors:{
-    type:Array,
-    default:[]
+  anchors: {
+    type: Array,
+    default: []
   },
-  cardID:{
+  cardID: {
     type: String,
-    required:true
+    required: true
   }
 })
 
@@ -174,18 +173,18 @@ const resizeHandles = [
 
 // Computed
 const cardStyle = computed(() => ({
-  left: `${ currentPos.value.x - 16}px`,
-  top: `${ currentPos.value.y - 16}px`,
+  left: `${currentPos.value.x }px`,
+  top: `${currentPos.value.y }px`,
   width: `${currentSize.value.width}px`,
   height: `${currentSize.value.height}px`,
   position: 'absolute',
-  color:error.value?`var(--b3-card-error-color)`:"",
-  border:error.value?`1px solid var(--b3-card-error-color)`:"",
-  backgroundColor:error.value?`var(--b3-card-error-background)`:""
+  color: error.value ? `var(--b3-card-error-color)` : "",
+  border: error.value ? `1px solid var(--b3-card-error-color)` : "",
+  backgroundColor: error.value ? `var(--b3-card-error-background)` : ""
 }))
 
 // 定义接口锚点数据结构
-const anchors = toRef(props,'anchors')
+const anchors = toRef(props, 'anchors')
 
 
 
@@ -226,17 +225,22 @@ const onDrag = (e) => {
 }
 const stopDrag = (e) => {
   isDragging.value = false
-  
+
   // 计算新位置时考虑初始偏移量，并确保不小于0
   currentPos.value = {
     x: Math.max(0, e.clientX - dragStart.value.offsetX),
     y: Math.max(0, e.clientY - dragStart.value.offsetY)
   }
-  
+
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
 }
 const startResize = (e, position) => {
+  // 如果是固定尺寸，则不允许缩放
+  if (fixedWidth && fixedHeight) {
+    return;
+  }
+
   e.preventDefault()
   isResizing.value = true
 
@@ -300,7 +304,10 @@ const stopResize = () => {
 }
 
 const showHandles = () => {
-  isHandleVisible.value = true
+  // 如果是固定尺寸，则不显示缩放手柄
+  if (!fixedWidth && !fixedHeight) {
+    isHandleVisible.value = true
+  }
 }
 
 const hideHandles = () => {
@@ -308,10 +315,15 @@ const hideHandles = () => {
     isHandleVisible.value = false
   }
 }
-let component=shallowRef({})
+let component = shallowRef({})
 let error = ref('')
 // 生命周期钩子
-onMounted(()=>{
+
+
+
+let fixedWidth = 0
+let fixedHeight = 0
+onMounted(() => {
   currentPos.value = {
     x: props.position.x,
     y: props.position.y
@@ -319,18 +331,24 @@ onMounted(()=>{
   currentSize.value = {
     width: props.position.width,
     height: props.position.height
-  }
-  component.value=props.component();
+  };
 
   //这个需要提到最外面
-  (async()=>{
+  (async () => {
     try {
-     // await props.card.controller.exec()
-    }catch(e){
-      console.error('aaa',e)
-      error.value=e
+      component.value = await props.component(props.nodeDefine);
+      if (props.nodeDefine.geom?.size === 'fixed') {
+        fixedWidth = props.nodeDefine.geom.width
+        fixedHeight = props.nodeDefine.geom.height
+        currentSize.value = {
+          width: fixedWidth,
+          height: fixedHeight
+        };
+      }
+    } catch (e) {
+      console.error('aaa', e)
+      error.value = e
     }
-
   })()
 })
 onUnmounted(() => {
@@ -348,7 +366,7 @@ const emit = defineEmits(['onCardMove']);
 watch(cardStyle, () => {
   nextTick(() => {
     console.log(currentSize.value)
-    emit('onCardMove',props.cardID,{...currentPos.value,...currentSize.value})
+    emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value })
   });
 });
 
@@ -382,25 +400,24 @@ const groupedAnchors = computed(() => {
   z-index: 1000;
   min-width: 200px;
   user-select: none;
-  padding: 16px;
-  position: relative;
+  padding: 3px;
 }
 
 .drag-handle {
-  padding: 8px 12px;
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
   cursor: move;
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   opacity: 0;
   transition: all 0.2s ease;
-  height: 40px;
-  margin: -16px -16px 0;
-  position: sticky;
-  top: 0;
+  height: 20px;
   background: linear-gradient(to bottom, rgba(249, 250, 251, 0.8), rgba(244, 245, 246, 0.8));
-  z-index: 1;
+  border-radius: 8px 8px 0 0;
+  backdrop-filter: blur(4px);
 }
 
 .handle-icon {
@@ -435,7 +452,6 @@ const groupedAnchors = computed(() => {
   flex-direction: column;
   gap: 16px;
   overflow: auto;
-  max-height: calc(100% - 40px);
   position: relative;
   width: 100%;
   height: 100%;
@@ -531,7 +547,7 @@ const groupedAnchors = computed(() => {
 .anchor-container {
   position: absolute;
   z-index: 2;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .anchor-left {
@@ -540,6 +556,7 @@ const groupedAnchors = computed(() => {
   bottom: 0;
   width: 32px;
   transform: none;
+
 }
 
 .anchor-right {
@@ -548,6 +565,7 @@ const groupedAnchors = computed(() => {
   bottom: 0;
   width: 32px;
   transform: none;
+
 }
 
 .anchor-top {
@@ -556,6 +574,7 @@ const groupedAnchors = computed(() => {
   right: 0;
   height: 32px;
   transform: none;
+
 }
 
 .anchor-bottom {
@@ -564,6 +583,7 @@ const groupedAnchors = computed(() => {
   right: 0;
   height: 32px;
   transform: none;
+
 }
 
 /* 锚点样式 */
@@ -572,6 +592,7 @@ const groupedAnchors = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  pointer-events: auto;
 }
 
 .anchor-left .anchor-point {

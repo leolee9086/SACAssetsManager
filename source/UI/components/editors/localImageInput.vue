@@ -2,9 +2,8 @@
     <div class="input-group">
         <input type="text" v-model="localFilePath" placeholder="输入文件路径或点击选择文件" class="path-input" />
         <div class="file-input-wrapper">
-            <button class="upload-btn">
+            <button class="upload-btn" @click="handleFileUpload">
                 浏览
-                <input type="file" @change="handleFileUpload" accept="image/*" />
             </button>
         </div>
     </div>
@@ -12,129 +11,80 @@
         加载图片
     </button>
 </template>
-
 <script nodeDefine>
-export const nodeDefine = {
-  flowType:"start",
- 
-  outputs: {
-    file:{
-        type:File,
-        lebel:'文件对象',
-    },
-    filePath:{
-        type:String,
-        lebel:'文件路径',
-    }
-  },
-  async process(inputs) {
-    console.log(inputs)
-    let filePath = inputs.filePath?.value;
-    console.log(inputs.meta.path)
-    if(inputs.meta?.filePath||inputs.meta?.path){
-        filePath = inputs.meta.filePath||inputs.meta.path
-    }
-    if (!filePath) {
-      console.error("File path is missing.");
-      return {
-        filePath:'',
-        file:undefined
-      }
-    }
-
-    try {
-      const response = await fetch(filePath);
-      const blob = await response.blob();
-      const file = new File([blob], 'image.jpg', { type: blob.type });
-      return {
-        file,
-        filePath
-      }
-    } catch (error) {
-      console.error('加载图片失败:', error);
-      return   {
-        filePath,
-        file:undefined
-      }
-    }
-  },
- 
-};
-</script>
-
-<script setup>
-import { ref, watch, onMounted, inject, onUnmounted, defineExpose } from 'vue';
-
-defineExpose(
-  {nodeDefine}
-)
-
-const props = defineProps(nodeDefine.inputs);
-
-const emit = defineEmits({
-    "update:filePath":(value)=>value instanceof nodeDefine.outputs.filePath.type,
-    "update:file":(value)=>value  instanceof nodeDefine.outputs.file.type
+import { ref, watch } from 'vue';
+let file 
+const localFilePath = ref('');
+export const getDefaultInput=()=>{
+    return localFilePath.value||undefined
 }
-);
-
-const localFilePath = ref(props.filePath);
-
-watch(() => props.filePath, (newVal) => {
-    localFilePath.value = newVal;
-});
-
-const handleFileUpload = (e) => {
-    if (!e || !e.target || !e.target.files || !e.target.files.length) {
-        return;
-    }
-
-    const file = e.target.files[0];
-    localFilePath.value = file.name;
-    emit('update:filePath', file.name);
-    emit('fileSelected', file);
-
-    e.target.value = '';
-};
-
-const loadFromPath = async () => {
-    try {
-        const response = await fetch(localFilePath.value);
-        const blob = await response.blob();
-        const file = new File([blob], 'image.jpg', { type: blob.type });
-        emit('fileSelected', file);
-    } catch (error) {
-        console.error('加载图片失败:', error);
-    }
-};
-
-const nodeInterface = {
+export let nodeDefine = {
+    flowType: "start",
     outputs: {
-        image: {
-            type: 'output',
-            side: 'right',
-            position: 0.5,
-            label: '选择的图片',
-            dataType: 'image'
+        file: {
+            type: File,
+            lebel: '文件对象',
+        },
+        filePath: {
+            type: String,
+            lebel: '文件路径',
         }
+    },
+    //当在编辑器运行的时候这个函数会自动通知锚点
+    async process(filePath) {
+        if (!filePath) {
+            console.error("File path is missing.");
+            return {
+                filePath: '',
+                file: undefined
+            }
+        }
+        if(localFilePath.value===filePath){
+            return {
+                file,
+                filePath
+            }
+        }
+        try {
+            const response = await fetch(filePath);
+            const blob = await response.blob();
+             file = new File([blob], 'image.jpg', { type: blob.type });
+            localFilePath.value= filePath
+            return {
+                file,
+                filePath
+            }
+        } catch (error) {
+            console.error('加载图片失败:', error);
+            return {
+                filePath,
+                file: undefined
+            }
+        }
+    },
+
+};
+
+</script>
+<script setup>
+const { dialog } = window.require('@electron/remote');
+async function handleFileUpload() {
+    const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+            { name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
+        ]
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+        const filePath = result.filePaths[0];
+        localFilePath.value = filePath;
+        nodeDefine.process(filePath);
     }
 }
 
-const { register = () => [], unregister = () => {} } = inject('nodeInterface', {}) || {};
-const registeredAnchors = ref([]);
 
-onMounted(() => {
-    if (register) {
-        registeredAnchors.value = register(props.componentId, nodeInterface)
-    }
-})
-
-onUnmounted(() => {
-    if (unregister && registeredAnchors.value.length) {
-        unregister(registeredAnchors.value)
-    }
-})
 </script>
-
 <style scoped>
 .input-group {
     display: flex;

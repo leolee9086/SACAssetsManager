@@ -77,7 +77,7 @@ function checkInputs(props, inputs, componentName) {
 
     // 如果存在错误，抛出异常
     if (errors.length > 0) {
-      throw new ValidationError(
+      console.warn(
         `组件 ${componentName} 输入定义验证失败`,
         errors
       );
@@ -123,7 +123,8 @@ function checkOutputs(emits, outputs, componentName) {
       name,
       type: def.type || 'any',
       description: def.description || '',
-      validator: def.validator
+      validator: def.validator,
+      side:def.side
     }));
 
     const warnings = [];
@@ -241,7 +242,7 @@ function normalizeOutputs(outputs) {
 /**
  * 创建锚点控制器
  */
-function createAnchorController(anchor) {
+function createAnchorController(anchor,cardInfo) {
   return {
     ...anchor,
     setValue: (newValue) => {
@@ -251,14 +252,16 @@ function createAnchorController(anchor) {
     reset: () => {
       const defaultValue = anchor.type === 'input' ? anchor.define.default : null;
       anchor.value.value = defaultValue;
-    }
+    },
+    cardId:cardInfo.id,
+    anchorId:anchor.id
   };
 }
 
 /**
  * 创建运行时控制器
  */
-function createRuntimeController(anchorControllers, component, componentName) {
+function createRuntimeController(anchorControllers, component, componentName, scope) {
   return {
     setOutput: (name, value) => {
       const controller = anchorControllers.find(
@@ -270,6 +273,14 @@ function createRuntimeController(anchorControllers, component, componentName) {
         console.warn(`[${componentName}] 未找到输出锚点: ${name}`);
       }
     },
+    getOutputs: () => {
+      return anchorControllers
+        .filter(c => c.type === 'output')
+        .reduce((acc, c) => {
+          acc[c.id] = c.value;
+          return acc;
+        }, {});
+    },
     getInput: (name) => {
       console.log(name, anchorControllers)
 
@@ -278,21 +289,45 @@ function createRuntimeController(anchorControllers, component, componentName) {
       );
       return controller ? controller.getValue() : undefined;
     },
-    getInputs: (appData) => {
-
-      if (!anchorControllers
-        .filter(c => c.type === 'input')[0]) {
-        return appData
+    getInputs: (inputs, cardInfo, globalInputs, nodeDefine, scope) => {
+      console.log(inputs, cardInfo, globalInputs, nodeDefine, scope)
+      //有明确输入,说明是组件定义内部调用直接返回就可以
+      if (inputs) {
+        return inputs
       }
+      //没有输入的卡片,从全局输入中获取输入i
+      if (!anchorControllers.filter(c => c.type === 'input')[0]) {
+        let input
+        //直接以卡片id获取输入
+        input = globalInputs[cardInfo.id]
+        //尝试从图文件中存储的输入中获取输入
+        if (cardInfo.savedInputs) {
+          input = cardInfo.savedInputs.value
+        } else if (nodeDefine.getDefaultInput) {
+          //尝试从卡片内部定义的输入获取算法中获取输入
+          let result= nodeDefine.getDefaultInput()
+          result!==undefined?input=result:null
+        } else if (scope.getDefaultInput) {
+          //尝试从卡片的定义上下文中获取输入
+          let result = scope.getDefaultInput()
+          result!==undefined?input=result:null
 
+        }
+        return input
+      }
+      //由有输入链接的卡片,如果输入链接有连接值,从连接中获取输入
+      //否则从全局输入中获取数据
       return anchorControllers
         .filter(c => c.type === 'input')
         .reduce((acc, c) => {
-          acc[c.id] = c.value;
+          if (c.value !== undefined) {
+            //此时由图引擎从赋值并输入
+            acc[c.id] = c.value
+          }
+
           return acc;
         }, {});
     },
-    component,
     componentName,
     log: (...args) => console.log(`[${componentName}]`, ...args),
     warn: (...args) => console.warn(`[${componentName}]`, ...args),
@@ -303,41 +338,60 @@ function createRuntimeController(anchorControllers, component, componentName) {
 /**
  * 创建节点控制器
  */
-function createNodeController(anchorControllers, nodeDefine, component, componentName, componentProps) {
-  const runtime = createRuntimeController(anchorControllers, component, componentName);
+function createNodeController(anchorControllers, scope, component, componentName, componentProps, componentURL, cardInfo) {
+  const runtime = createRuntimeController(anchorControllers, component, componentName, scope);
+  const { nodeDefine } = scope
+  let process = nodeDefine.process
+  let exec = async (inputs, globalInputs) => {
+    try {
+      // 验证输入
+      const inputControllers = anchorControllers.filter(c => c.type === 'input');
+      for await (const controller of inputControllers) {
+        if (controller.define.required && !controller.getValue()) {
+          throw new Error(`缺少必需的输入: ${controller.label || controller.id}`);
+        }
+      }
+      let runtimeInput = runtime.getInputs(inputs, cardInfo, globalInputs, nodeDefine, scope)
+      //如果没有输入锚点需要将输入值传递给cardInfo
+      if(!inputControllers[0]){
+        cardInfo.runtimeInputValue = runtimeInput
+      }
+      // 执行处理
+     
+      const result = await process(runtimeInput);
+      // 处理返回值
+      if (result && typeof result === 'object') {
+        Object.entries(result).forEach(([name, value]) => {
+          runtime.setOutput(name, value);
+        });
+      }
+      return result
+    } catch (error) {
+      runtime.error('执行失败:', error);
+      // 重置所有输出
+      anchorControllers
+        .filter(c => c.type === 'output')
+        .forEach(c => c.reset());
+      throw error;
+    }
+  }
+  nodeDefine.process = exec
+  nodeDefine.getRecentOutput = () => {
+    return runtime.getOutputs()
+  }
+  nodeDefine.getRecentInput = () => {
+    return runtime.getInputs()
+  }
   return {
-    component: () => component,
+    cardInfo,
+    nodeDefine,
+    component: async () => {
+      return await loadVueComponentAsNodeSync(componentURL).getComponent(scope)
+    },
     anchors: anchorControllers,
     componentProps,
     runtime,
-    async exec(appData) {
-      try {
-        // 验证输入
-        const inputControllers = anchorControllers.filter(c => c.type === 'input');
-        for await (const controller of inputControllers) {
-          if (controller.define.required && !controller.getValue()) {
-            throw new Error(`缺少必需的输入: ${controller.label || controller.id}`);
-          }
-        }
-
-        // 执行处理
-        const result = await nodeDefine.process(runtime.getInputs(appData), runtime);
-        console.log(result)
-        // 处理返回值
-        if (result && typeof result === 'object') {
-          Object.entries(result).forEach(([name, value]) => {
-            runtime.setOutput(name, value);
-          });
-        }
-      } catch (error) {
-        runtime.error('执行失败:', error);
-        // 重置所有输出
-        anchorControllers
-          .filter(c => c.type === 'output')
-          .forEach(c => c.reset());
-        throw error;
-      }
-    },
+    exec,
     // 重置所有锚点
     reset() {
       anchorControllers.forEach(c => c.reset());
@@ -347,20 +401,22 @@ function createNodeController(anchorControllers, nodeDefine, component, componen
       return anchorControllers.find(c => c.id === id);
     },
     // 获取所有输入控制器
-    getInputs() {
+    getInputAnchors() {
       return anchorControllers.filter(c => c.type === 'input');
     },
     // 获取所有输出控制器
-    getOutputs() {
+    getOutputAnchors() {
       return anchorControllers.filter(c => c.type === 'output');
     }
   };
 }
 
-export async function parseNodeDefine(componentURL) {
+export async function parseNodeDefine(componentURL, cardInfo) {
   try {
     const component = await loadVueComponentAsNodeSync(componentURL).getComponent();
-    const nodeDefine = await loadVueComponentAsNodeSync(componentURL).getNodeDefine();
+    const scope = await loadVueComponentAsNodeSync(componentURL).getNodeDefineScope(cardInfo.id);
+    const nodeDefine = scope.nodeDefine
+
     const componentName = new URL(componentURL, window.location.origin).pathname;
 
     if (!nodeDefine) {
@@ -368,19 +424,19 @@ export async function parseNodeDefine(componentURL) {
     }
 
     const componentProps = {};
-    const parsedInputs = parseInputs(component.props, nodeDefine.inputs, componentName, componentProps,nodeDefine);
-    const parsedOutputs = parseOutputs(component.emits, nodeDefine.outputs, componentName,nodeDefine);
+    const parsedInputs = parseInputs(component.props, nodeDefine.inputs, componentName, componentProps, nodeDefine);
+    const parsedOutputs = parseOutputs(component.emits, nodeDefine.outputs, componentName, nodeDefine);
 
-    const anchorControllers = createAnchorControllers(parsedInputs, parsedOutputs, nodeDefine, componentProps);
+    const anchorControllers = createAnchorControllers(parsedInputs, parsedOutputs, nodeDefine, componentProps, cardInfo);
 
-    return createNodeController(anchorControllers, nodeDefine, component, componentName, componentProps);
+    return createNodeController(anchorControllers, scope, component, componentName, componentProps, componentURL, cardInfo);
   } catch (error) {
     console.error(`解析节点定义失败:`, error);
     throw error;
   }
 }
 
-function parseInputs(props, inputs, componentName, componentProps,nodeDefine) {
+function parseInputs(props, inputs, componentName, componentProps, nodeDefine) {
   const { parsedInputs } = checkInputs(props, inputs, componentName);
   const inputAnchors = Object.entries(parsedInputs)
     .filter(() => nodeDefine.flowType !== 'start')
@@ -414,9 +470,9 @@ function parseOutputs(emits, outputs, componentName) {
   }));
 }
 
-function createAnchorControllers(inputAnchors, outputAnchors, nodeDefine, componentProps) {
+function createAnchorControllers(inputAnchors, outputAnchors, nodeDefine, componentProps,cardInfo) {
   const anchorPoints = inputAnchors.concat(outputAnchors);
-  return anchorPoints.map(anchor => createAnchorController(anchor));
+  return anchorPoints.map(anchor => createAnchorController(anchor,cardInfo));
 }
 
 /**

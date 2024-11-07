@@ -3,7 +3,7 @@ import { loadModule } from '../../../static/vue3-sfc-loader.esm.js'
 import * as loader from "../../../static/vue3-sfc-loader.esm.js"
 import * as runtime from '../../asyncModules.js';
 import pickr from '../../../static/pickr-esm2022.js'
-
+import { extractDeclaredVarsInNodeDefine } from '../../utils/codeLoaders/js/lexicalAnalyzer.js';
 /**
  * 同步函数，返回一个异步组件封装，组件名称是动态的。
  * 
@@ -14,9 +14,9 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
     const moduleCache = {
         vue: Vue
     };
-    
-    const asyncModules={
-        
+
+    const asyncModules = {
+
     }
     let nodeDefine = null;
     const styleElements = [];
@@ -34,10 +34,10 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
 
         },
         async getFile(url) {
-            let realURL=url
+            let realURL = url
             const urlObj1 = new URL(url, window.location.origin);
-            if(urlObj1.pathname.endsWith('.vue.mjs')){
-                realURL=url.replace('.vue.mjs','.vue')
+            if (urlObj1.pathname.endsWith('.vue.mjs')) {
+                realURL = url.replace('.vue.mjs', '.vue')
             }
             if (url.endsWith('.js')) {
                 if (!asyncModules[url]) {
@@ -57,12 +57,34 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
                 const nodeDefineMatch = content.match(/<script nodeDefine>([\s\S]*?)<\/script>/);
                 if (nodeDefineMatch) {
                     try {
+                        nodeDefine = nodeDefineMatch[1]+`
+                        \n export const scope = {${extractDeclaredVarsInNodeDefine(nodeDefineMatch[1])}}
+                        `
+                    } catch (error) {
+                        console.error('Failed to parse nodeDefine block:', error);
+                    }
+                }
+                return { getContentData: asBinary => nodeDefineMatch ? nodeDefine : `` };
+            }
+            if (urlObj.pathname.endsWith('.vue') && urlObj.searchParams.get('asNode') === 'true') {
+                // 剔除解析 nodeDefine 块
+                const nodeDefineRegex = /<script nodeDefine>[\s\S]*?<\/script>/g;
+                const nodeDefineMatch = content.match(/<script nodeDefine>([\s\S]*?)<\/script>/);
+                if (nodeDefineMatch) {
+                    try {
                         nodeDefine = nodeDefineMatch[1];
                     } catch (error) {
                         console.error('Failed to parse nodeDefine block:', error);
                     }
                 }
-                return { getContentData:asBinary=>nodeDefineMatch ? nodeDefineMatch[1] : `` };
+
+                const contentWithoutNodeDefine = content.replace(
+                    nodeDefineRegex,
+                    `<script nodeDefineRuntime>
+                      let {${Object.getOwnPropertyNames(window[Symbol.for(urlObj.searchParams.get('ScopeId'))])}} = window[Symbol.for("${urlObj.searchParams.get('ScopeId')}")]
+                    </script>`
+                );
+                return { getContentData: asBinary => contentWithoutNodeDefine };
             }
 
             return {
@@ -79,12 +101,21 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
 
 
     return {
-        getComponent: async() => {
-            
-            return   await loadModule(sfcUrl, mixinOptions)
+        getComponent: async (scope) => {
+            if (!scope) {
+                return await loadModule(sfcUrl.trim(), mixinOptions)
+            }
+            const component = await loadModule(sfcUrl.trim(), mixinOptions)
+            let { __scopeId } = component
+            window[Symbol.for(__scopeId)] = scope
+            const newComponent = await loadModule(sfcUrl.trim() + `?asNode=true&&ScopeId=${__scopeId}`, mixinOptions)
+            return newComponent;
         },
-        getNodeDefine:async ()=>{
-            return (await loader.loadModule(sfcUrl.trim()+'.mjs?asNode=true', mixinOptions)).nodeDefine
+        getNodeDefineScope: async (id) => {
+            let scope = (await loader.loadModule(sfcUrl.trim() + `.mjs?asNode=true&&id=${id}`, mixinOptions)).scope
+           
+            console.log(scope,id)
+            return scope
         }
     };
 }

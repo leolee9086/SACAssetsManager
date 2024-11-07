@@ -44,7 +44,7 @@
     // 计算控制点
     let cp1x, cp1y, cp2x, cp2y;
   
-    // 根据起点锚点方向计算第一个控制点
+    // 根据起点锚点方向计算第一个���制点
     switch (startSide) {
       case 'right':
         cp1x = start.x + offset;
@@ -105,45 +105,71 @@
       strokeLinearGradientColorStops: [0, '#409EFF', 1, '#67C23A']
     });
   
-    // 计算箭头
-    const arrowLength = 15;
-    const arrowAngle = Math.atan2(end.y - cp2y, end.x - cp2x);
-    const arrowStart = {
-      x: end.x - Math.cos(arrowAngle) * arrowLength,
-      y: end.y - Math.sin(arrowAngle) * arrowLength
+    // 计算贝塞尔曲线上的点
+    const getPointOnCubicBezier = (t) => {
+      const mt = 1 - t;
+      return {
+        x: mt * mt * mt * start.x + 3 * mt * mt * t * cp1x + 3 * mt * t * t * cp2x + t * t * t * end.x,
+        y: mt * mt * mt * start.y + 3 * mt * mt * t * cp1y + 3 * mt * t * t * cp2y + t * t * t * end.y
+      };
     };
-  
-    const arrow = new Konva.Arrow({
-      points: [arrowStart.x, arrowStart.y, end.x, end.y],
-      pointerLength: 10,
-      pointerWidth: 8,
-      fill: '#67C23A',
-      stroke: '#67C23A',
-      strokeWidth: 2
-    });
   
     // 创建连接组
     const connectionGroup = new Konva.Group({
       name: id
     });
   
+    // 添加多个箭头
+    const arrowCount = 3; // 箭头数量
+    const arrowLength = 12; // 箭头长度
+  
+    for (let i = 1; i <= arrowCount; i++) {
+      const t = i / (arrowCount + 1); // 计算位置比例
+      const point = getPointOnCubicBezier(t);
+      const nextPoint = getPointOnCubicBezier(t + 0.01);
+      
+      // 计算箭头角度
+      const angle = Math.atan2(nextPoint.y - point.y, nextPoint.x - point.x);
+      
+      // 计算箭头起点
+      const arrowStart = {
+        x: point.x - Math.cos(angle) * arrowLength,
+        y: point.y - Math.sin(angle) * arrowLength
+      };
+  
+      const arrow = new Konva.Arrow({
+        points: [arrowStart.x, arrowStart.y, point.x, point.y],
+        pointerLength: 8,
+        pointerWidth: 6,
+        fill: '#67C23A',
+        stroke: '#67C23A',
+        strokeWidth: 2
+      });
+  
+      connectionGroup.add(arrow);
+    }
+  
+    connectionGroup.add(path); // 确保路径在箭头下面
+  
     // 添加交互效果
     connectionGroup.on('mouseover', () => {
       document.body.style.cursor = 'pointer';
       path.strokeWidth(3);
-      arrow.strokeWidth(3);
+      connectionGroup.find('Arrow').forEach(arrow => {
+        arrow.strokeWidth(3);
+      });
       layer.value.batchDraw();
     });
   
     connectionGroup.on('mouseout', () => {
       document.body.style.cursor = 'default';
       path.strokeWidth(2);
-      arrow.strokeWidth(2);
+      connectionGroup.find('Arrow').forEach(arrow => {
+        arrow.strokeWidth(2);
+      });
       layer.value.batchDraw();
     });
   
-    connectionGroup.add(path);
-    connectionGroup.add(arrow);
     layer.value.add(connectionGroup);
     layer.value.batchDraw();
   
@@ -164,7 +190,7 @@
         .find(anchor => anchor.id === conn.to.anchorId);
   
       if (!fromAnchor || !toAnchor || !fromAnchor.absolutePosition || !toAnchor.absolutePosition) return;
-  
+      console.error(fromAnchor,toAnchor)
       drawBezierConnection(
         fromAnchor.absolutePosition,
         toAnchor.absolutePosition,

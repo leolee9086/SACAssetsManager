@@ -1,15 +1,41 @@
 import { 柯里化 } from "../functions/currying.js"
 
 /**
+ * @typedef {Object} 节点配置
+ * @property {'start'|'process'|'end'} type - 节点类型
+ * @property {number} tokens - 初始令牌数
+ * @property {*} [content] - 节点内容
+ */
+
+/**
+ * @typedef {Object} 连接信息
+ * @property {string} 起始 - 起始节点/动作ID
+ * @property {string} 目标 - 目标节点/动作ID
+ * @property {number} 数值要求 - 连接需要的令牌数
+ */
+
+/**
+ * @typedef {Object} PetriNet
+ * @property {string} 名称 - 流程图名称
+ * @property {Map<string, Object>} 节点 - 节点集合
+ * @property {Map<string, Object>} 动作 - 动作集合
+ * @property {Map<string, 连接信息>} 连接 - 连接关系
+ * @property {Map<string, 连接信息[]>} 输入连接索引 - 按目标节点索引的连接
+ * @property {Map<string, 连接信息[]>} 输出连接索引 - 按起始节点索引的连接
+ * @property {Set<string>} 入口节点索引 - 入口节点集合
+ * @property {Set<string>} 出口节点索引 - 出口节点集合
+ */
+
+/**
  * 创建一个新的Petri网结构
  * @param {string} 名称 - 流程图名称
- * @returns {Object} 流程图对象
+ * @returns {PetriNet} 流程图对象
  */
 const 创建流程图 = (名称) => {
     if (typeof 名称 !== 'string' || !名称.trim()) {
         throw new Error('流程图名称必须是非空字符串');
     }
-    return {
+    const petriNet = {
         名称,
         节点: new Map(),
         动作: new Map(),
@@ -19,15 +45,20 @@ const 创建流程图 = (名称) => {
         入口节点索引: new Set(),
         出口节点索引: new Set()
     }
+    // 添加 exec 方法
+    petriNet.exec = async function () {
+        await 执行Petri网(this);
+    };
+
+    return petriNet;
+
 }
 
 /**
  * 添加状态节点
- * @param {Object} 流程图 - 流程图实例
+ * @param {PetriNet} 流程图 - 流程图实例
  * @param {string} 节点ID - 节点唯一标识
- * @param {Object} 配置 - 节点配置
- * @param {('start'|'process'|'end')} 配置.type - 节点类型
- * @param {number} 配置.tokens - 初始令牌数
+ * @param {节点配置} 配置 - 节点配置
  * @throws {Error} 当节点已存在、类型无效或令牌数无效时抛出错误
  */
 const 添加节点 = 柯里化((流程图, 节点ID, 配置) => {
@@ -51,7 +82,7 @@ const 添加节点 = 柯里化((流程图, 节点ID, 配置) => {
     流程图.节点.set(节点ID, {
         type: 配置.type,
         数值: 配置.tokens,
-        内容: 配置.content
+        内容: 配置.content,
     });
 
     // 初始时将节点标记为入口和出口
@@ -61,7 +92,7 @@ const 添加节点 = 柯里化((流程图, 节点ID, 配置) => {
 
 /**
  * 添加动作节点
- * @param {Object} 流程图 - 流程图实例
+ * @param {PetriNet} 流程图 - 流程图实例
  * @param {string} 动作ID - 动作唯一标识
  * @param {Function} 执行动作 - 动作执行的函数，返回Promise
  * @throws {Error} 当动作已存在或参数无效时抛出错误
@@ -69,9 +100,9 @@ const 添加节点 = 柯里化((流程图, 节点ID, 配置) => {
 const 添加动作 = 柯里化((流程图, 动作ID, 执行动作) => {
     if (流程图.动作.has(动作ID)) {
         console.warn(`动作 ${动作ID} 已存在,添加未执行,请确保这符合你的预期`);
-        return 
+        return
     }
-    
+
     if (typeof 执行动作 !== 'function') {
         throw new Error(`动作 ${动作ID} 的执行函数必须是一个函数`);
     }
@@ -87,23 +118,50 @@ const 已经连接 = 柯里化((流程图, 起始ID, 目标ID) => {
 });
 
 /**
+ * 验证节点ID是否存在
+ * @private
+ */
+const 验证节点存在 = (流程图, 节点ID, 类型 = '节点') => {
+    if (!流程图.节点.has(节点ID) && !流程图.动作.has(节点ID)) {
+        throw new Error(`${类型} ${节点ID} 不存在`);
+    }
+};
+
+/**
+ * 更新连接索引
+ * @private
+ */
+const 更新连接索引 = (流程图, 连接信息) => {
+    const { 起始, 目标 } = 连接信息;
+    
+    // 更新输入索引
+    if (!流程图.输入连接索引.has(目标)) {
+        流程图.输入连接索引.set(目标, []);
+    }
+    流程图.输入连接索引.get(目标).push(连接信息);
+
+    // 更新输出索引
+    if (!流程图.输出连接索引.has(起始)) {
+        流程图.输出连接索引.set(起始, []);
+    }
+    流程图.输出连接索引.get(起始).push(连接信息);
+
+    // 更新入口出口标记
+    流程图.出口节点索引.delete(起始);
+    流程图.入口节点索引.delete(目标);
+};
+
+/**
  * 添加连接关系
- * @param {Object} 流程图 - 流程图实例
- * @param {string} 起始ID - 起始节点或动作ID
- * @param {string} 目标ID - 目标节点或动作ID
- * @param {number} [数值要求=1] - 连接的令牌要求
- * @throws {Error} 当连接无效或节点/动作不存在时抛出错误
+ * @param {PetriNet} 流程图 - Petri网实例
+ * @param {string} 起始ID - 起始节点/动作ID
+ * @param {string} 目标ID - 目标节点/动作ID
+ * @param {number} [数值要求=1] - 连接需要的令牌数
  */
 const 添加连接 = 柯里化((流程图, 起始ID, 目标ID, 数值要求 = 1) => {
-    // 验证节点/动作存在性
-    if (!流程图.节点.has(起始ID) && !流程图.动作.has(起始ID)) {
-        throw new Error(`起始节点/动作 ${起始ID} 不存在`);
-    }
-    if (!流程图.节点.has(目标ID) && !流程图.动作.has(目标ID)) {
-        throw new Error(`目标节点/动作 ${目标ID} 不存在`);
-    }
-
-    // 验证数值要求
+    验证节点存在(流程图, 起始ID, '起始节点/动作');
+    验证节点存在(流程图, 目标ID, '目标节点/动作');
+    
     if (typeof 数值要求 !== 'number' || 数值要求 <= 0) {
         throw new Error('连接的令牌要求必须是正数');
     }
@@ -111,31 +169,17 @@ const 添加连接 = 柯里化((流程图, 起始ID, 目标ID, 数值要求 = 1)
     const 连接ID = `${起始ID}->${目标ID}`;
     if (流程图.连接.has(连接ID)) {
         console.warn(`连接 ${连接ID} 已存在,添加未执行,请确保这符合你的预期`);
-        return
+        return;
     }
 
     const 连接信息 = { 起始: 起始ID, 目标: 目标ID, 数值要求 };
     流程图.连接.set(连接ID, 连接信息);
-    
-    // 更新索引
-    if (!流程图.输入连接索引.has(目标ID)) {
-        流程图.输入连接索引.set(目标ID, []);
-    }
-    流程图.输入连接索引.get(目标ID).push(连接信息);
-    
-    if (!流程图.输出连接索引.has(起始ID)) {
-        流程图.输出连接索引.set(起始ID, []);
-    }
-    流程图.输出连接索引.get(起始ID).push(连接信息);
-
-    // 更新入口和出口节点索引
-    流程图.出口节点索引.delete(起始ID);
-    流程图.入口节点索引.delete(目标ID);
+    更新连接索引(流程图, 连接信息);
 });
 
 /**
  * 判断变迁是否可以触发
- * @param {Object} 流程图 - 流程图实例
+ * @param {PetriNet} 流程图 - Petri网实例
  * @param {string} 动作ID - 要判断的动作ID
  * @returns {Object} 判断结果，包含是否可触发及原因
  * @property {boolean} 可触发 - 是否可以触发
@@ -151,7 +195,7 @@ const 动作可触发 = 柯里化((流程图, 动作ID) => {
     }
 
     const 输入连接 = 流程图.输入连接索引.get(动作ID) || [];
-    
+
     // 检查是否有输入连接
     if (输入连接.length === 0) {
         return {
@@ -159,22 +203,22 @@ const 动作可触发 = 柯里化((流程图, 动作ID) => {
             原因: `动作 ${动作ID} 没有输入连接`
         };
     }
-    let token满足=true
+    let token满足 = true
     let 原因 = []
     // 检查所有输入节点的令牌是否足够
     for (const 连接 of 输入连接) {
         const 节点 = 流程图.节点.get(连接.起始);
         if (!节点) {
-            token满足=false
-            
-                原因.push(`输入节点 ${连接.起始} 不存在`)
-            
+            token满足 = false
+
+            原因.push(`输入节点 ${连接.起始} 不存在`)
+
         }
         if (节点.数值 < 连接.数值要求) {
-            token满足=false
+            token满足 = false
 
             原因.push(`节点 ${连接.起始} 的令牌数不足 (当前: ${节点.数值}, 需要: ${连接.数值要求})`)
-            
+
         }
     }
     // 所有检查都通过
@@ -186,7 +230,7 @@ const 动作可触发 = 柯里化((流程图, 动作ID) => {
 
 /**
  * 触发变迁执行
- * @param {Object} 流程图 - 流程图实例
+ * @param {PetriNet} 流程图 - Petri网实例
  * @param {string} 动作ID - 要触发的动作ID
  * @param {...any} 参数 - 传递给动作执行函数的参数
  * @returns {Promise<any>} 动作执行的结果
@@ -231,7 +275,7 @@ const 触发动作 = 柯里化(async (流程图, 动作ID, ...参数) => {
 
 /**
  * 找到入口节点
- * @param {Object} 流程图 - 流程图实例
+ * @param {PetriNet} 流程图 - Petri网实例
  * @returns {Array} 入口节点ID数组
  */
 const 找到入口节点 = (流程图) => {
@@ -240,42 +284,80 @@ const 找到入口节点 = (流程图) => {
 
 /**
  * 找到出口节点
- * @param {Object} 流程图 - 流程图实例
+ * @param {PetriNet} 流程图 - Petri网实例
  * @returns {Array} 出口节点ID数组
  */
 const 找到出口节点 = (流程图) => {
     return Array.from(流程图.出口节点索引);
 }
+
 /**
  * 执行 Petri 网
- * @param {Object} 流程图 - 流程图实例
- * @returns {Promise<void>} 执行完成的 Promise
+ * @param {PetriNet} petriNet Petri网实例
  */
-const 执行Petri网 = async (流程图) => {
-    let 变迁触发 = true;
+async function 执行Petri网(petriNet) {
+    let hasEnabled = true;
 
-    while (变迁触发) {
-        变迁触发 = false;
+    while (hasEnabled) {
+        hasEnabled = false;
 
-        for (const [动作ID, 动作] of 流程图.动作.entries()) {
-            const 检查结果 = 动作可触发(流程图, 动作ID);
-            if (检查结果.可触发) {
-                try {
-                    await 触发动作(流程图, 动作ID);
-                    变迁触发 = true;
-                    console.log(`动作 ${动作ID} 已触发`);
-                } catch (错误) {
-                    console.error(`触发动作 ${动作ID} 时出错: ${错误.message}`);
-                }
-            }else{
-                console.error(检查结果.原因)
+        // 检查所有变迁
+        for (const [transitionId, transition] of petriNet.动作.entries()) {
+            if (await 可以执行(petriNet, transitionId)) {
+                await 执行变迁(petriNet, transitionId);
+                hasEnabled = true;
+            }
+        }
+    }
+}
 
+/**
+ * 检查变迁是否可以执行
+ */
+function 可以执行(petriNet, transitionId) {
+    // 检查所有输入库所是否有足够的令牌
+    for (const [connId, conn] of petriNet.连接.entries()) {
+        if (conn.目标 === transitionId) {
+            const place = petriNet.节点.get(conn.起始);
+            if (!place || place.数值 < conn.数值要求) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/**
+ * 执行单个变迁
+ */
+async function 执行变迁(petriNet, transitionId) {
+    // 消耗输入库所的令牌
+    for (const [connId, conn] of petriNet.连接.entries()) {
+        if (conn.目标 === transitionId) {
+            const place = petriNet.节点.get(conn.起始);
+            if (place) {
+                place.数值 -= conn.数值要求;
             }
         }
     }
 
-    console.log('Petri 网执行完成');
+    // 执行变迁动作
+    const transition = petriNet.动作.get(transitionId);
+    if (transition?.执行) {
+        await transition.执行();
+    }
+
+    // 产生输出库所的令牌
+    for (const [connId, conn] of petriNet.连接.entries()) {
+        if (conn.起始 === transitionId) {
+            const place = petriNet.节点.get(conn.目标);
+            if (place) {
+                place.数值 += conn.数值要求;
+            }
+        }
+    }
 }
+
 // 在导出中添加新函数
 export {
     创建流程图,
@@ -285,6 +367,8 @@ export {
     触发动作,
     动作可触发,
     已经连接,
+    执行变迁,
+    可以执行,
     找到入口节点,
     找到出口节点,
     执行Petri网

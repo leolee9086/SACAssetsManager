@@ -10,51 +10,78 @@
 </template>
 <script nodeDefine>
 import { 计算图像感知哈希,计算图像相似度 } from '../../../utils/image/pHash.js';
-export const nodeDefine = {
+import {ref} from 'vue'
+// 声明运行时状态存储
+const runtime = {
+  originalImage: ref("/plugins/SACAssetsManager/assets/wechatDonate.jpg"),
+  processedImage: ref("/plugins/SACAssetsManager/assets/wechatDonate.jpg"),
+  thumbnailSize: ref(32),
+  imagesAreSimilar: ref(false),
+  similarityScore: ref(0)
+};
+
+export let nodeDefine = {
   inputs: [
-    { name: 'originalImage', type: 'string|Buffer', default: "/plugins/SACAssetsManager/assets/wechatDonate.jpg",label:'左侧图像' },
-    { name: 'processedImage', type: 'string|Buffer', default: "/plugins/SACAssetsManager/assets/wechatDonate.jpg",label:'右侧图像' },
-    { name: 'thumbnailSize', type: 'number', value: 32 ,label:'相似度校验精度'} // 假设缩略图大小为32
+    { name: 'originalImage', type: 'string|Buffer|Uint8Array', default: "/plugins/SACAssetsManager/assets/wechatDonate.jpg", label:'左侧图像' },
+    { name: 'processedImage', type: 'string|Buffer|Uint8Array', default: "/plugins/SACAssetsManager/assets/wechatDonate.jpg", label:'右侧图像' },
+    { name: 'thumbnailSize', type: 'number', default: 32, label:'相似度校验精度' }
   ],
   outputs: [
-    { name: 'imagesAreSimilar', type: 'boolean', value: false,label:'处理是否相似' },
-    { name: 'similarityScore', type: 'number', value: 0 ,label:'相似度'} // 新增相似度输出
+    { name: 'imagesAreSimilar', type: 'boolean', value: false, label:'处理是否相似' },
+    { name: 'similarityScore', type: 'number', value: 0, label:'相似度' }
   ],
   async process(inputs) {
-    let {originalImage, processedImage, thumbnailSize} = inputs;
-    thumbnailSize = thumbnailSize || 32;
-    if (!originalImage || !processedImage) {
+    // 更新运行时状态
+
+    runtime.originalImage.value = inputs.originalImage.value||inputs.originalImage;
+    runtime.processedImage.value = inputs.processedImage.value||inputs.processedImage;
+    runtime.thumbnailSize.value = inputs.thumbnailSize.value||inputs.thumbnailSize || 32;
+
+    if (!runtime.originalImage.value || !runtime.processedImage.value) {
       console.error("Image data is missing.");
-      return  {
-        imagesAreSimilar:false,
-        similarityScore:0
+      runtime.imagesAreSimilar.value = false;
+      runtime.similarityScore.value = 0;
+      return {
+        imagesAreSimilar: false,
+        similarityScore: 0
       }
 
     }
 
     const getImageData = async (image) => {
+      console.log('image',image)
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          canvas.width = thumbnailSize;
-          canvas.height = thumbnailSize;
+          canvas.width = runtime.thumbnailSize.value;
+          canvas.height = runtime.thumbnailSize.value;
           const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, thumbnailSize, thumbnailSize);
-          const imageData = ctx.getImageData(0, 0, thumbnailSize, thumbnailSize);
+          ctx.drawImage(img, 0, 0, runtime.thumbnailSize.value, runtime.thumbnailSize.value);
+          const imageData = ctx.getImageData(0, 0, runtime.thumbnailSize.value, runtime.thumbnailSize.value);
           resolve(imageData.data);
         };
         img.onerror = reject;
-        img.src = typeof image === 'string' ? image : URL.createObjectURL(new Blob([image]));
+
+        // 处理不同类型的输入
+        if (typeof image === 'string') {
+          img.src = image;
+        } else if (image instanceof Uint8Array || image instanceof Buffer) {
+          const blob = new Blob([image], { type: 'image/jpeg' }); // 可以根据实际情况调整 MIME 类型
+          img.src = URL.createObjectURL(blob);
+        } else {
+          reject(new Error('不支持的图像格式'));
+        }
       });
     };
 
     try {
-      const originalImageData = await getImageData(originalImage);
-      const processedImageData = await getImageData(processedImage);
+      const originalImageData = await getImageData(runtime.originalImage.value);
+      const processedImageData = await getImageData(runtime.processedImage.value);
+      console.log(runtime)
 
-      const originalHash = 计算图像感知哈希(originalImageData, thumbnailSize);
-      const processedHash = 计算图像感知哈希(processedImageData, thumbnailSize);
+      const originalHash = 计算图像感知哈希(originalImageData, runtime.thumbnailSize.value);
+      const processedHash = 计算图像感知哈希(processedImageData, runtime.thumbnailSize.value);
 
       const hammingDistance = originalHash.split('').reduce((acc, bit, index) => {
         return acc + (bit !== processedHash[index] ? 1 : 0);
@@ -65,93 +92,103 @@ export const nodeDefine = {
 
       // 计算相似度
       const similarityScore = 计算图像相似度(originalHash, processedHash);
-      console.log(hammingDistance,similarityScore)
+
+      // 更新运行时状态
+      runtime.imagesAreSimilar.value = imagesAreSimilar;
+      runtime.similarityScore.value = similarityScore;
+      console.log(runtime)
       return {
         imagesAreSimilar,
         similarityScore
-      } 
+      }
     } catch (error) {
+      console.error(error)
+      runtime.imagesAreSimilar.value = false;
+      runtime.similarityScore.value = 0;
       return {
-        imagesAreSimilar:false,
-        similarityScore:0
+        imagesAreSimilar: false,
+        similarityScore: 0
       }
     }
   },
-
 };
+
 </script>
 
 <script setup>
-import { ref, onMounted, onUnmounted, defineProps, defineEmits, watch } from 'vue';
-defineExpose(
-  {nodeDefine}
-)
-const props = defineProps({
-  originalImage: {
-    type: String,
-    required: true
-  },
-  processedImage: {
-    type: String,
-    required: true
-  },
-  thumbnailSize: {
-    type: Number,
-    default: 32,
-    validator: (value) => value > 0 && value <= 256
-  }
-});
+import {  onMounted, onUnmounted, watch, computed } from 'vue';
 
-const emit = defineEmits(['load']);
+defineExpose({ nodeDefine });
 
-// 组件状态
+// 使用运行时状态
 const container = ref(null);
 const sliderPosition = ref(50);
 const isDragging = ref(false);
 const imagesLoaded = ref(0);
-const imagesAreEqual = ref(false);
+
+// 处理图片源的显示
+const getImageSource = (image) => {
+  if (!image) return '';
+  
+  if (typeof image === 'string') {
+    return image;
+  } else if (image instanceof Uint8Array || image instanceof Buffer) {
+    const blob = new Blob([image], { type: 'image/jpeg' });
+    return URL.createObjectURL(blob);
+  } else if (image instanceof Blob) {
+    return URL.createObjectURL(image);
+  }
+  return '';
+};
+
+// 修改计算属性
+const originalImage = computed(() => {
+  const source = getImageSource(runtime.originalImage.value);
+  return source;
+});
+
+const processedImage = computed(() => {
+  const source = getImageSource(runtime.processedImage.value);
+  return source;
+});
+
+const imagesAreEqual = computed(() => runtime.imagesAreSimilar.value);
+const similarityScore = computed(() => runtime.similarityScore.value);
+
+// 监听图片变化
+watch([originalImage, processedImage], () => {
+  console.log(originalImage,processedImage)
+  // 重置图片加载状态
+  imagesLoaded.value = 0;
+  // 更新处理后图片的裁剪区域
+  updateProcessedImageClip();
+});
 
 onMounted(() => {
   updateProcessedImageClip();
-  compareImages();
 });
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleDragging);
   document.removeEventListener('mouseup', stopDragging);
+  const urls = [originalImage.value, processedImage.value];
+  urls.forEach(url => {
+    if (url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+  });
 });
 
 // 处理图片加载
 const handleImageLoad = () => {
   imagesLoaded.value += 1;
   if (imagesLoaded.value === 2) {
-    emit('load');
     imagesLoaded.value = 0;
-    compareImages(); // 在图片加载完成后进行比较
   }
 };
 
-// 比较图像
-const compareImages = async() => {
-  const inputs = [
-    { name: 'originalImage', type: 'string', value: props.originalImage },
-    { name: 'processedImage', type: 'string', value: props.processedImage },
-    { name: 'thumbnailSize', type: 'number', value: props.thumbnailSize }
-  ];
-  const outputs = await nodeDefine.process(props);
 
-  imagesAreEqual.value = outputs[0].value;
-};
 
-// 监听图像变化
-watch(
-  [
-    () => props.originalImage, 
-    () => props.processedImage,
-    () => props.thumbnailSize
-  ], 
-  compareImages
-);
 
 // 拖动相关方法
 const startDragging = (e) => {
