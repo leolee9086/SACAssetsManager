@@ -37,6 +37,22 @@
 const editorConfig = {
   "name": "图片编辑器",
   "cards": [
+  {
+      "id": "note",
+      "type": "note/protyle",
+      "title": "笔记",
+      "position": {
+        "x": 20,
+        "y": 20,
+        "width": 300,
+        "height": 200
+      },
+      "props": {
+        min: 0,
+        max: 100,
+        step: 1
+      }
+    },
     {
       "id": "scale",
       "type": "math/number",
@@ -259,7 +275,6 @@ const loadConfig = async () => {
     console.error("connections", config.value.connections)
       ;
     let pn = buildPetriNet()
-
     pn.exec(undefined, true);
     pn.startAutoExec()
   } catch (error) {
@@ -291,6 +306,7 @@ const config = ref(editorConfig);
 // 初始化 canvas 和连接
 onMounted(async () => {
   await loadConfig();
+  updateAnchorsPosition(parsedCards.value)
   // 将配置文件中的连接转换为内部连接格式
   connections.value = config.value.connections.map(conn => ({
     start: `${conn.from.cardId}-${conn.from.anchorId}`,

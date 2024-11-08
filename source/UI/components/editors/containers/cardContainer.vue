@@ -485,26 +485,26 @@ const startConnectionDrag = (anchor, side) => {
 
 /* 添加新的缩放手柄样式 */
 .resize-n {
-  top: 0;
+  top: -4px;
   left: 0;
   right: 0;
   height: 4px;
   cursor: n-resize;
-  margin: 4px 0;
+  margin: 0 4px;
 }
 
 .resize-s {
-  bottom: 0;
+  bottom: -4px;
   left: 0;
   right: 0;
   height: 4px;
   cursor: s-resize;
-  margin: 4px 0;
+  margin: 0 4px;
 }
 
 .resize-e {
   top: 0;
-  right: 0;
+  right: -4px;
   bottom: 0;
   width: 4px;
   cursor: e-resize;
@@ -513,7 +513,7 @@ const startConnectionDrag = (anchor, side) => {
 
 .resize-w {
   top: 0;
-  left: 0;
+  left: -4px;
   bottom: 0;
   width: 4px;
   cursor: w-resize;
