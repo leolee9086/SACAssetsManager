@@ -49,6 +49,19 @@ const addCard = async (cardConfig, options = {}) => {
   return card;
 };
 let componentDefinitions = {}
+
+import { GraphManager } from './GraphManager.js';
+
+const graphManager = new GraphManager();
+const getGlobalInputs = () => {
+  // 返回全局输入对象
+  return appData.value.meta
+};
+// 修改 buildPetriNet 函数
+function buildPetriNet() {
+  return graphManager.buildPetriNet(config.value, parsedCards.value, getGlobalInputs);
+}
+
 import { ensureUniqueCardIds ,updateConnectionIds,validateConnections} from './loader/utils.js';
 
 // 重构后的 loadConfig 函数
@@ -78,17 +91,6 @@ const loadConfig = async () => {
     throw error;
   }
 };
-import { GraphManager } from './GraphManager.js';
-
-const graphManager = new GraphManager();
-const getGlobalInputs = () => {
-  // 返回全局输入对象
-  return appData.value.meta
-};
-// 修改 buildPetriNet 函数
-function buildPetriNet() {
-  return graphManager.buildPetriNet(config.value, parsedCards.value, getGlobalInputs);
-}
 const container = ref(null);
 const appData = toRef(inject('appData'))
 // 修改连线相关的状态管理
