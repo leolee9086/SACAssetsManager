@@ -56,14 +56,11 @@ async getComponentDefinition(type, cardConfig) {
   if (!this.componentDefinitions[type]) {
     this.componentDefinitions[type] = new Map();
   }
-
   // 使用cardConfig.id作为唯一标识
   const controllerId = cardConfig.id;
-  
   // 创建新的controller实例
   const controller = await parseComponentDefinition(type, cardConfig);
   this.componentDefinitions[type].set(controllerId, controller);
-  
   return controller;
 }
   /**
@@ -102,7 +99,6 @@ async getComponentDefinition(type, cardConfig) {
       }
       return this.updateExistingCard(existingIndex, newCard, cardConfig);
     }
-
     // 添加新卡片
     this.cards.push(newCard);
     this.config.cards.push(cardConfig);

@@ -13,7 +13,7 @@
       :connectionStyle="connectionStyle"
       @connectionCreated="handleNewConnection" />
     <!-- 动态渲染卡片 -->
-    <template v-for="card in parsedCards" :key="card.id">
+    <template v-for="(card,index) in parsedCards" :key="card.id+index">
       <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
         :component="card.controller.component" :component-props="card.controller.componentProps"
         :nodeDefine="card.controller.nodeDefine" :component-events="card.events" :anchors="card.controller.anchors"
@@ -77,8 +77,8 @@ const loadConfig = async () => {
     // 更新连接中的卡片ID
     config.value.connections = updateConnectionIds(config.value.connections, idMap);
     // 添加所有卡片
-    for (const cardConfig of config.value.cards) {
-      await addCard(cardConfig, { skipExisting: true });
+    for await (const cardConfig of config.value.cards) {
+      await addCard(cardConfig, { skipExisting: false });
     }
     // 验证并更新连接
     config.value.connections = validateConnections(config.value.connections, parsedCards.value);
@@ -289,9 +289,9 @@ const handleNewConnection = async (newConnection) => {
 </script>
 <style scoped>
 .image-editor {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background: var(--b3-theme-background);
+  border-radius: var(--b3-border-radius);
+  box-shadow: var(--b3-dialog-shadow);
 }
 
 .input-group {
@@ -304,7 +304,6 @@ const handleNewConnection = async (newConnection) => {
   position: relative;
   width: 100%;
   height: 100vh;
-  /* 设置一个固定高度 */
   overflow: hidden;
 }
 
@@ -321,28 +320,31 @@ const handleNewConnection = async (newConnection) => {
   z-index: 1000;
   display: flex;
   gap: 10px;
-  background: white;
+  background: var(--b3-theme-surface);
   padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--b3-border-radius);
+  box-shadow: var(--b3-dialog-shadow);
+  border: 1px solid var(--b3-border-color);
 }
 
 .style-select {
   padding: 6px 12px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  background-color: white;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
   font-size: 14px;
-  color: #606266;
+  color: var(--b3-theme-on-surface);
   cursor: pointer;
   outline: none;
 }
 
 .style-select:hover {
-  border-color: #c0c4cc;
+  border-color: var(--b3-theme-primary);
+  background: var(--b3-list-hover);
 }
 
 .style-select:focus {
-  border-color: #409eff;
+  border-color: var(--b3-theme-primary);
+  box-shadow: 0 0 0 2px var(--b3-theme-primary-light);
 }
 </style>

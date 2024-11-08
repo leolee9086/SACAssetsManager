@@ -121,7 +121,7 @@ function createNodeController(anchorControllers, scope, component, componentName
     cardInfo,
     nodeDefine,
     component: async () => {
-      return await loadVueComponentAsNodeSync(componentURL).getComponent(scope)
+      return component
     },
     anchors: anchorControllers,
     componentProps,
@@ -148,8 +148,16 @@ function createNodeController(anchorControllers, scope, component, componentName
 
 export async function parseNodeDefine(componentURL, cardInfo) {
   try {
-    const component = await loadVueComponentAsNodeSync(componentURL).getComponent();
     const scope = await loadVueComponentAsNodeSync(componentURL).getNodeDefineScope(cardInfo.id);
+    
+    // 检查 scope 是否已经被加载过
+    if (scope.isLoaded) {
+      throw new Error(`scope 已经被加载: ${componentURL}_${cardInfo.id}`);
+    }
+    // 标记 scope 已加载
+    scope.isLoaded = true;
+
+    const component = await loadVueComponentAsNodeSync(componentURL).getComponent(scope);
     const nodeDefine = scope.nodeDefine
     const componentName = new URL(componentURL, window.location.origin).pathname;
     if (!nodeDefine) {

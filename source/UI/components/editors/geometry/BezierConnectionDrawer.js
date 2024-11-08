@@ -4,8 +4,8 @@ import { STYLES, GEOMETRY } from '../types.js'; // 从 types.js 导入常量
 // 配置常量
 const CONFIG = {
     colors: {
-        stroke: '#409EFF',
-        arrowFill: '#67C23A',
+        arrowFill: '#409EFF',
+        stroke: '#67C23A',
         lightDot: '#FFD700'
     },
     sizes: {

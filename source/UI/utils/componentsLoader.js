@@ -100,6 +100,7 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
         },
     };
 
+    const loadedScopes = {};
 
     return {
         getComponent: async (scope) => {
@@ -112,11 +113,23 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
             const newComponent = await loadModule(sfcUrl.trim() + `?asNode=true&&ScopeId=${__scopeId}`, mixinOptions)
             return newComponent;
         },
+
         getNodeDefineScope: async (id) => {
+            const cacheKey = `${sfcUrl}_${id}`;
+            
+            // 检查是否已加载
+            if (loadedScopes[cacheKey]) {
+                console.warn(`Scope already loaded: ${cacheKey}`);
+                return loadedScopes[cacheKey];
+            }
+            
             let scope = (await loader.loadModule(sfcUrl.trim() + `.mjs?asNode=true&&id=${id}`, mixinOptions)).scope
-           
-            console.log(scope,id)
-            return scope
+            console.log(scope, id);
+            
+            // 记录已加载的scope
+            loadedScopes[cacheKey] = scope;
+            
+            return scope;
         }
     };
 }

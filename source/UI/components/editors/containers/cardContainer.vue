@@ -276,8 +276,8 @@ const stopDrag = (e) => {
 
   // 计算新位置时考虑初始偏移量，并确保不小于0
   currentPos.value = {
-    x: Math.max(0, e.clientX - dragStart.value.offsetX),
-    y: Math.max(0, e.clientY - dragStart.value.offsetY)
+    x: Math.max(32, e.clientX - dragStart.value.offsetX),
+    y: Math.max(32, e.clientY - dragStart.value.offsetY)
   }
 
   document.removeEventListener('mousemove', onDrag)
@@ -483,10 +483,11 @@ const getAnchorCountStyle = (side) => {
 <style scoped>
 .floating-card {
   position: absolute;
-  background: white;
+  background: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
   border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  box-shadow: var(--b3-dialog-shadow);
+  z-index: 1;
   min-width: 200px;
   user-select: none;
   padding: 3px;
@@ -504,7 +505,7 @@ const getAnchorCountStyle = (side) => {
   opacity: 0;
   transition: all 0.2s ease;
   height: 20px;
-  background: linear-gradient(to bottom, rgba(249, 250, 251, 0.8), rgba(244, 245, 246, 0.8));
+  background: var(--b3-theme-surface);
   border-radius: 8px 8px 0 0;
   backdrop-filter: blur(4px);
   z-index: 2;
@@ -514,21 +515,21 @@ const getAnchorCountStyle = (side) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: var(--b3-theme-on-surface);
   padding: 4px;
   border-radius: 4px;
   transition: all 0.2s ease;
 }
 
 .drag-handle:hover .handle-icon {
-  background-color: rgba(0, 0, 0, 0.04);
-  color: #64748b;
+  background: var(--b3-list-hover);
+  color: var(--b3-theme-on-surface);
 }
 
 .card-header {
   font-weight: 500;
   font-size: 14px;
-  color: #1e293b;
+  color: var(--b3-theme-on-surface);
   flex: 1;
   margin: 0;
   white-space: nowrap;
@@ -560,7 +561,7 @@ const getAnchorCountStyle = (side) => {
 .resize-handle::after {
   content: '';
   position: absolute;
-  background: #e2e8f0;
+  background: var(--b3-theme-on-surface);
   border-radius: 3px;
   transition: all 0.2s ease;
   pointer-events: none;
@@ -651,6 +652,10 @@ const getAnchorCountStyle = (side) => {
   pointer-events: none;
 }
 
+.anchor-left, .anchor-right, .anchor-top, .anchor-bottom {
+  transform: none;
+}
+
 .anchor-left {
   left: -12px;
   top: 0;
@@ -730,32 +735,31 @@ const getAnchorCountStyle = (side) => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #94a3b8;
-  border: 2px solid white;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
-    0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--b3-theme-on-surface);
+  border: 2px solid var(--b3-theme-surface);
+  box-shadow: var(--b3-dialog-shadow);
   transition: all 0.2s ease;
 }
 
 .anchor-input .anchor-dot {
-  background: #3b82f6;
-  border-color: #eff6ff;
+  background: var(--b3-theme-primary);
+  border-color: var(--b3-theme-surface);
 }
 
 .anchor-output .anchor-dot {
-  background: #10b981;
-  border-color: #ecfdf5;
+  background: var(--b3-theme-success);
+  border-color: var(--b3-theme-surface);
 }
 
 .anchor-label {
   font-size: 12px;
-  color: #475569;
+  color: var(--b3-theme-on-surface);
   font-weight: 500;
   opacity: 0;
   transition: all 0.2s ease;
   pointer-events: none;
   white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 2px var(--b3-theme-background);
 }
 
 .anchor-point:hover {
@@ -779,16 +783,16 @@ const getAnchorCountStyle = (side) => {
 }
 
 .card-content::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--b3-scroll-track);
 }
 
 .card-content::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: var(--b3-scroll-color);
   border-radius: 3px;
 }
 
 .card-content::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: var(--b3-scroll-hover-color);
 }
 
 .anchor-point.hidden {
@@ -798,14 +802,15 @@ const getAnchorCountStyle = (side) => {
 
 .anchor-count {
   position: absolute;
-  background: rgba(100, 116, 139, 0.1); /* 更加透明 */
-  color: #475569; /* 更深的颜色以确保可见性 */
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface);
   padding: 1px 4px;
   border-radius: 3px;
-  font-size: 10px; /* 小字体 */
+  font-size: 10px;
   white-space: nowrap;
   z-index: 1;
   transition: opacity 0.2s ease;
+  border: 1px solid var(--b3-border-color);
 }
 
 .anchor-count-left {
@@ -826,6 +831,6 @@ const getAnchorCountStyle = (side) => {
 
 .anchor-count.hidden {
   opacity: 0;
-  display: none; /* 确保在聚焦时完全隐藏 */
+  display: none;
 }
 </style>

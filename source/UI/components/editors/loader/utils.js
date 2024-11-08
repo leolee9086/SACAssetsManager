@@ -45,19 +45,19 @@ export const updateConnectionIds = (connections, idMap) => {
 // 验证连接的有效性
 export const validateConnections = (connections, cards) => {
     return connections.filter(conn => {
-      const fromCard = cards.find(card => card.id === conn.from.cardId);
-      const toCard = cards.find(card => card.id === conn.to.cardId);
-      
-      if (!fromCard || !toCard) {
-        console.warn('移除无效连接:', conn);
-        return false;
-      }
-      const fromAnchor = fromCard.controller.anchors.find(a => a.id === conn.from.anchorId);
-      const toAnchor = toCard.controller.anchors.find(a => a.id === conn.to.anchorId);
-      if (!fromAnchor || !toAnchor) {
-        console.warn('移除无效锚点连接:', conn);
-        return false;
-      }
-      return true;
+        const fromCard = cards.find(card => card.id === conn.from.cardId);
+        const toCard = cards.find(card => card.id === conn.to.cardId);
+
+        if (!fromCard || !toCard) {
+            console.warn('移除无效连接:', conn);
+            return false;
+        }
+        const fromAnchor = fromCard.controller.anchors.find(a => a.id === conn.from.anchorId);
+        const toAnchor = toCard.controller.anchors.find(a => a.id === conn.to.anchorId);
+        if (!fromAnchor || !toAnchor) {
+            console.warn('移除无效锚点连接:', conn);
+            return false;
+        }
+        return true;
     });
-  };
+};

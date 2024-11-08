@@ -210,7 +210,7 @@ export class GraphManager {
         // 6. 添加传输转换
         if (!this.petriNet.动作.has(transferTransitionId)) {
             添加动作(this.petriNet, transferTransitionId, async () => {
-                console.log(`执行传输: ${transferTransitionId}`);
+                console.log(`执行传输: ${transferTransitionId}`,fromAnchor,toAnchor);
                 const value = fromAnchor.getValue();
                 await toAnchor.setValue(value);
             });

@@ -1,4 +1,6 @@
 import { parseNodeDefine } from "./containers/nodeDefineParser.js";
+import RBush from '../../../../static/rbush.js';
+
 export const componentMap = {
     'math/number':"/plugins/SACAssetsManager/source/UI/components/editors/nodes/math/number.vue",
     'note/protyle':"/plugins/SACAssetsManager/source/UI/components/common/assetCard/protyleCell.vue",
@@ -37,6 +39,7 @@ export const loadJson = async (jsonDefine) => {
             throw new Error('Invalid JSON string');
         }
     }
+
     console.log(data)
     return data;
 };

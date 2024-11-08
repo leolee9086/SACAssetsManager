@@ -53,29 +53,33 @@ const updateStyle = () => {
   left: 20px;
   z-index: 1000;
   display: flex;
-  gap: 10px;
-  background: white;
-  padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  gap: 8px;
+  background: var(--theme-background-color, #2b2b2b);
+  padding: 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: background 0.3s ease;
 }
 
 .style-select {
-  padding: 6px 12px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  background-color: white;
-  font-size: 14px;
-  color: #606266;
+  padding: 4px 10px;
+  border: 1px solid var(--theme-border-color, #3a3a3a);
+  border-radius: 2px;
+  background-color: var(--theme-select-background-color, #3a3a3a);
+  font-size: 13px;
+  color: var(--theme-font-color, #e0e0e0);
   cursor: pointer;
   outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .style-select:hover {
-  border-color: #c0c4cc;
+  border-color: var(--theme-hover-border-color, #1e90ff);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .style-select:focus {
-  border-color: #409eff;
+  border-color: var(--theme-focus-border-color, #1e90ff);
+  box-shadow: 0 0 0 1px rgba(30, 144, 255, 0.2);
 }
 </style>
