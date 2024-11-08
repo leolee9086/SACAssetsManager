@@ -25,13 +25,12 @@
   </div>
 </template>
 <script>
-import { loadJson } from './componentMapLoader.js';
-const editorConfig ="/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
 </script>
 <script setup>
 import { ref, onMounted, computed, toRef, inject, onUnmounted, shallowRef, watch, nextTick } from 'vue';
+import { loadJson } from './componentMapLoader.js';
+
 import CardContainer from './containers/cardContainer.vue';
-import _Konva from '../../../../static/konva.js'
 import ConnectionCanvas from './ConnectionCanvas.vue';
 // 使用同步函数加载异步组件
 import InfoPanel from './InfoPanel.vue';
@@ -42,6 +41,7 @@ import { CoordinateManager } from './CoordinateManager.js';
 import StyleSelector from './toolBar/StyleSelector.vue';
 const cardManager = new CardManager();
 const parsedCards = ref([]);
+const editorConfig ="/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
 
 // 修改 addCard 函数
 const addCard = async (cardConfig, options = {}) => {
@@ -52,86 +52,108 @@ const addCard = async (cardConfig, options = {}) => {
 };
 let componentDefinitions = {}
 
+// 处理卡片ID唯一性
+const ensureUniqueCardIds = (cards) => {
+  const usedIds = new Set();
+  const idMap = new Map();
 
-/**
- * 从保存的卡片加载配置文件
- */
-const loadConfig = async () => {
-  try {
-    // 清空现有卡片和定义缓存
-    parsedCards.value = [];
-    componentDefinitions = {};
-
-    // 检查ID唯一性
-    const usedIds = new Set();
-    const idMap = new Map();
-
-    // 仅检查ID唯一性，不再验证UUID格式
-    config.value.cards = config.value.cards.map(card => {
+  return {
+    updatedCards: cards.map(card => {
       const oldId = card.id;
       if (usedIds.has(oldId)) {
-        // 如果ID重复，生成新的唯一ID
         const newId = `${oldId}_${Date.now()}`;
         console.warn(`发现重复卡片ID，已修正: ${oldId} -> ${newId}`);
         idMap.set(oldId, newId);
         usedIds.add(newId);
-        return {
-          ...card,
-          id: newId
-        };
+        return { ...card, id: newId };
       }
       usedIds.add(oldId);
       return card;
-    });
+    }),
+    idMap
+  };
+};
 
-    // 更新所有连接中的卡片ID
-    if (idMap.size > 0) {
-      const oldConnections = [...config.value.connections];
-      config.value.connections = oldConnections.map(conn => ({
-        from: {
-          cardId: idMap.get(conn.from.cardId) || conn.from.cardId,
-          anchorId: conn.from.anchorId
-        },
-        to: {
-          cardId: idMap.get(conn.to.cardId) || conn.to.cardId,
-          anchorId: conn.to.anchorId
-        }
-      }));
-      // 记录连接的修改
-      const modifiedConnections = config.value.connections.filter((conn, index) => {
-        const oldConn = oldConnections[index];
-        return conn.from.cardId !== oldConn.from.cardId ||
-          conn.to.cardId !== oldConn.to.cardId;
-      });
-      if (modifiedConnections.length > 0) {
-        console.warn('已更新以下连接的卡片ID:', modifiedConnections);
-      }
+// 更新连接中的卡片ID
+const updateConnectionIds = (connections, idMap) => {
+  if (idMap.size === 0) return connections;
+
+  const oldConnections = [...connections];
+  const updatedConnections = oldConnections.map(conn => ({
+    from: {
+      cardId: idMap.get(conn.from.cardId) || conn.from.cardId,
+      anchorId: conn.from.anchorId
+    },
+    to: {
+      cardId: idMap.get(conn.to.cardId) || conn.to.cardId,
+      anchorId: conn.to.anchorId
     }
-    // 使用 addCard 添加所有卡片
+  }));
+
+  // 记录修改的连接
+  const modifiedConnections = updatedConnections.filter((conn, index) => {
+    const oldConn = oldConnections[index];
+    return conn.from.cardId !== oldConn.from.cardId || 
+           conn.to.cardId !== oldConn.to.cardId;
+  });
+  
+  if (modifiedConnections.length > 0) {
+    console.warn('已更新以下连接的卡片ID:', modifiedConnections);
+  }
+
+  return updatedConnections;
+};
+
+// 验证连接的有效性
+const validateConnections = (connections, cards) => {
+  return connections.filter(conn => {
+    const fromCard = cards.find(card => card.id === conn.from.cardId);
+    const toCard = cards.find(card => card.id === conn.to.cardId);
+    
+    if (!fromCard || !toCard) {
+      console.warn('移除无效连接:', conn);
+      return false;
+    }
+    
+    const fromAnchor = fromCard.controller.anchors.find(a => a.id === conn.from.anchorId);
+    const toAnchor = toCard.controller.anchors.find(a => a.id === conn.to.anchorId);
+    
+    if (!fromAnchor || !toAnchor) {
+      console.warn('移除无效锚点连接:', conn);
+      return false;
+    }
+    
+    return true;
+  });
+};
+
+// 重构后的 loadConfig 函数
+const loadConfig = async () => {
+  try {
+    // 清空现有状态
+    parsedCards.value = [];
+    componentDefinitions = {};
+
+    // 确保卡片ID唯一性
+    const { updatedCards, idMap } = ensureUniqueCardIds(config.value.cards);
+    config.value.cards = updatedCards;
+
+    // 更新连接中的卡片ID
+    config.value.connections = updateConnectionIds(config.value.connections, idMap);
+
+    // 添加所有卡片
     for (const cardConfig of config.value.cards) {
       await addCard(cardConfig, { skipExisting: true });
     }
-    // 验证连接的有效性
-    config.value.connections = config.value.connections.filter(conn => {
-      const fromCard = parsedCards.value.find(card => card.id === conn.from.cardId);
-      const toCard = parsedCards.value.find(card => card.id === conn.to.cardId);
-      if (!fromCard || !toCard) {
-        console.warn('移除无效连接:', conn);
-        return false;
-      }
-      const fromAnchor = fromCard.controller.anchors.find(a => a.id === conn.from.anchorId);
-      const toAnchor = toCard.controller.anchors.find(a => a.id === conn.to.anchorId);
-      if (!fromAnchor || !toAnchor) {
-        console.warn('移除无效锚点连接:', conn);
-        return false;
-      }
-      return true;
-    })
-    console.error("connections", config.value.connections)
-      ;
-    let pn = buildPetriNet()
+
+    // 验证并更新连接
+    config.value.connections = validateConnections(config.value.connections, parsedCards.value);
+    console.error("connections", config.value.connections);
+
+    // 初始化和启动Petri网
+    let pn = buildPetriNet();
     pn.exec(undefined, true);
-    pn.startAutoExec()
+    pn.startAutoExec();
   } catch (error) {
     console.error('加载配置失败:', error);
     throw error;
