@@ -12,7 +12,8 @@ import { extractDeclaredVarsInNodeDefine } from '../../utils/codeLoaders/js/lexi
  */
 export function loadVueComponentAsNodeSync(sfcUrl) {
     const moduleCache = {
-        vue: Vue
+        vue: Vue,
+        runtime
     };
 
     const asyncModules = {

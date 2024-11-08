@@ -389,11 +389,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
 
-const handleStartConnection = (event) => {
-  // 传递事件到 ConnectionCanvas
-  connectionCanvas.value.startConnection(event);
-};
-
 const connectionCanvasRef = ref(null);
 const coordinateManager = ref(null);
 

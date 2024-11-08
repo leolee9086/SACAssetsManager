@@ -168,14 +168,12 @@ let show= async (result,inputs) => {
         inputBuffer = await fs.readFile(inputValue);
       }
     }
-    console.log('aaa', inputBuffer)
 
     // 更新原始图片信息
     await useImageInfo().updateOriginalInfo(inputBuffer);
 
     // 更新压缩后的信息
     const outputBuffer = result.compressedImage;
-    console.log('bbb', outputBuffer)
 
     const outputMetadata = await sharp(outputBuffer).metadata();
     const outputBase64 = `data:image/${outputMetadata.format};base64,${outputBuffer.toString('base64')}`;
@@ -184,7 +182,6 @@ let show= async (result,inputs) => {
 
     // 更新预览
     compressionState.previewUrl.value = outputBase64;
-    console.log(compressionState.previewUrl.value)
   } else {
     // 处理失败时清空预览
     compressionState. previewUrl.value = '';
