@@ -1,22 +1,12 @@
 <template>
   <div class="image-editor">
-    <!-- 添加样式选择器 -->
-    <div class="connection-style-selector">
-      <select v-model="connectionStyle.geometry" class="style-select">
-        <option v-for="(label, value) in GEOMETRY_OPTIONS" 
-                :key="value" 
-                :value="value">{{ label }}</option>
-      </select>
-      <select v-model="connectionStyle.drawingStyle" class="style-select">
-        <option v-for="(label, value) in DRAWING_STYLE_OPTIONS" 
-                :key="value" 
-                :value="value">{{ label }}</option>
-      </select>
-    </div>
+    <!-- 使用 StyleSelector 组件 -->
+    <StyleSelector v-model:connectionStyle="connectionStyle" />
 
     <div v-show="false" ref="connectionCanvas" class="connection-canvas">
     </div>
     <ConnectionCanvas 
+       v-if="config.connections"
       :cards="parsedCards" 
       :connections="config.connections" 
       :coordinateManager="coordinateManager"
@@ -27,6 +17,7 @@
       <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
         :component="card.controller.component" :component-props="card.controller.componentProps"
         :nodeDefine="card.controller.nodeDefine" :component-events="card.events" :anchors="card.controller.anchors"
+        :connections="config.connections"
         :card="card" @onCardMove="onCardMove" />
     </template>
 
@@ -34,145 +25,8 @@
   </div>
 </template>
 <script>
-const editorConfig = {
-  "name": "图片编辑器",
-  "cards": [
-  {
-      "id": "note",
-      "type": "note/protyle",
-      "title": "笔记",
-      "position": {
-        "x": 20,
-        "y": 20,
-        "width": 300,
-        "height": 200
-      },
-      "props": {
-        min: 0,
-        max: 100,
-        step: 1
-      }
-    },
-    {
-      "id": "scale",
-      "type": "math/number",
-      "title": "缩放比例",
-      "position": {
-        "x": 20,
-        "y": 20,
-        "width": 300,
-        "height": 200
-      },
-      "props": {
-        min: 0,
-        max: 100,
-        step: 1
-      }
-    },
-    {
-      "id": "path",
-      "type": "localImageInput",
-      "title": "图片输入",
-      "position": {
-        "x": 20,
-        "y": 20,
-        "width": 300,
-        "height": 200
-      }
-    },
-    {
-      "id": "imageCompressor",
-      "type": "ImageCompressor",
-      "title": "图片压缩",
-      "position": {
-        "x": 20,
-        "y": 220,
-        "width": 300,
-        "height": 200
-      }
-    },
-    {
-      "id": "imageComparison",
-      "type": "ImageComparison",
-      "title": "压缩结果",
-      "position": {
-        "x": 340,
-        "y": 20,
-        "width": 800,
-        "height": 600
-      }
-    },
-    {
-      "id": "quality",
-      "type": "math/number",
-      "title": "压缩质量",
-      "position": {
-        "x": 20,
-        "y": 240,
-        "width": 300,
-        "height": 200
-      },
-      "props": {
-        min: 0,
-        max: 100,
-        step: 1
-      }
-    },
-  ],
-  "connections": [
-    {
-      "from": {
-        "cardId": "scale",
-        "anchorId": "number"
-      },
-      "to": {
-        "cardId": "imageCompressor",
-        "anchorId": "scale"
-      }
-    },
-    {
-      "from": {
-        "cardId": "path",
-        "anchorId": "filePath"
-      },
-      "to": {
-        "cardId": "imageComparison",
-        "anchorId": "originalImage"
-      }
-    },
-    {
-      "from": {
-        "cardId": "path",
-        "anchorId": "file"
-      },
-      "to": {
-        "cardId": "imageCompressor",
-        "anchorId": "source"
-      }
-    },
-    {
-      "from": {
-        "cardId": "imageCompressor",
-        "anchorId": "compressedImage"
-      },
-      "to": {
-        "cardId": "imageComparison",
-        "anchorId": "processedImage"
-      }
-    },
-    {
-      "from": {
-        "cardId": "quality",
-        "anchorId": "number"
-      },
-      "to": {
-        "cardId": "imageCompressor",
-        "anchorId": "quality"
-      }
-    }
-  ]
-}
-
+import { loadJson } from './componentMapLoader.js';
+const editorConfig ="/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
 </script>
 <script setup>
 import { ref, onMounted, computed, toRef, inject, onUnmounted, shallowRef, watch, nextTick } from 'vue';
@@ -185,6 +39,7 @@ import InfoPanel from './InfoPanel.vue';
 import { CardManager } from './cardManager.js';
 import { CoordinateManager } from './CoordinateManager.js';
 // 在 setup 中
+import StyleSelector from './toolBar/StyleSelector.vue';
 const cardManager = new CardManager();
 const parsedCards = ref([]);
 
@@ -305,6 +160,8 @@ const config = ref(editorConfig);
 // 绘制连线
 // 初始化 canvas 和连接
 onMounted(async () => {
+  config.value = await loadJson(editorConfig); // 使用异步加载函数
+   console.log(config.value)
   await loadConfig();
   updateAnchorsPosition(parsedCards.value)
   // 将配置文件中的连接转换为内部连接格式
@@ -455,31 +312,45 @@ const handleNewConnection = async (newConnection) => {
         // 3. 保存当前状态以便回滚
         const previousConnections = [...config.value.connections];
 
-        // 4. 更新连接
-        if (existingConnectionIndex !== -1) {
-            // 替换已有连接
-            config.value.connections.splice(existingConnectionIndex, 1, newConnection);
+        // 4. 检查是否存在重复连接
+        const duplicateConnectionIndex = config.value.connections.findIndex(conn =>
+            conn.from.cardId === newConnection.from.cardId &&
+            conn.from.anchorId === newConnection.from.anchorId &&
+            conn.to.cardId === newConnection.to.cardId &&
+            conn.to.anchorId === newConnection.to.anchorId
+        );
+
+        if (duplicateConnectionIndex !== -1) {
+            // 如果存在重复连接，移除该连接
+            config.value.connections.splice(duplicateConnectionIndex, 1);
+            console.log('重复连接已移除:', newConnection);
         } else {
-            // 添加新连接
-            config.value.connections.push(newConnection);
+            // 5. 更新连接
+            if (existingConnectionIndex !== -1) {
+                // 替换已有连接
+                config.value.connections.splice(existingConnectionIndex, 1, newConnection);
+            } else {
+                // 添加新连接
+                config.value.connections.push(newConnection);
+            }
         }
 
-        // 5. 强制更新连接数组的引用，触发视图更新
+        // 6. 强制更新连接数组的引用，触发视图更新
         config.value.connections = [...config.value.connections];
 
-        // 6. 等待下一个 tick，确保视图更新
+        // 7. 等待下一个 tick，确保视图更新
         await nextTick();
 
-        // 7. 重建并验证整个 Petri 网络
+        // 8. 重建并验证整个 Petri 网络
         let pn = buildPetriNet();
         pn.exec(undefined, true);
         pn.startAutoExec();
     } catch (error) {
-        // 8. 如果出错，回滚到之前的状态
+        // 9. 如果出错，回滚到之前的状态
         config.value.connections = [...previousConnections];
         console.error('Petri网络构建失败:', error);
         
-        // 9. 强制更新视图
+        // 10. 强制更新视图
         await nextTick();
     }
 };

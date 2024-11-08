@@ -1,16 +1,5 @@
 import Konva from '../../../../../static/konva.js';
-
-// 样式常量
-const STYLES = {
-    NORMAL: 'normal',
-    HAND_DRAWN: 'handDrawn'
-};
-
-const GEOMETRY = {
-    CIRCUIT: 'circuit',
-    BEZIER: 'bezier',
-    ARC: 'arc'
-};
+import { STYLES, GEOMETRY } from '../types.js'; // 从 types.js 导入常量
 
 // 配置常量
 const CONFIG = {

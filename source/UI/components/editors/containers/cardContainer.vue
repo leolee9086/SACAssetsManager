@@ -1,10 +1,12 @@
 <template>
-  <div class="floating-card" :style="cardStyle" :data-card-id="props.cardID" @mouseenter="showHandles"
-    @mouseleave="hideHandles" ref="card">
+  <div class="floating-card" :style="cardStyle" :data-card-id="props.cardID" @mouseenter="handleFocus"
+    @mouseleave="handleBlur" ref="card" tabindex="0">
     <!-- 渲染四个方向的接口锚点 -->
     <template v-for="(anchors, side) in groupedAnchors" :key="side">
       <div :class="['anchor-container', `anchor-${side}`]">
-        <div v-for="anchor in anchors" :key="anchor.id" :class="['anchor-point', `anchor-${anchor.type}`]"
+        <div v-for="anchor in anchors" :key="anchor.id" :class="['anchor-point', `anchor-${anchor.type}`, {
+          'hidden': shouldHideAnchor(anchor)
+        }]"
           :style="getAnchorStyle(anchor, side)" :title="anchor.label"
           @mousedown.stop="startConnectionDrag(anchor, side)"
           :data-anchor-id="anchor.id"
@@ -12,6 +14,12 @@
           <div class="anchor-dot"></div>
           <span class="anchor-label">{{ anchor.label }}</span>
         </div>
+      </div>
+      <!-- 显示锚点数量 - 仅在未聚焦且有未连接锚点时显示 -->
+      <div v-if="!isFocused.value && hasUnconnectedAnchorsForSide(side)" 
+           :class="['anchor-count', `anchor-count-${side}`]"
+           :style="getAnchorCountStyle(side)">
+        {{ unconnectedAnchorsCountForSide(side) }}
       </div>
     </template>
     <!-- 四周的缩放手柄 -->
@@ -36,6 +44,14 @@
       </template>
 
     </div>
+    <div v-if="isFocused.value" class="anchors">
+      <!-- 显示锚点 -->
+      <div class="anchor" v-for="anchor in anchors" :key="anchor.id">
+        <!-- 锚点内容 -->
+      </div>
+    </div>
+
+
   </div>
 </template>
 
@@ -82,9 +98,30 @@ const props = defineProps({
   cardID: {
     type: String,
     required: true
+  },
+  connections: {
+    type: Array,
+    default: () => []
   }
 })
 
+// 计算已连接的锚点
+const isAnchorConnected = (anchor) => {
+  return props.connections.some(conn => 
+    (conn.from.cardId === props.cardID && conn.from.anchorId === anchor.id) ||
+    (conn.to.cardId === props.cardID && conn.to.anchorId === anchor.id)
+  )
+}
+
+// 计算未连接的锚点数量
+const unconnectedAnchorsCount = computed(() => {
+  return props.anchors.filter(anchor => !isAnchorConnected(anchor)).length
+})
+
+// 是否有未连接的锚点
+const hasUnconnectedAnchors = computed(() => {
+  return unconnectedAnchorsCount.value > 0
+})
 
 // Refs
 const card = ref(null)
@@ -189,9 +226,17 @@ const cardStyle = computed(() => ({
 // 定义接口锚点数据结构
 const anchors = toRef(props, 'anchors')
 
+// 添加 isFocused 响应式变量
+const isFocused = ref(false);
 
+// 修改为使用方法而不是直接在模板中绑定事件
+const handleFocus = () => {
+  isFocused.value = true;
+};
 
-
+const handleBlur = () => {
+  isFocused.value = false;
+};
 
 // 计算锚点位置样式
 const getAnchorStyle = (anchor, side) => {
@@ -393,6 +438,44 @@ const groupedAnchors = computed(() => {
 const startConnectionDrag = (anchor, side) => {
   // 触发自定义事件，通知父组件开始连接
   anchor.emit('startConnection', { anchor, side, cardID: props.cardID });
+};
+
+// 判断是否应该隐藏锚点
+const shouldHideAnchor = (anchor) => {
+  // 如果卡片被聚焦，显示所有锚点
+  if (isFocused.value) {
+    return false;
+  }
+  // 如果锚点已连接，始终显示
+  if (isAnchorConnected(anchor)) {
+    return false;
+  }
+  // 其他情况隐藏
+  return true;
+};
+
+// 计算每个边上未连接的锚点数量
+const unconnectedAnchorsCountForSide = (side) => {
+  return props.anchors.filter(anchor => anchor.side === side && !isAnchorConnected(anchor)).length;
+};
+
+// 判断某个边上是否有未连接的锚点
+const hasUnconnectedAnchorsForSide = (side) => {
+  return unconnectedAnchorsCountForSide(side) > 0;
+};
+
+// 计算无连接标签的位置
+const getAnchorCountStyle = (side) => {
+  const connectedAnchors = props.anchors.filter(anchor => anchor.side === side && isAnchorConnected(anchor));
+  const lastConnectedAnchor = connectedAnchors[connectedAnchors.length - 1];
+  if (!lastConnectedAnchor) return {};
+
+  const position = lastConnectedAnchor.position * 100;
+  if (side === 'left' || side === 'right') {
+    return { top: `calc(${position}% + 20px)` }; // 20px 偏移量
+  } else {
+    return { left: `calc(${position}% + 20px)` }; // 20px 偏移量
+  }
 };
 
 </script>
@@ -612,6 +695,7 @@ const startConnectionDrag = (anchor, side) => {
   gap: 4px;
   pointer-events: auto;
   z-index: 4;
+  transition: opacity 0.2s ease;
 }
 
 .anchor-left .anchor-point {
@@ -705,5 +789,43 @@ const startConnectionDrag = (anchor, side) => {
 
 .card-content::-webkit-scrollbar-thumb:hover {
   background-color: rgba(0, 0, 0, 0.3);
+}
+
+.anchor-point.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.anchor-count {
+  position: absolute;
+  background: rgba(100, 116, 139, 0.1); /* 更加透明 */
+  color: #475569; /* 更深的颜色以确保可见性 */
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px; /* 小字体 */
+  white-space: nowrap;
+  z-index: 1;
+  transition: opacity 0.2s ease;
+}
+
+.anchor-count-left {
+  left: -30px;
+}
+
+.anchor-count-right {
+  right: -30px;
+}
+
+.anchor-count-top {
+  top: -15px;
+}
+
+.anchor-count-bottom {
+  bottom: -15px;
+}
+
+.anchor-count.hidden {
+  opacity: 0;
+  display: none; /* 确保在聚焦时完全隐藏 */
 }
 </style>

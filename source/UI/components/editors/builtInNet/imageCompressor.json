@@ -1,71 +1,138 @@
 {
-    "name": "图片编辑器",
-    "cards": [
-      {
-        "id": "imageInput",
-        "type": "localImageInput",
-        "title": "图片输入",
-        "position": {
-          "x": 20,
-          "y": 20,
-          "width": 300,
-          "height": 200
-        }
+  "name": "图片编辑器",
+  "cards": [
+  {
+      "id": "note",
+      "type": "note/protyle",
+      "title": "笔记",
+      "position": {
+        "x": 20,
+        "y": 20,
+        "width": 300,
+        "height": 200
       },
-      {
-        "id": "imageCompressor",
-        "type": "ImageCompressor",
-        "title": "图片压缩",
-        "position": {
-          "x": 20,
-          "y": 220,
-          "width": 300,
-          "height": 200
-        }
-      },
-      {
-        "id": "imageComparison",
-        "type": "ImageComparison",
-        "title": "压缩结果",
-        "position": {
-          "x": 340,
-          "y": 20,
-          "width": 800,
-          "height": 600
-        }
+      "props": {
+        "min": 0,
+        "max": 100,
+        "step": 1
       }
-  
-    ],
-    "connections": [
-      {
-        "from": {
-          "cardId": "imageInput",
-          "anchorId": "filePath"
-        },
-        "to": {
-          "cardId": "imageComparison",
-          "anchorId": "originalImage"
-        }
+    },
+    {
+      "id": "scale",
+      "type": "math/number",
+      "title": "缩放比例",
+      "position": {
+        "x": 20,
+        "y": 20,
+        "width": 300,
+        "height": 200
       },
-      {
-        "from": {
-          "cardId": "imageInput",
-          "anchorId": "file"
-        },
-        "to": {
-          "cardId": "imageCompressor",
-          "anchorId": "source"
-        }
-      },
-      {
-        "from": {
-          "cardId": "imageCompressor",
-          "anchorId": "compressedImage"
-        },
-        "to": {
-          "cardId": "imageComparison",
-          "anchorId": "processedImage"
-        }
+      "props": {
+        "min": 0,
+        "max": 100,
+        "step": 1
       }
-    ]
-  }
+    },
+    {
+      "id": "path",
+      "type": "localImageInput",
+      "title": "图片输入",
+      "position": {
+        "x": 20,
+        "y": 20,
+        "width": 300,
+        "height": 200
+      }
+    },
+    {
+      "id": "imageCompressor",
+      "type": "ImageCompressor",
+      "title": "图片压缩",
+      "position": {
+        "x": 20,
+        "y": 220,
+        "width": 300,
+        "height": 200
+      }
+    },
+    {
+      "id": "imageComparison",
+      "type": "ImageComparison",
+      "title": "压缩结果",
+      "position": {
+        "x": 340,
+        "y": 20,
+        "width": 800,
+        "height": 600
+      }
+    },
+    {
+      "id": "quality",
+      "type": "math/number",
+      "title": "压缩质量",
+      "position": {
+        "x": 20,
+        "y": 240,
+        "width": 300,
+        "height": 200
+      },
+      "props": {
+        "min": 0,
+        "max": 100,
+        "step": 1
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": {
+        "cardId": "scale",
+        "anchorId": "number"
+      },
+      "to": {
+        "cardId": "imageCompressor",
+        "anchorId": "scale"
+      }
+    },
+    {
+      "from": {
+        "cardId": "path",
+        "anchorId": "filePath"
+      },
+      "to": {
+        "cardId": "imageComparison",
+        "anchorId": "originalImage"
+      }
+    },
+    {
+      "from": {
+        "cardId": "path",
+        "anchorId": "file"
+      },
+      "to": {
+        "cardId": "imageCompressor",
+        "anchorId": "source"
+      }
+    },
+    {
+      "from": {
+        "cardId": "imageCompressor",
+        "anchorId": "compressedImage"
+      },
+      "to": {
+        "cardId": "imageComparison",
+        "anchorId": "processedImage"
+      }
+    },
+    {
+      "from": {
+        "cardId": "quality",
+        "anchorId": "number"
+      },
+      "to": {
+        "cardId": "imageCompressor",
+        "anchorId": "quality"
+      }
+    }
+  ]
+}
