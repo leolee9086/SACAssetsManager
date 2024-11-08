@@ -29,7 +29,6 @@
 <script setup>
 import { ref, onMounted, computed, toRef, inject, onUnmounted,  watch, nextTick } from 'vue';
 import { loadJson } from './componentMapLoader.js';
-
 import CardContainer from './containers/cardContainer.vue';
 import ConnectionCanvas from './ConnectionCanvas.vue';
 // 使用同步函数加载异步组件
@@ -37,6 +36,10 @@ import InfoPanel from './InfoPanel.vue';
 //用于流程构建和控制
 import { CardManager } from './cardManager.js';
 import { CoordinateManager } from './CoordinateManager.js';
+import { GraphManager } from './GraphManager.js';
+import { ensureUniqueCardIds ,updateConnectionIds,validateConnections} from './loader/utils.js';
+import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
+
 // 在 setup 中
 import StyleSelector from './toolBar/StyleSelector.vue';
 const cardManager = new CardManager();
@@ -50,7 +53,6 @@ const addCard = async (cardConfig, options = {}) => {
 };
 let componentDefinitions = {}
 
-import { GraphManager } from './GraphManager.js';
 
 const graphManager = new GraphManager();
 const getGlobalInputs = () => {
@@ -62,7 +64,6 @@ function buildPetriNet() {
   return graphManager.buildPetriNet(config.value, parsedCards.value, getGlobalInputs);
 }
 
-import { ensureUniqueCardIds ,updateConnectionIds,validateConnections} from './loader/utils.js';
 
 // 重构后的 loadConfig 函数
 const loadConfig = async () => {
@@ -177,7 +178,6 @@ const systemStats = computed(() => {
   return result
 });
 
-import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
 
 
 // 在需要的地方调用更新函数
