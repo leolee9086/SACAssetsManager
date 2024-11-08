@@ -1,9 +1,9 @@
 <template>
-  <div class="image-editor">
+  <div class="image-editor" ref="connectionCanvasRef">
     <!-- 使用 StyleSelector 组件 -->
     <StyleSelector v-model:connectionStyle="connectionStyle" />
 
-    <div v-show="false" ref="connectionCanvas" class="connection-canvas">
+    <div v-show="false"  class="connection-canvas">
     </div>
     <ConnectionCanvas 
        v-if="config.connections"
@@ -95,7 +95,6 @@ const loadConfig = async () => {
 const container = ref(null);
 const appData = toRef(inject('appData'))
 // 修改连线相关的状态管理
-const connectionCanvas = ref(null);
 const anchors = ref(new Map()); // 存储所有锚点信息
 const connections = ref([]); // 存储连线信息
 // 配置相关
@@ -199,6 +198,8 @@ const onCardMove = (cardId, newPosition) => {
 };
 // 在窗口大小改变时可能也需要更新
 onMounted(() => {
+  coordinateManager.value = new CoordinateManager(connectionCanvasRef.value);
+
   window.addEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
 onUnmounted(() => {
@@ -208,9 +209,7 @@ onUnmounted(() => {
 const connectionCanvasRef = ref(null);
 const coordinateManager = ref(null);
 
-onMounted(() => {
-  coordinateManager.value = new CoordinateManager(connectionCanvasRef.value);
-});
+
 
 
 // 连接样式状态
@@ -292,6 +291,12 @@ const handleNewConnection = async (newConnection) => {
   background: var(--b3-theme-background);
   border-radius: var(--b3-border-radius);
   box-shadow: var(--b3-dialog-shadow);
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  
+
 }
 
 .input-group {
@@ -300,12 +305,6 @@ const handleNewConnection = async (newConnection) => {
   margin-bottom: 12px;
 }
 
-.image-editor {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-  overflow: hidden;
-}
 
 /* 确保所有卡片容器使用相对于 image-editor 定位 */
 :deep(.floating-card) {

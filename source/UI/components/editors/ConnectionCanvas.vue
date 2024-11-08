@@ -23,6 +23,11 @@
         geometry: 'circuit',
         drawingStyle: 'normal'
       })
+    },
+    coordinateManager:{
+      type: Array,
+      required: true
+
     }
   });
   
@@ -36,10 +41,12 @@
   // 初始化 Konva
   const initKonva = () => {
     const container = connectionCanvas.value;
+    const parentSize = props.coordinateManager.getParentSize();
+    
     stage.value = new Konva.Stage({
       container: container,
-      width: container.offsetWidth,
-      height: container.offsetHeight
+      width: parentSize.width,
+      height: parentSize.height
     });
   
     layer.value = new Konva.Layer();
@@ -92,11 +99,38 @@
   const handleResize = () => {
     if (!connectionCanvas.value || !stage.value) return;
     
-    stage.value.width(connectionCanvas.value.offsetWidth);
-    stage.value.height(connectionCanvas.value.offsetHeight);
-    updateConnections();
+    const parentSize = props.coordinateManager.getParentSize();
+    stage.value.width(parentSize.width);
+    stage.value.height(parentSize.height);
+    
+    // 更新stage位置以匹配滚动
+    const scroll = props.coordinateManager.getScrollOffset();
+    stage.value.position({
+      x: -scroll.scrollLeft,
+      y: -scroll.scrollTop
+    });
+    console.log(scroll.scrollTop,scroll.scrollLeft)
+    connectionCanvas.value.style.top=scroll.scrollTop+'px'
+    connectionCanvas.value.style.left=scroll.scrollLeft+'px'
+
+    stage.value.batchDraw();
   };
-  
+
+  // 添加滚动监听
+  const handleScroll = () => {
+    if (!stage.value) return;
+    
+    const scroll = props.coordinateManager.getScrollOffset();
+    stage.value.position({
+      x: -scroll.scrollLeft,
+      y: -scroll.scrollTop
+    });
+        connectionCanvas.value.style.top=scroll.scrollTop+'px'
+        connectionCanvas.value.style.left=scroll.scrollLeft+'px'
+
+    stage.value.batchDraw();
+  };
+
   // 监听属性变化
   watch(() => props.cards, updateConnections, { deep: true });
   watch(() => props.connections, (newConnections) => {
@@ -181,10 +215,12 @@
     initKonva();
     updateConnections();
     window.addEventListener('resize', handleResize);
+    props.coordinateManager.container.addEventListener('scroll', handleScroll);
   });
   
   onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
+    props.coordinateManager.container.removeEventListener('scroll', handleScroll);
   });
 
   function getAnchorFromEvent(e) {
