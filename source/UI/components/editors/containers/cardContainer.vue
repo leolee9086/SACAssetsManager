@@ -6,19 +6,15 @@
       <div :class="['anchor-container', `anchor-${side}`]">
         <div v-for="anchor in anchors" :key="anchor.id" :class="['anchor-point', `anchor-${anchor.type}`, {
           'hidden': shouldHideAnchor(anchor)
-        }]"
-          :style="getAnchorStyle(anchor, side)" :title="anchor.label"
-          @mousedown.stop="startConnectionDrag(anchor, side)"
-          :data-anchor-id="anchor.id"
-          :data-card-id="props.cardID">
+        }]" :style="getAnchorStyle(anchor, side)" :title="anchor.label"
+          @mousedown.stop="startConnectionDrag(anchor, side)" :data-anchor-id="anchor.id" :data-card-id="props.cardID">
           <div class="anchor-dot"></div>
           <span class="anchor-label">{{ anchor.label }}</span>
         </div>
       </div>
       <!-- 显示锚点数量 - 仅在未聚焦且有未连接锚点时显示 -->
-      <div v-if="!isFocused.value && hasUnconnectedAnchorsForSide(side)" 
-           :class="['anchor-count', `anchor-count-${side}`]"
-           :style="getAnchorCountStyle(side)">
+      <div v-if="!isFocused.value && hasUnconnectedAnchorsForSide(side)"
+        :class="['anchor-count', `anchor-count-${side}`]" :style="getAnchorCountStyle(side)">
         {{ unconnectedAnchorsCountForSide(side) }}
       </div>
     </template>
@@ -33,9 +29,17 @@
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M2 5h12M2 8h12M2 11h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg>
+        <div class="fn__space"></div>
+          <template v-for="action in cardActions" :key="action.name">
+        
+            <svg @click="action.action"   
+            :title="action.name" class="b3-menu__icon " style="cursor: copy;"><use xlink:href="#iconCopy"></use></svg>
+          </template>
+
       </div>
       <div class="card-header" v-if="title">
         {{ title }}
+        <!-- 添加卡片操作按钮 -->
       </div>
     </div>
     <div class="card-content">
@@ -56,7 +60,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef } from 'vue'
+import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef } from 'vue';
+import { v4 as uuidv4 } from '../../../../../static/uuid.mjs'; // 使用 UUID 生成唯一 ID
+
 // Props 定义
 const props = defineProps({
   title: {
@@ -107,21 +113,12 @@ const props = defineProps({
 
 // 计算已连接的锚点
 const isAnchorConnected = (anchor) => {
-  return props.connections.some(conn => 
+  return props.connections.some(conn =>
     (conn.from.cardId === props.cardID && conn.from.anchorId === anchor.id) ||
     (conn.to.cardId === props.cardID && conn.to.anchorId === anchor.id)
   )
 }
 
-// 计算未连接的锚点数量
-const unconnectedAnchorsCount = computed(() => {
-  return props.anchors.filter(anchor => !isAnchorConnected(anchor)).length
-})
-
-// 是否有未连接的锚点
-const hasUnconnectedAnchors = computed(() => {
-  return unconnectedAnchorsCount.value > 0
-})
 
 // Refs
 const card = ref(null)
@@ -212,16 +209,22 @@ const resizeHandles = [
 ]
 
 // Computed
-const cardStyle = computed(() => ({
-  left: `${currentPos.value.x }px`,
-  top: `${currentPos.value.y }px`,
-  width: `${currentSize.value.width}px`,
-  height: `${currentSize.value.height}px`,
-  position: 'absolute',
-  color: error.value ? `var(--b3-card-error-color)` : "",
-  border: error.value ? `1px solid var(--b3-card-error-color)` : "",
-  backgroundColor: error.value ? `var(--b3-card-error-background)` : ""
-}))
+const cardStyle = computed(() => {
+  console.log('aaa',currentPos.value,currentSize.value)
+  let data= {
+    left: `${currentPos.value.x}px`,
+    top: `${currentPos.value.y}px`,
+    width: `${currentSize.value.width}px`,
+    height: `${currentSize.value.height}px`,
+    position: 'absolute',
+    color: error.value ? `var(--b3-card-error-color)` : "",
+    border: error.value ? `1px solid var(--b3-card-error-color)` : "",
+    backgroundColor: error.value ? `var(--b3-card-error-background)` : "",
+    
+  }
+  console.log(data)
+  return data
+})
 
 // 定义接口锚点数据结构
 const anchors = toRef(props, 'anchors')
@@ -248,6 +251,8 @@ const getAnchorStyle = (anchor, side) => {
 }
 
 const startDrag = (e) => {
+  if (props.componentProps?.isPreview) return;
+
   isDragging.value = true
   dragStart.value = {
     x: e.clientX,
@@ -284,6 +289,8 @@ const stopDrag = (e) => {
   document.removeEventListener('mouseup', stopDrag)
 }
 const startResize = (e, position) => {
+  if (props.componentProps?.isPreview) return;
+
   // 如果是固定尺寸，则不允许缩放
   if (fixedWidth && fixedHeight) {
     return;
@@ -351,18 +358,6 @@ const stopResize = () => {
   document.removeEventListener('mouseup', stopResize)
 }
 
-const showHandles = () => {
-  // 如果是固定尺寸，则不显示缩放手柄
-  if (!fixedWidth && !fixedHeight) {
-    isHandleVisible.value = true
-  }
-}
-
-const hideHandles = () => {
-  if (!isDragging.value && !isResizing.value) {
-    isHandleVisible.value = false
-  }
-}
 let component = shallowRef({})
 let error = ref('')
 // 生命周期钩子
@@ -408,13 +403,81 @@ onUnmounted(() => {
 
 
 // 定义 emit
-const emit = defineEmits(['onCardMove', 'startConnection']);
+const emit = defineEmits(['onCardMove', 'startConnection', 'duplicateCard', 'startDuplicating']);
+
+// 添加一个方法来获取当前卡片的 HTML 内容
+const getCardPreviewContent = () => {
+  const cardContent = card.value?.querySelector('.card-content');
+  return cardContent ? cardContent.innerHTML : '';
+};
+
+// 修改复制卡片的方法
+const duplicateCard = (e) => {
+  e.stopPropagation();
+
+  const newCardID = uuidv4();
+
+  // 创建预览卡片数据，不包含位置信息
+  const previewCard = {
+    id: newCardID,
+    title: props.title,
+    position: {
+      ...currentPos.value,
+      width: currentSize.value.width,
+      height: currentSize.value.height
+    },
+    cardID: newCardID,
+    component: () => markRaw({
+      template: `<div class="preview-content">${getCardPreviewContent()}</div>`,
+      setup() {
+        return {};
+      }
+    }),
+    componentProps: {},
+    nodeDefine: props.nodeDefine,
+    anchors: [] // 预览时不需要锚点
+  };
+
+  // 创建实际要添加的卡片数据
+  const newCard = {
+    ...props.card.controller.cardInfo,
+    id: newCardID,
+    position: {
+      ...currentPos.value,
+      width: currentSize.value.width,
+      height: currentSize.value.height
+    }
+  };
+
+  // 发出开始复制事件
+  emit('startDuplicating', {
+    previewCard,
+    actualCard: newCard,
+    mouseEvent: e,
+    sourcePosition: {
+      x: currentPos.value.x,
+      y: currentPos.value.y
+    }
+  });
+};
+
+// 修改卡片操作按钮的定义
+const cardActions = [
+  {
+    name: '复制',
+    action: (e) => duplicateCard(e),
+    icon: '📋' // 可选：添加图标
+  }
+];
 
 // 监听卡片位置和尺寸变化
 watch(cardStyle, () => {
-  nextTick(() => {
-    emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value })
-  });
+  // 只有在非预览状态下才触发卡片移动事件
+  if (!props.componentProps?.isPreview) {
+    nextTick(() => {
+      emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value });
+    });
+  }
 });
 
 // 按方向分组锚点
@@ -477,6 +540,23 @@ const getAnchorCountStyle = (side) => {
     return { left: `calc(${position}% + 20px)` }; // 20px 偏移量
   }
 };
+
+// 添加对 position prop 的监听
+watch(() => props.position, (newPosition) => {
+  // 如果是预览模式(复制模式)，直接更新位置而不触发事件
+  if (props.componentProps?.isPreview) {
+    currentPos.value = {
+      x: newPosition.x,
+      y: newPosition.y
+    };
+    currentSize.value = {
+      width: newPosition.width || currentSize.value.width,
+      height: newPosition.height || currentSize.value.height
+    };
+  }
+  console.log('aaaa',props.position)
+
+}, { deep: true });
 
 </script>
 
@@ -652,7 +732,10 @@ const getAnchorCountStyle = (side) => {
   pointer-events: none;
 }
 
-.anchor-left, .anchor-right, .anchor-top, .anchor-bottom {
+.anchor-left,
+.anchor-right,
+.anchor-top,
+.anchor-bottom {
   transform: none;
 }
 
@@ -832,5 +915,31 @@ const getAnchorCountStyle = (side) => {
 .anchor-count.hidden {
   opacity: 0;
   display: none;
+}
+
+
+
+.card-actions button {
+  background: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
+  border-radius: 4px;
+  padding: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.card-actions button:hover {
+  background: var(--b3-list-hover);
+}
+
+.card-actions svg {
+  width: 16px;
+  height: 16px;
+  color: var(--b3-theme-on-surface);
 }
 </style>

@@ -1,3 +1,33 @@
+import { ref, onMounted, onUnmounted, nextTick } from '../../../../static/vue.esm-browser.js'
+
+export function useFixedPosition(coordinateManager, initialOffset = { top: 20, left: 20 }) {
+  const offset = ref({ ...initialOffset });
+
+  const updatePosition = () => {
+    const scroll = coordinateManager.getScrollOffset();
+    offset.value = {
+      top: initialOffset?.top + scroll.scrollTop,
+      left: initialOffset?.left + scroll.scrollLeft,
+      right: initialOffset?.left - scroll.scrollLeft
+
+    };
+  };
+
+  onMounted(()=>nextTick(() => {
+    coordinateManager.container.addEventListener('scroll', updatePosition);
+    coordinateManager.container.addEventListener('wheel', updatePosition);
+
+    updatePosition(); // 初始化位置
+  }));
+
+  onUnmounted(() => {
+    coordinateManager.container.removeEventListener('scroll', updatePosition);
+    coordinateManager.container.removeEventListener('wheel', updatePosition);
+
+  });
+
+  return offset;
+}
 export class CoordinateManager {
     constructor(container) {
         this.container = container;

@@ -1,33 +1,41 @@
 <template>
+  <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
+    :coordinateManager="coordinateManager" />
+  <InfoPanel v-if="coordinateManager" :stats="systemStats" :coordinateManager="coordinateManager" />
+
   <div class="image-editor" ref="connectionCanvasRef">
     <!-- 使用 StyleSelector 组件 -->
-    <StyleSelector v-model:connectionStyle="connectionStyle" />
 
-    <div v-show="false"  class="connection-canvas">
+    <div v-show="false" class="connection-canvas">
     </div>
-    <ConnectionCanvas 
-       v-if="config.connections"
-      :cards="parsedCards" 
-      :connections="config.connections" 
-      :coordinateManager="coordinateManager"
-      :connectionStyle="connectionStyle"
+    <ConnectionCanvas v-if="config.connections" :cards="parsedCards" :connections="config.connections"
+      :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
       @connectionCreated="handleNewConnection" />
     <!-- 动态渲染卡片 -->
-    <template v-for="(card,index) in parsedCards" :key="card.id+index">
+    <template v-for="(card, index) in parsedCards" :key="card.id+index">
       <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
         :component="card.controller.component" :component-props="card.controller.componentProps"
         :nodeDefine="card.controller.nodeDefine" :component-events="card.events" :anchors="card.controller.anchors"
-        :connections="config.connections"
-        :card="card" @onCardMove="onCardMove" />
+        :connections="config.connections" :card="card" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
     </template>
 
-    <InfoPanel :stats="systemStats" />
+    <!-- 复制中的卡片预览 -->
+    <cardContainer
+      v-if="isDuplicating && duplicatingPreview"
+      v-bind="duplicatingPreview"
+      :style="{
+        opacity: 0.7,
+        pointerEvents: 'none',
+        zIndex: 1000,
+        cursor: 'move'
+      }"
+    />
   </div>
 </template>
 <script>
 </script>
 <script setup>
-import { ref, onMounted, computed, toRef, inject, onUnmounted,  watch, nextTick } from 'vue';
+import { ref, onMounted, computed, toRef, inject, onUnmounted, watch, nextTick } from 'vue';
 import { loadJson } from './componentMapLoader.js';
 import CardContainer from './containers/cardContainer.vue';
 import ConnectionCanvas from './ConnectionCanvas.vue';
@@ -37,14 +45,14 @@ import InfoPanel from './InfoPanel.vue';
 import { CardManager } from './cardManager.js';
 import { CoordinateManager } from './CoordinateManager.js';
 import { GraphManager } from './GraphManager.js';
-import { ensureUniqueCardIds ,updateConnectionIds,validateConnections} from './loader/utils.js';
+import { ensureUniqueCardIds, updateConnectionIds, validateConnections } from './loader/utils.js';
 import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
 
 // 在 setup 中
 import StyleSelector from './toolBar/StyleSelector.vue';
 const cardManager = new CardManager();
 const parsedCards = ref([]);
-const editorConfig ="/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
+const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
 // 修改 addCard 函数
 const addCard = async (cardConfig, options = {}) => {
   const card = await cardManager.addCard(cardConfig, options);
@@ -104,7 +112,7 @@ const config = ref(editorConfig);
 // 初始化 canvas 和连接
 onMounted(async () => {
   config.value = await loadJson(editorConfig); // 使用异步加载函数
-   console.log(config.value)
+  console.log(config.value)
   await loadConfig();
   updateAnchorsPosition(parsedCards.value)
   // 将配置文件中的连接转换为内部连接格式
@@ -221,70 +229,200 @@ const connectionStyle = ref({
 import { validateConnection } from '../../../utils/graph/PetriNet.js';
 
 const handleNewConnection = async (newConnection) => {
-    // 1. 检查是否存在需要替换的连接
-    const existingConnectionIndex = config.value.connections.findIndex(conn => 
-        conn.to.cardId === newConnection.to.cardId && 
-        conn.to.anchorId === newConnection.to.anchorId
+  // 1. 检查是否存在需要替换的连接
+  const existingConnectionIndex = config.value.connections.findIndex(conn =>
+    conn.to.cardId === newConnection.to.cardId &&
+    conn.to.anchorId === newConnection.to.anchorId
+  );
+
+  // 2. 验证新连接的有效性（除了输入锚点已连接的检查）
+  const validationResult = validateConnection(
+    config.value.connections.filter((_, index) => index !== existingConnectionIndex),
+    newConnection,
+    parsedCards.value
+  );
+
+  if (!validationResult.isValid) {
+    console.error('连接验证失败:', validationResult.error);
+    return;
+  }
+
+  try {
+    // 3. 保存当前状态以便回滚
+    const previousConnections = [...config.value.connections];
+
+    // 4. 检查是否存在重复连接
+    const duplicateConnectionIndex = config.value.connections.findIndex(conn =>
+      conn.from.cardId === newConnection.from.cardId &&
+      conn.from.anchorId === newConnection.from.anchorId &&
+      conn.to.cardId === newConnection.to.cardId &&
+      conn.to.anchorId === newConnection.to.anchorId
     );
 
-    // 2. 验证新连接的有效性（除了输入锚点已连接的检查）
-    const validationResult = validateConnection(
-        config.value.connections.filter((_, index) => index !== existingConnectionIndex),
-        newConnection,
-        parsedCards.value
-    );
-
-    if (!validationResult.isValid) {
-        console.error('连接验证失败:', validationResult.error);
-        return;
+    if (duplicateConnectionIndex !== -1) {
+      // 如果存在重复连接，移除该连接
+      config.value.connections.splice(duplicateConnectionIndex, 1);
+      console.log('重复连接已移除:', newConnection);
+    } else {
+      // 5. 更新连接
+      if (existingConnectionIndex !== -1) {
+        // 替换已有连接
+        config.value.connections.splice(existingConnectionIndex, 1, newConnection);
+      } else {
+        // 添加新连接
+        config.value.connections.push(newConnection);
+      }
     }
 
-    try {
-        // 3. 保存当前状态以便回滚
-        const previousConnections = [...config.value.connections];
+    // 6. 强制更新连接数组的引用，触发视图更新
+    config.value.connections = [...config.value.connections];
 
-        // 4. 检查是否存在重复连接
-        const duplicateConnectionIndex = config.value.connections.findIndex(conn =>
-            conn.from.cardId === newConnection.from.cardId &&
-            conn.from.anchorId === newConnection.from.anchorId &&
-            conn.to.cardId === newConnection.to.cardId &&
-            conn.to.anchorId === newConnection.to.anchorId
-        );
+    // 7. 等待下一个 tick，确保视图更新
+    await nextTick();
 
-        if (duplicateConnectionIndex !== -1) {
-            // 如果存在重复连接，移除该连接
-            config.value.connections.splice(duplicateConnectionIndex, 1);
-            console.log('重复连接已移除:', newConnection);
-        } else {
-            // 5. 更新连接
-            if (existingConnectionIndex !== -1) {
-                // 替换已有连接
-                config.value.connections.splice(existingConnectionIndex, 1, newConnection);
-            } else {
-                // 添加新连接
-                config.value.connections.push(newConnection);
-            }
-        }
+    // 8. 重建并验证整个 Petri 网络
+    let pn = buildPetriNet();
+    pn.exec(undefined, true);
+    pn.startAutoExec();
+  } catch (error) {
+    // 9. 如果出错，回滚到之前的状态
+    config.value.connections = [...previousConnections];
+    console.error('Petri网络构建失败:', error);
 
-        // 6. 强制更新连接数组的引用，触发视图更新
-        config.value.connections = [...config.value.connections];
-
-        // 7. 等待下一个 tick，确保视图更新
-        await nextTick();
-
-        // 8. 重建并验证整个 Petri 网络
-        let pn = buildPetriNet();
-        pn.exec(undefined, true);
-        pn.startAutoExec();
-    } catch (error) {
-        // 9. 如果出错，回滚到之前的状态
-        config.value.connections = [...previousConnections];
-        console.error('Petri网络构建失败:', error);
-        
-        // 10. 强制更新视图
-        await nextTick();
-    }
+    // 10. 强制更新视图
+    await nextTick();
+  }
 };
+
+// 修改响应式变量
+const duplicatingPreview = ref(null);
+const actualCard = ref(null);
+const isDuplicating = ref(false);
+const duplicateOffset = ref({ x: 0, y: 0 });
+
+// 修改处理开始复制事件的方法
+const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, sourcePosition }) => {
+  if (isDuplicating.value) return;
+  
+  isDuplicating.value = true;
+  actualCard.value = newCard;
+  
+  const rect = connectionCanvasRef.value.getBoundingClientRect();
+  const scroll = coordinateManager.value.getScrollOffset();
+  
+  // 计算鼠标相对于容器的绝对位置
+  const mouseX = mouseEvent.clientX - rect.left + scroll.scrollLeft;
+  const mouseY = mouseEvent.clientY - rect.top + scroll.scrollTop;
+  
+  // 设置预览卡片的初始位置为鼠标位置
+  duplicatingPreview.value = {
+    ...previewCard,
+    position: {
+      ...previewCard.position,
+      x: mouseX,
+      y: mouseY
+    },
+    componentProps: {
+      ...previewCard.componentProps,
+      isPreview: true
+    }
+  };
+  
+  // 计算鼠标相对于预览卡片的偏移
+  duplicateOffset.value = {
+    x: mouseEvent.clientX - rect.left,
+    y: mouseEvent.clientY - rect.top
+  };
+  
+  document.addEventListener('mousemove', handleDuplicateMove);
+  document.addEventListener('click', handleDuplicatePlace, true);
+};
+
+// 修改移动处理方法
+const handleDuplicateMove = (e) => {
+  if (!isDuplicating.value || !duplicatingPreview.value) return;
+  
+  const rect = connectionCanvasRef.value.getBoundingClientRect();
+  const scroll = coordinateManager.value.getScrollOffset();
+  
+  // 直接计算鼠标相对于容器的绝对位置
+  const x = e.clientX - rect.left + scroll.scrollLeft;
+  const y = e.clientY - rect.top + scroll.scrollTop;
+  
+  // 更新预览卡片位置为绝对坐标
+  duplicatingPreview.value = {
+    ...duplicatingPreview.value,
+    position: {
+      ...duplicatingPreview.value.position,
+      x,
+      y
+    }
+  };
+};
+
+// 修改放置处理方法
+const handleDuplicatePlace = async (e) => {
+  if (!isDuplicating.value || !actualCard.value) return;
+  
+  e.stopPropagation();
+  
+  isDuplicating.value = false;
+  document.removeEventListener('mousemove', handleDuplicateMove);
+  document.removeEventListener('click', handleDuplicatePlace);
+  
+  try {
+    const rect = connectionCanvasRef.value.getBoundingClientRect();
+    const scroll = coordinateManager.value.getScrollOffset();
+    
+    // 计算最终放置位置（绝对坐标）
+    const finalX = e.clientX - rect.left + scroll.scrollLeft;
+    const finalY = e.clientY - rect.top + scroll.scrollTop;
+    
+    // 使用最终位置更新实际卡片
+    actualCard.value.position = {
+      ...duplicatingPreview.value.position,
+      x: finalX,
+      y: finalY,
+      width: duplicatingPreview.value.position.width,
+      height: duplicatingPreview.value.position.height
+    };
+    
+    // 添加新卡片
+    const newCard = await addCard(actualCard.value);
+    
+    // 强制更新 parsedCards 的引用以触发视图更新
+    parsedCards.value = [...parsedCards.value];
+    
+    // 等待下一个渲染周期
+    await nextTick();
+    
+    // 手动触发 onCardMove 事件来更新卡片位置
+    onCardMove(newCard.id, {
+      x: finalX,
+      y: finalY,
+      width: newCard.position.width,
+      height: newCard.position.height
+    });
+    
+    // 更新网络结构
+    const pn = buildPetriNet();
+    pn.exec(undefined, true);
+    pn.startAutoExec();
+    
+  } catch (error) {
+    console.error('复制卡片失败:', error);
+  } finally {
+    // 清理状态
+    duplicatingPreview.value = null;
+    actualCard.value = null;
+  }
+};
+
+// 在组件卸载时清理事件监听
+onUnmounted(() => {
+  document.removeEventListener('mousemove', handleDuplicateMove);
+  document.removeEventListener('click', handleDuplicatePlace);
+});
 </script>
 <style scoped>
 .image-editor {
@@ -295,7 +433,7 @@ const handleNewConnection = async (newConnection) => {
   width: 100%;
   height: 100%;
   overflow: auto;
-  
+
 
 }
 
@@ -345,5 +483,11 @@ const handleNewConnection = async (newConnection) => {
 .style-select:focus {
   border-color: var(--b3-theme-primary);
   box-shadow: 0 0 0 2px var(--b3-theme-primary-light);
+}
+
+/* 添加预览内容的样式 */
+:deep(.preview-content) {
+  pointer-events: none;
+  user-select: none;
 }
 </style>
