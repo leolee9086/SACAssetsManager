@@ -212,17 +212,6 @@ onMounted(() => {
   coordinateManager.value = new CoordinateManager(connectionCanvasRef.value);
 });
 
-// 连接样式常量
-const GEOMETRY_OPTIONS = {
-  'circuit': '电路板式',
-  'bezier': '贝塞尔曲线',
-  'arc': '弧线'
-};
-
-const DRAWING_STYLE_OPTIONS = {
-  'normal': '普通',
-  'handDrawn': '手绘'
-};
 
 // 连接样式状态
 const connectionStyle = ref({
