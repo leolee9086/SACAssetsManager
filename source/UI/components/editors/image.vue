@@ -12,8 +12,9 @@
     <ConnectionCanvas v-if="config.connections" 
     :cardsContainer="cardsContainer"
     :cards="parsedCards" :connections="config.connections"
+    :links="config.links"
       :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
-      @connectionCreated="handleNewConnection" />
+      @connectionCreated="handleNewConnection" @linkCreated="handleNewLink" />
     <!-- 动态渲染卡片 -->
     <div  style
     ="position: relative;
@@ -119,7 +120,10 @@ const appData = toRef(inject('appData'))
 const anchors = ref(new Map()); // 存储所有锚点信息
 const connections = ref([]); // 存储连线信息
 // 配置相关
-const config = ref(editorConfig);
+const config = ref({
+  ...editorConfig,
+  links: [] // 新增 links 数组
+});
 // 组件属性映射
 // 绘制连线
 // 初始化 canvas 和连接
@@ -435,6 +439,28 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', handleDuplicateMove);
   document.removeEventListener('click', handleDuplicatePlace);
 });
+
+// 添加处理新 link 的方法
+const handleNewLink = (newLink) => {
+  // 检查是否存在重复的 link
+  const duplicateLinkIndex = config.value.links.findIndex(link =>
+    link.from.cardId === newLink.from.cardId &&
+    link.from.anchorId === newLink.from.anchorId &&
+    link.to.cardId === newLink.to.cardId &&
+    link.to.anchorId === newLink.to.anchorId
+  );
+
+  if (duplicateLinkIndex !== -1) {
+    // 如果存在重复 link，移除它
+    config.value.links.splice(duplicateLinkIndex, 1);
+  } else {
+    // 添加新 link
+    config.value.links.push(newLink);
+  }
+
+  // 强制更新 links 数组的引用，触发视图更新
+  config.value.links = [...config.value.links];
+};
 </script>
 <style scoped>
 .image-editor {

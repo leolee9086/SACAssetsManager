@@ -41,6 +41,10 @@
     cardsContainer:{
       type: Object,
 
+    },
+    links: {
+      type: Array,
+      default: () => []
     }
   });
   
@@ -87,38 +91,47 @@
   const updateConnections = () => {
     // 清除所有现有连接
     layer.value.destroyChildren();
-    // 重新绘制所有连接
+    
+    // 绘制所有常规连接
     props.connections.forEach(conn => {
-        const fromCard = props.cards.find(card => card.id === conn.from.cardId);
-        const toCard = props.cards.find(card => card.id === conn.to.cardId);
-
-        if (!fromCard || !toCard) {
-            console.warn('找不到连接对应的卡片:', conn);
-            return;
-        }
-
-        const fromAnchor = fromCard.controller.anchors
-            .find(anchor => anchor.id === conn.from.anchorId);
-        const toAnchor = toCard.controller.anchors
-            .find(anchor => anchor.id === conn.to.anchorId);
-
-        if (!fromAnchor || !toAnchor || !fromAnchor.absolutePosition || !toAnchor.absolutePosition) {
-            console.warn('找不到连接对应的锚点:', conn);
-            return;
-        }
-        drawConnection(
-            layer.value,
-            fromAnchor.absolutePosition,
-            toAnchor.absolutePosition,
-            fromAnchor.side,
-            toAnchor.side,
-            `${conn.from.cardId}-${conn.from.anchorId}-${conn.to.cardId}-${conn.to.anchorId}`,
-            props.connectionStyle.geometry,
-            props.connectionStyle.drawingStyle
-        );
+      drawConnection(
+        layer.value,
+        conn.from.anchor.absolutePosition,
+        conn.to.anchor.absolutePosition,
+        conn.from.anchor.side,
+        conn.to.anchor.side,
+        `${conn.from.cardId}-${conn.from.anchorId}-${conn.to.cardId}-${conn.to.anchorId}`,
+        props.connectionStyle.geometry,
+        props.connectionStyle.drawingStyle
+      );
     });
     
-    // 强制更新层
+    // 绘制所有 links（使用不同的样式）
+    props.links.forEach(link => {
+      const fromCard = props.cards.find(card => card.id === link.from.cardId);
+      const toCard = props.cards.find(card => card.id === link.to.cardId);
+
+      if (!fromCard || !toCard) return;
+
+      const fromAnchor = fromCard.controller.anchors
+        .find(anchor => anchor.id === link.from.anchorId);
+      const toAnchor = toCard.controller.anchors
+        .find(anchor => anchor.id === link.to.anchorId);
+
+      if (!fromAnchor || !toAnchor) return;
+
+      drawConnection(
+        layer.value,
+        fromAnchor.absolutePosition,
+        toAnchor.absolutePosition,
+        fromAnchor.side,
+        toAnchor.side,
+        `link-${link.from.cardId}-${link.from.anchorId}-${link.to.cardId}-${link.to.anchorId}`,
+        props.connectionStyle.geometry,
+        'link' // 使用特殊的绘制样式表示这是一个 link
+      );
+    });
+    
     layer.value.batchDraw();
   };
   
@@ -189,26 +202,38 @@
     layer.value.batchDraw();
   };
 
-  const emit = defineEmits(['connectionCreated']);
+  const emit = defineEmits(['connectionCreated', 'linkCreated']);
 
   const finalizeConnection = (e) => {
-    console.log(e)
     document.removeEventListener('mousemove', updateConnectionPreview);
     document.removeEventListener('mouseup', finalizeConnection);
 
     const toAnchor = getAnchorFromEvent(e);
     if (toAnchor && currentConnection.value) {
-        // 通过事件发送新连接信息
-        emit('connectionCreated', {
-            from: {
-                cardId: currentConnection.value.from.cardID,
-                anchorId: currentConnection.value.from.anchor.id
-            },
-            to: {
-                cardId: toAnchor.cardId,
-                anchorId: toAnchor.anchor.id
-            }
+      // 根据按键状态决定创建 link 还是普通连接
+      if (e.altKey) { // 使用 Alt 键创建 link
+        emit('linkCreated', {
+          from: {
+            cardId: currentConnection.value.from.cardID,
+            anchorId: currentConnection.value.from.anchor.id
+          },
+          to: {
+            cardId: toAnchor.cardId,
+            anchorId: toAnchor.anchor.id
+          }
         });
+      } else { // 创建普通连接
+        emit('connectionCreated', {
+          from: {
+            cardId: currentConnection.value.from.cardID,
+            anchorId: currentConnection.value.from.anchor.id
+          },
+          to: {
+            cardId: toAnchor.cardId,
+            anchorId: toAnchor.anchor.id
+          }
+        });
+      }
     }
 
     // 清除临时连接
@@ -342,6 +367,9 @@
     drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
     drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
   }, { deep: true });
+
+  // 添加对 links 的监听
+  watch(() => props.links, updateConnections, { deep: true });
   </script>
   
   <style scoped>
