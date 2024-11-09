@@ -29,46 +29,15 @@ export let nodeDefine = {
             type: String,
             label: '根块ID',
         },
-        hash: {
-            type: String,
-            label: '哈希值',
-        },
         box: {
             type: String,
             label: '笔记本ID',
-        },
-        path: {
-            type: String,
-            label: '路径',
-        },
-        hpath: {
-            type: String,
-            label: '人类可读路径',
         },
         name: {
             type: String,
             label: '名称',
         },
-        alias: {
-            type: String,
-            label: '别名',
-        },
-        memo: {
-            type: String,
-            label: '备注',
-        },
-        tag: {
-            type: String,
-            label: '标签',
-        },
-        content: {
-            type: String,
-            label: '内容',
-        },
-        fcontent: {
-            type: String,
-            label: '格式化内容',
-        },
+     
         markdown: {
             type: String,
             label: 'Markdown内容',
@@ -85,14 +54,6 @@ export let nodeDefine = {
             type: String,
             label: '子类型',
         },
-        ial: {
-            type: String,
-            label: '内联属性',
-        },
-        sort: {
-            type: Number,
-            label: '排序号',
-        },
         created: {
             type: String,
             label: '创建时间',
@@ -101,7 +62,6 @@ export let nodeDefine = {
             type: String,
             label: '更新时间',
         },
-
     },
     async process(input) {
         try {

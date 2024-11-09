@@ -134,5 +134,47 @@
         "anchorId": "quality"
       }
     }
+  ],
+  "relations": [
+    {
+      "from": {
+        "cardId": "scale"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    },
+    {
+      "from": {
+        "cardId": "path"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    },
+    {
+      "from": {
+        "cardId": "imageCompressor"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    },
+    {
+      "from": {
+        "cardId": "imageComparison"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    },
+    {
+      "from": {
+        "cardId": "quality"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    }
   ]
 }

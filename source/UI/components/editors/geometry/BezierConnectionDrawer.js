@@ -6,7 +6,12 @@ const CONFIG = {
     colors: {
         arrowFill: '#409EFF',
         stroke: '#67C23A',
-        lightDot: '#FFD700'
+        lightDot: '#FFD700',
+        relation: {
+            stroke: '#FF9800',
+            fill: '#FF9800',
+            hover: '#FFB74D'
+        }
     },
     sizes: {
         strokeWidth: 2,
@@ -21,10 +26,26 @@ const CONFIG = {
     }
 };
 
+// 添加 relation 样式常量
+const RELATION_STYLE = {
+    stroke: CONFIG.colors.relation.stroke,
+    strokeWidth: CONFIG.sizes.strokeWidth,
+    dash: [6, 3],
+    arrowPointerLength: CONFIG.sizes.arrowPointerLength,
+    arrowPointerWidth: CONFIG.sizes.arrowPointerWidth,
+    geometry: GEOMETRY.CIRCUIT,
+    hover: {
+        stroke: CONFIG.colors.relation.hover,
+        strokeWidth: CONFIG.sizes.strokeWidth * 1.5,
+        dash: [8, 4]
+    }
+};
+
 // 公共函数：删除已有连接
 function removeExistingConnections(layer, id) {
     if (layer.find) {
         layer.find(`.${id}`).forEach(conn => conn.destroy());
+        layer.find(`.relation-${id}`).forEach(rel => rel.destroy());
     }
 }
 
@@ -89,65 +110,25 @@ function drawPath(group, points, geometry, style = STYLES.NORMAL) {
 }
 
 // 修改统一的连接绘制函数
-export function drawConnection(target, start, end, startSide, endSide, id, 
+export function drawConnection(target, start, end, startSide, endSide, id,
     geometry = GEOMETRY.CIRCUIT, style = STYLES.NORMAL) {
-    
-    if (!target) {
-        // vue-konva 模式
-        const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
-        const points = style === STYLES.HAND_DRAWN ? 
-            applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
-            
-        return {
-            // 基础配置
-            points: points, // 直接使用点数组
-            stroke: CONFIG.colors.stroke,
-            strokeWidth: CONFIG.sizes.strokeWidth,
-            lineCap: 'round',
-            lineJoin: 'round',
-            tension: geometry === GEOMETRY.BEZIER ? 0.5 : 0, // 贝塞尔曲线使用张力
-            
-            // 装饰配置
-            arrowConfig: {
-                points: [
-                    points[points.length - 4],
-                    points[points.length - 3],
-                    points[points.length - 2],
-                    points[points.length - 1]
-                ],
-                pointerLength: CONFIG.sizes.arrowPointerLength,
-                pointerWidth: CONFIG.sizes.arrowPointerWidth,
-                fill: CONFIG.colors.arrowFill,
-                stroke: CONFIG.colors.arrowFill
-            },
-            
-            // 光点配置
-            dotConfig: {
-                x: points[0],
-                y: points[1],
-                radius: CONFIG.sizes.lightDotRadius,
-                fill: CONFIG.colors.lightDot,
-                stroke: CONFIG.colors.lightDot,
-                strokeWidth: 1
-            }
-        };
-    } else {
-        // 原生 Konva 模式
-        removeExistingConnections(target, id);
-        const connectionGroup = new Konva.Group({ name: id });
-        const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
-        const points = style === STYLES.HAND_DRAWN ? 
-            applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
-        
-        drawPath(connectionGroup, points, geometry, style);
-        addDecorations(connectionGroup, points, geometry);
-        addInteractionEffects(connectionGroup);
-        
-        target.add(connectionGroup);
-        target.batchDraw();
-        
-        return connectionGroup;
-    }
+
+    // 原生 Konva 模式
+    removeExistingConnections(target, id);
+    const connectionGroup = new Konva.Group({ name: id });
+    const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
+    const points = style === STYLES.HAND_DRAWN ?
+        applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
+
+    drawPath(connectionGroup, points, geometry, style);
+    addDecorations(connectionGroup, points, geometry);
+    addInteractionEffects(connectionGroup);
+
+    target.add(connectionGroup);
+    target.batchDraw();
+
+    return connectionGroup;
+
 }
 
 // 修改装饰配置函数
@@ -192,13 +173,15 @@ function getInteractionConfig() {
 // 计算几何路径
 function calculateGeometryPath(start, end, startSide, endSide, geometry) {
     switch (geometry) {
-        case GEOMETRY.CIRCUIT:
-            return calculateCircuitPath(start, end, startSide, endSide);
         case GEOMETRY.BEZIER:
             return calculateBezierPath(start, end, startSide, endSide);
         case GEOMETRY.ARC:
             return calculateArcPath(start, end, startSide, endSide);
+        case GEOMETRY.CIRCUIT:
         default:
+            if (startSide === 'auto' && endSide === 'auto') {
+                return calculateSimplifiedCircuitPath(start, end);
+            }
             return calculateCircuitPath(start, end, startSide, endSide);
     }
 }
@@ -209,18 +192,18 @@ function calculateCircuitPath(start, end, startSide, endSide) {
     const points = new Float32Array(8); // 预分配固定大小
     points[0] = start.x;
     points[1] = start.y;
-    
+
     const midX = (start.x + end.x) * 0.5; // 使用乘法代替除法
     const midY = (start.y + end.y) * 0.5;
-    
-    if ((startSide === 'right' && endSide === 'left') || 
+
+    if ((startSide === 'right' && endSide === 'left') ||
         (startSide === 'left' && endSide === 'right')) {
         points[2] = midX;
         points[3] = start.y;
         points[4] = midX;
         points[5] = end.y;
-    } else if ((startSide === 'top' && endSide === 'bottom') || 
-               (startSide === 'bottom' && endSide === 'top')) {
+    } else if ((startSide === 'top' && endSide === 'bottom') ||
+        (startSide === 'bottom' && endSide === 'top')) {
         points[2] = start.x;
         points[3] = midY;
         points[4] = end.x;
@@ -231,10 +214,10 @@ function calculateCircuitPath(start, end, startSide, endSide) {
         points[4] = midX;
         points[5] = midY;
     }
-    
+
     points[6] = end.x;
     points[7] = end.y;
-    
+
     return points;
 }
 
@@ -244,21 +227,21 @@ function calculateBezierPath(start, end, startSide, endSide) {
     let control1, control2;
 
     // 根据起点和终点的方向计算控制点
-    switch(startSide) {
+    switch (startSide) {
         case 'right':
-            control1 = {x: start.x + offset, y: start.y};
+            control1 = { x: start.x + offset, y: start.y };
             break;
         case 'left':
-            control1 = {x: start.x - offset, y: start.y};
+            control1 = { x: start.x - offset, y: start.y };
             break;
         case 'top':
-            control1 = {x: start.x, y: start.y - offset};
+            control1 = { x: start.x, y: start.y - offset };
             break;
         case 'bottom':
-            control1 = {x: start.x, y: start.y + offset};
+            control1 = { x: start.x, y: start.y + offset };
             break;
         default: // 处理预览状态
-            control1 = {x: start.x + offset, y: start.y};
+            control1 = { x: start.x + offset, y: start.y };
     }
 
     // 如果是预览状态（endSide 为 'auto' 或未定义），使用鼠标位置作为终点
@@ -267,20 +250,20 @@ function calculateBezierPath(start, end, startSide, endSide) {
         const dx = end.x - start.x;
         const dy = end.y - start.y;
         // 使用终点作为第二个控制点
-        control2 = {x: end.x, y: end.y};
+        control2 = { x: end.x, y: end.y };
     } else {
-        switch(endSide) {
+        switch (endSide) {
             case 'right':
-                control2 = {x: end.x + offset, y: end.y};
+                control2 = { x: end.x + offset, y: end.y };
                 break;
             case 'left':
-                control2 = {x: end.x - offset, y: end.y};
+                control2 = { x: end.x - offset, y: end.y };
                 break;
             case 'top':
-                control2 = {x: end.x, y: end.y - offset};
+                control2 = { x: end.x, y: end.y - offset };
                 break;
             case 'bottom':
-                control2 = {x: end.x, y: end.y + offset};
+                control2 = { x: end.x, y: end.y + offset };
                 break;
         }
     }
@@ -299,12 +282,12 @@ function calculateArcPath(start, end, startSide, endSide) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    
+
     // 计算弧线的控制点
     const midX = (start.x + end.x) / 2;
     const midY = (start.y + end.y) / 2;
     const angle = Math.atan2(dy, dx);
-    
+
     // 处理预览状态
     let arcOffset;
     if (!endSide || endSide === 'auto') {
@@ -312,16 +295,16 @@ function calculateArcPath(start, end, startSide, endSide) {
         arcOffset = offset;
     } else {
         // 根据起点和终点的方向调整弧线的弯曲方向
-        arcOffset = ((startSide === 'right' && endSide === 'left') || 
-                    (startSide === 'left' && endSide === 'right')) ? 
-                    offset : -offset;
+        arcOffset = ((startSide === 'right' && endSide === 'left') ||
+            (startSide === 'left' && endSide === 'right')) ?
+            offset : -offset;
     }
-    
+
     const controlPoint = {
         x: midX - Math.sin(angle) * arcOffset,
         y: midY + Math.cos(angle) * arcOffset
     };
-    
+
     return [start.x, start.y, controlPoint.x, controlPoint.y, end.x, end.y];
 }
 
@@ -365,7 +348,7 @@ function addDecorations(group, points, geometry) {
 function applyHandDrawnEffect(points, geometry) {
     // 1. 获取原始路径上的采样点
     const sampledPoints = getSampledPoints(points, geometry);
-    
+
     // 2. 为采样点添加抖动效果
     return addJitterToPoints(sampledPoints);
 }
@@ -417,7 +400,7 @@ function addJitterToPoints(points) {
 function getPointOnArc(points, t) {
     const [x0, y0, cx, cy, x1, y1] = points;
     const mt = 1 - t;
-    
+
     // 二次贝塞尔曲线插值
     return {
         x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
@@ -449,12 +432,12 @@ function addInteractionEffects(group) {
 function calculatePathSegments(start, end, startSide, endSide) {
     let points = [start.x, start.y];
 
-    if ((startSide === 'right' && endSide === 'left') || 
+    if ((startSide === 'right' && endSide === 'left') ||
         (startSide === 'left' && endSide === 'right')) {
         points.push((start.x + end.x) / 2, start.y);
         points.push((start.x + end.x) / 2, end.y);
-    } else if ((startSide === 'top' && endSide === 'bottom') || 
-               (startSide === 'bottom' && endSide === 'top')) {
+    } else if ((startSide === 'top' && endSide === 'bottom') ||
+        (startSide === 'bottom' && endSide === 'top')) {
         points.push(start.x, (start.y + end.y) / 2);
         points.push(end.x, (start.y + end.y) / 2);
     } else {
@@ -485,18 +468,18 @@ function getPointOnPath(points, t) {
 // 计算贝塞尔曲线上的点
 function getPointOnBezierCurve(points, t) {
     const [x0, y0, x1, y1, x2, y2, x3, y3] = points;
-    
+
     const cx = 3 * (x1 - x0);
     const bx = 3 * (x2 - x1) - cx;
     const ax = x3 - x0 - cx - bx;
-    
+
     const cy = 3 * (y1 - y0);
     const by = 3 * (y2 - y1) - cy;
     const ay = y3 - y0 - cy - by;
-    
+
     const t2 = t * t;
     const t3 = t2 * t;
-    
+
     return {
         x: ax * t3 + bx * t2 + cx * t + x0,
         y: ay * t3 + by * t2 + cy * t + y0
@@ -508,7 +491,7 @@ function calculateBezierEndPoints(points) {
     const t = 0.95; // 用于计算箭头方向的点
     const endPoint = getPointOnBezierCurve(points, 1);
     const nearEndPoint = getPointOnBezierCurve(points, t);
-    
+
     return [
         nearEndPoint.x,
         nearEndPoint.y,
@@ -526,9 +509,9 @@ function calculateArrowPoints(points, geometry) {
             return calculateArcEndPoints(points);
         default:
             return [
-                points[points.length - 4], 
+                points[points.length - 4],
                 points[points.length - 3],
-                points[points.length - 2], 
+                points[points.length - 2],
                 points[points.length - 1]
             ];
     }
@@ -538,20 +521,20 @@ function calculateArrowPoints(points, geometry) {
 function calculateArcEndPoints(points) {
     const t = 0.95; // 用于计算箭头方向的点
     const [x0, y0, cx, cy, x1, y1] = points;
-    
+
     // 计算结束点
     const endPoint = {
         x: x1,
         y: y1
     };
-    
+
     // 计算靠近结束点的点（用于确定箭头方向）
     const mt = 1 - t;
     const nearEndPoint = {
         x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
         y: mt * mt * y0 + 2 * mt * t * cy + t * t * y1
     };
-    
+
     return [
         nearEndPoint.x,
         nearEndPoint.y,
@@ -560,3 +543,330 @@ function calculateArcEndPoints(points) {
     ];
 }
 
+// 新增：绘制 relation 的函数
+export function drawRelation(target, start, end, id, 
+    geometry = RELATION_STYLE.geometry, 
+    style = STYLES.NORMAL) {
+    
+    removeExistingConnections(target, id);
+    
+    const relationGroup = new Konva.Group({ 
+        name: id,
+        className: 'relation'
+    });
+
+    // 计算路径点，支持手绘风格
+    const pathPoints = calculateRelationPath(start, end, geometry, style);
+    const points = style === STYLES.HAND_DRAWN ?
+        applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
+    
+    // 使用 drawPath 函数绘制主路径，但使用 relation 的颜色
+    const pathConfig = {
+        stroke: RELATION_STYLE.stroke,
+        strokeWidth: RELATION_STYLE.strokeWidth,
+        lineCap: 'round',
+        lineJoin: 'round',
+        dash: RELATION_STYLE.dash,
+        opacity: 0.9
+    };
+
+    // 根据样式选择不同的绘制方法
+    if (style === STYLES.HAND_DRAWN) {
+        const path = new Konva.Line({
+            points: points,
+            ...pathConfig,
+            tension: 0
+        });
+        relationGroup.add(path);
+    } else {
+        // 使用与 connection 相同的几何绘制逻辑
+        if (geometry === GEOMETRY.BEZIER) {
+            const path = new Konva.Shape({
+                ...pathConfig,
+                sceneFunc: (context, shape) => {
+                    context.beginPath();
+                    context.moveTo(points[0], points[1]);
+                    context.bezierCurveTo(
+                        points[2], points[3],
+                        points[4], points[5],
+                        points[6], points[7]
+                    );
+                    context.strokeShape(shape);
+                }
+            });
+            relationGroup.add(path);
+        } else if (geometry === GEOMETRY.ARC) {
+            const path = new Konva.Shape({
+                ...pathConfig,
+                sceneFunc: (context, shape) => {
+                    context.beginPath();
+                    context.moveTo(points[0], points[1]);
+                    context.quadraticCurveTo(
+                        points[2], points[3],
+                        points[4], points[5]
+                    );
+                    context.strokeShape(shape);
+                }
+            });
+            relationGroup.add(path);
+        } else {
+            const path = new Konva.Line({
+                points: points,
+                ...pathConfig
+            });
+            relationGroup.add(path);
+        }
+    }
+
+
+    // 添加交互效果
+    addRelationInteractionEffects(relationGroup);
+
+    target.add(relationGroup);
+    target.batchDraw();
+
+    return relationGroup;
+}
+
+// 添加专门的 relation 交互效果函数
+function addRelationInteractionEffects(group) {
+    const elements = group.getChildren();
+    
+    group.on('mouseover', () => {
+        document.body.style.cursor = 'pointer';
+        elements.forEach(element => {
+            element.stroke(RELATION_STYLE.hover.stroke);
+            element.strokeWidth(RELATION_STYLE.hover.strokeWidth);
+            if (element.dash && element.dash().length > 0) {
+                element.dash(RELATION_STYLE.hover.dash);
+            }
+            if (element.fill) {
+                element.fill(RELATION_STYLE.hover.stroke);
+            }
+            element.opacity(1);
+        });
+        group.getLayer().batchDraw();
+    });
+
+    group.on('mouseout', () => {
+        document.body.style.cursor = 'default';
+        elements.forEach(element => {
+            element.stroke(RELATION_STYLE.stroke);
+            element.strokeWidth(RELATION_STYLE.strokeWidth);
+            if (element.dash && element.dash().length > 0) {
+                element.dash(RELATION_STYLE.dash);
+            }
+            if (element.fill) {
+                element.fill(RELATION_STYLE.stroke);
+            }
+            element.opacity(0.9);
+        });
+        group.getLayer().batchDraw();
+    });
+}
+
+// 添加简化的电路路径计算函数
+function calculateSimplifiedCircuitPath(start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const midX = start.x + dx / 2;
+    
+    return [
+        start.x, start.y,
+        midX, start.y,
+        midX, end.y,
+        end.x, end.y
+    ];
+}
+
+// 象限判断函数
+function determineQuadrant(vector) {
+    const { x, y } = vector;
+    if (x >= 0 && y <= 0) return 1;      // 右上
+    if (x < 0 && y <= 0) return 2;       // 左上
+    if (x < 0 && y > 0) return 3;        // 左下
+    return 4;                            // 右下
+}
+
+// 修改后的Relation路径计算函数
+function calculateRelationPath(start, end, geometry, style) {
+    // 1. 计算中心点和方向向量
+    const startCenter = {
+        x: start.x + start.width / 2,
+        y: start.y + start.height / 2
+    };
+    const endCenter = {
+        x: end.x + end.width / 2,
+        y: end.y + end.height / 2
+    };
+
+    // 2. 计算方向向量
+    const vector = {
+        x: endCenter.x - startCenter.x || 0.00000000001,
+        y: endCenter.y - startCenter.y || 0.00000000001
+    };
+    
+    // 3. 计算与矩形边界的交点
+    const points = {
+        start: calculateVectorIntersection(start, vector),
+        end: calculateVectorIntersection(end, {
+            x: -vector.x,
+            y: -vector.y
+        })
+    };
+
+    // 4. 确定象限用于优化路径形状
+    const quadrant = determineQuadrant(vector);
+
+    // 5. 根据几何类型和象限生成路径点
+    let pathPoints;
+    switch (geometry) {
+        case GEOMETRY.BEZIER:
+            pathPoints = calculateRelationBezier(points.start, points.end, vector, quadrant);
+            break;
+        case GEOMETRY.ARC:
+            pathPoints = calculateRelationArc(points.start, points.end, vector, quadrant);
+            break;
+        case GEOMETRY.CIRCUIT:
+            pathPoints = calculateRelationCircuit(points.start, points.end, vector, quadrant);
+            break;
+        default:
+            pathPoints = [points.start.x, points.start.y, points.end.x, points.end.y];
+    }
+
+    return style === STYLES.HAND_DRAWN ? 
+        applyHandDrawnEffect(pathPoints, geometry) : 
+        pathPoints;
+}
+
+// 计算向量与矩形的交点
+function calculateVectorIntersection(rect, vector) {
+    const center = {
+        x: rect.x + rect.width / 2,
+        y: rect.y + rect.height / 2
+    };
+
+    // 计算x和y方向的偏移
+    let xOffset = Math.abs((rect.height / 2 * vector.x) / vector.y);
+    let yOffset = Math.abs((rect.width / 2 * vector.y) / vector.x);
+
+    // 限制在矩形边界内
+    if (Math.abs(yOffset) > rect.height / 2) {
+        yOffset = rect.height / 2;
+    }
+    if (Math.abs(xOffset) > rect.width / 2) {
+        xOffset = rect.width / 2;
+    }
+
+    return {
+        x: vector.x > 0 ? center.x + xOffset : center.x - xOffset,
+        y: vector.y > 0 ? center.y + yOffset : center.y - yOffset
+    };
+}
+
+// 根据象限优化贝塞尔曲线控制点
+function calculateRelationBezier(start, end, vector, quadrant) {
+    const offset = CONFIG.sizes.bezierOffset;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // 根据象限调整控制点的位置
+    let control1, control2;
+    if (quadrant === 1 || quadrant === 3) {
+        control1 = {
+            x: start.x + vector.x * offset / distance,
+            y: start.y + vector.y * offset / distance
+        };
+        control2 = {
+            x: end.x - vector.x * offset / distance,
+            y: end.y - vector.y * offset / distance
+        };
+    } else {
+        control1 = {
+            x: start.x + vector.x * offset / distance,
+            y: start.y - vector.y * offset / distance
+        };
+        control2 = {
+            x: end.x - vector.x * offset / distance,
+            y: end.y + vector.y * offset / distance
+        };
+    }
+
+    return [
+        start.x, start.y,
+        control1.x, control1.y,
+        control2.x, control2.y,
+        end.x, end.y
+    ];
+}
+
+// 根据象限优化弧线路径
+function calculateRelationArc(start, end, vector, quadrant) {
+    const offset = CONFIG.sizes.arcOffset;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // 根据象限调整控制点位置
+    let controlPoint;
+    if (quadrant === 1 || quadrant === 3) {
+        controlPoint = {
+            x: (start.x + end.x) / 2 - vector.y * offset / distance,
+            y: (start.y + end.y) / 2 + vector.x * offset / distance
+        };
+    } else {
+        controlPoint = {
+            x: (start.x + end.x) / 2 + vector.y * offset / distance,
+            y: (start.y + end.y) / 2 - vector.x * offset / distance
+        };
+    }
+
+    return [
+        start.x, start.y,
+        controlPoint.x, controlPoint.y,
+        end.x, end.y
+    ];
+}
+
+// 电路风格路径
+function calculateRelationCircuit(start, end, vector, quadrant) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const isHorizontalDominant = Math.abs(dx) > Math.abs(dy);
+
+    // 根据象限和主导方向优化路径
+    if (quadrant === 1 || quadrant === 3) { // 右上或左下象限
+        if (isHorizontalDominant) {
+            return [
+                start.x, start.y,
+                start.x + dx * 0.7, start.y,
+                start.x + dx * 0.7, end.y,
+                end.x, end.y
+            ];
+        } else {
+            return [
+                start.x, start.y,
+                start.x, start.y + dy * 0.7,
+                end.x, start.y + dy * 0.7,
+                end.x, end.y
+            ];
+        }
+    } else { // 左上或右下象限
+        if (isHorizontalDominant) {
+            return [
+                start.x, start.y,
+                start.x + dx * 0.3, start.y,
+                start.x + dx * 0.3, end.y,
+                end.x, end.y
+            ];
+        } else {
+            return [
+                start.x, start.y,
+                start.x, start.y + dy * 0.3,
+                end.x, start.y + dy * 0.3,
+                end.x, end.y
+            ];
+        }
+    }
+}

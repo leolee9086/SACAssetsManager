@@ -1,49 +1,43 @@
 <template>
   <div>
-  <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
-    :coordinateManager="coordinateManager" />
-  <InfoPanel v-if="coordinateManager" :stats="systemStats" :coordinateManager="coordinateManager" />
+    <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
+      :coordinateManager="coordinateManager" />
+    <InfoPanel v-if="coordinateManager" :stats="systemStats" :coordinateManager="coordinateManager" />
 
-  <div class="image-editor" ref="connectionCanvasRef">
-    <!-- 使用 StyleSelector 组件 -->
+    <div class="image-editor" ref="connectionCanvasRef">
+      <!-- 使用 StyleSelector 组件 -->
 
-    <div v-show="false" class="connection-canvas">
-    </div>
-    <ConnectionCanvas v-if="config.connections" 
-    :cardsContainer="cardsContainer"
-    :cards="parsedCards" :connections="config.connections"
-    :links="config.links"
-      :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
-      @connectionCreated="handleNewConnection" @linkCreated="handleNewLink" />
-    <!-- 动态渲染卡片 -->
-    <div  style
-    ="position: relative;
+      <div v-show="false" class="connection-canvas">
+      </div>
+      <ConnectionCanvas v-if="config.connections" :cardsContainer="cardsContainer" :cards="parsedCards"
+        :connections="config.connections" :relations="config.relations" :coordinateManager="coordinateManager"
+        :connectionStyle="connectionStyle" @connectionCreated="handleNewConnection"
+        @relationCreated="handleNewrelation" />
+      <!-- 动态渲染卡片 -->
+      <div style="position: relative;
     max-width: 100%;
     max-height: 100%;
     overflow: auto;">
 
-    <div ref="cardsContainer" >
-    <template v-for="(card, index) in parsedCards" :key="card.id+index">
-      <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
-        :component="card.controller.component" :component-props="card.controller.componentProps"
-        :nodeDefine="card.controller.nodeDefine" :component-events="card.events" :anchors="card.controller.anchors"
-        :connections="config.connections" :card="card" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
-    </template>
-    <!-- 复制中的卡片预览 -->
-    <cardContainer
-      v-if="isDuplicating && duplicatingPreview"
-      v-bind="duplicatingPreview"
-      :style="{
-        opacity: 0.7,
-        pointerEvents: 'none',
-        zIndex: 1000,
-        cursor: 'move'
-      }"
-    />
+        <div ref="cardsContainer">
+          <template v-for="(card, index) in parsedCards" :key="card.id+index">
+            <cardContainer :force-position="forcedPositions.get(card.id)" :title="card.title" :position="card.position"
+              :data-card-id="card.id" :cardID="card.id" :component="card.controller.component"
+              :component-props="card.controller.componentProps" :nodeDefine="card.controller.nodeDefine"
+              :component-events="card.events" :anchors="card.controller.anchors" :connections="config.connections"
+              :card="card" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
+          </template>
+          <!-- 复制中的卡片预览 -->
+          <cardContainer v-if="isDuplicating && duplicatingPreview" v-bind="duplicatingPreview" :style="{
+            opacity: 0.7,
+            pointerEvents: 'none',
+            zIndex: 1000,
+            cursor: 'move'
+          }" />
+        </div>
+      </div>
+    </div>
   </div>
-</div>
-  </div>
-</div>
 </template>
 <script>
 </script>
@@ -63,7 +57,7 @@ import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers
 
 // 在 setup 中
 import StyleSelector from './toolBar/StyleSelector.vue';
-const cardsContainer=ref(null)
+const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const parsedCards = ref([]);
 const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
@@ -93,18 +87,27 @@ const loadConfig = async () => {
     // 清空现有状态
     parsedCards.value = [];
     componentDefinitions = {};
+
     // 确保卡片ID唯一性
     const { updatedCards, idMap } = ensureUniqueCardIds(config.value.cards);
     config.value.cards = updatedCards;
-    // 更新连接中的卡片ID
+
+    // 更新连接和关系中的卡片ID
     config.value.connections = updateConnectionIds(config.value.connections, idMap);
+    config.value.relations = updateRelationIds(config.value.relations, idMap);
+
     // 添加所有卡片
     for await (const cardConfig of config.value.cards) {
       await addCard(cardConfig, { skipExisting: false });
     }
-    // 验证并更新连接
+
+    // 验证并更新连接和关系
     config.value.connections = validateConnections(config.value.connections, parsedCards.value);
-    console.error("connections", config.value.connections);
+    config.value.relations = validateRelations(config.value.relations, parsedCards.value);
+
+    console.log("connections", config.value.connections);
+    console.log("relations", config.value.relations);
+
     // 初始化和启动Petri网
     let pn = buildPetriNet();
     pn.exec(undefined, true);
@@ -114,6 +117,58 @@ const loadConfig = async () => {
     throw error;
   }
 };
+
+// 添加更新关系ID的函数
+const updateRelationIds = (relations, idMap) => {
+  if (!Array.isArray(relations)) return [];
+
+  return relations.map(relation => ({
+    from: {
+      cardId: idMap[relation.from.cardId] || relation.from.cardId
+    },
+    to: {
+      cardId: idMap[relation.to.cardId] || relation.to.cardId
+    }
+  }));
+};
+
+// 添加验证关系的函数
+const validateRelations = (relations, cards) => {
+  if (!Array.isArray(relations)) return [];
+
+  return relations.filter(relation => {
+    // 验证源卡片和目标卡片是否存在
+    const fromCard = cards.find(card => card.id === relation.from.cardId);
+    const toCard = cards.find(card => card.id === relation.to.cardId);
+
+    if (!fromCard || !toCard) {
+      console.warn('关系验证失败: 找不到对应的卡片', relation);
+      return false;
+    }
+
+    // 验证是否存在重复的关系
+    const isDuplicate = relations.some((r, index) =>
+      relations.findIndex(r2 =>
+        r2.from.cardId === r.from.cardId &&
+        r2.to.cardId === r.to.cardId
+      ) !== index
+    );
+
+    if (isDuplicate) {
+      console.warn('关系验证失败: 存在重复的关系', relation);
+      return false;
+    }
+
+    // 验证是否存在自我引用
+    if (relation.from.cardId === relation.to.cardId) {
+      console.warn('关系验证失败: 不允许自我引用', relation);
+      return false;
+    }
+
+    return true;
+  });
+};
+
 const container = ref(null);
 const appData = toRef(inject('appData'))
 // 修改连线相关的状态管理
@@ -122,7 +177,6 @@ const connections = ref([]); // 存储连线信息
 // 配置相关
 const config = ref({
   ...editorConfig,
-  links: [] // 新增 links 数组
 });
 // 组件属性映射
 // 绘制连线
@@ -136,7 +190,6 @@ onMounted(async () => {
     start: `${conn.from.cardId}-${conn.from.anchorId}`,
     end: `${conn.to.cardId}-${conn.to.anchorId}`
   }));
-  console.error(connections.value, config.value.connections)
 });
 // 在组件挂载时初始化Petri网
 onMounted(() => {
@@ -212,17 +265,60 @@ watch(() => parsedCards.value.map(card => ({
   updateAnchorsPosition(parsedCards.value);
 }, { deep: true });
 
-// 在卡片移动时调用
-const onCardMove = (cardId, newPosition) => {
-  const card = parsedCards.value.find(c => c.id === cardId);
-  if (card) {
-    card.position = newPosition;
-    updateAnchorsPosition([card]);
-  }
+// 添加判断是否为笔记类型卡片的辅助函数
+const isNoteCard = (card) => {
+  return card.controller.cardInfo.type?.startsWith('note/');
 };
+// 添加一个 Map 来跟踪每个卡片的强制位置
+const forcedPositions = ref(new Map());
+
+// 修改 onCardMove 函数
+const onCardMove = (cardId, newPosition) => {
+  // 找到当前移动的卡片
+  const card = parsedCards.value.find(c => c.id === cardId);
+  if (!card) return;
+  // 更新当前卡片位置
+  card.position = newPosition;
+  updateAnchorsPosition([card]);
+
+  // 如果不是笔记类型的卡片，则不需要处理关联移动
+  if (!isNoteCard(card)) {
+    return;
+  }
+  if (newPosition.isDragging) {
+
+    const deltaX = newPosition.deltaX
+    const deltaY = newPosition.deltaY
+    if (!deltaX || !deltaY) {
+      return
+    }
+    // 查找直接关联的卡片
+    const directRelations = config.value.relations.filter(relation =>
+      relation.from.cardId === cardId || relation.to.cardId === cardId
+    );
+
+    // 更新关联卡片的强制位置
+    directRelations.forEach(relation => {
+      const relatedCardId = relation.from.cardId === cardId ? relation.to.cardId : relation.from.cardId;
+      const relatedCard = parsedCards.value.find(c => c.id === relatedCardId);
+
+      if (relatedCard && relatedCard.id !== card.id) {
+        const newRelatedPosition = {
+          x: relatedCard.position.x + deltaX,
+          y: relatedCard.position.y + deltaY,
+          width: relatedCard.position.width,
+          height: relatedCard.position.height,
+        };
+        relatedCard.moveTo && relatedCard.moveTo(newRelatedPosition)
+      }
+    });
+  }
+
+};
+
 // 在窗口大小改变时可能也需要更新
 onMounted(() => {
-  coordinateManager.value = new CoordinateManager(connectionCanvasRef.value,cardsContainer.value);
+  coordinateManager.value = new CoordinateManager(connectionCanvasRef.value, cardsContainer.value);
 
   window.addEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
@@ -319,17 +415,17 @@ const duplicateOffset = ref({ x: 0, y: 0 });
 // 修改处理开始复制事件的方法
 const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, sourcePosition }) => {
   if (isDuplicating.value) return;
-  
+
   isDuplicating.value = true;
   actualCard.value = newCard;
-  
+
   const rect = connectionCanvasRef.value.getBoundingClientRect();
   const scroll = coordinateManager.value.getScrollOffset();
-  
+
   // 计算鼠标相对于容器的绝对位置
   const mouseX = mouseEvent.clientX - rect.left + scroll.scrollLeft;
   const mouseY = mouseEvent.clientY - rect.top + scroll.scrollTop;
-  
+
   // 设置预览卡片的初始位置为鼠标位置
   duplicatingPreview.value = {
     ...previewCard,
@@ -343,13 +439,13 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
       isPreview: true
     }
   };
-  
+
   // 计算鼠标相对于预览卡片的偏移
   duplicateOffset.value = {
     x: mouseEvent.clientX - rect.left,
     y: mouseEvent.clientY - rect.top
   };
-  
+
   document.addEventListener('mousemove', handleDuplicateMove);
   document.addEventListener('click', handleDuplicatePlace, true);
 };
@@ -357,14 +453,14 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
 // 修改移动处理方法
 const handleDuplicateMove = (e) => {
   if (!isDuplicating.value || !duplicatingPreview.value) return;
-  
+
   const rect = connectionCanvasRef.value.getBoundingClientRect();
   const scroll = coordinateManager.value.getScrollOffset();
-  
+
   // 直接计算鼠标相对于容器的绝对位置
   const x = e.clientX - rect.left + scroll.scrollLeft;
   const y = e.clientY - rect.top + scroll.scrollTop;
-  
+
   // 更新预览卡片位置为绝对坐标
   duplicatingPreview.value = {
     ...duplicatingPreview.value,
@@ -379,21 +475,21 @@ const handleDuplicateMove = (e) => {
 // 修改放置处理方法
 const handleDuplicatePlace = async (e) => {
   if (!isDuplicating.value || !actualCard.value) return;
-  
+
   e.stopPropagation();
-  
+
   isDuplicating.value = false;
   document.removeEventListener('mousemove', handleDuplicateMove);
   document.removeEventListener('click', handleDuplicatePlace);
-  
+
   try {
     const rect = connectionCanvasRef.value.getBoundingClientRect();
     const scroll = coordinateManager.value.getScrollOffset();
-    
+
     // 计算最终放置位置（绝对坐标）
     const finalX = e.clientX - rect.left + scroll.scrollLeft;
     const finalY = e.clientY - rect.top + scroll.scrollTop;
-    
+
     // 使用最终位置更新实际卡片
     actualCard.value.position = {
       ...duplicatingPreview.value.position,
@@ -402,16 +498,16 @@ const handleDuplicatePlace = async (e) => {
       width: duplicatingPreview.value.position.width,
       height: duplicatingPreview.value.position.height
     };
-    
+
     // 添加新卡片
     const newCard = await addCard(actualCard.value);
-    
+
     // 强制更新 parsedCards 的引用以触发视图更新
     parsedCards.value = [...parsedCards.value];
-    
+
     // 等待下一个渲染周期
     await nextTick();
-    
+
     // 手动触发 onCardMove 事件来更新卡片位置
     onCardMove(newCard.id, {
       x: finalX,
@@ -419,12 +515,12 @@ const handleDuplicatePlace = async (e) => {
       width: newCard.position.width,
       height: newCard.position.height
     });
-    
+
     // 更新网络结构
     const pn = buildPetriNet();
     pn.exec(undefined, true);
     pn.startAutoExec();
-    
+
   } catch (error) {
     console.error('复制卡片失败:', error);
   } finally {
@@ -440,26 +536,26 @@ onUnmounted(() => {
   document.removeEventListener('click', handleDuplicatePlace);
 });
 
-// 添加处理新 link 的方法
-const handleNewLink = (newLink) => {
-  // 检查是否存在重复的 link
-  const duplicateLinkIndex = config.value.links.findIndex(link =>
-    link.from.cardId === newLink.from.cardId &&
-    link.from.anchorId === newLink.from.anchorId &&
-    link.to.cardId === newLink.to.cardId &&
-    link.to.anchorId === newLink.to.anchorId
+// 添加处理新 relation 的方法
+const handleNewrelation = (newrelation) => {
+  // 检查是否存在重复的 relation
+  const duplicaterelationIndex = config.value.relations.findIndex(relation =>
+    relation.from.cardId === newrelation.from.cardId &&
+    relation.from.anchorId === newrelation.from.anchorId &&
+    relation.to.cardId === newrelation.to.cardId &&
+    relation.to.anchorId === newrelation.to.anchorId
   );
 
-  if (duplicateLinkIndex !== -1) {
-    // 如果存在重复 link，移除它
-    config.value.links.splice(duplicateLinkIndex, 1);
+  if (duplicaterelationIndex !== -1) {
+    // 如果存在重复 relation，移除它
+    config.value.relations.splice(duplicaterelationIndex, 1);
   } else {
-    // 添加新 link
-    config.value.links.push(newLink);
+    // 添加新 relation
+    config.value.relations.push(newrelation);
   }
 
-  // 强制更新 links 数组的引用，触发视图更新
-  config.value.links = [...config.value.links];
+  // 强制更新 relations 数组的引用，触发视图更新
+  config.value.relations = [...config.value.relations];
 };
 </script>
 <style scoped>

@@ -54,6 +54,18 @@
         <!-- 锚点内容 -->
       </div>
     </div>
+  <!-- 添加固定触发锚点 -->
+  <template v-for="anchor in triggerAnchorPositions" :key="anchor.id">
+    <div :class="['trigger-anchor-container', `trigger-anchor-${anchor.side}`]"
+         v-show="isFocused.value">
+      <div class="trigger-anchor-point"
+           :data-anchor-id="anchor.id"
+           :data-card-id="props.cardID"
+           @mousedown.stop="startConnectionDrag(anchor, anchor.side)">
+        <div class="trigger-anchor-dot"></div>
+      </div>
+    </div>
+  </template>
 
 
   </div>
@@ -108,6 +120,14 @@ const props = defineProps({
   connections: {
     type: Array,
     default: () => []
+  },
+  triggerAnchors: {
+    type: Array,
+    default: () => ['left', 'right', 'top', 'bottom']
+  },
+  forcePosition: {
+    type: Object,
+    default: null
   }
 })
 
@@ -253,29 +273,48 @@ const getAnchorStyle = (anchor, side) => {
 const startDrag = (e) => {
   if (props.componentProps?.isPreview) return;
 
-  isDragging.value = true
+  isDragging.value = true;
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
-    startX: currentPos.value.x,
-    startY: currentPos.value.y,
-    // 保存初始鼠标位置相对于卡片的偏移
+    lastX: currentPos.value.x,
+    lastY: currentPos.value.y,
     offsetX: e.clientX - currentPos.value.x,
     offsetY: e.clientY - currentPos.value.y
-  }
-  document.addEventListener('mousemove', onDrag)
-  document.addEventListener('mouseup', stopDrag)
-}
+  };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', stopDrag);
+};
 
 const onDrag = (e) => {
-  if (!isDragging.value) return
+  if (!isDragging.value) return;
 
-  // 计算新位置时考虑初始偏移量
-  currentPos.value = {
+  const newPos = {
     x: e.clientX - dragStart.value.offsetX,
     y: e.clientY - dragStart.value.offsetY
-  }
-}
+  };
+
+  // 计算相对于上一次位置的变化量
+  const deltaX = newPos.x - dragStart.value.lastX;
+  const deltaY = newPos.y - dragStart.value.lastY;
+
+  // 更新上一次位置
+  dragStart.value.lastX = newPos.x;
+  dragStart.value.lastY = newPos.y;
+
+  currentPos.value = newPos;
+
+  // 触发移动事件，让父组件知道位置变化
+  emit('onCardMove', props.cardID, {
+    ...newPos,
+    width: currentSize.value.width,
+    height: currentSize.value.height,
+    deltaX,
+    deltaY,
+    isDragging: true
+  });
+};
+
 const stopDrag = (e) => {
   isDragging.value = false
 
@@ -375,7 +414,12 @@ onMounted(() => {
     width: props.position.width,
     height: props.position.height
   };
+  props.card.moveTo=(newRelatedPosition)=>{
+    console.error(newRelatedPosition,currentPos.value)
+    currentPos.value.x=newRelatedPosition.x
+    currentPos.value.y=newRelatedPosition.y
 
+  }
   //这个需要提到最外面
   (async () => {
     try {
@@ -475,7 +519,7 @@ watch(cardStyle, () => {
   // 只有在非预览状态下才触发卡片移动事件
   if (!props.componentProps?.isPreview) {
     nextTick(() => {
-      emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value });
+      emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value ,isDragging:isDragging.value});
     });
   }
 });
@@ -554,8 +598,36 @@ watch(() => props.position, (newPosition) => {
       height: newPosition.height || currentSize.value.height
     };
   }
-  console.log('aaaa',props.position)
 
+}, { deep: true });
+
+// 添加固定触发锚点的计算属性
+const triggerAnchorPositions = computed(() => {
+  return props.triggerAnchors.map(side => ({
+    id: `trigger-${side}`,
+    side,
+    type: 'trigger',
+    position: 0.5 // 固定在中间位置
+  }));
+});
+
+// 添加对 forcePosition 的监听
+watch(() => props.forcePosition, (newPosition) => {
+
+  if (newPosition && !isDragging.value) { // 只在非拖拽状态下接受强制位置更新
+    console.error(newPosition,isDragging.value)
+
+    currentPos.value = {
+      x: newPosition.x,
+      y: newPosition.y
+    };
+    if (newPosition.width && newPosition.height) {
+      currentSize.value = {
+        width: newPosition.width,
+        height: newPosition.height
+      };
+    }
+  }
 }, { deep: true });
 
 </script>
@@ -859,7 +931,7 @@ watch(() => props.position, (newPosition) => {
   opacity: 1;
 }
 
-/* 添加自定义滚动条样式（针对 Webkit 浏览器） */
+/* 添加自定义滚动���样式（针对 Webkit 浏览器） */
 .card-content::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -941,5 +1013,64 @@ watch(() => props.position, (newPosition) => {
   width: 16px;
   height: 16px;
   color: var(--b3-theme-on-surface);
+}
+
+/* 触发锚点容器样式 */
+.trigger-anchor-container {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.trigger-anchor-left {
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.trigger-anchor-right {
+  right: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.trigger-anchor-top {
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.trigger-anchor-bottom {
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 触发锚点样式 */
+.trigger-anchor-point {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.trigger-anchor-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--b3-theme-orange, #FF9800);
+  border: 2px solid var(--b3-theme-surface);
+  box-shadow: var(--b3-dialog-shadow);
+  transition: all 0.2s ease;
+}
+
+.trigger-anchor-point:hover .trigger-anchor-dot {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.15);
 }
 </style>
