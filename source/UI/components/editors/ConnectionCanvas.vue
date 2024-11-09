@@ -7,9 +7,7 @@
   import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
   import _Konva from '../../../../static/konva.js'
   import { drawGrid, drawRulers } from './geometry/backgroundDrawer.js';
-
   const Konva = _Konva.default
-  
   const props = defineProps({
     cards: {
       type: Array,
@@ -52,17 +50,11 @@
   const layer = ref(null);
   const gridLayer = ref(null);
   const rulerLayer = ref(null);
-  
   const currentConnection = ref(null);
-  
   // 创建 ResizeObserver
   const resizeObserver = ref(null);
-  
   // 添加防抖相关变量
   const rafId = ref(null);
-  const lastUpdate = ref(0);
-  const FPS_INTERVAL = 1000 / 60; // 60fps = 约16.7ms每帧
-  
   // 添加一个空闲回调队列
   const idleCallbackQueue = ref([]);
   
@@ -95,7 +87,6 @@
   const updateConnections = () => {
     // 清除所有现有连接
     layer.value.destroyChildren();
-    
     // 重新绘制所有连接
     props.connections.forEach(conn => {
         const fromCard = props.cards.find(card => card.id === conn.from.cardId);
@@ -115,7 +106,6 @@
             console.warn('找不到连接对应的锚点:', conn);
             return;
         }
-        
         drawConnection(
             layer.value,
             fromAnchor.absolutePosition,
@@ -137,30 +127,6 @@
     if (!connectionCanvas.value || !stage.value) return;
         updateStage();
   };
-
-  // 处理空闲回调队列
-  const processIdleQueue = () => {
-    if (idleCallbackQueue.value.length === 0) {
-      rafId.value = null;
-      return;
-    }
-
-    const callback = idleCallbackQueue.value.shift();
-
-    // 使用 requestIdleCallback，如果不可用则使用 setTimeout
-    if (window.requestIdleCallback) {
-      rafId.value = requestIdleCallback(() => {
-        callback();
-        processIdleQueue();
-      },{timeout:15});
-    } else {
-      rafId.value = setTimeout(() => {
-        callback();
-        processIdleQueue();
-      }, 1);
-    }
-  };
-
   // 抽取公共更新逻辑到新函数
   const updateStage = () => {
     const parentSize = props.coordinateManager.getParentSize();
@@ -175,44 +141,9 @@
     drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
     stage.value.batchDraw();
   };
-
-  let isScrolling = false;
-  let scrollTimeout = null;
-
   const handleScroll = (e) => {
     console.log(e)
     updateStage();
-
-    if (!isScrolling) {
-      isScrolling = true;
-      updateStage();
-    }
-
-    // 清除之前的超时
-    if (scrollTimeout) {
-      clearTimeout(scrollTimeout);
-    }
-
-    // 设置新的超时，在滚动停止后 500ms 停止更新
-    scrollTimeout = setTimeout(() => {
-      isScrolling = false;
-    }, 500);
-  };
-
-  const updateScrollPosition = () => {
-    if (!stage.value || !isScrolling) return;
-
-    const scroll = props.coordinateManager.getScrollOffset();
-    //connectionCanvas.value.style.top = scroll.scrollTop + 'px';
-    //connectionCanvas.value.style.left = scroll.scrollLeft + 'px';
-
-    // 其他更新逻辑
-    stage.value.batchDraw();
-
-    // 如果仍在滚动，继续请求下一帧
-    if (isScrolling) {
-      requestAnimationFrame(updateScrollPosition);
-    }
   };
 
   // 监听属性变化
