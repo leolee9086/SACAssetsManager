@@ -1,5 +1,5 @@
 import { initVueApp } from './utils/componentsLoader.js';
-
+import VueKonva from '../../static/vue-konva.mjs'
 /**
  * 创建Vue组件界面
  * @param {Object} tab - Tab对象
@@ -21,10 +21,11 @@ export function 创建Vue组件界面(tab, 组件路径, 容器ID = '', 额外�
     {
       ...tab.data,
       ...额外数据,
-      tab
+      tab,
+      getApp:()=>app
     }
   );
-  
+  app.use(VueKonva)
   app.mount(tab.element);
   return app;
 }

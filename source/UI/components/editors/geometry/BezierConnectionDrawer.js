@@ -23,7 +23,9 @@ const CONFIG = {
 
 // 公共函数：删除已有连接
 function removeExistingConnections(layer, id) {
-    layer.find(`.${id}`).forEach(conn => conn.destroy());
+    if (layer.find) {
+        layer.find(`.${id}`).forEach(conn => conn.destroy());
+    }
 }
 
 // 修改绘制路径函数
@@ -87,28 +89,104 @@ function drawPath(group, points, geometry, style = STYLES.NORMAL) {
 }
 
 // 修改统一的连接绘制函数
-export function drawConnection(layer, start, end, startSide, endSide, id, 
+export function drawConnection(target, start, end, startSide, endSide, id, 
     geometry = GEOMETRY.CIRCUIT, style = STYLES.NORMAL) {
     
-    removeExistingConnections(layer, id);
-    
-    // 根据几何类型计算路径点
-    const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
-    const connectionGroup = new Konva.Group({ name: id });
-    
-    // 根据样式处理点
-    const points = style === STYLES.HAND_DRAWN ? 
-        applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
-    
-    // 传入样式参数
-    drawPath(connectionGroup, points, geometry, style);
-    addDecorations(connectionGroup, points, geometry);
-    addInteractionEffects(connectionGroup);
-    
-    layer.add(connectionGroup);
-    layer.batchDraw();
-    
-    return connectionGroup;
+    if (!target) {
+        // vue-konva 模式
+        const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
+        const points = style === STYLES.HAND_DRAWN ? 
+            applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
+            
+        return {
+            // 基础配置
+            points: points, // 直接使用点数组
+            stroke: CONFIG.colors.stroke,
+            strokeWidth: CONFIG.sizes.strokeWidth,
+            lineCap: 'round',
+            lineJoin: 'round',
+            tension: geometry === GEOMETRY.BEZIER ? 0.5 : 0, // 贝塞尔曲线使用张力
+            
+            // 装饰配置
+            arrowConfig: {
+                points: [
+                    points[points.length - 4],
+                    points[points.length - 3],
+                    points[points.length - 2],
+                    points[points.length - 1]
+                ],
+                pointerLength: CONFIG.sizes.arrowPointerLength,
+                pointerWidth: CONFIG.sizes.arrowPointerWidth,
+                fill: CONFIG.colors.arrowFill,
+                stroke: CONFIG.colors.arrowFill
+            },
+            
+            // 光点配置
+            dotConfig: {
+                x: points[0],
+                y: points[1],
+                radius: CONFIG.sizes.lightDotRadius,
+                fill: CONFIG.colors.lightDot,
+                stroke: CONFIG.colors.lightDot,
+                strokeWidth: 1
+            }
+        };
+    } else {
+        // 原生 Konva 模式
+        removeExistingConnections(target, id);
+        const connectionGroup = new Konva.Group({ name: id });
+        const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
+        const points = style === STYLES.HAND_DRAWN ? 
+            applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
+        
+        drawPath(connectionGroup, points, geometry, style);
+        addDecorations(connectionGroup, points, geometry);
+        addInteractionEffects(connectionGroup);
+        
+        target.add(connectionGroup);
+        target.batchDraw();
+        
+        return connectionGroup;
+    }
+}
+
+// 修改装饰配置函数
+function getDecorationConfig(points, geometry) {
+    const arrowPoints = calculateArrowPoints(points, geometry);
+    return {
+        // 箭头配置
+        arrowConfig: {
+            points: arrowPoints,
+            pointerLength: CONFIG.sizes.arrowPointerLength,
+            pointerWidth: CONFIG.sizes.arrowPointerWidth,
+            fill: CONFIG.colors.arrowFill,
+            stroke: CONFIG.colors.arrowFill,
+            strokeWidth: CONFIG.sizes.strokeWidth
+        },
+        // 光点配置
+        dotConfig: {
+            x: points[0],
+            y: points[1],
+            radius: CONFIG.sizes.lightDotRadius,
+            fill: CONFIG.colors.lightDot,
+            stroke: CONFIG.colors.lightDot,
+            strokeWidth: 1
+        }
+    };
+}
+
+// 新增：获取交互配置
+function getInteractionConfig() {
+    return {
+        onMouseover: () => {
+            document.body.style.cursor = 'pointer';
+            return { strokeWidth: CONFIG.sizes.strokeWidth + 1 };
+        },
+        onMouseout: () => {
+            document.body.style.cursor = 'default';
+            return { strokeWidth: CONFIG.sizes.strokeWidth };
+        }
+    };
 }
 
 // 计算几何路径
@@ -127,21 +205,36 @@ function calculateGeometryPath(start, end, startSide, endSide, geometry) {
 
 // 计算电路板路径
 function calculateCircuitPath(start, end, startSide, endSide) {
-    let points = [start.x, start.y];
+    // 使用 Float32Array 提高性能
+    const points = new Float32Array(8); // 预分配固定大小
+    points[0] = start.x;
+    points[1] = start.y;
+    
+    const midX = (start.x + end.x) * 0.5; // 使用乘法代替除法
+    const midY = (start.y + end.y) * 0.5;
     
     if ((startSide === 'right' && endSide === 'left') || 
         (startSide === 'left' && endSide === 'right')) {
-        points.push((start.x + end.x) / 2, start.y);
-        points.push((start.x + end.x) / 2, end.y);
+        points[2] = midX;
+        points[3] = start.y;
+        points[4] = midX;
+        points[5] = end.y;
     } else if ((startSide === 'top' && endSide === 'bottom') || 
                (startSide === 'bottom' && endSide === 'top')) {
-        points.push(start.x, (start.y + end.y) / 2);
-        points.push(end.x, (start.y + end.y) / 2);
+        points[2] = start.x;
+        points[3] = midY;
+        points[4] = end.x;
+        points[5] = midY;
     } else {
-        points.push((start.x + end.x) / 2, (start.y + end.y) / 2);
+        points[2] = midX;
+        points[3] = midY;
+        points[4] = midX;
+        points[5] = midY;
     }
     
-    points.push(end.x, end.y);
+    points[6] = end.x;
+    points[7] = end.y;
+    
     return points;
 }
 

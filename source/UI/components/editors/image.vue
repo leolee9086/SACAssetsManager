@@ -1,4 +1,5 @@
 <template>
+  <div>
   <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
     :coordinateManager="coordinateManager" />
   <InfoPanel v-if="coordinateManager" :stats="systemStats" :coordinateManager="coordinateManager" />
@@ -8,17 +9,25 @@
 
     <div v-show="false" class="connection-canvas">
     </div>
-    <ConnectionCanvas v-if="config.connections" :cards="parsedCards" :connections="config.connections"
+    <ConnectionCanvas v-if="config.connections" 
+    :cardsContainer="cardsContainer"
+    :cards="parsedCards" :connections="config.connections"
       :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
       @connectionCreated="handleNewConnection" />
     <!-- 动态渲染卡片 -->
+    <div  style
+    ="position: relative;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: auto;">
+
+    <div ref="cardsContainer" >
     <template v-for="(card, index) in parsedCards" :key="card.id+index">
       <cardContainer :title="card.title" :position="card.position" :data-card-id="card.id" :cardID="card.id"
         :component="card.controller.component" :component-props="card.controller.componentProps"
         :nodeDefine="card.controller.nodeDefine" :component-events="card.events" :anchors="card.controller.anchors"
         :connections="config.connections" :card="card" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
     </template>
-
     <!-- 复制中的卡片预览 -->
     <cardContainer
       v-if="isDuplicating && duplicatingPreview"
@@ -31,6 +40,9 @@
       }"
     />
   </div>
+</div>
+  </div>
+</div>
 </template>
 <script>
 </script>
@@ -50,6 +62,7 @@ import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers
 
 // 在 setup 中
 import StyleSelector from './toolBar/StyleSelector.vue';
+const cardsContainer=ref(null)
 const cardManager = new CardManager();
 const parsedCards = ref([]);
 const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
@@ -112,7 +125,6 @@ const config = ref(editorConfig);
 // 初始化 canvas 和连接
 onMounted(async () => {
   config.value = await loadJson(editorConfig); // 使用异步加载函数
-  console.log(config.value)
   await loadConfig();
   updateAnchorsPosition(parsedCards.value)
   // 将配置文件中的连接转换为内部连接格式
@@ -206,7 +218,7 @@ const onCardMove = (cardId, newPosition) => {
 };
 // 在窗口大小改变时可能也需要更新
 onMounted(() => {
-  coordinateManager.value = new CoordinateManager(connectionCanvasRef.value);
+  coordinateManager.value = new CoordinateManager(connectionCanvasRef.value,cardsContainer.value);
 
   window.addEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
@@ -432,9 +444,7 @@ onUnmounted(() => {
   position: absolute;
   width: 100%;
   height: 100%;
-  overflow: auto;
-
-
+  overflow: hidden
 }
 
 .input-group {

@@ -29,26 +29,60 @@ export function useFixedPosition(coordinateManager, initialOffset = { top: 20, l
   return offset;
 }
 export class CoordinateManager {
-    constructor(container) {
+    constructor(container,cardsContainer) {
         this.container = container;
         this.parentElement = container.parentElement;
+        this.cardsContainer =cardsContainer 
+        // 添加鼠标位置追踪
+        this.currentMousePosition = { x: 0, y: 0 };
+        this.container.addEventListener('mousemove', this.updateMousePosition.bind(this));
+    }
+
+    updateMousePosition(event) {
+        const relativePos = this.getRelativePosition(event);
+        this.currentMousePosition = relativePos;
+        this.updateContainerSize();
+    }
+
+    updateContainerSize() {
+        const scroll = this.getScrollOffset();
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+
+        // 计算需要的最小尺寸（当前鼠标位置 + 一个屏幕的尺寸）
+        const requiredWidth = Math.max(
+            this.currentMousePosition.x + screenWidth,
+            scroll.clientWidth
+        );
+        const requiredHeight = Math.max(
+            this.currentMousePosition.y + screenHeight,
+            scroll.clientHeight
+        );
+
+        // 设置容器尺寸
+        this.cardsContainer.style.width = `${requiredWidth}px`;
+        this.cardsContainer.style.height = `${requiredHeight}px`;
     }
 
     getScrollOffset() {
         return {
-            scrollLeft: this.container.scrollLeft || 0,
-            scrollTop: this.container.scrollTop || 0,
-            scrollWidth: this.container.scrollWidth || 0,
-            scrollHeight: this.container.scrollHeight || 0,
-            clientWidth: this.container.clientWidth || 0,
-            clientHeight: this.container.clientHeight || 0
+            scrollLeft: this.cardsContainer.parentElement.scrollLeft || 0,
+            scrollTop: this.cardsContainer.parentElement.scrollTop || 0,
+            scrollWidth: this.cardsContainer.parentElement.scrollWidth || 0,
+            scrollHeight: this.cardsContainer.parentElement.scrollHeight || 0,
+            clientWidth: this.cardsContainer.parentElement.clientWidth || 0,
+            clientHeight: this.cardsContainer.parentElement.clientHeight || 0
         };
     }
 
     getParentSize() {
+        // 确保尺寸总是填满整个容器
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        
         return {
-            width: this.parentElement.scrollWidth,
-            height: this.parentElement.scrollHeight
+            width: Math.min(  screenWidth),
+            height: Math.min(screenHeight)
         };
     }
 

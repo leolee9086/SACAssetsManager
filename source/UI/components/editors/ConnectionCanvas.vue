@@ -4,8 +4,10 @@
   </template>
   
   <script setup>
-  import { ref, onMounted, onUnmounted, watch } from 'vue';
+  import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
   import _Konva from '../../../../static/konva.js'
+  import { drawGrid, drawRulers } from './geometry/backgroundDrawer.js';
+
   const Konva = _Konva.default
   
   const props = defineProps({
@@ -25,7 +27,7 @@
       })
     },
     coordinateManager:{
-      type: Array,
+      type: Object,
       required: true
 
     },
@@ -37,6 +39,10 @@
         color: '#E5E5E5',
         showCoordinates: true
       })
+    },
+    cardsContainer:{
+      type: Object,
+
     }
   });
   
@@ -48,6 +54,17 @@
   const rulerLayer = ref(null);
   
   const currentConnection = ref(null);
+  
+  // 创建 ResizeObserver
+  const resizeObserver = ref(null);
+  
+  // 添加防抖相关变量
+  const rafId = ref(null);
+  const lastUpdate = ref(0);
+  const FPS_INTERVAL = 1000 / 60; // 60fps = 约16.7ms每帧
+  
+  // 添加一个空闲回调队列
+  const idleCallbackQueue = ref([]);
   
   // 初始化 Konva
   const initKonva = () => {
@@ -69,8 +86,8 @@
     layer.value = new Konva.Layer();
     stage.value.add(layer.value);
   
-    drawGrid();
-    drawRulers();
+    drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
+    drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
   };
   import { drawConnection } from './geometry/BezierConnectionDrawer.js';
   
@@ -115,52 +132,87 @@
     layer.value.batchDraw();
   };
   
-  // 监听窗口大小变化
+  // 修改 handleResize 函数
   const handleResize = () => {
     if (!connectionCanvas.value || !stage.value) return;
-    
+        updateStage();
+  };
+
+  // 处理空闲回调队列
+  const processIdleQueue = () => {
+    if (idleCallbackQueue.value.length === 0) {
+      rafId.value = null;
+      return;
+    }
+
+    const callback = idleCallbackQueue.value.shift();
+
+    // 使用 requestIdleCallback，如果不可用则使用 setTimeout
+    if (window.requestIdleCallback) {
+      rafId.value = requestIdleCallback(() => {
+        callback();
+        processIdleQueue();
+      },{timeout:15});
+    } else {
+      rafId.value = setTimeout(() => {
+        callback();
+        processIdleQueue();
+      }, 1);
+    }
+  };
+
+  // 抽取公共更新逻辑到新函数
+  const updateStage = () => {
     const parentSize = props.coordinateManager.getParentSize();
     stage.value.width(parentSize.width);
     stage.value.height(parentSize.height);
-    
-    // 更新stage位置以匹配滚动
     const scroll = props.coordinateManager.getScrollOffset();
     stage.value.position({
       x: -scroll.scrollLeft,
       y: -scroll.scrollTop
     });
-    console.log(scroll.scrollTop,scroll.scrollLeft)
-    connectionCanvas.value.style.top=scroll.scrollTop+'px'
-    connectionCanvas.value.style.left=scroll.scrollLeft+'px'
-
-    // 重绘网格和标尺
-    drawGrid();
-    drawRulers();
-
+    drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
+    drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
     stage.value.batchDraw();
   };
 
-  // 添加滚动监听
-  const handleScroll = () => {
-    if (!stage.value) return;
-    
+  let isScrolling = false;
+  let scrollTimeout = null;
+
+  const handleScroll = (e) => {
+    console.log(e)
+    updateStage();
+
+    if (!isScrolling) {
+      isScrolling = true;
+      updateStage();
+    }
+
+    // 清除之前的超时
+    if (scrollTimeout) {
+      clearTimeout(scrollTimeout);
+    }
+
+    // 设置新的超时，在滚动停止后 500ms 停止更新
+    scrollTimeout = setTimeout(() => {
+      isScrolling = false;
+    }, 500);
+  };
+
+  const updateScrollPosition = () => {
+    if (!stage.value || !isScrolling) return;
+
     const scroll = props.coordinateManager.getScrollOffset();
-    
-    // 更新stage位置以匹配滚动
-    stage.value.position({
-      x: -scroll.scrollLeft,
-      y: -scroll.scrollTop
-    });
-    
-    // 更新canvas元素的位置
-    connectionCanvas.value.style.top = scroll.scrollTop + 'px';
-    connectionCanvas.value.style.left = scroll.scrollLeft + 'px';
+    //connectionCanvas.value.style.top = scroll.scrollTop + 'px';
+    //connectionCanvas.value.style.left = scroll.scrollLeft + 'px';
 
-    // 重绘网格和标尺
-    drawGrid();
-    drawRulers();
-
+    // 其他更新逻辑
     stage.value.batchDraw();
+
+    // 如果仍在滚动，继续请求下一帧
+    if (isScrolling) {
+      requestAnimationFrame(updateScrollPosition);
+    }
   };
 
   // 监听属性变化
@@ -244,15 +296,69 @@
   }, { deep: true });
   
   onMounted(() => {
-    initKonva();
-    updateConnections();
-    window.addEventListener('resize', handleResize);
-    props.coordinateManager.container.addEventListener('scroll', handleScroll);
+    initKonva()
+    nextTick(() => {
+      // 初始化 ResizeObserver
+      resizeObserver.value = new ResizeObserver((entries) => {
+        handleResize();
+      });
+      
+      // 监听容器的大小变化
+      if (props.coordinateManager.container) {
+        resizeObserver.value.observe(props.coordinateManager.container);
+      }
+      
+      // 监听父容器的大小变化
+      if (props.coordinateManager.parentElement) {
+        resizeObserver.value.observe(props.coordinateManager.parentElement);
+      }
+      
+      // 监听父容器的父容器大小变化
+      if (props.coordinateManager.parentElement.parentElement) {
+        resizeObserver.value.observe(props.coordinateManager.parentElement.parentElement);
+      }
+
+      // 其他事件监听
+      props.coordinateManager.container.addEventListener('scroll', updateStage);
+      props.coordinateManager.container.addEventListener('wheel', updateStage);
+      props.cardsContainer.parentElement.addEventListener('scroll', updateStage);
+      props.cardsContainer.parentElement.addEventListener('wheel', updateStage);
+
+      // 仍然需要监听窗口大小变化
+      window.addEventListener('resize', handleResize);
+      
+      // 初始化位置和大小
+      handleResize();
+    });
   });
   
   onUnmounted(() => {
+    // 清理 ResizeObserver
+    if (resizeObserver.value) {
+      resizeObserver.value.disconnect();
+    }
+    
+    // 移除其他事件监听
+    if (props.coordinateManager.container) {
+      props.coordinateManager.container.removeEventListener('scroll', handleScroll);
+      props.coordinateManager.container.removeEventListener('wheel', handleScroll);
+    }
+    
+    if (props.coordinateManager.parentElement) {
+      props.coordinateManager.parentElement.removeEventListener('scroll', handleScroll);
+      props.coordinateManager.parentElement.removeEventListener('wheel', handleScroll);
+    }
+    
     window.removeEventListener('resize', handleResize);
-    props.coordinateManager.container.removeEventListener('scroll', handleScroll);
+
+    if (rafId.value) {
+      if (window.cancelIdleCallback) {
+        cancelIdleCallback(rafId.value);
+      } else {
+        clearTimeout(rafId.value);
+      }
+    }
+    idleCallbackQueue.value = [];
   });
 
   function getAnchorFromEvent(e) {
@@ -300,150 +406,10 @@
     };
   }
 
-  // 绘制网格
-  const drawGrid = () => {
-    if (!gridLayer.value || !props.gridConfig.enabled) return;
-    
-    gridLayer.value.destroyChildren();
-    
-    const parentSize = props.coordinateManager.getParentSize();
-    const gridSize = props.gridConfig.size;
-    const scroll = props.coordinateManager.getScrollOffset();
-    
-    // 计算网格起始点（考虑滚动位置）
-    const startX = Math.floor(scroll.scrollLeft / gridSize) * gridSize;
-    const startY = Math.floor(scroll.scrollTop / gridSize) * gridSize;
-    
-    // 绘制垂直线
-    for (let x = startX; x <= startX + parentSize.width; x += gridSize) {
-      gridLayer.value.add(new Konva.Line({
-        points: [x, scroll.scrollTop, x, scroll.scrollTop + parentSize.height],
-        stroke: props.gridConfig.color,
-        strokeWidth: 1,
-        opacity: 0.5
-      }));
-      
-      // 添加坐标标签
-      if (props.gridConfig.showCoordinates && x % (gridSize * 5) === 0) {
-        gridLayer.value.add(new Konva.Text({
-          x: x + 2,
-          y: scroll.scrollTop + 2,
-          text: x.toString(),
-          fontSize: 10,
-          fill: props.gridConfig.color
-        }));
-      }
-    }
-    
-    // 绘制水平线
-    for (let y = startY; y <= startY + parentSize.height; y += gridSize) {
-      gridLayer.value.add(new Konva.Line({
-        points: [scroll.scrollLeft, y, scroll.scrollLeft + parentSize.width, y],
-        stroke: props.gridConfig.color,
-        strokeWidth: 1,
-        opacity: 0.5
-      }));
-      
-      // 添加坐标标签
-      if (props.gridConfig.showCoordinates && y % (gridSize * 5) === 0) {
-        gridLayer.value.add(new Konva.Text({
-          x: scroll.scrollLeft + 2,
-          y: y + 2,
-          text: y.toString(),
-          fontSize: 10,
-          fill: props.gridConfig.color
-        }));
-      }
-    }
-    
-    gridLayer.value.batchDraw();
-  };
-
-  // 绘制标尺
-  const drawRulers = () => {
-    if (!rulerLayer.value) return;
-    
-    rulerLayer.value.destroyChildren();
-    
-    const parentSize = props.coordinateManager.getParentSize();
-    const rulerWidth = 20;
-    const scroll = props.coordinateManager.getScrollOffset();
-    const gridSize = props.gridConfig.size;
-    
-    // 水平标尺背景
-    rulerLayer.value.add(new Konva.Rect({
-      x: scroll.scrollLeft,
-      y: scroll.scrollTop,
-      width: parentSize.width,
-      height: rulerWidth,
-      fill: '#f5f5f5',
-      stroke: '#e0e0e0',
-      strokeWidth: 1
-    }));
-    
-    // 垂直标尺背景
-    rulerLayer.value.add(new Konva.Rect({
-      x: scroll.scrollLeft,
-      y: scroll.scrollTop,
-      width: rulerWidth,
-      height: parentSize.height,
-      fill: '#f5f5f5',
-      stroke: '#e0e0e0',
-      strokeWidth: 1
-    }));
-    
-    // 计算标尺起始点
-    const startX = Math.floor(scroll.scrollLeft / gridSize) * gridSize;
-    const startY = Math.floor(scroll.scrollTop / gridSize) * gridSize;
-    
-    // 水平刻度
-    for (let x = startX; x <= startX + parentSize.width; x += gridSize) {
-      const isMajor = x % (gridSize * 5) === 0;
-      rulerLayer.value.add(new Konva.Line({
-        points: [x, scroll.scrollTop + rulerWidth, x, scroll.scrollTop + (isMajor ? 0 : rulerWidth/2)],
-        stroke: '#999',
-        strokeWidth: 1
-      }));
-      
-      if (isMajor) {
-        rulerLayer.value.add(new Konva.Text({
-          x: x + 2,
-          y: scroll.scrollTop + 2,
-          text: x.toString(),
-          fontSize: 9,
-          fill: '#666'
-        }));
-      }
-    }
-    
-    // 垂直刻度
-    for (let y = startY; y <= startY + parentSize.height; y += gridSize) {
-      const isMajor = y % (gridSize * 5) === 0;
-      rulerLayer.value.add(new Konva.Line({
-        points: [scroll.scrollLeft + rulerWidth, y, scroll.scrollLeft + (isMajor ? 0 : rulerWidth/2), y],
-        stroke: '#999',
-        strokeWidth: 1
-      }));
-      
-      if (isMajor) {
-        rulerLayer.value.add(new Konva.Text({
-          x: scroll.scrollLeft + 2,
-          y: y + 2,
-          text: y.toString(),
-          fontSize: 9,
-          fill: '#666',
-          rotation: 0
-        }));
-      }
-    }
-    
-    rulerLayer.value.batchDraw();
-  };
-
-  // 添加对网格配置的监听
+  // 修改网格配置监听
   watch(() => props.gridConfig, () => {
-    drawGrid();
-    drawRulers();
+    drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
+    drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
   }, { deep: true });
   </script>
   
