@@ -1,6 +1,12 @@
 import Konva from '../../../../../static/konva.js';
 import { 绘制贝塞尔曲线 } from '../../../../utils/canvas/konvaUtils/shapes.js';
 import { STYLES, GEOMETRY } from '../types.js'; // 从 types.js 导入常量
+import { 自中心以方向向量计算矩形上交点 } from './geometryCalculate/intersections.js';
+import { 计算正交分段路径 } from './geometryCalculate/path.js';
+import { 添加抖动效果到点集 } from './geometryCalculate/path.js';
+import { getPointOnArc } from './geometryCalculate/arc.js';
+import { 计算三次贝塞尔曲线上的点 } from './geometryCalculate/path.js';
+import { calculateArcEndPoints } from './geometryCalculate/arc.js';
 
 // 配置常量
 const CONFIG = {
@@ -41,6 +47,9 @@ const RELATION_STYLE = {
         dash: [8, 4]
     }
 };
+
+// 添加常量
+const GOLDEN_RATIO = 0.618; // 黄金分割比
 
 // 公共函数：删除已有连接
 function removeExistingConnections(layer, id) {
@@ -340,20 +349,6 @@ function 以固定数量获取采样点(points, geometry) {
 
     return sampledPoints;
 }
-import { 添加抖动效果到点集 } from './geometryCalculate/path.js';
-
-// 计算弧线上的点
-function getPointOnArc(points, t) {
-    const [x0, y0, cx, cy, x1, y1] = points;
-    const mt = 1 - t;
-
-    // 二次贝塞尔曲线插值
-    return {
-        x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
-        y: mt * mt * y0 + 2 * mt * t * cy + t * t * y1
-    };
-}
-
 // 交互效果
 function addInteractionEffects(group) {
     const path = group.findOne('Line');
@@ -391,14 +386,12 @@ function getPointOnPath(points, t) {
     };
 }
 
-import { 计算三次贝塞尔曲线上的点 } from './geometryCalculate/path.js';
 
 // 计算贝塞尔曲线末端的切线点
 function calculateBezierEndPoints(points) {
     const t = 0.95; // 用于计算箭头方向的点
     const endPoint = 计算三次贝塞尔曲线上的点(points, 1);
     const nearEndPoint = 计算三次贝塞尔曲线上的点(points, t);
-
     return [
         nearEndPoint.x,
         nearEndPoint.y,
@@ -423,50 +416,27 @@ function calculateArrowPoints(points, geometry) {
             ];
     }
 }
-
-// 计算弧线末端的切线点
-function calculateArcEndPoints(points) {
-    const t = 0.95; // 用于计算箭头方向的点
-    const [x0, y0, cx, cy, x1, y1] = points;
-
-    // 计算结束点
-    const endPoint = {
-        x: x1,
-        y: y1
-    };
-
-    // 计算靠近结束点的点（用于确定箭头方向）
-    const mt = 1 - t;
-    const nearEndPoint = {
-        x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
-        y: mt * mt * y0 + 2 * mt * t * cy + t * t * y1
-    };
-
-    return [
-        nearEndPoint.x,
-        nearEndPoint.y,
-        endPoint.x,
-        endPoint.y
-    ];
+// 创建 relation 组
+function createRelationGroup(name, className) {
+    return new Konva.Group({
+        name,
+        className
+    })
 }
-
 // 新增：绘制 relation 的函数
-export function drawRelation(target, start, end, id,
+export function drawRelation(
+    target,
+    start,
+    end,
+    id,
     geometry = RELATION_STYLE.geometry,
-    style = STYLES.NORMAL) {
-
+    style = STYLES.NORMAL
+) {
     removeExistingConnections(target, id);
-
-    const relationGroup = new Konva.Group({
-        name: id,
-        className: 'relation'
-    });
-
+    const relationGroup = createRelationGroup(id, 'relation')
     // 计算路径点，支持手绘风格
     const pathPoints = calculateRelationPath(start, end, geometry, style);
-    const points = style === STYLES.HAND_DRAWN ?
-        获取手绘风格形状(pathPoints, geometry) : pathPoints;
-
+    const points = style === STYLES.HAND_DRAWN ? 获取手绘风格形状(pathPoints, geometry) : pathPoints;
     // 使用 drawPath 函数绘制主路径，但使用 relation 的颜色
     const pathConfig = {
         stroke: RELATION_STYLE.stroke,
@@ -476,7 +446,6 @@ export function drawRelation(target, start, end, id,
         dash: RELATION_STYLE.dash,
         opacity: 0.9
     };
-
     // 根据样式选择不同的绘制方法
     if (style === STYLES.HAND_DRAWN) {
         const path = new Konva.Line({
@@ -492,7 +461,7 @@ export function drawRelation(target, start, end, id,
                 ...pathConfig,
                 sceneFunc: (context, shape) => {
                     // 根据实际点的数量决定截取长度
-                    const curvePoints = points.slice(0,  8);
+                    const curvePoints = points.slice(0, 8);
                     绘制贝塞尔曲线(context, shape, curvePoints);
                 }
             });
@@ -502,7 +471,7 @@ export function drawRelation(target, start, end, id,
                 ...pathConfig,
                 sceneFunc: (context, shape) => {
                     // 根据实际点的数量决定截取长度
-                    const curvePoints = points.slice(0,  6);
+                    const curvePoints = points.slice(0, 6);
                     绘制贝塞尔曲线(context, shape, curvePoints);
                 }
             });
@@ -515,21 +484,16 @@ export function drawRelation(target, start, end, id,
             relationGroup.add(path);
         }
     }
-
-
     // 添加交互效果
     addRelationInteractionEffects(relationGroup);
-
     target.add(relationGroup);
     target.batchDraw();
-
     return relationGroup;
 }
 
 // 添加专门的 relation 交互效果函数
 function addRelationInteractionEffects(group) {
     const elements = group.getChildren();
-
     group.on('mouseover', () => {
         document.body.style.cursor = 'pointer';
         elements.forEach(element => {
@@ -563,7 +527,6 @@ function addRelationInteractionEffects(group) {
     });
 }
 
-import { 计算正交分段路径 } from './geometryCalculate/path.js';
 // 象限判断函数
 function determineQuadrant(vector) {
     const { x, y } = vector;
@@ -593,8 +556,8 @@ function calculateRelationPath(start, end, geometry, style) {
 
     // 3. 计算与矩形边界的交点
     const points = {
-        start: calculateVectorIntersection(start, vector),
-        end: calculateVectorIntersection(end, {
+        start: 自中心以方向向量计算矩形上交点(start, vector),
+        end: 自中心以方向向量计算矩形上交点(end, {
             x: -vector.x,
             y: -vector.y
         })
@@ -607,13 +570,13 @@ function calculateRelationPath(start, end, geometry, style) {
     let pathPoints;
     switch (geometry) {
         case GEOMETRY.BEZIER:
-            pathPoints = calculateRelationBezier(points.start, points.end, vector, quadrant);
+            pathPoints = 计算关系贝塞尔曲线形状(points.start, points.end, vector, quadrant);
             break;
         case GEOMETRY.ARC:
-            pathPoints = calculateRelationArc(points.start, points.end, vector, quadrant);
+            pathPoints = 计算关系简单曲线形状(points.start, points.end, vector, quadrant);
             break;
         case GEOMETRY.CIRCUIT:
-            pathPoints = calculateRelationCircuit(points.start, points.end, vector, quadrant);
+            pathPoints = 计算关系折线形状(points.start, points.end, vector, quadrant);
             break;
         default:
             pathPoints = [points.start.x, points.start.y, points.end.x, points.end.y];
@@ -623,39 +586,12 @@ function calculateRelationPath(start, end, geometry, style) {
         获取手绘风格形状(pathPoints, geometry) :
         pathPoints;
 }
-
-// 计算向量与矩形的交点
-function calculateVectorIntersection(rect, vector) {
-    const center = {
-        x: rect.x + rect.width / 2,
-        y: rect.y + rect.height / 2
-    };
-
-    // 计算x和y方向的偏移
-    let xOffset = Math.abs((rect.height / 2 * vector.x) / vector.y);
-    let yOffset = Math.abs((rect.width / 2 * vector.y) / vector.x);
-
-    // 限制在矩形边界内
-    if (Math.abs(yOffset) > rect.height / 2) {
-        yOffset = rect.height / 2;
-    }
-    if (Math.abs(xOffset) > rect.width / 2) {
-        xOffset = rect.width / 2;
-    }
-
-    return {
-        x: vector.x > 0 ? center.x + xOffset : center.x - xOffset,
-        y: vector.y > 0 ? center.y + yOffset : center.y - yOffset
-    };
-}
-
 // 根据象限优化贝塞尔曲线控制点
-function calculateRelationBezier(start, end, vector, quadrant) {
+function 计算关系贝塞尔曲线形状(start, end, vector, quadrant) {
     const offset = CONFIG.sizes.bezierOffset;
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-
     // 根据象限调整控制点的位置
     let control1, control2;
     if (quadrant === 1 || quadrant === 3) {
@@ -677,7 +613,6 @@ function calculateRelationBezier(start, end, vector, quadrant) {
             y: end.y + vector.y * offset / distance
         };
     }
-
     return [
         start.x, start.y,
         control1.x, control1.y,
@@ -686,13 +621,14 @@ function calculateRelationBezier(start, end, vector, quadrant) {
     ];
 }
 
+
+
 // 根据象限优化弧线路径
-function calculateRelationArc(start, end, vector, quadrant) {
+function 计算关系简单曲线形状(start, end, vector, quadrant) {
     const offset = CONFIG.sizes.arcOffset;
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-
     // 根据象限调整控制点位置
     let controlPoint;
     if (quadrant === 1 || quadrant === 3) {
@@ -714,25 +650,32 @@ function calculateRelationArc(start, end, vector, quadrant) {
     ];
 }
 
-function calculateRelationCircuit(start, end) {
+function 计算关系折线形状(start, end) {
+    const points = []
     const dx = end.x - start.x;
     const dy = end.y - start.y;
-    const isHorizontalDominant = Math.abs(dx) > Math.abs(dy);
-
-    if (isHorizontalDominant) {
-        return [
-            start.x, start.y,
-            start.x + dx * 0.618, start.y,
-            start.x + dx * 0.618, end.y,
-            end.x, end.y
-        ];
+    // 起点坐标固定
+    points[0] = start.x;
+    points[1] = start.y;
+    // 终点坐标固定
+    points[6] = end.x;
+    points[7] = end.y;
+    // 计算中间控制点
+    if (Math.abs(dx) > Math.abs(dy)) {
+        // 水平主导方向
+        const controlX = start.x + dx * GOLDEN_RATIO;
+        points[2] = controlX;
+        points[3] = start.y;
+        points[4] = controlX;
+        points[5] = end.y;
     } else {
-        return [
-            start.x, start.y,
-            start.x, start.y + dy * 0.618,
-            end.x, start.y + dy * 0.618,
-            end.x, end.y
-        ];
+        // 垂直主导方向
+        const controlY = start.y + dy * GOLDEN_RATIO;
+        points[2] = start.x;
+        points[3] = controlY;
+        points[4] = end.x;
+        points[5] = controlY;
     }
+    return points;
 }
 

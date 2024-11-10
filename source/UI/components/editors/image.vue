@@ -52,7 +52,7 @@ import InfoPanel from './InfoPanel.vue';
 import { CardManager } from './cardManager.js';
 import { CoordinateManager } from './CoordinateManager.js';
 import { GraphManager } from './GraphManager.js';
-import { ensureUniqueCardIds, updateConnectionIds, validateConnections } from './loader/utils.js';
+import { ensureUniqueCardIds as 校验并实例化卡片组, updateConnectionIds, validateConnections } from './loader/utils.js';
 import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
 
 // 在 setup 中
@@ -89,7 +89,7 @@ const loadConfig = async () => {
     componentDefinitions = {};
 
     // 确保卡片ID唯一性
-    const { updatedCards, idMap } = ensureUniqueCardIds(config.value.cards);
+    const { updatedCards, idMap } = 校验并实例化卡片组(config.value.cards);
     config.value.cards = updatedCards;
 
     // 更新连接和关系中的卡片ID

@@ -414,12 +414,12 @@ onMounted(() => {
     width: props.position.width,
     height: props.position.height
   };
-  props.card.moveTo=(newRelatedPosition)=>{
+  props.card&&(props.card.moveTo=(newRelatedPosition)=>{
     console.error(newRelatedPosition,currentPos.value)
     currentPos.value.x=newRelatedPosition.x
     currentPos.value.y=newRelatedPosition.y
 
-  }
+  });
   //这个需要提到最外面
   (async () => {
     try {
