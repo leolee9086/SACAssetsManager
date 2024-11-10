@@ -52,104 +52,110 @@ const RELATION_STYLE = {
 const GOLDEN_RATIO = 0.618; // 黄金分割比
 
 // 公共函数：删除已有连接
-function removeExistingConnections(layer, id) {
+function 移除现有连接线(layer, id) {
     if (layer.find) {
         layer.find(`.${id}`).forEach(conn => conn.destroy());
         layer.find(`.relation-${id}`).forEach(rel => rel.destroy());
     }
 }
 
+// 修改统一的连接绘制函数
+export function 构造连接线组( 起始锚点位置, 结束锚点位置, 起始锚点所在侧, 结束锚点所在侧, 连接id,
+    几何形状 = GEOMETRY.CIRCUIT, 绘制风格 = STYLES.NORMAL) {
+    const connectionGroup = new Konva.Group({ name: 连接id });
+    const pathPoints = 计算连接线路径(起始锚点位置, 结束锚点位置, 起始锚点所在侧, 结束锚点所在侧, 几何形状);
+    const points = 绘制风格 === STYLES.HAND_DRAWN ?
+    获取手绘风格形状(pathPoints, 几何形状) : pathPoints;
+    let 线条定义= 根据控制点与形状创建风格化线条( points, 几何形状, 绘制风格);
+    connectionGroup.add(线条定义)
+    addDecorations(connectionGroup, points, 几何形状);
+    addInteractionEffects(connectionGroup);
+    return connectionGroup;
+}
+
 // 修改绘制路径函数
-function drawPath(group, points, geometry, style = STYLES.NORMAL) {
+function 根据控制点与形状创建风格化线条(points, geometry, style = STYLES.NORMAL) {
     const pathConfig = {
         stroke: CONFIG.colors.stroke,
         strokeWidth: CONFIG.sizes.strokeWidth,
         lineCap: 'round',
         lineJoin: 'round'
     };
-
-    // 根据样式选择不同的绘制方法
+    
     if (style === STYLES.HAND_DRAWN) {
-        // 手绘风格：使用折线连接带抖动的采样点
-        const path = new Konva.Line({
-            points: points,
-            ...pathConfig,
-            tension: 0 // 确保是折线而不是平滑曲线
-        });
-        group.add(path);
-    } else {
-        // 普通风格：根据几何类型使用不同的绘制方法
-        if (geometry === GEOMETRY.BEZIER) {
-            const path = new Konva.Shape({
-                ...pathConfig,
-                sceneFunc: (context, shape) => {
-                    context.beginPath();
-                    context.moveTo(points[0], points[1]);
-                    context.bezierCurveTo(
-                        points[2], points[3],
-                        points[4], points[5],
-                        points[6], points[7]
-                    );
-                    context.strokeShape(shape);
-                }
-            });
-            group.add(path);
-        } else if (geometry === GEOMETRY.ARC) {
-            const path = new Konva.Shape({
-                ...pathConfig,
-                sceneFunc: (context, shape) => {
-                    context.beginPath();
-                    context.moveTo(points[0], points[1]);
-                    context.quadraticCurveTo(
-                        points[2], points[3],
-                        points[4], points[5]
-                    );
-                    context.strokeShape(shape);
-                }
-            });
-            group.add(path);
-        } else {
-            // 电路板样式使用普通的 Line
-            const path = new Konva.Line({
-                points: points,
-                ...pathConfig
-            });
-            group.add(path);
-        }
+        return 创建手绘风格线条(points, pathConfig);
+    }
+    
+    return 创建几何风格线条(points, geometry, pathConfig);
+}
+
+function 创建手绘风格线条(points, pathConfig) {
+    return new Konva.Line({
+        points: points,
+        ...pathConfig,
+        tension: 0
+    });
+}
+
+function 创建几何风格线条(points, geometry, pathConfig) {
+    switch (geometry) {
+        case GEOMETRY.BEZIER:
+            return 创建贝塞尔曲线(points, pathConfig);
+        case GEOMETRY.ARC:
+            return 创建圆弧曲线(points, pathConfig);
+        default:
+            return 创建直线(points, pathConfig);
     }
 }
 
-// 修改统一的连接绘制函数
-export function drawConnection(target, start, end, startSide, endSide, id,
-    geometry = GEOMETRY.CIRCUIT, style = STYLES.NORMAL) {
+function 创建贝塞尔曲线(points, pathConfig) {
+    return new Konva.Shape({
+        ...pathConfig,
+        sceneFunc: (context, shape) => {
+            context.beginPath();
+            context.moveTo(points[0], points[1]);
+            context.bezierCurveTo(
+                points[2], points[3],
+                points[4], points[5],
+                points[6], points[7]
+            );
+            context.strokeShape(shape);
+        }
+    });
+}
 
-    // 原生 Konva 模式
-    removeExistingConnections(target, id);
-    const connectionGroup = new Konva.Group({ name: id });
-    const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
-    const points = style === STYLES.HAND_DRAWN ?
-        获取手绘风格形状(pathPoints, geometry) : pathPoints;
+function 创建圆弧曲线(points, pathConfig) {
+    return new Konva.Shape({
+        ...pathConfig,
+        sceneFunc: (context, shape) => {
+            context.beginPath();
+            context.moveTo(points[0], points[1]);
+            context.quadraticCurveTo(
+                points[2], points[3],
+                points[4], points[5]
+            );
+            context.strokeShape(shape);
+        }
+    });
+}
 
-    drawPath(connectionGroup, points, geometry, style);
-    addDecorations(connectionGroup, points, geometry);
-    addInteractionEffects(connectionGroup);
-
-    target.add(connectionGroup);
-    target.batchDraw();
-
-    return connectionGroup;
-
+function 创建直线(points, pathConfig) {
+    return new Konva.Line({
+        points: points,
+        ...pathConfig
+    });
 }
 
 // 计算几何路径
-function calculateGeometryPath(start, end, startSide, endSide, geometry) {
+function 计算连接线路径(start, end, startSide, endSide, geometry) {
     switch (geometry) {
         case GEOMETRY.BEZIER:
-            return calculateBezierPath(start, end, startSide, endSide);
+            return 计算连接贝塞尔曲线关键点(start, end, startSide, endSide);
         case GEOMETRY.ARC:
             return calculateArcPath(start, end, startSide, endSide);
         case GEOMETRY.CIRCUIT:
         default:
+            //auto的情形新建连接
             if (startSide === 'auto' && endSide === 'auto') {
                 return 计算正交分段路径(start, end);
             }
@@ -192,52 +198,33 @@ function calculateCircuitPath(start, end, startSide, endSide) {
     return points;
 }
 
-// 修改贝塞尔曲线路径计算函数，添加对预览状态的支持
-function calculateBezierPath(start, end, startSide, endSide) {
-    const offset = CONFIG.sizes.bezierOffset;
-    let control1, control2;
-
-    // 根据起点和终点的方向计算控制点
-    switch (startSide) {
-        case 'right':
-            control1 = { x: start.x + offset, y: start.y };
-            break;
-        case 'left':
-            control1 = { x: start.x - offset, y: start.y };
-            break;
-        case 'top':
-            control1 = { x: start.x, y: start.y - offset };
-            break;
-        case 'bottom':
-            control1 = { x: start.x, y: start.y + offset };
-            break;
-        default: // 处理预览状态
-            control1 = { x: start.x + offset, y: start.y };
-    }
-
-    // 如果是预览状态（endSide 为 'auto' 或未定义），使用鼠标位置作为终点
+// 计算贝塞尔曲线关键点
+function 计算连接贝塞尔曲线关键点(start, end, startSide, endSide) {
+    // 判断是否为预览状态
     if (!endSide || endSide === 'auto') {
-        // 计算从起点到终点的向量
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        // 使用终点作为第二个控制点
-        control2 = { x: end.x, y: end.y };
-    } else {
-        switch (endSide) {
-            case 'right':
-                control2 = { x: end.x + offset, y: end.y };
-                break;
-            case 'left':
-                control2 = { x: end.x - offset, y: end.y };
-                break;
-            case 'top':
-                control2 = { x: end.x, y: end.y - offset };
-                break;
-            case 'bottom':
-                control2 = { x: end.x, y: end.y + offset };
-                break;
-        }
+        return 计算预览状态贝塞尔曲线点(start, end, startSide);
     }
+    return 计算普通贝塞尔曲线点(start, end, startSide, endSide);
+}
+
+// 计算预览状态的贝塞尔曲线点
+function 计算预览状态贝塞尔曲线点(start, end, startSide) {
+    const offset = CONFIG.sizes.bezierOffset;
+    const control1 = 计算起点控制点(start, startSide, offset);
+    // 预览状态下使用终点作为第二个控制点
+    const control2 = { x: end.x, y: end.y };
+    return [
+        start.x, start.y,
+        control1.x, control1.y,
+        control2.x, control2.y,
+        end.x, end.y
+    ];
+}
+// 计算普通状态的贝塞尔曲线点
+function 计算普通贝塞尔曲线点(start, end, startSide, endSide) {
+    const offset = CONFIG.sizes.bezierOffset;
+    const control1 = 计算起点控制点(start, startSide, offset);
+    const control2 = 计算终点控制点(end, endSide, offset);
 
     return [
         start.x, start.y,
@@ -246,19 +233,45 @@ function calculateBezierPath(start, end, startSide, endSide) {
         end.x, end.y
     ];
 }
-
+// 计算起点控制点
+function 计算起点控制点(start, side, offset) {
+    switch (side) {
+        case 'right':
+            return { x: start.x + offset, y: start.y };
+        case 'left':
+            return { x: start.x - offset, y: start.y };
+        case 'top':
+            return { x: start.x, y: start.y - offset };
+        case 'bottom':
+            return { x: start.x, y: start.y + offset };
+        default:
+            return { x: start.x + offset, y: start.y };
+    }
+}
+// 计算终点控制点
+function 计算终点控制点(end, side, offset) {
+    switch (side) {
+        case 'right':
+            return { x: end.x + offset, y: end.y };
+        case 'left':
+            return { x: end.x - offset, y: end.y };
+        case 'top':
+            return { x: end.x, y: end.y - offset };
+        case 'bottom':
+            return { x: end.x, y: end.y + offset };
+        default:
+            return { x: end.x + offset, y: end.y };
+    }
+}
 // 修改弧线路径计算函数，添加对预览状态的支持
 function calculateArcPath(start, end, startSide, endSide) {
     const offset = CONFIG.sizes.arcOffset;
     const dx = end.x - start.x;
     const dy = end.y - start.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
     // 计算弧线的控制点
     const midX = (start.x + end.x) / 2;
     const midY = (start.y + end.y) / 2;
     const angle = Math.atan2(dy, dx);
-
     // 处理预览状态
     let arcOffset;
     if (!endSide || endSide === 'auto') {
@@ -270,12 +283,10 @@ function calculateArcPath(start, end, startSide, endSide) {
             (startSide === 'left' && endSide === 'right')) ?
             offset : -offset;
     }
-
     const controlPoint = {
         x: midX - Math.sin(angle) * arcOffset,
         y: midY + Math.cos(angle) * arcOffset
     };
-
     return [start.x, start.y, controlPoint.x, controlPoint.y, end.x, end.y];
 }
 
@@ -432,7 +443,7 @@ export function drawRelation(
     geometry = RELATION_STYLE.geometry,
     style = STYLES.NORMAL
 ) {
-    removeExistingConnections(target, id);
+    移除现有连接线(target, id);
     const relationGroup = createRelationGroup(id, 'relation')
     // 计算路径点，支持手绘风格
     const pathPoints = calculateRelationPath(start, end, geometry, style);

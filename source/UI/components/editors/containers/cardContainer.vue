@@ -458,7 +458,6 @@ const getCardPreviewContent = () => {
 // 修改复制卡片的方法
 const duplicateCard = (e) => {
   e.stopPropagation();
-
   const newCardID = uuidv4();
 
   // 创建预览卡片数据，不包含位置信息

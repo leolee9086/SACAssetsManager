@@ -85,12 +85,11 @@ const initKonva = () => {
   drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
   drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
 };
-import { drawConnection,drawRelation } from './geometry/BezierConnectionDrawer.js';
+import { 构造连接线组, drawRelation } from './geometry/BezierConnectionDrawer.js';
 // 添加 relations 相关的函数
 const updateRelations = () => {
   // 清除所有现有 relations
   layer.value.find('.relation').forEach(relation => relation.destroy());
-
   // 重新绘制所有 relations
   props.relations.forEach(relation => {
     const fromCard = props.cards.find(card => card.id === relation.from.cardId);
@@ -99,17 +98,6 @@ const updateRelations = () => {
       console.warn('找不到relation对应的卡片:', relation);
       return;
     }
-
-    // 计算卡片中心点
-    const fromCenter = {
-      x: fromCard.position.x + fromCard.position.width / 2,
-      y: fromCard.position.y + fromCard.position.height / 2
-    };
-
-    const toCenter = {
-      x: toCard.position.x + toCard.position.width / 2,
-      y: toCard.position.y + toCard.position.height / 2
-    };
     drawRelation(
       layer.value,
       fromCard.position,
@@ -120,45 +108,72 @@ const updateRelations = () => {
 
     );
   });
-
   // 强制更新层
   layer.value.batchDraw();
 };
+const 查找卡片 = (卡片组, 属性名, 属性值) => {
+  return 卡片组.find(卡片 => 卡片[属性名] === 属性值)
+}
+const 从卡片查找锚点 = (卡片, 属性名, 属性值) => {
+  let 锚点组 = 卡片.controller.anchors
+  return 锚点组.find(锚点 => 锚点[属性名] === 属性值)
+}
+const 从卡片组查找锚点 = (卡片组, 卡片查询函数, 锚点查询函数) => {
+  // 先查找卡片
+  const 目标卡片 = 卡片查询函数(卡片组);
+  if (!目标卡片) {
+    console.warn('未找到目标卡片');
+    return null;
+  }
+  // 再从卡片中查找锚点
+  const 目标锚点 = 锚点查询函数(目标卡片);
+  if (!目标锚点) {
+    console.warn('未找到目标锚点');
+    return null;
+  }
+  return 目标锚点;
+}
+const 以连接定义构造连接线组 =(连接定义)=>{
+  const fromAnchor = 从卡片组查找锚点(
+      props.cards,
+      (卡片组) => 查找卡片(卡片组, 'id', 连接定义.from.cardId),
+      (卡片) => 从卡片查找锚点(卡片, 'id', 连接定义.from.anchorId)
+    );
+    
+    const toAnchor = 从卡片组查找锚点(
+      props.cards,
+      (卡片组) => 查找卡片(卡片组, 'id', 连接定义.to.cardId),
+      (卡片) => 从卡片查找锚点(卡片, 'id', 连接定义.to.anchorId)
+    );
+
+    if (!fromAnchor || !toAnchor ) {
+      console.warn('找不到连接对应的锚点:', 连接定义,fromAnchor,toAnchor);
+      return;
+    }
+    if(!fromAnchor.absolutePosition || !toAnchor.absolutePosition){
+      console.warn('找不到连接对应的锚点坐标:', 连接定义,fromAnchor.absolutePosition,toAnchor.absolutePosition);
+      return
+    }
+    let 连接线组 = 构造连接线组(
+      fromAnchor.absolutePosition,
+      toAnchor.absolutePosition,
+      fromAnchor.side,
+      toAnchor.side,
+      `${连接定义.from.cardId}-${连接定义.from.anchorId}-${连接定义.to.cardId}-${连接定义.to.anchorId}`,
+      props.connectionStyle.geometry,
+      props.connectionStyle.drawingStyle
+    );
+    return 连接线组
+}
 // 更新连接
 const updateConnections = () => {
   // 清除所有现有连接
   layer.value.destroyChildren();
   // 重新绘制所有连接
-  props.connections.forEach(conn => {
-    const fromCard = props.cards.find(card => card.id === conn.from.cardId);
-    const toCard = props.cards.find(card => card.id === conn.to.cardId);
-
-    if (!fromCard || !toCard) {
-      console.warn('找不到连接对应的卡片:', conn);
-      return;
-    }
-
-    const fromAnchor = fromCard.controller.anchors
-      .find(anchor => anchor.id === conn.from.anchorId);
-    const toAnchor = toCard.controller.anchors
-      .find(anchor => anchor.id === conn.to.anchorId);
-
-    if (!fromAnchor || !toAnchor || !fromAnchor.absolutePosition || !toAnchor.absolutePosition) {
-      console.warn('找不到连接对应的锚点:', conn);
-      return;
-    }
-    drawConnection(
-      layer.value,
-      fromAnchor.absolutePosition,
-      toAnchor.absolutePosition,
-      fromAnchor.side,
-      toAnchor.side,
-      `${conn.from.cardId}-${conn.from.anchorId}-${conn.to.cardId}-${conn.to.anchorId}`,
-      props.connectionStyle.geometry,
-      props.connectionStyle.drawingStyle
-    );
+  props.connections.forEach(连接定义 => {
+    let 连接线组=以连接定义构造连接线组(连接定义)
+    连接线组&&layer.value.add(连接线组)
   });
-
   // 强制更新层
   layer.value.batchDraw();
 };
@@ -183,7 +198,6 @@ const updateStage = () => {
   stage.value.batchDraw();
 };
 const handleScroll = (e) => {
-  console.log(e)
   updateStage();
 };
 
@@ -216,10 +230,8 @@ const updateConnectionPreview = (e) => {
     x: e.clientX - containerRect.left,
     y: e.clientY - containerRect.top
   };
-
   // 绘制临时连接线
-  drawConnection(
-    layer.value,
+  let 连接线组= 构造连接线组(
     currentConnection.value.from.anchor.absolutePosition,
     mousePosition,
     currentConnection.value.from.side,
@@ -228,6 +240,7 @@ const updateConnectionPreview = (e) => {
     props.connectionStyle.geometry,
     props.connectionStyle.drawingStyle
   );
+  layer.value.add(连接线组)
 
   // 强制更新层
   layer.value.batchDraw();
@@ -236,10 +249,8 @@ const updateConnectionPreview = (e) => {
 const emit = defineEmits(['connectionCreated']);
 
 const finalizeConnection = (e) => {
-  console.log(e)
   document.removeEventListener('mousemove', updateConnectionPreview);
   document.removeEventListener('mouseup', finalizeConnection);
-
   const toAnchor = getAnchorFromEvent(e);
   if (toAnchor && currentConnection.value) {
     // 通过事件发送新连接信息
@@ -254,7 +265,6 @@ const finalizeConnection = (e) => {
       }
     });
   }
-
   // 清除临时连接
   layer.value.find('.preview').forEach(conn => conn.destroy());
   currentConnection.value = null;
