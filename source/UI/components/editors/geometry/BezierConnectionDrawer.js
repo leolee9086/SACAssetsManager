@@ -131,45 +131,6 @@ export function drawConnection(target, start, end, startSide, endSide, id,
 
 }
 
-// 修改装饰配置函数
-function getDecorationConfig(points, geometry) {
-    const arrowPoints = calculateArrowPoints(points, geometry);
-    return {
-        // 箭头配置
-        arrowConfig: {
-            points: arrowPoints,
-            pointerLength: CONFIG.sizes.arrowPointerLength,
-            pointerWidth: CONFIG.sizes.arrowPointerWidth,
-            fill: CONFIG.colors.arrowFill,
-            stroke: CONFIG.colors.arrowFill,
-            strokeWidth: CONFIG.sizes.strokeWidth
-        },
-        // 光点配置
-        dotConfig: {
-            x: points[0],
-            y: points[1],
-            radius: CONFIG.sizes.lightDotRadius,
-            fill: CONFIG.colors.lightDot,
-            stroke: CONFIG.colors.lightDot,
-            strokeWidth: 1
-        }
-    };
-}
-
-// 新增：获取交互配置
-function getInteractionConfig() {
-    return {
-        onMouseover: () => {
-            document.body.style.cursor = 'pointer';
-            return { strokeWidth: CONFIG.sizes.strokeWidth + 1 };
-        },
-        onMouseout: () => {
-            document.body.style.cursor = 'default';
-            return { strokeWidth: CONFIG.sizes.strokeWidth };
-        }
-    };
-}
-
 // 计算几何路径
 function calculateGeometryPath(start, end, startSide, endSide, geometry) {
     switch (geometry) {
@@ -180,7 +141,7 @@ function calculateGeometryPath(start, end, startSide, endSide, geometry) {
         case GEOMETRY.CIRCUIT:
         default:
             if (startSide === 'auto' && endSide === 'auto') {
-                return calculateSimplifiedCircuitPath(start, end);
+                return 计算正交分段路径(start, end);
             }
             return calculateCircuitPath(start, end, startSide, endSide);
     }
@@ -244,7 +205,7 @@ function calculateBezierPath(start, end, startSide, endSide) {
             control1 = { x: start.x + offset, y: start.y };
     }
 
-    // 如果是预览状态（endSide 为 'auto' 或未定义），使用鼠标位置作为终点
+    // 如果是预览状态（endSide �� 'auto' 或未定义），使用鼠标位置作为终点
     if (!endSide || endSide === 'auto') {
         // 计算从起点到终点的向量
         const dx = end.x - start.x;
@@ -544,13 +505,13 @@ function calculateArcEndPoints(points) {
 }
 
 // 新增：绘制 relation 的函数
-export function drawRelation(target, start, end, id, 
-    geometry = RELATION_STYLE.geometry, 
+export function drawRelation(target, start, end, id,
+    geometry = RELATION_STYLE.geometry,
     style = STYLES.NORMAL) {
-    
+
     removeExistingConnections(target, id);
-    
-    const relationGroup = new Konva.Group({ 
+
+    const relationGroup = new Konva.Group({
         name: id,
         className: 'relation'
     });
@@ -559,7 +520,7 @@ export function drawRelation(target, start, end, id,
     const pathPoints = calculateRelationPath(start, end, geometry, style);
     const points = style === STYLES.HAND_DRAWN ?
         applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
-    
+
     // 使用 drawPath 函数绘制主路径，但使用 relation 的颜色
     const pathConfig = {
         stroke: RELATION_STYLE.stroke,
@@ -631,7 +592,7 @@ export function drawRelation(target, start, end, id,
 // 添加专门的 relation 交互效果函数
 function addRelationInteractionEffects(group) {
     const elements = group.getChildren();
-    
+
     group.on('mouseover', () => {
         document.body.style.cursor = 'pointer';
         elements.forEach(element => {
@@ -665,20 +626,7 @@ function addRelationInteractionEffects(group) {
     });
 }
 
-// 添加简化的电路路径计算函数
-function calculateSimplifiedCircuitPath(start, end) {
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const midX = start.x + dx / 2;
-    
-    return [
-        start.x, start.y,
-        midX, start.y,
-        midX, end.y,
-        end.x, end.y
-    ];
-}
-
+import { 计算正交分段路径 } from './geometryCalculate/path.js';
 // 象限判断函数
 function determineQuadrant(vector) {
     const { x, y } = vector;
@@ -705,7 +653,7 @@ function calculateRelationPath(start, end, geometry, style) {
         x: endCenter.x - startCenter.x || 0.00000000001,
         y: endCenter.y - startCenter.y || 0.00000000001
     };
-    
+
     // 3. 计算与矩形边界的交点
     const points = {
         start: calculateVectorIntersection(start, vector),
@@ -734,8 +682,8 @@ function calculateRelationPath(start, end, geometry, style) {
             pathPoints = [points.start.x, points.start.y, points.end.x, points.end.y];
     }
 
-    return style === STYLES.HAND_DRAWN ? 
-        applyHandDrawnEffect(pathPoints, geometry) : 
+    return style === STYLES.HAND_DRAWN ?
+        applyHandDrawnEffect(pathPoints, geometry) :
         pathPoints;
 }
 
@@ -746,7 +694,7 @@ function calculateVectorIntersection(rect, vector) {
         y: rect.y + rect.height / 2
     };
 
-    // 计算x和y方向的偏移
+    // 计算x和y方向的���移
     let xOffset = Math.abs((rect.height / 2 * vector.x) / vector.y);
     let yOffset = Math.abs((rect.width / 2 * vector.y) / vector.x);
 
@@ -829,35 +777,25 @@ function calculateRelationArc(start, end, vector, quadrant) {
     ];
 }
 
-// 计算水平主导的路径点
-function calculateHorizontalPath(start, end, dx, quadrant) {
-    const ratio = (quadrant === 1 || quadrant === 3) ? 0.7 : 0.3;
-    return [
-        start.x, start.y,
-        start.x + dx * ratio, start.y,
-        start.x + dx * ratio, end.y,
-        end.x, end.y
-    ];
-}
-
-// 计算垂直主导的路径点
-function calculateVerticalPath(start, end, dy, quadrant) {
-    const ratio = (quadrant === 1 || quadrant === 3) ? 0.7 : 0.3;
-    return [
-        start.x, start.y,
-        start.x, start.y + dy * ratio,
-        end.x, start.y + dy * ratio,
-        end.x, end.y
-    ];
-}
-
-// 修改后的电路风格路径计算函数
-function calculateRelationCircuit(start, end, vector, quadrant) {
+function calculateRelationCircuit(start, end) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const isHorizontalDominant = Math.abs(dx) > Math.abs(dy);
 
-    return isHorizontalDominant ? 
-        calculateHorizontalPath(start, end, dx, quadrant) :
-        calculateVerticalPath(start, end, dy, quadrant);
+    if (isHorizontalDominant) {
+        return [
+            start.x, start.y,
+            start.x + dx * 0.618, start.y,
+            start.x + dx * 0.618, end.y,
+            end.x, end.y
+        ];
+    } else {
+        return [
+            start.x, start.y,
+            start.x, start.y + dy * 0.618,
+            end.x, start.y + dy * 0.618,
+            end.x, end.y
+        ];
+    }
 }
+
