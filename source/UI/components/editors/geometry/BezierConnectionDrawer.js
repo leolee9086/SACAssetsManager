@@ -829,44 +829,35 @@ function calculateRelationArc(start, end, vector, quadrant) {
     ];
 }
 
-// 电路风格路径
+// 计算水平主导的路径点
+function calculateHorizontalPath(start, end, dx, quadrant) {
+    const ratio = (quadrant === 1 || quadrant === 3) ? 0.7 : 0.3;
+    return [
+        start.x, start.y,
+        start.x + dx * ratio, start.y,
+        start.x + dx * ratio, end.y,
+        end.x, end.y
+    ];
+}
+
+// 计算垂直主导的路径点
+function calculateVerticalPath(start, end, dy, quadrant) {
+    const ratio = (quadrant === 1 || quadrant === 3) ? 0.7 : 0.3;
+    return [
+        start.x, start.y,
+        start.x, start.y + dy * ratio,
+        end.x, start.y + dy * ratio,
+        end.x, end.y
+    ];
+}
+
+// 修改后的电路风格路径计算函数
 function calculateRelationCircuit(start, end, vector, quadrant) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const isHorizontalDominant = Math.abs(dx) > Math.abs(dy);
 
-    // 根据象限和主导方向优化路径
-    if (quadrant === 1 || quadrant === 3) { // 右上或左下象限
-        if (isHorizontalDominant) {
-            return [
-                start.x, start.y,
-                start.x + dx * 0.7, start.y,
-                start.x + dx * 0.7, end.y,
-                end.x, end.y
-            ];
-        } else {
-            return [
-                start.x, start.y,
-                start.x, start.y + dy * 0.7,
-                end.x, start.y + dy * 0.7,
-                end.x, end.y
-            ];
-        }
-    } else { // 左上或右下象限
-        if (isHorizontalDominant) {
-            return [
-                start.x, start.y,
-                start.x + dx * 0.3, start.y,
-                start.x + dx * 0.3, end.y,
-                end.x, end.y
-            ];
-        } else {
-            return [
-                start.x, start.y,
-                start.x, start.y + dy * 0.3,
-                end.x, start.y + dy * 0.3,
-                end.x, end.y
-            ];
-        }
-    }
+    return isHorizontalDominant ? 
+        calculateHorizontalPath(start, end, dx, quadrant) :
+        calculateVerticalPath(start, end, dy, quadrant);
 }
