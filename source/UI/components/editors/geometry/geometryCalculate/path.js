@@ -42,3 +42,35 @@ export function 计算正交分段路径(start, end, direction = DIRECTION.HORIZ
             x2, y2                          // 终点
         ]);
 }
+
+
+// 为采样点添加抖动效果
+export const 添加抖动效果到点集 = (输入点集, 抖动幅度) => {
+    const 抖动后的点集 = [];
+    for (let i = 0; i < 输入点集.length; i += 2) {
+        const x = 输入点集[i];
+        const y = 输入点集[i + 1];
+        const 抖动X = (Math.random() - 0.5) * 抖动幅度;
+        const 抖动Y = (Math.random() - 0.5) * 抖动幅度;
+        抖动后的点集.push(x + 抖动X, y + 抖动Y);
+    }
+    return 抖动后的点集;
+}
+
+import { 二维转换器 } from "../utils/pointFormatters.js";
+import { 计算贝塞尔点 } from "./bezier.js";
+/**
+ * 计算三次贝塞尔曲线上的点坐标
+ * @param {number[]} 控制点数组 - 包含4个控制点的坐标数组 [x0,y0, x1,y1, x2,y2, x3,y3]
+ * @param {number} 插值系数 - 曲线插值参数t，范围[0,1]
+ * @returns {{x: number, y: number}} 返回曲线上对应点的坐标
+ * @throws {Error} 当控制点数量不等于4时抛出错误
+ */
+export function 计算三次贝塞尔曲线上的点(控制点数组, 插值系数) {
+    // 验证是否为三次贝塞尔曲线（4个控制点）
+    if (控制点数组.length !== 8) {
+        throw new Error('三次贝塞尔曲线需要恰好4个控制点');
+    }
+    const 点 = 计算贝塞尔点(控制点数组, 插值系数);
+    return 二维转换器.点数组转对象(点)
+}

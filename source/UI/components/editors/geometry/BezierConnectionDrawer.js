@@ -1,4 +1,5 @@
 import Konva from '../../../../../static/konva.js';
+import { 绘制贝塞尔曲线 } from '../../../../utils/canvas/konvaUtils/shapes.js';
 import { STYLES, GEOMETRY } from '../types.js'; // 从 types.js 导入常量
 
 // 配置常量
@@ -118,7 +119,7 @@ export function drawConnection(target, start, end, startSide, endSide, id,
     const connectionGroup = new Konva.Group({ name: id });
     const pathPoints = calculateGeometryPath(start, end, startSide, endSide, geometry);
     const points = style === STYLES.HAND_DRAWN ?
-        applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
+        获取手绘风格形状(pathPoints, geometry) : pathPoints;
 
     drawPath(connectionGroup, points, geometry, style);
     addDecorations(connectionGroup, points, geometry);
@@ -205,7 +206,7 @@ function calculateBezierPath(start, end, startSide, endSide) {
             control1 = { x: start.x + offset, y: start.y };
     }
 
-    // 如果是预览状态（endSide �� 'auto' 或未定义），使用鼠标位置作为终点
+    // 如果是预览状态（endSide 为 'auto' 或未定义），使用鼠标位置作为终点
     if (!endSide || endSide === 'auto') {
         // 计算从起点到终点的向量
         const dx = end.x - start.x;
@@ -297,7 +298,7 @@ function addDecorations(group, points, geometry) {
     const anim = new Konva.Animation((frame) => {
         const t = (frame.time % 2000) / 2000;
         const point = geometry === GEOMETRY.BEZIER ?
-            getPointOnBezierCurve(points, t) :
+            计算三次贝塞尔曲线上的点(points, t) :
             getPointOnPath(points, t);
         lightDot.position(point);
     }, group.getLayer());
@@ -306,16 +307,15 @@ function addDecorations(group, points, geometry) {
 }
 
 // 改进手绘效果算法
-function applyHandDrawnEffect(points, geometry) {
+function 获取手绘风格形状(points, geometry) {
     // 1. 获取原始路径上的采样点
-    const sampledPoints = getSampledPoints(points, geometry);
-
+    const sampledPoints = 以固定数量获取采样点(points, geometry);
     // 2. 为采样点添加抖动效果
-    return addJitterToPoints(sampledPoints);
+    return 添加抖动效果到点集(sampledPoints, CONFIG.sizes.handDrawnJitter)
 }
 
 // 在原始路径上获取采样点
-function getSampledPoints(points, geometry) {
+function 以固定数量获取采样点(points, geometry) {
     const sampledPoints = [];
     const totalSamples = 50; // 采样点数量
 
@@ -325,7 +325,7 @@ function getSampledPoints(points, geometry) {
 
         switch (geometry) {
             case GEOMETRY.BEZIER:
-                point = getPointOnBezierCurve(points, t);
+                point = 计算三次贝塞尔曲线上的点(points, t);
                 break;
             case GEOMETRY.ARC:
                 point = getPointOnArc(points, t);
@@ -340,22 +340,7 @@ function getSampledPoints(points, geometry) {
 
     return sampledPoints;
 }
-
-// 为采样点添加抖动效果
-function addJitterToPoints(points) {
-    const jitteredPoints = [];
-    const jitter = CONFIG.sizes.handDrawnJitter;
-
-    for (let i = 0; i < points.length; i += 2) {
-        const x = points[i];
-        const y = points[i + 1];
-        const jitterX = (Math.random() - 0.5) * jitter;
-        const jitterY = (Math.random() - 0.5) * jitter;
-        jitteredPoints.push(x + jitterX, y + jitterY);
-    }
-
-    return jitteredPoints;
-}
+import { 添加抖动效果到点集 } from './geometryCalculate/path.js';
 
 // 计算弧线上的点
 function getPointOnArc(points, t) {
@@ -389,26 +374,6 @@ function addInteractionEffects(group) {
     });
 }
 
-// 计算路径点
-function calculatePathSegments(start, end, startSide, endSide) {
-    let points = [start.x, start.y];
-
-    if ((startSide === 'right' && endSide === 'left') ||
-        (startSide === 'left' && endSide === 'right')) {
-        points.push((start.x + end.x) / 2, start.y);
-        points.push((start.x + end.x) / 2, end.y);
-    } else if ((startSide === 'top' && endSide === 'bottom') ||
-        (startSide === 'bottom' && endSide === 'top')) {
-        points.push(start.x, (start.y + end.y) / 2);
-        points.push(end.x, (start.y + end.y) / 2);
-    } else {
-        points.push((start.x + end.x) / 2, (start.y + end.y) / 2);
-    }
-
-    points.push(end.x, end.y);
-    return points;
-}
-
 // 计算路径上的点
 function getPointOnPath(points, t) {
     const n = points.length / 2 - 1;
@@ -426,32 +391,13 @@ function getPointOnPath(points, t) {
     };
 }
 
-// 计算贝塞尔曲线上的点
-function getPointOnBezierCurve(points, t) {
-    const [x0, y0, x1, y1, x2, y2, x3, y3] = points;
-
-    const cx = 3 * (x1 - x0);
-    const bx = 3 * (x2 - x1) - cx;
-    const ax = x3 - x0 - cx - bx;
-
-    const cy = 3 * (y1 - y0);
-    const by = 3 * (y2 - y1) - cy;
-    const ay = y3 - y0 - cy - by;
-
-    const t2 = t * t;
-    const t3 = t2 * t;
-
-    return {
-        x: ax * t3 + bx * t2 + cx * t + x0,
-        y: ay * t3 + by * t2 + cy * t + y0
-    };
-}
+import { 计算三次贝塞尔曲线上的点 } from './geometryCalculate/path.js';
 
 // 计算贝塞尔曲线末端的切线点
 function calculateBezierEndPoints(points) {
     const t = 0.95; // 用于计算箭头方向的点
-    const endPoint = getPointOnBezierCurve(points, 1);
-    const nearEndPoint = getPointOnBezierCurve(points, t);
+    const endPoint = 计算三次贝塞尔曲线上的点(points, 1);
+    const nearEndPoint = 计算三次贝塞尔曲线上的点(points, t);
 
     return [
         nearEndPoint.x,
@@ -519,7 +465,7 @@ export function drawRelation(target, start, end, id,
     // 计算路径点，支持手绘风格
     const pathPoints = calculateRelationPath(start, end, geometry, style);
     const points = style === STYLES.HAND_DRAWN ?
-        applyHandDrawnEffect(pathPoints, geometry) : pathPoints;
+        获取手绘风格形状(pathPoints, geometry) : pathPoints;
 
     // 使用 drawPath 函数绘制主路径，但使用 relation 的颜色
     const pathConfig = {
@@ -545,14 +491,9 @@ export function drawRelation(target, start, end, id,
             const path = new Konva.Shape({
                 ...pathConfig,
                 sceneFunc: (context, shape) => {
-                    context.beginPath();
-                    context.moveTo(points[0], points[1]);
-                    context.bezierCurveTo(
-                        points[2], points[3],
-                        points[4], points[5],
-                        points[6], points[7]
-                    );
-                    context.strokeShape(shape);
+                    // 根据实际点的数量决定截取长度
+                    const curvePoints = points.slice(0,  8);
+                    绘制贝塞尔曲线(context, shape, curvePoints);
                 }
             });
             relationGroup.add(path);
@@ -560,13 +501,9 @@ export function drawRelation(target, start, end, id,
             const path = new Konva.Shape({
                 ...pathConfig,
                 sceneFunc: (context, shape) => {
-                    context.beginPath();
-                    context.moveTo(points[0], points[1]);
-                    context.quadraticCurveTo(
-                        points[2], points[3],
-                        points[4], points[5]
-                    );
-                    context.strokeShape(shape);
+                    // 根据实际点的数量决定截取长度
+                    const curvePoints = points.slice(0,  6);
+                    绘制贝塞尔曲线(context, shape, curvePoints);
                 }
             });
             relationGroup.add(path);
@@ -683,7 +620,7 @@ function calculateRelationPath(start, end, geometry, style) {
     }
 
     return style === STYLES.HAND_DRAWN ?
-        applyHandDrawnEffect(pathPoints, geometry) :
+        获取手绘风格形状(pathPoints, geometry) :
         pathPoints;
 }
 
@@ -694,7 +631,7 @@ function calculateVectorIntersection(rect, vector) {
         y: rect.y + rect.height / 2
     };
 
-    // 计算x和y方向的���移
+    // 计算x和y方向的偏移
     let xOffset = Math.abs((rect.height / 2 * vector.x) / vector.y);
     let yOffset = Math.abs((rect.width / 2 * vector.y) / vector.x);
 

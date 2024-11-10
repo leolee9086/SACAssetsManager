@@ -1,3 +1,5 @@
+
+
 // 添加箭头绘制函数 
 export const drawArrow = (ctx, point, side) => {
     const arrowSize = 8;
@@ -31,5 +33,3 @@ export const drawArrow = (ctx, point, side) => {
     ctx.fillStyle = '#67C23A';
     ctx.fill();
   };
-  
-  
