@@ -43,10 +43,24 @@
       </div>
     </div>
     <div class="card-content">
-      <template v-if="props.component && component.template || component.render">
-        <component :is="component" v-bind="componentProps" v-on="componentEvents" />
+      <template v-if="error">
+        <div class="error-container">
+          <div class="error-icon">⚠️</div>
+          <div class="error-message">{{ error.message || '组件运行错误' }}</div>
+          <div class="error-detail" v-if="error.stack">{{ error.stack }}</div>
+        </div>
       </template>
-
+      <template v-else>
+        <ErrorBoundary @error="handleComponentError">
+          <component 
+            v-if="props.component && component"
+            :is="component" 
+            v-bind="componentProps" 
+            v-on="componentEvents" 
+          />
+          <div v-else class="loading">加载中...</div>
+        </ErrorBoundary>
+      </template>
     </div>
     <div v-if="isFocused.value" class="anchors">
       <!-- 显示锚点 -->
@@ -72,7 +86,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef } from 'vue';
+import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef, defineComponent } from 'vue';
 import { v4 as uuidv4 } from '../../../../../static/uuid.mjs'; // 使用 UUID 生成唯一 ID
 
 // Props 定义
@@ -629,6 +643,82 @@ watch(() => props.forcePosition, (newPosition) => {
   }
 }, { deep: true });
 
+// 简化 ErrorBoundary 组件定义
+const ErrorBoundary = defineComponent({
+  name: 'ErrorBoundary',
+  emits: ['error'],  // 明确声明事件
+  setup(props, { slots, emit }) {
+    const handleError = (err) => {
+      console.error('Component Error:', err);
+      emit('error', err);
+      return false;
+    };
+
+    return {
+      handleError,
+    };
+  },
+  render() {
+    return this.$slots.default?.();
+  },
+  errorCaptured(err, instance, info) {
+    return this.handleError(err);
+  }
+});
+
+const handleComponentError = (err) => {
+  console.error('Component runtime error:', err);
+  error.value = err;
+  
+  // 清理组件实例，防止继续渲染
+  component.value = {};
+  
+  // 可选：尝试重新加载组件
+  // setTimeout(loadComponent, 1000);
+};
+
+// 修改组件加载逻辑，确保状态更新
+const loadComponent = async () => {
+  try {
+    if (props.component) {
+      console.log('Loading component...');
+      component.value = null; // 清空当前组件
+      const comp = await props.component(props.nodeDefine);
+      console.log('Component loaded:', comp);
+      
+      if (!comp?.template && !comp?.render) {
+        throw new Error('组件定义无效');
+      }
+      
+      component.value = markRaw(comp);
+      console.log('Component set:', component.value);
+    }
+  } catch (e) {
+    console.error('Component loading failed:', e);
+    handleComponentError(e);
+  }
+};
+
+onMounted(() => {
+  currentPos.value = {
+    x: props.position.x,
+    y: props.position.y
+  };
+  currentSize.value = {
+    width: props.position.width,
+    height: props.position.height
+  };
+  
+  props.card && (props.card.moveTo = (newRelatedPosition) => {
+    currentPos.value.x = newRelatedPosition.x;
+    currentPos.value.y = newRelatedPosition.y;
+  });
+  nextTick(
+    ()=>  loadComponent()
+
+  )
+});
+
 </script>
 
 <style scoped>
@@ -930,7 +1020,7 @@ watch(() => props.forcePosition, (newPosition) => {
   opacity: 1;
 }
 
-/* 添加自定义滚动���样式（针对 Webkit 浏览器） */
+/* 添加自定义滚动样式（针对 Webkit 浏览器） */
 .card-content::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -1071,5 +1161,52 @@ watch(() => props.forcePosition, (newPosition) => {
   transform: scale(1.3);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
     0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  height: 100%;
+  color: var(--b3-card-error-color, #dc3545);
+  background: var(--b3-card-error-background, rgba(220, 53, 69, 0.1));
+  border-radius: 6px;
+}
+
+.error-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.error-message {
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+  margin-bottom: 8px;
+}
+
+.error-detail {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+  max-height: 100px;
+  overflow-y: auto;
+  text-align: left;
+  width: 100%;
+  padding: 8px;
+  background: var(--b3-theme-background);
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 20px;
+  color: var(--b3-theme-on-surface-light);
 }
 </style>

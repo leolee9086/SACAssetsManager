@@ -1,5 +1,5 @@
 import Konva from '../../../../../static/konva.js';
-import { 绘制贝塞尔曲线 } from '../../../../utils/canvas/konvaUtils/shapes.js';
+import { 从点集创建贝塞尔曲线绘制函数, 绘制贝塞尔曲线 } from '../../../../utils/canvas/konvaUtils/shapes.js';
 import { STYLES, GEOMETRY } from '../types.js'; // 从 types.js 导入常量
 import { 自中心以方向向量计算矩形上交点 } from './geometryCalculate/intersections.js';
 import { 计算正交分段路径 } from './geometryCalculate/path.js';
@@ -7,7 +7,7 @@ import { 添加抖动效果到点集 } from './geometryCalculate/path.js';
 import { getPointOnArc } from './geometryCalculate/arc.js';
 import { 计算三次贝塞尔曲线上的点 } from './geometryCalculate/path.js';
 import { calculateArcEndPoints } from './geometryCalculate/arc.js';
-
+import { 柯里化, 反向柯里化 } from '../../../../utils/functions/currying.js';
 // 配置常量
 const CONFIG = {
     colors: {
@@ -60,13 +60,13 @@ function 移除现有连接线(layer, id) {
 }
 
 // 修改统一的连接绘制函数
-export function 构造连接线组( 起始锚点位置, 结束锚点位置, 起始锚点所在侧, 结束锚点所在侧, 连接id,
+export function 构造连接线组(起始锚点位置, 结束锚点位置, 起始锚点所在侧, 结束锚点所在侧, 连接id,
     几何形状 = GEOMETRY.CIRCUIT, 绘制风格 = STYLES.NORMAL) {
     const connectionGroup = new Konva.Group({ name: 连接id });
     const pathPoints = 计算连接线路径(起始锚点位置, 结束锚点位置, 起始锚点所在侧, 结束锚点所在侧, 几何形状);
     const points = 绘制风格 === STYLES.HAND_DRAWN ?
-    获取手绘风格形状(pathPoints, 几何形状) : pathPoints;
-    let 线条定义= 根据控制点与形状创建风格化线条( points, 几何形状, 绘制风格);
+        获取手绘风格形状(pathPoints, 几何形状) : pathPoints;
+    let 线条定义 = 根据控制点与形状创建风格化线条(points, 几何形状, 绘制风格);
     connectionGroup.add(线条定义)
     addDecorations(connectionGroup, points, 几何形状);
     addInteractionEffects(connectionGroup);
@@ -81,11 +81,11 @@ function 根据控制点与形状创建风格化线条(points, geometry, style =
         lineCap: 'round',
         lineJoin: 'round'
     };
-    
+
     if (style === STYLES.HAND_DRAWN) {
         return 创建手绘风格线条(points, pathConfig);
     }
-    
+
     return 创建几何风格线条(points, geometry, pathConfig);
 }
 
@@ -100,42 +100,25 @@ function 创建手绘风格线条(points, pathConfig) {
 function 创建几何风格线条(points, geometry, pathConfig) {
     switch (geometry) {
         case GEOMETRY.BEZIER:
-            return 创建贝塞尔曲线(points, pathConfig);
+            return 从点集创建3阶贝塞尔曲线(points, pathConfig);
         case GEOMETRY.ARC:
-            return 创建圆弧曲线(points, pathConfig);
+            return 从点集创建2阶贝塞尔曲线(points, pathConfig);
         default:
             return 创建直线(points, pathConfig);
     }
 }
 
-function 创建贝塞尔曲线(points, pathConfig) {
+function 从点集创建3阶贝塞尔曲线(points, pathConfig) {
     return new Konva.Shape({
         ...pathConfig,
-        sceneFunc: (context, shape) => {
-            context.beginPath();
-            context.moveTo(points[0], points[1]);
-            context.bezierCurveTo(
-                points[2], points[3],
-                points[4], points[5],
-                points[6], points[7]
-            );
-            context.strokeShape(shape);
-        }
+        sceneFunc: 从点集创建贝塞尔曲线绘制函数(points.slice(0, 8))
     });
 }
 
-function 创建圆弧曲线(points, pathConfig) {
+function 从点集创建2阶贝塞尔曲线(points, pathConfig) {
     return new Konva.Shape({
         ...pathConfig,
-        sceneFunc: (context, shape) => {
-            context.beginPath();
-            context.moveTo(points[0], points[1]);
-            context.quadraticCurveTo(
-                points[2], points[3],
-                points[4], points[5]
-            );
-            context.strokeShape(shape);
-        }
+        sceneFunc: 从点集创建贝塞尔曲线绘制函数(points.slice(0, 6))
     });
 }
 
@@ -159,7 +142,7 @@ function 计算连接线路径(start, end, startSide, endSide, geometry) {
             if (startSide === 'auto' && endSide === 'auto') {
                 return 计算正交分段路径(start, end);
             }
-            return calculateCircuitPath(start, end, startSide, endSide);
+        return calculateCircuitPath(start, end, startSide, endSide);
     }
 }
 
@@ -457,43 +440,24 @@ export function drawRelation(
         dash: RELATION_STYLE.dash,
         opacity: 0.9
     };
+    let path
     // 根据样式选择不同的绘制方法
     if (style === STYLES.HAND_DRAWN) {
-        const path = new Konva.Line({
+        path = new Konva.Line({
             points: points,
             ...pathConfig,
             tension: 0
         });
-        relationGroup.add(path);
     } else {
         // 使用与 connection 相同的几何绘制逻辑
         if (geometry === GEOMETRY.BEZIER) {
-            const path = new Konva.Shape({
-                ...pathConfig,
-                sceneFunc: (context, shape) => {
-                    // 根据实际点的数量决定截取长度
-                    const curvePoints = points.slice(0, 8);
-                    绘制贝塞尔曲线(context, shape, curvePoints);
-                }
-            });
-            relationGroup.add(path);
+            path = 从点集创建3阶贝塞尔曲线(points, pathConfig)
         } else if (geometry === GEOMETRY.ARC) {
-            const path = new Konva.Shape({
-                ...pathConfig,
-                sceneFunc: (context, shape) => {
-                    // 根据实际点的数量决定截取长度
-                    const curvePoints = points.slice(0, 6);
-                    绘制贝塞尔曲线(context, shape, curvePoints);
-                }
-            });
-            relationGroup.add(path);
+            path = 从点集创建2阶贝塞尔曲线(points, pathConfig)
         } else {
-            const path = new Konva.Line({
-                points: points,
-                ...pathConfig
-            });
-            relationGroup.add(path);
+            path = 创建直线(points, pathConfig)
         }
+        relationGroup.add(path);
     }
     // 添加交互效果
     addRelationInteractionEffects(relationGroup);
@@ -546,18 +510,12 @@ function determineQuadrant(vector) {
     if (x < 0 && y > 0) return 3;        // 左下
     return 4;                            // 右下
 }
-
+import { 查找矩形中心 } from './geometryCalculate/find/centers.js';
 // 修改后的Relation路径计算函数
 function calculateRelationPath(start, end, geometry, style) {
     // 1. 计算中心点和方向向量
-    const startCenter = {
-        x: start.x + start.width / 2,
-        y: start.y + start.height / 2
-    };
-    const endCenter = {
-        x: end.x + end.width / 2,
-        y: end.y + end.height / 2
-    };
+    const startCenter =查找矩形中心(start)
+    const endCenter = 查找矩形中心(end)
 
     // 2. 计算方向向量
     const vector = {

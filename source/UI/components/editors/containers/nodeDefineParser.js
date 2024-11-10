@@ -40,18 +40,18 @@ function createRuntimeController(anchorControllers, component, componentName, sc
     getInputs: (inputs, cardInfo, globalInputs, nodeDefine, scope) => {
       //有明确输入,说明是组件定义内部调用直接返回就可以
       if (inputs) {
-        cardInfo.savedInputs={value:inputs}
+        cardInfo.savedInputs = { value: inputs }
         return inputs;
       }
 
       // 检查是否有输入锚点
       const hasInputAnchors = anchorControllers.some(c => c.type === AnchorTypes.INPUT);
-      
+
       // 无输入锚点的情况
       if (!hasInputAnchors) {
         return handleNoInputAnchors(cardInfo, globalInputs, nodeDefine, scope);
       }
-      
+
       // 有输入锚点的情况
       return getInputsFromControllers(anchorControllers);
     },
@@ -89,7 +89,13 @@ function createNodeController(anchorControllers, scope, component, componentName
       }
 
       // 执行处理
-      const result = await process(runtimeInput);
+      let result = {}
+      try {
+        result = await process(runtimeInput);
+
+      } catch (e) {
+        console.error("处理函数运行出错", cardInfo, componentURL)
+      }
 
       // 处理返回值
       if (result && typeof result === 'object') {
@@ -149,7 +155,6 @@ function createNodeController(anchorControllers, scope, component, componentName
 export async function parseNodeDefine(componentURL, cardInfo) {
   try {
     const scope = await loadVueComponentAsNodeSync(componentURL).getNodeDefineScope(cardInfo.id);
-    
     // 检查 scope 是否已经被加载过
     if (scope.isLoaded) {
       throw new Error(`scope 已经被加载: ${componentURL}_${cardInfo.id}`);
@@ -169,6 +174,7 @@ export async function parseNodeDefine(componentURL, cardInfo) {
     const anchorControllers = createAnchorControllers(parsedInputs, parsedOutputs, nodeDefine, componentProps, cardInfo);
     return createNodeController(anchorControllers, scope, component, componentName, componentProps, componentURL, cardInfo);
   } catch (error) {
+    console.error('解析节点定义失败', cardInfo.id, { error })
     throw new NodeError('解析节点定义失败', cardInfo.id, { error });
   }
 }

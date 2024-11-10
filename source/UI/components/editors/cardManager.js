@@ -25,13 +25,24 @@ export class CardManager {
         throw new Error(`缺少必要的卡片配置: ${missingFields.join(', ')}`);
       }
 
-      // 检查组件类型是否支持
-      if (!componentMap[cardConfig.type]) {
-        throw new Error(`不支持的卡片类型: ${cardConfig.type}`);
+      // 处理自定义节点类型
+      let type = cardConfig.type;
+      if (type === 'custom' && cardConfig.nodeFile) {
+        // 使用nodeFile作为组件类型的唯一标识
+        type = cardConfig.nodeFile;
+        // 如果组件映射中不存在该类型，则动态添加
+        if (!componentMap[type]) {
+          componentMap[type] = {
+            type: 'custom',
+            file: cardConfig.nodeFile
+          };
+        }
+      } else if (!componentMap[type]) {
+        throw new Error(`不支持的卡片类型: ${type}`);
       }
 
       // 获取或解析组件定义
-      let controller = await this.getComponentDefinition(cardConfig.type,cardConfig);
+      let controller = await this.getComponentDefinition(type, cardConfig);
 
       // 创建新卡片对象
       const newCard = this.createCardObject(cardConfig, controller);

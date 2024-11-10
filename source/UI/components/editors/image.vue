@@ -4,20 +4,18 @@
       :coordinateManager="coordinateManager" />
     <InfoPanel v-if="coordinateManager" :stats="systemStats" :coordinateManager="coordinateManager" />
 
-    <div class="image-editor" ref="connectionCanvasRef">
+    <div class="image-editor" ref="connectionCanvasRef" :style="{zoom}">
       <!-- 使用 StyleSelector 组件 -->
 
-      <div v-show="false" class="connection-canvas">
-      </div>
-      <ConnectionCanvas v-if="config.connections" :cardsContainer="cardsContainer" :cards="parsedCards"
+      <ConnectionCanvas :style="{zoom:1/zoom}" v-if="config.connections" :cardsContainer="cardsContainer" :cards="parsedCards"
         :connections="config.connections" :relations="config.relations" :coordinateManager="coordinateManager"
         :connectionStyle="connectionStyle" @connectionCreated="handleNewConnection"
         @relationCreated="handleNewrelation" />
       <!-- 动态渲染卡片 -->
       <div style="position: relative;
-    max-width: 100%;
-    max-height: 100%;
-    overflow: auto;">
+        max-width: 100%;
+        max-height: 100%;
+        overflow: auto;">
 
         <div ref="cardsContainer">
           <template v-for="(card, index) in parsedCards" :key="card.id+index">
@@ -57,10 +55,11 @@ import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers
 
 // 在 setup 中
 import StyleSelector from './toolBar/StyleSelector.vue';
+const zoom = ref(1)
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const parsedCards = ref([]);
-const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/imageCompressor.json"
+const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/brightness.json"
 // 修改 addCard 函数
 const addCard = async (cardConfig, options = {}) => {
   const card = await cardManager.addCard(cardConfig, options);

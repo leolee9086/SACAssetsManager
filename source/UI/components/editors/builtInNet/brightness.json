@@ -1,0 +1,143 @@
+{
+  "name": "图像亮度调整",
+  "cards": [
+    {
+      "id": "note",
+      "type": "note/protyle",
+      "title": "笔记",
+      "position": {
+        "x": 20,
+        "y": 20,
+        "width": 300,
+        "height": 200
+      }
+    },
+    {
+      "id": "brightness",
+      "type": "math/number",
+      "title": "亮度调整",
+      
+      "position": {
+        "x": 20,
+        "y": 240,
+        "width": 300,
+        "height": 200
+      },
+      "props": {
+        "min": -100,
+        "max": 100,
+        "step": 1,
+        "default": 0
+      }
+    },
+    {
+      "id": "path",
+      "type": "localImageInput",
+      "title": "图片输入",
+      "position": {
+        "x": 20,
+        "y": 460,
+        "width": 300,
+        "height": 200
+      }
+    },
+    {
+      "id": "imageBrightness",
+      "type": "image/brightness",
+      "title": "亮度处理",
+      "position": {
+        "x": 340,
+        "y": 240,
+        "width": 300,
+        "height": 200
+      }
+    },
+    {
+      "id": "imageComparison",
+      "type": "ImageComparison",
+      "title": "效果对比",
+      "position": {
+        "x": 660,
+        "y": 20,
+        "width": 800,
+        "height": 600
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": {
+        "cardId": "brightness",
+        "anchorId": "number"
+      },
+      "to": {
+        "cardId": "imageBrightness",
+        "anchorId": "brightness"
+      }
+    },
+    {
+      "from": {
+        "cardId": "path",
+        "anchorId": "filePath"
+      },
+      "to": {
+        "cardId": "imageComparison",
+        "anchorId": "originalImage"
+      }
+    },
+    {
+      "from": {
+        "cardId": "path",
+        "anchorId": "file"
+      },
+      "to": {
+        "cardId": "imageBrightness",
+        "anchorId": "image"
+      }
+    },
+    {
+      "from": {
+        "cardId": "imageBrightness",
+        "anchorId": "outputImage"
+      },
+      "to": {
+        "cardId": "imageComparison",
+        "anchorId": "processedImage"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "from": {
+        "cardId": "brightness"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    },
+    {
+      "from": {
+        "cardId": "path"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    },
+    {
+      "from": {
+        "cardId": "imageBrightness"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    },
+    {
+      "from": {
+        "cardId": "imageComparison"
+      },
+      "to": {
+        "cardId": "note"
+      }
+    }
+  ]
+}

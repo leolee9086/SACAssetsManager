@@ -28,3 +28,9 @@ export const 绘制贝塞尔曲线 = (ctx, shape, points) => {
     drawMethod(ctx, points);
     ctx.strokeShape(shape);
 };
+
+export const 从点集创建贝塞尔曲线绘制函数 = (points)=>{
+    return (ctx,shape)=>{
+        绘制贝塞尔曲线(ctx, shape, points)
+    }
+}
