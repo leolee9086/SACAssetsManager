@@ -3,9 +3,9 @@
     <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
       :coordinateManager="coordinateManager" >
       <div class="zoom-controls">
-        <button class="zoom-btn" @click="adjustZoom(-0.1)">-</button>
+        <button class="zoom-btn" @click="()=>adjustZoom(-0.1)">-</button>
         <span class="zoom-value">{{ Math.round(zoom * 100) }}%</span>
-        <button class="zoom-btn" @click="adjustZoom(0.1)">+</button>
+        <button class="zoom-btn" @click="()=>adjustZoom(0.1)">+</button>
         <button class="zoom-btn" @click="resetZoom">重置</button>
       </div>
 
@@ -63,103 +63,14 @@ import { CoordinateManager } from './CoordinateManager.js';
 import { GraphManager } from './GraphManager.js';
 import { ensureUniqueCardIds as 校验并实例化卡片组, updateConnectionIds, validateConnections } from './loader/utils.js';
 import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
-
-// 在 setup 中
 import StyleSelector from './toolBar/StyleSelector.vue';
-const zoom = ref(1)
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 3;
-const DEFAULT_ZOOM = 1;
-const ZOOM_SPEED = 0.001; // 调整缩放速度
-
-// 处理鼠标滚轮事件
-const handleWheel = (e) => {
-  // 检查是否按住 Ctrl 键
-  if (e.ctrlKey || e.metaKey) {
-    e.preventDefault(); // 阻止默认的浏览器缩放行为
-    
-    // 获取鼠标相对于编辑器的位置
-    const rect = connectionCanvasRef.value.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    // 获取当前滚动位置
-    const scroll = coordinateManager.value.getScrollOffset();
-    const oldZoom = zoom.value;
-    
-    // 计算新的缩放值
-    const delta = -e.deltaY * ZOOM_SPEED;
-    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * (1 + delta)));
-    
-    if (newZoom !== oldZoom) {
-      // 计算鼠标位置相对于内容的位置（考虑当前滚动位置）
-      const contentX = (mouseX + scroll.scrollLeft) / oldZoom;
-      const contentY = (mouseY + scroll.scrollTop) / oldZoom;
-      
-      // 更新缩放值
-      zoom.value = newZoom;
-      
-      // 计算新的滚动位置，保持鼠标指向的内容点不变
-      const newScrollLeft = contentX * newZoom - mouseX;
-      const newScrollTop = contentY * newZoom - mouseY;
-      
-      // 更新滚动位置
-      nextTick(() => {
-        if (coordinateManager.value) {
-          coordinateManager.value.scrollTo(newScrollLeft, newScrollTop);
-        }
-      });
-    }
-  }
-};
-
-// 修改现有的 adjustZoom 方法，添加中心点参数
-const adjustZoom = (delta, centerX = null, centerY = null) => {
-  const oldZoom = zoom.value;
-  const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom + delta));
-  
-  if (newZoom !== oldZoom && centerX !== null && centerY !== null) {
-    // 获取当前滚动位置
-    const scroll = coordinateManager.value.getScrollOffset();
-    
-    // 计算内容上的点
-    const contentX = (centerX + scroll.scrollLeft) / oldZoom;
-    const contentY = (centerY + scroll.scrollTop) / oldZoom;
-    
-    // 更新缩放值
-    zoom.value = newZoom;
-    
-    // 计算新的滚动位置
-    const newScrollLeft = contentX * newZoom - centerX;
-    const newScrollTop = contentY * newZoom - centerY;
-    
-    // 更新滚动位置
-    nextTick(() => {
-      if (coordinateManager.value) {
-        coordinateManager.value.scrollTo(newScrollLeft, newScrollTop);
-      }
-    });
-  } else {
-    // 如果没有指定中心点，简单更新缩放值
-    zoom.value = newZoom;
-  }
-};
-
-// 重置缩放
-const resetZoom = () => {
-  zoom.value = DEFAULT_ZOOM;
-  // 可以选择重置滚动位置
-  nextTick(() => {
-    if (coordinateManager.value) {
-      coordinateManager.value.scrollTo(0, 0);
-    }
-  });
-};
-
+import { useZoom } from './CoordinateManager.js';
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const parsedCards = ref([]);
 const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/brightness.json"
+const connectionCanvasRef = ref(null);
+const coordinateManager = ref(null);
 // 修改 addCard 函数
 const addCard = async (cardConfig, options = {}) => {
   const card = await cardManager.addCard(cardConfig, options);
@@ -178,6 +89,12 @@ const getGlobalInputs = () => {
 function buildPetriNet() {
   return graphManager.buildPetriNet(config.value, parsedCards.value, getGlobalInputs);
 }
+const {
+  zoom,
+  handleWheel,
+  adjustZoom,
+  resetZoom
+} = useZoom(connectionCanvasRef, coordinateManager)
 
 
 // 重构后的 loadConfig 函数
@@ -423,8 +340,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
 
-const connectionCanvasRef = ref(null);
-const coordinateManager = ref(null);
 
 
 
