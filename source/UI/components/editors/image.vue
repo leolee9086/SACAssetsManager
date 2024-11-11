@@ -190,11 +190,9 @@ const loadConfig = async () => {
     // 确保卡片ID唯一性
     const { updatedCards, idMap } = 校验并实例化卡片组(config.value.cards);
     config.value.cards = updatedCards;
-
     // 更新连接和关系中的卡片ID
     config.value.connections = updateConnectionIds(config.value.connections, idMap);
     config.value.relations = updateRelationIds(config.value.relations, idMap);
-
     // 添加所有卡片
     for await (const cardConfig of config.value.cards) {
       await addCard(cardConfig, { skipExisting: false });

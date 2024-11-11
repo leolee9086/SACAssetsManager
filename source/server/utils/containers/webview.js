@@ -15,12 +15,8 @@ export function createInvisibleWebview(entryURL,$enableRemote=true,preload) {
                 webview.setAttribute('webpreferences', 'contextIsolation=0,preload='+preload);
             }
             webview.style.display = 'none'; // 使webview隐形
-            console.log(webview)
             webview.src = 'about:blank'
-            console.log(webview.src)
             document.body.appendChild(webview);
-            console.log(webview)
-         
             webview.addEventListener('did-finish-load', async () => {
                 console.log(webview.src)
                 if(webview.src !== 'about:blank'){

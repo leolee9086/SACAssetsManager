@@ -1,5 +1,6 @@
 import { plugin } from '../asyncModules.js'
-import { 获取同源窗口 } from './utils/containers/webcontentsUtils/query.js'
+import { 获取同源窗口 } from '../utils/webcontents/query.js';
+
 //使用webview作为接口
 import { createBrowserWindowByURL } from './utils/containers/browserWindow.js'
 const entryURL = import.meta.resolve('./index.html?i=1'); // 或者指向你想要加载的URL
