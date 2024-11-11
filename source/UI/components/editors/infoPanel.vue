@@ -78,8 +78,6 @@
 
 <script setup>
 import { ref } from 'vue';
-import { useFixedPosition } from './CoordinateManager.js';
-
 const props = defineProps({
   stats: {
     type: Object,
@@ -110,22 +108,9 @@ const getSideName = (side) => {
 
 // 获取锚点显示标签
 const getAnchorLabel = (anchorId) => {
-  console.log(props.stats)
-  // 从stats中查找对应的锚点信息
-  // console.log(anchorId)
-
-  /* for (const card of Object.values(props.stats.cards)) {
-     console.log(card)
-     const anchor = card.anchors.find(a => a.id === anchorId);
-     if (anchor) {
-       return `${card.title}:${anchor.label || anchor.id}`;
-     }
-   }*/
   return anchorId;
 };
 
-// 使用组合式函数
-const offset = useFixedPosition(props.coordinateManager, { top: 20, left: 20 });
 </script>
 
 <style scoped>

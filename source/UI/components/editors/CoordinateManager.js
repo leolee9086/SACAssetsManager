@@ -2,7 +2,6 @@ import { ref, onMounted, onUnmounted, nextTick } from '../../../../static/vue.es
 
 export function useFixedPosition(coordinateManager, initialOffset = { top: 20, left: 20 }) {
   const offset = ref({ ...initialOffset });
-
   const updatePosition = () => {
     const scroll = coordinateManager.getScrollOffset();
     offset.value = {
@@ -12,7 +11,6 @@ export function useFixedPosition(coordinateManager, initialOffset = { top: 20, l
 
     };
   };
-
   onMounted(()=>nextTick(() => {
     coordinateManager.container.addEventListener('scroll', updatePosition);
     coordinateManager.container.addEventListener('wheel', updatePosition);
