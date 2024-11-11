@@ -1,5 +1,7 @@
 <template>
-  <div ref="connectionCanvas" class="connection-canvas">
+  <div ref="connectionCanvas" class="connection-canvas" :style="{
+    transformOrigin: 'top left'
+  }">
   </div>
 </template>
 
@@ -45,6 +47,10 @@ const props = defineProps({
   relations: {
     type: Array,
     default: () => []
+  },
+  zoom: {
+    type: Number,
+    default: 1
   }
 });
 
@@ -75,15 +81,25 @@ const initKonva = () => {
 
   gridLayer.value = new Konva.Layer();
   stage.value.add(gridLayer.value);
+  gridLayer.value.scale({ x: props.zoom, y: props.zoom });
 
   rulerLayer.value = new Konva.Layer();
   stage.value.add(rulerLayer.value);
+  rulerLayer.value.scale({ x: props.zoom, y: props.zoom });
 
   layer.value = new Konva.Layer();
   stage.value.add(layer.value);
+  layer.value.scale({ x: props.zoom, y: props.zoom });
 
-  drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
-  drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
+  drawGrid(gridLayer.value, {
+    ...props.gridConfig,
+    size: props.gridConfig.size
+  }, props.coordinateManager);
+  
+  drawRulers(rulerLayer.value, {
+    ...props.gridConfig,
+    size: props.gridConfig.size
+  }, props.coordinateManager);
 };
 import { 构造连接线组, drawRelation } from './geometry/BezierConnectionDrawer.js';
 // 添加 relations 相关的函数
@@ -105,7 +121,6 @@ const updateRelations = () => {
       `relation-${relation.from.cardId}-${relation.to.cardId}`,
       props.connectionStyle.geometry,
       props.connectionStyle.drawingStyle
-
     );
   });
   // 强制更新层
@@ -171,8 +186,10 @@ const updateConnections = () => {
   layer.value.destroyChildren();
   // 重新绘制所有连接
   props.connections.forEach(连接定义 => {
-    let 连接线组=以连接定义构造连接线组(连接定义)
-    连接线组&&layer.value.add(连接线组)
+    let 连接线组 = 以连接定义构造连接线组(连接定义);
+    if (连接线组) {
+      layer.value.add(连接线组);
+    }
   });
   // 强制更新层
   layer.value.batchDraw();
@@ -186,20 +203,53 @@ const handleResize = () => {
 // 抽取公共更新逻辑到新函数
 const updateStage = () => {
   const parentSize = props.coordinateManager.getParentSize();
-  stage.value.width(parentSize.width);
-  stage.value.height(parentSize.height);
+  stage.value.width(parentSize.width );
+  stage.value.height(parentSize.height );
+  
   const scroll = props.coordinateManager.getScrollOffset();
   stage.value.position({
-    x: -scroll.scrollLeft,
-    y: -scroll.scrollTop
+    x: -scroll.scrollLeft*props.zoom,
+    y: -scroll.scrollTop*props.zoom
   });
-  drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
-  drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
+  // 更新所有层的大小以填满 stage
+
+  // 更新所有层的缩放
+  [gridLayer.value, rulerLayer.value, layer.value].forEach(layer => {
+    if (layer) {
+      layer.scale({ 
+        x: props.zoom, 
+        y: props.zoom 
+      });
+      // 确保层的位置从左上角开始
+      layer.position({
+        x: 0,
+        y: 0
+      });
+    }
+  });
+
+  // 更新网格和标尺
+  drawGrid(gridLayer.value, {
+    ...props.gridConfig,
+    size: props.gridConfig.size
+  }, props.coordinateManager,props.zoom||1);
+  
+  drawRulers(rulerLayer.value, {
+    ...props.gridConfig,
+    size: props.gridConfig.size
+  }, props.coordinateManager,props.zoom||1);
+  
   stage.value.batchDraw();
 };
 const handleScroll = (e) => {
   updateStage();
 };
+// 添加对 zoom 属性的监听
+watch(() => props.zoom, () => {
+  if (stage.value) {
+    updateStage();
+  }
+}, { immediate: true });
 
 // 监听属性变化
 watch(() => props.cards, updateConnections, { deep: true });
@@ -399,6 +449,13 @@ watch(() => props.gridConfig, () => {
   drawGrid(gridLayer.value, props.gridConfig, props.coordinateManager);
   drawRulers(rulerLayer.value, props.gridConfig, props.coordinateManager);
 }, { deep: true });
+
+// 添加对 zoom 属性的监听
+watch(() => props.zoom, () => {
+  if (stage.value) {
+    updateStage();
+  }
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -411,5 +468,6 @@ watch(() => props.gridConfig, () => {
   pointer-events: none;
   z-index: 1;
   background-color: var(--b3-theme-background, #ffffff);
+  will-change: transform; /* 优化性能 */
 }
 </style>

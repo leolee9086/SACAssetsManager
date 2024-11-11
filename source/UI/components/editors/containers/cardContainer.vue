@@ -142,6 +142,10 @@ const props = defineProps({
   forcePosition: {
     type: Object,
     default: null
+  },
+  zoom: {
+    type: Number,
+    default: null
   }
 })
 
@@ -284,6 +288,7 @@ const getAnchorStyle = (anchor, side) => {
   return style
 }
 
+// 修改拖拽相关的方法
 const startDrag = (e) => {
   if (props.componentProps?.isPreview) return;
 
@@ -293,8 +298,8 @@ const startDrag = (e) => {
     y: e.clientY,
     lastX: currentPos.value.x,
     lastY: currentPos.value.y,
-    offsetX: e.clientX - currentPos.value.x,
-    offsetY: e.clientY - currentPos.value.y
+    offsetX: (e.clientX - currentPos.value.x * props.zoom) / props.zoom,
+    offsetY: (e.clientY - currentPos.value.y * props.zoom) / props.zoom
   };
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', stopDrag);
@@ -303,14 +308,15 @@ const startDrag = (e) => {
 const onDrag = (e) => {
   if (!isDragging.value) return;
 
+  // 计算新位置时考虑缩放因素
   const newPos = {
-    x: e.clientX - dragStart.value.offsetX,
-    y: e.clientY - dragStart.value.offsetY
+    x: (e.clientX - dragStart.value.offsetX * props.zoom) / props.zoom,
+    y: (e.clientY - dragStart.value.offsetY * props.zoom) / props.zoom
   };
 
   // 计算相对于上一次位置的变化量
-  const deltaX = newPos.x - dragStart.value.lastX;
-  const deltaY = newPos.y - dragStart.value.lastY;
+  const deltaX = (newPos.x - dragStart.value.lastX)/props.zoom;
+  const deltaY = (newPos.y - dragStart.value.lastY)/props.zoom;
 
   // 更新上一次位置
   dragStart.value.lastX = newPos.x;
@@ -329,28 +335,26 @@ const onDrag = (e) => {
   });
 };
 
+
 const stopDrag = (e) => {
   isDragging.value = false
 
   // 计算新位置时考虑初始偏移量，并确保不小于0
   currentPos.value = {
-    x: Math.max(32, e.clientX - dragStart.value.offsetX),
-    y: Math.max(32, e.clientY - dragStart.value.offsetY)
+    x: Math.max(32, e.clientX - dragStart.value.offsetX * props.zoom)/props.zoom,
+    y: Math.max(32, e.clientY - dragStart.value.offsetY*props.zoom)/props.zoom
   }
 
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
 }
+// 修改缩放相关的方法
 const startResize = (e, position) => {
   if (props.componentProps?.isPreview) return;
+  if (fixedWidth && fixedHeight) return;
 
-  // 如果是固定尺寸，则不允许缩放
-  if (fixedWidth && fixedHeight) {
-    return;
-  }
-
-  e.preventDefault()
-  isResizing.value = true
+  e.preventDefault();
+  isResizing.value = true;
 
   dragStart.value = {
     x: e.clientX,
@@ -360,50 +364,60 @@ const startResize = (e, position) => {
     left: currentPos.value.x,
     top: currentPos.value.y,
     position
-  }
+  };
 
-  document.addEventListener('mousemove', onResize)
-  document.addEventListener('mouseup', stopResize)
-}
+  document.addEventListener('mousemove', onResize);
+  document.addEventListener('mouseup', stopResize);
+};
 
 const onResize = (e) => {
-  if (!isResizing.value) return
+  if (!isResizing.value) return;
 
-  const deltaX = e.clientX - dragStart.value.x
-  const deltaY = e.clientY - dragStart.value.y
-  const pos = dragStart.value.position
+  // 考虑缩放因素计算delta
+  const deltaX = (e.clientX - dragStart.value.x) / props.zoom;
+  const deltaY = (e.clientY - dragStart.value.y) / props.zoom;
+  const pos = dragStart.value.position;
 
-  let newWidth = dragStart.value.width
-  let newHeight = dragStart.value.height
-  let newLeft = dragStart.value.left
-  let newTop = dragStart.value.top
+  let newWidth = dragStart.value.width;
+  let newHeight = dragStart.value.height;
+  let newLeft = dragStart.value.left;
+  let newTop = dragStart.value.top;
 
   // 根据不同方向处理缩放
-  if (pos.includes('e')) newWidth = dragStart.value.width + deltaX
+  if (pos.includes('e')) newWidth = dragStart.value.width + deltaX;
   if (pos.includes('w')) {
-    newWidth = dragStart.value.width - deltaX
-    newLeft = dragStart.value.left + deltaX
+    newWidth = dragStart.value.width - deltaX;
+    newLeft = dragStart.value.left + deltaX;
   }
-  if (pos.includes('s')) newHeight = dragStart.value.height + deltaY
+  if (pos.includes('s')) newHeight = dragStart.value.height + deltaY;
   if (pos.includes('n')) {
-    newHeight = dragStart.value.height - deltaY
-    newTop = dragStart.value.top + deltaY
+    newHeight = dragStart.value.height - deltaY;
+    newTop = dragStart.value.top + deltaY;
   }
 
   // 应用最小尺寸限制
-  const minWidth = 200
-  const minHeight = 100
+  const minWidth = 200;
+  const minHeight = 100;
 
   if (newWidth >= minWidth) {
-    currentSize.value.width = newWidth
-    if (pos.includes('w')) currentPos.value.x = newLeft
+    currentSize.value.width = newWidth;
+    if (pos.includes('w')) currentPos.value.x = newLeft;
   }
 
   if (newHeight >= minHeight) {
-    currentSize.value.height = newHeight
-    if (pos.includes('n')) currentPos.value.y = newTop
+    currentSize.value.height = newHeight;
+    if (pos.includes('n')) currentPos.value.y = newTop;
   }
-}
+
+  // 触发移动事件
+  emit('onCardMove', props.cardID, {
+    ...currentPos.value,
+    width: currentSize.value.width,
+    height: currentSize.value.height,
+    isDragging: false
+  });
+};
+
 
 const stopResize = () => {
   isResizing.value = false

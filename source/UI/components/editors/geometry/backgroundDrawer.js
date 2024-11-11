@@ -1,42 +1,78 @@
-export function drawGrid(gridLayer, gridConfig, coordinateManager) {
+export function drawGrid(gridLayer, gridConfig, coordinateManager, zoom) {
     if (!gridLayer || !gridConfig.enabled) return;
     
     gridLayer.destroyChildren();
     
-    const parentSize = coordinateManager.getParentSize();
-    const gridSize = gridConfig.size;
+    const parentSize = {
+        width: coordinateManager.getParentSize().width/zoom,
+        height: coordinateManager.getParentSize().height/zoom
+    };
+    
+    // 根据缩放调整网格间距
+    let mainGridSize = gridConfig.size * 5; // 主网格大小
+    let subGridSize = gridConfig.size;      // 次网格大小
+    
+    // 根据缩放调整网格间距
+    if (zoom >= 4) {
+        mainGridSize = mainGridSize / 4;
+        subGridSize = subGridSize / 4;
+    } else if (zoom >= 2) {
+        mainGridSize = mainGridSize / 2;
+        subGridSize = subGridSize / 2;
+    } else if (zoom <= 0.25) {
+        mainGridSize = mainGridSize * 4;
+        subGridSize = subGridSize * 4;
+    } else if (zoom <= 0.5) {
+        mainGridSize = mainGridSize * 2;
+        subGridSize = subGridSize * 2;
+    }
+    
     const scroll = coordinateManager.getScrollOffset();
     
-    // 创建网格图案
-    const patternCanvas = createGridPattern(gridSize, gridConfig.color);
+    // 创建两套网格图案
+    const mainGridPattern = createGridPattern(mainGridSize, gridConfig.color, 0.5); // 主网格
+    const subGridPattern = createGridPattern(subGridSize, gridConfig.color, 0.25);  // 次网格
     
-    // 创建填充了网格图案的矩形
-    const gridRect = new Konva.Rect({
+    // 创建次网格
+    const subGridRect = new Konva.Rect({
         x: scroll.scrollLeft,
         y: scroll.scrollTop,
         width: parentSize.width,
         height: parentSize.height,
-        fillPatternImage: patternCanvas,
+        fillPatternImage: subGridPattern,
         fillPatternOffset: {
-            x: scroll.scrollLeft % gridSize,
-            y: scroll.scrollTop % gridSize
+            x: scroll.scrollLeft % subGridSize,
+            y: scroll.scrollTop % subGridSize
         },
         listening: false
     });
     
-    gridLayer.add(gridRect);
+    // 创建主网格
+    const mainGridRect = new Konva.Rect({
+        x: scroll.scrollLeft,
+        y: scroll.scrollTop,
+        width: parentSize.width,
+        height: parentSize.height,
+        fillPatternImage: mainGridPattern,
+        fillPatternOffset: {
+            x: scroll.scrollLeft % mainGridSize,
+            y: scroll.scrollTop % mainGridSize
+        },
+        listening: false
+    });
+    
+    gridLayer.add(subGridRect, mainGridRect);
     
     // 只在主要网格线处添加坐标标签
     if (gridConfig.showCoordinates) {
-        addCoordinateLabels(gridLayer, scroll, parentSize, gridSize * 5, gridConfig.color);
+        addCoordinateLabels(gridLayer, scroll, parentSize, mainGridSize, gridConfig.color, zoom);
     }
     
     gridLayer.batchDraw();
 }
 
-// 创建网格图案
-function createGridPattern(gridSize, color) {
-    // 创建一个离屏canvas来生成图案
+// 修改网格图案创建函数，添加透明度参数
+function createGridPattern(gridSize, color, opacity = 0.5) {
     const patternCanvas = document.createElement('canvas');
     const size = gridSize;
     patternCanvas.width = size;
@@ -45,7 +81,7 @@ function createGridPattern(gridSize, color) {
     const ctx = patternCanvas.getContext('2d');
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = opacity;
     
     // 绘制网格线
     ctx.beginPath();
@@ -100,13 +136,16 @@ function addCoordinateLabels(gridLayer, scroll, parentSize, majorGridSize, color
 }
 
 // 标尺绘制也可以使用类似的优化方式
-export function drawRulers(rulerLayer, gridConfig, coordinateManager) {
+export function drawRulers(rulerLayer, gridConfig, coordinateManager,zoom=1) {
     if (!rulerLayer) return;
     
     rulerLayer.destroyChildren();
     
-    const parentSize = coordinateManager.getParentSize();
-    const rulerWidth = 20;
+    const parentSize = {
+        width:coordinateManager.getParentSize().width/zoom,
+        height:coordinateManager.getParentSize().height/zoom
+    };
+    const rulerWidth = 20/zoom;
     const scroll = coordinateManager.getScrollOffset();
     const gridSize = gridConfig.size;
     
@@ -152,7 +191,7 @@ export function drawRulers(rulerLayer, gridConfig, coordinateManager) {
     });
     
     // 添加标尺文本
-    const rulerTexts = createRulerTexts(scroll, parentSize, gridSize * 5);
+    const rulerTexts = createRulerTexts(scroll, parentSize, gridSize * 5,zoom);
     
     // 先添加到组
     rulerGroup.add(horizontalRuler, verticalRuler, rulerTexts);
@@ -171,41 +210,79 @@ export function drawRulers(rulerLayer, gridConfig, coordinateManager) {
 }
 
 // 新增函数：创建标尺文本
-function createRulerTexts(scroll, parentSize, majorGridSize) {
+function createRulerTexts(scroll, parentSize, majorGridSize, zoom) {
     const textGroup = new Konva.Group({
         listening: false
     });
     
-    const startX = Math.floor(scroll.scrollLeft / majorGridSize) * majorGridSize;
-    const startY = Math.floor(scroll.scrollTop / majorGridSize) * majorGridSize;
+    // 根据缩放调整网格间距和精度
+    let adjustedGridSize = majorGridSize;
+    let precision = 0; // 小数点位数
+    
+    // 根据缩放调整网格间距和精度
+    if (zoom >= 4) {
+        adjustedGridSize = majorGridSize / 4;
+        precision = 2;
+    } else if (zoom >= 2) {
+        adjustedGridSize = majorGridSize / 2;
+        precision = 1;
+    } else if (zoom <= 0.25) {
+        adjustedGridSize = majorGridSize * 4;
+    } else if (zoom <= 0.5) {
+        adjustedGridSize = majorGridSize * 2;
+    }
+    
+    const startX = Math.floor(scroll.scrollLeft / adjustedGridSize) * adjustedGridSize;
+    const startY = Math.floor(scroll.scrollTop / adjustedGridSize) * adjustedGridSize;
+    
+    // 根据缩放调整文本大小
+    const baseFontSize = 10;
+    const adjustedFontSize = Math.max(baseFontSize / zoom);
     
     // 文本样式配置
     const textConfig = {
-        fontSize: 10,
+        fontSize: adjustedFontSize,
         fontStyle: 'bold',
         fill: '#333',
         listening: false
     };
     
-    // 添加水平标尺文本
-    for (let x = startX; x <= startX + parentSize.width; x += majorGridSize) {
-        textGroup.add(new Konva.Text({
-            ...textConfig,
-            x: x + 2,
-            y: scroll.scrollTop + 2,
-            text: x.toString()
-        }));
-    }
+    // 计算文本间距，避免重叠
+    const textSpacing = adjustedGridSize * zoom;
+    const shouldShowText = textSpacing >= 30;
     
-    // 添加垂直标尺文本
-    for (let y = startY; y <= startY + parentSize.height; y += majorGridSize) {
-        const text = new Konva.Text({
-            ...textConfig,
-            x: scroll.scrollLeft + 2,
-            y: y + 2,
-            text: y.toString()
-        });
-        textGroup.add(text);
+    // 格式化数字函数
+    const formatNumber = (num) => {
+        if (precision === 0) return Math.round(num).toString();
+        return num.toFixed(precision);
+    };
+    
+    if (shouldShowText) {
+        // 添加水平标尺文本
+        for (let x = startX; x <= startX + parentSize.width; x += adjustedGridSize) {
+            const offset = 2 / zoom;
+            textGroup.add(new Konva.Text({
+                ...textConfig,
+                x: x + offset,
+                y: scroll.scrollTop + offset,
+                text: formatNumber(x),
+                align: 'left',
+                verticalAlign: 'top'
+            }));
+        }
+        
+        // 添加垂直标尺文本
+        for (let y = startY; y <= startY + parentSize.height; y += adjustedGridSize) {
+            const offset = 2 / zoom;
+            textGroup.add(new Konva.Text({
+                ...textConfig,
+                x: scroll.scrollLeft + offset,
+                y: y + offset,
+                text: formatNumber(y),
+                align: 'left',
+                verticalAlign: 'top'
+            }));
+        }
     }
     
     return textGroup;

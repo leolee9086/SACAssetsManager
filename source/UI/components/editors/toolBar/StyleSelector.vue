@@ -10,6 +10,9 @@
               :key="value" 
               :value="value">{{ label }}</option>
     </select>
+    <slot>
+        
+    </slot>
   </div>
 </template>
 

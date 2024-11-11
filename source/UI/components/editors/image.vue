@@ -1,13 +1,24 @@
 <template>
-  <div>
+  <div @wheel="handleWheel">
     <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
-      :coordinateManager="coordinateManager" />
+      :coordinateManager="coordinateManager" >
+      <div class="zoom-controls">
+        <button class="zoom-btn" @click="adjustZoom(-0.1)">-</button>
+        <span class="zoom-value">{{ Math.round(zoom * 100) }}%</span>
+        <button class="zoom-btn" @click="adjustZoom(0.1)">+</button>
+        <button class="zoom-btn" @click="resetZoom">重置</button>
+      </div>
+
+    </StyleSelector>
     <InfoPanel v-if="coordinateManager" :stats="systemStats" :coordinateManager="coordinateManager" />
 
     <div class="image-editor" ref="connectionCanvasRef" :style="{zoom}">
       <!-- 使用 StyleSelector 组件 -->
 
-      <ConnectionCanvas :style="{zoom:1/zoom}" v-if="config.connections" :cardsContainer="cardsContainer" :cards="parsedCards"
+      <ConnectionCanvas 
+      :style="{zoom:1/zoom}" 
+      :zoom="zoom"
+      v-if="config.connections" :cardsContainer="cardsContainer" :cards="parsedCards"
         :connections="config.connections" :relations="config.relations" :coordinateManager="coordinateManager"
         :connectionStyle="connectionStyle" @connectionCreated="handleNewConnection"
         @relationCreated="handleNewrelation" />
@@ -19,7 +30,7 @@
 
         <div ref="cardsContainer">
           <template v-for="(card, index) in parsedCards" :key="card.id+index">
-            <cardContainer :force-position="forcedPositions.get(card.id)" :title="card.title" :position="card.position"
+            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(card.id)" :title="card.title" :position="card.position"
               :data-card-id="card.id" :cardID="card.id" :component="card.controller.component"
               :component-props="card.controller.componentProps" :nodeDefine="card.controller.nodeDefine"
               :component-events="card.events" :anchors="card.controller.anchors" :connections="config.connections"
@@ -56,6 +67,95 @@ import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers
 // 在 setup 中
 import StyleSelector from './toolBar/StyleSelector.vue';
 const zoom = ref(1)
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 3;
+const DEFAULT_ZOOM = 1;
+const ZOOM_SPEED = 0.001; // 调整缩放速度
+
+// 处理鼠标滚轮事件
+const handleWheel = (e) => {
+  // 检查是否按住 Ctrl 键
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault(); // 阻止默认的浏览器缩放行为
+    
+    // 获取鼠标相对于编辑器的位置
+    const rect = connectionCanvasRef.value.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // 获取当前滚动位置
+    const scroll = coordinateManager.value.getScrollOffset();
+    const oldZoom = zoom.value;
+    
+    // 计算新的缩放值
+    const delta = -e.deltaY * ZOOM_SPEED;
+    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * (1 + delta)));
+    
+    if (newZoom !== oldZoom) {
+      // 计算鼠标位置相对于内容的位置（考虑当前滚动位置）
+      const contentX = (mouseX + scroll.scrollLeft) / oldZoom;
+      const contentY = (mouseY + scroll.scrollTop) / oldZoom;
+      
+      // 更新缩放值
+      zoom.value = newZoom;
+      
+      // 计算新的滚动位置，保持鼠标指向的内容点不变
+      const newScrollLeft = contentX * newZoom - mouseX;
+      const newScrollTop = contentY * newZoom - mouseY;
+      
+      // 更新滚动位置
+      nextTick(() => {
+        if (coordinateManager.value) {
+          coordinateManager.value.scrollTo(newScrollLeft, newScrollTop);
+        }
+      });
+    }
+  }
+};
+
+// 修改现有的 adjustZoom 方法，添加中心点参数
+const adjustZoom = (delta, centerX = null, centerY = null) => {
+  const oldZoom = zoom.value;
+  const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom + delta));
+  
+  if (newZoom !== oldZoom && centerX !== null && centerY !== null) {
+    // 获取当前滚动位置
+    const scroll = coordinateManager.value.getScrollOffset();
+    
+    // 计算内容上的点
+    const contentX = (centerX + scroll.scrollLeft) / oldZoom;
+    const contentY = (centerY + scroll.scrollTop) / oldZoom;
+    
+    // 更新缩放值
+    zoom.value = newZoom;
+    
+    // 计算新的滚动位置
+    const newScrollLeft = contentX * newZoom - centerX;
+    const newScrollTop = contentY * newZoom - centerY;
+    
+    // 更新滚动位置
+    nextTick(() => {
+      if (coordinateManager.value) {
+        coordinateManager.value.scrollTo(newScrollLeft, newScrollTop);
+      }
+    });
+  } else {
+    // 如果没有指定中心点，简单更新缩放值
+    zoom.value = newZoom;
+  }
+};
+
+// 重置缩放
+const resetZoom = () => {
+  zoom.value = DEFAULT_ZOOM;
+  // 可以选择重置滚动位置
+  nextTick(() => {
+    if (coordinateManager.value) {
+      coordinateManager.value.scrollTo(0, 0);
+    }
+  });
+};
+
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const parsedCards = ref([]);
@@ -421,9 +521,9 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
   const rect = connectionCanvasRef.value.getBoundingClientRect();
   const scroll = coordinateManager.value.getScrollOffset();
 
-  // 计算鼠标相对于容器的绝对位置
-  const mouseX = mouseEvent.clientX - rect.left + scroll.scrollLeft;
-  const mouseY = mouseEvent.clientY - rect.top + scroll.scrollTop;
+  // 计算鼠标相对于容器的绝对位置，考虑缩放
+  const mouseX = (mouseEvent.clientX - rect.left + scroll.scrollLeft) / zoom.value;
+  const mouseY = (mouseEvent.clientY - rect.top + scroll.scrollTop) / zoom.value;
 
   // 设置预览卡片的初始位置为鼠标位置
   duplicatingPreview.value = {
@@ -431,18 +531,22 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
     position: {
       ...previewCard.position,
       x: mouseX,
-      y: mouseY
+      y: mouseY,
+      // 保持原始尺寸
+      width: previewCard.position.width,
+      height: previewCard.position.height
     },
     componentProps: {
       ...previewCard.componentProps,
-      isPreview: true
+      isPreview: true,
+      zoom: zoom.value // 传递缩放值给预览组件
     }
   };
 
-  // 计算鼠标相对于预览卡片的偏移
+  // 计算鼠标相对于预览卡片的偏移，考虑缩放
   duplicateOffset.value = {
-    x: mouseEvent.clientX - rect.left,
-    y: mouseEvent.clientY - rect.top
+    x: (mouseEvent.clientX - rect.left) / zoom.value,
+    y: (mouseEvent.clientY - rect.top) / zoom.value
   };
 
   document.addEventListener('mousemove', handleDuplicateMove);
@@ -456,17 +560,21 @@ const handleDuplicateMove = (e) => {
   const rect = connectionCanvasRef.value.getBoundingClientRect();
   const scroll = coordinateManager.value.getScrollOffset();
 
-  // 直接计算鼠标相对于容器的绝对位置
-  const x = e.clientX - rect.left + scroll.scrollLeft;
-  const y = e.clientY - rect.top + scroll.scrollTop;
+  // 计算鼠标相对于容器的绝对位置，考虑缩放
+  const x = (e.clientX - rect.left + scroll.scrollLeft) / zoom.value;
+  const y = (e.clientY - rect.top + scroll.scrollTop) / zoom.value;
 
-  // 更新预览卡片位置为绝对坐标
+  // 更新预览卡片位置为缩放后的坐标
   duplicatingPreview.value = {
     ...duplicatingPreview.value,
     position: {
       ...duplicatingPreview.value.position,
       x,
       y
+    },
+    componentProps: {
+      ...duplicatingPreview.value.componentProps,
+      zoom: zoom.value // 确保缩放值更新
     }
   };
 };
@@ -485,11 +593,11 @@ const handleDuplicatePlace = async (e) => {
     const rect = connectionCanvasRef.value.getBoundingClientRect();
     const scroll = coordinateManager.value.getScrollOffset();
 
-    // 计算最终放置位置（绝对坐标）
-    const finalX = e.clientX - rect.left + scroll.scrollLeft;
-    const finalY = e.clientY - rect.top + scroll.scrollTop;
+    // 计算最终放置位置，考虑缩放
+    const finalX = (e.clientX - rect.left + scroll.scrollLeft) / zoom.value;
+    const finalY = (e.clientY - rect.top + scroll.scrollTop) / zoom.value;
 
-    // 使用最终位置更新实际卡片
+    // 使用最终位置更新实际卡片，保持原始尺寸
     actualCard.value.position = {
       ...duplicatingPreview.value.position,
       x: finalX,
@@ -507,12 +615,13 @@ const handleDuplicatePlace = async (e) => {
     // 等待下一个渲染周期
     await nextTick();
 
-    // 手动触发 onCardMove 事件来更新卡片位置
+    // 手动触发 onCardMove 事件来更新卡片位置，传递未缩放的坐标
     onCardMove(newCard.id, {
       x: finalX,
       y: finalY,
       width: newCard.position.width,
-      height: newCard.position.height
+      height: newCard.position.height,
+      zoom: zoom.value // 传递缩放值给移动事件
     });
 
     // 更新网络结构
@@ -615,6 +724,42 @@ const handleNewrelation = (newrelation) => {
   border-color: var(--b3-theme-primary);
   box-shadow: 0 0 0 2px var(--b3-theme-primary-light);
 }
+
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--b3-theme-surface);
+  padding: 6px 12px;
+  border-radius: var(--b3-border-radius);
+  border: 1px solid var(--b3-border-color);
+}
+
+.zoom-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  outline: none;
+  min-width: 28px;
+}
+
+.zoom-btn:hover {
+  background: var(--b3-list-hover);
+  border-color: var(--b3-theme-primary);
+}
+
+.zoom-value {
+  min-width: 60px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--b3-theme-on-surface);
+}
+
+
 
 /* 添加预览内容的样式 */
 :deep(.preview-content) {

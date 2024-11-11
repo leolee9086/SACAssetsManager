@@ -94,4 +94,11 @@ export class CoordinateManager {
             y: event.clientY - rect.top + scroll.scrollTop
         };
     }
+
+    scrollTo(x, y) {
+        if (this.container && this.container.parentElement) {
+            this.container.parentElement.scrollLeft = x;
+            this.container.parentElement.scrollTop = y;
+        }
+    }
 }
