@@ -59,12 +59,11 @@ import ConnectionCanvas from './ConnectionCanvas.vue';
 import InfoPanel from './InfoPanel.vue';
 //用于流程构建和控制
 import { CardManager } from './cardManager.js';
-import { CoordinateManager } from './CoordinateManager.js';
+import { CoordinateManager,useZoom } from './CoordinateManager.js';
 import { GraphManager } from './GraphManager.js';
 import { ensureUniqueCardIds as 校验并实例化卡片组, updateConnectionIds, validateConnections } from './loader/utils.js';
 import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
 import StyleSelector from './toolBar/StyleSelector.vue';
-import { useZoom } from './CoordinateManager.js';
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const parsedCards = ref([]);

@@ -1,6 +1,4 @@
 import { parseNodeDefine } from "./containers/nodeDefineParser.js";
-import RBush from '../../../../static/rbush.js';
-
 export const componentMap = {
     'math/number':"/plugins/SACAssetsManager/source/UI/components/editors/nodes/math/number.vue",
     'note/protyle':"/plugins/SACAssetsManager/source/UI/components/common/assetCard/protyleCell.vue",
@@ -17,7 +15,6 @@ export const parseComponentDefinition = async (cardType,cardInfo) => {
 // 添加验证函数
 const validateJsonStructure = (data) => {
     const errors = [];
-    
     // 检查必要属性是否存在
     const requiredProps = ['cards', 'relations', 'connections'];
     requiredProps.forEach(prop => {
@@ -27,12 +24,10 @@ const validateJsonStructure = (data) => {
             errors.push(`属性 ${prop} 必须是数组类型`);
         }
     });
-
     // 如果有错误，抛出异常
     if (errors.length > 0) {
         throw new Error(`JSON 结构验证失败:\n${errors.join('\n')}`);
     }
-
     // 返回验证后的数据，确保所有必要属性都存在
     return {
         cards: data.cards || [],
