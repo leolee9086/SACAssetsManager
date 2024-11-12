@@ -1,5 +1,4 @@
 import { 柯里化 } from "../../../../../utils/functions/currying.js";
-import { 坐标系 } from "./CoordinateSystemDefines.js";
 /**
  * @typedef {Object} 二维点
  * @property {number} x - X坐标
@@ -90,6 +89,9 @@ function 创建转换器(坐标符号) {
     };
 }
 
+
+import { 坐标系 } from "./CoordinateSystemDefines.js";
+
 // 为每个坐标系统创建转换器
 export const 一维转换器 = 创建转换器(坐标系.一维);
 export const 二维转换器 = 创建转换器(坐标系.二维);
@@ -114,3 +116,10 @@ export const 客户端坐标转换器 = 创建转换器(坐标系.客户端坐�
 export const 页面坐标转换器 = 创建转换器(坐标系.页面坐标);
 export const 像素转换器 = 创建转换器(坐标系.像素);
 export const 像素RGBA转换器 = 创建转换器(坐标系.像素RGBA);
+
+
+
+
+import { 非坐标系数组转对象标志 as 非坐标标志 } from "./CoordinateSystemDefines.js";
+//非坐标系的格式化函数
+export const css长宽转换器 = 创建转换器(非坐标标志.css长宽)

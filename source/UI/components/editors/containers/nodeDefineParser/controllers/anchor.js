@@ -139,9 +139,9 @@ const positionStrategies = {
  * @param {number} card.position.y - 卡片Y坐标
  * @param {number} card.position.width - 卡片宽度
  * @param {number} card.position.height - 卡片高度
- * @param {Object} anchor - 锚点对象
- * @param {string} anchor.side - 锚点方向
- * @param {number} anchor.position - 锚点相对位置
+ * @param {Object} 锚点ID - 锚点对象
+ * @param {string} 锚点ID.side - 锚点方向
+ * @param {number} 锚点ID.position - 锚点相对位置
  * @returns {{x: number, y: number}} 锚点的绝对坐标
  * @throws {Error} 当卡片位置信息无效时抛出错误
  */
@@ -191,3 +191,13 @@ export const updateAnchorsPosition = (cardsToUpdate) => {
 };
 
 export { calculateAnchorPosition, ANCHOR_CONSTANTS };
+
+
+export const 根据连接表查找锚点是否有连接 =(连接表,卡片ID,锚点ID)=>{
+    return 连接表.some(连接ID组 =>
+        (连接ID组.from.cardId === 卡片ID && 连接ID组.from.anchorId === 锚点ID) ||
+        (连接ID组.to.cardId === 卡片ID && 连接ID组.to.anchorId === 锚点ID)
+      )
+}
+
+

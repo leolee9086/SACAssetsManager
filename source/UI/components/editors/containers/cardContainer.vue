@@ -1,5 +1,5 @@
 <template>
-  <div class="floating-card" :style="cardStyle" :data-card-id="props.cardID" @mouseenter="handleFocus"
+  <div class="floating-card" :style="cardStyle" :data-card-id="props.card.id" @mouseenter="handleFocus"
     @mouseleave="handleBlur" ref="card" tabindex="0">
     <!-- 渲染四个方向的接口锚点 -->
     <template v-for="(anchors, side) in groupedAnchors" :key="side">
@@ -7,7 +7,7 @@
         <div v-for="anchor in anchors" :key="anchor.id" :class="['anchor-point', `anchor-${anchor.type}`, {
           'hidden': shouldHideAnchor(anchor)
         }]" :style="getAnchorStyle(anchor, side)" :title="anchor.label"
-          @mousedown.stop="startConnectionDrag(anchor, side)" :data-anchor-id="anchor.id" :data-card-id="props.cardID">
+          @mousedown.stop="startConnectionDrag(anchor, side)" :data-anchor-id="anchor.id" :data-card-id="props.card.id">
           <div class="anchor-dot"></div>
           <div class="anchor-label">{{ anchor.label }}:{{ typeof anchor.getValue() }}
             <div class="anchor-values">{{ anchor.getValue() }}</div>
@@ -40,8 +40,8 @@
         </template>
 
       </div>
-      <div class="card-header" v-if="title">
-        {{ title }}
+      <div class="card-header" v-if="props.card.title">
+        {{ props.card.title }}
         <!-- 添加卡片操作按钮 -->
       </div>
     </div>
@@ -70,7 +70,7 @@
     <!-- 添加固定触发锚点 -->
     <template v-for="anchor in triggerAnchorPositions" :key="anchor.id">
       <div :class="['trigger-anchor-container', `trigger-anchor-${anchor.side}`]" v-show="isFocused.value">
-        <div class="trigger-anchor-point" :data-anchor-id="anchor.id" :data-card-id="props.cardID"
+        <div class="trigger-anchor-point" :data-anchor-id="anchor.id" :data-card-id="props.card.id"
           @mousedown.stop="startConnectionDrag(anchor, anchor.side)">
           <div class="trigger-anchor-dot"></div>
         </div>
@@ -88,10 +88,7 @@ const serialize = _serialize.default.default
 // 自定义序列化处理器
 // Props 定义
 const props = defineProps({
-  title: {
-    type: String,
-    default: ''
-  },
+
   card: {
     type: Object,
   },
@@ -146,10 +143,8 @@ const props = defineProps({
 })
 // 计算已连接的锚点
 const isAnchorConnected = (anchor) => {
-  return props.connections.some(conn =>
-    (conn.from.cardId === props.cardID && conn.from.anchorId === anchor.id) ||
-    (conn.to.cardId === props.cardID && conn.to.anchorId === anchor.id)
-  )
+  return 根据连接表查找锚点是否有连接(props.connections, props.card.id, anchor.id)
+
 }
 // Refs
 const card = ref(null)
@@ -164,10 +159,10 @@ const dragStart = ref({
   height: 0
 })
 import { validateSize, validatePosition } from '../geometry/validatGeometry.js';
-const currentPos = ref(validatePosition(props.position))
-const currentSize = ref(validateSize({
-  width: props.position.width,
-  height: props.position.height
+const 当前卡片元素位置 = ref(validatePosition(props.card.position))
+const 当前卡片元素尺寸 = ref(validateSize({
+  width: props.card.position.width,
+  height: props.card.position.height
 }))
 const isHandleVisible = ref(false)
 // 定义缩放手柄位置
@@ -184,10 +179,10 @@ const resizeHandles = [
 // Computed
 const cardStyle = computed(() => {
   let data = {
-    left: `${currentPos.value.x}px`,
-    top: `${currentPos.value.y}px`,
-    width: `${currentSize.value.width}px`,
-    height: `${currentSize.value.height}px`,
+    left: `${当前卡片元素位置.value.x}px`,
+    top: `${当前卡片元素位置.value.y}px`,
+    width: `${当前卡片元素尺寸.value.width}px`,
+    height: `${当前卡片元素尺寸.value.height}px`,
     position: 'absolute',
     color: error.value ? `var(--b3-card-error-color)` : "",
     border: error.value ? `1px solid var(--b3-card-error-color)` : "",
@@ -214,42 +209,18 @@ const startDrag = (e) => {
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
-    lastX: currentPos.value.x,
-    lastY: currentPos.value.y,
-    offsetX: (e.clientX - currentPos.value.x * props.zoom) / props.zoom,
-    offsetY: (e.clientY - currentPos.value.y * props.zoom) / props.zoom
+    lastX: 当前卡片元素位置.value.x,
+    lastY: 当前卡片元素位置.value.y,
+    offsetX: (e.clientX - 当前卡片元素位置.value.x * props.zoom) / props.zoom,
+    offsetY: (e.clientY - 当前卡片元素位置.value.y * props.zoom) / props.zoom
   };
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', stopDrag);
 };
-const onDrag = (e) => {
-  if (!isDragging.value) return;
-  // 计算新位置时考虑缩放因素
-  const newPos = {
-    x: (e.clientX - dragStart.value.offsetX * props.zoom) / props.zoom,
-    y: (e.clientY - dragStart.value.offsetY * props.zoom) / props.zoom
-  };
-  // 计算相对于上一次位置的变化量
-  const deltaX = (newPos.x - dragStart.value.lastX) / props.zoom;
-  const deltaY = (newPos.y - dragStart.value.lastY) / props.zoom;
-  // 更新上一次位置
-  dragStart.value.lastX = newPos.x;
-  dragStart.value.lastY = newPos.y;
-  currentPos.value = newPos;
-  // 触发移动事件，让父组件知道位置变化
-  emit('onCardMove', props.cardID, {
-    ...newPos,
-    width: currentSize.value.width,
-    height: currentSize.value.height,
-    deltaX,
-    deltaY,
-    isDragging: true
-  });
-};
 const stopDrag = (e) => {
   isDragging.value = false
   // 计算新位置时考虑初始偏移量，并确保不小于0
-  currentPos.value = {
+  当前卡片元素位置.value = {
     x: Math.max(32, e.clientX - dragStart.value.offsetX * props.zoom) / props.zoom,
     y: Math.max(32, e.clientY - dragStart.value.offsetY * props.zoom) / props.zoom
   }
@@ -265,55 +236,142 @@ const startResize = (e, position) => {
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
-    width: currentSize.value.width,
-    height: currentSize.value.height,
-    left: currentPos.value.x,
-    top: currentPos.value.y,
+    width: 当前卡片元素尺寸.value.width,
+    height: 当前卡片元素尺寸.value.height,
+    left: 当前卡片元素位置.value.x,
+    top: 当前卡片元素位置.value.y,
     position
   };
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', stopResize);
 };
+
+
+import * as 向量 from '../geometry/geometryCalculate/vector.js';
+// 抽取空间变换相关的工具函数
+const 空间变换工具 = {
+  创建变换空间: (zoom, offset = null) => ({
+    缩放: {
+      系数: 1 / zoom,
+      矩阵: 向量.值(2, 1 / zoom)
+    },
+    偏移: offset
+  }),
+
+  应用空间变换: (向量组, 变换空间) => {
+    const 变换结果 = 向量.逐元积(
+      变换空间.偏移 ? 向量.减(向量组, 变换空间.偏移) : 向量组,
+      变换空间.缩放.矩阵
+    )
+    return 变换结果
+  },
+
+  计算状态变更: (新状态, 原状态) => {
+    return {
+      位置: {
+        新: 新状态.位置,
+        增量: 向量.减(新状态.位置, 原状态.位置)
+      },
+      尺寸: 新状态.尺寸
+    }
+  }
+}
+
+// 重构后的拖拽处理函数
+const onDrag = (e) => {
+  if (!isDragging.value) return
+  const 变换空间 = 空间变换工具.创建变换空间(
+    props.zoom, 
+    [dragStart.value.offsetX * props.zoom, dragStart.value.offsetY * props.zoom]
+  )
+  const 事件坐标 = [e.clientX, e.clientY]
+  const 原状态 = {
+    位置: [dragStart.value.lastX, dragStart.value.lastY]
+  }
+  const 新位置 = 空间变换工具.应用空间变换(事件坐标, 变换空间)
+  const 状态变更 = 空间变换工具.计算状态变更(
+    { 位置: 新位置 },
+    原状态
+  )
+  // 更新状态
+  dragStart.value = {
+    ...dragStart.value,
+    lastX: 新位置[0],
+    lastY: 新位置[1]
+  }
+  当前卡片元素位置.value =二维转换器.点数组转对象(新位置)
+  emit('onCardMove', props.card.id, {
+    x: 新位置[0],
+    y: 新位置[1],
+    width: 当前卡片元素尺寸.value.width,
+    height: 当前卡片元素尺寸.value.height,
+    deltaX: 状态变更.位置.增量[0],
+    deltaY: 状态变更.位置.增量[1],
+    isDragging: true
+  })
+}
+
+// 重构后的缩放处理函数
 const onResize = (e) => {
-  if (!isResizing.value) return;
-  // 考虑缩放因素计算delta
-  const deltaX = (e.clientX - dragStart.value.x) / props.zoom;
-  const deltaY = (e.clientY - dragStart.value.y) / props.zoom;
-  const pos = dragStart.value.position;
-  let newWidth = dragStart.value.width;
-  let newHeight = dragStart.value.height;
-  let newLeft = dragStart.value.left;
-  let newTop = dragStart.value.top;
-  // 根据不同方向处理缩放
-  if (pos.includes('e')) newWidth = dragStart.value.width + deltaX;
-  if (pos.includes('w')) {
-    newWidth = dragStart.value.width - deltaX;
-    newLeft = dragStart.value.left + deltaX;
+  if (!isResizing.value) return
+  const 变换空间 = 空间变换工具.创建变换空间(props.zoom)
+  const 几何约束 = {
+    尺寸: { 下限: [200, 100] }
   }
-  if (pos.includes('s')) newHeight = dragStart.value.height + deltaY;
-  if (pos.includes('n')) {
-    newHeight = dragStart.value.height - deltaY;
-    newTop = dragStart.value.top + deltaY;
+  const 事件位移 = 向量.减(
+    [e.clientX, e.clientY],
+    [dragStart.value.x, dragStart.value.y]
+  )
+  const 缩放位移 = 空间变换工具.应用空间变换(事件位移, 变换空间)
+  // 处理尺寸和位置的变换
+  const 处理几何变换 = (方向, 位移, 初始状态) => {
+    const 变换矩阵 = {
+      尺寸: [
+        { 基向量: 'e', 系数: 1 }, { 基向量: 'w', 系数: -1 },
+        { 基向量: 's', 系数: 1 }, { 基向量: 'n', 系数: -1 }
+      ],
+      位置: [
+        { 基向量: 'w', 系数: 1 }, { 基向量: 'n', 系数: 1 }
+      ]
+    }
+
+    const 计算变换 = (变换基, 向量) => [
+      变换基.some(基 => 方向.includes(基.基向量)) ?
+        变换基.find(基 => 方向.includes(基.基向量))?.系数 * 向量[0] : 0,
+      变换基.some(基 => 方向.includes(基.基向量)) ?
+        变换基.find(基 => 方向.includes(基.基向量))?.系数 * 向量[1] : 0
+    ]
+
+    const 变换结果 = {
+      尺寸: 向量.加(初始状态.尺寸, 计算变换(变换矩阵.尺寸, 位移)),
+      位置: 向量.加(初始状态.位置, 计算变换(变换矩阵.位置, 位移))
+    }
+    return 变换结果
   }
-  // 应用最小尺寸限制
-  const minWidth = 200;
-  const minHeight = 100;
-  if (newWidth >= minWidth) {
-    currentSize.value.width = newWidth;
-    if (pos.includes('w')) currentPos.value.x = newLeft;
+  const 初始状态 = {
+    尺寸: [dragStart.value.width, dragStart.value.height],
+    位置: [dragStart.value.left, dragStart.value.top]
   }
-  if (newHeight >= minHeight) {
-    currentSize.value.height = newHeight;
-    if (pos.includes('n')) currentPos.value.y = newTop;
-  }
-  // 触发移动事件
-  emit('onCardMove', props.cardID, {
-    ...currentPos.value,
-    width: currentSize.value.width,
-    height: currentSize.value.height,
+  const 变换结果 = 处理几何变换(dragStart.value.position, 缩放位移, 初始状态)
+  // 应用约束
+  const 约束后尺寸 = 向量.下钳制(变换结果.尺寸, 几何约束.尺寸.下限)
+  const 约束满足性 = 向量.逐元比较(约束后尺寸, 变换结果.尺寸)
+  // 更新位置和尺寸
+  const 位置更新掩码 = [
+    dragStart.value.position.includes('w') && 约束满足性[0],
+    dragStart.value.position.includes('n') && 约束满足性[1]
+  ]
+  const 当前位置 = [当前卡片元素位置.value.x, 当前卡片元素位置.value.y]
+  const 新位置 = 向量.逐元选择(位置更新掩码, 变换结果.位置, 当前位置)
+  当前卡片元素尺寸.value = css长宽转换器.点数组转对象(约束后尺寸)
+  当前卡片元素位置.value = 二维转换器.点数组转对象(新位置)
+  emit('onCardMove', props.card.id, {
+    ...当前卡片元素位置.value,
+    width: 当前卡片元素尺寸.value.width,
+    height: 当前卡片元素尺寸.value.height,
     isDragging: false
-  });
-};
+  })
+}
 const stopResize = () => {
   isResizing.value = false
   document.removeEventListener('mousemove', onResize)
@@ -325,19 +383,17 @@ let error = ref('')
 let fixedWidth = 0
 let fixedHeight = 0
 onMounted(() => {
-  currentPos.value = {
-    x: props.position.x,
-    y: props.position.y
+  当前卡片元素位置.value = {
+    x: props.card.position.x,
+    y: props.card.position.y
   }
-  currentSize.value = {
-    width: props.position.width,
-    height: props.position.height
+  当前卡片元素尺寸.value = {
+    width: props.card.position.width,
+    height: props.card.position.height
   };
   props.card && (props.card.moveTo = (newRelatedPosition) => {
-    console.error(newRelatedPosition, currentPos.value)
-    currentPos.value.x = newRelatedPosition.x
-    currentPos.value.y = newRelatedPosition.y
-
+    当前卡片元素位置.value.x = newRelatedPosition.x
+    当前卡片元素位置.value.y = newRelatedPosition.y
   });
   //这个需要提到最外面
   (async () => {
@@ -346,7 +402,7 @@ onMounted(() => {
       if (props.nodeDefine.geom?.size === 'fixed') {
         fixedWidth = props.nodeDefine.geom.width
         fixedHeight = props.nodeDefine.geom.height
-        currentSize.value = {
+        当前卡片元素尺寸.value = {
           width: fixedWidth,
           height: fixedHeight
         };
@@ -367,19 +423,20 @@ onUnmounted(() => {
 
 // 定义 emit
 const emit = defineEmits(['onCardMove', 'startConnection', 'duplicateCard', 'startDuplicating']);
-
 // 添加一个方法来获取当前卡片的 HTML 内容
 const getCardPreviewContent = () => {
   const cardContent = card.value?.querySelector('.card-content');
   return cardContent ? cardContent.innerHTML : '';
 };
 
-
 import { createDuplicationEventData } from './nodeDefineParser/controllers/cardConfig.js';
+import { 根据连接表查找锚点是否有连接 } from './nodeDefineParser/controllers/anchor.js';
+import { } from '../geometry/geometryCalculate/vector.js';
+import { css长宽转换器, 二维转换器 } from '../geometry/utils/pointFormatters.js';
 // 修改复制卡片的方法
 const duplicateCard = (event) => {
   event.stopPropagation();
-  let duplicationData= createDuplicationEventData(event,props.title,props.nodeDefine,props.card.controller.cardInfo,currentSize.value,currentPos.value,getCardPreviewContent())
+  let duplicationData = createDuplicationEventData(event, props.card.title, props.nodeDefine, props.card.controller.cardInfo, 当前卡片元素尺寸.value, 当前卡片元素位置.value, getCardPreviewContent())
   emit('startDuplicating', duplicationData);
 };
 
@@ -397,7 +454,7 @@ watch(cardStyle, () => {
   // 只有在非预览状态下才触发卡片移动事件
   if (!props.componentProps?.isPreview) {
     nextTick(() => {
-      emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value, isDragging: isDragging.value });
+      emit('onCardMove', props.card.id, { ...当前卡片元素位置.value, ...当前卡片元素尺寸.value, isDragging: isDragging.value });
     });
   }
 });
@@ -422,7 +479,7 @@ const groupedAnchors = computed(() => {
 
 const startConnectionDrag = (anchor, side) => {
   // 触发自定义事件，通知父组件开始连接
-  anchor.emit('startConnection', { anchor, side, cardID: props.cardID });
+  anchor.emit('startConnection', { anchor, side, cardID: props.card.id });
 };
 
 // 判断是否应该隐藏锚点
@@ -464,16 +521,16 @@ const getAnchorCountStyle = (side) => {
 };
 
 // 添加对 position prop 的监听
-watch(() => props.position, (newPosition) => {
+watch(() => props.card.position, (newPosition) => {
   // 如果是预览模式(复制模式)，直接更新位置而不触发事件
   if (props.componentProps?.isPreview) {
-    currentPos.value = {
+    当前卡片元素位置.value = {
       x: newPosition.x,
       y: newPosition.y
     };
-    currentSize.value = {
-      width: newPosition.width || currentSize.value.width,
-      height: newPosition.height || currentSize.value.height
+    当前卡片元素尺寸.value = {
+      width: newPosition.width || 当前卡片元素尺寸.value.width,
+      height: newPosition.height || 当前卡片元素尺寸.value.height
     };
   }
 
@@ -495,12 +552,12 @@ watch(() => props.forcePosition, (newPosition) => {
   if (newPosition && !isDragging.value) { // 只在非拖拽状态下接受强制位置更新
     console.error(newPosition, isDragging.value)
 
-    currentPos.value = {
+    当前卡片元素位置.value = {
       x: newPosition.x,
       y: newPosition.y
     };
     if (newPosition.width && newPosition.height) {
-      currentSize.value = {
+      当前卡片元素尺寸.value = {
         width: newPosition.width,
         height: newPosition.height
       };
@@ -549,7 +606,6 @@ const loadComponent = async () => {
       if (!comp?.template && !comp?.render) {
         throw new Error('组件定义无效');
       }
-
       component.value = markRaw(comp);
       console.log('Component set:', component.value);
     }
@@ -560,18 +616,18 @@ const loadComponent = async () => {
 };
 
 onMounted(() => {
-  currentPos.value = {
-    x: props.position.x,
-    y: props.position.y
+  当前卡片元素位置.value = {
+    x: props.card.position.x,
+    y: props.card.position.y
   };
-  currentSize.value = {
-    width: props.position.width,
-    height: props.position.height
+  当前卡片元素尺寸.value = {
+    width: props.card.position.width,
+    height: props.card.position.height
   };
 
   props.card && (props.card.moveTo = (newRelatedPosition) => {
-    currentPos.value.x = newRelatedPosition.x;
-    currentPos.value.y = newRelatedPosition.y;
+    当前卡片元素位置.value.x = newRelatedPosition.x;
+    当前卡片元素位置.value.y = newRelatedPosition.y;
   });
   nextTick(
     () => loadComponent()

@@ -23,8 +23,8 @@
         overflow: auto;">
         <div ref="cardsContainer">
           <template v-for="(运行时卡片对象, index) in 运行时卡片对象序列" :key="运行时卡片对象.id+index">
-            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(运行时卡片对象.id)" :title="运行时卡片对象.title"
-              :position="运行时卡片对象.position" :data-card-id="运行时卡片对象.id" :cardID="运行时卡片对象.id" :component="运行时卡片对象.controller.component"
+            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(运行时卡片对象.id)" 
+              :data-card-id="运行时卡片对象.id"  :component="运行时卡片对象.controller.component"
               :component-props="运行时卡片对象.controller.componentProps" :nodeDefine="运行时卡片对象.controller.nodeDefine"
               :component-events="运行时卡片对象.events" :anchors="运行时卡片对象.controller.anchors" :connections="config.connections"
               :card="运行时卡片对象" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
@@ -67,6 +67,14 @@ const 运行时卡片对象序列 = ref([]);
 const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/brightness.json"
 const connectionCanvasRef = ref(null);
 const coordinateManager = ref(null);
+const container = ref(null);
+const appData = toRef(inject('appData'))
+// 修改连线相关的状态管理
+const anchors = ref(new Map()); // 存储所有锚点信息
+const 锚点连接表 = ref([]); // 存储连线信息
+// 配置相关
+const config = ref({
+});
 // 修改 从卡片配置添加控制器 函数
 const 从卡片配置添加控制器 = async (卡片数据, options = {}) => {
   const 运行时卡片对象 = await cardManager.从卡片配置添加控制器(卡片数据, options);
@@ -172,15 +180,7 @@ const validateRelations = (relations, cards) => {
   });
 };
 
-const container = ref(null);
-const appData = toRef(inject('appData'))
-// 修改连线相关的状态管理
-const anchors = ref(new Map()); // 存储所有锚点信息
-const 锚点连接表 = ref([]); // 存储连线信息
-// 配置相关
-const config = ref({
-  ...editorConfig,
-});
+
 // 组件属性映射
 // 绘制连线
 // 初始化 canvas 和连接
@@ -284,20 +284,12 @@ const getDirectRelations = (cardId) => {
 const getRelatedCardId = (relation, sourceCardId) => {
   return relation.from.cardId === sourceCardId ? relation.to.cardId : relation.from.cardId;
 };
+import { 以位移向量变换矩形对象 } from './geometry/geometryCalculate/rect.js';
 
-// 计算新的卡片位置
-const 移动运行时卡片对象 = (运行时卡片对象, deltaX, deltaY) => {
-  return {
-    x: 运行时卡片对象.position.x + deltaX,
-    y: 运行时卡片对象.position.y + deltaY,
-    width: 运行时卡片对象.position.width,
-    height: 运行时卡片对象.position.height,
-  };
-};
 const moveRelatedCard = (relatedCard, sourceCardId, deltaX, deltaY) => {
   if (!relatedCard || relatedCard.id === sourceCardId) return;
-  const newPosition = 移动运行时卡片对象(relatedCard, deltaX, deltaY);
-  relatedCard.moveTo?.(newPosition);
+  if(!relatedCard.moveTo) return
+  relatedCard.moveTo(以位移向量变换矩形对象(relatedCard.position, {x:deltaX, y:deltaY}));
 };
 // 处理关联卡片的移动（主函数）
 const updateRelatedCards = (cardId, deltaX, deltaY) => {
@@ -380,6 +372,7 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
   const mouseY = (mouseEvent.clientY - rect.top + scroll.scrollTop) / zoom.value;
   // 设置预览卡片的初始位置为鼠标位置
   duplicatingPreview.value = {
+    
     ...previewCard,
     position: {
       ...previewCard.position,
@@ -395,7 +388,9 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
       zoom: zoom.value // 传递缩放值给预览组件
     }
   };
+  duplicatingPreview.value.card=    duplicatingPreview.value
 
+  
   // 计算鼠标相对于预览卡片的偏移，考虑缩放
   duplicateOffset.value = {
     x: (mouseEvent.clientX - rect.left) / zoom.value,
@@ -430,6 +425,8 @@ const handleDuplicateMove = (e) => {
       zoom: zoom.value // 确保缩放值更新
     }
   };
+  duplicatingPreview.value.card=    duplicatingPreview.value
+
 };
 
 // 修改放置处理方法
