@@ -50,11 +50,12 @@
         <errorContainer :error="error" altMessage="组件加载错误"></errorContainer>
       </template>
       <template v-else>
-        <ErrorBoundary @error="handleComponentError">
-          <component v-if="props.component && component" :is="component" v-bind="componentProps"
+        <ErrorBoundary v-if="props.component&&component" @error="handleComponentError">
+          <component  :is="component" v-bind="componentProps"
             v-on="componentEvents" />
-          <div v-else class="loading">加载中...</div>
         </ErrorBoundary>
+        <div v-else class="loading">加载中...</div>
+
       </template>
     </div>
     <div v-if="isFocused.value" class="anchors">
@@ -79,6 +80,15 @@ import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick,
 import *  as _serialize from '../../../../../static/serialize-javascript.js'
 import errorContainer from './errorContainer.vue';
 import { ErrorBoundary } from '../../common/wraper/utilsComponent.js';
+import { 按指定值分组 } from '../../../../utils/array/groupBy.js';
+import { validateSize, validatePosition } from '../geometry/validatGeometry.js';
+import { getAnchorStyle } from './nodeDefineParser/controllers/anchorConfig.js';
+import * as 向量 from '../geometry/geometryCalculate/vector.js';
+import { createDuplicationEventData } from './nodeDefineParser/controllers/cardConfig.js';
+import { 根据连接表查找锚点是否有连接 } from './nodeDefineParser/controllers/anchor.js';
+import { css长宽转换器, 二维转换器 } from '../geometry/utils/pointFormatters.js';
+import { anchorSides } from '../types.js';
+
 const handleComponentError = (err) => {
   console.error('Component runtime error:', err);
   error.value = err;
@@ -88,7 +98,6 @@ const serialize = _serialize.default.default
 // 自定义序列化处理器
 // Props 定义
 const props = defineProps({
-
   card: {
     type: Object,
   },
@@ -120,17 +129,14 @@ const props = defineProps({
     type: Array,
     default: []
   },
-  cardID: {
-    type: String,
-    required: true
-  },
+
   connections: {
     type: Array,
     default: () => []
   },
   triggerAnchors: {
     type: Array,
-    default: () => ['left', 'right', 'top', 'bottom']
+    default: () =>Object.values(anchorSides)
   },
   forcePosition: {
     type: Object,
@@ -158,8 +164,13 @@ const dragStart = ref({
   width: 0,
   height: 0
 })
-import { validateSize, validatePosition } from '../geometry/validatGeometry.js';
 const 当前卡片元素位置 = ref(validatePosition(props.card.position))
+const 应用位置 = (position) => {
+  当前卡片元素位置.value = 二维转换器.抽取对应值转对象(position)
+}
+const 应用尺寸 = (position) => {
+  当前卡片元素尺寸.value = css长宽转换器.抽取对应值转对象(position)
+}
 const 当前卡片元素尺寸 = ref(validateSize({
   width: props.card.position.width,
   height: props.card.position.height
@@ -201,7 +212,6 @@ const handleFocus = () => {
 const handleBlur = () => {
   isFocused.value = false;
 };
-import { getAnchorStyle } from './nodeDefineParser/controllers/anchorConfig.js';
 // 修改拖拽相关的方法
 const startDrag = (e) => {
   if (props.componentProps?.isPreview) return;
@@ -247,7 +257,6 @@ const startResize = (e, position) => {
 };
 
 
-import * as 向量 from '../geometry/geometryCalculate/vector.js';
 // 抽取空间变换相关的工具函数
 const 空间变换工具 = {
   创建变换空间: (zoom, offset = null) => ({
@@ -281,7 +290,7 @@ const 空间变换工具 = {
 const onDrag = (e) => {
   if (!isDragging.value) return
   const 变换空间 = 空间变换工具.创建变换空间(
-    props.zoom, 
+    props.zoom,
     [dragStart.value.offsetX * props.zoom, dragStart.value.offsetY * props.zoom]
   )
   const 事件坐标 = [e.clientX, e.clientY]
@@ -299,7 +308,7 @@ const onDrag = (e) => {
     lastX: 新位置[0],
     lastY: 新位置[1]
   }
-  当前卡片元素位置.value =二维转换器.点数组转对象(新位置)
+  当前卡片元素位置.value = 二维转换器.点数组转对象(新位置)
   emit('onCardMove', props.card.id, {
     x: 新位置[0],
     y: 新位置[1],
@@ -382,64 +391,19 @@ let error = ref('')
 // 生命周期钩子
 let fixedWidth = 0
 let fixedHeight = 0
-onMounted(() => {
-  当前卡片元素位置.value = {
-    x: props.card.position.x,
-    y: props.card.position.y
-  }
-  当前卡片元素尺寸.value = {
-    width: props.card.position.width,
-    height: props.card.position.height
-  };
-  props.card && (props.card.moveTo = (newRelatedPosition) => {
-    当前卡片元素位置.value.x = newRelatedPosition.x
-    当前卡片元素位置.value.y = newRelatedPosition.y
-  });
-  //这个需要提到最外面
-  (async () => {
-    try {
-      component.value = await props.component(props.nodeDefine);
-      if (props.nodeDefine.geom?.size === 'fixed') {
-        fixedWidth = props.nodeDefine.geom.width
-        fixedHeight = props.nodeDefine.geom.height
-        当前卡片元素尺寸.value = {
-          width: fixedWidth,
-          height: fixedHeight
-        };
-      }
-    } catch (e) {
-      console.error('组件定义获取失败', e)
-      error.value = e
-    }
-  })()
-})
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDrag)
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
-})
-
-
-// 定义 emit
 const emit = defineEmits(['onCardMove', 'startConnection', 'duplicateCard', 'startDuplicating']);
+// 定义 emit
 // 添加一个方法来获取当前卡片的 HTML 内容
 const getCardPreviewContent = () => {
   const cardContent = card.value?.querySelector('.card-content');
   return cardContent ? cardContent.innerHTML : '';
 };
-
-import { createDuplicationEventData } from './nodeDefineParser/controllers/cardConfig.js';
-import { 根据连接表查找锚点是否有连接 } from './nodeDefineParser/controllers/anchor.js';
-import { } from '../geometry/geometryCalculate/vector.js';
-import { css长宽转换器, 二维转换器 } from '../geometry/utils/pointFormatters.js';
 // 修改复制卡片的方法
 const duplicateCard = (event) => {
   event.stopPropagation();
   let duplicationData = createDuplicationEventData(event, props.card.title, props.nodeDefine, props.card.controller.cardInfo, 当前卡片元素尺寸.value, 当前卡片元素位置.value, getCardPreviewContent())
   emit('startDuplicating', duplicationData);
 };
-
 // 修改卡片操作按钮的定义
 const cardActions = [
   {
@@ -448,7 +412,6 @@ const cardActions = [
     icon: '📋' // 可选：添加图标
   }
 ];
-
 // 监听卡片位置和尺寸变化
 watch(cardStyle, () => {
   // 只有在非预览状态下才触发卡片移动事件
@@ -461,16 +424,8 @@ watch(cardStyle, () => {
 
 // 按方向分组锚点
 const groupedAnchors = computed(() => {
-  const groups = {
-    left: [],
-    right: [],
-    top: [],
-    bottom: []
-  };
-  anchors.value.forEach(anchor => {
-    groups[anchor.side].push(anchor);
-  });
-  // 对每个方向的锚点按位置排序
+  const groups= 按指定值分组(anchors.value,'side',Object.values(anchorSides))
+  console.log("groups",groups)
   Object.values(groups).forEach(group => {
     group.sort((a, b) => a.position - b.position);
   });
@@ -495,23 +450,19 @@ const shouldHideAnchor = (anchor) => {
   // 其他情况隐藏
   return true;
 };
-
 // 计算每个边上未连接的锚点数量
 const unconnectedAnchorsCountForSide = (side) => {
   return props.anchors.filter(anchor => anchor.side === side && !isAnchorConnected(anchor)).length;
 };
-
 // 判断某个边上是否有未连接的锚点
 const hasUnconnectedAnchorsForSide = (side) => {
   return unconnectedAnchorsCountForSide(side) > 0;
 };
-
 // 计算无连接标签的位置
 const getAnchorCountStyle = (side) => {
   const connectedAnchors = props.anchors.filter(anchor => anchor.side === side && isAnchorConnected(anchor));
   const lastConnectedAnchor = connectedAnchors[connectedAnchors.length - 1];
   if (!lastConnectedAnchor) return {};
-
   const position = lastConnectedAnchor.position * 100;
   if (side === 'left' || side === 'right') {
     return { top: `calc(${position}% + 20px)` }; // 20px 偏移量
@@ -519,8 +470,6 @@ const getAnchorCountStyle = (side) => {
     return { left: `calc(${position}% + 20px)` }; // 20px 偏移量
   }
 };
-
-
 // 添加固定触发锚点的计算属性
 const triggerAnchorPositions = computed(() => {
   return props.triggerAnchors.map(side => ({
@@ -531,40 +480,22 @@ const triggerAnchorPositions = computed(() => {
   }));
 });
 // 添加对 position prop 的监听
-watch(() => props.card.position, (newPosition) => {
+watch(() => props.card.position, (position) => {
   // 如果是预览模式(复制模式)，直接更新位置而不触发事件
   if (props.componentProps?.isPreview) {
-    当前卡片元素位置.value = {
-      x: newPosition.x,
-      y: newPosition.y
-    };
-    当前卡片元素尺寸.value = {
-      width: newPosition.width || 当前卡片元素尺寸.value.width,
-      height: newPosition.height || 当前卡片元素尺寸.value.height
-    };
+    应用位置(position)
+    应用尺寸(position)
   }
 
 }, { deep: true });
 
 // 添加对 forcePosition 的监听
-watch(() => props.forcePosition, (newPosition) => {
-  if (newPosition && !isDragging.value) { // 只在非拖拽状态下接受强制位置更新
-
-    当前卡片元素位置.value = {
-      x: newPosition.x,
-      y: newPosition.y
-    };
-    if (newPosition.width && newPosition.height) {
-      当前卡片元素尺寸.value = {
-        width: newPosition.width,
-        height: newPosition.height
-      };
-    }
+watch(() => props.forcePosition, (position) => {
+  if (position && !isDragging.value) { // 只在非拖拽状态下接受强制位置更新
+    应用位置(position)
+    应用尺寸(position)
   }
 }, { deep: true });
-
-
-
 // 修改组件加载逻辑，确保状态更新
 const loadComponent = async () => {
   try {
@@ -573,7 +504,6 @@ const loadComponent = async () => {
       component.value = null; // 清空当前组件
       const comp = await props.component(props.nodeDefine);
       console.log('Component loaded:', comp);
-
       if (!comp?.template && !comp?.render) {
         throw new Error('组件定义无效');
       }
@@ -585,20 +515,22 @@ const loadComponent = async () => {
     handleComponentError(e);
   }
 };
-
 onMounted(() => {
-  let {position} = props.card
-  当前卡片元素位置.value = 二维转换器.抽取对应值转对象(position)
-  当前卡片元素尺寸.value = css长宽转换器.抽取对应值转对象(position)
-  props.card && (props.card.moveTo = (newRelatedPosition) => {
-    当前卡片元素位置.value.x = newRelatedPosition.x;
-    当前卡片元素位置.value.y = newRelatedPosition.y;
-  });
+  let { position } = props.card
+  应用位置(position)
+  应用尺寸(position)
+  props.card && (props.card.moveTo = 应用位置);
+  props.card && (props.card.sizeTo = 应用尺寸);
   nextTick(
     () => loadComponent()
   )
 });
-
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+})
 </script>
 
 <style scoped>
@@ -949,22 +881,28 @@ onMounted(() => {
   transition: opacity 0.2s ease;
   border: 1px solid var(--b3-border-color);
 }
+
 .anchor-count-left {
   left: -30px;
 }
+
 .anchor-count-right {
   right: -30px;
 }
+
 .anchor-count-top {
   top: -15px;
 }
+
 .anchor-count-bottom {
   bottom: -15px;
 }
+
 .anchor-count.hidden {
   opacity: 0;
   display: none;
 }
+
 .card-actions button {
   background: var(--b3-theme-surface);
   border: 1px solid var(--b3-border-color);
@@ -978,40 +916,48 @@ onMounted(() => {
   cursor: pointer;
   transition: background 0.2s ease;
 }
+
 .card-actions button:hover {
   background: var(--b3-list-hover);
 }
+
 .card-actions svg {
   width: 16px;
   height: 16px;
   color: var(--b3-theme-on-surface);
 }
+
 /* 触发锚点容器样式 */
 .trigger-anchor-container {
   position: absolute;
   z-index: 4;
   pointer-events: none;
 }
+
 .trigger-anchor-left {
   left: -24px;
   top: 50%;
   transform: translateY(-50%);
 }
+
 .trigger-anchor-right {
   right: -24px;
   top: 50%;
   transform: translateY(-50%);
 }
+
 .trigger-anchor-top {
   top: -24px;
   left: 50%;
   transform: translateX(-50%);
 }
+
 .trigger-anchor-bottom {
   bottom: -24px;
   left: 50%;
   transform: translateX(-50%);
 }
+
 /* 触发锚点样式 */
 .trigger-anchor-point {
   position: relative;
@@ -1023,6 +969,7 @@ onMounted(() => {
   pointer-events: auto;
   cursor: pointer;
 }
+
 .trigger-anchor-dot {
   width: 12px;
   height: 12px;
@@ -1032,11 +979,13 @@ onMounted(() => {
   box-shadow: var(--b3-dialog-shadow);
   transition: all 0.2s ease;
 }
+
 .trigger-anchor-point:hover .trigger-anchor-dot {
   transform: scale(1.3);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
     0 4px 8px rgba(0, 0, 0, 0.15);
 }
+
 .loading {
   display: flex;
   align-items: center;

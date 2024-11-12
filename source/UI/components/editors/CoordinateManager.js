@@ -105,8 +105,8 @@ export class CoordinateManager {
 
 export function useZoom(containerRef, coordinateManager) {
   const zoom = ref(1)
-  const MIN_ZOOM = 0.1
-  const MAX_ZOOM = 3
+  const MIN_ZOOM = 0.01
+  const MAX_ZOOM = 10
   const DEFAULT_ZOOM = 1
   const ZOOM_SPEED = 0.001
   // 处理鼠标滚轮缩放

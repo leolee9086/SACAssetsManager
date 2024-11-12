@@ -10,3 +10,9 @@ export const GEOMETRY = {
     BEZIER: 'bezier',
     ARC: 'arc'
 };
+export const anchorSides ={
+    Left: "left",
+    Right: "right",
+    Top: "top",
+    Bottom: "bottom"
+}

@@ -20,7 +20,10 @@
       <div style="position: relative;
         max-width: 100%;
         max-height: 100%;
-        overflow: auto;">
+        overflow: auto;
+        scrollbar-width:none;
+        "
+        >
         <div ref="cardsContainer">
           <template v-for="(运行时卡片对象, index) in 运行时卡片对象序列" :key="运行时卡片对象.id+index">
             <cardContainer :zoom="zoom" :force-position="forcedPositions.get(运行时卡片对象.id)" 
@@ -33,7 +36,7 @@
           <cardContainer v-if="isDuplicating && duplicatingPreview" v-bind="duplicatingPreview" :style="{
             opacity: 0.7,
             pointerEvents: 'none',
-            zIndex: 1000,
+            zIndex: 5,
             cursor: 'move'
           }" />
         </div>
@@ -532,40 +535,6 @@ const handleNewrelation = (newrelation) => {
   z-index: 2;
 }
 
-.connection-style-selector {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 1000;
-  display: flex;
-  gap: 10px;
-  background: var(--b3-theme-surface);
-  padding: 10px;
-  border-radius: var(--b3-border-radius);
-  box-shadow: var(--b3-dialog-shadow);
-  border: 1px solid var(--b3-border-color);
-}
-
-.style-select {
-  padding: 6px 12px;
-  border: 1px solid var(--b3-border-color);
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-background);
-  font-size: 14px;
-  color: var(--b3-theme-on-surface);
-  cursor: pointer;
-  outline: none;
-}
-
-.style-select:hover {
-  border-color: var(--b3-theme-primary);
-  background: var(--b3-list-hover);
-}
-
-.style-select:focus {
-  border-color: var(--b3-theme-primary);
-  box-shadow: 0 0 0 2px var(--b3-theme-primary-light);
-}
 
 .zoom-controls {
   display: flex;
