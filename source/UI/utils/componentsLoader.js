@@ -58,7 +58,7 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
                 const nodeDefineMatch = content.match(/<script nodeDefine>([\s\S]*?)<\/script>/);
                 if (nodeDefineMatch) {
                     try {
-                        nodeDefine = nodeDefineMatch[1]+`
+                        nodeDefine = nodeDefineMatch[1] + `
                         \n export const scope = {${extractDeclaredVarsInNodeDefine(nodeDefineMatch[1])}}
                         `
                     } catch (error) {
@@ -115,21 +115,25 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
         },
 
         getNodeDefineScope: async (id) => {
-            const cacheKey = `${sfcUrl}_${id}`;
-            
-            // 检查是否已加载
-            if (loadedScopes[cacheKey]) {
-                console.warn(`Scope already loaded: ${cacheKey}`);
-                return loadedScopes[cacheKey];
+            try {
+                const cacheKey = `${sfcUrl}_${id}`;
+
+                // 检查是否已加载
+                if (loadedScopes[cacheKey]) {
+                    console.warn(`Scope already loaded: ${cacheKey}`);
+                    return loadedScopes[cacheKey];
+                }
+
+                let scope = (await loader.loadModule(sfcUrl.trim() + `.mjs?asNode=true&&id=${id}`, mixinOptions)).scope
+                console.log(scope, id);
+
+                // 记录已加载的scope
+                loadedScopes[cacheKey] = scope;
+
+                return scope;
+            } catch (e) {
+                throw `加载${sfcUrl}错误:${e}`
             }
-            
-            let scope = (await loader.loadModule(sfcUrl.trim() + `.mjs?asNode=true&&id=${id}`, mixinOptions)).scope
-            console.log(scope, id);
-            
-            // 记录已加载的scope
-            loadedScopes[cacheKey] = scope;
-            
-            return scope;
         }
     };
 }

@@ -75,7 +75,6 @@ const handleInput = (e) => {
   }
 };
 </script>
-
 <style scoped>
 .number-control {
   display: flex;

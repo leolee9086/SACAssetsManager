@@ -20,6 +20,8 @@ export function 校验并补齐卡片设置(cardConfig) {
     }
   }
  export async function 解析卡片类型(cardConfig) {
+
+    console.log(cardConfig,componentMap)
     let type = cardConfig.type;
     if (type === 'custom' && cardConfig.nodeFile) {
       type = cardConfig.nodeFile;

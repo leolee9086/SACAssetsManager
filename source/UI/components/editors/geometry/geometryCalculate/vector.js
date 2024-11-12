@@ -1,9 +1,23 @@
-// 向量加法：对应位置相加
+/**
+ * 向量加法运算
+ * @param {number[]} v1 - 第一个向量
+ * @param {number[]} v2 - 第二个向量
+ * @returns {number[]} 两个向量对应位置相加的结果
+ * @example
+ * 加([1, 2], [3, 4]) // 返回 [4, 6]
+ */
 export const 加 = (v1, v2) => {
     return v1.map((x, i) => x + v2[i]);
 };
 
-// 向量减法：对应位置相减
+/**
+ * 向量减法运算
+ * @param {number[]} v1 - 被减向量
+ * @param {number[]} v2 - 减去的向量
+ * @returns {number[]} 两个向量对应位置相减的结果
+ * @example
+ * 减([5, 3], [2, 1]) // 返回 [3, 2]
+ */
 export const 减 = (v1, v2) => {
     return v1.map((x, i) => x - v2[i]);
 };

@@ -14,12 +14,10 @@
 </template>
 <script nodeDefine>
 import { ref } from 'vue';
-
 let file;
 const localFilePath = ref('');
 const previewUrl = ref('');
 const fileInfo = ref(null);
-
 const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
