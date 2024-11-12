@@ -13,7 +13,7 @@
     <div class="image-editor" ref="connectionCanvasRef" :style="{ zoom }">
       <!-- 使用 StyleSelector 组件 -->
       <ConnectionCanvas :style="{ zoom: 1 / zoom }" :zoom="zoom" v-if="config.connections" :cardsContainer="cardsContainer"
-        :cards="卡片控制器序列" :connections="config.connections" :relations="config.relations"
+        :cards="运行时卡片对象序列" :connections="config.connections" :relations="config.relations"
         :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
         @connectionCreated="handleNewConnection" @relationCreated="handleNewrelation" />
       <!-- 动态渲染卡片 -->
@@ -22,12 +22,12 @@
         max-height: 100%;
         overflow: auto;">
         <div ref="cardsContainer">
-          <template v-for="(卡片控制器, index) in 卡片控制器序列" :key="卡片控制器.id+index">
-            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(卡片控制器.id)" :title="卡片控制器.title"
-              :position="卡片控制器.position" :data-card-id="卡片控制器.id" :cardID="卡片控制器.id" :component="卡片控制器.controller.component"
-              :component-props="卡片控制器.controller.componentProps" :nodeDefine="卡片控制器.controller.nodeDefine"
-              :component-events="卡片控制器.events" :anchors="卡片控制器.controller.anchors" :connections="config.connections"
-              :card="卡片控制器" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
+          <template v-for="(运行时卡片对象, index) in 运行时卡片对象序列" :key="运行时卡片对象.id+index">
+            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(运行时卡片对象.id)" :title="运行时卡片对象.title"
+              :position="运行时卡片对象.position" :data-card-id="运行时卡片对象.id" :cardID="运行时卡片对象.id" :component="运行时卡片对象.controller.component"
+              :component-props="运行时卡片对象.controller.componentProps" :nodeDefine="运行时卡片对象.controller.nodeDefine"
+              :component-events="运行时卡片对象.events" :anchors="运行时卡片对象.controller.anchors" :connections="config.connections"
+              :card="运行时卡片对象" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
           </template>
           <!-- 复制中的卡片预览 -->
           <cardContainer v-if="isDuplicating && duplicatingPreview" v-bind="duplicatingPreview" :style="{
@@ -63,15 +63,15 @@ import { findExistingConnection, findDuplicateConnection } from './GraphManager.
 
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
-const 卡片控制器序列 = ref([]);
+const 运行时卡片对象序列 = ref([]);
 const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/brightness.json"
 const connectionCanvasRef = ref(null);
 const coordinateManager = ref(null);
 // 修改 从卡片配置添加控制器 函数
 const 从卡片配置添加控制器 = async (卡片数据, options = {}) => {
-  const 卡片控制器 = await cardManager.从卡片配置添加控制器(卡片数据, options);
-  卡片控制器序列.value = cardManager.cards;
-  return 卡片控制器;
+  const 运行时卡片对象 = await cardManager.从卡片配置添加控制器(卡片数据, options);
+  运行时卡片对象序列.value = cardManager.cards;
+  return 运行时卡片对象;
 };
 //vue里才能使用
 const 强制更新控制器序列 =(运行时控制器序列)=>{
@@ -84,7 +84,7 @@ const getGlobalInputs = () => {
   return appData.value.meta
 };
 function reStartPetriNet() {
- graphManager.reStartPetriNet(config.value, 卡片控制器序列.value, getGlobalInputs)
+ graphManager.reStartPetriNet(config.value, 运行时卡片对象序列.value, getGlobalInputs)
 }
 const {
   zoom,
@@ -96,7 +96,7 @@ const {
 const loadConfig = async () => {
   try {
     // 清空现有状态
-    卡片控制器序列.value = [];
+    运行时卡片对象序列.value = [];
     componentDefinitions = {};
     // 确保卡片ID唯一性
     const { updatedCards, idMap } = 校验并实例化卡片组(config.value.cards);
@@ -109,8 +109,8 @@ const loadConfig = async () => {
       await 从卡片配置添加控制器(cardConfig, { skipExisting: false });
     }
     // 验证并更新连接和关系
-    config.value.connections = validateConnections(config.value.connections, 卡片控制器序列.value);
-    config.value.relations = validateRelations(config.value.relations, 卡片控制器序列.value);
+    config.value.connections = validateConnections(config.value.connections, 运行时卡片对象序列.value);
+    config.value.relations = validateRelations(config.value.relations, 运行时卡片对象序列.value);
     console.log("connections", config.value.connections);
     console.log("relations", config.value.relations);
     // 初始化和启动Petri网
@@ -187,7 +187,7 @@ const config = ref({
 onMounted(async () => {
   config.value = await loadJson(editorConfig); // 使用异步加载函数
   await loadConfig();
-  updateAnchorsPosition(卡片控制器序列.value)
+  updateAnchorsPosition(运行时卡片对象序列.value)
   // 将配置文件中的连接转换为内部连接格式
   锚点连接表.value = config.value.connections.map(conn => ({
     start: `${conn.from.cardId}-${conn.from.anchorId}`,
@@ -240,7 +240,7 @@ const formatConnections = (connections, anchors) => {
 
 // 计算系统状态
 const systemStats = computed(() => {
-  const cards = 卡片控制器序列.value;
+  const cards = 运行时卡片对象序列.value;
   const cardAnchors = getCardAnchors(cards);
   return {
     cardCount: cards.length,
@@ -252,12 +252,12 @@ const systemStats = computed(() => {
 });
 
 // 在需要的地方调用更新函数
-watch(() => 卡片控制器序列.value.map(card => ({
+watch(() => 运行时卡片对象序列.value.map(card => ({
   id: card.id,
   position: { ...card.position }
 })), () => {
   // 卡片位置变化时更新锚点
-  updateAnchorsPosition(卡片控制器序列.value);
+  updateAnchorsPosition(运行时卡片对象序列.value);
 }, { deep: true });
 
 // 添加判断是否为笔记类型卡片的辅助函数
@@ -286,17 +286,17 @@ const getRelatedCardId = (relation, sourceCardId) => {
 };
 
 // 计算新的卡片位置
-const 移动卡片控制器 = (卡片控制器, deltaX, deltaY) => {
+const 移动运行时卡片对象 = (运行时卡片对象, deltaX, deltaY) => {
   return {
-    x: 卡片控制器.position.x + deltaX,
-    y: 卡片控制器.position.y + deltaY,
-    width: 卡片控制器.position.width,
-    height: 卡片控制器.position.height,
+    x: 运行时卡片对象.position.x + deltaX,
+    y: 运行时卡片对象.position.y + deltaY,
+    width: 运行时卡片对象.position.width,
+    height: 运行时卡片对象.position.height,
   };
 };
 const moveRelatedCard = (relatedCard, sourceCardId, deltaX, deltaY) => {
   if (!relatedCard || relatedCard.id === sourceCardId) return;
-  const newPosition = 移动卡片控制器(relatedCard, deltaX, deltaY);
+  const newPosition = 移动运行时卡片对象(relatedCard, deltaX, deltaY);
   relatedCard.moveTo?.(newPosition);
 };
 // 处理关联卡片的移动（主函数）
@@ -304,12 +304,12 @@ const updateRelatedCards = (cardId, deltaX, deltaY) => {
   const directRelations = getDirectRelations(cardId);
   directRelations.forEach(relation => {
     const relatedCardId = getRelatedCardId(relation, cardId);
-    const relatedCard = 卡片控制器序列.value.find(c => c.id === relatedCardId);
+    const relatedCard = 运行时卡片对象序列.value.find(c => c.id === relatedCardId);
     moveRelatedCard(relatedCard, cardId, deltaX, deltaY);
   });
 };
 const onCardMove = (cardId, newPosition) => {
-  const card = 卡片控制器序列.value.find(c => c.id === cardId);
+  const card = 运行时卡片对象序列.value.find(c => c.id === cardId);
   if (!card) return;
   updateCardPosition(card, newPosition);
   if (isNoteCard(card) && newPosition.isDragging) {
@@ -321,10 +321,10 @@ const onCardMove = (cardId, newPosition) => {
 };
 onMounted(() => {
   coordinateManager.value = new CoordinateManager(connectionCanvasRef.value, cardsContainer.value);
-  window.addEventListener('resize', () => updateAnchorsPosition(卡片控制器序列.value));
+  window.addEventListener('resize', () => updateAnchorsPosition(运行时卡片对象序列.value));
 });
 onUnmounted(() => {
-  window.removeEventListener('resize', () => updateAnchorsPosition(卡片控制器序列.value));
+  window.removeEventListener('resize', () => updateAnchorsPosition(运行时卡片对象序列.value));
 });
 const connectionStyle = ref({
   geometry: 'circuit',
@@ -335,7 +335,7 @@ const handleNewConnection = async (newConnection) => {
   const validationResult = validateConnection(
     config.value.connections.filter((_, index) => index !== existingConnectionIndex),
     newConnection,
-    卡片控制器序列.value
+    运行时卡片对象序列.value
   );
   if (!validationResult.isValid) {
     console.error('连接验证失败:', validationResult.error);
@@ -460,18 +460,18 @@ const handleDuplicatePlace = async (e) => {
     };
 
     // 添加新卡片
-    const 新卡片控制器 = await 从卡片配置添加控制器(actualCard.value);
-    强制更新控制器序列(卡片控制器序列)
+    const 新运行时卡片对象 = await 从卡片配置添加控制器(actualCard.value);
+    强制更新控制器序列(运行时卡片对象序列)
 
     // 等待下一个渲染周期
     await nextTick();
 
     // 手动触发 onCardMove 事件来更新卡片位置，传递未缩放的坐标
-    onCardMove(新卡片控制器.id, {
+    onCardMove(新运行时卡片对象.id, {
       x: finalX,
       y: finalY,
-      width: 新卡片控制器.position.width,
-      height: 新卡片控制器.position.height,
+      width: 新运行时卡片对象.position.width,
+      height: 新运行时卡片对象.position.height,
       zoom: zoom.value // 传递缩放值给移动事件
     });
 
