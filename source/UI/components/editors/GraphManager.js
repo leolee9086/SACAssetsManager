@@ -11,19 +11,22 @@ export class GraphManager {
         this.getGlobalInputs = null;
         this.connections = new Map();
         this.parsedCards = null;
+        this.eventSubscriptions = new Map(); // 存储事件订阅
     }
-
+    reStartPetriNet(config, parsedCards, getGlobalInputs) {
+        let pn = this.buildPetriNet(config, parsedCards, getGlobalInputs)
+        pn.exec(undefined, true);
+        pn.startAutoExec();
+    }
     buildPetriNet(config, parsedCards, getGlobalInputs) {
         if (!parsedCards || !Array.isArray(parsedCards)) {
             console.warn('parsedCards 未准备好，跳过构建');
             return this;
         }
-
         this.parsedCards = parsedCards;
         this.getGlobalInputs = getGlobalInputs;
         this.petriNet = 创建流程图(`PetriNet_${config.name}`);
         this.connections.clear();
-
         if (config.connections && Array.isArray(config.connections)) {
             config.connections.forEach(conn => {
                 try {
@@ -35,16 +38,12 @@ export class GraphManager {
                 }
             });
         }
-
         this.initializeEntryNodes();
-
         if (this.mode === 'function') {
             this.compileExecutionPath();
         }
-
         return this;
     }
-
     compileExecutionPath() {
         if (this.mode !== 'function') return;
 
@@ -126,6 +125,14 @@ export class GraphManager {
                 this.petriNet.动作.delete(transitionId);
             }
         });
+
+        // 清理事件订阅
+        const eventPlaceId = `event_place_${connection.from.cardId}_${connection.from.anchorId}`;
+        const unsubscribe = this.eventSubscriptions.get(eventPlaceId);
+        if (unsubscribe) {
+            unsubscribe();
+            this.eventSubscriptions.delete(eventPlaceId);
+        }
     }
 
     /**
@@ -154,7 +161,13 @@ export class GraphManager {
             return;
         }
 
-        this.createConnectionNodes(fromCard, toCard, fromAnchor, toAnchor);
+        // 根据锚点类型选择不同的处理方法
+        if (fromAnchor.type === 'event') {
+            this.createEventConnectionNodes(fromCard, toCard, fromAnchor, toAnchor);
+        } else {
+            this.createConnectionNodes(fromCard, toCard, fromAnchor, toAnchor);
+        }
+
         this.构建卡片内部连接结构(fromCard);
         this.构建卡片内部连接结构(toCard);
     }
@@ -166,21 +179,21 @@ export class GraphManager {
     createConnectionNodes(fromCard, toCard, fromAnchor, toAnchor) {
         const fromPlaceId = `place_${fromCard.id}_${fromAnchor.id}`;
         const toPlaceId = `place_${toCard.id}_${toAnchor.id}`;
-        
+
         // 1. 确保源节点存在
         if (!this.petriNet.节点.has(fromPlaceId)) {
-            添加节点(this.petriNet, fromPlaceId, { 
-                type: 'process', 
-                tokens: 0, 
+            添加节点(this.petriNet, fromPlaceId, {
+                type: 'process',
+                tokens: 0,
                 content: fromAnchor
             });
         }
 
         // 2. 确保目标节点存在
         if (!this.petriNet.节点.has(toPlaceId)) {
-            添加节点(this.petriNet, toPlaceId, { 
-                type: 'process', 
-                tokens: 0, 
+            添加节点(this.petriNet, toPlaceId, {
+                type: 'process',
+                tokens: 0,
                 content: toAnchor
             });
         }
@@ -200,8 +213,8 @@ export class GraphManager {
 
         // 5. 添加分裂后的中间节点
         if (!this.petriNet.节点.has(splitPlaceId)) {
-            添加节点(this.petriNet, splitPlaceId, { 
-                type: 'process', 
+            添加节点(this.petriNet, splitPlaceId, {
+                type: 'process',
                 tokens: 0,
                 content: { value: null }  // 中间节点存储传递的值
             });
@@ -210,7 +223,7 @@ export class GraphManager {
         // 6. 添加传输转换
         if (!this.petriNet.动作.has(transferTransitionId)) {
             添加动作(this.petriNet, transferTransitionId, async () => {
-                console.log(`执行传输: ${transferTransitionId}`,fromAnchor,toAnchor);
+                console.log(`执行传输: ${transferTransitionId}`, fromAnchor, toAnchor);
                 const value = fromAnchor.getValue();
                 await toAnchor.setValue(value);
             });
@@ -236,18 +249,100 @@ export class GraphManager {
     }
 
     /**
+     * 创建事件连接节点
+     * @private
+     */
+    createEventConnectionNodes(fromCard, toCard, fromAnchor, toAnchor) {
+        const eventPlaceId = `event_place_${fromCard.id}_${fromAnchor.id}`;
+        const toPlaceId = `place_${toCard.id}_${toAnchor.id}`;
+        const eventTransitionId = `event_transition_${fromCard.id}_${fromAnchor.id}`;
+
+        // 1. 添加事件源节点
+        if (!this.petriNet.节点.has(eventPlaceId)) {
+            添加节点(this.petriNet, eventPlaceId, {
+                type: 'event',
+                tokens: 0,
+                content: {
+                    ...fromAnchor,
+                    process: async (value) => {
+                        // 当事件触发时，增加令牌并执行
+                        const node = this.petriNet.节点.get(eventPlaceId);
+                        if (node) {
+                            node.数值 += 1;
+                            await this.petriNet.exec();
+                        }
+                    }
+                }
+            });
+
+            // 订阅事件
+            const unsubscribe = fromAnchor.subscribe(async (value) => {
+                const node = this.petriNet.节点.get(eventPlaceId);
+                if (node?.内容?.process) {
+                    await node.内容.process(value);
+                }
+            });
+
+            // 保存订阅，以便后续清理
+            this.eventSubscriptions.set(eventPlaceId, unsubscribe);
+        }
+
+        // 2. 添加目标节点
+        if (!this.petriNet.节点.has(toPlaceId)) {
+            添加节点(this.petriNet, toPlaceId, {
+                type: 'process',
+                tokens: 0,
+                content: toAnchor
+            });
+        }
+
+        // 3. 添加事件转换动作
+        if (!this.petriNet.动作.has(eventTransitionId)) {
+            添加动作(this.petriNet, eventTransitionId, async () => {
+                const eventNode = this.petriNet.节点.get(eventPlaceId);
+                if (eventNode?.内容?.value?.value) {
+                    await toAnchor.setValue(eventNode.内容.value.value);
+                }
+            });
+        }
+
+        // 4. 建立连接关系
+        if (!已经连接(this.petriNet, eventPlaceId, eventTransitionId)) {
+            添加连接(this.petriNet, eventPlaceId, eventTransitionId);
+        }
+        if (!已经连接(this.petriNet, eventTransitionId, toPlaceId)) {
+            添加连接(this.petriNet, eventTransitionId, toPlaceId);
+        }
+    }
+
+    /**
      * 构建卡片内部连接结构
      * @private
      */
     构建卡片内部连接结构(card) {
         const inputAnchors = card.controller.anchors.filter(a => a.type === 'input');
         const outputAnchors = card.controller.anchors.filter(a => a.type === 'output');
+        const eventAnchors = card.controller.anchors.filter(a => a.type === 'event');
 
         if (inputAnchors.length) {
             this.handleCardWithInputs(card, inputAnchors, outputAnchors);
         } else {
             this.handleCardWithoutInputs(card, outputAnchors);
         }
+
+        // 处理事件锚点
+        eventAnchors.forEach(eventAnchor => {
+            const eventPlaceId = `event_place_${card.id}_${eventAnchor.id}`;
+
+            // 如果事件节点还不存在，创建它
+            if (!this.petriNet.节点.has(eventPlaceId)) {
+                添加节点(this.petriNet, eventPlaceId, {
+                    type: 'event',
+                    tokens: 0,
+                    content: eventAnchor
+                });
+            }
+        });
     }
 
     /**
@@ -538,4 +633,41 @@ export class GraphManager {
             error: null
         };
     }
+
+    /**
+     * 销毁管理器
+     */
+    destroy() {
+        // 清理所有事件订阅
+        for (const unsubscribe of this.eventSubscriptions.values()) {
+            unsubscribe();
+        }
+        this.eventSubscriptions.clear();
+
+        // 清理其他资源
+        this.petriNet = null;
+        this.connections.clear();
+        this.parsedCards = null;
+    }
 }
+
+
+/***
+ * 这里的查找目标式config,之后需要跟上面操作实际网络结构的函数重构整合
+ */
+export const findExistingConnection = (connections, newConnection) => {
+    return connections.findIndex(conn =>
+        conn.to.cardId === newConnection.to.cardId &&
+        conn.to.anchorId === newConnection.to.anchorId
+    );
+};
+// 检查是否存在重复连接
+export const findDuplicateConnection = (connections, newConnection) => {
+    return connections.findIndex(conn =>
+        conn.from.cardId === newConnection.from.cardId &&
+        conn.from.anchorId === newConnection.from.anchorId &&
+        conn.to.cardId === newConnection.to.cardId &&
+        conn.to.anchorId === newConnection.to.anchorId
+    );
+};
+

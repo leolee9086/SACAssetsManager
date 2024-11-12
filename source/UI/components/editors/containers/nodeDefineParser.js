@@ -7,22 +7,23 @@ import { utils as typeUtils } from "./nodeDefineParser/utils.js";
  * 创建锚点控制器
  */
 import { createAnchorControllers } from "./nodeDefineParser/controllers/anchor.js";
-
+// 创建柯里化的辅助函数
+const 创建卡片输出设置函数 = (anchorControllers, componentName) => (name, value) => {
+  const controller = anchorControllers.find(
+    c => c.type === AnchorTypes.OUTPUT && c.id === name
+  );
+  if (controller) {
+    controller.setValue(value);
+  } else {
+    console[LogTypes.WARN](`[${componentName}] 未找到输出锚点: ${name}`);
+  }
+};
 /**
  * 创建运行时控制器
  */
-function createRuntimeController(anchorControllers, component, componentName, scope) {
+function createRuntimeController(anchorControllers, eventControllers, component, componentName, scope) {
   return {
-    setOutput: (name, value) => {
-      const controller = anchorControllers.find(
-        c => c.type === AnchorTypes.OUTPUT && c.id === name
-      );
-      if (controller) {
-        controller.setValue(value);
-      } else {
-        console[LogTypes.WARN](`[${componentName}] 未找到输出锚点: ${name}`);
-      }
-    },
+    setOutput: 创建卡片输出设置函数(anchorControllers,componentName),
     getOutputs: () => {
       return anchorControllers
         .filter(c => c.type === AnchorTypes.OUTPUT)
@@ -58,7 +59,15 @@ function createRuntimeController(anchorControllers, component, componentName, sc
     componentName,
     log: (...args) => console.log(`[${componentName}]`, ...args),
     warn: (...args) => console.warn(`[${componentName}]`, ...args),
-    error: (...args) => console.error(`[${componentName}]`, ...args)
+    error: (...args) => console.error(`[${componentName}]`, ...args),
+    events: eventControllers.reduce((acc, controller) => {
+      acc[controller.id] = (value) => controller.emit(value);
+      return acc;
+    }, {}),
+    getEventController: (name) => {
+      return eventControllers.find(c => c.id === name);
+    },
+    getEventControllers: () => eventControllers,
   };
 }
 
@@ -69,9 +78,22 @@ function createNodeController(anchorControllers, scope, component, componentName
   if (!anchorControllers || !scope || !component) {
     throw new NodeError('创建节点控制器缺少必要参数');
   }
-  const runtime = createRuntimeController(anchorControllers, component, componentName, scope);
-  const { nodeDefine } = scope
-  let process = nodeDefine.process
+
+  // 解析事件定义
+  const parsedEvents = parseEvents(scope.nodeDefine.events || {}, componentName);
+  const eventControllers = createEventControllers(parsedEvents, componentName);
+  
+  const runtime = createRuntimeController(
+    anchorControllers, 
+    eventControllers,
+    component, 
+    componentName, 
+    scope
+  );
+
+  const { nodeDefine } = scope;
+  let process = nodeDefine.process;
+
   let exec = async (inputs, globalInputs) => {
     try {
       // 验证输入
@@ -129,17 +151,18 @@ function createNodeController(anchorControllers, scope, component, componentName
     component: async () => {
       return component
     },
-    anchors: anchorControllers,
+    anchors: [...anchorControllers, ...eventControllers],
     componentProps,
     runtime,
     exec,
-    // 重置所有锚点
+    // 重置所有锚点和事件
     reset() {
       anchorControllers.forEach(c => c.reset());
+      eventControllers.forEach(c => c.cleanup());
     },
-    // 获取锚点控制器
+    // 获取锚点或事件控制器
     getAnchor(id) {
-      return anchorControllers.find(c => c.id === id);
+      return [...anchorControllers, ...eventControllers].find(c => c.id === id);
     },
     // 获取所有输入控制器
     getInputAnchors() {
@@ -148,6 +171,10 @@ function createNodeController(anchorControllers, scope, component, componentName
     // 获取所有输出控制器
     getOutputAnchors() {
       return anchorControllers.filter(c => c.type === AnchorTypes.OUTPUT);
+    },
+    // 获取所有事件控制器
+    getEventAnchors() {
+      return eventControllers;
     }
   };
 }
@@ -213,6 +240,70 @@ function parseOutputs(emits, outputs, componentName) {
   }));
 }
 
+// 解析事件定义
+function parseEvents(events = {}, componentName) {
+  const parsedEvents = [];
+  
+  for (const [name, define] of Object.entries(events)) {
+    // 验证事件定义
+    if (!define.type) {
+      console.warn(`[${componentName}] 事件 ${name} 缺少类型定义`);
+      continue;
+    }
+    
+    parsedEvents.push({
+      name,
+      label: define.label || name,
+      description: define.description,
+      type: define.type,
+      side: define.side || Sides.RIGHT
+    });
+  }
+  
+  return parsedEvents;
+}
+
+// 创建事件控制器集合
+function createEventControllers(events, componentName) {
+  return events.map(eventDefine => createEventController(eventDefine, componentName));
+}
+
+// 创建事件控制器
+const createEventController = (eventDefine, componentName) => {
+  let subscribers = new Set();
+  
+  return {
+    id: eventDefine.name,
+    label: eventDefine.label || eventDefine.name,
+    define: eventDefine,
+    type: AnchorTypes.EVENT,
+    side: eventDefine.side || Sides.RIGHT,
+    value: shallowRef(null),
+    
+    // 触发事件
+    emit(value) {
+      this.value.value = value;
+      subscribers.forEach(callback => {
+        try {
+          callback(value);
+        } catch (error) {
+          console.error(`[${componentName}] 事件处理器执行错误:`, error);
+        }
+      });
+    },
+    
+    // 订阅事件
+    subscribe(callback) {
+      subscribers.add(callback);
+      return () => subscribers.delete(callback);
+    },
+    
+    // 清理订阅
+    cleanup() {
+      subscribers.clear();
+    }
+  };
+};
 
 /**
  * 判断输出锚点是否可以连接到输入锚点

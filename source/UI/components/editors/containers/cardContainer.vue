@@ -9,7 +9,9 @@
         }]" :style="getAnchorStyle(anchor, side)" :title="anchor.label"
           @mousedown.stop="startConnectionDrag(anchor, side)" :data-anchor-id="anchor.id" :data-card-id="props.cardID">
           <div class="anchor-dot"></div>
-          <span class="anchor-label">{{ anchor.label }}</span>
+          <div class="anchor-label">{{ anchor.label }}:{{ typeof anchor.getValue() }}
+            <div class="anchor-values">{{ anchor.getValue() }}</div>
+          </div>
         </div>
       </div>
       <!-- 显示锚点数量 - 仅在未聚焦且有未连接锚点时显示 -->
@@ -30,11 +32,12 @@
           <path d="M2 5h12M2 8h12M2 11h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg>
         <div class="fn__space"></div>
-          <template v-for="action in cardActions" :key="action.name">
-        
-            <svg @click="action.action"   
-            :title="action.name" class="b3-menu__icon " style="cursor: copy;"><use xlink:href="#iconCopy"></use></svg>
-          </template>
+        <template v-for="action in cardActions" :key="action.name">
+
+          <svg @click="action.action" :title="action.name" class="b3-menu__icon " style="cursor: copy;">
+            <use xlink:href="#iconCopy"></use>
+          </svg>
+        </template>
 
       </div>
       <div class="card-header" v-if="title">
@@ -52,12 +55,8 @@
       </template>
       <template v-else>
         <ErrorBoundary @error="handleComponentError">
-          <component 
-            v-if="props.component && component"
-            :is="component" 
-            v-bind="componentProps" 
-            v-on="componentEvents" 
-          />
+          <component v-if="props.component && component" :is="component" v-bind="componentProps"
+            v-on="componentEvents" />
           <div v-else class="loading">加载中...</div>
         </ErrorBoundary>
       </template>
@@ -68,18 +67,15 @@
         <!-- 锚点内容 -->
       </div>
     </div>
-  <!-- 添加固定触发锚点 -->
-  <template v-for="anchor in triggerAnchorPositions" :key="anchor.id">
-    <div :class="['trigger-anchor-container', `trigger-anchor-${anchor.side}`]"
-         v-show="isFocused.value">
-      <div class="trigger-anchor-point"
-           :data-anchor-id="anchor.id"
-           :data-card-id="props.cardID"
-           @mousedown.stop="startConnectionDrag(anchor, anchor.side)">
-        <div class="trigger-anchor-dot"></div>
+    <!-- 添加固定触发锚点 -->
+    <template v-for="anchor in triggerAnchorPositions" :key="anchor.id">
+      <div :class="['trigger-anchor-container', `trigger-anchor-${anchor.side}`]" v-show="isFocused.value">
+        <div class="trigger-anchor-point" :data-anchor-id="anchor.id" :data-card-id="props.cardID"
+          @mousedown.stop="startConnectionDrag(anchor, anchor.side)">
+          <div class="trigger-anchor-dot"></div>
+        </div>
       </div>
-    </div>
-  </template>
+    </template>
 
 
   </div>
@@ -87,8 +83,9 @@
 
 <script setup>
 import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef, defineComponent } from 'vue';
-import { v4 as uuidv4 } from '../../../../../static/uuid.mjs'; // 使用 UUID 生成唯一 ID
-
+import *  as _serialize from '../../../../../static/serialize-javascript.js'
+const serialize = _serialize.default.default
+// 自定义序列化处理器
 // Props 定义
 const props = defineProps({
   title: {
@@ -97,7 +94,6 @@ const props = defineProps({
   },
   card: {
     type: Object,
-
   },
   position: {
     type: Object,
@@ -148,7 +144,6 @@ const props = defineProps({
     default: null
   }
 })
-
 // 计算已连接的锚点
 const isAnchorConnected = (anchor) => {
   return props.connections.some(conn =>
@@ -156,8 +151,6 @@ const isAnchorConnected = (anchor) => {
     (conn.to.cardId === props.cardID && conn.to.anchorId === anchor.id)
   )
 }
-
-
 // Refs
 const card = ref(null)
 const isDragging = ref(false)
@@ -170,70 +163,13 @@ const dragStart = ref({
   width: 0,
   height: 0
 })
-
-// 添加位置和尺寸的验证函数
-const validatePosition = (pos) => {
-  const defaultPos = { x: 20, y: 20 }
-
-  if (!pos) {
-    console.warn('[CardContainer] 位置信息缺失，使用默认值:', defaultPos)
-    return defaultPos
-  }
-
-  if (typeof pos.x !== 'number') {
-    console.warn('[CardContainer] x坐标无效，应为数字类型，当前值:', pos.x)
-    return { ...defaultPos, y: pos.y }
-  }
-
-  if (typeof pos.y !== 'number') {
-    console.warn('[CardContainer] y坐标无效，应为数字类型，当前值:', pos.y)
-    return { ...defaultPos, x: pos.x }
-  }
-
-  return { x: pos.x, y: pos.y }
-}
-
-const validateSize = (size) => {
-  const defaultSize = { width: 280, height: 160 }
-  const minSize = { width: 232, height: 132 }
-
-  if (!size) {
-    console.warn('[CardContainer] 尺寸信息缺失，使用默认值:', defaultSize)
-    return defaultSize
-  }
-
-  const errors = []
-
-  if (typeof size.width !== 'number') {
-    errors.push(`宽度无效，应为数字类型，当前值: ${size.width}`)
-  } else if (size.width < minSize.width) {
-    errors.push(`宽度小于最小值 ${minSize.width}px，当前值: ${size.width}px`)
-  }
-
-  if (typeof size.height !== 'number') {
-    errors.push(`高度无效，应为数字类型，当前值: ${size.height}`)
-  } else if (size.height < minSize.height) {
-    errors.push(`高度小于最小值 ${minSize.height}px，当前值: ${size.height}px`)
-  }
-
-  if (errors.length > 0) {
-    console.warn('[CardContainer] 尺寸验证失败：\n', errors.join('\n'), '\n使用默认值:', defaultSize)
-    return defaultSize
-  }
-
-  return {
-    width: Math.max(minSize.width, size.width),
-    height: Math.max(minSize.height, size.height)
-  }
-}
-
+import { validateSize, validatePosition } from '../geometry/validatGeometry.js';
 const currentPos = ref(validatePosition(props.position))
 const currentSize = ref(validateSize({
   width: props.position.width,
   height: props.position.height
 }))
 const isHandleVisible = ref(false)
-
 // 定义缩放手柄位置
 const resizeHandles = [
   { position: 'n' },  // 北
@@ -245,11 +181,9 @@ const resizeHandles = [
   { position: 'se' }, // 东南
   { position: 'sw' }  // 西南
 ]
-
 // Computed
 const cardStyle = computed(() => {
-  console.log('aaa',currentPos.value,currentSize.value)
-  let data= {
+  let data = {
     left: `${currentPos.value.x}px`,
     top: `${currentPos.value.y}px`,
     width: `${currentSize.value.width}px`,
@@ -258,40 +192,24 @@ const cardStyle = computed(() => {
     color: error.value ? `var(--b3-card-error-color)` : "",
     border: error.value ? `1px solid var(--b3-card-error-color)` : "",
     backgroundColor: error.value ? `var(--b3-card-error-background)` : "",
-    
   }
-  console.log(data)
   return data
 })
-
 // 定义接口锚点数据结构
 const anchors = toRef(props, 'anchors')
-
 // 添加 isFocused 响应式变量
 const isFocused = ref(false);
-
 // 修改为使用方法而不是直接在模板中绑定事件
 const handleFocus = () => {
   isFocused.value = true;
 };
-
 const handleBlur = () => {
   isFocused.value = false;
 };
-
-// 计算锚点位置样式
-const getAnchorStyle = (anchor, side) => {
-  const style = {
-    '--anchor-position': `${anchor.position * 100}%`
-  }
-
-  return style
-}
-
+import { getAnchorStyle } from './nodeDefineParser/controllers/anchorConfig.js';
 // 修改拖拽相关的方法
 const startDrag = (e) => {
   if (props.componentProps?.isPreview) return;
-
   isDragging.value = true;
   dragStart.value = {
     x: e.clientX,
@@ -304,26 +222,20 @@ const startDrag = (e) => {
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', stopDrag);
 };
-
 const onDrag = (e) => {
   if (!isDragging.value) return;
-
   // 计算新位置时考虑缩放因素
   const newPos = {
     x: (e.clientX - dragStart.value.offsetX * props.zoom) / props.zoom,
     y: (e.clientY - dragStart.value.offsetY * props.zoom) / props.zoom
   };
-
   // 计算相对于上一次位置的变化量
-  const deltaX = (newPos.x - dragStart.value.lastX)/props.zoom;
-  const deltaY = (newPos.y - dragStart.value.lastY)/props.zoom;
-
+  const deltaX = (newPos.x - dragStart.value.lastX) / props.zoom;
+  const deltaY = (newPos.y - dragStart.value.lastY) / props.zoom;
   // 更新上一次位置
   dragStart.value.lastX = newPos.x;
   dragStart.value.lastY = newPos.y;
-
   currentPos.value = newPos;
-
   // 触发移动事件，让父组件知道位置变化
   emit('onCardMove', props.cardID, {
     ...newPos,
@@ -334,17 +246,13 @@ const onDrag = (e) => {
     isDragging: true
   });
 };
-
-
 const stopDrag = (e) => {
   isDragging.value = false
-
   // 计算新位置时考虑初始偏移量，并确保不小于0
   currentPos.value = {
-    x: Math.max(32, e.clientX - dragStart.value.offsetX * props.zoom)/props.zoom,
-    y: Math.max(32, e.clientY - dragStart.value.offsetY*props.zoom)/props.zoom
+    x: Math.max(32, e.clientX - dragStart.value.offsetX * props.zoom) / props.zoom,
+    y: Math.max(32, e.clientY - dragStart.value.offsetY * props.zoom) / props.zoom
   }
-
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
 }
@@ -352,10 +260,8 @@ const stopDrag = (e) => {
 const startResize = (e, position) => {
   if (props.componentProps?.isPreview) return;
   if (fixedWidth && fixedHeight) return;
-
   e.preventDefault();
   isResizing.value = true;
-
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
@@ -365,24 +271,19 @@ const startResize = (e, position) => {
     top: currentPos.value.y,
     position
   };
-
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', stopResize);
 };
-
 const onResize = (e) => {
   if (!isResizing.value) return;
-
   // 考虑缩放因素计算delta
   const deltaX = (e.clientX - dragStart.value.x) / props.zoom;
   const deltaY = (e.clientY - dragStart.value.y) / props.zoom;
   const pos = dragStart.value.position;
-
   let newWidth = dragStart.value.width;
   let newHeight = dragStart.value.height;
   let newLeft = dragStart.value.left;
   let newTop = dragStart.value.top;
-
   // 根据不同方向处理缩放
   if (pos.includes('e')) newWidth = dragStart.value.width + deltaX;
   if (pos.includes('w')) {
@@ -394,21 +295,17 @@ const onResize = (e) => {
     newHeight = dragStart.value.height - deltaY;
     newTop = dragStart.value.top + deltaY;
   }
-
   // 应用最小尺寸限制
   const minWidth = 200;
   const minHeight = 100;
-
   if (newWidth >= minWidth) {
     currentSize.value.width = newWidth;
     if (pos.includes('w')) currentPos.value.x = newLeft;
   }
-
   if (newHeight >= minHeight) {
     currentSize.value.height = newHeight;
     if (pos.includes('n')) currentPos.value.y = newTop;
   }
-
   // 触发移动事件
   emit('onCardMove', props.cardID, {
     ...currentPos.value,
@@ -417,20 +314,14 @@ const onResize = (e) => {
     isDragging: false
   });
 };
-
-
 const stopResize = () => {
   isResizing.value = false
   document.removeEventListener('mousemove', onResize)
   document.removeEventListener('mouseup', stopResize)
 }
-
 let component = shallowRef({})
 let error = ref('')
 // 生命周期钩子
-
-
-
 let fixedWidth = 0
 let fixedHeight = 0
 onMounted(() => {
@@ -442,10 +333,10 @@ onMounted(() => {
     width: props.position.width,
     height: props.position.height
   };
-  props.card&&(props.card.moveTo=(newRelatedPosition)=>{
-    console.error(newRelatedPosition,currentPos.value)
-    currentPos.value.x=newRelatedPosition.x
-    currentPos.value.y=newRelatedPosition.y
+  props.card && (props.card.moveTo = (newRelatedPosition) => {
+    console.error(newRelatedPosition, currentPos.value)
+    currentPos.value.x = newRelatedPosition.x
+    currentPos.value.y = newRelatedPosition.y
 
   });
   //这个需要提到最外面
@@ -483,53 +374,13 @@ const getCardPreviewContent = () => {
   return cardContent ? cardContent.innerHTML : '';
 };
 
+
+import { createDuplicationEventData } from './nodeDefineParser/controllers/cardConfig.js';
 // 修改复制卡片的方法
-const duplicateCard = (e) => {
-  e.stopPropagation();
-  const newCardID = uuidv4();
-
-  // 创建预览卡片数据，不包含位置信息
-  const previewCard = {
-    id: newCardID,
-    title: props.title,
-    position: {
-      ...currentPos.value,
-      width: currentSize.value.width,
-      height: currentSize.value.height
-    },
-    cardID: newCardID,
-    component: () => markRaw({
-      template: `<div class="preview-content">${getCardPreviewContent()}</div>`,
-      setup() {
-        return {};
-      }
-    }),
-    componentProps: {},
-    nodeDefine: props.nodeDefine,
-    anchors: [] // 预览时不需要锚点
-  };
-
-  // 创建实际要添加的卡片数据
-  const newCard = {
-    ...props.card.controller.cardInfo,
-    id: newCardID,
-    position: {
-      ...currentPos.value,
-      width: currentSize.value.width,
-      height: currentSize.value.height
-    }
-  };
-
-  // 发出开始复制事件
-  emit('startDuplicating', {
-    previewCard,
-    actualCard: newCard,
-    mouseEvent: e,
-    sourcePosition: {
-      x: currentPos.value.x,
-      y: currentPos.value.y
-    }
-  });
+const duplicateCard = (event) => {
+  event.stopPropagation();
+  let duplicationData= createDuplicationEventData(event,props.title,props.nodeDefine,props.card.controller.cardInfo,currentSize.value,currentPos.value,getCardPreviewContent())
+  emit('startDuplicating', duplicationData);
 };
 
 // 修改卡片操作按钮的定义
@@ -546,7 +397,7 @@ watch(cardStyle, () => {
   // 只有在非预览状态下才触发卡片移动事件
   if (!props.componentProps?.isPreview) {
     nextTick(() => {
-      emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value ,isDragging:isDragging.value});
+      emit('onCardMove', props.cardID, { ...currentPos.value, ...currentSize.value, isDragging: isDragging.value });
     });
   }
 });
@@ -642,7 +493,7 @@ const triggerAnchorPositions = computed(() => {
 watch(() => props.forcePosition, (newPosition) => {
 
   if (newPosition && !isDragging.value) { // 只在非拖拽状态下接受强制位置更新
-    console.error(newPosition,isDragging.value)
+    console.error(newPosition, isDragging.value)
 
     currentPos.value = {
       x: newPosition.x,
@@ -683,12 +534,7 @@ const ErrorBoundary = defineComponent({
 const handleComponentError = (err) => {
   console.error('Component runtime error:', err);
   error.value = err;
-  
-  // 清理组件实例，防止继续渲染
   component.value = {};
-  
-  // 可选：尝试重新加载组件
-  // setTimeout(loadComponent, 1000);
 };
 
 // 修改组件加载逻辑，确保状态更新
@@ -699,11 +545,11 @@ const loadComponent = async () => {
       component.value = null; // 清空当前组件
       const comp = await props.component(props.nodeDefine);
       console.log('Component loaded:', comp);
-      
+
       if (!comp?.template && !comp?.render) {
         throw new Error('组件定义无效');
       }
-      
+
       component.value = markRaw(comp);
       console.log('Component set:', component.value);
     }
@@ -722,13 +568,13 @@ onMounted(() => {
     width: props.position.width,
     height: props.position.height
   };
-  
+
   props.card && (props.card.moveTo = (newRelatedPosition) => {
     currentPos.value.x = newRelatedPosition.x;
     currentPos.value.y = newRelatedPosition.y;
   });
   nextTick(
-    ()=>  loadComponent()
+    () => loadComponent()
 
   )
 });
@@ -959,6 +805,7 @@ onMounted(() => {
   pointer-events: auto;
   z-index: 4;
   transition: opacity 0.2s ease;
+  background-color: var(--anchor-background);
 }
 
 .anchor-left .anchor-point {
@@ -993,45 +840,57 @@ onMounted(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--b3-theme-on-surface);
-  border: 2px solid var(--b3-theme-surface);
+  background: var(--anchor-dot);
+  border: 2px solid var(--anchor-border);
   box-shadow: var(--b3-dialog-shadow);
   transition: all 0.2s ease;
 }
 
-.anchor-input .anchor-dot {
-  background: var(--b3-theme-primary);
-  border-color: var(--b3-theme-surface);
-}
-
-.anchor-output .anchor-dot {
-  background: var(--b3-theme-success);
-  border-color: var(--b3-theme-surface);
+.anchor-point:not(.anchor-point:hover) .anchor-label {
+  display: none
 }
 
 .anchor-label {
   font-size: 12px;
-  color: var(--b3-theme-on-surface);
+  color: var(--anchor-text);
   font-weight: 500;
-  opacity: 0;
   transition: all 0.2s ease;
   pointer-events: none;
   white-space: nowrap;
   text-shadow: 0 1px 2px var(--b3-theme-background);
+  position: absolute;
+}
+
+.anchor-left .anchor-label {
+  right: 26px;
+  background-color: var(--b3-theme-surface);
+}
+
+.anchor-right .anchor-label {
+  left: 26px;
+  background-color: var(--b3-theme-surface);
+}
+
+.anchor-top .anchor-label {
+  bottom: 26px;
+  background-color: var(--b3-theme-surface);
+}
+
+.anchor-bottom .anchor-label {
+  top: 26px;
+  background-color: var(--b3-theme-surface);
 }
 
 .anchor-point:hover {
-  z-index: 4;
+  background-color: var(--anchor-hover);
 }
 
-.anchor-point:hover .anchor-dot {
-  transform: scale(1.3);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
-    0 4px 8px rgba(0, 0, 0, 0.15);
+.anchor-point.is-connected {
+  background-color: var(--anchor-active);
 }
 
-.anchor-point:hover .anchor-label {
-  opacity: 1;
+.anchor-point.is-connected .anchor-label {
+  color: var(--anchor-active-text);
 }
 
 /* 添加自定义滚动样式（针对 Webkit 浏览器） */

@@ -1,37 +1,30 @@
 <template>
   <div @wheel="handleWheel">
     <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
-      :coordinateManager="coordinateManager" >
+      :coordinateManager="coordinateManager">
       <div class="zoom-controls">
-        <button class="zoom-btn" @click="()=>adjustZoom(-0.1)">-</button>
+        <button class="zoom-btn" @click="() => adjustZoom(-0.1)">-</button>
         <span class="zoom-value">{{ Math.round(zoom * 100) }}%</span>
-        <button class="zoom-btn" @click="()=>adjustZoom(0.1)">+</button>
+        <button class="zoom-btn" @click="() => adjustZoom(0.1)">+</button>
         <button class="zoom-btn" @click="resetZoom">重置</button>
       </div>
-
     </StyleSelector>
     <InfoPanel v-if="coordinateManager" :stats="systemStats" :coordinateManager="coordinateManager" />
-
-    <div class="image-editor" ref="connectionCanvasRef" :style="{zoom}">
+    <div class="image-editor" ref="connectionCanvasRef" :style="{ zoom }">
       <!-- 使用 StyleSelector 组件 -->
-
-      <ConnectionCanvas 
-      :style="{zoom:1/zoom}" 
-      :zoom="zoom"
-      v-if="config.connections" :cardsContainer="cardsContainer" :cards="parsedCards"
-        :connections="config.connections" :relations="config.relations" :coordinateManager="coordinateManager"
-        :connectionStyle="connectionStyle" @connectionCreated="handleNewConnection"
-        @relationCreated="handleNewrelation" />
+      <ConnectionCanvas :style="{ zoom: 1 / zoom }" :zoom="zoom" v-if="config.connections" :cardsContainer="cardsContainer"
+        :cards="parsedCards" :connections="config.connections" :relations="config.relations"
+        :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
+        @connectionCreated="handleNewConnection" @relationCreated="handleNewrelation" />
       <!-- 动态渲染卡片 -->
       <div style="position: relative;
         max-width: 100%;
         max-height: 100%;
         overflow: auto;">
-
         <div ref="cardsContainer">
           <template v-for="(card, index) in parsedCards" :key="card.id+index">
-            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(card.id)" :title="card.title" :position="card.position"
-              :data-card-id="card.id" :cardID="card.id" :component="card.controller.component"
+            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(card.id)" :title="card.title"
+              :position="card.position" :data-card-id="card.id" :cardID="card.id" :component="card.controller.component"
               :component-props="card.controller.componentProps" :nodeDefine="card.controller.nodeDefine"
               :component-events="card.events" :anchors="card.controller.anchors" :connections="config.connections"
               :card="card" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
@@ -59,11 +52,15 @@ import ConnectionCanvas from './ConnectionCanvas.vue';
 import InfoPanel from './InfoPanel.vue';
 //用于流程构建和控制
 import { CardManager } from './cardManager.js';
-import { CoordinateManager,useZoom } from './CoordinateManager.js';
+import { CoordinateManager, useZoom } from './CoordinateManager.js';
 import { GraphManager } from './GraphManager.js';
 import { ensureUniqueCardIds as 校验并实例化卡片组, updateConnectionIds, validateConnections } from './loader/utils.js';
 import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
 import StyleSelector from './toolBar/StyleSelector.vue';
+
+import { validateConnection } from '../../../utils/graph/PetriNet.js';
+import { findExistingConnection, findDuplicateConnection } from './GraphManager.js';
+
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const parsedCards = ref([]);
@@ -84,9 +81,9 @@ const getGlobalInputs = () => {
   // 返回全局输入对象
   return appData.value.meta
 };
-// 修改 buildPetriNet 函数
-function buildPetriNet() {
-  return graphManager.buildPetriNet(config.value, parsedCards.value, getGlobalInputs);
+
+function reStartPetriNet() {
+ graphManager.reStartPetriNet(config.value, parsedCards.value, getGlobalInputs)
 }
 const {
   zoom,
@@ -95,14 +92,12 @@ const {
   resetZoom
 } = useZoom(connectionCanvasRef, coordinateManager)
 
-
 // 重构后的 loadConfig 函数
 const loadConfig = async () => {
   try {
     // 清空现有状态
     parsedCards.value = [];
     componentDefinitions = {};
-
     // 确保卡片ID唯一性
     const { updatedCards, idMap } = 校验并实例化卡片组(config.value.cards);
     config.value.cards = updatedCards;
@@ -113,18 +108,13 @@ const loadConfig = async () => {
     for await (const cardConfig of config.value.cards) {
       await addCard(cardConfig, { skipExisting: false });
     }
-
     // 验证并更新连接和关系
     config.value.connections = validateConnections(config.value.connections, parsedCards.value);
     config.value.relations = validateRelations(config.value.relations, parsedCards.value);
-
     console.log("connections", config.value.connections);
     console.log("relations", config.value.relations);
-
     // 初始化和启动Petri网
-    let pn = buildPetriNet();
-    pn.exec(undefined, true);
-    pn.startAutoExec();
+    reStartPetriNet()
   } catch (error) {
     console.error('加载配置失败:', error);
     throw error;
@@ -204,17 +194,7 @@ onMounted(async () => {
     end: `${conn.to.cardId}-${conn.to.anchorId}`
   }));
 });
-// 在组件挂载时初始化Petri网
-onMounted(() => {
-  // 处理初始加载
-  const { type, subtype, meta } = appData?.value || {};
-  if (type === 'local' && subtype === 'file') {
-    const { path } = meta;
-    if (path) {
-      console.log(path)
-    }
-  }
-});
+
 // 修改自动处理开关函数
 const handleDragging = (e) => {
   if (!isDragging.value || !container.value) return;
@@ -239,7 +219,6 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', handleDragging);
   document.removeEventListener('mouseup', stopDragging);
 });
-
 // 更新系统状态计算
 const systemStats = computed(() => {
   // 获取所有卡片
@@ -251,7 +230,6 @@ const systemStats = computed(() => {
       cardAnchors.push(...card.controller.anchors)
     }
   )
-
   let result = {
     cardCount: cards.length,
     anchorCount: cardAnchors.length,
@@ -266,9 +244,6 @@ const systemStats = computed(() => {
   };
   return result
 });
-
-
-
 // 在需要的地方调用更新函数
 watch(() => parsedCards.value.map(card => ({
   id: card.id,
@@ -284,7 +259,6 @@ const isNoteCard = (card) => {
 };
 // 添加一个 Map 来跟踪每个卡片的强制位置
 const forcedPositions = ref(new Map());
-
 // 修改 onCardMove 函数
 const onCardMove = (cardId, newPosition) => {
   // 找到当前移动的卡片
@@ -293,7 +267,6 @@ const onCardMove = (cardId, newPosition) => {
   // 更新当前卡片位置
   card.position = newPosition;
   updateAnchorsPosition([card]);
-
   // 如果不是笔记类型的卡片，则不需要处理关联移动
   if (!isNoteCard(card)) {
     return;
@@ -326,37 +299,26 @@ const onCardMove = (cardId, newPosition) => {
       }
     });
   }
-
 };
-
 // 在窗口大小改变时可能也需要更新
 onMounted(() => {
   coordinateManager.value = new CoordinateManager(connectionCanvasRef.value, cardsContainer.value);
-
   window.addEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
 onUnmounted(() => {
   window.removeEventListener('resize', () => updateAnchorsPosition(parsedCards.value));
 });
-
-
-
-
-
 // 连接样式状态
 const connectionStyle = ref({
   geometry: 'circuit',
   drawingStyle: 'normal'
 });
 
-import { validateConnection } from '../../../utils/graph/PetriNet.js';
+
 
 const handleNewConnection = async (newConnection) => {
   // 1. 检查是否存在需要替换的连接
-  const existingConnectionIndex = config.value.connections.findIndex(conn =>
-    conn.to.cardId === newConnection.to.cardId &&
-    conn.to.anchorId === newConnection.to.anchorId
-  );
+  const existingConnectionIndex = findExistingConnection(config.value.connections, newConnection);
 
   // 2. 验证新连接的有效性（除了输入锚点已连接的检查）
   const validationResult = validateConnection(
@@ -364,24 +326,13 @@ const handleNewConnection = async (newConnection) => {
     newConnection,
     parsedCards.value
   );
-
   if (!validationResult.isValid) {
     console.error('连接验证失败:', validationResult.error);
     return;
   }
-
   try {
-    // 3. 保存当前状态以便回滚
-    const previousConnections = [...config.value.connections];
-
     // 4. 检查是否存在重复连接
-    const duplicateConnectionIndex = config.value.connections.findIndex(conn =>
-      conn.from.cardId === newConnection.from.cardId &&
-      conn.from.anchorId === newConnection.from.anchorId &&
-      conn.to.cardId === newConnection.to.cardId &&
-      conn.to.anchorId === newConnection.to.anchorId
-    );
-
+    const duplicateConnectionIndex = findDuplicateConnection(config.value.connections, newConnection);
     if (duplicateConnectionIndex !== -1) {
       // 如果存在重复连接，移除该连接
       config.value.connections.splice(duplicateConnectionIndex, 1);
@@ -396,22 +347,16 @@ const handleNewConnection = async (newConnection) => {
         config.value.connections.push(newConnection);
       }
     }
-
     // 6. 强制更新连接数组的引用，触发视图更新
     config.value.connections = [...config.value.connections];
-
     // 7. 等待下一个 tick，确保视图更新
     await nextTick();
-
     // 8. 重建并验证整个 Petri 网络
-    let pn = buildPetriNet();
-    pn.exec(undefined, true);
-    pn.startAutoExec();
+    reStartPetriNet()
   } catch (error) {
     // 9. 如果出错，回滚到之前的状态
     config.value.connections = [...previousConnections];
     console.error('Petri网络构建失败:', error);
-
     // 10. 强制更新视图
     await nextTick();
   }
@@ -426,17 +371,13 @@ const duplicateOffset = ref({ x: 0, y: 0 });
 // 修改处理开始复制事件的方法
 const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, sourcePosition }) => {
   if (isDuplicating.value) return;
-
   isDuplicating.value = true;
   actualCard.value = newCard;
-
   const rect = connectionCanvasRef.value.getBoundingClientRect();
   const scroll = coordinateManager.value.getScrollOffset();
-
   // 计算鼠标相对于容器的绝对位置，考虑缩放
   const mouseX = (mouseEvent.clientX - rect.left + scroll.scrollLeft) / zoom.value;
   const mouseY = (mouseEvent.clientY - rect.top + scroll.scrollTop) / zoom.value;
-
   // 设置预览卡片的初始位置为鼠标位置
   duplicatingPreview.value = {
     ...previewCard,
@@ -537,10 +478,7 @@ const handleDuplicatePlace = async (e) => {
     });
 
     // 更新网络结构
-    const pn = buildPetriNet();
-    pn.exec(undefined, true);
-    pn.startAutoExec();
-
+    reStartPetriNet()
   } catch (error) {
     console.error('复制卡片失败:', error);
   } finally {
@@ -565,7 +503,6 @@ const handleNewrelation = (newrelation) => {
     relation.to.cardId === newrelation.to.cardId &&
     relation.to.anchorId === newrelation.to.anchorId
   );
-
   if (duplicaterelationIndex !== -1) {
     // 如果存在重复 relation，移除它
     config.value.relations.splice(duplicaterelationIndex, 1);
@@ -573,7 +510,6 @@ const handleNewrelation = (newrelation) => {
     // 添加新 relation
     config.value.relations.push(newrelation);
   }
-
   // 强制更新 relations 数组的引用，触发视图更新
   config.value.relations = [...config.value.relations];
 };
@@ -594,7 +530,6 @@ const handleNewrelation = (newrelation) => {
   gap: 8px;
   margin-bottom: 12px;
 }
-
 
 /* 确保所有卡片容器使用相对于 image-editor 定位 */
 :deep(.floating-card) {
@@ -637,7 +572,6 @@ const handleNewrelation = (newrelation) => {
   box-shadow: 0 0 0 2px var(--b3-theme-primary-light);
 }
 
-
 .zoom-controls {
   display: flex;
   align-items: center;
@@ -670,8 +604,6 @@ const handleNewrelation = (newrelation) => {
   font-size: 14px;
   color: var(--b3-theme-on-surface);
 }
-
-
 
 /* 添加预览内容的样式 */
 :deep(.preview-content) {

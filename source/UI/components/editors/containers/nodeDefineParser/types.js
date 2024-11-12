@@ -25,7 +25,9 @@ export const AnchorTypes = {
 };
 export const Sides = {
     LEFT: 'left',
-    RIGHT: 'right'
+    RIGHT: 'right',
+    TOP: 'top',
+    BOTTOM: 'bottom'
 };
 export const LogTypes = {
     LOG: 'log',
