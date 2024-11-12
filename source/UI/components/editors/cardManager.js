@@ -1,5 +1,5 @@
-import { 校验并补齐卡片设置,解析卡片类型 } from './manager/validate.js';
-import { 创建运行时卡片对象,获取卡片组件定义 } from './manager/cardFactory.js';
+import { 校验并补齐卡片设置, 解析卡片类型 } from './manager/validate.js';
+import { 创建运行时卡片对象, 获取卡片组件定义 } from './manager/cardFactory.js';
 export class CardManager {
   constructor() {
     this.cards = [];
@@ -16,7 +16,7 @@ export class CardManager {
    * @param {boolean} [options.skipExisting=false] 是否跳过已存在的卡片
    * @returns {Promise<Object>} 添加或更新的卡片对象
    */
-  async addCard(cardConfig, options = {}) {
+  async 从卡片配置添加控制器(cardConfig, options = {}) {
     try {
       校验并补齐卡片设置(cardConfig);
       const type = await 解析卡片类型(cardConfig);

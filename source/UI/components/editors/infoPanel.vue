@@ -83,10 +83,7 @@ const props = defineProps({
     type: Object,
     required: true
   },
-  coordinateManager: {
-    type: Object,
-    required: true
-  }
+
 });
 
 const isCollapsed = ref(false);

@@ -47,7 +47,6 @@ export const validateConnections = (connections, cards) => {
     return connections.filter(conn => {
         const fromCard = cards.find(card => card.id === conn.from.cardId);
         const toCard = cards.find(card => card.id === conn.to.cardId);
-
         if (!fromCard || !toCard) {
             console.warn('移除无效连接:', conn);
             return false;

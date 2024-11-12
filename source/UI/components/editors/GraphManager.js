@@ -247,7 +247,6 @@ export class GraphManager {
             添加连接(this.petriNet, transferTransitionId, toPlaceId);
         }
     }
-
     /**
      * 创建事件连接节点
      * @private
@@ -256,7 +255,6 @@ export class GraphManager {
         const eventPlaceId = `event_place_${fromCard.id}_${fromAnchor.id}`;
         const toPlaceId = `place_${toCard.id}_${toAnchor.id}`;
         const eventTransitionId = `event_transition_${fromCard.id}_${fromAnchor.id}`;
-
         // 1. 添加事件源节点
         if (!this.petriNet.节点.has(eventPlaceId)) {
             添加节点(this.petriNet, eventPlaceId, {
@@ -274,7 +272,6 @@ export class GraphManager {
                     }
                 }
             });
-
             // 订阅事件
             const unsubscribe = fromAnchor.subscribe(async (value) => {
                 const node = this.petriNet.节点.get(eventPlaceId);
@@ -282,11 +279,9 @@ export class GraphManager {
                     await node.内容.process(value);
                 }
             });
-
             // 保存订阅，以便后续清理
             this.eventSubscriptions.set(eventPlaceId, unsubscribe);
         }
-
         // 2. 添加目标节点
         if (!this.petriNet.节点.has(toPlaceId)) {
             添加节点(this.petriNet, toPlaceId, {
@@ -295,7 +290,6 @@ export class GraphManager {
                 content: toAnchor
             });
         }
-
         // 3. 添加事件转换动作
         if (!this.petriNet.动作.has(eventTransitionId)) {
             添加动作(this.petriNet, eventTransitionId, async () => {
@@ -305,7 +299,6 @@ export class GraphManager {
                 }
             });
         }
-
         // 4. 建立连接关系
         if (!已经连接(this.petriNet, eventPlaceId, eventTransitionId)) {
             添加连接(this.petriNet, eventPlaceId, eventTransitionId);
@@ -314,7 +307,6 @@ export class GraphManager {
             添加连接(this.petriNet, eventTransitionId, toPlaceId);
         }
     }
-
     /**
      * 构建卡片内部连接结构
      * @private
@@ -323,13 +315,11 @@ export class GraphManager {
         const inputAnchors = card.controller.anchors.filter(a => a.type === 'input');
         const outputAnchors = card.controller.anchors.filter(a => a.type === 'output');
         const eventAnchors = card.controller.anchors.filter(a => a.type === 'event');
-
         if (inputAnchors.length) {
             this.handleCardWithInputs(card, inputAnchors, outputAnchors);
         } else {
             this.handleCardWithoutInputs(card, outputAnchors);
         }
-
         // 处理事件锚点
         eventAnchors.forEach(eventAnchor => {
             const eventPlaceId = `event_place_${card.id}_${eventAnchor.id}`;
@@ -351,14 +341,12 @@ export class GraphManager {
      */
     handleCardWithInputs(card, inputAnchors, outputAnchors) {
         const internalTransitionId = `internal_transition_${card.id}_${card.title}`;
-
         if (!this.petriNet.动作.has(internalTransitionId)) {
             添加动作(this.petriNet, internalTransitionId, async () => {
                 console.log(`执行内部动作: ${internalTransitionId}`);
                 await card.controller.exec();
             });
         }
-
         // 处理输入锚点
         inputAnchors.forEach(inputAnchor => {
             const inputPlaceId = `place_${card.id}_${inputAnchor.id}`;
@@ -373,7 +361,6 @@ export class GraphManager {
         // 处理输出锚点
         this.handleOutputAnchors(card, outputAnchors, internalTransitionId);
     }
-
     /**
      * 处理无输入锚点的卡片
      * @private
@@ -390,7 +377,6 @@ export class GraphManager {
                 content: card,
             });
         }
-
         // 添加转换动作
         if (!this.petriNet.动作.has(internalTransitionId)) {
             添加动作(this.petriNet, internalTransitionId, async () => {
@@ -399,14 +385,11 @@ export class GraphManager {
                 await card.controller.exec(undefined, globalInputs);
             });
         }
-
         if (!已经连接(this.petriNet, internalPalaceId, internalTransitionId)) {
             添加连接(this.petriNet, internalPalaceId, internalTransitionId);
         }
-
         this.handleOutputAnchors(card, outputAnchors, internalTransitionId);
     }
-
     /**
      * 处理输出锚点
      * @private
@@ -422,13 +405,11 @@ export class GraphManager {
             }
         });
     }
-
     /**
      * 初始化入口节点
      * @private
      */
     initializeEntryNodes() {
-
         找到入口节点(this.petriNet).forEach(节点id => {
             const 节点 = this.petriNet.节点.get(节点id);
             let 节点内容 = 节点.内容
@@ -437,7 +418,6 @@ export class GraphManager {
             节点.数值 = 1; // 设置初始令牌
         });
     }
-
     /**
      * 执行整个网络
      * @param {Object} inputs 可选的全局输入参数
@@ -447,25 +427,20 @@ export class GraphManager {
         if (!this.petriNet) {
             throw new Error('Petri网尚未构建');
         }
-
         try {
             // 设置全局输入
             if (this.getGlobalInputs) {
                 Object.assign(inputs, this.getGlobalInputs());
             }
-
             // 检查入口节点的值是否有变化
             if (!this.hasInputValuesChanged() && !force) {
                 console.log('入口节点值未发生变化，跳过执行');
                 return this.collectExitOutputs();
             }
-
             // 重置所有节点状态
             this.resetAllNodes();
-
             // 初始化入口节点
             this.initializeEntryNodes();
-
             if (this.mode === 'function') {
                 // 函数模式：使用编译好的路径
                 const entryNodes = 找到入口节点(this.petriNet);
@@ -477,7 +452,6 @@ export class GraphManager {
                         Object.assign(results, await fn(inputs));
                     }
                 }
-
                 return results;
             } else {
                 // 可视化模式：执行整个网络
@@ -485,7 +459,6 @@ export class GraphManager {
                 console.log('执行成功,正在收集结果')
                 // 获取当前所有节点的值的快照
                 this.prevNodeValues = this.captureNodeValues();
-
                 // 收集出口节点的结果
                 let result = this.collectExitOutputs();
                 return result
@@ -495,7 +468,6 @@ export class GraphManager {
             throw error;
         }
     }
-
     /**
      * 重置所有节点状态
      * @private
@@ -504,14 +476,12 @@ export class GraphManager {
         for (const [nodeId, node] of this.petriNet.节点.entries()) {
             // 重置令牌数
             node.数值 = 0;
-
             // 重置节点内容状态（如果有）
             if (node.内容?.reset) {
                 node.内容.reset();
             }
         }
     }
-
     /**
      * 收集出口节点的输出值
      * @private
@@ -532,7 +502,6 @@ export class GraphManager {
 
         return outputs;
     }
-
     /**
      * 开始自动执行
      * @param {number} interval - 执行间隔（毫秒）
@@ -554,7 +523,6 @@ export class GraphManager {
             }
         }, interval);
     }
-
     /**
      * 停止自动执行
      */
@@ -564,7 +532,6 @@ export class GraphManager {
             this.autoExecInterval = null;
         }
     }
-
     /**
      * 捕获所有节点的当前值
      * @private
@@ -598,7 +565,6 @@ export class GraphManager {
         }
         return values;
     }
-
     /**
      * 检查入口节点的值是否发生变化
      * @private
@@ -622,18 +588,15 @@ export class GraphManager {
 
         return false;
     }
-
     getConnections() {
         return Array.from(this.connections.values());
     }
-
     validateConnection(connection) {
         return {
             isValid: true,
             error: null
         };
     }
-
     /**
      * 销毁管理器
      */
@@ -643,7 +606,6 @@ export class GraphManager {
             unsubscribe();
         }
         this.eventSubscriptions.clear();
-
         // 清理其他资源
         this.petriNet = null;
         this.connections.clear();
