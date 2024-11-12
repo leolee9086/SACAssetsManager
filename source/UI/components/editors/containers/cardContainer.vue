@@ -47,11 +47,7 @@
     </div>
     <div class="card-content">
       <template v-if="error">
-        <div class="error-container">
-          <div class="error-icon">⚠️</div>
-          <div class="error-message">{{ error.message || '组件运行错误' }}</div>
-          <div class="error-detail" v-if="error.stack">{{ error.stack }}</div>
-        </div>
+        <errorContainer :error="error" altMessage="组件加载错误"></errorContainer>
       </template>
       <template v-else>
         <ErrorBoundary @error="handleComponentError">
@@ -76,14 +72,18 @@
         </div>
       </div>
     </template>
-
-
   </div>
 </template>
-
 <script setup>
 import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef, defineComponent } from 'vue';
 import *  as _serialize from '../../../../../static/serialize-javascript.js'
+import errorContainer from './errorContainer.vue';
+import { ErrorBoundary } from '../../common/wraper/utilsComponent.js';
+const handleComponentError = (err) => {
+  console.error('Component runtime error:', err);
+  error.value = err;
+  component.value = {};
+};
 const serialize = _serialize.default.default
 // 自定义序列化处理器
 // Props 定义
@@ -520,6 +520,16 @@ const getAnchorCountStyle = (side) => {
   }
 };
 
+
+// 添加固定触发锚点的计算属性
+const triggerAnchorPositions = computed(() => {
+  return props.triggerAnchors.map(side => ({
+    id: `trigger-${side}`,
+    side,
+    type: 'trigger',
+    position: 0.5 // 固定在中间位置
+  }));
+});
 // 添加对 position prop 的监听
 watch(() => props.card.position, (newPosition) => {
   // 如果是预览模式(复制模式)，直接更新位置而不触发事件
@@ -536,21 +546,9 @@ watch(() => props.card.position, (newPosition) => {
 
 }, { deep: true });
 
-// 添加固定触发锚点的计算属性
-const triggerAnchorPositions = computed(() => {
-  return props.triggerAnchors.map(side => ({
-    id: `trigger-${side}`,
-    side,
-    type: 'trigger',
-    position: 0.5 // 固定在中间位置
-  }));
-});
-
 // 添加对 forcePosition 的监听
 watch(() => props.forcePosition, (newPosition) => {
-
   if (newPosition && !isDragging.value) { // 只在非拖拽状态下接受强制位置更新
-    console.error(newPosition, isDragging.value)
 
     当前卡片元素位置.value = {
       x: newPosition.x,
@@ -565,34 +563,7 @@ watch(() => props.forcePosition, (newPosition) => {
   }
 }, { deep: true });
 
-// 简化 ErrorBoundary 组件定义
-const ErrorBoundary = defineComponent({
-  name: 'ErrorBoundary',
-  emits: ['error'],  // 明确声明事件
-  setup(props, { slots, emit }) {
-    const handleError = (err) => {
-      console.error('Component Error:', err);
-      emit('error', err);
-      return false;
-    };
 
-    return {
-      handleError,
-    };
-  },
-  render() {
-    return this.$slots.default?.();
-  },
-  errorCaptured(err, instance, info) {
-    return this.handleError(err);
-  }
-});
-
-const handleComponentError = (err) => {
-  console.error('Component runtime error:', err);
-  error.value = err;
-  component.value = {};
-};
 
 // 修改组件加载逻辑，确保状态更新
 const loadComponent = async () => {
@@ -616,22 +587,15 @@ const loadComponent = async () => {
 };
 
 onMounted(() => {
-  当前卡片元素位置.value = {
-    x: props.card.position.x,
-    y: props.card.position.y
-  };
-  当前卡片元素尺寸.value = {
-    width: props.card.position.width,
-    height: props.card.position.height
-  };
-
+  let {position} = props.card
+  当前卡片元素位置.value = 二维转换器.抽取对应值转对象(position)
+  当前卡片元素尺寸.value = css长宽转换器.抽取对应值转对象(position)
   props.card && (props.card.moveTo = (newRelatedPosition) => {
     当前卡片元素位置.value.x = newRelatedPosition.x;
     当前卡片元素位置.value.y = newRelatedPosition.y;
   });
   nextTick(
     () => loadComponent()
-
   )
 });
 
@@ -985,30 +949,22 @@ onMounted(() => {
   transition: opacity 0.2s ease;
   border: 1px solid var(--b3-border-color);
 }
-
 .anchor-count-left {
   left: -30px;
 }
-
 .anchor-count-right {
   right: -30px;
 }
-
 .anchor-count-top {
   top: -15px;
 }
-
 .anchor-count-bottom {
   bottom: -15px;
 }
-
 .anchor-count.hidden {
   opacity: 0;
   display: none;
 }
-
-
-
 .card-actions button {
   background: var(--b3-theme-surface);
   border: 1px solid var(--b3-border-color);
@@ -1022,48 +978,40 @@ onMounted(() => {
   cursor: pointer;
   transition: background 0.2s ease;
 }
-
 .card-actions button:hover {
   background: var(--b3-list-hover);
 }
-
 .card-actions svg {
   width: 16px;
   height: 16px;
   color: var(--b3-theme-on-surface);
 }
-
 /* 触发锚点容器样式 */
 .trigger-anchor-container {
   position: absolute;
   z-index: 4;
   pointer-events: none;
 }
-
 .trigger-anchor-left {
   left: -24px;
   top: 50%;
   transform: translateY(-50%);
 }
-
 .trigger-anchor-right {
   right: -24px;
   top: 50%;
   transform: translateY(-50%);
 }
-
 .trigger-anchor-top {
   top: -24px;
   left: 50%;
   transform: translateX(-50%);
 }
-
 .trigger-anchor-bottom {
   bottom: -24px;
   left: 50%;
   transform: translateX(-50%);
 }
-
 /* 触发锚点样式 */
 .trigger-anchor-point {
   position: relative;
@@ -1075,7 +1023,6 @@ onMounted(() => {
   pointer-events: auto;
   cursor: pointer;
 }
-
 .trigger-anchor-dot {
   width: 12px;
   height: 12px;
@@ -1085,51 +1032,11 @@ onMounted(() => {
   box-shadow: var(--b3-dialog-shadow);
   transition: all 0.2s ease;
 }
-
 .trigger-anchor-point:hover .trigger-anchor-dot {
   transform: scale(1.3);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
     0 4px 8px rgba(0, 0, 0, 0.15);
 }
-
-.error-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  text-align: center;
-  height: 100%;
-  color: var(--b3-card-error-color, #dc3545);
-  background: var(--b3-card-error-background, rgba(220, 53, 69, 0.1));
-  border-radius: 6px;
-}
-
-.error-icon {
-  font-size: 24px;
-  margin-bottom: 8px;
-}
-
-.error-message {
-  font-size: 14px;
-  line-height: 1.4;
-  word-break: break-word;
-  margin-bottom: 8px;
-}
-
-.error-detail {
-  font-size: 12px;
-  color: var(--b3-theme-on-surface-light);
-  max-height: 100px;
-  overflow-y: auto;
-  text-align: left;
-  width: 100%;
-  padding: 8px;
-  background: var(--b3-theme-background);
-  border-radius: 4px;
-  white-space: pre-wrap;
-}
-
 .loading {
   display: flex;
   align-items: center;
