@@ -51,52 +51,55 @@ export function jsDoc2NodeDefine(jsDocResult, module, exportName) {
  * @returns {string} Vue单文件组件字符串
  */
 export const wrapSFCStringFromNodeDefine = (nodeDefine,url,exportName) => {
+  let outputs = nodeDefine.outputs
     // 生成基础模板
-    const sfc =  `<template>
+    const sfc =`<template>
   <div class="node-control">
-    <slot></slot>
+      <div>文件:${url.split('/').pop()};函数:${exportName}</div>
+    <div>输入:{{inputValue}}</div>
+     <div>输出:{{outputValue}}</div>
   </div>
 </template>
-
 <script nodeDefine>
 import { ref } from 'vue';
 import {${exportName}} from '${url}'
-
 const outputValue = ref(${nodeDefine.outputs?.number?.default || 0})
-
+const inputValue = ref(null)
 export const getDefaultInput = () => {
   return outputValue
 }
-
 const nodeDefine = ${JSON.stringify(nodeDefine, null, 2)}
 nodeDefine.process =async(input)=>{ 
+  let realInput=[...Object.values(input).map(item=>item.value)]
+  inputValue.value=realInput
+  console.error(input,realInput)
   try{
-    outputValue.value=await ${exportName}(input)
-    return outputValue.value
+    outputValue.value=await ${exportName}(...realInput)
+    let outputData = {}
+    ${
+      !outputs.$result?Object.keys(outputs).map(name=>`outputData['${name}']=outputValue.value['${name}']`).join(';\n'):`outputData.$result=outputValue.value`
+    }
+    return outputData
   }catch(e){
     console.error(e)
+    outputValue.value=e+\`\$\{input\}\`
     return {}
   }
 }
 </script>
-
 <script setup>
 import { defineProps, defineEmits, watch } from 'vue';
-
 const props = defineProps({
   modelValue: {
     type: Number,
     required: true
   }
 });
-
 const emit = defineEmits(['update:modelValue']);
-
 watch(outputValue, () => {
   emit('update:modelValue', outputValue.value);
 });
 </script>
-
 <style scoped>
 .node-control {
   padding: 8px;
@@ -105,12 +108,8 @@ watch(outputValue, () => {
   // 创建Blob并生成URL
   const blob = new Blob([sfc], { type: 'text/plain' });
   const blobUrl = URL.createObjectURL(blob);
-
   return {
       sfcString: sfc,
       blobUrl: blobUrl
   };
-
-
-
 }

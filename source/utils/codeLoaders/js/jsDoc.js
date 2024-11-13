@@ -70,7 +70,7 @@ export function parseJSDocConfig(code, exportName) {
                   docConfig.outputTypes[name] = propType;
                 });
               } else {
-                docConfig.outputTypes.result = type;
+                docConfig.outputTypes.$result = type;
               }
             }
   

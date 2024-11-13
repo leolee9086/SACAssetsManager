@@ -1,61 +1,129 @@
+import { 全局节点注册表标记,默认组件式节点注册表,默认函数式节点加载配置 } from "./loader/defaultMap.js";
 import { parseNodeDefine } from "./containers/nodeDefineParser.js";
 import { parseJSDocConfigFromURL } from "../../../utils/codeLoaders/js/jsDoc.js";
 import * as 向量 from '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js'
 import { jsDoc2NodeDefine, wrapSFCStringFromNodeDefine } from "./nodes/wraper/jsWraper.js";
 import { writeFile } from "../../../polyfills/fs.js";
 
-// 定义全局Symbol
-const COMPONENT_MAP_SYMBOL = Symbol.for('SACComponentMap');
-
-// 初始化默认组件映射
-const defaultComponentMap = {
-    'math/number': "/plugins/SACAssetsManager/source/UI/components/editors/nodes/math/number.vue",
-    'note/protyle': "/plugins/SACAssetsManager/source/UI/components/common/assetCard/protyleCell.vue",
-    'image/brightness': "/plugins/SACAssetsManager/source/UI/components/editors/nodes/image/brightness.vue",
-    localImageInput: '/plugins/SACAssetsManager/source/UI/components/editors/localImageInput.vue',
-    ImageCompressor: '/plugins/SACAssetsManager/source/UI/components/editors/ImageCompressor.vue',
-    ImageComparison: '/plugins/SACAssetsManager/source/UI/components/editors/ImageComparison.vue',
+/**
+ * 解析组件定义并生成SFC字符串
+ * @param {string} modulePath - 模块路径
+ * @param {string} exportName - 导出名称
+ * @returns {Promise<{nodeDefine: Object, sfcString: string}>}
+ */
+const parseComponentDefinitionFromModuleExport = async (modulePath, exportName) => {
+    const result = await parseJSDocConfigFromURL(modulePath, exportName);
+    const module = await import(modulePath);
+    const nodeDefine = jsDoc2NodeDefine(result, module, exportName, modulePath);
+    const { sfcString } = wrapSFCStringFromNodeDefine(nodeDefine, modulePath, exportName);
+    return { nodeDefine, sfcString };
 };
 
-// 获取或创建全局componentMap
-if (!globalThis[COMPONENT_MAP_SYMBOL]) {
-    globalThis[COMPONENT_MAP_SYMBOL] = defaultComponentMap;
-}
-let loadvector = async () => {
-    try {
-        const exportNames = Object.keys(向量);
-        const url = '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js';
-        
-        for (const exportName of exportNames) {
-            try {
-                // 解析JSDoc配置
-                const result = await parseJSDocConfigFromURL(url, exportName);
-                const module = await import(url);
-                const nodeDefine = jsDoc2NodeDefine(result, module, exportName, url);
-                // 生成SFC文件
-                const { sfcString, blobUrl } = wrapSFCStringFromNodeDefine(nodeDefine, url, exportName);
-                // 写入文件并更新组件映射
-                const compiledPath = `/data/public/SACCompiled/${exportName}.vue`;
-                await writeFile(compiledPath, sfcString);
-                
-                const sfcUrl = `/public/SACCompiled/${exportName}.vue`;
-                defaultComponentMap[`default/${exportName}`] = sfcUrl;
-                console.log('处理完成:', exportName, url,sfcUrl);
-            } catch (err) {
-                console.error(`处理 ${exportName} 时发生错误:`, err);
-                // 继续处理下一个，而不是中断整个过程
-            }
+/**
+ * 构建组件路径和URL
+ * @param {Object} config - 配置对象
+ * @param {string} exportName - 导出名称
+ * @returns {{compiledPath: string, sfcUrl: string, componentKey: string}}
+ */
+const buildComponentPaths = (config, exportName) => {
+    const { outputDir, publicPath, componentPrefix, moduleName } = config;
+    const moduleDir = moduleName ? `/${moduleName}` : '';
+    const compiledPath = `${outputDir}${moduleDir}/${exportName}.vue`;
+    const sfcUrl = `${publicPath}${moduleDir}/${exportName}.vue`;
+    const componentKey = moduleName 
+        ? `${componentPrefix}/${moduleName}/${exportName}`
+        : `${componentPrefix}/${exportName}`;
+    return { compiledPath, sfcUrl, componentKey };
+};
+
+/**
+ * 处理单个组件的加载
+ * @param {string} exportName - 导出名称
+ * @param {string} modulePath - 模块路径
+ * @param {Object} config - 配置对象
+ * @returns {Promise<{name: string, path: string}>}
+ */
+const processComponent = async (exportName, modulePath, config) => {
+    const { sfcString } = await parseComponentDefinitionFromModuleExport(modulePath, exportName);
+    const { compiledPath, sfcUrl, componentKey } = buildComponentPaths(config, exportName);
+    await writeFile(compiledPath, sfcString);
+    默认组件式节点注册表[componentKey] = sfcUrl;
+    console.log(`✅ 组件加载成功: ${componentKey} -> ${sfcUrl}`);
+    return { name: exportName, path: sfcUrl };
+};
+
+/**
+ * 加载单个模块的所有导出组件
+ * @param {Object} moduleObj - 模块对象
+ * @param {string} modulePath - 模块路径
+ * @param {Object} config - 配置选项
+ */
+const 解析模块中所有导出函数 = async (moduleObj, modulePath, config = {}) => {
+    const finalConfig = { ...默认函数式节点加载配置, ...config };
+    const results = { success: [], failed: [] };
+    
+    for (const exportName of Object.keys(moduleObj)) {
+        try {
+            const result = await processComponent(exportName, modulePath, finalConfig);
+            results.success.push(result);
+        } catch (err) {
+            results.failed.push({
+                name: exportName,
+                error: err.message
+            });
+            console.error(`❌ 加载组件 ${exportName} 失败:`, err);
         }
-    } catch (err) {
-        console.error('加载向量组件时发生错误:', err);
-        throw err;
     }
+    return results;
 };
 
-await loadvector()
+/**
+ * 批量加载多个模块的组件
+ * @param {Array<{module: Object, path: string, config?: Object}>} moduleConfigs - 模块配置数组
+ */
+const 从js模块加载函数式节点 = async (moduleConfigs) => {
+    const results = {
+        success: [],
+        failed: []
+    };
+
+    for (const { module, path, config } of moduleConfigs) {
+        try {
+            const moduleResults = await 解析模块中所有导出函数(module, path, config);
+            results.success.push(...moduleResults.success);
+            results.failed.push(...moduleResults.failed);
+        } catch (err) {
+            console.error(`❌ 加载模块 ${path} 失败:`, err);
+            results.failed.push({
+                module: path,
+                error: err.message
+            });
+        }
+    }
+
+    // 输出加载统计
+    console.log(`📊 组件加载统计:
+    成功: ${results.success.length}
+    失败: ${results.failed.length}`);
+    
+    return results;
+};
+
+// 使用示例
+await 从js模块加载函数式节点([
+    {
+        module: 向量,
+        path: '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js',
+        config: {
+            componentPrefix: 'geometry',
+            moduleName:'向量'
+        }
+    }
+    // 可以添加更多模块配置
+]);
 
 // 导出getter函数
-export const getComponentMap = () => globalThis[COMPONENT_MAP_SYMBOL];
+export const getComponentMap = () => globalThis[全局节点注册表标记];
 
 // 为了保持向后兼容，也可以直接导出componentMap对象
 export const componentMap = getComponentMap();
@@ -70,70 +138,6 @@ export const parseComponentDefinition = async (cardType, cardInfo) => {
     }
 };
 
-// 添加验证函数
-const validateJsonStructure = (data) => {
-    const errors = [];
-    // 检查必要属性是否存在
-    const requiredProps = ['cards', 'relations', 'connections'];
-    requiredProps.forEach(prop => {
-        if (!data.hasOwnProperty(prop)) {
-            errors.push(`缺少必要属性: ${prop}`);
-        } else if (!Array.isArray(data[prop])) {
-            errors.push(`属性 ${prop} 必须是数组类型`);
-        }
-    });
-    // 如果有错误，抛出异常
-    if (errors.length > 0) {
-        throw new Error(`JSON 结构验证失败:\n${errors.join('\n')}`);
-    }
-    // 返回验证后的数据，确保所有必要属性都存在
-    return {
-        cards: data.cards || [],
-        relations: data.relations || [],
-        connections: data.connections || [],
-        ...data // 保留其他可能存在的属性
-    };
-};
 
-export const loadJson = async (jsonDefine) => {
 
-    let data;
-
-    // 如果 jsonDefine 本身是一个对象，直接验证
-    if (typeof jsonDefine === 'object' && jsonDefine !== null) {
-        data = jsonDefine;
-    }
-    // 判断 jsonDefine 是否为 URL 或绝对路径
-    else if (jsonDefine.startsWith('http://') || jsonDefine.startsWith('https://') || jsonDefine.startsWith('/')) {
-        const response = await fetch(jsonDefine);
-        data = await response.json();
-    }
-    // 判断 jsonDefine 是否为本地文件路径
-    else if (jsonDefine.endsWith('.json') || jsonDefine.endsWith('.js')) {
-        const fileContent = await import(jsonDefine);
-        data = fileContent.default || fileContent;
-    }
-    // 处理 jsonDefine 为 JSON 字符串的情况
-    else {
-        try {
-            data = JSON.parse(jsonDefine);
-        } catch (error) {
-            throw new Error('无效的 JSON 字符串');
-        }
-    }
-
-    // 验证数据结构
-    try {
-        data = validateJsonStructure(data);
-    } catch (error) {
-        console.error('数据结构验证失败:', error);
-        // 返回一个包含基本结构的空对象
-        return {
-            cards: [],
-            relations: [],
-            connections: []
-        };
-    }
-
-    return data;
-};
+export {loadJson} from './loader/mapLoaders/jsonLoader.js'
