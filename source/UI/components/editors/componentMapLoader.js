@@ -1,4 +1,4 @@
-import { 全局节点注册表标记,默认组件式节点注册表,默认函数式节点加载配置 } from "./loader/defaultMap.js";
+import { 全局节点注册表标记,默认组件式节点注册表,默认函数式节点加载配置, 默认函数式节点加载表 } from "./loader/defaultMap.js";
 import { parseNodeDefine } from "./containers/nodeDefineParser.js";
 import { parseJSDocConfigFromURL } from "../../../utils/codeLoaders/js/jsDoc.js";
 import * as 向量 from '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js'
@@ -110,17 +110,7 @@ const 从js模块加载函数式节点 = async (moduleConfigs) => {
 };
 
 // 使用示例
-await 从js模块加载函数式节点([
-    {
-        module: 向量,
-        path: '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js',
-        config: {
-            componentPrefix: 'geometry',
-            moduleName:'向量'
-        }
-    }
-    // 可以添加更多模块配置
-]);
+await 从js模块加载函数式节点(默认函数式节点加载表);
 
 // 导出getter函数
 export const getComponentMap = () => globalThis[全局节点注册表标记];

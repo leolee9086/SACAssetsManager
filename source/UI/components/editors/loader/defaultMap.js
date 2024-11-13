@@ -1,3 +1,4 @@
+import * as 向量 from '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js'
 // 定义全局Symbol
 export const 全局节点注册表标记 = Symbol.for('SACComponentMap');
 
@@ -23,3 +24,14 @@ export const 默认函数式节点加载配置 = {
     componentPrefix: 'default',
     moduleName: ''
 };
+export const 默认函数式节点加载表 =[
+        {
+            module: 向量,
+            path: '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js',
+            config: {
+                componentPrefix: 'geometry',
+                moduleName:'向量'
+            }
+        }
+        // 可以添加更多模块配置
+    ]
