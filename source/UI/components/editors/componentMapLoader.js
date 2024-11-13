@@ -1,7 +1,6 @@
 import { 全局节点注册表标记,默认组件式节点注册表,默认函数式节点加载配置, 默认函数式节点加载表 } from "./loader/defaultMap.js";
 import { parseNodeDefine } from "./containers/nodeDefineParser.js";
 import { parseJSDocConfigFromURL } from "../../../utils/codeLoaders/js/jsDoc.js";
-import * as 向量 from '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js'
 import { jsDoc2NodeDefine, wrapSFCStringFromNodeDefine } from "./nodes/wraper/jsWraper.js";
 import { writeFile } from "../../../polyfills/fs.js";
 
@@ -57,12 +56,28 @@ const processComponent = async (exportName, modulePath, config) => {
  * @param {Object} moduleObj - 模块对象
  * @param {string} modulePath - 模块路径
  * @param {Object} config - 配置选项
+ * @param {Array<string>} [config.include] - 仅加载指定的导出函数名列表
+ * @param {Array<string>} [config.exclude] - 排除指定的导出函数名列表
+ * @returns {Promise<{success: Array, failed: Array}>}
  */
 const 解析模块中所有导出函数 = async (moduleObj, modulePath, config = {}) => {
     const finalConfig = { ...默认函数式节点加载配置, ...config };
     const results = { success: [], failed: [] };
     
-    for (const exportName of Object.keys(moduleObj)) {
+    // 获取需要处理的导出函数名列表
+    let exportNames = Object.keys(moduleObj);
+    
+    // 如果指定了 include，则只处理 include 中的函数
+    if (finalConfig.include?.length) {
+        exportNames = exportNames.filter(name => finalConfig.include.includes(name));
+    }
+    
+    // 如果指定了 exclude，则排除这些函数
+    if (finalConfig.exclude?.length) {
+        exportNames = exportNames.filter(name => !finalConfig.exclude.includes(name));
+    }
+    
+    for (const exportName of exportNames) {
         try {
             const result = await processComponent(exportName, modulePath, finalConfig);
             results.success.push(result);

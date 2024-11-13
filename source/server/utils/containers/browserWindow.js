@@ -1,6 +1,6 @@
 import { enableRemote } from './webview.js'
 import { 获取同源窗口 } from '../../../utils/webcontents/query.js';
-import { plugin } from '../../../asyncModules.js';
+import { plugin,clientApi } from '../../../asyncModules.js';
 
 export function createBrowserWindowByURL(url, options = {
     closePrevious: true,

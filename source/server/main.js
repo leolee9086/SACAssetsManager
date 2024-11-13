@@ -52,7 +52,6 @@ plugin.rebuildServerContainer=()=>{
             console.error('关闭已经打开过的窗口失败', e)
         }
     }
-
 }
 const ipc = require('electron').ipcRenderer;
 ipc.on('heartbeat', (e, data) => {

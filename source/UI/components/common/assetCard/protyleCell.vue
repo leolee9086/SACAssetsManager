@@ -1,7 +1,6 @@
 <template>
     <input type="text"  v-if="!cardData" v-model="$blockID" :placeholder="'请输入块ID'" @input="handleInput"
         class="b3-text-field fn__flex-1" />
-
     <div ref="protyleContainer"
         :style="{ backgroundColor: 'var(--b3-theme-background)', backgroundImage: 'url(/stage/loading-pure.svg)', backgroundSize: 'contain', minHeight: size + 'px', minWidth: size + 'px' }">
         <div></div>
@@ -90,7 +89,6 @@ export let nodeDefine = {
 };
 const protyleContainer = ref(null);
 let protyle;
-
 let buildProtyle = (blockID) => {
     requestIdleCallback(() => {
         blockID && protyleContainer.value && (protyle = 根据块ID创建protyle(protyleContainer.value.firstElementChild, blockID));
@@ -105,13 +103,10 @@ export const getDefaultInput = () => {
 import { onMounted, toRef } from 'vue';
 import { onUnmounted } from '../../../../../static/vue.esm-browser.js';
 import { 获取素材属性值 } from '../../../../data/attributies/parseAttributies.js';
-
 const props = defineProps(['cardData', 'displayMode', 'attributeName', 'showImage', 'showIframe', 'size']);
 const attributeName = toRef(props, 'attributeName');
 const { cardData } = props;
 let isUnmounted = false; // 新增标志
-
-
 onMounted(async () => {
     if (cardData?.data.type === 'note') {
         if (isUnmounted) return; // 检查组件是否已销毁

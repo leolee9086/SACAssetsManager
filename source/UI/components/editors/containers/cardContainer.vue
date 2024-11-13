@@ -35,7 +35,7 @@
         <template v-for="action in cardActions" :key="action.name">
 
           <svg @click="action.action" :title="action.name" class="b3-menu__icon " style="cursor: copy;">
-            <use xlink:href="#iconCopy"></use>
+            <use :xlink:href="action.icon"></use>
           </svg>
         </template>
 
@@ -391,7 +391,7 @@ let error = ref('')
 // 生命周期钩子
 let fixedWidth = 0
 let fixedHeight = 0
-const emit = defineEmits(['onCardMove', 'startConnection', 'duplicateCard', 'startDuplicating']);
+const emit = defineEmits(['onCardMove', 'startConnection', 'duplicateCard', 'startDuplicating','deleteCard']);
 // 定义 emit
 // 添加一个方法来获取当前卡片的 HTML 内容
 const getCardPreviewContent = () => {
@@ -409,7 +409,15 @@ const cardActions = [
   {
     name: '复制',
     action: (e) => duplicateCard(e),
-    icon: '📋' // 可选：添加图标
+    icon: '#iconCopy'
+  },
+  {
+    name: '删除',
+    action: (e) => {
+      e.stopPropagation();
+      emit('deleteCard', props.card.id);
+    },
+    icon: '#iconTrashcan'
   }
 ];
 // 监听卡片位置和尺寸变化

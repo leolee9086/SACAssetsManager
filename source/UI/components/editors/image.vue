@@ -1,12 +1,14 @@
 <template>
   <div @wheel="handleWheel">
+
     <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
       :coordinateManager="coordinateManager">
-      <div class="zoom-controls">
-        <button class="zoom-btn" @click="() => adjustZoom(-0.1)">-</button>
+      <NodeGallery class="editor-gallery" @startDuplicating="handleStartDuplicating" />
+      <div class="toolbar-group">
+        <button class="toolbar-button" @click="() => adjustZoom(-0.1)">-</button>
         <span class="zoom-value">{{ Math.round(zoom * 100) }}%</span>
-        <button class="zoom-btn" @click="() => adjustZoom(0.1)">+</button>
-        <button class="zoom-btn" @click="resetZoom">重置</button>
+        <button class="toolbar-button" @click="() => adjustZoom(0.1)">+</button>
+        <button class="toolbar-button" @click="resetZoom">重置</button>
       </div>
     </StyleSelector>
     <InfoPanel v-if="coordinateManager" :stats="systemStats"  />
@@ -30,7 +32,7 @@
               :data-card-id="运行时卡片对象.id"  :component="运行时卡片对象.controller.component"
               :component-props="运行时卡片对象.controller.componentProps" :nodeDefine="运行时卡片对象.controller.nodeDefine"
               :component-events="运行时卡片对象.events" :anchors="运行时卡片对象.controller.anchors" :connections="config.connections"
-              :card="运行时卡片对象" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" />
+              :card="运行时卡片对象" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" @deleteCard="handleDeleteCard" />
           </template>
           <!-- 复制中的卡片预览 -->
           <cardContainer v-if="isDuplicating && duplicatingPreview" v-bind="duplicatingPreview" :style="{
@@ -53,6 +55,8 @@ import CardContainer from './containers/cardContainer.vue';
 import ConnectionCanvas from './ConnectionCanvas.vue';
 // 使用同步函数加载异步组件
 import InfoPanel from './InfoPanel.vue';
+import NodeGallery from './containers/gallery/NodeGallery.vue';
+
 //用于流程构建和控制
 import { CardManager } from './cardManager.js';
 import { CoordinateManager, useZoom } from './CoordinateManager.js';
@@ -63,7 +67,6 @@ import StyleSelector from './toolBar/StyleSelector.vue';
 
 import { validateConnection } from '../../../utils/graph/PetriNet.js';
 import { findExistingConnection, findDuplicateConnection } from './GraphManager.js';
-
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const 运行时卡片对象序列 = ref([]);
@@ -73,7 +76,7 @@ const coordinateManager = ref(null);
 const container = ref(null);
 const appData = toRef(inject('appData'))
 // 修改连线相关的状态管理
-const anchors = ref(new Map()); // 存储所有锚点信息
+const anchors = ref(new Map()); // 存储所锚点信息
 const 锚点连接表 = ref([]); // 存储连线信息
 // 配置相关
 const config = ref({
@@ -458,7 +461,7 @@ const handleDuplicatePlace = async (e) => {
       width: duplicatingPreview.value.position.width,
       height: duplicatingPreview.value.position.height
     };
-
+    console.log(actualCard.value)
     // 添加新卡片
     const 新运行时卡片对象 = await 从卡片配置添加控制器(actualCard.value);
     强制更新控制器序列(运行时卡片对象序列)
@@ -511,6 +514,39 @@ const handleNewrelation = (newrelation) => {
   // 强制更新 relations 数组的引用，触发视图更新
   config.value.relations = [...config.value.relations];
 };
+
+// 添加删除卡片的处理函数
+const handleDeleteCard = async (cardId) => {
+  try {
+    // 1. 删除相关的连接
+    config.value.connections = config.value.connections.filter(conn => 
+      conn.from.cardId !== cardId && conn.to.cardId !== cardId
+    );
+
+    // 2. 删除相关的关系
+    config.value.relations = config.value.relations.filter(relation => 
+      relation.from.cardId !== cardId && relation.to.cardId !== cardId
+    );
+
+    // 3. 从卡片序列中移除
+    const cardIndex = 运行时卡片对象序列.value.findIndex(card => card.id === cardId);
+    if (cardIndex !== -1) {
+      运行时卡片对象序列.value.splice(cardIndex, 1);
+    }
+
+    // 4. 强制更新视图
+    强制更新控制器序列(运行时卡片对象序列);
+
+    // 5. 等待下一个渲染周期
+    await nextTick();
+
+    // 6. 重新构建和启动 Petri 网络
+    reStartPetriNet();
+
+  } catch (error) {
+    console.error('删除卡片失败:', error);
+  }
+};
 </script>
 <style scoped>
 .image-editor {
@@ -536,30 +572,37 @@ const handleNewrelation = (newrelation) => {
 }
 
 
-.zoom-controls {
+.toolbar-group {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--b3-theme-surface);
-  padding: 6px 12px;
-  border-radius: var(--b3-border-radius);
-  border: 1px solid var(--b3-border-color);
 }
 
-.zoom-btn {
+/* 统一的按钮样式 */
+.toolbar-button {
   padding: 4px 8px;
+  height: 28px;
   border: 1px solid var(--b3-border-color);
   border-radius: var(--b3-border-radius);
   background: var(--b3-theme-background);
   color: var(--b3-theme-on-surface);
+  font-size: 14px;
   cursor: pointer;
   outline: none;
   min-width: 28px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.zoom-btn:hover {
+.toolbar-button:hover {
   background: var(--b3-list-hover);
   border-color: var(--b3-theme-primary);
+}
+
+.toolbar-button:active {
+  background: var(--b3-theme-primary-light);
 }
 
 .zoom-value {
@@ -567,7 +610,9 @@ const handleNewrelation = (newrelation) => {
   text-align: center;
   font-size: 14px;
   color: var(--b3-theme-on-surface);
+  user-select: none;
 }
+
 /* 添加预览内容的样式 */
 :deep(.preview-content) {
   pointer-events: none;

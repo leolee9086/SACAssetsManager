@@ -1,4 +1,6 @@
 import * as 向量 from '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js'
+import * as LUT处理器 from '/plugins/SACAssetsManager/source/utils/Lut/lutProcessor.js'
+
 // 定义全局Symbol
 export const 全局节点注册表标记 = Symbol.for('SACComponentMap');
 
@@ -24,14 +26,29 @@ export const 默认函数式节点加载配置 = {
     componentPrefix: 'default',
     moduleName: ''
 };
-export const 默认函数式节点加载表 =[
-        {
-            module: 向量,
-            path: '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js',
-            config: {
-                componentPrefix: 'geometry',
-                moduleName:'向量'
-            }
+export const 默认函数式节点加载表 = [
+    {
+        module: 向量,
+        path: '/plugins/SACAssetsManager/source/UI/components/editors/geometry/geometryCalculate/vector.js',
+        config: {
+            componentPrefix: 'geometry',
+            moduleName: '向量'
         }
-        // 可以添加更多模块配置
-    ]
+    },
+    {
+        module: LUT处理器,
+        path: '/plugins/SACAssetsManager/source/utils/Lut/lutProcessor.js',
+        config: {
+            componentPrefix: 'image',
+            moduleName: 'LUT',
+            // 只导出主要的处理函数，忽略内部辅助函数
+            include: [
+                'processImageWithLUT',
+                'processImageWithLUTFile',
+                'processFiles',
+                'cleanupFiles',
+                'cleanupPreview'
+            ]
+        }
+    }
+]
