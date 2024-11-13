@@ -1,8 +1,13 @@
 import { 校验并补齐卡片设置, 解析卡片类型 } from './manager/validate.js';
 import { 创建运行时卡片对象, 获取卡片组件定义 } from './manager/cardFactory.js';
+
+/**
+ * 这个管理器与mapMananger有重复,需要合并
+ */
+
 export class CardManager {
   constructor() {
-    this.cards = [];
+    this.usedcardIDs = [];
     this.卡片类型定义表 = {};
     this.config = {
       cards: [],
@@ -33,15 +38,15 @@ export class CardManager {
    * @private
    */
   校验卡片是否已经存在(newCard, cardConfig, options) {
-    const existingIndex = this.cards.findIndex(card => card.id === cardConfig.id);
+    const existingIndex = this.usedcardIDs.findIndex(card => card.id === cardConfig.id);
     if (existingIndex !== -1) {
       if (options.skipExisting) {
-        return this.cards[existingIndex];
+        return this.usedcardIDs[existingIndex];
       }
       return this.更新已经存在的卡片(existingIndex, newCard, cardConfig);
     }
     // 添加新卡片
-    this.cards.push(newCard);
+    this.usedcardIDs.push(newCard);
     this.config.cards.push(cardConfig);
     return newCard;
   }
@@ -50,7 +55,7 @@ export class CardManager {
    * @private
    */
   更新已经存在的卡片(existingIndex, newCard, cardConfig) {
-    const existingCard = this.cards[existingIndex];
+    const existingCard = this.usedcardIDs[existingIndex];
     // 更新属性
     existingCard.title = newCard.title;
     existingCard.position = newCard.position;

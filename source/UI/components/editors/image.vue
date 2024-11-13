@@ -11,12 +11,12 @@
         <button class="toolbar-button" @click="resetZoom">重置</button>
       </div>
     </StyleSelector>
-    <InfoPanel v-if="coordinateManager" :stats="systemStats"  />
+    <InfoPanel v-if="coordinateManager" :stats="systemStats" />
     <div class="image-editor" ref="connectionCanvasRef" :style="{ zoom }">
       <!-- 使用 StyleSelector 组件 -->
-      <ConnectionCanvas :style="{ zoom: 1 / zoom }" :zoom="zoom" v-if="config.connections" :cardsContainer="cardsContainer"
-        :cards="运行时卡片对象序列" :connections="config.connections" :relations="config.relations"
-        :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
+      <ConnectionCanvas :style="{ zoom: 1 / zoom }" :zoom="zoom" v-if="config.connections"
+        :cardsContainer="cardsContainer" :cards="运行时卡片对象序列" :connections="config.connections"
+        :relations="config.relations" :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
         @connectionCreated="handleNewConnection" @relationCreated="handleNewrelation" />
       <!-- 动态渲染卡片 -->
       <div style="position: relative;
@@ -24,15 +24,14 @@
         max-height: 100%;
         overflow: auto;
         scrollbar-width:none;
-        "
-        >
+        ">
         <div ref="cardsContainer">
           <template v-for="(运行时卡片对象, index) in 运行时卡片对象序列" :key="运行时卡片对象.id+index">
-            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(运行时卡片对象.id)" 
-              :data-card-id="运行时卡片对象.id"  :component="运行时卡片对象.controller.component"
-              :component-props="运行时卡片对象.controller.componentProps" :nodeDefine="运行时卡片对象.controller.nodeDefine"
-              :component-events="运行时卡片对象.events" :anchors="运行时卡片对象.controller.anchors" :connections="config.connections"
-              :card="运行时卡片对象" @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" @deleteCard="handleDeleteCard" />
+            <cardContainer :zoom="zoom" :force-position="forcedPositions.get(运行时卡片对象.id)" :data-card-id="运行时卡片对象.id"
+              :component="运行时卡片对象.controller.component" :component-props="运行时卡片对象.controller.componentProps"
+              :nodeDefine="运行时卡片对象.controller.nodeDefine" :component-events="运行时卡片对象.events"
+              :anchors="运行时卡片对象.controller.anchors" :connections="config.connections" :card="运行时卡片对象"
+              @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" @deleteCard="handleDeleteCard" />
           </template>
           <!-- 复制中的卡片预览 -->
           <cardContainer v-if="isDuplicating && duplicatingPreview" v-bind="duplicatingPreview" :style="{
@@ -67,6 +66,7 @@ import StyleSelector from './toolBar/StyleSelector.vue';
 
 import { validateConnection } from '../../../utils/graph/PetriNet.js';
 import { findExistingConnection, findDuplicateConnection } from './GraphManager.js';
+import { shallowRef } from '../../../../static/vue.esm-browser.js';
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const 运行时卡片对象序列 = ref([]);
@@ -83,13 +83,15 @@ const config = ref({
 });
 // 修改 从卡片配置添加控制器 函数
 const 从卡片配置添加控制器 = async (卡片数据, options = {}) => {
+  
   const 运行时卡片对象 = await cardManager.从卡片配置添加控制器(卡片数据, options);
-  运行时卡片对象序列.value = cardManager.cards;
+  运行时卡片对象序列.value.push(运行时卡片对象);
   return 运行时卡片对象;
 };
 //vue里才能使用
-const 强制更新控制器序列 =(运行时控制器序列)=>{
+const 强制更新控制器序列 = (运行时控制器序列) => {
   运行时控制器序列.value = [...运行时控制器序列.value]
+  console.log(运行时控制器序列.value)
 }
 let componentDefinitions = {}
 const graphManager = new GraphManager();
@@ -98,7 +100,7 @@ const getGlobalInputs = () => {
   return appData.value.meta
 };
 function reStartPetriNet() {
- graphManager.reStartPetriNet(config.value, 运行时卡片对象序列.value, getGlobalInputs)
+  graphManager.reStartPetriNet(config.value, 运行时卡片对象序列.value, getGlobalInputs)
 }
 const {
   zoom,
@@ -294,8 +296,8 @@ import { 以位移向量变换矩形对象 } from './geometry/geometryCalculate/
 
 const moveRelatedCard = (relatedCard, sourceCardId, deltaX, deltaY) => {
   if (!relatedCard || relatedCard.id === sourceCardId) return;
-  if(!relatedCard.moveTo) return
-  relatedCard.moveTo(以位移向量变换矩形对象(relatedCard.position, {x:deltaX, y:deltaY}));
+  if (!relatedCard.moveTo) return
+  relatedCard.moveTo(以位移向量变换矩形对象(relatedCard.position, { x: deltaX, y: deltaY }));
 };
 // 处理关联卡片的移动（主函数）
 const updateRelatedCards = (cardId, deltaX, deltaY) => {
@@ -309,6 +311,8 @@ const updateRelatedCards = (cardId, deltaX, deltaY) => {
 const onCardMove = (cardId, newPosition) => {
   const card = 运行时卡片对象序列.value.find(c => c.id === cardId);
   if (!card) return;
+  if (card.removed) return;
+
   updateCardPosition(card, newPosition);
   if (isNoteCard(card) && newPosition.isDragging) {
     const { deltaX, deltaY } = newPosition;
@@ -378,7 +382,7 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
   const mouseY = (mouseEvent.clientY - rect.top + scroll.scrollTop) / zoom.value;
   // 设置预览卡片的初始位置为鼠标位置
   duplicatingPreview.value = {
-    
+
     ...previewCard,
     position: {
       ...previewCard.position,
@@ -394,9 +398,9 @@ const handleStartDuplicating = ({ previewCard, actualCard: newCard, mouseEvent, 
       zoom: zoom.value // 传递缩放值给预览组件
     }
   };
-  duplicatingPreview.value.card=    duplicatingPreview.value
+  duplicatingPreview.value.card = duplicatingPreview.value
 
-  
+
   // 计算鼠标相对于预览卡片的偏移，考虑缩放
   duplicateOffset.value = {
     x: (mouseEvent.clientX - rect.left) / zoom.value,
@@ -431,7 +435,7 @@ const handleDuplicateMove = (e) => {
       zoom: zoom.value // 确保缩放值更新
     }
   };
-  duplicatingPreview.value.card=    duplicatingPreview.value
+  duplicatingPreview.value.card = duplicatingPreview.value
 
 };
 
@@ -467,7 +471,6 @@ const handleDuplicatePlace = async (e) => {
     强制更新控制器序列(运行时卡片对象序列)
 
     // 等待下一个渲染周期
-    await nextTick();
 
     // 手动触发 onCardMove 事件来更新卡片位置，传递未缩放的坐标
     onCardMove(新运行时卡片对象.id, {
@@ -477,6 +480,7 @@ const handleDuplicatePlace = async (e) => {
       height: 新运行时卡片对象.position.height,
       zoom: zoom.value // 传递缩放值给移动事件
     });
+    await nextTick();
 
     // 更新网络结构
     reStartPetriNet()
@@ -519,24 +523,27 @@ const handleNewrelation = (newrelation) => {
 const handleDeleteCard = async (cardId) => {
   try {
     // 1. 删除相关的连接
-    config.value.connections = config.value.connections.filter(conn => 
+    config.value.connections = config.value.connections.filter(conn =>
       conn.from.cardId !== cardId && conn.to.cardId !== cardId
     );
 
     // 2. 删除相关的关系
-    config.value.relations = config.value.relations.filter(relation => 
+    config.value.relations = config.value.relations.filter(relation =>
       relation.from.cardId !== cardId && relation.to.cardId !== cardId
     );
-
+    // 3. 从卡片序列中移除
+    const cardDataIndex = config.value.cards.findIndex(card => card.id === cardId);
+    if (cardDataIndex !== -1) {
+      config.value.cards.splice(cardDataIndex, 1);
+    }
     // 3. 从卡片序列中移除
     const cardIndex = 运行时卡片对象序列.value.findIndex(card => card.id === cardId);
     if (cardIndex !== -1) {
+      运行时卡片对象序列.value[cardIndex].removed=true
       运行时卡片对象序列.value.splice(cardIndex, 1);
     }
-
-    // 4. 强制更新视图
-    强制更新控制器序列(运行时卡片对象序列);
-
+    // 4. 强制更新视图列
+   强制更新控制器序列(运行时卡片对象序列);
     // 5. 等待下一个渲染周期
     await nextTick();
 
