@@ -45,6 +45,7 @@
               class="node-item"
               draggable="true"
               @dragstart="handleDragStart($event, node)"
+              @click="showNodeDetails(node)"
             >
               <div class="node-preview">
                 <span class="node-type-icon" :class="node.type">
@@ -54,6 +55,48 @@
               <div class="node-info">
                 <div class="node-title">{{ node.title }}</div>
                 <div class="node-description">{{ node.description }}</div>
+                <div class="node-metadata" v-if="node.metadata">
+                  <div class="source-info">
+                    <span class="source-path" v-if="node.metadata?.sourcePath">
+                      📁 {{ formatPath(node.metadata.sourcePath) }}
+                    </span>
+                    <span v-if="node.metadata?.author" class="author">
+                      👤 {{ node.metadata.author }}
+                    </span>
+                    <span v-if="node.metadata?.version" class="version">
+                      📌 v{{ node.metadata.version }}
+                    </span>
+                  </div>
+                  <div class="node-details" v-if="selectedNode === node">
+                    <div v-if="node.metadata.jsDoc">
+                      <div class="input-ports" v-if="Object.keys(node.metadata.jsDoc.inputTypes).length">
+                        <div class="section-title">输入端口:</div>
+                        <div v-for="(type, name) in node.metadata.jsDoc.inputTypes" :key="name" class="port-item">
+                          <span class="port-name">{{ name }}</span>
+                          <span class="port-type">{{ type }}</span>
+                          <span v-if="node.metadata.jsDoc.defaultValues[name]" class="port-default">
+                            默认值: {{ node.metadata.jsDoc.defaultValues[name] }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="output-ports" v-if="Object.keys(node.metadata.jsDoc.outputTypes).length">
+                        <div class="section-title">输出端口:</div>
+                        <div v-for="(type, name) in node.metadata.jsDoc.outputTypes" :key="name" class="port-item">
+                          <span class="port-name">{{ name }}</span>
+                          <span class="port-type">{{ type }}</span>
+                        </div>
+                      </div>
+                      <div class="examples" v-if="node.metadata.jsDoc.examples?.length">
+                        <div class="section-title">示例:</div>
+                        <div v-for="(example, index) in node.metadata.jsDoc.examples" 
+                             :key="index" 
+                             class="example-item">
+                          {{ example }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -67,7 +110,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { 默认函数式节点加载表 } from '../../loader/defaultMap.js';
 import { 默认组件式节点注册表 } from '../../loader/defaultMap.js';
-
+import { parseJSDocConfigFromURL } from '../../../../../utils/codeLoaders/js/jsDoc.js';
 const searchQuery = ref('');
 const expandedCategories = ref({});
 const nodeCategories = ref([]);
@@ -164,6 +207,20 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
 
+const selectedNode = ref(null);
+
+// 格式化文件路径，只显示最后两级目录
+const formatPath = (path) => {
+  if (!path) return '未知路径';
+  const parts = path.split('/');
+  return parts.slice(-2).join('/');
+};
+
+// 显示/隐藏节点详情
+const showNodeDetails = (node) => {
+  selectedNode.value = selectedNode.value === node ? null : node;
+};
+
 // 初始化节点分类
 onMounted(async () => {
   const categories = {};
@@ -175,20 +232,36 @@ onMounted(async () => {
       categories[categoryName] = {
         name: categoryName,
         type: 'function',
-        nodes: []
+        nodes: [],
+        metadata: {
+          sourcePath: moduleConfig.config?.sourcePath || moduleConfig.path || '未知路径',
+          description: moduleConfig.config?.description || ''
+        }
       };
     }
-    const exportNames = moduleConfig.config.include || Object.keys(moduleConfig.module);
-    for (const funcName of exportNames) {
+
+    // 为每个函数解析JSDoc
+    for (const funcName of moduleConfig.config?.include || Object.keys(moduleConfig.module)) {
       const func = moduleConfig.module[funcName];
       if (typeof func === 'function') {
+        // 解析函数的JSDoc
+        const jsDocConfig = await parseJSDocConfigFromURL(moduleConfig.path, funcName);
+        
         categories[categoryName].nodes.push({
           id: `${categoryName}/${funcName}`,
           title: funcName,
-          description: func.description || '暂无描述',
-          component: null,
-          previewProps: {},
+          description: jsDocConfig?.description || '暂无描述',
           type: 'function',
+          metadata: {
+            sourcePath: moduleConfig.config?.sourcePath || moduleConfig.path || '未知路径',
+            sourceFunction: funcName,
+            jsDoc: jsDocConfig || {},
+            author: jsDocConfig?.tags?.author?.[0],
+            version: jsDocConfig?.tags?.version?.[0],
+            lastModified: jsDocConfig?.tags?.lastModified?.[0],
+            dependencies: jsDocConfig?.tags?.dependencies || [],
+            examples: jsDocConfig?.tags?.example || []
+          },
           createNode: () => ({
             type: `${categoryName}/${funcName}`,
             function: func,
@@ -209,7 +282,10 @@ onMounted(async () => {
       categories[categoryName] = {
         name: categoryName,
         type: 'component',
-        nodes: []
+        nodes: [],
+        metadata: {
+          sourcePath: componentPath || '未知路径'
+        }
       };
     }
 
@@ -217,9 +293,14 @@ onMounted(async () => {
       id: componentKey,
       title: pathParts.join('/'),
       description: '组件式节点',
-      component: null,
-      previewProps: {},
       type: 'component',
+      metadata: {
+        sourcePath: componentPath || '未知路径',
+        componentName: pathParts[pathParts.length - 1],
+        props: {},
+        events: [],
+        slots: []
+      },
       createNode: () => ({
         type: componentKey,
         name: pathParts[pathParts.length - 1],
@@ -472,5 +553,71 @@ const handleDragStart = (event, node) => {
   border-radius: var(--b3-border-radius);
   pointer-events: none;
   z-index: 9999;
+}
+
+.node-metadata {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-variant);
+}
+
+.source-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.source-path, .author, .version {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-details {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--b3-theme-background);
+  border-radius: var(--b3-border-radius);
+  border: 1px solid var(--b3-border-color);
+}
+
+.section-title {
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--b3-theme-on-surface);
+}
+
+.port-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 4px;
+  background: var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+}
+
+.port-name {
+  font-weight: 500;
+}
+
+.port-type {
+  color: var(--b3-theme-primary);
+  font-family: monospace;
+}
+
+.port-default {
+  color: var(--b3-theme-on-surface-variant);
+  font-style: italic;
+}
+
+.example-item {
+  margin: 4px 0;
+  padding: 8px;
+  background: var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  font-family: monospace;
+  white-space: pre-wrap;
 }
 </style>

@@ -1,7 +1,6 @@
 
 import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { Query } from '../../../static/mingo.js';
-import { diffFileColor } from '../processors/thumbnail/loader.js'
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';

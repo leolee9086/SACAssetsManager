@@ -21,6 +21,25 @@ siyuanBroadcastChannel.onmessage = (e) => {
  * 启用跨域支持
  */
 app.use(cors());
+app.get('/resolve/:pkg/@:version/*?', async (req, res) => {
+    try {
+        const { pkg, version } = req.params;
+        const subpath = req.params[0];
+        
+        const result = await resolver.resolveModule(pkg, version, {
+            subpath,
+            dev: req.query.dev === 'true'
+        });
+        
+        res.type('js').send(result.code);
+    } catch (err) {
+        res.status(500).json({
+            error: err.message,
+            code: err.code
+        });
+    }
+});
+
 /**
  * 流式遍历文件夹
  */
