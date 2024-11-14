@@ -1,3 +1,4 @@
+import './tsWrapper.js'
 /**
  * 将JSDoc解析结果转换为节点定义
  * @param {Object} jsDocResult JSDoc解析结果

@@ -4,6 +4,11 @@ import * as loader from "../../../static/vue3-sfc-loader.esm.js"
 import * as runtime from '../../asyncModules.js';
 import pickr from '../../../static/pickr-esm2022.js'
 import { extractDeclaredVarsInNodeDefine } from '../../utils/codeLoaders/js/lexicalAnalyzer.js';
+
+
+
+
+
 /**
  * 同步函数，返回一个异步组件封装，组件名称是动态的。
  * 
@@ -32,9 +37,54 @@ export function loadVueComponentAsNodeSync(sfcUrl) {
             if (type === '.js') {
                 return asyncModules[path]
             }
+            return asyncModules[path]
 
         },
         async getFile(url) {
+            console.log(url)
+            if (url.includes('esm.sh')) {
+                try {
+                    // 先尝试从缓存获取
+                    const cached = await cacheManager.get(url);
+                    if (cached) {
+                        console.log(`从缓存加载模块: ${url}`);
+                        let module;
+                        if (!asyncModules[url]) {
+                            module = await import(url);
+                            asyncModules[url] = module;
+                        } else {
+                            module = asyncModules[url];
+                        }
+                        
+                        return {
+                            getContentData: asBinary => asBinary ? 
+                                new TextEncoder().encode(cached.content).buffer : 
+                                cached.content,
+                        };
+                    }
+
+                    // 如果没有缓存，则从网络获取
+                    console.log(`从网络加载模块: ${url}`);
+                    const res = await fetch(fixURL(url));
+                    const content = await res.text();
+                    
+                    let module = await import(url);
+                    asyncModules[url] = module;
+                    
+                    // 存储到缓存
+                    await cacheManager.set(url, content, module);
+                    console.log(`模块已缓存: ${url}`);
+
+                    return {
+                        getContentData: asBinary => asBinary ? 
+                            new TextEncoder().encode(content).buffer : 
+                            content,
+                    };
+                } catch (error) {
+                    console.error(`加载模块失败: ${url}`, error);
+                    throw error;
+                }
+            }
             let realURL = url
             const urlObj1 = new URL(url, window.location.origin);
             if (urlObj1.pathname.endsWith('.vue.mjs')) {
@@ -321,3 +371,56 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = `${siyua
     }
     return oldApp
 }
+
+// 创建 IndexDB 缓存管理器
+const cacheManager = {
+    dbName: 'ComponentCache',
+    storeName: 'files',
+    version: 1,
+    
+    async init() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, this.version);
+            
+            request.onerror = () => reject(request.error);
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(this.storeName)) {
+                    db.createObjectStore(this.storeName, { keyPath: 'url' });
+                }
+            };
+            
+            request.onsuccess = () => resolve(request.result);
+        });
+    },
+    
+    async get(url) {
+        const db = await this.init();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(this.storeName, 'readonly');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.get(url);
+            
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+        });
+    },
+    
+    async set(url, content, moduleExports) {
+        const db = await this.init();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(this.storeName, 'readwrite');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.put({
+                url,
+                content,
+                moduleExports: moduleExports ? Object.keys(moduleExports) : [],
+                timestamp: Date.now()
+            });
+            
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+        });
+    }
+};

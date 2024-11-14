@@ -206,7 +206,6 @@ export class GraphManager {
                 content: { value: null }  // 中间节点存储传递的值
             });
         }
-
         // 6. 添加传输转换
         if (!this.petriNet.动作.has(transferTransitionId)) {
             添加动作(this.petriNet, transferTransitionId, async () => {
@@ -215,12 +214,11 @@ export class GraphManager {
                 await toAnchor.setValue(value);
             });
         }
+        添加连接(this.petriNet, fromPlaceId, splitTransitionId);
+        添加连接(this.petriNet, splitTransitionId, splitPlaceId);
+        添加连接(this.petriNet, splitPlaceId, transferTransitionId);
+        添加连接(this.petriNet, transferTransitionId, toPlaceId);
 
-            添加连接(this.petriNet, fromPlaceId, splitTransitionId);
-            添加连接(this.petriNet, splitTransitionId, splitPlaceId);
-            添加连接(this.petriNet, splitPlaceId, transferTransitionId);
-            添加连接(this.petriNet, transferTransitionId, toPlaceId);
-        
     }
     /**
      * 创建事件连接节点
@@ -230,7 +228,7 @@ export class GraphManager {
         const eventPlaceId = 生成事件节点ID(fromCard.id)(fromAnchor.id);
         const toPlaceId = 生成锚点节点ID(toCard.id)(toAnchor.id);
         const eventTransitionId = 生成事件转换ID(fromCard.id)(fromAnchor.id);
-            // 1. 添加事件源节点
+        // 1. 添加事件源节点
         if (!this.petriNet.节点.has(eventPlaceId)) {
             添加节点(this.petriNet, eventPlaceId, {
                 type: 'event',
@@ -275,10 +273,10 @@ export class GraphManager {
             });
         }
         // 4. 建立连接关系
-            添加连接(this.petriNet, eventPlaceId, eventTransitionId);
-        
-            添加连接(this.petriNet, eventTransitionId, toPlaceId);
-        
+        添加连接(this.petriNet, eventPlaceId, eventTransitionId);
+
+        添加连接(this.petriNet, eventTransitionId, toPlaceId);
+
     }
     /**
      * 构建卡片内部连接结构
@@ -326,8 +324,8 @@ export class GraphManager {
             if (!this.petriNet.节点.has(inputPlaceId)) {
                 添加节点(this.petriNet, inputPlaceId, { type: 'process', tokens: 0, content: inputAnchor });
             }
-                添加连接(this.petriNet, inputPlaceId, internalTransitionId);
-            
+            添加连接(this.petriNet, inputPlaceId, internalTransitionId);
+
         });
 
         // 处理输出锚点
@@ -357,8 +355,8 @@ export class GraphManager {
                 await card.controller.exec(undefined, globalInputs);
             });
         }
-            添加连接(this.petriNet, internalPalaceId, internalTransitionId);
-        
+        添加连接(this.petriNet, internalPalaceId, internalTransitionId);
+
         this.handleOutputAnchors(card, outputAnchors, internalTransitionId);
     }
     /**
@@ -371,8 +369,8 @@ export class GraphManager {
             if (!this.petriNet.节点.has(outputPlaceId)) {
                 添加节点(this.petriNet, outputPlaceId, { type: 'process', tokens: 0, content: outputAnchor });
             }
-                添加连接(this.petriNet, internalTransitionId, outputPlaceId);
-            
+            添加连接(this.petriNet, internalTransitionId, outputPlaceId);
+
         });
     }
     /**

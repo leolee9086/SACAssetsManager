@@ -169,34 +169,3 @@ export async function wrapComponentAsNode(componentUrl, headless = false) {
     return wrappedComponent;
 }
 
-// 使用示例
-async function example() {
-    // 假设有一个简单的计数器组件
-    const counterComponent = `
-    <template>
-        <div>{{ count }}</div>
-    </template>
-    
-    <script setup>
-    import { ref } from 'vue';
-    
-    const props = defineProps({
-        initialValue: { type: Number, default: 0 }
-    });
-    
-    const count = ref(props.initialValue);
-    
-    function increment() {
-        count.value++;
-    }
-    
-    // 导出计数值和增加函数
-    const doubled = computed(() => count.value * 2);
-    </script>
-    `;
-    
-    // 无头模式使用
-    const wrapped = await wrapComponentAsNode(counterComponent, true);
-    const result = await wrapped.nodeDefine.process({ initialValue: 5 });
-    console.log(result); // 应该输出 count 和 doubled 的值
-}

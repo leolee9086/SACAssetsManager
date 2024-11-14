@@ -59,10 +59,8 @@ export function 反向柯里化(原始函数) {
     if (typeof 原始函数 !== 'function') {
         throw new TypeError(`反向柯里化函数期望接收一个函数作为参数，但收到了 ${typeof 原始函数}`);
     }
-
     // 获取原始函数名称，用于错误提示
     const 函数名 = 原始函数.name || '匿名函数';
-    
     return function 反向柯里化版本函数(...输入参数) {
         try {
             if (输入参数.length >= 原始函数.length) {
@@ -84,3 +82,4 @@ export function 反向柯里化(原始函数) {
         }
     };
 }
+

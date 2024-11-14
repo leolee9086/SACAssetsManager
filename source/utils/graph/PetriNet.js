@@ -120,11 +120,26 @@ const 已经连接 = 柯里化((流程图, 起始ID, 目标ID) => {
 /**
  * 验证节点ID是否存在
  * @private
+ * @param {PetriNet} 流程图 - 流程图实例
+ * @param {string} 节点ID - 节点ID
+ * @param {string} 类型 - 节点类型描述
+ * @param {boolean} [允许重复=true] - 是否允许重复
+ * @returns {Object} 验证结果 {存在: boolean, 错误: string|null}
  */
-const 验证节点存在 = (流程图, 节点ID, 类型 = '节点') => {
-    if (!流程图.节点.has(节点ID) && !流程图.动作.has(节点ID)) {
-        throw new Error(`${类型} ${节点ID} 不存在`);
+const 验证节点存在 = (流程图, 节点ID, 类型 = '节点', 允许重复 = true) => {
+    const 存在 = 流程图.节点.has(节点ID) || 流程图.动作.has(节点ID);
+    
+    if (!存在) {
+        return {
+            存在: false,
+            错误: `${类型} ${节点ID} 不存在`
+        };
     }
+
+    return {
+        存在: true,
+        错误: 允许重复 ? null : `${类型} ${节点ID} 已存在`
+    };
 };
 
 /**
@@ -442,7 +457,6 @@ export function validateConnection(connections, newConnection, cards) {
             error: '不能连接到自己'
         };
     }
-
     // 2. 检查是否存在重复连接
     const isDuplicate = connections.some(conn => 
         conn.from.cardId === newConnection.from.cardId &&
@@ -456,7 +470,6 @@ export function validateConnection(connections, newConnection, cards) {
             error: '连接已存在'
         };
     }
-
     // 3. 检查类型匹配
     const fromCard = cards.find(card => card.id === newConnection.from.cardId);
     const toCard = cards.find(card => card.id === newConnection.to.cardId);

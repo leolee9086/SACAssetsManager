@@ -3,7 +3,7 @@ import { parseNodeDefine } from "./containers/nodeDefineParser.js";
 import { parseJSDocConfigFromURL } from "../../../utils/codeLoaders/js/jsDoc.js";
 import { jsDoc2NodeDefine, wrapSFCStringFromNodeDefine } from "./nodes/wraper/jsWraper.js";
 import { writeFile } from "../../../polyfills/fs.js";
-
+import { loadMathJSNodes } from './loader/mathjsLoader.js';
 /**
  * 解析组件定义并生成SFC字符串
  * @param {string} modulePath - 模块路径
@@ -124,8 +124,11 @@ const 从js模块加载函数式节点 = async (moduleConfigs) => {
     return results;
 };
 
-// 使用示例
+
+// 在现有的加载流程后添加
 await 从js模块加载函数式节点(默认函数式节点加载表);
+await loadMathJSNodes(); // 加载 mathjs 节点
+
 
 // 导出getter函数
 export const getComponentMap = () => globalThis[全局节点注册表标记];
