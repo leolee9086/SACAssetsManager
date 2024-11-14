@@ -94,7 +94,16 @@ const handleClickOutside = (event) => {
     isOpen.value = false;
   }
 };
-
+const showAtPosition=(position)=>{
+    isOpen.value=true
+    panelPosition.value = {
+    top: `${position.y}px`,
+    left: `${position.x}px`
+  };
+}
+defineExpose({
+    showAtPosition
+})
 // 调整面板位置的函数
 const adjustPanelPosition = async () => {
   if (!isOpen.value || !galleryPanel.value || !galleryButton.value) return;

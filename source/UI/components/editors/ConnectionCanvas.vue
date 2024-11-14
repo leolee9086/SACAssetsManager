@@ -296,7 +296,7 @@ const updateConnectionPreview = (e) => {
   layer.value.batchDraw();
 };
 
-const emit = defineEmits(['connectionCreated']);
+const emit = defineEmits(['connectionCreated','connectionFailed']);
 
 const finalizeConnection = (e) => {
   document.removeEventListener('mousemove', updateConnectionPreview);
@@ -314,6 +314,8 @@ const finalizeConnection = (e) => {
         anchorId: toAnchor.anchor.id
       }
     });
+  }else{
+    emit('connectionFailed',e)
   }
   // 清除临时连接
   layer.value.find('.preview').forEach(conn => conn.destroy());

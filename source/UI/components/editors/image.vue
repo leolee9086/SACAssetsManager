@@ -3,7 +3,7 @@
 
     <StyleSelector v-if="coordinateManager" v-model:connectionStyle="connectionStyle"
       :coordinateManager="coordinateManager">
-      <NodeGallery class="editor-gallery" @startDuplicating="handleStartDuplicating" />
+      <NodeGallery class="editor-gallery" @startDuplicating="handleStartDuplicating" ref="nodeGalleryRef" />
       <div class="toolbar-group">
         <button class="toolbar-button" @click="() => adjustZoom(-0.1)">-</button>
         <span class="zoom-value">{{ Math.round(zoom * 100) }}%</span>
@@ -17,7 +17,7 @@
       <ConnectionCanvas :style="{ zoom: 1 / zoom }" :zoom="zoom" v-if="config.connections"
         :cardsContainer="cardsContainer" :cards="运行时卡片对象序列" :connections="config.connections"
         :relations="config.relations" :coordinateManager="coordinateManager" :connectionStyle="connectionStyle"
-        @connectionCreated="handleNewConnection" @relationCreated="handleNewrelation" />
+        @connectionCreated="handleNewConnection" @relationCreated="handleNewrelation" @connectionFailed="handleConnectionFailed" />
       <!-- 动态渲染卡片 -->
       <div style="position: relative;
         max-width: 100%;
@@ -553,6 +553,21 @@ const handleDeleteCard = async (cardId) => {
   } catch (error) {
     console.error('删除卡片失败:', error);
   }
+};
+
+// 添加 ref 用于控制画廊
+const nodeGalleryRef = ref(null);
+
+// 修改 ConnectionCanvas 组件的事件处理
+const handleConnectionFailed = (event) => {
+  // 获取鼠标位置
+  const mousePosition = {
+    x: event.clientX,
+    y: event.clientY
+  };
+  
+  // 调用画廊组件的方法在指定位置显示
+  nodeGalleryRef.value.showAtPosition(mousePosition);
 };
 </script>
 <style scoped>
