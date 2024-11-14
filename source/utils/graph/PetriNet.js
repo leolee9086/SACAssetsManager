@@ -152,29 +152,98 @@ const 更新连接索引 = (流程图, 连接信息) => {
 };
 
 /**
+ * 验证连接的合法性
+ * @private
+ * @param {PetriNet} 流程图 - Petri网实例
+ * @param {string} 起始ID - 起始节点/动作ID
+ * @param {string} 目标ID - 目标节点/动作ID
+ * @param {boolean} [允许重复=false] - 是否允许重复连接
+ * @returns {Object} 验证结果 {合法: boolean, 错误: string, 重复: boolean}
+ */
+const 验证连接合法性 = (流程图, 起始ID, 目标ID, 允许重复 = true) => {
+    // 1. 验证节点存在性
+    if (!流程图.节点.has(起始ID) && !流程图.动作.has(起始ID)) {
+        return {
+            合法: false,
+            错误: `起始节点/动作 ${起始ID} 不存在`,
+            重复: false
+        };
+    }
+    if (!流程图.节点.has(目标ID) && !流程图.动作.has(目标ID)) {
+        return {
+            合法: false,
+            错误: `目标节点/动作 ${目标ID} 不存在`,
+            重复: false
+        };
+    }
+
+    // 2. 验证是否已存在连接
+    const 连接ID = `${起始ID}->${目标ID}`;
+    if (流程图.连接.has(连接ID)) {
+        return {
+            合法: 允许重复,
+            错误: 允许重复 ? null : `连接 ${连接ID} 已存在`,
+            重复: true
+        };
+    }
+
+    // 3. 验证节点类型兼容性
+    const 起始节点 = 流程图.节点.get(起始ID);
+    const 目标节点 = 流程图.节点.get(目标ID);
+    if (起始节点?.type === 'end') {
+        return {
+            合法: false,
+            错误: '结束节点不能作为起始节点',
+            重复: false
+        };
+    }
+    if (目标节点?.type === 'start') {
+        return {
+            合法: false,
+            错误: '开始节点不能作为目标节点',
+            重复: false
+        };
+    }
+
+    return { 合法: true, 错误: null, 重复: false };
+};
+
+/**
  * 添加连接关系
  * @param {PetriNet} 流程图 - Petri网实例
  * @param {string} 起始ID - 起始节点/动作ID
  * @param {string} 目标ID - 目标节点/动作ID
  * @param {number} [数值要求=1] - 连接需要的令牌数
+ * @param {boolean} [允许重复=false] - 是否允许重复连接
+ * @returns {boolean} 是否成功添加连接
+ * @throws {Error} 当连接不合法时抛出错误（重复连接除外）
  */
-const 添加连接 = 柯里化((流程图, 起始ID, 目标ID, 数值要求 = 1) => {
-    验证节点存在(流程图, 起始ID, '起始节点/动作');
-    验证节点存在(流程图, 目标ID, '目标节点/动作');
+const 添加连接 = 柯里化((流程图, 起始ID, 目标ID, 数值要求 = 1, 允许重复 = true) => {
+    // 验证连接合法性
+    const { 合法, 错误, 重复 } = 验证连接合法性(流程图, 起始ID, 目标ID, 允许重复);
     
+    // 如果是重复连接且允许重复，直接返回 false
+    if (重复 && 允许重复) {
+        return false;
+    }
+    
+    // 其他不合法情况抛出错误
+    if (!合法) {
+        throw new Error(错误);
+    }
+
+    // 验证数值要求
     if (typeof 数值要求 !== 'number' || 数值要求 <= 0) {
         throw new Error('连接的令牌要求必须是正数');
     }
 
+    // 创建连接
     const 连接ID = `${起始ID}->${目标ID}`;
-    if (流程图.连接.has(连接ID)) {
-        console.warn(`连接 ${连接ID} 已存在,添加未执行,请确保这符合你的预期`);
-        return;
-    }
-
     const 连接信息 = { 起始: 起始ID, 目标: 目标ID, 数值要求 };
     流程图.连接.set(连接ID, 连接信息);
     更新连接索引(流程图, 连接信息);
+    
+    return true;
 });
 
 /**
@@ -414,6 +483,58 @@ export function validateConnection(connections, newConnection, cards) {
     };
 }
 
+/**
+ * 删除节点及其相关连接
+ * @param {PetriNet} 流程图 - Petri网实例
+ * @param {string[]} 节点ID列表 - 要删除的节点ID列表
+ */
+const 删除节点列表 = 柯里化((流程图, 节点ID列表) => {
+    节点ID列表.forEach(节点ID => {
+        if (流程图.节点.has(节点ID)) {
+            // 删除节点
+            流程图.节点.delete(节点ID);
+            // 从入口和出口索引中移除
+            流程图.入口节点索引.delete(节点ID);
+            流程图.出口节点索引.delete(节点ID);
+            // 删除相关连接
+            删除节点相关连接(流程图, 节点ID);
+        }
+    });
+});
+
+/**
+ * 删除动作列表
+ * @param {PetriNet} 流程图 - Petri网实例
+ * @param {string[]} 动作ID列表 - 要删除的动作ID列表
+ */
+const 删除动作列表 = 柯里化((流程图, 动作ID列表) => {
+    动作ID列表.forEach(动作ID => {
+        if (流程图.动作.has(动作ID)) {
+            // 删除动作
+            流程图.动作.delete(动作ID);
+            // 删除相关连接
+            删除节点相关连接(流程图, 动作ID);
+        }
+    });
+});
+
+/**
+ * 删除节点相关的所有连接
+ * @private
+ */
+const 删除节点相关连接 = (流程图, 节点ID) => {
+    // 删除以该节点为起点或终点的所有连接
+    for (const [连接ID, 连接] of 流程图.连接.entries()) {
+        if (连接.起始 === 节点ID || 连接.目标 === 节点ID) {
+            流程图.连接.delete(连接ID);
+        }
+    }
+    
+    // 清理连接索引
+    流程图.输入连接索引.delete(节点ID);
+    流程图.输出连接索引.delete(节点ID);
+};
+
 // 在导出中添加新函数
 export {
     创建流程图,
@@ -427,5 +548,7 @@ export {
     可以执行,
     找到入口节点,
     找到出口节点,
-    执行Petri网
+    执行Petri网,
+    删除节点列表,
+    删除动作列表
 }

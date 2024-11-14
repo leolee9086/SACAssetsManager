@@ -1,6 +1,6 @@
 <template>
   <div class="floating-card" :style="cardStyle" :data-card-id="props.card.id" @mouseenter="handleFocus"
-    @mouseleave="handleBlur" ref="card" tabindex="0">
+    @mouseleave="handleBlur" ref="card" tabindex="0" :class="{ 'card-focused': isFocused }">
     <!-- 渲染四个方向的接口锚点 -->
     <template v-for="(anchors, side) in groupedAnchors" :key="side">
       <div :class="['anchor-container', `anchor-${side}`]">
@@ -25,34 +25,16 @@
       :class="[`resize-${handle.position}`, { 'handle-visible': isHandleVisible }]"
       @mousedown.stop="(e) => startResize(e, handle.position)">
     </div>
-    <!-- 原有的拖拽区域和内容 -->
-    <div class="drag-handle" @mousedown.stop="startDrag" :class="{ 'handle-visible': true }">
-      <div class="handle-icon">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M2 5h12M2 8h12M2 11h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-        </svg>
-        <div class="fn__space"></div>
-        <template v-for="action in cardActions" :key="action.name">
+    <CardHeader v-show="isFocused" :title="props.card.title" :actions="cardActions" :showHandle="true"
+      @dragStart="startDrag" @actionClick="(action, $event) => action.action($event)" />
 
-          <svg @click="action.action" :title="action.name" class="b3-menu__icon " style="cursor: copy;">
-            <use :xlink:href="action.icon"></use>
-          </svg>
-        </template>
-
-      </div>
-      <div class="card-header" v-if="props.card.title">
-        {{ props.card.title }}
-        <!-- 添加卡片操作按钮 -->
-      </div>
-    </div>
     <div class="card-content">
       <template v-if="error">
         <errorContainer :error="error" altMessage="组件加载错误"></errorContainer>
       </template>
       <template v-else>
-        <ErrorBoundary v-if="props.component&&component" @error="handleComponentError">
-          <component  :is="component" v-bind="componentProps"
-            v-on="componentEvents" />
+        <ErrorBoundary v-if="props.component && component" @error="handleComponentError">
+          <component :is="component" v-bind="componentProps" v-on="componentEvents" />
         </ErrorBoundary>
         <div v-else class="loading">加载中...</div>
 
@@ -77,7 +59,6 @@
 </template>
 <script setup>
 import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef, defineComponent } from 'vue';
-import *  as _serialize from '../../../../../static/serialize-javascript.js'
 import errorContainer from './errorContainer.vue';
 import { ErrorBoundary } from '../../common/wraper/utilsComponent.js';
 import { 按指定值分组 } from '../../../../utils/array/groupBy.js';
@@ -88,13 +69,13 @@ import { createDuplicationEventData } from './nodeDefineParser/controllers/cardC
 import { 根据连接表查找锚点是否有连接 } from './nodeDefineParser/controllers/anchor.js';
 import { css长宽转换器, 二维转换器 } from '../geometry/utils/pointFormatters.js';
 import { anchorSides } from '../types.js';
+import CardHeader from './cardContainer/cardHeader.vue';
 
 const handleComponentError = (err) => {
   console.error('Component runtime error:', err);
   error.value = err;
   component.value = {};
 };
-const serialize = _serialize.default.default
 // 自定义序列化处理器
 // Props 定义
 const props = defineProps({
@@ -136,7 +117,7 @@ const props = defineProps({
   },
   triggerAnchors: {
     type: Array,
-    default: () =>Object.values(anchorSides)
+    default: () => Object.values(anchorSides)
   },
   forcePosition: {
     type: Object,
@@ -145,6 +126,14 @@ const props = defineProps({
   zoom: {
     type: Number,
     default: null
+  },
+  isFocused: {
+    type: Boolean,
+    default: false
+  },
+  isSelected: {
+    type: Boolean,
+    default: false
   }
 })
 // 计算已连接的锚点
@@ -204,18 +193,35 @@ const cardStyle = computed(() => {
 // 定义接口锚点数据结构
 const anchors = toRef(props, 'anchors')
 // 添加 isFocused 响应式变量
-const isFocused = ref(false);
-// 修改为使用方法而不是直接在模板中绑定事件
-const handleFocus = () => {
-  isFocused.value = true;
+const isFocused = computed(() => {
+  return isDragging.value || isResizing.value || focusState.value;
+});
+// 添加基础的焦点状态
+const focusState = ref(false);
+// 修改焦点处理函数
+const handleFocus = ( e) => {
+  emit('select', e);
+  emit('focus');
+
+  focusState.value = true;
 };
 const handleBlur = () => {
-  isFocused.value = false;
+  // 只有在非拖拽和非缩放状态下才允许失去焦点
+  if (!isDragging.value && !isResizing.value) {
+    focusState.value = false;
+  }
 };
+
+
+
 // 修改拖拽相关的方法
 const startDrag = (e) => {
   if (props.componentProps?.isPreview) return;
   isDragging.value = true;
+  // 确保在开始拖拽时设置焦点
+  focusState.value = true;
+  emit('focus');
+
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
@@ -224,25 +230,41 @@ const startDrag = (e) => {
     offsetX: (e.clientX - 当前卡片元素位置.value.x * props.zoom) / props.zoom,
     offsetY: (e.clientY - 当前卡片元素位置.value.y * props.zoom) / props.zoom
   };
+
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', stopDrag);
 };
 const stopDrag = (e) => {
-  isDragging.value = false
-  // 计算新位置时考虑初始偏移量，并确保不小于0
+  isDragging.value = false;
+  // 保持焦点状态一小段时间,以便用户可以看到操作结果
+  setTimeout(() => {
+    // 检查鼠标是否仍在卡片上
+    const cardElement = card.value;
+    if (cardElement) {
+      const rect = cardElement.getBoundingClientRect();
+      const isMouseOver = e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom;
+      focusState.value = isMouseOver;
+    }
+  }, 100);
+
   当前卡片元素位置.value = {
     x: Math.max(32, e.clientX - dragStart.value.offsetX * props.zoom) / props.zoom,
     y: Math.max(32, e.clientY - dragStart.value.offsetY * props.zoom) / props.zoom
-  }
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDrag)
-}
+  };
+
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', stopDrag);
+};
 // 修改缩放相关的方法
 const startResize = (e, position) => {
   if (props.componentProps?.isPreview) return;
   if (fixedWidth && fixedHeight) return;
   e.preventDefault();
   isResizing.value = true;
+  // 确保在开始缩放时设置焦点
+  focusState.value = true;
+
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
@@ -382,16 +404,37 @@ const onResize = (e) => {
   })
 }
 const stopResize = () => {
-  isResizing.value = false
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
+  isResizing.value = false;
+  // 保持焦点状态一小段时间
+  setTimeout(() => {
+    if (!isDragging.value) {
+      const cardElement = card.value;
+      if (cardElement) {
+        const rect = cardElement.getBoundingClientRect();
+        const isMouseOver = event.clientX >= rect.left && event.clientX <= rect.right &&
+          event.clientY >= rect.top && event.clientY <= rect.bottom;
+        focusState.value = isMouseOver;
+      }
+    }
+  }, 100);
+
+  document.removeEventListener('mousemove', onResize);
+  document.removeEventListener('mouseup', stopResize);
 }
 let component = shallowRef({})
 let error = ref('')
 // 生命周期钩子
 let fixedWidth = 0
 let fixedHeight = 0
-const emit = defineEmits(['onCardMove', 'startConnection', 'duplicateCard', 'startDuplicating','deleteCard']);
+const emit = defineEmits([
+  'select',
+  'focus',
+  'onCardMove',
+  'startConnection',
+  'duplicateCard',
+  'startDuplicating',
+  'deleteCard'
+]);
 // 定义 emit
 // 添加一个方法来获取当前卡片的 HTML 内容
 const getCardPreviewContent = () => {
@@ -405,21 +448,21 @@ const duplicateCard = (event) => {
   emit('startDuplicating', duplicationData);
 };
 // 修改卡片操作按钮的定义
-const cardActions = [
+const cardActions = computed(() => [
   {
     name: '复制',
-    action: (e) => duplicateCard(e),
-    icon: '#iconCopy'
+    icon: '#iconCopy',
+    action: duplicateCard
   },
   {
     name: '删除',
+    icon: '#iconTrashcan',
     action: (e) => {
-      e.stopPropagation();
-      emit('deleteCard', props.card.id);
-    },
-    icon: '#iconTrashcan'
+      e.stopPropagation()
+      emit('deleteCard', props.card.id)
+    }
   }
-];
+])
 // 监听卡片位置和尺寸变化
 watch(cardStyle, () => {
   // 只有在非预览状态下才触发卡片移动事件
@@ -432,8 +475,8 @@ watch(cardStyle, () => {
 
 // 按方向分组锚点
 const groupedAnchors = computed(() => {
-  const groups= 按指定值分组(anchors.value,'side',Object.values(anchorSides))
-  console.log("groups",groups)
+  const groups = 按指定值分组(anchors.value, 'side', Object.values(anchorSides))
+  console.log("groups", groups)
   Object.values(groups).forEach(group => {
     group.sort((a, b) => a.position - b.position);
   });
@@ -552,50 +595,13 @@ onUnmounted(() => {
   min-width: 200px;
   user-select: none;
   padding: 3px;
+  transition: box-shadow 0.2s ease;
 }
 
-.drag-handle {
-  position: absolute;
-  top: -20px;
-  left: 0;
-  right: 0;
-  cursor: move;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-  transition: all 0.2s ease;
-  height: 20px;
-  background: var(--b3-theme-surface);
-  border-radius: 8px 8px 0 0;
-  backdrop-filter: blur(4px);
-  z-index: 2;
-}
-
-.handle-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--b3-theme-on-surface);
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.drag-handle:hover .handle-icon {
-  background: var(--b3-list-hover);
-  color: var(--b3-theme-on-surface);
-}
-
-.card-header {
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--b3-theme-on-surface);
-  flex: 1;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.card-focused {
+  box-shadow: var(--b3-card-focus-shadow, 0 0 0 2px var(--b3-theme-primary));
+  z-index: 3;
+  /* 确保焦点卡片显示在其他卡片之上 */
 }
 
 .card-content {

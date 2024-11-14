@@ -1,7 +1,23 @@
 import { TransitionQueue } from './petri/queue.js';
 import { analyzePath, compilePath } from './petri/pathAnalyzer.js';
 import { 创建流程图, 添加节点, 添加动作, 添加连接, 找到入口节点, 找到出口节点, 已经连接 } from '../../../utils/graph/PetriNet.js';
+import { 删除节点列表, 删除动作列表 } from '../../../utils/graph/PetriNet.js';
+import {
+    生成连接ID,
+    生成清理节点ID,
+    生成锚点节点ID,
+    生成分裂转换ID,
+    生成分裂节点ID,
+    生成传输转换ID,
+    生成事件节点ID,
+    生成事件转换ID
+} from './manager/PetriNetID.js';
 
+/**
+ * 生成连接ID
+ * @param {Object} connection 连接配置
+ * @returns {string} 连接ID
+ */
 export class GraphManager {
     constructor(mode = 'visual') {
         this.petriNet = null;
@@ -30,7 +46,7 @@ export class GraphManager {
         if (config.connections && Array.isArray(config.connections)) {
             config.connections.forEach(conn => {
                 try {
-                    const connectionId = this.generateConnectionId(conn);
+                    const connectionId = 生成连接ID(conn);
                     this.connections.set(connectionId, conn);
                     this.handleConnection(conn, parsedCards);
                 } catch (error) {
@@ -89,7 +105,7 @@ export class GraphManager {
     }
 
     addConnection(connection) {
-        const connectionId = this.generateConnectionId(connection);
+        const connectionId = 生成连接ID(connection);
         this.connections.set(connectionId, connection);
         this.handleConnection(connection, this.parsedCards);
         return connectionId;
@@ -102,36 +118,16 @@ export class GraphManager {
             this.connections.delete(connectionId);
         }
     }
-
-    generateConnectionId(connection) {
-        return `${connection.from.cardId}-${connection.from.anchorId}-${connection.to.cardId}-${connection.to.anchorId}`;
-    }
-
     cleanupConnectionNodes(connection) {
-        const fromPlaceId = `place_${connection.from.cardId}_${connection.from.anchorId}`;
-        const toPlaceId = `place_${connection.to.cardId}_${connection.to.anchorId}`;
-        const splitTransitionId = `split_transition_${fromPlaceId}`;
-        const splitPlaceId = `split_place_${fromPlaceId}_${toPlaceId}`;
-        const transferTransitionId = `transfer_${connection.from.cardId}-${connection.from.anchorId}_to_${connection.to.cardId}-${connection.to.anchorId}`;
-
-        [fromPlaceId, toPlaceId, splitPlaceId].forEach(nodeId => {
-            if (this.petriNet.节点.has(nodeId)) {
-                this.petriNet.节点.delete(nodeId);
-            }
-        });
-
-        [splitTransitionId, transferTransitionId].forEach(transitionId => {
-            if (this.petriNet.动作.has(transitionId)) {
-                this.petriNet.动作.delete(transitionId);
-            }
-        });
-
-        // 清理事件订阅
-        const eventPlaceId = `event_place_${connection.from.cardId}_${connection.from.anchorId}`;
-        const unsubscribe = this.eventSubscriptions.get(eventPlaceId);
+        const ids = 生成清理节点ID(connection);
+        // 使用Petri网的方法删除节点和动作
+        删除节点列表(this.petriNet)(ids.节点列表);
+        删除动作列表(this.petriNet)(ids.转换列表);
+        // 清理事件订阅（这部分仍然保留在GraphManager中，因为是UI层面的操作）
+        const unsubscribe = this.eventSubscriptions.get(ids.事件节点);
         if (unsubscribe) {
             unsubscribe();
-            this.eventSubscriptions.delete(eventPlaceId);
+            this.eventSubscriptions.delete(ids.事件节点);
         }
     }
 
@@ -142,32 +138,26 @@ export class GraphManager {
     handleConnection(conn, parsedCards) {
         const fromCard = parsedCards.find(card => card.id === conn.from.cardId);
         const toCard = parsedCards.find(card => card.id === conn.to.cardId);
-
         if (!fromCard || !toCard) {
             console.warn('找不到连接对应的卡片:', conn);
             return;
         }
-
         if (!fromCard.controller || !toCard.controller) {
             console.warn('卡片控制器未初始化:', conn);
             return;
         }
-
         const fromAnchor = fromCard.controller.anchors.find(a => a.id === conn.from.anchorId);
         const toAnchor = toCard.controller.anchors.find(a => a.id === conn.to.anchorId);
-
         if (!fromAnchor || !toAnchor) {
             console.warn('找不到连接对应的锚点:', conn);
             return;
         }
-
         // 根据锚点类型选择不同的处理方法
         if (fromAnchor.type === 'event') {
             this.createEventConnectionNodes(fromCard, toCard, fromAnchor, toAnchor);
         } else {
             this.createConnectionNodes(fromCard, toCard, fromAnchor, toAnchor);
         }
-
         this.构建卡片内部连接结构(fromCard);
         this.构建卡片内部连接结构(toCard);
     }
@@ -179,7 +169,6 @@ export class GraphManager {
     createConnectionNodes(fromCard, toCard, fromAnchor, toAnchor) {
         const fromPlaceId = `place_${fromCard.id}_${fromAnchor.id}`;
         const toPlaceId = `place_${toCard.id}_${toAnchor.id}`;
-
         // 1. 确保源节点存在
         if (!this.petriNet.节点.has(fromPlaceId)) {
             添加节点(this.petriNet, fromPlaceId, {
@@ -197,12 +186,10 @@ export class GraphManager {
                 content: toAnchor
             });
         }
-
         // 3. 为这个连接创建分裂结构
         const splitTransitionId = `split_transition_${fromPlaceId}`;
         const splitPlaceId = `split_place_${fromPlaceId}_${toPlaceId}`;
         const transferTransitionId = `transfer_${fromCard.id}-${fromAnchor.id}_to_${toCard.id}-${toAnchor.id}`;
-
         // 4. 添加分裂转换（如果不存在）
         if (!this.petriNet.动作.has(splitTransitionId)) {
             添加动作(this.petriNet, splitTransitionId, async () => {
@@ -229,33 +216,21 @@ export class GraphManager {
             });
         }
 
-        // 7. 建立连接关系
-        // 源节点到分裂转换
-        if (!已经连接(this.petriNet, fromPlaceId, splitTransitionId)) {
             添加连接(this.petriNet, fromPlaceId, splitTransitionId);
-        }
-        // 分裂转换到中间节点
-        if (!已经连接(this.petriNet, splitTransitionId, splitPlaceId)) {
             添加连接(this.petriNet, splitTransitionId, splitPlaceId);
-        }
-        // 中间节点到传输转换
-        if (!已经连接(this.petriNet, splitPlaceId, transferTransitionId)) {
             添加连接(this.petriNet, splitPlaceId, transferTransitionId);
-        }
-        // 传输转换到目标节点
-        if (!已经连接(this.petriNet, transferTransitionId, toPlaceId)) {
             添加连接(this.petriNet, transferTransitionId, toPlaceId);
-        }
+        
     }
     /**
      * 创建事件连接节点
      * @private
      */
     createEventConnectionNodes(fromCard, toCard, fromAnchor, toAnchor) {
-        const eventPlaceId = `event_place_${fromCard.id}_${fromAnchor.id}`;
-        const toPlaceId = `place_${toCard.id}_${toAnchor.id}`;
-        const eventTransitionId = `event_transition_${fromCard.id}_${fromAnchor.id}`;
-        // 1. 添加事件源节点
+        const eventPlaceId = 生成事件节点ID(fromCard.id)(fromAnchor.id);
+        const toPlaceId = 生成锚点节点ID(toCard.id)(toAnchor.id);
+        const eventTransitionId = 生成事件转换ID(fromCard.id)(fromAnchor.id);
+            // 1. 添加事件源节点
         if (!this.petriNet.节点.has(eventPlaceId)) {
             添加节点(this.petriNet, eventPlaceId, {
                 type: 'event',
@@ -300,12 +275,10 @@ export class GraphManager {
             });
         }
         // 4. 建立连接关系
-        if (!已经连接(this.petriNet, eventPlaceId, eventTransitionId)) {
             添加连接(this.petriNet, eventPlaceId, eventTransitionId);
-        }
-        if (!已经连接(this.petriNet, eventTransitionId, toPlaceId)) {
+        
             添加连接(this.petriNet, eventTransitionId, toPlaceId);
-        }
+        
     }
     /**
      * 构建卡片内部连接结构
@@ -353,9 +326,8 @@ export class GraphManager {
             if (!this.petriNet.节点.has(inputPlaceId)) {
                 添加节点(this.petriNet, inputPlaceId, { type: 'process', tokens: 0, content: inputAnchor });
             }
-            if (!已经连接(this.petriNet, inputPlaceId, internalTransitionId)) {
                 添加连接(this.petriNet, inputPlaceId, internalTransitionId);
-            }
+            
         });
 
         // 处理输出锚点
@@ -385,9 +357,8 @@ export class GraphManager {
                 await card.controller.exec(undefined, globalInputs);
             });
         }
-        if (!已经连接(this.petriNet, internalPalaceId, internalTransitionId)) {
             添加连接(this.petriNet, internalPalaceId, internalTransitionId);
-        }
+        
         this.handleOutputAnchors(card, outputAnchors, internalTransitionId);
     }
     /**
@@ -400,9 +371,8 @@ export class GraphManager {
             if (!this.petriNet.节点.has(outputPlaceId)) {
                 添加节点(this.petriNet, outputPlaceId, { type: 'process', tokens: 0, content: outputAnchor });
             }
-            if (!已经连接(this.petriNet, internalTransitionId, outputPlaceId)) {
                 添加连接(this.petriNet, internalTransitionId, outputPlaceId);
-            }
+            
         });
     }
     /**
@@ -615,7 +585,7 @@ export class GraphManager {
 
 
 /***
- * 这里的查找目标式config,之后需要跟上面操作实际网络结构的函数重构整合
+ * 这里的查找目标是config,之后需要跟上面操作实际网络结构的函数重构整合
  */
 export const findExistingConnection = (connections, newConnection) => {
     return connections.findIndex(conn =>

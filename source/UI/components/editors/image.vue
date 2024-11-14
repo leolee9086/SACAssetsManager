@@ -31,15 +31,32 @@
               :component="运行时卡片对象.controller.component" :component-props="运行时卡片对象.controller.componentProps"
               :nodeDefine="运行时卡片对象.controller.nodeDefine" :component-events="运行时卡片对象.events"
               :anchors="运行时卡片对象.controller.anchors" :connections="config.connections" :card="运行时卡片对象"
-              @onCardMove="onCardMove" @startDuplicating="handleStartDuplicating" @deleteCard="handleDeleteCard" />
+              :is-selected="selectedCards.has(运行时卡片对象.id)"
+              :is-focused="focusedCard === 运行时卡片对象.id"
+              @onCardMove="onCardMove" @select="(e) => handleCardSelect(运行时卡片对象.id, e)"
+              @focus="() => handleCardFocus(运行时卡片对象.id)"
+              @startDuplicating="handleStartDuplicating" @deleteCard="handleDeleteCard" />
           </template>
           <!-- 复制中的卡片预览 -->
-          <cardContainer v-if="isDuplicating && duplicatingPreview" v-bind="duplicatingPreview" :style="{
-            opacity: 0.7,
-            pointerEvents: 'none',
-            zIndex: 5,
-            cursor: 'move'
-          }" />
+          <cardContainer 
+            v-if="isDuplicating && duplicatingPreview"
+            :zoom="duplicatingPreview.zoom"
+            :force-position="duplicatingPreview.position"
+            :data-card-id="duplicatingPreview.id"
+            :component="duplicatingPreview.component"
+            :component-props="duplicatingPreview.componentProps"
+            :nodeDefine="duplicatingPreview.nodeDefine"
+            :component-events="duplicatingPreview.events"
+            :anchors="duplicatingPreview.anchors"
+            :connections="duplicatingPreview.connections"
+            :card="duplicatingPreview.card"
+            :style="{
+              opacity: 0.7,
+              pointerEvents: 'none',
+              zIndex: 5,
+              cursor: 'move'
+            }" 
+          />
         </div>
       </div>
     </div>
@@ -569,6 +586,72 @@ const handleConnectionFailed = (event) => {
   // 调用画廊组件的方法在指定位置显示
   nodeGalleryRef.value.showAtPosition(mousePosition);
 };
+
+// 状态管理
+const selectedCards = ref(new Set()); // 选中的卡片集合
+const focusedCard = ref(null); // 当前聚焦的卡片
+
+// 处理画布点击 - 清除所有状态
+const handleCanvasClick = (e) => {
+  // 确保点击的是画布本身或画布容器
+  const isCanvasClick = e.target === connectionCanvasRef.value || 
+                       e.target === cardsContainer.value;
+  
+  if (isCanvasClick) {
+    selectedCards.value.clear();
+    focusedCard.value = null;
+  }
+};
+
+// 处理卡片选择
+const handleCardSelect = (cardId, event) => {
+  event.stopPropagation(); // 阻止冒泡到画布
+  
+  if (event.ctrlKey || event.metaKey) {
+    // Ctrl/Cmd + 点击: 切换选择状态
+    if (selectedCards.value.has(cardId)) {
+      selectedCards.value.delete(cardId);
+    } else {
+      selectedCards.value.add(cardId);
+    }
+  } else if (event.shiftKey && focusedCard.value) {
+    // Shift + 点击: 选择范围
+    const cards = 运行时卡片对象序列.value;
+    const startIdx = cards.findIndex(c => c.id === focusedCard.value);
+    const endIdx = cards.findIndex(c => c.id === cardId);
+    const range = cards.slice(
+      Math.min(startIdx, endIdx),
+      Math.max(startIdx, endIdx) + 1
+    );
+    range.forEach(card => selectedCards.value.add(card.id));
+  } else {
+    // 普通点击: 清除其他选择,只选择当前卡片
+    selectedCards.value.clear();
+    selectedCards.value.add(cardId);
+  }
+  focusedCard.value = cardId;
+};
+
+// 处理卡片聚焦
+const handleCardFocus = (cardId) => {
+  focusedCard.value = cardId;
+};
+
+// 监听 document 点击事件,处理画布外点击
+onMounted(() => {
+  document.addEventListener('click', (e) => {
+    // 检查点击是否在画布外
+    const isOutsideCanvas = !connectionCanvasRef.value?.contains(e.target);
+    if (isOutsideCanvas) {
+      selectedCards.value.clear();
+      focusedCard.value = null;
+    }
+  });
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick);
+});
 </script>
 <style scoped>
 .image-editor {
