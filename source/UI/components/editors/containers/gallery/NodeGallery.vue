@@ -107,14 +107,11 @@ defineExpose({
 // 调整面板位置的函数
 const adjustPanelPosition = async () => {
   if (!isOpen.value || !galleryPanel.value || !galleryButton.value) return;
-  
   await nextTick();
-  
   const buttonRect = galleryButton.value.getBoundingClientRect();
   const panelRect = galleryPanel.value.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  
   // 初始位置（在按钮下方）
   let top = buttonRect.bottom + 8; // 8px 间距
   let left = buttonRect.left; // 默认与按钮左对齐
@@ -124,18 +121,15 @@ const adjustPanelPosition = async () => {
     // 如果超出右边界，尝试右对齐
     left = Math.max(8, viewportWidth - panelRect.width - 8);
   }
-  
   // 检查是否超出左边界
   if (left < 8) {
     left = 8; // 保持最小8px的左边距
   }
-  
   // 检查是否超出底部边界
   if (top + panelRect.height > viewportHeight) {
     // 如果底部放不下，尝试放在按钮上方
     top = Math.max(8, buttonRect.top - panelRect.height - 8);
   }
-  
   panelPosition.value = {
     top: `${top}px`,
     left: `${left}px`
@@ -173,7 +167,6 @@ onUnmounted(() => {
 // 初始化节点分类
 onMounted(async () => {
   const categories = {};
-  
   // 处理函数式节点
   for (const moduleConfig of 默认函数式节点加载表) {
     const categoryName = `${moduleConfig.config.componentPrefix}/${moduleConfig.config.moduleName}`;
@@ -185,9 +178,7 @@ onMounted(async () => {
         nodes: []
       };
     }
-    
     const exportNames = moduleConfig.config.include || Object.keys(moduleConfig.module);
-    
     for (const funcName of exportNames) {
       const func = moduleConfig.module[funcName];
       if (typeof func === 'function') {
