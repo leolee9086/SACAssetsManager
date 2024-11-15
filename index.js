@@ -214,25 +214,35 @@ module.exports = class SACAssetsManager extends Plugin {
       }
 
     })
-      // 添加EditorTab定义
-      this.EditorTabDefine = this.addTab({
-        type: 'EditorTab',
-        init() {
-            this.element.innerHTML = `<div class="plugin-sample__editor-tab">${this.data.text}</div>`;
-            plugin.eventBus.emit(
-                'editor-tab-open', this
-            )
-        },
-        beforeDestroy() {
-            this.element.innerHTML = ""
-            this.controllers && this.controllers.forEach(controller => {
-                controller.abort()
-            })
-        }
+    // 添加EditorTab定义
+    this.EditorTabDefine = this.addTab({
+      type: 'EditorTab',
+      init() {
+        this.element.innerHTML = `<div class="plugin-sample__editor-tab">${this.data.text}</div>`;
+        触发编辑页签打开(this)
+      },
+      beforeDestroy() {
+        this.element.innerHTML = ""
+        this.controllers && this.controllers.forEach(controller => {
+          controller.abort()
+        })
+      }
     })
   }
 }
 function 插入UI面板容器(UI容器父元素) {
   UI容器父元素.innerHTML = `<div class="fn__flex-1 fn__flex-column cc_ui-container"></div>`
   return UI容器父元素.querySelector(".fn__flex-1.fn__flex-column")
+}
+
+
+
+/***
+ * 集中处理插件事件
+ */
+const 触发编辑页签打开 = (detail) => {
+  let plugin = globalThis[Symbol.for("SACAssetsManager")]
+  plugin.instance.eventBus.emit(
+    'editor-tab-open', detail
+  )
 }

@@ -1,0 +1,10 @@
+<script type="module">
+    import '../utils/hack/hackRequire.js'
+    function getExternalBase() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('externalBase');
+    }
+    // 使用示例
+    const externalBase = getExternalBase();
+    const express = require('express')
+</script>
