@@ -46,7 +46,7 @@ import tagsGrid from './assetInfoPanel/tags.vue';
 import { watchStatu, 状态注册表 } from '../../globalStatus/index.js';
 import { verticalScrollFirst } from '../utils/scroll.js';
 import assetsImage from './assetInfoPanel/assetsImage.vue';
-import { 打开本地资源视图 } from '../siyuanCommon/tabs/assetsTab.js';
+import { 异步清理重复元素, 打开文件夹数组素材页签, 清理重复元素 } from './assetinfoPanel.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
@@ -81,19 +81,16 @@ const openFolder = () => {
 };
 const openFolderAssetsTab =()=>{
   if (currentFolderArray.value.length > 0) {
-    Array.from(new Set(currentFolderArray.value)).forEach(folderPath => {
-      if (folderPath !== '/') {
-        打开本地资源视图(folderPath);
-      }
-    });
+    打开文件夹数组素材页签(currentFolderArray.value)
+
   } else {
     console.log('没有可打开的文件夹');
   }
 
 }
 watchStatu(状态注册表.选中的资源, async (newVal) => {
-  const assets = Array.from(new Set(newVal))
-  const assetPaths = assets.map(asset => asset.data.path);
+  const assets=await 异步清理重复元素(newVal)
+  const assetPaths = await 异步映射(assets,asset => asset.data.path);
   // 检查是否与上次的路径列表相同
   if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
     console.log('路径列表未变化，跳过查询');
