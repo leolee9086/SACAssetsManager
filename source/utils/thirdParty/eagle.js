@@ -21,3 +21,15 @@ export const 搜集eagle元数据 = async (assets) => {
     }
     return results;
 }
+export const 查找文件所在素材库路径 = (路径)=>{
+    const 路径项数组 =路径.replace(/\\/g, "/").split("/")
+    const 素材库路径下标 = 路径项数组.findIndex(item => item.endsWith(".library"));
+    const 素材库路径 = 路径项数组.slice(0, 素材库路径下标 + 1).join("/");
+    return 素材库路径
+}
+export const 从文件系统获取eagle素材库标签列表 =(素材库路径)=>{
+    const 路径 = 素材库路径 + "\\tags.json";
+    const tagJson = require("fs").readFileSync(路径, "utf8");
+    const tagJsonObj = JSON.parse(tagJson);
+
+}
