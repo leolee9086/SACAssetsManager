@@ -12,7 +12,7 @@ const thumbnailHost = (type, path, size, data) => {
         let meta = data.$meta
         return 获取文档图标(meta)
     }
-    let src = !type ? `${serverHost()}/thumbnail/?path=${encodeURIComponent(path)}&size=${size}` : `${serverHost()}/thumbnail/?localPath=${encodeURIComponent(path)}&size=${size}`
+    let src = !type ? `${rawImageServerHost()}/thumbnail/?path=${encodeURIComponent(path)}&size=${size}` : `${rawImageServerHost()}/thumbnail/?localPath=${encodeURIComponent(path)}&size=${size}`
     let rawSrc = !type ? `${rawImageServerHost()}/raw/?path=${encodeURIComponent(path)}` : `${rawImageServerHost()}/raw/?localPath=${encodeURIComponent(path)}`
     if (size > 200 && imageExtensions.includes(path.split('.').pop())) {
         return rawSrc
