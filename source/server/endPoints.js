@@ -4,6 +4,7 @@ import { imageExtensions } from '../server/processors/thumbnail/utils/lists.js'
 import { 获取文档图标 } from '../utils/siyuanData/icon.js'
 
 export const serverHost = () => `${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号}`
+export const rawImageServerHost = () => `${window.location.protocol}//${window.location.hostname}:${plugin.http服务端口号+1}`
 
 //缩略图相关
 const thumbnailHost = (type, path, size, data) => {
@@ -12,8 +13,8 @@ const thumbnailHost = (type, path, size, data) => {
         return 获取文档图标(meta)
     }
     let src = !type ? `${serverHost()}/thumbnail/?path=${encodeURIComponent(path)}&size=${size}` : `${serverHost()}/thumbnail/?localPath=${encodeURIComponent(path)}&size=${size}`
-    let rawSrc = !type ? `${serverHost()}/raw/?path=${encodeURIComponent(path)}` : `${serverHost()}/raw/?localPath=${encodeURIComponent(path)}`
-    if (size > 500 && imageExtensions.includes(path.split('.').pop())) {
+    let rawSrc = !type ? `${rawImageServerHost()}/raw/?path=${encodeURIComponent(path)}` : `${rawImageServerHost()}/raw/?localPath=${encodeURIComponent(path)}`
+    if (size > 200 && imageExtensions.includes(path.split('.').pop())) {
         return rawSrc
     } else {
         return src

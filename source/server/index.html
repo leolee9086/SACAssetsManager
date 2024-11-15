@@ -99,7 +99,7 @@
                     const webContentsId = webview.getWebContentsId();
                     const webviewWebContents = require('@electron/remote').webContents.fromId(webContentsId);
                     await enableRemote(webviewWebContents);
-                    webview.src = `./imageStaticService.html?externalBase=${window.externalBase.replace(/\\/g,'/')}`
+                    webview.src = `./imageStaticService.html?externalBase=${window.externalBase.replace(/\\/g,'/')}&port=${window.port+1}`
                     webview.openDevTools();
                 } catch (e) {
                     console.error('启用remote失败:', e);
