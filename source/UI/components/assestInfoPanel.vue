@@ -46,7 +46,8 @@ import tagsGrid from './assetInfoPanel/tags.vue';
 import { watchStatu, 状态注册表 } from '../../globalStatus/index.js';
 import { verticalScrollFirst } from '../utils/scroll.js';
 import assetsImage from './assetInfoPanel/assetsImage.vue';
-import { 异步清理重复元素, 打开文件夹数组素材页签, 清理重复元素 } from './assetinfoPanel.js';
+import { 异步清理重复元素, 打开文件夹数组素材页签,异步映射 } from './assetinfoPanel.js';
+import { 搜集eagle元数据 } from '../../utils/thirdParty/eagle.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
@@ -102,37 +103,16 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
   format.value = 获取文件格式(assets.map(item => item.data))
   folder.value = 获取本地文件夹(assets.map(item => item.data))
   eagleMetas.value = await 搜集eagle元数据(assets.map(item => item.data))
-  doc.value = (await 获取所在笔记(lastAssetPaths.value)).map(item => item.root_id).join(',')
+  doc.value = (await 获取数组中素材所在笔记(lastAssetPaths.value)).map(item => item.root_id).join(',')
 })
 
-const 获取所在笔记 = async (assetPaths) => {
+const 获取数组中素材所在笔记 = async (assetPaths) => {
   // 更新最后处理的路径列表
   const sql = `select * from assets where path in ('${assetPaths.join("','")}')`
   const result = await kernelApi.sql({ stmt: sql })
   return result
 }
 
-const 搜集eagle元数据 = async (assets) => {
-  const results = [];
-  for (const asset of assets) {
-    const assetDir = path.dirname(asset.path);
-    const metadataPath = path.join(assetDir, 'metadata.json').replace(/\\/g, '/')
-    try {
-      // 检查 metadata.json 文件是否存在
-      if (window.require('fs').existsSync(metadataPath)) {
-        results.push({
-          path: asset.path,
-          metaPath: metadataPath
-        });
-      }
-
-    } catch (error) {
-      console.log(`未找到 ${asset.path} 的元数据文件`);
-    }
-  }
-
-  return results;
-}
 
 const getNames = (asset) => {
   return asset.path.split('/').pop()
