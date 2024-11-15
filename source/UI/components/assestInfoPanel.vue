@@ -48,6 +48,7 @@ import { verticalScrollFirst } from '../utils/scroll.js';
 import assetsImage from './assetInfoPanel/assetsImage.vue';
 import { 异步清理重复元素, 打开文件夹数组素材页签,异步映射 } from './assetinfoPanel.js';
 import { 搜集eagle元数据 } from '../../utils/thirdParty/eagle.js';
+import { 在资源管理器打开本地文件夹数组 } from '../../utils/useRemote/shell.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
@@ -69,16 +70,8 @@ const eagleMetas = ref([])
 const doc = ref('')
 const lastAssetPaths = ref([]);
 const openFolder = () => {
-  const shell = window.require('@electron/remote').shell;
-  if (currentFolderArray.value.length > 0) {
-    Array.from(new Set(currentFolderArray.value)).forEach(folderPath => {
-      if (folderPath !== '/') {
-        shell.openPath(folderPath);
-      }
-    });
-  } else {
-    console.log('没有可打开的文件夹');
-  }
+  在资源管理器打开本地文件夹数组(currentFolderArray.value)
+ 
 };
 const openFolderAssetsTab =()=>{
   if (currentFolderArray.value.length > 0) {
