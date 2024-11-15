@@ -22,7 +22,7 @@ const handlePreviousSelection = (event, galleryContainer, currentLayout) => {
 }
 
 // 计算选择框的坐标
-export const calculateSelectionCoordinates = (selectionBox, layoutRect, currentLayoutOffsetTop, paddingLR, size) => {
+export const calculateSelectionCoordinates = (selectionBox, layoutRect, currentLayoutOffsetTop, paddingLR) => {
     const { startX, startY, endX, endY } = selectionBox;
     return {
         minX: Math.min(startX, endX) - paddingLR - layoutRect.x,

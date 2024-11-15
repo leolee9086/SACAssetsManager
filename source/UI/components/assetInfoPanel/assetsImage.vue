@@ -89,9 +89,12 @@ const nextImage = () => {
 }
 
 watchStatu(状态注册表.选中的资源, async (newVal) => {
-
     const assets = Array.from(new Set(newVal))
-    const assetPaths = assets.map(asset => asset.data.path);
+    const assetPaths = assets.map(asset => asset?.data?.path);
+    if(!assetPaths[0]){
+        console.log('未获取到选中列表,跳过查询');
+        return
+    }
     if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
         console.log('路径列表未变化，跳过查询');
         return

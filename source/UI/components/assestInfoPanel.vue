@@ -49,6 +49,7 @@ import assetsImage from './assetInfoPanel/assetsImage.vue';
 import { 异步清理重复元素, 打开文件夹数组素材页签,异步映射 } from './assetinfoPanel.js';
 import { 搜集eagle元数据 } from '../../utils/thirdParty/eagle.js';
 import { 在资源管理器打开本地文件夹数组 } from '../../utils/useRemote/shell.js';
+import { 获取数组中素材所在笔记 } from '../../utils/sql/siyuanSentence.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('JPG');
@@ -84,14 +85,18 @@ const openFolderAssetsTab =()=>{
 }
 watchStatu(状态注册表.选中的资源, async (newVal) => {
   const assets=await 异步清理重复元素(newVal)
-  const assetPaths = await 异步映射(assets,asset => asset.data.path);
+  const assetPaths = await 异步映射(assets,asset => asset?.data?.path);
+  if(!assetPaths[0]){
+        console.log('未获取到选中列表,跳过查询');
+        return
+    }
   // 检查是否与上次的路径列表相同
   if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
     console.log('路径列表未变化，跳过查询');
     return
   }
   lastAssetPaths.value = assetPaths;
-  assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item => item.data)))
+  assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item =>item&& item.data).filter(item=>item)))
   getLabel(assets.map(item => item.data))
   format.value = 获取文件格式(assets.map(item => item.data))
   folder.value = 获取本地文件夹(assets.map(item => item.data))
@@ -99,16 +104,8 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
   doc.value = (await 获取数组中素材所在笔记(lastAssetPaths.value)).map(item => item.root_id).join(',')
 })
 
-const 获取数组中素材所在笔记 = async (assetPaths) => {
-  // 更新最后处理的路径列表
-  const sql = `select * from assets where path in ('${assetPaths.join("','")}')`
-  const result = await kernelApi.sql({ stmt: sql })
-  return result
-}
-
-
 const getNames = (asset) => {
-  return asset.path.split('/').pop()
+  return asset?.path.split('/').pop()
 }
 const 获取文件格式 = (assets) => {
   if (assets.length === 0) return '';
@@ -128,11 +125,11 @@ const 获取本地文件夹 = (assets) => {
   };
 
   currentFolderArray.value = assets.map(asset => {
-    console.log(asset.path);
-    if (asset.path.startsWith('assets/')) {
-      return path.dirname(siyuan.config.system.workspaceDir + '/data/' + asset.path).replace(/\\/g, '/');
+    console.log(asset?.path);
+    if (asset?.path.startsWith('assets/')) {
+      return path.dirname(siyuan.config.system.workspaceDir + '/data/' + asset?.path).replace(/\\/g, '/');
     } else {
-      return path.dirname(asset.path).replace(/\\/g, '/');
+      return path.dirname(asset?.path).replace(/\\/g, '/');
     }
   });
 

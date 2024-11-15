@@ -111,7 +111,10 @@ function refresh(assets) {
         fileTags.value = [];
         return;
     }
-    const assetPaths = assets.map(asset => asset.data.path);
+    const assetPaths = assets.map(asset => asset?.data?.path);
+    if(!assetPaths[0]){
+        return
+    }
     // 获取每个文件的标签
     Promise.all(assetPaths.map(path => findTagsByFilePath(path)))
         .then(allTags => {

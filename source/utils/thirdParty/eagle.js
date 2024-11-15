@@ -1,6 +1,7 @@
 if(!window.require){
     throw new Error('这个模块依赖node环境,不能在前端调用')
 }
+const path = require('path')
 export const 搜集eagle元数据 = async (assets) => {
     const results = [];
     for (const asset of assets) {

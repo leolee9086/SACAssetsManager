@@ -493,8 +493,6 @@ const endSelection = (event) => {
     plugin.eventBus.emit('assets-select', selectedItems.value)
     appData.value.selectedItems = selectedItems.value
 };
-
-
 const selectionController = {
     endSelection,
     isSelecting,
@@ -503,17 +501,17 @@ const selectionController = {
     selectedItems,
     root,
 }
-
 const startSelection = (e) => { startSelectionWithController(e, selectionController) }
-
+const 画廊组件容器 = computed(()=>root.value.querySelector('.gallery_container'))
 
 const updateSelection = (event) => {
-    if (isSelecting.value) {
-        selectionBox.value.endX = event.x;
-        selectionBox.value.endY = event.y;
-        const galleryContainer = root.value.querySelector('.gallery_container');
-        const layoutRect = galleryContainer.getBoundingClientRect();
-        const coordinates = calculateSelectionCoordinates(selectionBox.value, layoutRect, currentLayoutOffsetTop, paddingLR.value, $size.value)
+    let 选择框 =selectionBox.value
+    let 选择状态中 = isSelecting.value
+    let 布局元素矩形 = 画廊组件容器.value.getBoundingClientRect()
+    if (选择状态中) {
+        选择框.endX = event.x;
+        选择框.endY = event.y;
+        const coordinates = calculateSelectionCoordinates(选择框, 布局元素矩形, currentLayoutOffsetTop, paddingLR.value)
         selectedItems.value = handleMultiSelection(currentLayout.value, coordinates, $size.value < 表格视图阈值)
         selectedItems.value = diffByEventKey(previousSelectedItem.value, selectedItems.value, event)
         clearSelectionWithLayout(currentLayout.value)
