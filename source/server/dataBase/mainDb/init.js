@@ -1,4 +1,4 @@
-import { 创建文件锁, 释放文件锁 } from "./lock.js"
+import { 创建文件锁, 释放文件锁 } from "./sqlLock.js"
 const Database = require('better-sqlite3')
 let dbs = {}
 let locks = {}

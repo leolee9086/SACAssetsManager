@@ -1,51 +1,16 @@
 import { 打开任务控制对话框 } from '../../dialog/tasks.js';
 import { 递归扫描文件夹并执行任务 } from '../../../../utils/fs/batch.js';
-const 全量计算文件MD5=async (filePath) => {
-    const fs = require('fs').promises;
-    const crypto = require('crypto');
-    const data = await fs.readFile(filePath);
-    return crypto.createHash('md5').update(data).digest('hex');
-};
-const 宽松计算文件MD5 = async (filePath) => {
-    const fs = require('fs').promises;
-    const crypto = require('crypto');
-    const hash = crypto.createHash('md5');
-    const fd = await fs.open(filePath, 'r');
-    
-    try {
-        const { size: fileSize } = await fd.stat();
-
-        const chunkSize = 4096;
-        const samplesCount = Math.min(10, Math.ceil(fileSize / chunkSize));
-        const step = Math.floor(fileSize / samplesCount);
-
-        // 生成随机种子，这里使用文件大小和当前时间戳
-        const seed = fileSize 
-        const randomOffset = crypto.createHash('md5').update(seed.toString()).digest('hex');
-        const offsetMultiplier = parseInt(randomOffset, 16) % samplesCount;
-
-        for (let i = 0; i < samplesCount; i++) {
-            // 计算每个样本的起始位置，加上随机偏移量
-            const position = (i * step + offsetMultiplier) % fileSize;
-            const buffer = Buffer.alloc(chunkSize);
-            await fd.read(buffer, 0, chunkSize, position);
-            hash.update(buffer);
-        }
-
-        return hash.digest('hex');
-    } finally {
-        await fd.close();
-    }
-
-};
-
-
+import { 全量计算文件MD5,宽松计算文件MD5 } from '../../../../utils/hash/simple.js';
+import { UltraFastFingerprint } from '../../../../utils/hash/fastBlake.js';
+const fingerprinter = new UltraFastFingerprint();
 
 
 const 处理单个文件 = async (fullPath, fileHashes, duplicates, skippedFiles, loose) => {
     const fs = require('fs').promises;
     const stats = await fs.stat(fullPath);
     const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    console.log(await fingerprinter.calculateFingerprint(fullPath))
+
     if (!loose && stats.size > MAX_FILE_SIZE) {
         skippedFiles.push(fullPath);
         return { message: `已跳过大文件: ${fullPath}` };

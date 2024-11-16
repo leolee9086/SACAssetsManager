@@ -15,11 +15,19 @@ import hljsTextCell from './hljsTextCell.vue';
 import videoCell from './videoCell.vue';
 import audioCell from './audioCell.vue'
 import gltfCell from './gltfCell.vue';
+import LutCell from './LutCell.vue';
+
 const props = defineProps(['cardData', 'displayMode', 'size']);
 
 const currentComponent = shallowRef(null);
 const currentAttributeName = ref(null);
+function isLutFile(path){
+    const textFileExtensions = ['cube']; // 根据需要添加更多扩展名
+    const extension = path.split('.').pop().toLowerCase();
 
+    return textFileExtensions.some(ext => extension.toLowerCase() === ext.toLowerCase());
+
+}
 // 判断文件是否为文本文件的辅助函数
 function isTextFile(path) {
     const textFileExtensions = ['txt', 'md', 'json', 'js', 'vue', 'css']; // 根据需要添加更多扩展名
@@ -68,6 +76,10 @@ async function determineComponentAndAttribute() {
             } 
             else if(props.cardData.data.path && await isAudioFile(props.cardData.data.path)) {
                 currentComponent.value = audioCell;
+                currentAttributeName.value = 'path';
+            }
+            else if(props.cardData.data.path && await isLutFile(props.cardData.data.path)) {
+                currentComponent.value = LutCell;
                 currentAttributeName.value = 'path';
             }
             else if (await isGLTFFile(props.cardData.data.path)) {

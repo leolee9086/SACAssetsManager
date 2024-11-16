@@ -20,7 +20,7 @@ const runtime = {
   similarityScore: ref(0)
 };
 
-export let nodeDefine = {
+ let nodeDefine = {
   inputs: [
     { name: 'originalImage', type: 'string|Buffer|Uint8Array', default: "/plugins/SACAssetsManager/assets/wechatDonate.jpg", label:'左侧图像' },
     { name: 'processedImage', type: 'string|Buffer|Uint8Array', default: "/plugins/SACAssetsManager/assets/wechatDonate.jpg", label:'右侧图像' },
@@ -35,7 +35,7 @@ export let nodeDefine = {
 
     runtime.originalImage.value = inputs.originalImage.value||inputs.originalImage;
     runtime.processedImage.value = inputs.processedImage.value||inputs.processedImage;
-    runtime.thumbnailSize.value = inputs.thumbnailSize.value||inputs.thumbnailSize || 32;
+    runtime.thumbnailSize.value = inputs.thumbnailSize?.value||inputs.thumbnailSize || 32;
 
     if (!runtime.originalImage.value || !runtime.processedImage.value) {
       console.error("Image data is missing.");
@@ -117,6 +117,8 @@ export let nodeDefine = {
 
 <script setup>
 import {  onMounted, onUnmounted, watch, computed } from 'vue';
+const props = defineProps(['originalImage','processedImage']);
+
 
 defineExpose({ nodeDefine });
 
@@ -143,12 +145,12 @@ const getImageSource = (image) => {
 
 // 修改计算属性
 const originalImage = computed(() => {
-  const source = getImageSource(runtime.originalImage.value);
+  const source = getImageSource(props.originalImage||runtime.originalImage.value);
   return source;
 });
 
 const processedImage = computed(() => {
-  const source = getImageSource(runtime.processedImage.value);
+  const source = getImageSource(props.processedImage||runtime.processedImage.value);
   return source;
 });
 

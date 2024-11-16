@@ -100,6 +100,8 @@ export async function processImageWithLUT(image, lutData, intensity = 1.0) {
  */
 export async function processFiles(imagePath, lutPath) {
     try {
+        console.log(imagePath, lutPath)
+
         // 并行处理图像和 LUT 文件
         const [imageResult, lutResult] = await Promise.all([
             processImageFile(imagePath),
@@ -122,8 +124,9 @@ export async function processFiles(imagePath, lutPath) {
  * @param {string} imagePath - 图像文件路径
  */
 async function processImageFile(imagePath) {
-    try {
+    
         // 获取文件基本信息
+        console.log(imagePath)
         const response = await fetch(imagePath);
         const blob = await response.blob();
         const fileName = imagePath.split('/').pop();
@@ -145,9 +148,7 @@ async function processImageFile(imagePath) {
             fileName,
             fileSize
         };
-    } catch (error) {
-        throw new Error(`图像处理失败: ${error.message}`);
-    }
+
 }
 
 /**
@@ -248,7 +249,7 @@ export function cleanupFiles(...blobURLs) {
  *   error?: string
  * }>}
  */
-async function processImageWithLUTFile(imagePath, lutPath, intensity = 1.0) {
+export async function processImageWithLUTFile(imagePath, lutPath, intensity = 1.0) {
     let imageURL = null;
     let lutURL = null;
 
