@@ -26,8 +26,6 @@
                 }
             }
         }
-
-
     </script>
     <script>
         window.onload = () => {
@@ -70,7 +68,6 @@
                 }
             }
             const webview = document.querySelector('webview')
-
             webview.addEventListener('dom-ready', async () => {
                 console.log(webview.src)
                 if (webview.src !== 'about:blank') {

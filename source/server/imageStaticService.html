@@ -28,11 +28,9 @@
         });
     });
     const thumbnailCache = new Map();
-
     app.get('/thumbnail', async (req, res) => {
         const targetUrl = `http://127.0.0.1:${port - 1}${req.url}`;
         const cacheKey = req.url;
-
         try {
             const cachedData = thumbnailCache.get(cacheKey);
             if (cachedData && (Date.now() - cachedData.timestamp) < 10000) {
@@ -42,16 +40,13 @@
                 });
                 return res.end(cachedData.data);
             }
-
             const response = await fetch(targetUrl);
             const arrayBuffer = await response.arrayBuffer();
             const buffer = new Uint8Array(arrayBuffer);
-
             thumbnailCache.set(cacheKey, {
                 data: buffer,
                 timestamp: Date.now()
             });
-
             res.writeHead(200, {
                 'Content-Type': 'image/png',
                 'Content-Length': buffer.length
