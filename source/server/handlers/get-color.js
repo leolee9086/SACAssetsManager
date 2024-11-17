@@ -46,17 +46,45 @@ export async function getFilesByColor(ctx, next) {
     });
     //没有compression中间件的情况下,也就没有res.flush方法
     ctx.res.flushHeaders()
-    let sended={}
-    let cb =(file,count)=> requestIdleCallback(async () => {
-        const statProxy = await statWithCatch(file)
-        const result = stat2assetsItemStringLine(statProxy)
-        if(!sended[result]){
-            ctx.res.write(result)
+    
+    let sended = {}
+    let remainingCount = 0  // 跟踪剩余项目数
+    
+    // 修改回调函数
+    let cb = (file, count, total) => {
+        remainingCount = total - count;  // 更新剩余数量
+        return new Promise((resolve) => {
+            requestIdleCallback(async () => {
+                try {
+                    const statProxy = await statWithCatch(file)
+                    const result = stat2assetsItemStringLine(statProxy)
+                    if (!sended[result]) {
+                        ctx.res.write(result)
+                        sended[result] = true
+                    }
+                    
+                    // 只在所有项目处理完成后结束响应
+                    if (remainingCount <= 0) {
+                        ctx.res.end()
+                    }
+                    
+                    resolve()
+                } catch (error) {
+                    console.error('处理文件时出错:', error)
+                    resolve()
+                }
+            }, { timeout: 17, deadline: 18 })
+        })
+    }
+
+    try {
+        await 流式根据颜色查找内容(color, accurity, cb)
+    } catch (error) {
+        console.error('颜色查找出错:', error)
+        if (!ctx.res.writableEnded) {
+            ctx.res.end()
         }
-        sended[result]=true
-        count--
-        count===0 &&ctx.res.end()
-    }, { timeout: 17, deadline: 18 })
-    流式根据颜色查找内容(color, accurity, cb,ctx.res.end)
-    globalTaskQueue.paused = false
+    } finally {
+        globalTaskQueue.paused = false
+    }
 }

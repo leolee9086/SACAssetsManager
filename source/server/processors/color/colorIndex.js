@@ -100,16 +100,17 @@ async function 创建备份文件(filePath, data) {
 
 async function 更新颜色索引(data, root) {
     await db.transaction(async () => {
-        for (let item of data) {
+        for (const item of data) {
             if (!item.assets) continue;
 
             // 处理资源路径
-            item.assets = item.assets.map(asset => ({
+            const processedAssets = await Promise.all(item.assets.map(async asset => ({
                 ...asset,
                 path: asset.path.startsWith(root) 
                     ? asset.path 
                     : 修正路径分隔符号为正斜杠(path.join(root, asset.path))
-            }));
+            })));
+            item.assets = processedAssets;
 
             const colorValue = item.color.join(',');
             
@@ -167,11 +168,23 @@ export async function 添加到颜色索引(colorItem, absolutePath) {
     }
 
     const fileColors = await db.fileIndex.get(relativePath) || [];
-    fileColors.push({
-        color: colorItem.color,
-        percent: colorItem.percent,
-        count: colorItem.count
-    });
+    const existingColorIndex = fileColors.findIndex(item => 
+        item.color.join(',') === colorItem.color.join(',')
+    );
+    
+    if (existingColorIndex === -1) {
+        fileColors.push({
+            color: colorItem.color,
+            percent: colorItem.percent,
+            count: colorItem.count
+        });
+    } else {
+        fileColors[existingColorIndex] = {
+            color: colorItem.color,
+            percent: colorItem.percent,
+            count: colorItem.count
+        };
+    }
     await db.fileIndex.put(relativePath, fileColors);
 
     const exactFiles = await db.exactColorIndex.get(colorValue) || [];
@@ -186,10 +199,17 @@ export async function 根据颜色查找内容(color, cutout = 0.6) {
     const results = new Set();
     
     for (const [dbPath, db] of dbInstances) {
+        const diskRoot = path.parse(dbPath).root;
+        
         await 安全读取数据库(dbPath, async () => {
             for await (const { value } of db.colorIndex.getRange()) {
                 if (diffColor(value.color, color, cutout)) {
-                    value.assets.forEach(asset => results.add(asset.path));
+                    for (const asset of value.assets) {
+                        const absolutePath = path.isAbsolute(asset.path) 
+                            ? asset.path 
+                            : path.join(diskRoot, asset.path);
+                        results.add(修正路径分隔符号为正斜杠(absolutePath));
+                    }
                 }
             }
         });
@@ -198,23 +218,66 @@ export async function 根据颜色查找内容(color, cutout = 0.6) {
     return Array.from(results);
 }
 
-// 流式查询
+// 计算匹配总数
+async function 计算颜色匹配总数(color, cutout, dbInstances) {
+    let totalItems = 0;
+    
+    for (const [_, db] of dbInstances) {
+        for await (const { value } of db.colorIndex.getRange()) {
+            if (diffColor(value.color, color, cutout)) {
+                totalItems += value.assets.length;
+            }
+        }
+    }
+    
+    return totalItems;
+}
+
+// 处理单个资源路径
+function 处理资源路径(data, diskRoot) {
+    const absolutePath = path.isAbsolute(data.path) 
+        ? data.path 
+        : path.join(diskRoot, data.path);
+    return 修正路径分隔符号为正斜杠(absolutePath);
+}
+
+// 处理匹配项
+async function 处理颜色匹配项(db, diskRoot, color, cutout, callback, count, totalItems) {
+    for await (const { value } of db.colorIndex.getRange()) {
+        if (diffColor(value.color, color, cutout)) {
+            for (const data of value.assets) {
+                count++;
+                const processedPath = 处理资源路径(data, diskRoot);
+                await callback(processedPath, count, totalItems);
+            }
+        }
+    }
+    return count;
+}
+
+// 主函数
 export async function 流式根据颜色查找内容(color, cutout = 0.6, callback) {
     let count = 0;
     
-    for (const db of dbInstances.values()) {
-        for await (const { value } of db.colorIndex.getRange()) {
-            await new Promise(resolve => setImmediate(async () => {
-                if (diffColor(value.color, color, cutout)) {
-                    value.assets.forEach(data => {
-                        count++;
-                        callback(data.path, count);
-                    });
-                }
-                resolve();
-            }));
-        }
+    // 计算总数
+    const totalItems = await 计算颜色匹配总数(color, cutout, dbInstances);
+    console.log(`找到总计 ${totalItems} 个匹配项`);
+    
+    // 处理匹配项
+    for (const [dbPath, db] of dbInstances) {
+        const diskRoot = path.parse(dbPath).root;
+        count = await 处理颜色匹配项(
+            db, 
+            diskRoot, 
+            color, 
+            cutout, 
+            callback, 
+            count, 
+            totalItems
+        );
     }
+    
+    console.log(`处理完成，共处理 ${count}/${totalItems} 个结果`);
 }
 
 // 查找文件颜色
@@ -303,7 +366,7 @@ async function 清理颜色索引(db, root) {
 export async function 根据颜色查找并校验颜色索引文件条目(颜色) {
     const 颜色值 = 颜色.join(',');
     const 颜色索引条目 = await db.colorIndex.get(颜色值);
-    
+     
     if (!颜色索引条目) return null;
     
     return await 校验颜色索引文件条目(颜色索引条目);
@@ -387,10 +450,20 @@ export async function 精确查找颜色文件(color) {
     const colorKey = color.map(num => Math.floor(num)).join(',');
     const results = new Set();
     
-    for (const db of dbInstances.values()) {
+    for (const [dbPath, db] of dbInstances) {
+        // 获取磁盘根目录
+        const diskRoot = path.parse(dbPath).root;
+        
         const files = await db.exactColorIndex.get(colorKey);
         if (files) {
-            files.forEach(file => results.add(file));
+            for (const file of files) {
+                // 转换为绝对路径
+                const absolutePath = path.isAbsolute(file) 
+                    ? file 
+                    : path.join(diskRoot, file);
+                // 确保使用正斜杠
+                results.add(修正路径分隔符号为正斜杠(absolutePath));
+            }
         }
     }
     
