@@ -1,166 +1,222 @@
 import { MinHeap } from '../../../utils/array/minHeap.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
-const MAX_TASKS = 1000000; // 设置最大任务数量
-let auxiliaryHeap = new MinHeap((a, b) => {
-    const priorityA = a.priority !== undefined ? a.priority : Infinity;
-    const priorityB = b.priority !== undefined ? b.priority : Infinity;
 
-    // 当一正一负时，优先选择负数
-    if ((priorityA >= 0 && priorityB < 0) || (priorityA < 0 && priorityB >= 0)) {
-        return priorityA - priorityB; // 反转顺序，使得负数优先
-    }
+// 常量配置
+const CONFIG = {
+    MAX_TASKS: 1000000,
+    MIN_TIMEOUT: 10,
+    MAX_TIMEOUT: 10000,
+    LOG_INTERVAL: 1000
+}
 
-    // 其他情况下，数值更大的优先
-    return priorityB - priorityA;
-});
-
-let globalTaskQueue = new MinHeap(
-    (a, b) => {
-        const priorityA = a.priority !== undefined ? a.priority : Infinity;
-        const priorityB = b.priority !== undefined ? b.priority : Infinity;
-        // 当一正一负时，优先选择0和正数
+// 优先级比较器
+const priorityComparators = {
+    mainQueue: (a, b) => {
+        const priorityA = a.priority ?? Infinity;
+        const priorityB = b.priority ?? Infinity;
+        
         if ((priorityA >= 0 && priorityB < 0) || (priorityA < 0 && priorityB >= 0)) {
-            return priorityB - priorityA; // 反转顺序，使得非负数优先
+            return priorityB - priorityA; // 非负数优先
         }
-        // 其他情况下，数值更小的优先
         return priorityA - priorityB;
+    },
+    
+    auxiliaryQueue: (a, b) => {
+        const priorityA = a.priority ?? Infinity;
+        const priorityB = b.priority ?? Infinity;
+        
+        if ((priorityA >= 0 && priorityB < 0) || (priorityA < 0 && priorityB >= 0)) {
+            return priorityA - priorityB; // 负数优先
+        }
+        return priorityB - priorityA;
     }
-)
-globalTaskQueue.push = function (task) {
-    if (typeof task !== 'function') {
-        throw new Error('任务必须是一个函数，并且返回一个Promise');
+}
+
+// TaskQueue 类
+class TaskQueue extends MinHeap {
+    constructor() {
+        super(priorityComparators.mainQueue);
+        this.auxiliaryHeap = new MinHeap(priorityComparators.auxiliaryQueue);
+        this.paused = false;
+        this.started = false;
+        this.isProcessing = false;
+        this.stats = {
+            index: 0,
+            timeout: 0,
+            lastTimeout: 0,
+            logs: []
+        };
+        this.processNext = this.processNext.bind(this);
+        this.start = this.start.bind(this);
+        this.handleEmptyQueue = this.handleEmptyQueue.bind(this);
+        this.executeTask = this.executeTask.bind(this);
+        this.updateTimeout = this.updateTimeout.bind(this);
+        this.logProgress = this.logProgress.bind(this);
+        this.push = this.push.bind(this);
+        this.pause = this.pause.bind(this);
+        this.priority = this.priority.bind(this);
+        
+        // 定义ended方法
+        this.ended = () => this.size() === 0;
+
     }
 
+    // 任务管理方法
+    push(task) {
+        if (typeof task !== 'function') {
+            throw new Error('任务必须是一个函数，并且返回一个Promise');
+        }
 
-    // 使用 MinHeap 的原始添加方法
-    MinHeap.prototype.添加.call(this, task);
-    auxiliaryHeap.添加(task);
-    if (globalTaskQueue.size() >= MAX_TASKS) {
-        // 如果任务数量超过最大值，移除最低优先级的任务
-        const lowestPriorityTask = auxiliaryHeap.pop();
-
-        if (lowestPriorityTask) {
-           // console.log('移除低优先级任务:', lowestPriorityTask);
-            lowestPriorityTask.$canceled=true
+        MinHeap.prototype.添加.call(this, task);
+        this.auxiliaryHeap.添加(task);
+        
+        if (this.size() >= CONFIG.MAX_TASKS) {
+            const lowestPriorityTask = this.auxiliaryHeap.pop();
+            if (lowestPriorityTask) {
+                lowestPriorityTask.$canceled = true;
+            }
         }
     }
 
-};
-globalThis[Symbol.for('taskQueue')] = globalThis[Symbol.for('taskQueue')] || globalTaskQueue
-globalTaskQueue = globalThis[Symbol.for('taskQueue')]
-globalTaskQueue.priority = (fn, num) => {
-    fn.priority = num
-    return fn
-}
-globalTaskQueue.pause = () => {
-    globalTaskQueue.paused = true
-}
-globalTaskQueue.start = function ($timeout = 0, force) {
-    console.log('恢复后台任务', "执行间隔:" + $timeout, force ? "强制开始:" : '')
-    if (this.started) {
-        this.processNext($timeout, force)
-        return
+    priority(fn, num) {
+        fn.priority = num;
+        return fn;
     }
-    this.ended = () => {
-        return this.size() === 0
-    }
-    let index = 0
-    let timeout = 0
-    let isProcessing = false
-    let log = []
-    let lastTimeOut
 
-    this.processNext = function ($timeout, force) {
-        reportHeartbeat()
+    // 队列控制方法
+    pause() {
+        this.paused = true;
+    }
+
+    async executeTask(task) {
+        if (task.$canceled) {
+            return {};
+        }
+        
+        const start = performance.now();
+        try {
+            const result = await task();
+            this.updateTimeout(performance.now() - start);
+            return result;
+        } catch (error) {
+            console.error(error);
+            this.stats.timeout = Math.min(this.stats.timeout * 2, CONFIG.MAX_TIMEOUT);
+            throw error;
+        }
+    }
+
+    updateTimeout(executionTime) {
+        this.stats.timeout = Math.max(
+            this.stats.timeout / 10,
+            executionTime,
+            (this.stats.lastTimeout / 10 || 0)
+        );
+    }
+
+    logProgress(stat = null) {
+        if (this.stats.index % CONFIG.LOG_INTERVAL === 0 || this.size() < 100) {
+            console.log('processNext', this.stats.index, this.size(), this.stats.timeout);
+            if (this.stats.logs.length) {
+                console.log(this.stats.logs.join(','));
+                this.stats.logs = [];
+            }
+        }
+        
+        if (stat) {
+            const logEntry = ['processFile', stat.path, this.stats.index, this.size()];
+            if (stat.error) {
+                logEntry.unshift('processFileError');
+                logEntry.push(stat.error);
+            }
+            this.stats.logs.push(logEntry.join(','));
+        }
+    }
+
+    // 核心处理逻辑
+    processNext($timeout = 0, force = false) {
+        // 使用箭头函数绑定this
+        const scheduleNext = (timeout) => {
+            setTimeout(() => this.processNext(), timeout);
+        };
+
+        reportHeartbeat();
+        
         if ($timeout) {
-            timeout = $timeout
+            this.stats.timeout = $timeout;
         }
         if ($timeout === 0) {
-            console.log($timeout)
-            lastTimeOut = timeout || lastTimeOut
-
-            timeout = 0
+            this.stats.lastTimeout = this.stats.timeout || this.stats.lastTimeout;
+            this.stats.timeout = 0;
         }
         if (force) {
-            globalTaskQueue.paused = false
+            this.paused = false;
         }
 
-        let jump = false
-        if (isProcessing) {
-            jump = true
+        if (this.isProcessing) {
+            scheduleNext(this.stats.timeout);
+            return;
         }
-        isProcessing = true
-        
-        if (globalTaskQueue.peek() && !globalTaskQueue.paused && !jump) {
-            if (index % 1000 == 0 || globalTaskQueue.length < 100) {
-                console.log('processNext', index, globalTaskQueue.size(), timeout,globalTaskQueue.peek(),globalTaskQueue.peek().$canceled)
-                console.log(log.join(','))
-                log = []
+
+        this.isProcessing = true;
+
+        if (this.peek() && !this.paused) {
+            this.stats.index++;
+            this.logProgress();
+            
+            const task = this.pop();
+            this.executeTask(task)
+                .then(stat => {
+                    this.logProgress(stat);
+                    scheduleNext(this.stats.timeout);
+                })
+                .catch(() => {
+                    scheduleNext(this.stats.timeout);
+                });
                 
-            }
-            index++;
-            let start = performance.now();
-            let $task = globalTaskQueue.pop()
-            $task=$task.$canceled?async()=>{return {}}:$task
-            $task().then(stat => {
-                let end = performance.now()
-                timeout = Math.max(timeout / 10, end - start, (lastTimeOut / 10 || 0))
-                if (log) {
-                    log.push('processFile', stat.path, index, globalTaskQueue.size(), end - start)
-                    
-                }
-                if (stat && stat.error) {
-                    log.push('processFileError', stat.path, stat.error, index, globalTaskQueue.size(), end - start)
-                }
-                setTimeout(
-                    globalTaskQueue.processNext // 递归调用以处理下一个Promise
-                    , timeout)
-            }).catch(e => {
-                console.error(e)
-                timeout = Math.min(timeout * 2, 10000)
-                setTimeout(
-                    globalTaskQueue.processNext // 递归调用以处理下一个Promise
-                    , timeout)
-            })
-            // 处理stat
-            timeout = Math.max(timeout / 10, 10)
-            isProcessing = false
-
-        } else if (!jump) {
-            if (!globalTaskQueue.ended()) {
-                if (index % 100 == 0 || globalTaskQueue.size() < 100) {
-                    console.log('processNextLater', index, globalTaskQueue.size(), timeout)
-                }
-                timeout = Math.min(Math.max(timeout * 2, timeout + 100), 1000)
-                setTimeout(
-                    globalTaskQueue.processNext // 递归调用以处理下一个Promise
-                    , timeout)
-            }
-            isProcessing = false
-        }
-        else {
-            setTimeout(
-                globalTaskQueue.processNext // 递归调用以处理下一个Promise
-                , timeout)
-
+            this.stats.timeout = Math.max(this.stats.timeout / 10, CONFIG.MIN_TIMEOUT);
+            this.isProcessing = false;
+        } else {
+            this.handleEmptyQueue();
         }
     }
-    this.processNext()
-    this.started = true
-}.bind(globalTaskQueue)
-export { globalTaskQueue }
 
-export function 暂停文件系统解析队列() {
-    globalTaskQueue.paused = true
-}
-export function 恢复文件系统解析队列() {
-    globalTaskQueue.paused = false
-    globalTaskQueue.start()
-}
-export function 添加文件系统解析任务(task) {
-    //任务必须是一个函数，并且返回一个Promise
-    if (typeof task !== 'function') {
-        throw new Error('任务必须是一个函数，并且返回一个Promise')
+    handleEmptyQueue() {
+        if (!this.ended()) {
+            this.logProgress();
+            this.stats.timeout = Math.min(
+                Math.max(this.stats.timeout * 2, this.stats.timeout + 100),
+                CONFIG.MAX_TIMEOUT
+            );
+            setTimeout(() => this.processNext(), this.stats.timeout);
+        }
+        this.isProcessing = false;
     }
-    globalTaskQueue.push(task)
+
+    start($timeout = 0, force = false) {
+        console.log('恢复后台任务', "执行间隔:" + $timeout, force ? "强制开始:" : '');
+        
+        if (this.started) {
+            // 使用箭头函数绑定this
+            setTimeout(() => this.processNext($timeout, force), 0);
+            return;
+        }
+
+        this.ended = () => this.size() === 0;
+        // 使用箭头函数绑定this
+        setTimeout(() => this.processNext($timeout, force), 0);
+        this.started = true;
+    }
 }
+
+// 创建全局单例
+const globalTaskQueue = new TaskQueue();
+globalThis[Symbol.for('taskQueue')] = globalThis[Symbol.for('taskQueue')] || globalTaskQueue;
+
+// 导出公共API
+export { globalTaskQueue };
+export const 暂停文件系统解析队列 = () => globalTaskQueue.pause();
+export const 恢复文件系统解析队列 = () => {
+    globalTaskQueue.paused = false;
+    globalTaskQueue.start();
+};
+export const 添加文件系统解析任务 = (task) => globalTaskQueue.push(task);

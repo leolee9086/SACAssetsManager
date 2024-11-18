@@ -233,12 +233,12 @@ export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallB
         }
     }
     // 将更新目录索引加入全局队列并设置优先级为2
-    更新目录索引(root, stats, signal)
-   /* globalTaskQueue.push(
+ //   更新目录索引(root, stats, signal)
+    globalTaskQueue.push(
         globalTaskQueue.priority(
             async () => {更新目录索引(root, stats, signal);return {}},
-            0
+            0-Date.now()
         )
-    );*/
+    )
 }
 

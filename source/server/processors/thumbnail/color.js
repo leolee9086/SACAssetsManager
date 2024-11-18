@@ -37,10 +37,14 @@ export async function getColor(buffer, filePath) {
         }
         let colors= dominantColors.centers.filter(item=>item.percent>0.05)
         let callback = async (colorItem,index)=>{
-            添加到颜色索引(colorItem,filePath)
+           await 添加到颜色索引(colorItem,filePath)
         }
         colors&&await awaitForEach(colors,callback)
-        return colors
+       // return colors
+       let finded = await 找到文件颜色(filePath)
+       console.log(colors,finded)
+       return finded
+
     }
     catch (e) {
         console.warn(e)
