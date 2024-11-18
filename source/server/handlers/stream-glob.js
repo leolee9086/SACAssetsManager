@@ -49,7 +49,6 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
             res.write(data)
         },
         end: () => {
-
             walkController.abort()
             globalTaskQueue.paused = false
             if (chunked) {
@@ -117,10 +116,6 @@ export const globStream = (req, res) => {
         res.flushHeaders()
         const { signal } = controller;
         await createWalkStream(cwd, filter, signal, res, timeout, walkController, scheme.depth, scheme.search, scheme.extensions)
-        globalTaskQueue.start()
-        //前端请求关闭时,触发中止信号
-        //使用底层的链接关闭事件,因为nodejs的请求关闭事件在请求关闭时不会触发
-
         res.on('close', () => {
             reportHeartbeat()
 

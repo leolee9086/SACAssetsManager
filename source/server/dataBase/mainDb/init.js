@@ -18,7 +18,7 @@ async function 初始化数据库(dbPath, root) {
     const lockDb = async () => {
         try {
             locks[root] = await 创建文件锁(dbPath);
-            console.log(`成功创建文件锁: ${dbPath}`);
+           // console.log(`成功创建文件锁: ${dbPath}`);
         } catch (error) {
             console.error(`创建文件锁失败: ${dbPath}`, error);
             throw new Error(`无法创建文件锁: ${dbPath}`);

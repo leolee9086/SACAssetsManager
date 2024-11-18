@@ -9,5 +9,7 @@ export const ignoreDir = [
     'System Volume Information',
     'Windows/WinSxS',
     'Windows\\WinSxS',
-    'temp'
+    'temp',
+    '\\repo\\objects',
+    '/repo/objects'
 ]

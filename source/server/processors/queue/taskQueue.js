@@ -1,6 +1,6 @@
 import { MinHeap } from '../../../utils/array/minHeap.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
-const MAX_TASKS = 100000; // 设置最大任务数量
+const MAX_TASKS = 1000000; // 设置最大任务数量
 let auxiliaryHeap = new MinHeap((a, b) => {
     const priorityA = a.priority !== undefined ? a.priority : Infinity;
     const priorityB = b.priority !== undefined ? b.priority : Infinity;
@@ -18,12 +18,10 @@ let globalTaskQueue = new MinHeap(
     (a, b) => {
         const priorityA = a.priority !== undefined ? a.priority : Infinity;
         const priorityB = b.priority !== undefined ? b.priority : Infinity;
-
         // 当一正一负时，优先选择0和正数
         if ((priorityA >= 0 && priorityB < 0) || (priorityA < 0 && priorityB >= 0)) {
             return priorityB - priorityA; // 反转顺序，使得非负数优先
         }
-
         // 其他情况下，数值更小的优先
         return priorityA - priorityB;
     }
@@ -33,18 +31,20 @@ globalTaskQueue.push = function (task) {
         throw new Error('任务必须是一个函数，并且返回一个Promise');
     }
 
-    if (this.size() >= MAX_TASKS) {
+
+    // 使用 MinHeap 的原始添加方法
+    MinHeap.prototype.添加.call(this, task);
+    auxiliaryHeap.添加(task);
+    if (globalTaskQueue.size() >= MAX_TASKS) {
         // 如果任务数量超过最大值，移除最低优先级的任务
         const lowestPriorityTask = auxiliaryHeap.pop();
+
         if (lowestPriorityTask) {
            // console.log('移除低优先级任务:', lowestPriorityTask);
             lowestPriorityTask.$canceled=true
         }
     }
 
-    // 使用 MinHeap 的原始添加方法
-    MinHeap.prototype.添加.call(this, task);
-    auxiliaryHeap.添加(task);
 };
 globalThis[Symbol.for('taskQueue')] = globalThis[Symbol.for('taskQueue')] || globalTaskQueue
 globalTaskQueue = globalThis[Symbol.for('taskQueue')]
@@ -67,7 +67,7 @@ globalTaskQueue.start = function ($timeout = 0, force) {
     let index = 0
     let timeout = 0
     let isProcessing = false
-    let log = false
+    let log = []
     let lastTimeOut
 
     this.processNext = function ($timeout, force) {
@@ -92,9 +92,11 @@ globalTaskQueue.start = function ($timeout = 0, force) {
         isProcessing = true
         
         if (globalTaskQueue.peek() && !globalTaskQueue.paused && !jump) {
-            if (index % 100 == 0 || globalTaskQueue.length < 100) {
-                console.log('processNext', index, globalTaskQueue.size(), timeout)
-                log = true
+            if (index % 1000 == 0 || globalTaskQueue.length < 100) {
+                console.log('processNext', index, globalTaskQueue.size(), timeout,globalTaskQueue.peek(),globalTaskQueue.peek().$canceled)
+                console.log(log.join(','))
+                log = []
+                
             }
             index++;
             let start = performance.now();
@@ -104,11 +106,11 @@ globalTaskQueue.start = function ($timeout = 0, force) {
                 let end = performance.now()
                 timeout = Math.max(timeout / 10, end - start, (lastTimeOut / 10 || 0))
                 if (log) {
-                    console.log('processFile', stat.path, index, globalTaskQueue.size(), end - start)
-                    log = false
+                    log.push('processFile', stat.path, index, globalTaskQueue.size(), end - start)
+                    
                 }
                 if (stat && stat.error) {
-                    console.log('processFileError', stat.path, stat.error, index, globalTaskQueue.size(), end - start)
+                    log.push('processFileError', stat.path, stat.error, index, globalTaskQueue.size(), end - start)
                 }
                 setTimeout(
                     globalTaskQueue.processNext // 递归调用以处理下一个Promise

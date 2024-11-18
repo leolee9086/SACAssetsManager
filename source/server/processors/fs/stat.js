@@ -82,6 +82,7 @@ export const statWithNew = async (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     try {
         if (! fs.existsSync(path)) {
+            console.log('文件不存在',path)
             删除文件颜色记录(path);
             删除缩略图缓存行(path);
             return;

@@ -1,6 +1,6 @@
-import {  根据路径查找并加载主数据库 } from "./mainDb/init.js";
+import { 根据路径查找并加载主数据库 } from "./mainDb/init.js";
 import { 转换为相对磁盘根目录路径 } from "./utils.js";
-export { 根据路径查找并加载主数据库}
+export { 根据路径查找并加载主数据库 }
 let dbs = {}
 globalThis.thumbnailPathDBs = globalThis.thumbnailPathDBs || dbs
 
@@ -22,10 +22,10 @@ export function 计算哈希(stat) {
 }
 export async function 删除缩略图缓存行(fullName) {
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(fullName)
-    if(!磁盘缩略图数据库){
+    if (!磁盘缩略图数据库) {
         return
     }
-    if(磁盘缩略图数据库.readOnly){
+    if (磁盘缩略图数据库.readOnly) {
         return
     }
     const stmt = 磁盘缩略图数据库.prepare('DELETE FROM thumbnails WHERE fullName = ?');
@@ -43,10 +43,11 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
         throw new Error('尝试写入缓存时未提供条目类型')
     }
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(fullName)
-    if(!磁盘缩略图数据库){
+    if (!磁盘缩略图数据库) {
+        console.log("未找到数据库实例")
         return
     }
-    if(!磁盘缩略图数据库.readOnly){
+    if (!磁盘缩略图数据库.readOnly) {
         await 磁盘缩略图数据库.lock()
         const hash = 计算哈希(stat)
         const stmt = 磁盘缩略图数据库.prepare(`
@@ -60,9 +61,9 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
         `);
         const updateTimeValue = updateTime instanceof Date ? updateTime.getTime() : updateTime;
         const type = entryType || stat.type;
-        const mockStat= {
+        const mockStat = {
             ...stat,
-            path:转换为相对磁盘根目录路径(stat.path),
+            path: 转换为相对磁盘根目录路径(stat.path),
         }
         const result = await stmt.run(
             转换为相对磁盘根目录路径(fullName),
@@ -79,7 +80,9 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
         );
         await 磁盘缩略图数据库.unlock()
         return result
-    }else{
+    } else {
+        console.log("磁盘数据库似乎已锁定,尝试重载")
+
         磁盘缩略图数据库.reload()
     }
     return
@@ -123,7 +126,7 @@ export async function 查找子文件夹(dirPath, search, extensions) {
     results = stmt.all(...params);
 
     // 返回子文件夹的完整路径列表
-    console.log(Date.now() - start)
+    console.log("查询耗时", Date.now() - start, '结果数量', approximateCount)
     return {
         results: results.map(item => {
             let json = JSON.parse(item.stat)
@@ -146,7 +149,7 @@ export async function 查找文件状态(filePath) {
     const result = stmt.get(转换为相对磁盘根目录路径(filePath));
     return result;
 }
-export async function 查找文件夹状态(filePath){
+export async function 查找文件夹状态(filePath) {
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(filePath)
     const stmt = 磁盘缩略图数据库.prepare(`SELECT * FROM thumbnails WHERE fullName = ? and type='dir'`);
     const result = stmt.get(转换为相对磁盘根目录路径(filePath));
@@ -174,7 +177,7 @@ export async function 提取所有子目录文件扩展名(dirPath) {
     `;
     const stmt = 磁盘缩略图数据库.prepare(sql);
     const results = stmt.all(转换为相对磁盘根目录路径(dirPath) + "%");
-    
+
     // 使用JavaScript处理扩展名
     const extensions = new Set();
     for (let i = 0; i < results.length; i++) {
