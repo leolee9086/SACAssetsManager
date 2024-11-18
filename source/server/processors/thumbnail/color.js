@@ -18,7 +18,7 @@ export async function getColor(buffer, filePath) {
         console.log('颜色缓存命中')
         return finded
     }
-    let rgba = await processImageBuffer(buffer, filePath)
+    let rgba = await processImageBuffer(buffer)
     if (!rgba) return []
     try {
         let colors = await processColors(rgba, filePath)
