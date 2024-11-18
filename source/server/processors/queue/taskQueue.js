@@ -194,13 +194,11 @@ class TaskQueue extends MinHeap {
 
     start($timeout = 0, force = false) {
         console.log('恢复后台任务', "执行间隔:" + $timeout, force ? "强制开始:" : '');
-        
         if (this.started) {
             // 使用箭头函数绑定this
             setTimeout(() => this.processNext($timeout, force), 0);
             return;
         }
-
         this.ended = () => this.size() === 0;
         // 使用箭头函数绑定this
         setTimeout(() => this.processNext($timeout, force), 0);

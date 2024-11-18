@@ -31,7 +31,6 @@
         window.onload = () => {
             const logAppContainer = document.getElementById('logApp')
             logAppContainer.innerHTML = '<button id="forceButton">强制取得数据库控制</button>'
-
             document.getElementById('forceButton').addEventListener(
                 'click', async () => {
                     if (confirm('确定要强制释放所有文件锁吗?当且仅当切换SACAssetsManager的主工作空间时使用。')) {
@@ -73,33 +72,13 @@
                 if (webview.src !== 'about:blank') {
                     return
                 }
-                const waitForRemoteEnable = async () => {
-                    const timeout = 10000; // 10秒超时
-                    const startTime = Date.now();
-
-                    while (Date.now() - startTime < timeout) {
-                        try {
-                            const remoteMain = require('@electron/remote').require("@electron/remote/main");
-                            if (remoteMain && remoteMain.enable) {
-                                console.log(remoteMain)
-                                return remoteMain.enable;
-                            }
-                        } catch (e) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                        }
-                    }
-                    throw new Error('等待@electron/remote超时');
-                };
+               
 
                 try {
-                    const enableRemote = await waitForRemoteEnable();
-                    const webContentsId = webview.getWebContentsId();
-                    const webviewWebContents = require('@electron/remote').webContents.fromId(webContentsId);
-                    //await enableRemote(webviewWebContents);
                     webview.src = `./imageStaticService.html?externalBase=${window.externalBase.replace(/\\/g,'/')}&port=${window.port+1}`
                     webview.openDevTools();
                 } catch (e) {
-                    console.error('启用remote失败:', e);
+                    console.error('启用静态图片服务器失败:', e);
                 }
             });
         }
