@@ -135,6 +135,8 @@ export const 打开附件组菜单 = (event, assets, options) => {
      
         if (assets.find(item =>item&&isImage(item.path))) {
             menu.addItem(元数据编辑菜单组.打开图片编辑器对话框(assets))
+            menu.addItem(元数据编辑菜单组.打开简版图片编辑器(assets))
+
         }
         menu.addItem(元数据编辑菜单组.重新计算文件颜色(assets))
         menu.addItem(元数据编辑菜单组.编辑附件标签组(assets))

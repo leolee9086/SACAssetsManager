@@ -24,7 +24,7 @@ export const 重新计算文件颜色 = (assets) => {
     }
 }
 export const [d5a内置缩略图, d5a内置缩略图单次确认] = await 从文件加载菜单项目(import.meta.resolve('./formats/d5a.js'))
-export const [打开图片编辑器对话框]=await 从文件加载菜单项目(import.meta.resolve('./formats/images.js'))
+export const [打开图片编辑器对话框,打开简版图片编辑器]=await 从文件加载菜单项目(import.meta.resolve('./formats/images.js'))
 export const 上传缩略图 = (assets) => {
     return {
         'label': plugin.翻译`上传缩略图`,

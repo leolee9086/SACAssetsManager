@@ -1,4 +1,3 @@
-
 /**
  * 调整锐度
  * @param {Sharp} img - Sharp图像对象
@@ -79,8 +78,9 @@ export const 调整锐化半径 = (img, 值) => {
  * @param {number} 值 - 细节保护值，范围[0,1]，值越大保护越多细节
  */
 export const 调整细节保护 = (img, 值) => {
+    const medianSize = Math.round((1 - 值) * 99 + 1);
     return img
-        .median(Math.round((1 - 值) * 2))
+        .median(medianSize)
         .sharpen({
             sigma: 1,
             m1: 值,

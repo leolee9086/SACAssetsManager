@@ -13,54 +13,38 @@
 
     <!-- 右侧控制面板 -->
     <div class="control-section">
-      <!-- 直方图通道控制 -->
-      <div class="histogram-controls">
-        <label v-for="channel in channels" 
-               :key="channel.key" 
-               class="channel-toggle">
-          <input type="checkbox" 
-                 v-model="channel.visible"
-                 :style="{ accentColor: channel.color }">
-          {{ channel.label }}
-        </label>
-      </div>
+      <HistogramPanel
+        v-model:channels="channels"
+        :sharp-object="currentSharpObject"
+        @histogram-updated="handleHistogramUpdate"
+      />
+      
+      <ImageAdjuster
+        ref="imageAdjuster"
+        @update:processing="handleProcessingUpdate"
+      />
+    </div>
 
-      <!-- 直方图显示 -->
-      <div class="histogram-chart">
-        <ECharts ref="histogramChart"
-                 :option="chartOption"
-                 style="width: 100%; height: 200px;" />
+    <!-- 添加性能监控面板 -->
+    <div class="performance-panel">
+      <div class="performance-item">
+        处理时间: {{ performanceStats.processingTime }} ms
       </div>
-
-      <!-- 调整控制面板 -->
-      <div class="adjustment-controls">
-        <div v-for="control in adjustmentControls" 
-             :key="control.key" 
-             class="control-item">
-          <div class="control-header">
-            <label>{{ control.label }}</label>
-            <span class="value-display">{{ control.value }}</span>
-          </div>
-          <input type="range" 
-                 v-model="control.value" 
-                 :min="control.min" 
-                 :max="control.max" 
-                 :step="control.step"
-                 @input="handleAdjustment(control.key)">
-        </div>
+      <div class="performance-item">
+        内存使用: {{ performanceStats.memoryUsage }} MB
       </div>
     </div>
   </div>
 </template>
+
 <script setup>
+import HistogramPanel from './HistogramPanel.vue';
+import ImageAdjuster from './ImageAdjuster.vue';
 import { ref, computed, inject,toRef, onUnmounted } from 'vue';
-import ECharts from '../../../components/common/echarts.vue';
-import { 创建经典直方图配置 } from '../../../../utils/fromDeps/echarts/presets.js';
 import { thumbnail } from '../../../../server/endPoints.js';
-import { onMounted } from '../../../../../static/vue.esm-browser.js';
-import { getHistogramFromSharp,getHistogramFromPath } from '../../../../utils/image/histogram.js';
-import { fromBuffer, fromFilePath } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
-import { 调整锐度, 调整平滑度, 调整清晰度, 调整锐化半径, 调整细节保护, 调整细节 } from '../../../../utils/fromDeps/sharpInterface/useSharp/adjust/clarity.js';
+import { onMounted, shallowRef } from '../../../../../static/vue.esm-browser.js';
+import { fromFilePath } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+
 const appData = inject('appData')
 const histogram = ref({})
 const imagePath = toRef(appData.imagePath)
@@ -73,47 +57,78 @@ const channels = ref([
   { key: 'brightness', label: '亮度', color: 'white', visible: true } // 添加亮度
   ]);
 
-const adjustmentControls = ref([
-  { key: 'sharpness', label: '锐度', value: 0, min: -1, max: 1, step: 0.1 },
-  { key: 'smoothness', label: '平滑度', value: 0, min: 0, max: 20, step: 1 },
-  { key: 'clarity', label: '清晰度', value: 0, min: -1, max: 1, step: 0.1 },
-  { key: 'radius', label: '锐化半径', value: 1, min: 0.5, max: 5, step: 0.1 },
-  { key: 'detail', label: '细节', value: 0, min: -1, max: 1, step: 0.1 },
-  { key: 'protection', label: '细节保护', value: 0.5, min: 0, max: 1, step: 0.1 }
-]);
+const imageAdjuster = ref(null);
+const currentProcessing = ref(null);
+const currentSharpObject = shallowRef(null);
 
-// 添加 buffer 缓存
-const imageBuffer = ref(null);
-const currentImagePath = ref('');
-const getImageBuffer = async () => {
-  if (imageBuffer.value && currentImagePath.value === imagePath.value) {
-    return imageBuffer.value;
-  }
+// 添加性能监控相关的响应式数据
+const performanceStats = ref({
+  processingTime: 0,
+  memoryUsage: 0,
+  isProcessing: false
+});
+
+// 处理直方图更新
+const handleHistogramUpdate = (result) => {
+  info.value = result.info;
+};
+
+// 处理图像处理更新
+const handleProcessingUpdate = async (processingPipeline) => {
+  if (!processingPipeline) return;
   
   try {
-    const sharpObj = fromFilePath(imagePath.value);
-    // 确保输出为 RGBA 格式
-    imageBuffer.value = await sharpObj
-      .ensureAlpha()  // 确保有 alpha 通道
-      .raw()          // 获取原始数据
-      .toBuffer();    // 转换为 buffer
-      
-    currentImagePath.value = imagePath.value;
-    return imageBuffer.value;
+    performanceStats.value.isProcessing = true;
+    const startTime = performance.now();
+    
+    let processedImg = await fromFilePath(imagePath.value);  
+    processedImg = await processingPipeline(processedImg);
+    
+    // 计算处理时间
+    performanceStats.value.processingTime = (performance.now() - startTime).toFixed(2);
+    
+    // 获取内存使用情况（如果在Node环境中）
+    if (process?.memoryUsage) {
+      const memory = process.memoryUsage();
+      performanceStats.value.memoryUsage = (memory.heapUsed / 1024 / 1024).toFixed(2);
+    }
+    
+    currentSharpObject.value = processedImg;
+    previewURL.value = await generatePreview(processedImg);
   } catch (error) {
-    console.error('获取图像buffer失败:', error);
-    ElMessage.error('获取图像数据失败');
-    throw error;
+    console.error('处理图像失败:', error);
+  } finally {
+    performanceStats.value.isProcessing = false;
   }
 };
-onMounted(async()=>{
-    const sharpObj= fromFilePath(imagePath.value)
-    const result =await     getHistogramFromSharp(sharpObj)
-    info.value =result.info
-    histogram.value=result.histogram
-})
 
-const chartOption= computed(()=>创建经典直方图配置(channels.value,histogram.value))
+onMounted(async () => {
+  const sharpObj = fromFilePath(imagePath.value);
+  currentSharpObject.value = sharpObj;
+  previewURL.value = await generatePreview(sharpObj);
+});
+
+// 导出保存当前设置的方法
+const saveCurrentSettings = () => {
+  return imageAdjuster.value?.getCurrentSettings();
+};
+
+// 导出加载设置的方法
+const loadSavedSettings = (settings) => {
+  imageAdjuster.value?.loadSettings(settings);
+};
+
+// 重置所有调整
+const resetAdjustments = () => {
+  imageAdjuster.value?.reset();
+};
+
+defineExpose({
+  saveCurrentSettings,
+  loadSavedSettings,
+  resetAdjustments
+});
+
 const generatePreview = async (sharpObj) => {
   try {
     // 调整图像大小并获取 buffer
@@ -162,43 +177,7 @@ const updateHistogramAndPreview = async (processedImg) => {
 
 const debouncedUpdate = debounce(updateHistogramAndPreview, 300);
 
-// 修改handleAdjustment函数
-const handleAdjustment = async (key) => {
-  const sharpObj = fromBuffer(await getImageBuffer());
-  const control = adjustmentControls.value.find(c => c.key === key);
-  const value = parseFloat(control.value);
-  let processedImg;
-  
-  try {
-    switch(key) {
-      case 'sharpness':
-        processedImg = 调整锐度(sharpObj, value);
-        break;
-      case 'smoothness':
-        processedImg = 调整平滑度(sharpObj, value);
-        break;
-      case 'clarity':
-        processedImg = 调整清晰度(sharpObj, value);
-        break;
-      case 'radius':
-        processedImg = 调整锐化半径(sharpObj, value);
-        break;
-      case 'detail':
-        processedImg = 调整细节(sharpObj, value);
-        break;
-      case 'protection':
-        processedImg = 调整细节保护(sharpObj, value);
-        break;
-    }
-    
-    // 使用防抖函数更新直方图和预览
-    debouncedUpdate(processedImg);
-  } catch (error) {
-    console.error('处理图像失败:', error);
-  }
-};
-
-// 添加清理函数
+// 在组件卸载时清理缓存
 onUnmounted(() => {
   // 清除可能存在的定时器
   if (debouncedUpdate.timer) {
@@ -332,5 +311,17 @@ input[type="checkbox"] {
   width: 14px;
   height: 14px;
   cursor: pointer;
+}
+
+.performance-panel {
+  padding: 8px;
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+.performance-item {
+  color: #fff;
+  font-size: 12px;
+  margin-bottom: 4px;
 }
 </style>
