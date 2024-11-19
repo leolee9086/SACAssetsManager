@@ -1,6 +1,31 @@
+import {反向柯里化}from '../../../functions/currying.js'
 /**
  * 图像变换模块 - 处理图像的几何和空间变换
  */
+
+/**
+ * 创建一个预设参数的图像缩放函数
+ * @param {Object} 缩放选项 - 预设的缩放参数，如 fit、position、background 等
+ * @returns {Function} 返回一个已预设参数的图像缩放函数
+ * @example
+ * const 缩放预设 = 预设缩放选项({ fit: 'cover', background: '#ffffff' })
+ * const 处理后图像 = 缩放预设(原始图像, [800, 600])
+ */
+export const 预设缩放选项 = (缩放选项)=>{
+    return 反向柯里化(调整大小)(缩放选项)
+}
+
+/**
+ * 创建一个预设尺寸的图像缩放函数
+ * @param {number[]} 目标尺寸 - 预设的目标尺寸 [宽度, 高度]
+ * @returns {Function} 返回一个已预设尺寸的图像缩放函数
+ * @example
+ * const 固定尺寸 = 预设缩放尺寸([800, 600])
+ * const 处理后图像 = 固定尺寸(原始图像, { fit: 'cover' })
+ */
+export const 预设缩放尺寸 = (目标尺寸) => {
+    return (img, 选项 = {}) => 调整大小(img, 目标尺寸, 选项)
+}
 
 /**
  * 调整图像大小
@@ -12,13 +37,30 @@
  * 调整大小(图像, [800, 600], { fit: 'cover' })
  */
 export const 调整大小 = (img, size, 选项 = {}) => {
+    // 中英文选项映射
+    const optionsMap = {
+        '适应': 'fit',
+        '位置': 'position',
+        '背景': 'background',
+        '禁止放大': 'withoutEnlargement',
+        '禁止缩小': 'withoutReduction',
+        '算法': 'kernel'
+    };
+
+    // 处理选项，将中文键转换为英文键
+    const processedOptions = Object.keys(选项).reduce((acc, key) => {
+        const mappedKey = optionsMap[key] || key;
+        acc[mappedKey] = 选项[key];
+        return acc;
+    }, {});
+
     return img.resize(size[0], size[1], {
-        fit: 选项.fit || 'contain',
-        position: 选项.position || 'center',
-        background: 选项.background || { r: 255, g: 255, b: 255, alpha: 1 },
-        withoutEnlargement: 选项.禁止放大 || false,
-        withoutReduction: 选项.禁止缩小 || false,
-        kernel: 选项.kernel || 'lanczos3'
+        fit: processedOptions.fit || 'contain',
+        position: processedOptions.position || 'center',
+        background: processedOptions.background || { r: 255, g: 255, b: 255, alpha: 1 },
+        withoutEnlargement: processedOptions.withoutEnlargement || false,
+        withoutReduction: processedOptions.withoutReduction || false,
+        kernel: processedOptions.kernel || 'lanczos3'
     });
 };
 
@@ -187,6 +229,38 @@ export const 调整纵横比 = (img, 比例, 选项 = {}) => {
             }
         });
 };
+
+/**
+ * 创建图像变换预设
+ * @param {Object} 预设参数 - 可以包含任意组合的预设参数
+ * @param {number[]} [预设参数.尺寸] - 预设的目标尺寸 [宽度, 高度]
+ * @param {Object} [预设参数.选项] - 预设的缩放选项
+ * @returns {Function} 返回一个预设函数，接受剩余参数
+ * @example
+ * // 预设全部参数
+ * const 固定预设 = 创建变换预设({ 尺寸: [800, 600], 选项: { fit: 'cover' } })
+ * const 结果1 = 固定预设(图像)
+ * 
+ * // 只预设尺寸
+ * const 固定尺寸 = 创建变换预设({ 尺寸: [800, 600] })
+ * const 结果2 = 固定尺寸(图像, { fit: 'cover' })
+ * 
+ * // 只预设选项
+ * const 固定选项 = 创建变换预设({ 选项: { fit: 'cover' } })
+ * const 结果3 = 固定选项(图像, [800, 600])
+ */
+export const 创建变换预设 = ({ 尺寸, 选项 } = {}) => {
+    return (img, 动态尺寸, 动态选项) => {
+        const 最终尺寸 = 动态尺寸 || 尺寸
+        const 最终选项 = { ...选项, ...动态选项 }
+        
+        if (!最终尺寸) {
+            throw new Error('必须提供尺寸参数，可以在创建预设时提供或在调用时提供')
+        }
+        
+        return 调整大小(img, 最终尺寸, 最终选项)
+    }
+}
 
 // 导出所有变换函数
 export default {

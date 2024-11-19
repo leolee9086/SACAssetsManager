@@ -1,4 +1,18 @@
-import sharp from 'sharp';
+import { requirePluginDeps } from '../../../module/requireDeps.js';
+let sharp
+try{
+ sharp=require('sharp')
+}catch(e){
+    sharp= requirePluginDeps('sharp')
+}
+/**
+ * 从文件路径转换为Sharp对象
+ * @param {string} filePath - 文件路径
+ * @returns {Sharp} Sharp对象
+ * @example
+ * const sharp对象 = fromFilePath('/path/to/image.jpg');
+ */
+export const fromFilePath = filePath => sharp(filePath);
 
 /**
  * 网络相关转换
@@ -257,36 +271,41 @@ export const fromColorMatrix = (matrix, channels = 4) => {
  * 智能转换函数
  */
 export const toSharp = input => {
-    // 基本类型检查
-    if (Buffer.isBuffer(input)) return fromBuffer(input);
-    if (input instanceof Blob) return fromBlob(input);
-    if (input instanceof File) return fromFile(input);
-    if (input instanceof ArrayBuffer) return fromArrayBuffer(input);
-    if (input instanceof Uint8Array) return fromUint8Array(input);
-    if (input instanceof Uint16Array) return fromUint16Array(input);
-    if (input instanceof Int8Array) return fromInt8Array(input);
-    if (input instanceof HTMLCanvasElement) return fromCanvas(input);
-    if (input instanceof HTMLImageElement) return fromImageElement(input);
-    if (input instanceof SVGElement) return fromSVGElement(input);
-    if (input instanceof ImageData) return fromImageData(input);
-
-    // 字符串类型检查
-    if (typeof input === 'string') {
-        if (input.startsWith('data:')) return fromDataURI(input);
-        if (input.startsWith('http')) return fromURL(input);
-        if (input.startsWith('blob:')) return fromBase64URL(input);
-        try {
-            return fromPath(input);
-        } catch {
-            return fromBase64(input);
-        }
+    // 使用 typeof 检查作为第一层过滤，因为它是最快的类型检查
+    const type = typeof input;
+    
+    if (type === 'string') {
+        const firstChar = input.charAt(0);
+        // 使用 charAt(0) 替代 startsWith，性能更好
+        if (firstChar === 'd') return fromDataURI(input);  // data:
+        if (firstChar === 'h') return fromURL(input);      // http
+        if (firstChar === 'b') return fromBase64URL(input);// blob:
+        return fromPath(input).catch(() => fromBase64(input));
     }
+    
+    // 使用 Map 存储实例检查，避免多个 if 判断
+    const instanceHandlers = new Map([
+        [Buffer.isBuffer, fromBuffer],
+        [input => input instanceof Blob, fromBlob],
+        [input => input instanceof File, fromFile],
+        [input => input instanceof ArrayBuffer, fromArrayBuffer],
+        [input => input instanceof Uint8Array, fromUint8Array],
+        [input => input instanceof Uint16Array, fromUint16Array],
+        [input => input instanceof Int8Array, fromInt8Array],
+        [input => input instanceof HTMLCanvasElement, fromCanvas],
+        [input => input instanceof HTMLImageElement, fromImageElement],
+        [input => input instanceof SVGElement, fromSVGElement],
+        [input => input instanceof ImageData, fromImageData]
+    ]);
 
-    // 数组类型检查
-    if (Array.isArray(input)) {
-        if (input[0] && Array.isArray(input[0])) {
-            return fromColorMatrix(input);
-        }
+    // 遍历 Map 查找匹配的处理函数
+    for (const [checker, handler] of instanceHandlers) {
+        if (checker(input)) return handler(input);
+    }
+    
+    // 数组检查放在最后，因为通常不是最常见的情况
+    if (Array.isArray(input) && input[0]?.length) {
+        return fromColorMatrix(input);
     }
 
     throw new Error('不支持的输入类型');
@@ -345,4 +364,14 @@ export const isSharp = obj =>
  */
 export const ensureSharp = input =>
     isSharp(input) ? input : toSharp(input);
+
+/**
+ * 从Base64字符串转换为Sharp对象
+ * @param {string} base64 - Base64编码的字符串
+ * @returns {Promise<Sharp>} Sharp对象
+ */
+export const fromBase64 = async base64 => {
+    const buffer = Buffer.from(base64, 'base64');
+    return sharp(buffer);
+};
 

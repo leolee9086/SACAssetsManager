@@ -1,7 +1,7 @@
 import { 欧几里得聚类, CIEDE2000聚类 } from '../../../utils/color/Kmeans.js'
 import { 找到文件颜色, 添加到颜色索引 } from '../color/colorIndex.js'
 import { awaitForEach } from '../../../utils/array/walk.js'
-import { processImageBuffer } from './utils/sharp.js'
+import { 缩放图像到32 } from './utils/sharp.js'
 /**
  * 获取图像的主色调
  * @param {Object} buffer - 图像的缓冲区对象
@@ -18,7 +18,7 @@ export async function getColor(buffer, filePath) {
         console.log('颜色缓存命中')
         return finded
     }
-    let rgba = await processImageBuffer(buffer)
+    let rgba = await 缩放图像到32(buffer)
     if (!rgba) return []
     try {
         let colors = await processColors(rgba, filePath)
