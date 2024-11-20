@@ -137,40 +137,86 @@ async function 创建自动曝光GPU管线(device, 宽度, 高度) {
 }
 
 function 创建输入纹理(device, 图像数据, 宽度, 高度) {
-    const texture = device.createTexture({
-        size: [宽度, 高度],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-        dimension: '2d',
-    });
-
-    // 计算对齐的行跨度
-    const bytesPerRow = Math.ceil(宽度 * 4 / 256) * 256;
-    
-    // 创建临时缓冲区存储对齐的数据
-    const paddedData = new Uint8Array(bytesPerRow * 高度);
-    
-    // 复制数据到对齐的缓冲区
-    for (let row = 0; row < 高度; row++) {
-        const sourceOffset = row * 宽度 * 4;
-        const targetOffset = row * bytesPerRow;
-        paddedData.set(
-            new Uint8Array(图像数据.buffer, sourceOffset, 宽度 * 4),
-            targetOffset
-        );
+    // 检查输入参数
+    if (!图像数据 || !宽度 || !高度) {
+        throw new Error('无效的输入参数');
     }
+    
+    console.log('创建纹理 - 输入尺寸:', 宽度, 'x', 高度);
+    console.log('输入数据长度:', 图像数据.length);
 
-    device.queue.writeTexture(
-        { texture },
-        paddedData,
-        { bytesPerRow, rowsPerImage: 高度 },
-        { width: 宽度, height: 高度 }
-    );
+    try {
+        // 确保最小尺寸和对齐要求
+        const minWidth = Math.max(1, 宽度);
+        const minHeight = Math.max(1, 高度);
+        
+        // 计算对齐的行字节数 (确保至少为256的倍数)
+        const bytesPerPixel = 4; // RGBA格式
+        const minBytesPerRow = minWidth * bytesPerPixel;
+        const alignedBytesPerRow = Math.ceil(minBytesPerRow / 256) * 256;
+        
+        console.log('对齐前的行字节数:', minBytesPerRow);
+        console.log('对齐后的行字节数:', alignedBytesPerRow);
+        
+        // 创建纹理
+        const texture = device.createTexture({
+            size: [minWidth, minHeight],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+            dimension: '2d',
+        });
 
-    return texture;
+        // 计算填充后的缓冲区大小
+        const paddedBufferSize = alignedBytesPerRow * minHeight;
+        console.log('填充后的缓冲区大小:', paddedBufferSize);
+
+        // 创建临时缓冲区并填充数据
+        const paddedData = new Uint8Array(paddedBufferSize);
+        
+        // 逐行复制数据
+        for (let row = 0; row < minHeight; row++) {
+            const sourceStart = row * minWidth * bytesPerPixel;
+            const sourceEnd = sourceStart + minWidth * bytesPerPixel;
+            const targetStart = row * alignedBytesPerRow;
+            
+            // 复制实际数据
+            const rowData = 图像数据.slice(sourceStart, sourceEnd);
+            paddedData.set(rowData, targetStart);
+        }
+
+        // 写入纹理
+        device.queue.writeTexture(
+            { texture },
+            paddedData,
+            { 
+                bytesPerRow: alignedBytesPerRow,
+                rowsPerImage: minHeight 
+            },
+            { 
+                width: minWidth,
+                height: minHeight 
+            }
+        );
+
+        return texture;
+    } catch (error) {
+        console.error('创建输入纹理失败:', error);
+        console.error('详细信息:', {
+            宽度,
+            高度,
+            数据长度: 图像数据?.length,
+            期望数据长度: 宽度 * 高度 * 4
+        });
+        throw error;
+    }
 }
 
 function 创建输出纹理(device, 宽度, 高度) {
+    // 检查尺寸
+    if (宽度 < 1 || 高度 < 1) {
+        throw new Error('无效的纹理尺寸');
+    }
+    
     return device.createTexture({
         size: [宽度, 高度],
         format: 'rgba8unorm',
@@ -196,15 +242,61 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
     if (!device) {
         throw new Error('GPU设备未初始化');
     }
-    const { data, info, histogram } = await getHistogramFromSharp(sharpObj);
-    const { width, height,channels } = info;
     
     try {
+        const { data, info, histogram } = await getHistogramFromSharp(sharpObj);
+        const { width, height, channels } = info;
+        
+        console.log('处理图像:', {
+            宽度: width,
+            高度: height,
+            通道数: channels,
+            数据长度: data.length
+        });
+        
+        // 验证输入数据
+        if (!data || data.length !== width * height * channels) {
+            throw new Error(`数据长度不匹配: 期望 ${width * height * channels}, 实际 ${data?.length}`);
+        }
+
+        // 创建纹理
+        const inputTexture = 创建输入纹理(device, data, width, height);
+        if (!inputTexture) {
+            throw new Error('创建输入纹理失败');
+        }
+
+        // 分析直方图特征
+        const 特征 = 分析直方图特征(histogram.brightness);
+        console.log('图像特征:', 特征); // 用于调试
+
+        // 根据特征动态调整强度
+        let 调整后强度 = 强度;
+        if (特征.darkRatio > 0.4) {
+            // 暗部占比较大，增加强度以提亮
+            调整后强度 *= (1 + 特征.darkRatio);
+            console.log('增加强度due to暗部:', 调整后强度);
+        } else if (特征.brightRatio > 0.4) {
+            // 亮部占比较大，降低强度以避免过曝
+            调整后强度 *= (1 - 特征.brightRatio * 0.5);
+            console.log('降低强度due to亮部:', 调整后强度);
+        }
+
         // 获取管线和布局
         const { pipeline, uniformBuffer, bindGroupLayout } = await 创建自动曝光GPU管线(device, width, height);
         
-        // 创建纹理
-        const inputTexture = 创建输入纹理(device, data, width, height);
+        // 计算参数时考虑图像特征
+        const { cdf, targetExposure, localAdjustFactor } = 计算参数(histogram.brightness, 特征);
+        
+        // 更新缓冲区时使用调整后的参数
+        device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([
+            width,
+            height,
+            调整后强度,
+            targetExposure,
+            localAdjustFactor
+        ]));
+
+        // 创建输出纹理
         const outputTexture = 创建输出纹理(device, width, height);
         
         // 创建直方图和CDF缓冲区
@@ -218,19 +310,9 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
-        // 计算参数
-        const { cdf, targetExposure, localAdjustFactor } = 计算参数(histogram.brightness);
-        
         // 更新缓冲区
         device.queue.writeBuffer(histogramBuffer, 0, new Uint32Array(histogram.brightness));
         device.queue.writeBuffer(cdfBuffer, 0, new Float32Array(cdf));
-        device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([
-            width,
-            height,
-            强度,
-            targetExposure,
-            localAdjustFactor
-        ]));
 
         // 使用新的bindGroupLayout创建绑定组
         const bindGroup = 创建绑定组(
@@ -279,13 +361,18 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
 async function 读取结果纹理(device, texture) {
     const width = texture.width;
     const height = texture.height;
+    const bytesPerPixel = 4;
     
-    // 计算对齐到256字节的行跨度
-    const bytesPerRow = Math.ceil(width * 4 / 256) * 256;
+    // 计算对齐的行字节数
+    const minBytesPerRow = width * bytesPerPixel;
+    const alignedBytesPerRow = Math.ceil(minBytesPerRow / 256) * 256;
     
-    // 创建足够大的缓冲区来容纳对齐后的数据
+    // 计算总缓冲区大小
+    const bufferSize = alignedBytesPerRow * height;
+    
+    // 创建结果缓冲区
     const resultBuffer = device.createBuffer({
-        size: bytesPerRow * height,
+        size: bufferSize,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
 
@@ -294,7 +381,7 @@ async function 读取结果纹理(device, texture) {
         { texture },
         { 
             buffer: resultBuffer,
-            bytesPerRow: bytesPerRow,
+            bytesPerRow: alignedBytesPerRow,
             rowsPerImage: height 
         },
         { width, height }
@@ -302,21 +389,19 @@ async function 读取结果纹理(device, texture) {
 
     device.queue.submit([commandEncoder.finish()]);
 
-    // 等待GPU完成
+    // 等待GPU完成并读取数据
     await resultBuffer.mapAsync(GPUMapMode.READ);
     const mappedRange = resultBuffer.getMappedRange();
     
     // 创建最终结果数组
-    const finalResult = new Uint8Array(width * height * 4);
+    const finalResult = new Uint8Array(width * height * bytesPerPixel);
     
-    // 复制每一行，跳过填充字节
+    // 逐行复制数据，跳过填充字节
     for (let row = 0; row < height; row++) {
-        const sourceOffset = row * bytesPerRow;
-        const targetOffset = row * width * 4;
-        finalResult.set(
-            new Uint8Array(mappedRange, sourceOffset, width * 4),
-            targetOffset
-        );
+        const sourceStart = row * alignedBytesPerRow;
+        const targetStart = row * width * bytesPerPixel;
+        const rowData = new Uint8Array(mappedRange, sourceStart, width * bytesPerPixel);
+        finalResult.set(rowData, targetStart);
     }
     
     // 清理资源
@@ -326,11 +411,10 @@ async function 读取结果纹理(device, texture) {
     return finalResult;
 }
 
-function 计算参数(直方图) {
-    // 计算总像素数
+function 计算参数(直方图, 特征) {
     const totalPixels = 直方图.reduce((sum, count) => sum + count, 0);
     
-    // 计算CDF（累积分布函数）
+    // 计算CDF
     const cdf = new Float32Array(256);
     let sum = 0;
     for (let i = 0; i < 256; i++) {
@@ -345,14 +429,27 @@ function 计算参数(直方图) {
     }
     const averageLuminance = weightedSum / totalPixels;
 
-    // 计算目标曝光值
-    // 目标是使平均亮度接近0.5
-    const targetExposure = 0.5 - averageLuminance;
+    // 根据特征调整目标曝光值
+    let targetExposure = 0.5 - averageLuminance;
+    
+    // 如果有明显的峰值，向该方向适当调整
+    if (特征.peakBin < 0.3) {
+        // 暗部有峰值，增加曝光补偿
+        targetExposure *= 1.2;
+    } else if (特征.peakBin > 0.7) {
+        // 亮部有峰值，减少曝光补偿
+        targetExposure *= 0.8;
+    }
 
     // 计算局部调整因子
-    // 基于直方图的分布特征来调整
     const variance = calculateVariance(直方图, averageLuminance, totalPixels);
-    const localAdjustFactor = calculateLocalAdjustFactor(variance);
+    let localAdjustFactor = calculateLocalAdjustFactor(variance);
+    
+    // 根据特征调整局部因子
+    if (特征.darkRatio > 0.4 || 特征.brightRatio > 0.4) {
+        // 在极端情况下减少局部调整以避免过度处理
+        localAdjustFactor *= 0.8;
+    }
 
     return {
         cdf,
@@ -408,4 +505,22 @@ function 分析直方图特征(直方图) {
         darkRatio: darkPixels / totalPixels,
         brightRatio: brightPixels / totalPixels
     };
+}
+
+// 添加辅助函数用于验证图像数据
+function 验证图像数据(data, width, height, channels) {
+    if (!data || !data.length) {
+        throw new Error('无效的图像数据');
+    }
+    
+    if (width < 1 || height < 1) {
+        throw new Error(`无效的图像尺寸: ${width}x${height}`);
+    }
+    
+    const expectedLength = width * height * channels;
+    if (data.length !== expectedLength) {
+        throw new Error(`数据长度不匹配: 期望 ${expectedLength}, 实际 ${data.length}`);
+    }
+    
+    return true;
 }
