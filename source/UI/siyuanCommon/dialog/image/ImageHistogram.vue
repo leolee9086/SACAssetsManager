@@ -1,78 +1,122 @@
 <template>
-  <div class="histogram-wrapper">
-    <!-- 左侧图像预览区域 -->
-    <div class="toolbar">
-      <button class="open-file-btn" @click="openNewFile">
-        打开文件
-      </button>
-    </div>
-    <div class="preview-section">
-      <div class="image-container">
-        <canvas ref="previewCanvas" alt="预览图"></canvas>
-      </div>
-      <div class="image-info">
-        <div class="info-item">图像路径: {{ imagePath }}</div>
-        <div class="info-item">大小: {{ info.width }}*{{ info.height }}</div>
-      </div>
-    </div>
+    <div class="histogram-wrapper">
+        <!-- 左侧图像预览区域 -->
+        <div class="toolbar">
+            <button class="open-file-btn" @click="openNewFile">
+                打开文件
+            </button>
+        </div>
+        <div class="preview-section">
+            <div class="image-container">
+                <canvas ref="previewCanvas" alt="预览图"></canvas>
+            </div>
+            <div class="image-info">
+                <div class="info-item">图像路径: {{ imagePath }}</div>
+                <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{ originalImageInfo?.height || 0 }}</div>
+            </div>
+        </div>
 
-    <!-- 右侧控制面板 -->
-    <div class="control-section">
-      <HistogramPanel
-        v-model:channels="channels"
-        :sharp-object="currentSharpObject"
-        @histogram-updated="handleHistogramUpdate"
-      />
-      
-      <ImageAdjuster
-        ref="imageAdjuster"
-        @update:processing="handleProcessingUpdate"
-      />
-    </div>
+        <!-- 右侧控制面板 -->
+        <div class="control-section">
+            <HistogramPanel v-model:channels="channels" :sharp-object="currentSharpObject"
+                @histogram-updated="handleHistogramUpdate" />
 
-    <!-- 添加性能监控面板 -->
-    <div class="performance-panel">
-      <div class="performance-item">
-        处理时间: {{ performanceStats.processingTime||0 }} ms
-      </div>
-      <div class="performance-item">
-        内存使用: {{ performanceStats.memoryUsage||0 }} MB
-      </div>
+            <ImageAdjuster ref="imageAdjuster" @update:processing="handleProcessingUpdate" />
+        </div>
+
+        <!-- 添加性能监控面板 -->
+        <div class="performance-panel">
+            <div class="performance-item">
+                处理时间: {{ performanceStats.processingTime || 0 }} ms
+            </div>
+            <div class="performance-item">
+                内存使用: {{ performanceStats.memoryUsage || 0 }} MB
+            </div>
+        </div>
     </div>
-  </div>
 </template>
 
 <script setup>
 import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
-import { ref, computed, inject,toRef, onUnmounted } from 'vue';
+import { ref, computed, inject, toRef, onUnmounted } from 'vue';
 import { onMounted, shallowRef } from '../../../../../static/vue.esm-browser.js';
 import { fromFilePath } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { requirePluginDeps } from '../../../../utils/module/requireDeps.js';
+const sharp = requirePluginDeps('sharp')
+const originalImageInfo = ref({})
 const openNewFile = async () => {
-  try {
-    const result = await window.require("@electron/remote").dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [
-        { name: '图像文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
-      ]
-    });
+    try {
+        // 确保 controller 存在
+        if (!previewState.value.currentController) {
+            previewState.value.currentController = new AbortController();
+        }
 
-    if (!result.canceled && result.filePaths.length > 0) {
-      const newPath = result.filePaths[0];
-      // 更新图像路径
-      imagePath.value = newPath;
-      
-      // 重新初始化图像处理
-      const sharpObj = await fromFilePath(newPath);
-      currentSharpObject.value = sharpObj;
-      await generatePreview(sharpObj);
-      
-      // 重置所有调整
-      resetAdjustments();
+        // 取消当前正在进行的所有处理
+        previewState.value.currentController.abort();
+        previewState.value.currentController = new AbortController();
+
+        const result = await window.require("@electron/remote").dialog.showOpenDialog({
+            properties: ['openFile'],
+            filters: [
+                { name: '图像文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
+            ]
+        });
+
+        if (!result.canceled && result.filePaths.length > 0) {
+            const newPath = result.filePaths[0];
+            
+            // 重置所有状态
+            previewState.value = {
+                lastFullRenderTime: 0,
+                lastAdjustmentTime: 0,
+                isAdjusting: false,
+                previewTimeout: null,
+                thumbnailCache: null,
+                pendingFullRender: false,
+                currentController: new AbortController(),
+                renderVersion: 0
+            };
+            
+            // 清理当前的 Sharp 对象
+            if (currentSharpObject.value) {
+                currentSharpObject.value = null;
+            }
+
+            // 更新路径
+            imagePath.value = newPath;
+
+            try {
+                // 创建新的 Sharp 对象并获取元数据
+                const originalImage = await fromFilePath(newPath);
+                const metadata = await originalImage.metadata();
+                
+                // 更新图像信息
+                originalImageInfo.value = {
+                    width: metadata.width,
+                    height: metadata.height,
+                    format: metadata.format
+                };
+
+                // 设置新的 Sharp 对象
+                currentSharpObject.value = originalImage;
+                
+                // 生成预览
+                await generatePreview(originalImage);
+
+                // 重置调整器
+                await resetAdjustments();
+                
+            } catch (error) {
+                console.error('处理新图像失败:', error);
+                throw error;
+            }
+        }
+    } catch (error) {
+        console.error('打开文件失败:', error);
+        // 可以在这里添加用户提示
+        alert('打开文件失败，请重试');
     }
-  } catch (error) {
-    console.error('打开文件失败:', error);
-  }
 };
 
 
@@ -80,15 +124,15 @@ const openNewFile = async () => {
 
 const appData = inject('appData')
 const histogram = ref({})
-const imagePath = toRef(appData.imagePath||window.imagePath)
+const imagePath = toRef(appData.imagePath || window.imagePath)
 const previewCanvas = ref(null);
-const info= ref({}) 
+const info = ref({})
 const channels = ref([
-  { key: 'r', label: 'R', color: '#ff0000', visible: true },
-  { key: 'g', label: 'G', color: '#00ff00', visible: true },
-  { key: 'b', label: 'B', color: '#0000ff', visible: true },
-  { key: 'brightness', label: '亮度', color: 'white', visible: true } // 添加亮度
-  ]);
+    { key: 'r', label: 'R', color: '#ff0000', visible: true },
+    { key: 'g', label: 'G', color: '#00ff00', visible: true },
+    { key: 'b', label: 'B', color: '#0000ff', visible: true },
+    { key: 'brightness', label: '亮度', color: 'white', visible: true } // 添加亮度
+]);
 
 const imageAdjuster = ref(null);
 const currentProcessing = ref(null);
@@ -96,287 +140,524 @@ const currentSharpObject = shallowRef(null);
 
 // 添加性能监控相关的响应式数据
 const performanceStats = ref({
-  processingTime: 0,
-  memoryUsage: 0,
-  isProcessing: false
+    processingTime: 0,
+    memoryUsage: 0,
+    isProcessing: false
+});
+
+// 添加预览控制状态
+const previewState = ref({
+    lastFullRenderTime: 0,
+    lastAdjustmentTime: 0,
+    isAdjusting: false,
+    previewTimeout: null,
+    thumbnailCache: null,
+    pendingFullRender: false,
+    currentController: new AbortController(),  // 确保初始化时就有 controller
+    renderVersion: 0
 });
 
 // 处理直方图更新
 const handleHistogramUpdate = (result) => {
-  info.value = result.info;
+    info.value = result.info;
 };
 
-// 处理图像处理更新
-const handleProcessingUpdate = async (processingPipeline) => {
-  if (!processingPipeline) return;
-  
-  try {
-    performanceStats.value.isProcessing = true;
-    const startTime = performance.now();
-    
-    let processedImg = await fromFilePath(imagePath.value);  
-    processedImg = await processingPipeline(processedImg);
-    
-    // 计算处理时间
-    performanceStats.value.processingTime = (performance.now() - startTime).toFixed(2);
-    
-    // 获取内存使用情况（如果在Node环境中）
-    if (process?.memoryUsage) {
-      const memory = process.memoryUsage();
-      performanceStats.value.memoryUsage = (memory.heapUsed / 1024 / 1024).toFixed(2);
+// 添加动态降级配置
+const resolutionConfig = {
+    maxPreviewSize: 1920,
+    minPreviewSize: 480,
+    adjustmentThreshold: {
+        rapid: 100,    // 100ms内多次调整
+        normal: 300,   // 300ms内多次调整
+        slow: 500      // 500ms内多次调整
+    },
+    // 不同调整频率对应的降级尺寸
+    resolutionLevels: {
+        rapid: 480,    // 快速调整时使用最小尺寸
+        normal: 960,   // 正常调整时使用中等尺寸
+        slow: 1440,    // 缓慢调整时使用较大尺寸
+        final: 1920    // 最终预览尺寸
     }
+};
+
+// 添加动态分辨率控制
+const getDynamicResolution = () => {
+    const now = performance.now();
+    const timeSinceLastAdjustment = now - previewState.value.lastAdjustmentTime;
     
-    currentSharpObject.value = processedImg;
-    await generatePreview(processedImg);
-  } catch (error) {
-    console.error('处理图像失败:', error);
-  } finally {
-    performanceStats.value.isProcessing = false;
-  }
+    // 更激进的降级策略
+    if (timeSinceLastAdjustment < resolutionConfig.adjustmentThreshold.rapid) {
+        return resolutionConfig.resolutionLevels.rapid;  // 480
+    } else if (timeSinceLastAdjustment < resolutionConfig.adjustmentThreshold.normal) {
+        return Math.min(
+            resolutionConfig.resolutionLevels.normal,  // 960
+            previewState.value.currentResolution || Infinity
+        );
+    }
+    return resolutionConfig.resolutionLevels.slow;  // 1440
+};
+
+// 修改缩略图处理函数
+const processWithThumbnail = async (processingPipeline, signal) => {
+    try {
+        const resolution = getDynamicResolution();
+        
+        if (!previewState.value.thumbnailCache || 
+            previewState.value.currentResolution !== resolution) {
+            const originalImage = await fromFilePath(imagePath.value);
+            previewState.value.thumbnailCache = await originalImage
+                .resize(resolution, resolution, { 
+                    fit: 'inside',
+                    withoutEnlargement: true
+                })
+                .toBuffer();
+            previewState.value.currentResolution = resolution;
+        }
+
+        if (signal.aborted) return;
+
+        let processedImg = await sharp(previewState.value.thumbnailCache);
+        processedImg = await processingPipeline(processedImg);
+
+        if (signal.aborted) return;
+
+        currentSharpObject.value = processedImg;
+        await generatePreview(processedImg);
+
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('缩略图处理失败:', error);
+        }
+        throw error;
+    }
+};
+
+// 修改处理更新函数
+const handleProcessingUpdate = async (processingPipeline) => {
+    if (!processingPipeline) return;
+
+    try {
+        // 立即取消之前的处理
+        if (previewState.value.currentController) {
+            previewState.value.currentController.abort();
+        }
+        previewState.value.currentController = new AbortController();
+        const { signal } = previewState.value.currentController;
+
+        // 更新版本号
+        const currentVersion = ++previewState.value.renderVersion;
+        
+        // 记录调整时间
+        previewState.value.lastAdjustmentTime = performance.now();
+        previewState.value.isAdjusting = true;
+
+        // 清除之前的定时器
+        if (previewState.value.previewTimeout) {
+            clearTimeout(previewState.value.previewTimeout);
+            previewState.value.previewTimeout = null;
+        }
+
+        // 立即进行低分辨率渲染
+        const lowResProcessing = async () => {
+            try {
+                // 获取当前应该使用的分辨率
+                const resolution = getDynamicResolution();
+                
+                // 创建低分辨率图像
+                const originalImage = await fromFilePath(imagePath.value);
+                const lowResBuffer = await originalImage
+                    .resize(resolution, resolution, { 
+                        fit: 'inside',
+                        withoutEnlargement: true
+                    })
+                    .toBuffer();
+
+                if (signal.aborted) return;
+
+                // 应用处理管道
+                let processedImg = await sharp(lowResBuffer);
+                processedImg = await processingPipeline(processedImg);
+
+                if (signal.aborted) return;
+
+                // 更新预览
+                currentSharpObject.value = processedImg;
+                await generatePreview(processedImg);
+
+                // 存储当前分辨率
+                previewState.value.currentResolution = resolution;
+
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('低分辨率处理失败:', error);
+                }
+                throw error;
+            }
+        };
+
+        // 立即执行低分辨率渲染
+        await lowResProcessing();
+
+        if (currentVersion !== previewState.value.renderVersion) return;
+
+        // 定义分辨率提升函数
+        const upgradeResolution = async () => {
+            if (signal.aborted) return;
+
+            const currentRes = previewState.value.currentResolution;
+            const nextLevel = Object.values(resolutionConfig.resolutionLevels)
+                .filter(size => size > currentRes)
+                .sort((a, b) => a - b)[0];
+
+            if (nextLevel && nextLevel <= resolutionConfig.maxPreviewSize) {
+                try {
+                    const originalImage = await fromFilePath(imagePath.value);
+                    const higherResBuffer = await originalImage
+                        .resize(nextLevel, nextLevel, { 
+                            fit: 'inside',
+                            withoutEnlargement: true 
+                        })
+                        .toBuffer();
+
+                    if (signal.aborted) return;
+
+                    let processedImg = await sharp(higherResBuffer);
+                    processedImg = await processingPipeline(processedImg);
+
+                    if (signal.aborted) return;
+
+                    currentSharpObject.value = processedImg;
+                    await generatePreview(processedImg);
+                    previewState.value.currentResolution = nextLevel;
+
+                    // 继续提升分辨率
+                    previewState.value.previewTimeout = setTimeout(upgradeResolution, 200);
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('分辨率提升失败:', error);
+                    }
+                }
+            } else {
+                // 最终渲染原图
+                previewState.value.isAdjusting = false;
+                await processWithFullResolution(processingPipeline, signal);
+            }
+        };
+
+        // 延迟开始分辨率提升
+        previewState.value.previewTimeout = setTimeout(upgradeResolution, 300);
+
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('渲染已取消');
+        } else {
+            console.error('处理图像失败:', error);
+        }
+    }
+};
+
+// 添加全分辨率处理函数
+const processWithFullResolution = async (processingPipeline, signal) => {
+    const startTime = performance.now();
+
+    try {
+        // 如果已经被取消，直接返回
+        if (signal.aborted) return;
+
+        // 重要：这里移除了额外的时间检查，因为已经在上层确保了时机
+        let processedImg = await fromFilePath(imagePath.value);
+
+        // 检查是否已取消
+        if (signal.aborted) return;
+
+        processedImg = await processingPipeline(processedImg);
+
+        // 最终检查是否已取消
+        if (signal.aborted) return;
+
+        // 更新预览和记录渲染时间
+        currentSharpObject.value = processedImg;
+        await generatePreview(processedImg);
+        previewState.value.lastFullRenderTime = performance.now() - startTime;
+
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('全分辨率处理失败:', error);
+        }
+        throw error;
+    }
 };
 
 onMounted(async () => {
-  const sharpObj = fromFilePath(imagePath.value);
-  currentSharpObject.value = sharpObj;
-  await generatePreview(sharpObj);
+    try {
+        // 初始化预览状态
+        if (!previewState.value.currentController) {
+            previewState.value.currentController = new AbortController();
+        }
+
+        // 初始化 Sharp 对象
+        const sharpObj = await fromFilePath(imagePath.value);
+        currentSharpObject.value = sharpObj;
+        
+        // 获取元数据
+        const metadata = await sharpObj.metadata();
+        originalImageInfo.value = {
+            width: metadata.width,
+            height: metadata.height,
+            format: metadata.format
+        };
+
+        // 生成初始预览
+        await generatePreview(sharpObj);
+
+        // 初始化处理管道
+        const initialProcessing = async (img) => img.clone();
+        await handleProcessingUpdate(initialProcessing);
+
+    } catch (error) {
+        console.error('组件初始化失败:', error);
+    }
 });
 
 // 导出保存当前设置的方法
 const saveCurrentSettings = () => {
-  return imageAdjuster.value?.getCurrentSettings();
+    return imageAdjuster.value?.getCurrentSettings();
 };
 
 // 导出加载设置的方法
 const loadSavedSettings = (settings) => {
-  imageAdjuster.value?.loadSettings(settings);
+    imageAdjuster.value?.loadSettings(settings);
 };
 
 // 重置所有调整
 const resetAdjustments = () => {
-  imageAdjuster.value?.reset();
+    imageAdjuster.value?.reset();
 };
 
 defineExpose({
-  saveCurrentSettings,
-  loadSavedSettings,
-  resetAdjustments
+    saveCurrentSettings,
+    loadSavedSettings,
+    resetAdjustments
 });
 
 const generatePreview = async (sharpObj) => {
-  try {
-    const previewSharp = sharpObj.clone();
+    try {
+        const previewSharp = sharpObj.clone();
 
-    const buffer = await previewSharp
-      .png()
-      .toBuffer();
-    
-    const blob = new Blob([buffer], { type: 'image/png' });
-    const imageBitmap = await createImageBitmap(blob);
-    
-    const canvas = previewCanvas.value;
-    const ctx = canvas.getContext('2d');
-    
-    // 获取 image-container 的尺寸
-    const container = canvas.parentElement;
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    
-    // 计算图像的缩放比例
-    const scale = Math.min(containerWidth / imageBitmap.width, containerHeight / imageBitmap.height);
-    
-    // 设置 canvas 尺寸
-    canvas.width = containerWidth;
-    canvas.height = containerHeight;
-    
-    // 清除旧内容并绘制新图像
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(
-      imageBitmap,
-      0, 0, imageBitmap.width, imageBitmap.height,
-      (canvas.width - imageBitmap.width * scale) / 2,
-      (canvas.height - imageBitmap.height * scale) / 2,
-      imageBitmap.width * scale,
-      imageBitmap.height * scale
-    );
-    
-    imageBitmap.close();
-  } catch (error) {
-    console.error('生成预览图失败:', error,error.stack);
-  }
+        const buffer = await previewSharp
+            .png()
+            .toBuffer();
+
+        const blob = new Blob([buffer], { type: 'image/png' });
+        const imageBitmap = await createImageBitmap(blob);
+
+        const canvas = previewCanvas.value;
+        const ctx = canvas.getContext('2d');
+
+        // 获取 image-container 的尺寸
+        const container = canvas.parentElement;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+
+        // 计算图像的缩放比例
+        const scale = Math.min(containerWidth / imageBitmap.width, containerHeight / imageBitmap.height);
+
+        // 设置 canvas 尺寸
+        canvas.width = containerWidth;
+        canvas.height = containerHeight;
+
+        // 清除旧内容并绘制新图像
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(
+            imageBitmap,
+            0, 0, imageBitmap.width, imageBitmap.height,
+            (canvas.width - imageBitmap.width * scale) / 2,
+            (canvas.height - imageBitmap.height * scale) / 2,
+            imageBitmap.width * scale,
+            imageBitmap.height * scale
+        );
+
+        imageBitmap.close();
+    } catch (error) {
+        console.error('生成预览图失败:', error, error.stack);
+    }
 };
 
 // 添加简单的防抖函数实现
 const debounce = (fn, delay) => {
-  let timer = null;
-  return (...args) => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      fn.apply(this, args);
-      timer = null;
-    }, delay);
-  };
+    let timer = null;
+    return (...args) => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+            fn.apply(this, args);
+            timer = null;
+        }, delay);
+    };
 };
 
 // 创建防抖后的直方图和预览更新函数
 const updateHistogramAndPreview = async (processedImg) => {
-  try {
-    const result = await getHistogramFromSharp(processedImg);
-    histogram.value = result.histogram;
-    info.value = result.info;
-    await generatePreview(processedImg);
-  } catch (error) {
-    console.error('更新直方图和预览失败:', error);
-  }
+    try {
+        const result = await getHistogramFromSharp(processedImg);
+        histogram.value = result.histogram;
+        info.value = result.info;
+        await generatePreview(processedImg);
+    } catch (error) {
+        console.error('更新直方图和预览失败:', error);
+    }
 };
 
 const debouncedUpdate = debounce(updateHistogramAndPreview, 300);
 
 // 在组件卸载时清理缓存
 onUnmounted(() => {
-  // 清除可能存在的定时器
-  if (debouncedUpdate.timer) {
-    clearTimeout(debouncedUpdate.timer);
-  }
+    if (previewState.value.currentController) {
+        previewState.value.currentController.abort();
+    }
+    if (previewState.value.previewTimeout) {
+        clearTimeout(previewState.value.previewTimeout);
+    }
+    previewState.value.thumbnailCache = null;
 });
 </script>
 <style scoped>
 .histogram-wrapper {
-  display: flex;
-  gap: 20px;
-  padding: 16px;
-  background: #1e1e1e;
-  border-radius: 4px;
-  min-height: 600px;
+    display: flex;
+    gap: 20px;
+    padding: 16px;
+    background: #1e1e1e;
+    border-radius: 4px;
+    min-height: 600px;
 }
 
 /* 左侧预览区域样式 */
 .preview-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .image-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #2a2a2a;
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #2a2a2a;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
 }
 
 .image-container canvas {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    position: absolute;
 }
 
 .image-info {
-  padding: 8px;
-  background: #2a2a2a;
-  border-radius: 4px;
+    padding: 8px;
+    background: #2a2a2a;
+    border-radius: 4px;
 }
 
 .info-item {
-  color: #fff;
-  font-size: 12px;
-  margin-bottom: 4px;
+    color: #fff;
+    font-size: 12px;
+    margin-bottom: 4px;
 }
 
 /* 右侧控制面板样式 */
 .control-section {
-  width: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: #2a2a2a;
-  padding: 16px;
-  border-radius: 4px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: #2a2a2a;
+    padding: 16px;
+    border-radius: 4px;
 }
 
 .histogram-controls {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .channel-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
 }
 
 .histogram-chart {
-  background: #252525;
-  border-radius: 4px;
-  padding: 8px;
+    background: #252525;
+    border-radius: 4px;
+    padding: 8px;
 }
 
 .adjustment-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow-y: auto;
-  flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    flex: 1;
 }
 
 .control-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .control-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #fff;
-  font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #fff;
+    font-size: 12px;
 }
 
 .value-display {
-  color: #888;
+    color: #888;
 }
 
 input[type="range"] {
-  width: 100%;
-  height: 4px;
-  background: #3a3a3a;
-  border-radius: 2px;
-  -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #3a3a3a;
+    border-radius: 2px;
+    -webkit-appearance: none;
 }
 
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
-  background: #fff;
-  border-radius: 50%;
-  cursor: pointer;
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    cursor: pointer;
 }
 
 input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
 }
 
 .performance-panel {
-  padding: 8px;
-  background: #2a2a2a;
-  border-radius: 4px;
+    padding: 8px;
+    background: #2a2a2a;
+    border-radius: 4px;
 }
 
 .performance-item {
-  color: #fff;
-  font-size: 12px;
-  margin-bottom: 4px;
+    color: #fff;
+    font-size: 12px;
+    margin-bottom: 4px;
 }
 </style>
