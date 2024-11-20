@@ -7,8 +7,22 @@
             </button>
         </div>
         <div class="preview-section">
-            <div class="image-container">
+            <div class="image-container" 
+                 @wheel="handleWheel"
+                 @mousedown="handleMouseDown"
+                 @mousemove="handleMouseMove"
+                 @mouseup="handleMouseUp"
+                 @mouseleave="handleMouseUp">
                 <canvas ref="previewCanvas" alt="预览图"></canvas>
+                <div class="zoom-controls">
+                    <button @click="zoomIn">+</button>
+                    <button @click="zoomOut">-</button>
+                    <button @click="resetZoom">重置</button>
+                </div>
+                <div class="split-line" 
+                     :style="{ left: `${splitPosition}%` }"
+                     @mousedown.stop="handleSplitDrag">
+                </div>
             </div>
             <div class="image-info">
                 <div class="info-item">图像路径: {{ imagePath }}</div>
@@ -459,48 +473,139 @@ defineExpose({
     resetAdjustments
 });
 
+// 添加新的响应式状态
+const scale = ref(1)
+const offset = ref({ x: 0, y: 0 })
+const isDragging = ref(false)
+const dragStart = ref({ x: 0, y: 0 })
+const splitPosition = ref(50)
+const isSplitDragging = ref(false)
+
+// 缩放控制
+const handleWheel = (e) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? 0.9 : 1.1
+    scale.value = Math.min(Math.max(0.1, scale.value * delta), 5)
+    generatePreview(currentSharpObject.value)
+}
+
+const zoomIn = () => {
+    scale.value = Math.min(50, scale.value * 1.2)
+    generatePreview(currentSharpObject.value)
+}
+
+const zoomOut = () => {
+    scale.value = Math.max(0.1, scale.value * 0.8)
+    generatePreview(currentSharpObject.value)
+}
+
+const resetZoom = () => {
+    scale.value = 1
+    offset.value = { x: 0, y: 0 }
+    generatePreview(currentSharpObject.value)
+}
+
+// 拖动控制
+const handleMouseDown = (e) => {
+    isDragging.value = true
+    dragStart.value = {
+        x: e.clientX - offset.value.x,
+        y: e.clientY - offset.value.y
+    }
+}
+
+const handleMouseMove = (e) => {
+    if (isDragging.value) {
+        offset.value = {
+            x: e.clientX - dragStart.value.x,
+            y: e.clientY - dragStart.value.y
+        }
+        generatePreview(currentSharpObject.value)
+    } else if (isSplitDragging.value) {
+        const container = previewCanvas.value.parentElement
+        const percentage = (e.clientX - container.getBoundingClientRect().left) / container.clientWidth * 100
+        splitPosition.value = Math.max(0, Math.min(100, percentage))
+        generatePreview(currentSharpObject.value)
+    }
+}
+
+const handleMouseUp = () => {
+    isDragging.value = false
+    isSplitDragging.value = false
+}
+
+const handleSplitDrag = () => {
+    isSplitDragging.value = true
+}
+
+// 修改预览生成函数
 const generatePreview = async (sharpObj) => {
     try {
-        const previewSharp = sharpObj.clone();
+        const previewSharp = sharpObj.clone()
+        const originalSharp = await fromFilePath(imagePath.value)
 
-        const buffer = await previewSharp
-            .png()
-            .toBuffer();
+        const [processedBuffer, originalBuffer] = await Promise.all([
+            previewSharp.png().toBuffer(),
+            originalSharp.png().toBuffer()
+        ])
 
-        const blob = new Blob([buffer], { type: 'image/png' });
-        const imageBitmap = await createImageBitmap(blob);
+        const [processedBitmap, originalBitmap] = await Promise.all([
+            createImageBitmap(new Blob([processedBuffer], { type: 'image/png' })),
+            createImageBitmap(new Blob([originalBuffer], { type: 'image/png' }))
+        ])
 
-        const canvas = previewCanvas.value;
-        const ctx = canvas.getContext('2d');
+        const canvas = previewCanvas.value
+        const ctx = canvas.getContext('2d')
+        const container = canvas.parentElement
+        
+        canvas.width = container.clientWidth
+        canvas.height = container.clientHeight
 
-        // 获取 image-container 的尺寸
-        const container = canvas.parentElement;
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
+        const baseScale = Math.min(
+            container.clientWidth / processedBitmap.width,
+            container.clientHeight / processedBitmap.height
+        )
+        
+        const finalScale = baseScale * scale.value
+        const drawWidth = processedBitmap.width * finalScale
+        const drawHeight = processedBitmap.height * finalScale
+        
+        const centerX = (canvas.width - drawWidth) / 2 + offset.value.x
+        const centerY = (canvas.height - drawHeight) / 2 + offset.value.y
 
-        // 计算图像的缩放比例
-        const scale = Math.min(containerWidth / imageBitmap.width, containerHeight / imageBitmap.height);
+        // 清除画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-        // 设置 canvas 尺寸
-        canvas.width = containerWidth;
-        canvas.height = containerHeight;
-
-        // 清除旧内容并绘制新图像
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 绘制原图
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, 0, canvas.width * splitPosition.value / 100, canvas.height)
+        ctx.clip()
         ctx.drawImage(
-            imageBitmap,
-            0, 0, imageBitmap.width, imageBitmap.height,
-            (canvas.width - imageBitmap.width * scale) / 2,
-            (canvas.height - imageBitmap.height * scale) / 2,
-            imageBitmap.width * scale,
-            imageBitmap.height * scale
-        );
+            originalBitmap,
+            centerX, centerY,
+            drawWidth, drawHeight
+        )
+        ctx.restore()
 
-        imageBitmap.close();
+        // 绘制处理后的图像
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(canvas.width * splitPosition.value / 100, 0, canvas.width, canvas.height)
+        ctx.clip()
+        ctx.drawImage(
+            processedBitmap,
+            centerX, centerY,
+            drawWidth, drawHeight
+        )
+        ctx.restore()
+
+        originalBitmap.close()
+        processedBitmap.close()
     } catch (error) {
-        console.error('生成预览图失败:', error, error.stack);
+        console.error('生成预览图失败:', error)
     }
-};
+}
 
 // 添加简单的防抖函数实现
 const debounce = (fn, delay) => {
@@ -566,6 +671,7 @@ onUnmounted(() => {
     border-radius: 4px;
     overflow: hidden;
     position: relative;
+    cursor: move;
 }
 
 .image-container canvas {
@@ -678,5 +784,33 @@ input[type="checkbox"] {
     color: #fff;
     font-size: 12px;
     margin-bottom: 4px;
+}
+
+.zoom-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    gap: 5px;
+    z-index: 2;
+}
+
+.zoom-controls button {
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: 1px solid #666;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.split-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: col-resize;
+    z-index: 1;
 }
 </style>
