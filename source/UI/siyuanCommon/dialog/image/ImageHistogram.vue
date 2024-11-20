@@ -246,106 +246,125 @@ const handleProcessingUpdate = async (processingPipeline) => {
 
         // 更新版本号
         const currentVersion = ++previewState.value.renderVersion;
-        
-        // 记录调整时间
-        previewState.value.lastAdjustmentTime = performance.now();
-        previewState.value.isAdjusting = true;
 
-        // 清除之前的定时器
-        if (previewState.value.previewTimeout) {
-            clearTimeout(previewState.value.previewTimeout);
-            previewState.value.previewTimeout = null;
-        }
+        // 获取图像尺寸
+        const isLargeImage = originalImageInfo.value.width > 4096 || 
+                           originalImageInfo.value.height > 4096;
 
-        // 立即进行低分辨率渲染
-        const lowResProcessing = async () => {
-            try {
-                // 获取当前应该使用的分辨率
-                const resolution = getDynamicResolution();
-                
-                // 创建低分辨率图像
-                const originalImage = await fromFilePath(imagePath.value);
-                const lowResBuffer = await originalImage
-                    .resize(resolution, resolution, { 
-                        fit: 'inside',
-                        withoutEnlargement: true
-                    })
-                    .toBuffer();
 
-                if (signal.aborted) return;
+        if (isLargeImage) {
+            // 大图像使用渐进式渲染
+            // 记录调整时间
+            previewState.value.lastAdjustmentTime = performance.now();
+            previewState.value.isAdjusting = true;
 
-                // 应用处理管道
-                let processedImg = await sharp(lowResBuffer);
-                processedImg = await processingPipeline(processedImg);
-
-                if (signal.aborted) return;
-
-                // 更新预览
-                currentSharpObject.value = processedImg;
-                await generatePreview(processedImg);
-
-                // 存储当前分辨率
-                previewState.value.currentResolution = resolution;
-
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    console.error('低分辨率处理失败:', error);
-                }
-                throw error;
+            // 清除之前的定时器
+            if (previewState.value.previewTimeout) {
+                clearTimeout(previewState.value.previewTimeout);
+                previewState.value.previewTimeout = null;
             }
-        };
 
-        // 立即执行低分辨率渲染
-        await lowResProcessing();
-
-        if (currentVersion !== previewState.value.renderVersion) return;
-
-        // 定义分辨率提升函数
-        const upgradeResolution = async () => {
-            if (signal.aborted) return;
-
-            const currentRes = previewState.value.currentResolution;
-            const nextLevel = Object.values(resolutionConfig.resolutionLevels)
-                .filter(size => size > currentRes)
-                .sort((a, b) => a - b)[0];
-
-            if (nextLevel && nextLevel <= resolutionConfig.maxPreviewSize) {
+            // 立即进行低分辨率渲染
+            const lowResProcessing = async () => {
                 try {
+                    const resolution = getDynamicResolution();
                     const originalImage = await fromFilePath(imagePath.value);
-                    const higherResBuffer = await originalImage
-                        .resize(nextLevel, nextLevel, { 
+                    const lowResBuffer = await originalImage
+                        .resize(resolution, resolution, { 
                             fit: 'inside',
-                            withoutEnlargement: true 
+                            withoutEnlargement: true
                         })
                         .toBuffer();
 
                     if (signal.aborted) return;
 
-                    let processedImg = await sharp(higherResBuffer);
+                    let processedImg = await sharp(lowResBuffer);
                     processedImg = await processingPipeline(processedImg);
 
                     if (signal.aborted) return;
 
                     currentSharpObject.value = processedImg;
                     await generatePreview(processedImg);
-                    previewState.value.currentResolution = nextLevel;
 
-                    // 继续提升分辨率
-                    previewState.value.previewTimeout = setTimeout(upgradeResolution, 200);
+                    previewState.value.currentResolution = resolution;
+
                 } catch (error) {
                     if (error.name !== 'AbortError') {
-                        console.error('分辨率提升失败:', error);
+                        console.error('低分辨率处理失败:', error);
                     }
+                    throw error;
                 }
-            } else {
-                // 最终渲染原图
-                previewState.value.isAdjusting = false;
-                await processWithFullResolution(processingPipeline, signal);
-            }
-        };
+            };
 
-        // 延迟开始分辨率提升
-        previewState.value.previewTimeout = setTimeout(upgradeResolution, 300);
+            // 执行渐进式渲染逻辑
+            await lowResProcessing();
+            if (currentVersion !== previewState.value.renderVersion) return;
+
+            // 定义分辨率提升函数
+            const upgradeResolution = async () => {
+                if (signal.aborted) return;
+
+                const currentRes = previewState.value.currentResolution;
+                const nextLevel = Object.values(resolutionConfig.resolutionLevels)
+                    .filter(size => size > currentRes)
+                    .sort((a, b) => a - b)[0];
+
+                if (nextLevel && nextLevel <= resolutionConfig.maxPreviewSize) {
+                    try {
+                        const originalImage = await fromFilePath(imagePath.value);
+                        const higherResBuffer = await originalImage
+                            .resize(nextLevel, nextLevel, { 
+                                fit: 'inside',
+                                withoutEnlargement: true 
+                            })
+                            .toBuffer();
+
+                        if (signal.aborted) return;
+
+                        let processedImg = await sharp(higherResBuffer);
+                        processedImg = await processingPipeline(processedImg);
+
+                        if (signal.aborted) return;
+
+                        currentSharpObject.value = processedImg;
+                        await generatePreview(processedImg);
+                        previewState.value.currentResolution = nextLevel;
+
+                        // 继续提升分辨率
+                        previewState.value.previewTimeout = setTimeout(upgradeResolution, 200);
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            console.error('分辨率提升失败:', error);
+                        }
+                    }
+                } else {
+                    // 最终渲染原图
+                    previewState.value.isAdjusting = false;
+                    await processWithFullResolution(processingPipeline, signal);
+                }
+            };
+
+            // 延迟开始分辨率提升
+            previewState.value.previewTimeout = setTimeout(upgradeResolution, 300);
+
+        } else {
+            // 小图像直接进行全分辨率渲染
+            try {
+                const originalImage = await fromFilePath(imagePath.value);
+                let processedImg = await processingPipeline(originalImage);
+
+                if (signal.aborted) return;
+
+                currentSharpObject.value = processedImg;
+                await generatePreview(processedImg);
+
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('图像处理失败:', error);
+                }
+                throw error;
+            }
+        }
 
     } catch (error) {
         if (error.name === 'AbortError') {

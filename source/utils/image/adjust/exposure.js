@@ -1,39 +1,60 @@
 import { getHistogramFromSharp } from "../histogram.js";
 import { fromBuffer } from "../../fromDeps/sharpInterface/useSharp/toSharp.js";
+import { requirePluginDeps } from "../../module/requireDeps.js";
+const sharp = requirePluginDeps('sharp')
 class ResourcePool {
     constructor(device) {
         this.device = device;
         this.buffers = new Map();
         this.textures = new Map();
+        this.mappedBuffers = new Set();
         this.registry = new FinalizationRegistry(this.cleanup.bind(this));
     }
 
-    getBuffer(size, usage, label = '') {
+    async getBuffer(size, usage, label = '') {
         const key = `${size}_${usage}_${label}`;
-        if (!this.buffers.has(key)) {
-            const buffer = this.device.createBuffer({
-                size,
-                usage,
-                label: `pool_buffer_${label}`
-            });
-            this.buffers.set(key, new WeakRef(buffer));
-            this.registry.register(buffer, {
-                type: 'buffer',
-                key
-            });
-        }
-        const bufferRef = this.buffers.get(key);
-        const buffer = bufferRef.deref();
-        if (buffer) return buffer;
+        let buffer;
 
-        // 如果原始buffer已被回收，创建新的
-        const newBuffer = this.device.createBuffer({
+        if (this.buffers.has(key)) {
+            const bufferRef = this.buffers.get(key);
+            buffer = bufferRef.deref();
+
+            if (buffer) {
+                // 如果缓冲区已映射，尝试取消映射
+                if (this.mappedBuffers.has(buffer)) {
+                    try {
+                        buffer.unmap();
+                        this.mappedBuffers.delete(buffer);
+                    } catch (e) {
+                        // 忽略未映射缓冲区的错误
+                    }
+                }
+                return buffer;
+            }
+        }
+
+        // 创建新的缓冲区
+        buffer = this.device.createBuffer({
             size,
             usage,
             label: `pool_buffer_${label}`
         });
-        this.buffers.set(key, new WeakRef(newBuffer));
-        return newBuffer;
+
+        this.buffers.set(key, new WeakRef(buffer));
+        this.registry.register(buffer, {
+            type: 'buffer',
+            key
+        });
+
+        return buffer;
+    }
+
+    markBufferMapped(buffer) {
+        this.mappedBuffers.add(buffer);
+    }
+
+    markBufferUnmapped(buffer) {
+        this.mappedBuffers.delete(buffer);
     }
 
     getTexture(width, height, format, usage, label = '') {
@@ -68,6 +89,18 @@ class ResourcePool {
 
     cleanup({ type, key }) {
         if (type === 'buffer') {
+            const bufferRef = this.buffers.get(key);
+            if (bufferRef) {
+                const buffer = bufferRef.deref();
+                if (buffer && this.mappedBuffers.has(buffer)) {
+                    try {
+                        buffer.unmap();
+                    } catch (e) {
+                        // 忽略清理错误
+                    }
+                    this.mappedBuffers.delete(buffer);
+                }
+            }
             this.buffers.delete(key);
         } else if (type === 'texture') {
             this.textures.delete(key);
@@ -199,27 +232,34 @@ async function 创建自动曝光GPU管线(device, 宽度, 高度) {
     }
 }
 
-async function 创建输入纹理(device, sharpObj, 宽度, 高度) {
-    if (!device || !sharpObj || !宽度 || !高度) {
+async function 创建输入纹理(device, sharpObj, width, height) {
+    if (!device || !sharpObj || !width || !height) {
         throw new Error('无效的输入参数');
     }
 
     try {
+        // 验证尺寸
+        const metadata = await sharpObj.metadata();
+        if (width > metadata.width || height > metadata.height) {
+            throw new Error(`请求的尺寸 ${width}x${height} 超过了图像实际尺寸 ${metadata.width}x${metadata.height}`);
+        }
+
         // 使用sharp转换为标准RGBA格式
         const standardizedData = await sharpObj
-            .ensureAlpha()  // 确保有alpha通道
-            .raw()          // 获取原始数据
-            .toBuffer();    // 转换为buffer
+            .removeAlpha()        // 移除现有的alpha通道
+            .ensureAlpha()        // 添加新的alpha通道
+            .raw()                // 获取原始数据
+            .toBuffer();          // 转换为buffer
 
-        console.log('创建纹理 - 输入尺寸:', 宽度, 'x', 高度, 'RGBA格式');
+        console.log('创建纹理 - 输入尺寸:', width, 'x', height, 'RGBA格式');
 
         const bytesPerPixel = 4; // RGBA格式
-        const minBytesPerRow = 宽度 * bytesPerPixel;
+        const minBytesPerRow = width * bytesPerPixel;
         const alignedBytesPerRow = Math.ceil(minBytesPerRow / 256) * 256;
 
         // 创建纹理
         const texture = device.createTexture({
-            size: [宽度, 高度],
+            size: [width, height],
             format: 'rgba8unorm',
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
             dimension: '2d',
@@ -230,33 +270,39 @@ async function 创建输入纹理(device, sharpObj, 宽度, 高度) {
             { texture },
             standardizedData,
             {
-                bytesPerRow: minBytesPerRow,  // 使用实际的行宽度
-                rowsPerImage: 高度
+                bytesPerRow: minBytesPerRow,
+                rowsPerImage: height
             },
             {
-                width: 宽度,
-                height: 高度
+                width,
+                height
             }
         );
 
         return texture;
     } catch (error) {
-        console.error('创建输入纹理失败:', error);
+        console.error('创建输入纹理失败:', error, {
+            requestedSize: `${width}x${height}`,
+            sharpObjInfo: await sharpObj.metadata()
+        });
         throw error;
     }
 }
 
-function 创建输出纹理(device, 宽度, 高度) {
-    // 检查尺寸
-    if (宽度 < 1 || 高度 < 1) {
-        throw new Error('无效的纹理尺寸');
+function 创建输出纹理(device, width, height) {
+    if (!device || width < 1 || height < 1) {
+        throw new Error('无效的参数');
     }
 
     return device.createTexture({
-        size: [宽度, 高度],
+        size: [width, height],
         format: 'rgba8unorm',
-        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC,
+        usage: GPUTextureUsage.STORAGE_BINDING |
+            GPUTextureUsage.COPY_SRC |
+            GPUTextureUsage.COPY_DST |
+            GPUTextureUsage.TEXTURE_BINDING,
         dimension: '2d',
+        label: 'output_texture'
     });
 }
 
@@ -279,110 +325,66 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
     }
 
     try {
-        // 首先获取图像信息
         const { data, info, histogram } = await getHistogramFromSharp(sharpObj);
-        const { width, height, channels } = info;
+        const { width, height } = info;
 
-        // 验证设备限制
-        const maxWorkgroupSize = device.limits?.maxComputeWorkgroupSize?.[0] ?? 256;
-        const workgroupSize = Math.min(16, maxWorkgroupSize);
-
-        // 然后并行处理管线创建和参数计算
-        const [
-            { pipeline, uniformBuffer, bindGroupLayout },
-            params
-        ] = await Promise.all([
-            创建自动曝光GPU管线(device, width, height),
-            计算参数(histogram.brightness, 分析直方图特征(histogram.brightness))
-        ]);
-
-        // 验证输入数据
-        验证图像数据(data, width, height, channels);
-
-        // 创建输入纹理
-        const inputTexture = await 创建输入纹理(device, sharpObj, width, height);
-
-        // 使用资源池获取缓冲区和纹理
-        const outputTexture = resourcePool.getTexture(
-            width, 
-            height, 
-            'rgba8unorm',
-            GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC,
-            'autoExposure_output'
-        );
-
-        const histogramBuffer = resourcePool.getBuffer(
-            256 * 4,
-            GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            'histogram'
-        );
-
-        const cdfBuffer = resourcePool.getBuffer(
-            256 * 4,
-            GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            'cdf'
-        );
-
-        // 批量更新缓冲区
-        const commandEncoder = device.createCommandEncoder();
-        device.queue.writeBuffer(histogramBuffer, 0, new Uint32Array(histogram.brightness));
-        device.queue.writeBuffer(cdfBuffer, 0, new Float32Array(params.cdf));
-        device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([
-            width,
-            height,
-            强度,
-            params.targetExposure,
-            params.localAdjustFactor
-        ]));
-
-        // 创建绑定组并执行计算
-        const bindGroup = 创建绑定组(
-            device,
-            bindGroupLayout,
-            uniformBuffer,
-            inputTexture,
-            outputTexture,
-            histogramBuffer,
-            cdfBuffer
-        );
-
-        const computePass = commandEncoder.beginComputePass();
-        computePass.setPipeline(pipeline);
-        computePass.setBindGroup(0, bindGroup);
-
-        // 计算工作组数量
-        const workgroupsX = Math.ceil(width / workgroupSize);
-        const workgroupsY = Math.ceil(height / workgroupSize);
-        
-        // 验证工作组数量
-        if (workgroupsX === 0 || workgroupsY === 0) {
-            throw new Error(`无效的工作组大小: ${workgroupsX}x${workgroupsY}`);
+        // 定义常量
+        const MAX_TEXTURE_SIZE = 8192;
+        const OVERLAP_SIZE = 64; // 重叠区域大小
+        // 如果图像足够小，直接处理
+        if (width <= MAX_TEXTURE_SIZE && height <= MAX_TEXTURE_SIZE) {
+            return await 处理单个块(sharpObj, 强度, histogram);
         }
 
-        computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
-        computePass.end();
+        // 计算分块数量
+        const blocksX = Math.ceil(width / (MAX_TEXTURE_SIZE - OVERLAP_SIZE));
+        const blocksY = Math.ceil(height / (MAX_TEXTURE_SIZE - OVERLAP_SIZE));
 
-        device.queue.submit([commandEncoder.finish()]);
+        // 计算参数
+        const params = await 计算参数(histogram.brightness, 分析直方图特征(histogram.brightness));
+        console.log(params)
 
-        // 等待GPU完成并读取结果
-        await device.queue.onSubmittedWorkDone();
-        const result = await 读取结果纹理(device, outputTexture);
+        // 并行处理所有块
+        const processedBlocks = await Promise.all(
+            Array.from({ length: blocksY }, async (_, y) => {
+                return await Promise.all(
+                    Array.from({ length: blocksX }, async (_, x) => {
+                        const [blockInfo, extractOptions] = 计算块位置和大小({
+                            x, y, width, height,
+                            maxSize: MAX_TEXTURE_SIZE,
+                            overlap: OVERLAP_SIZE,
+                            blocksX, blocksY
+                        });
+                        console.log(blockInfo, extractOptions)
+                        // 处理块
+                        const processedBlock = await 处理单个块(
+                            sharpObj,
+                            强度,
+                            histogram,
+                            params,
+                            {
+                                blockInfo,
+                                ...extractOptions
+                            }
 
-        // 清理临时资源
-        inputTexture.destroy();
+                        );
 
-        // 转换结果
-        const newSharpObj = await fromBuffer(result, {
-            raw: {
-                width,
-                height,
-                channels: 4
-            }
+                        return {
+                            image: processedBlock,
+                            ...blockInfo
+                        };
+                    })
+                );
+            })
+        ).then(rows => rows.flat());
+
+        // 合并处理后的块
+        return await 合并图像块(processedBlocks, {
+            width,
+            height,
+            channels: info.channels,
+            overlapSize: OVERLAP_SIZE
         });
-
-        return channels !== 4 
-            ? await newSharpObj.toColorspace(channels === 1 ? 'b-w' : 'srgb')
-            : newSharpObj;
 
     } catch (error) {
         console.error('自动曝光处理失败:', error);
@@ -390,54 +392,311 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
     }
 }
 
-async function 读取结果纹理(device, texture) {
-    const width = texture.width;
-    const height = texture.height;
-    const bytesPerPixel = 4;
-    const minBytesPerRow = width * bytesPerPixel;
-    const alignedBytesPerRow = Math.ceil(minBytesPerRow / 256) * 256;
-    
-    // 使用资源池获取缓冲区
-    const resultBuffer = resourcePool.getBuffer(
-        alignedBytesPerRow * height,
-        GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-        'readback'
-    );
+function 计算块位置和大小({ x, y, width, height, maxSize, overlap, blocksX, blocksY }) {
+    // 确保所有输入参数都是整数
+    width = Math.floor(width);
+    height = Math.floor(height);
+    maxSize = Math.floor(maxSize);
+    overlap = Math.floor(overlap);
 
-    const commandEncoder = device.createCommandEncoder();
-    commandEncoder.copyTextureToBuffer(
-        { texture },
-        { 
-            buffer: resultBuffer,
-            bytesPerRow: alignedBytesPerRow,
-            rowsPerImage: height 
-        },
-        { width, height }
-    );
+    // 计算有效块大小
+    const effectiveMaxSize = maxSize - overlap;
+    const baseWidth = Math.floor((width - overlap * (blocksX - 1)) / blocksX);
+    const baseHeight = Math.floor((height - overlap * (blocksY - 1)) / blocksY);
 
-    device.queue.submit([commandEncoder.finish()]);
-    await resultBuffer.mapAsync(GPUMapMode.READ);
-    
-    // 直接使用映射的内存
-    const mappedRange = new Uint8Array(resultBuffer.getMappedRange());
-    const finalResult = new Uint8Array(width * height * bytesPerPixel);
-    
-    // 使用更高效的数据拷贝
-    if (alignedBytesPerRow === minBytesPerRow) {
-        finalResult.set(mappedRange.subarray(0, width * height * bytesPerPixel));
-    } else {
+    // 计算当前块的位置和大小
+    let left = x * (baseWidth + overlap);
+    let top = y * (baseHeight + overlap);
+    let blockWidth = baseWidth + (x < blocksX - 1 ? overlap : 0);
+    let blockHeight = baseHeight + (y < blocksY - 1 ? overlap : 0);
+
+    // 处理最后一块的边界情况
+    if (x === blocksX - 1) {
+        blockWidth = width - left;
+    }
+    if (y === blocksY - 1) {
+        blockHeight = height - top;
+    }
+
+    // 确保所有值都是有效的正整数
+    left = Math.max(0, Math.floor(left));
+    top = Math.max(0, Math.floor(top));
+    blockWidth = Math.min(width - left, Math.floor(blockWidth));
+    blockHeight = Math.min(height - top, Math.floor(blockHeight));
+
+    // 验证计算结果
+    if (blockWidth <= 0 || blockHeight <= 0) {
+        throw new Error(`无效的块尺寸: ${blockWidth}x${blockHeight}`);
+    }
+    if (blockWidth >= 8192 || blockHeight >= 8192) {
+        throw new Error(`无效的块尺寸: ${blockWidth}x${blockHeight}`);
+    }
+
+    return [{
+        originalX: left,
+        originalY: top,
+        width: blockWidth,
+        height: blockHeight,
+        isFirstX: x === 0,
+        isLastX: x === blocksX - 1,
+        isFirstY: y === 0,
+        isLastY: y === blocksY - 1
+    }, {
+        left,
+        top,
+        width: blockWidth,
+        height: blockHeight
+    }];
+}
+
+async function 合并图像块(blocks, {width, height, channels}) {
+    try {
+        // 创建背景画布
+        let composite = sharp({
+            create: {
+                width,
+                height,
+                channels: 4,
+                background: { r: 0, g: 0, b: 0, alpha: 0 }
+            }
+        });
+
+        // 简单的直接拼接
+        const compositeOperations = await Promise.all(
+            blocks.map(async block => {
+                // 确保图像是RGBA格式
+                const normalizedImage = await block.image
+                    .ensureAlpha()
+                    .raw()
+                    .toBuffer();
+
+                return {
+                    input: normalizedImage,
+                    raw: {
+                        width: block.width,
+                        height: block.height,
+                        channels: 4
+                    },
+                    left: block.originalX,
+                    top: block.originalY,
+                    blend: 'over'  // 使用简单的覆盖模式
+                };
+            })
+        );
+
+        // 执行合并操作
+        let result = await composite
+            .composite(compositeOperations)
+            .png();
+
+        return result;
+
+    } catch (error) {
+        console.error('合并图像块失败:', error, {
+            totalBlocks: blocks.length,
+            imageSize: `${width}x${height}`
+        });
+        throw error;
+    }
+}
+
+async function 处理单个块(sharpObj, 强度, 原始直方图, 预计算参数, blockInfo) {
+    const resources = new Set();
+
+    try {
+        let processSharp = blockInfo ?
+            sharpObj.clone().extract({
+                left: Math.max(0, Math.floor(blockInfo.left)),
+                top: Math.max(0, Math.floor(blockInfo.top)),
+                width: Math.floor(blockInfo.width),
+                height: Math.floor(blockInfo.height)
+            }) :
+            sharpObj;
+        console.log(processSharp)
+        const metadata = await processSharp.metadata();
+        const { width, height } = blockInfo || metadata;
+        console.log(width, height)
+
+        // 创建资源
+        const { pipeline, uniformBuffer, bindGroupLayout } = await 创建自动曝光GPU管线(device, width, height);
+        const inputTexture = await 创建输入纹理(device, processSharp, width, height);
+        const outputTexture = 创建输出纹理(device, width, height);
+
+        resources.add(uniformBuffer);
+        resources.add(inputTexture);
+        resources.add(outputTexture);
+
+        const params = 预计算参数 || await 计算参数(原始直方图.brightness, 分析直方图特征(原始直方图.brightness));
+        const { histogramBuffer, cdfBuffer } = await 创建并设置缓冲区(device, 原始直方图.brightness, params.cdf);
+
+        resources.add(histogramBuffer);
+        resources.add(cdfBuffer);
+
+        // 更新 uniform buffer
+        device.queue.writeBuffer(
+            uniformBuffer,
+            0,
+            new Float32Array([
+                width,
+                height,
+                强度,
+                params.targetExposure,
+                params.localAdjustFactor
+            ])
+        );
+
+        return await 执行GPU计算(
+            device,
+            pipeline,
+            bindGroupLayout,
+            uniformBuffer,
+            inputTexture,
+            outputTexture,
+            histogramBuffer,
+            cdfBuffer,
+            width,
+            height
+        );
+
+    } catch (error) {
+        console.error('处理图像块失败:', error);
+        throw error;
+    } finally {
+        // 清理所有资源
+        for (const resource of resources) {
+            if (resource && !resource.destroyed) {
+                try {
+                    resource.destroy();
+                } catch (e) {
+                    console.warn('资源清理警告:', e);
+                }
+            }
+        }
+    }
+}
+
+async function 执行GPU计算(device, pipeline, bindGroupLayout, uniformBuffer, inputTexture, outputTexture, histogramBuffer, cdfBuffer, width, height) {
+    try {
+        const workgroupSize = 16;
+        const bytesPerPixel = 4;
+        const alignedBytesPerRow = Math.ceil(width * bytesPerPixel / 256) * 256;
+        const bufferSize = alignedBytesPerRow * height;
+
+        // 创建 staging buffer
+        const stagingBuffer = device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+            label: 'staging_buffer'
+        });
+
+        // 创建一个临时的输出缓冲区
+        const outputBuffer = device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+            label: 'output_buffer'
+        });
+
+        // 第一个命令编码器：执行计算
+        const computeEncoder = device.createCommandEncoder({
+            label: 'compute_encoder'
+        });
+
+        const bindGroup = device.createBindGroup({
+            layout: bindGroupLayout,
+            entries: [
+                { binding: 0, resource: { buffer: uniformBuffer } },
+                { binding: 1, resource: inputTexture.createView() },
+                { binding: 2, resource: outputTexture.createView() },
+                { binding: 3, resource: { buffer: histogramBuffer } },
+                { binding: 4, resource: { buffer: cdfBuffer } }
+            ],
+            label: 'auto_exposure_bind_group'
+        });
+
+        const computePass = computeEncoder.beginComputePass({
+            label: 'compute_pass'
+        });
+        computePass.setPipeline(pipeline);
+        computePass.setBindGroup(0, bindGroup);
+        computePass.dispatchWorkgroups(
+            Math.ceil(width / workgroupSize),
+            Math.ceil(height / workgroupSize)
+        );
+        computePass.end();
+
+        // 提交计算命令
+        device.queue.submit([computeEncoder.finish()]);
+        await device.queue.onSubmittedWorkDone();
+
+        // 第二个命令编码器：复制数据
+        const copyEncoder = device.createCommandEncoder({
+            label: 'copy_encoder'
+        });
+
+        // 从输出纹理复制到输出缓冲区
+        copyEncoder.copyTextureToBuffer(
+            { texture: outputTexture },
+            {
+                buffer: outputBuffer,
+                bytesPerRow: alignedBytesPerRow,
+                rowsPerImage: height,
+            },
+            { width, height, depthOrArrayLayers: 1 }
+        );
+
+        // 从输出缓冲区复制到暂存缓冲区
+        copyEncoder.copyBufferToBuffer(
+            outputBuffer, 0,
+            stagingBuffer, 0,
+            bufferSize
+        );
+
+        // 提交复制命令
+        device.queue.submit([copyEncoder.finish()]);
+        await device.queue.onSubmittedWorkDone();
+
+        // 映射暂存缓冲区
+        await stagingBuffer.mapAsync(GPUMapMode.READ);
+        const mappedRange = new Uint8Array(stagingBuffer.getMappedRange());
+
+        // 创建最终结果数组
+        const finalResult = new Uint8Array(width * height * bytesPerPixel);
+
+        // 复制数据，处理对齐问题
         for (let y = 0; y < height; y++) {
             const sourceOffset = y * alignedBytesPerRow;
-            const targetOffset = y * minBytesPerRow;
+            const targetOffset = y * width * bytesPerPixel;
             finalResult.set(
-                mappedRange.subarray(sourceOffset, sourceOffset + minBytesPerRow),
+                mappedRange.subarray(
+                    sourceOffset,
+                    sourceOffset + width * bytesPerPixel
+                ),
                 targetOffset
             );
         }
+
+        // 清理资源
+        stagingBuffer.unmap();
+        stagingBuffer.destroy();
+        outputBuffer.destroy();
+
+        // 返回 Sharp 对象
+        return sharp(Buffer.from(finalResult), {
+            raw: {
+                width,
+                height,
+                channels: 4
+            }
+        });
+
+    } catch (error) {
+        console.error('GPU计算执行失败:', error, {
+            width,
+            height,
+            details: error.stack
+        });
+        throw error;
     }
-    
-    resultBuffer.unmap();
-    return finalResult;
 }
 
 function 计算参数(直方图, 特征) {
@@ -552,4 +811,38 @@ function 验证图像数据(data, width, height, channels) {
     }
 
     return true;
+}
+
+async function 创建并设置缓冲区(device, histogram, cdf) {
+    // 创建直方图缓冲区
+    const histogramBuffer = device.createBuffer({
+        size: 256 * 4, // 256个uint32值
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true
+    });
+
+    // 写入直方图数据
+    new Uint32Array(histogramBuffer.getMappedRange()).set(histogram);
+    histogramBuffer.unmap();
+
+    // 创建CDF缓冲区
+    const cdfBuffer = device.createBuffer({
+        size: 256 * 4, // 256个float32值
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true
+    });
+
+    // 写入CDF数据
+    new Float32Array(cdfBuffer.getMappedRange()).set(cdf);
+    cdfBuffer.unmap();
+
+    return { histogramBuffer, cdfBuffer };
+}
+
+// 添加一个辅助函数来等待 GPU 操作完成
+async function 等待GPU操作完成(device) {
+    const fence = device.createFence();
+    const fenceValue = 1;
+    device.queue.signal(fence, fenceValue);
+    await fence.onCompletion(fenceValue);
 }
