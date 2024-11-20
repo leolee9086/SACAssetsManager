@@ -51,7 +51,7 @@ export const fromDataURI = dataURI => {
 /**
  * 二进制数据转换
  */
-export const fromBuffer = buffer => sharp(buffer);
+export const fromBuffer = (buffer,options) => sharp(buffer,options);
 
 export const fromArrayBuffer = arrayBuffer =>
     sharp(Buffer.from(arrayBuffer));

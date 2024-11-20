@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <base id="baseURL" href="http://127.0.0.1:51065">
+    <link id="baseStyle" href="" rel="stylesheet">
+    <meta charset="UTF-8">
+    <title>图片编辑器</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #title-bar {
+            display: flex;
+            justify-content: flex-end;
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            -webkit-app-region: drag;
+        }
+
+        .button {
+            margin-left: 10px;
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="title-bar">
+        <div id="minimize" class="button">最小化</div>
+        <div id="maximize" class="button">最大化</div>
+        <div id="close" class="button">关闭</div>
+        <div id="devTools" class="button">开发者工具</div>
+    </div>
+    <div id="app" class="fn__flex fn__flex-column" style="width:100vw;height: calc(100vh - 40px);">
+        <!-- 你的内容 -->
+    </div>
+
+</body>
+
+</html>

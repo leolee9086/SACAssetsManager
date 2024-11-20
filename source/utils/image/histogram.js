@@ -12,7 +12,7 @@ const getHistogramFromBuffer = (buffer) => {
     if (!buffer || !buffer.length) {
         throw new Error('无效的图像数据');
     }
-    
+
     // 检查数据长度是否为4的倍数（RGBA）
     if (buffer.length % 4 !== 0) {
         throw new Error('图像数据长度必须是4的倍数');
@@ -54,13 +54,13 @@ const getHistogramFromBuffer = (buffer) => {
  */
 export const calculateHistogram = async (imageData, options = {}) => {
     const { useGPU = true, onProgress } = options;
-    
+
     try {
         // 只在明确指定且支持的情况下使用GPU
         if (useGPU && navigator?.gpu) {
             return await getHistogramWebGPU(imageData);
         }
-        
+
         // 处理 ImageBitmap
         if (imageData instanceof ImageBitmap) {
             // 转换 ImageBitmap 为 ImageData
@@ -70,14 +70,14 @@ export const calculateHistogram = async (imageData, options = {}) => {
             const imgData = ctx.getImageData(0, 0, imageData.width, imageData.height);
             return getHistogramFromBuffer(imgData.data);
         }
-        
+
         // 现有的降级处理逻辑
         if (imageData instanceof ImageData) {
             return getHistogramFromBuffer(imageData.data);
         } else if (imageData instanceof Buffer || imageData instanceof Uint8Array) {
             return getHistogramFromBuffer(imageData);
         }
-        
+
         throw new Error('不持的图像数据格式');
     } catch (error) {
         console.warn('直方图计算失败，尝试降级处理:', error);
@@ -90,40 +90,36 @@ export const calculateHistogram = async (imageData, options = {}) => {
 };
 
 
-export const getHistogramFromPath =async (imagePath)=>{
-        // 使用 sharp 读取图像数据
-        const image = fromFilePath(imagePath);
-        const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
-        
-        console.log('图片大小:', (info.size / 1024 / 1024).toFixed(2), 'MB');
-        console.log('ImageData信息:');
-        console.log('- 宽度:', info.width);
-        console.log('- 高度:', info.height);
-        console.log('- 数据类型:', data.constructor.name);
-        console.log('- 数据长度:', data.length);
-        console.log('- 前10个像素值:', Array.from(data.slice(0, 40)));
-
-        // 测试CPU版本
-        console.time('直方图计算时间');
-        const histogram = await getHistogramWebGPU({data,width,height}, { useGPU: false });
-        console.timeEnd('直方图计算时间');
-        return {
-            data,
-            info,
-            histogram,
-            imagePath
-        }
-}
-export const getHistogramFromSharp =async (sharpObj)=>{
+export const getHistogramFromPath = async (imagePath) => {
     // 使用 sharp 读取图像数据
-    const { data, info } =await sharpObj.raw().toBuffer({ resolveWithObject: true });
-    const {width,height}=info
-    
+    const image = fromFilePath(imagePath);
+    const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+
+    console.log('图片大小:', (info.size / 1024 / 1024).toFixed(2), 'MB');
+    console.log('ImageData信息:');
+    console.log('- 宽度:', info.width);
+    console.log('- 高度:', info.height);
+    console.log('- 数据类型:', data.constructor.name);
+    console.log('- 数据长度:', data.length);
+    console.log('- 前10个像素值:', Array.from(data.slice(0, 40)));
+
     // 测试CPU版本
     console.time('直方图计算时间');
-   const histogram = await getHistogramWebGPU({data,width,height}, { useGPU: false });
-
-   console.timeEnd('直方图计算时间');
+    const histogram = await getHistogramWebGPU({ data, width, height }, { useGPU: false });
+    console.timeEnd('直方图计算时间');
+    return {
+        data,
+        info,
+        histogram,
+        imagePath
+    }
+}
+export const getHistogramFromSharp = async (sharpObj) => {
+    // 使用 sharp 读取图像数据
+    const { data, info } = await sharpObj.raw().toBuffer({ resolveWithObject: true });
+    const { width, height } = info
+    // 测试CPU版本
+    const histogram = await getHistogramWebGPU({ data, width, height }, { useGPU: false });
     return {
         data,
         info,

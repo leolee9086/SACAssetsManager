@@ -11,7 +11,7 @@
  * 调整色相偏移(图像, 30)  // 将色相顺时针偏移30度
  */
 export const 调整色相偏移 = (img, 值) => {
-    return img.modulate({ hue: 值 });
+    return img.modulate({ hue:parseInt(值) });
 };
 
 /**

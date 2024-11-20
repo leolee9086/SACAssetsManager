@@ -1,9 +1,14 @@
 <template>
   <div class="histogram-wrapper">
     <!-- 左侧图像预览区域 -->
+    <div class="toolbar">
+      <button class="open-file-btn" @click="openNewFile">
+        打开文件
+      </button>
+    </div>
     <div class="preview-section">
       <div class="image-container">
-        <img :src="previewURL" alt="预览图">
+        <canvas ref="previewCanvas" alt="预览图"></canvas>
       </div>
       <div class="image-info">
         <div class="info-item">图像路径: {{ imagePath }}</div>
@@ -28,10 +33,10 @@
     <!-- 添加性能监控面板 -->
     <div class="performance-panel">
       <div class="performance-item">
-        处理时间: {{ performanceStats.processingTime }} ms
+        处理时间: {{ performanceStats.processingTime||0 }} ms
       </div>
       <div class="performance-item">
-        内存使用: {{ performanceStats.memoryUsage }} MB
+        内存使用: {{ performanceStats.memoryUsage||0 }} MB
       </div>
     </div>
   </div>
@@ -41,14 +46,42 @@
 import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
 import { ref, computed, inject,toRef, onUnmounted } from 'vue';
-import { thumbnail } from '../../../../server/endPoints.js';
 import { onMounted, shallowRef } from '../../../../../static/vue.esm-browser.js';
 import { fromFilePath } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+const openNewFile = async () => {
+  try {
+    const result = await window.require("@electron/remote").dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: '图像文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
+      ]
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const newPath = result.filePaths[0];
+      // 更新图像路径
+      imagePath.value = newPath;
+      
+      // 重新初始化图像处理
+      const sharpObj = await fromFilePath(newPath);
+      currentSharpObject.value = sharpObj;
+      await generatePreview(sharpObj);
+      
+      // 重置所有调整
+      resetAdjustments();
+    }
+  } catch (error) {
+    console.error('打开文件失败:', error);
+  }
+};
+
+
+
 
 const appData = inject('appData')
 const histogram = ref({})
-const imagePath = toRef(appData.imagePath)
-const previewURL=ref(thumbnail.genHref('localPath',imagePath.value,1000))
+const imagePath = toRef(appData.imagePath||window.imagePath)
+const previewCanvas = ref(null);
 const info= ref({}) 
 const channels = ref([
   { key: 'r', label: 'R', color: '#ff0000', visible: true },
@@ -94,7 +127,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
     }
     
     currentSharpObject.value = processedImg;
-    previewURL.value = await generatePreview(processedImg);
+    await generatePreview(processedImg);
   } catch (error) {
     console.error('处理图像失败:', error);
   } finally {
@@ -105,7 +138,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
 onMounted(async () => {
   const sharpObj = fromFilePath(imagePath.value);
   currentSharpObject.value = sharpObj;
-  previewURL.value = await generatePreview(sharpObj);
+  await generatePreview(sharpObj);
 });
 
 // 导出保存当前设置的方法
@@ -131,23 +164,44 @@ defineExpose({
 
 const generatePreview = async (sharpObj) => {
   try {
-    // 调整图像大小并获取 buffer
-    const buffer = await sharpObj
-      .resize(800, 800, {
-        fit: 'inside',
-        withoutEnlargement: true
-      })
-      .jpeg({ quality: 80 })
+    const previewSharp = sharpObj.clone();
+
+    const buffer = await previewSharp
+      .png()
       .toBuffer();
     
-    // 创建 Blob 对象
-    const blob = new Blob([buffer], { type: 'image/jpeg' });
+    const blob = new Blob([buffer], { type: 'image/png' });
+    const imageBitmap = await createImageBitmap(blob);
     
-    // 返回 Blob URL
-    return URL.createObjectURL(blob);
+    const canvas = previewCanvas.value;
+    const ctx = canvas.getContext('2d');
+    
+    // 获取 image-container 的尺寸
+    const container = canvas.parentElement;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    // 计算图像的缩放比例
+    const scale = Math.min(containerWidth / imageBitmap.width, containerHeight / imageBitmap.height);
+    
+    // 设置 canvas 尺寸
+    canvas.width = containerWidth;
+    canvas.height = containerHeight;
+    
+    // 清除旧内容并绘制新图像
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(
+      imageBitmap,
+      0, 0, imageBitmap.width, imageBitmap.height,
+      (canvas.width - imageBitmap.width * scale) / 2,
+      (canvas.height - imageBitmap.height * scale) / 2,
+      imageBitmap.width * scale,
+      imageBitmap.height * scale
+    );
+    
+    imageBitmap.close();
   } catch (error) {
-    console.error('生成预览图失败:', error);
-    return previewURL.value;
+    console.error('生成预览图失败:', error,error.stack);
   }
 };
 
@@ -169,7 +223,7 @@ const updateHistogramAndPreview = async (processedImg) => {
     const result = await getHistogramFromSharp(processedImg);
     histogram.value = result.histogram;
     info.value = result.info;
-    previewURL.value = await generatePreview(processedImg);
+    await generatePreview(processedImg);
   } catch (error) {
     console.error('更新直方图和预览失败:', error);
   }
@@ -192,7 +246,6 @@ onUnmounted(() => {
   padding: 16px;
   background: #1e1e1e;
   border-radius: 4px;
-  height: 100%;
   min-height: 600px;
 }
 
@@ -212,12 +265,14 @@ onUnmounted(() => {
   background: #2a2a2a;
   border-radius: 4px;
   overflow: hidden;
+  position: relative;
 }
 
-.image-container img {
-  max-width: 100%;
-  max-height: 100%;
+.image-container canvas {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  position: absolute;
 }
 
 .image-info {

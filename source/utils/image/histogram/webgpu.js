@@ -7,40 +7,20 @@ const device = await adapter.requestDevice();
  * @returns {Promise<Object>} 直方图数据
  */
 export const getHistogramWebGPU = async (bufferOBJ) => {
-    const performanceLogger = {};
-    const mark = (name) => {
-        performanceLogger[name] = performance.now();
-        console.log(`[性能记录] ${name}: ${performanceLogger[name].toFixed(2)}ms`);
-    };
-    const measure = (end, start) => {
-        const duration = performanceLogger[end] - performanceLogger[start];
-        console.log(`[性能记录] ${start} -> ${end}: ${duration.toFixed(2)}ms`);
-        return duration;
-    };
+ 
     const { 
         data,
         width, 
         height,
         paddedPixels 
     } = adjustBufferDimensions(bufferOBJ);
-    console.log(paddedPixels)
     bufferOBJ={data,width,height}
-    mark('开始');
 
     // 检查 WebGPU 支持
     if (!navigator.gpu) {
         throw new Error('WebGPU not supported');
     }
 
-    mark('请求适配器开始');
-    mark('请求适配器完成');
-    measure('请求适配器完成', '请求适配器开始');
-    
-    mark('请求设备开始');
-    mark('请求设备完成');
-    measure('请求设备完成', '请求设备开始');
-
-    mark('创建缓冲区开始');
     // 修改输出缓冲区大小 (现在是4个通道: R,G,B,亮度)
     const outputBuffer = device.createBuffer({
         size: 256 * 4 * 4, // 4个通道，每个通道256个值，每个值4字节
@@ -51,7 +31,6 @@ export const getHistogramWebGPU = async (bufferOBJ) => {
         size: 256 * 4 * 4,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
-    mark('创建缓冲区完成');
 
     // 更新计算着色器代码，添加亮度计算
     const computeShaderCode = `
@@ -96,20 +75,12 @@ export const getHistogramWebGPU = async (bufferOBJ) => {
             entryPoint: 'main',
         },
     });
-    mark('创建管线完成');
-    measure('创建管线完成', '创建管线开始');
-
-    mark('创建纹理开始');
     // 创建纹理
     const texture = device.createTexture({
         size: [bufferOBJ.width, bufferOBJ.height],
         format: 'rgba8unorm',
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
     });
-    mark('创建纹理完成');
-    measure('创建纹理完成', '创建纹理开始');
-
-    mark('上传图像数据开始');
     device.queue.writeTexture(
         { texture },
         bufferOBJ.data,
@@ -123,10 +94,6 @@ export const getHistogramWebGPU = async (bufferOBJ) => {
             depthOrArrayLayers: 1
         }
     );
-    mark('上传图像数据完成');
-    measure('上传图像数据完成', '上传图像数据开始');
-
-    mark('创建绑定组开始');
     // 创建绑定组
     const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
@@ -141,10 +108,6 @@ export const getHistogramWebGPU = async (bufferOBJ) => {
             },
         ],
     });
-    mark('创建绑定组完成');
-    measure('创建绑定组完成', '创建绑定组开始');
-
-    mark('执行计算开始');
     // 执行计算
     const commandEncoder = device.createCommandEncoder();
     const computePass = commandEncoder.beginComputePass();
@@ -165,48 +128,21 @@ export const getHistogramWebGPU = async (bufferOBJ) => {
 
     // 提交命令
     device.queue.submit([commandEncoder.finish()]);
-    mark('执行计算完成');
-    measure('执行计算完成', '执行计算开始');
-
-    mark('读取结果开始');
     // 读取结果
     await resultBuffer.mapAsync(GPUMapMode.READ);
     const results = new Uint32Array(resultBuffer.getMappedRange());
-    mark('读取结果完成');
-    measure('读取结果完成', '读取结果开始');
-    
-    mark('整理结果开始');
     const histogram = {
         r: Array.from(results.slice(0, 256)),
         g: Array.from(results.slice(256, 512)),
         b: Array.from(results.slice(512, 768)),
         brightness: Array.from(results.slice(768, 1024))
     };
-    mark('整理结果完成');
-    measure('整理结果完成', '整理结果开始');
-
-    mark('清理资源开始');
     resultBuffer.unmap();
     texture.destroy();
     outputBuffer.destroy();
     resultBuffer.destroy();
-    mark('清理资源完成');
-    measure('清理资源完成', '清理资源开始');
-
-    mark('结束');
     
-    // 输出总耗时和每个阶段的耗时统计
-    measure('结束', '开始');
-    
-    // 输出所有阶段的耗时统计
-    const stages = Object.keys(performanceLogger).filter(key => key.endsWith('开始'));
-    stages.forEach(startKey => {
-        const endKey = startKey.replace('开始', '完成');
-        if (performanceLogger[endKey]) {
-            measure(endKey, startKey);
-        }
-    });
-
+   
     const correctedHistogram = correctHistogram(histogram, paddedPixels);
     
     return correctedHistogram;
@@ -221,58 +157,61 @@ const adjustBufferDimensions = ({ data, width, height }) => {
     const targetWidth = Math.ceil(width / 16) * 16;
     const targetHeight = Math.ceil(height / 16) * 16;
     
-    // 如果尺寸已经合适，直接返回原数据
-    if (width === targetWidth && height === targetHeight) {
+    // 检查是否需要转换为RGBA格式
+    const hasAlpha = data.length === width * height * 4;
+    const sourceChannels = hasAlpha ? 4 : 3;
+    
+    // 如果尺寸已经合适且已经是RGBA格式，直接返回原数据
+    if (width === targetWidth && height === targetHeight && hasAlpha) {
         return { 
             data, 
-            width: targetWidth, 
-            height: targetHeight,
-            originalPixels: width * height,
-            paddedPixels: 0
+            width,
+            height,
+            paddedPixels: 0 
         };
     }
     
-    // 计算新的buffer大小 (RGBA格式，每个像素4字节)
-    const newSize = targetWidth * targetHeight * 4;
-    const newData = new Uint8Array(newSize);
-    
-    // 填充新buffer为透明黑色 (R=0,G=0,B=0,A=0)
+    // 创建新的RGBA数据缓冲区
+    const newData = new Uint8Array(targetWidth * targetHeight * 4);
     newData.fill(0);
     
-    // 复制原始数据
+    // 按像素复制数据，同时转换为RGBA格式
     for (let y = 0; y < height; y++) {
-        const oldRowStart = y * width * 4;
-        const newRowStart = y * targetWidth * 4;
-        newData.set(
-            data.slice(oldRowStart, oldRowStart + width * 4),
-            newRowStart
-        );
+        for (let x = 0; x < width; x++) {
+            const srcIdx = (y * width + x) * sourceChannels;
+            const dstIdx = (y * targetWidth + x) * 4;
+            
+            // 复制RGB通道
+            newData[dstIdx] = data[srcIdx];     // R
+            newData[dstIdx + 1] = data[srcIdx + 1]; // G
+            newData[dstIdx + 2] = data[srcIdx + 2]; // B
+            newData[dstIdx + 3] = hasAlpha ? data[srcIdx + 3] : 255; // A
+        }
     }
     
     return {
         data: newData,
         width: targetWidth,
         height: targetHeight,
-        originalPixels: width * height,
-        paddedPixels: (targetWidth * targetHeight) - (width * height)
+        paddedPixels: (targetWidth * targetHeight - width * height)
     };
 };
 
 /**
  * 修正直方图数据，去除填充像素的影响
  * @param {Object} histogram - 原始直方图数据
- * @param {number} paddedPixels - 填充的像素数量
+ * @param {number} originalPixels - 原始像素数量
+ * @param {number} totalPixels - 总像素数量
  * @returns {Object} 修正后的直方图数据
  */
 const correctHistogram = (histogram, paddedPixels) => {
-    if (paddedPixels === 0) return histogram;
+    if (paddedPixels <= 0) return histogram;
     
     // 从0值中减去填充像素的数量
-    histogram.r[0] -= paddedPixels;
-    histogram.g[0] -= paddedPixels;
-    histogram.b[0] -= paddedPixels;
-    histogram.brightness[0] -= paddedPixels;
-    
+    histogram.r[0] -= paddedPixels/4;
+    histogram.g[0] -= paddedPixels/4;
+    histogram.b[0] -= paddedPixels/4;
+    histogram.brightness[0] -= paddedPixels/4;
     return histogram;
 };
 
