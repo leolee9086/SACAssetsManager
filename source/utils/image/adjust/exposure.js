@@ -136,77 +136,49 @@ async function 创建自动曝光GPU管线(device, 宽度, 高度) {
     }
 }
 
-function 创建输入纹理(device, 图像数据, 宽度, 高度) {
-    // 检查输入参数
-    if (!图像数据 || !宽度 || !高度) {
+async function 创建输入纹理(device, sharpObj, 宽度, 高度) {
+    if (!device || !sharpObj || !宽度 || !高度) {
         throw new Error('无效的输入参数');
     }
     
-    console.log('创建纹理 - 输入尺寸:', 宽度, 'x', 高度);
-    console.log('输入数据长度:', 图像数据.length);
-
     try {
-        // 确保最小尺寸和对齐要求
-        const minWidth = Math.max(1, 宽度);
-        const minHeight = Math.max(1, 高度);
+        // 使用sharp转换为标准RGBA格式
+        const standardizedData = await sharpObj
+            .ensureAlpha()  // 确保有alpha通道
+            .raw()          // 获取原始数据
+            .toBuffer();    // 转换为buffer
         
-        // 计算对齐的行字节数 (确保至少为256的倍数)
+        console.log('创建纹理 - 输入尺寸:', 宽度, 'x', 高度, 'RGBA格式');
+        
         const bytesPerPixel = 4; // RGBA格式
-        const minBytesPerRow = minWidth * bytesPerPixel;
+        const minBytesPerRow = 宽度 * bytesPerPixel;
         const alignedBytesPerRow = Math.ceil(minBytesPerRow / 256) * 256;
-        
-        console.log('对齐前的行字节数:', minBytesPerRow);
-        console.log('对齐后的行字节数:', alignedBytesPerRow);
         
         // 创建纹理
         const texture = device.createTexture({
-            size: [minWidth, minHeight],
+            size: [宽度, 高度],
             format: 'rgba8unorm',
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
             dimension: '2d',
         });
 
-        // 计算填充后的缓冲区大小
-        const paddedBufferSize = alignedBytesPerRow * minHeight;
-        console.log('填充后的缓冲区大小:', paddedBufferSize);
-
-        // 创建临时缓冲区并填充数据
-        const paddedData = new Uint8Array(paddedBufferSize);
-        
-        // 逐行复制数据
-        for (let row = 0; row < minHeight; row++) {
-            const sourceStart = row * minWidth * bytesPerPixel;
-            const sourceEnd = sourceStart + minWidth * bytesPerPixel;
-            const targetStart = row * alignedBytesPerRow;
-            
-            // 复制实际数据
-            const rowData = 图像数据.slice(sourceStart, sourceEnd);
-            paddedData.set(rowData, targetStart);
-        }
-
         // 写入纹理
         device.queue.writeTexture(
             { texture },
-            paddedData,
+            standardizedData,
             { 
-                bytesPerRow: alignedBytesPerRow,
-                rowsPerImage: minHeight 
+                bytesPerRow: minBytesPerRow,  // 使用实际的行宽度
+                rowsPerImage: 高度 
             },
             { 
-                width: minWidth,
-                height: minHeight 
+                width: 宽度,
+                height: 高度 
             }
         );
 
         return texture;
     } catch (error) {
         console.error('创建输入纹理失败:', error);
-        console.error('详细信息:', {
-            宽度,
-            高度,
-            数据长度: 图像数据?.length,
-            期望数据长度: 宽度 * 高度 * 4
-        });
         throw error;
     }
 }
@@ -259,8 +231,8 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
             throw new Error(`数据长度不匹配: 期望 ${width * height * channels}, 实际 ${data?.length}`);
         }
 
-        // 创建纹理
-        const inputTexture = 创建输入纹理(device, data, width, height);
+        // 创建纹理时直接传入sharp对象
+        const inputTexture = await 创建输入纹理(device, sharpObj, width, height);
         if (!inputTexture) {
             throw new Error('创建输入纹理失败');
         }
@@ -347,11 +319,16 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
             raw: {
                 width: width,
                 height: height,
-                channels: channels
+                channels: 4  // 输出始终是RGBA格式
             }
         });
-        return newSharpObj
-    
+
+        // 如果原图是其他格式，转换回原始格式
+        if (channels !== 4) {
+            return await newSharpObj.toColorspace(channels === 1 ? 'b-w' : 'srgb');
+        }
+
+        return newSharpObj;
     } catch (error) {
         console.error('自动曝光处理失败:', error);
         throw error;
@@ -361,18 +338,13 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
 async function 读取结果纹理(device, texture) {
     const width = texture.width;
     const height = texture.height;
-    const bytesPerPixel = 4;
+    const bytesPerPixel = 4; // RGBA格式
     
-    // 计算对齐的行字节数
     const minBytesPerRow = width * bytesPerPixel;
     const alignedBytesPerRow = Math.ceil(minBytesPerRow / 256) * 256;
     
-    // 计算总缓冲区大小
-    const bufferSize = alignedBytesPerRow * height;
-    
-    // 创建结果缓冲区
     const resultBuffer = device.createBuffer({
-        size: bufferSize,
+        size: alignedBytesPerRow * height,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
 
@@ -388,23 +360,22 @@ async function 读取结果纹理(device, texture) {
     );
 
     device.queue.submit([commandEncoder.finish()]);
-
-    // 等待GPU完成并读取数据
     await resultBuffer.mapAsync(GPUMapMode.READ);
+    
+    // 创建结果数组
+    const finalResult = new Uint8Array(width * height * bytesPerPixel);
     const mappedRange = resultBuffer.getMappedRange();
     
-    // 创建最终结果数组
-    const finalResult = new Uint8Array(width * height * bytesPerPixel);
-    
-    // 逐行复制数据，跳过填充字节
-    for (let row = 0; row < height; row++) {
-        const sourceStart = row * alignedBytesPerRow;
-        const targetStart = row * width * bytesPerPixel;
-        const rowData = new Uint8Array(mappedRange, sourceStart, width * bytesPerPixel);
-        finalResult.set(rowData, targetStart);
+    // 复制数据，跳过填充字节
+    for (let y = 0; y < height; y++) {
+        const sourceOffset = y * alignedBytesPerRow;
+        const targetOffset = y * minBytesPerRow;
+        finalResult.set(
+            new Uint8Array(mappedRange, sourceOffset, minBytesPerRow),
+            targetOffset
+        );
     }
     
-    // 清理资源
     resultBuffer.unmap();
     resultBuffer.destroy();
     
