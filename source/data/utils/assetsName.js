@@ -1,5 +1,6 @@
 import { kernelApi } from "../../asyncModules.js";
-
+import { isSiyuanAssetPath } from "../../utils/pathUtils/checker.js";
+export {isSiyuanAssetPath}
 /**
  * 清理资产路径中的时间戳和随机字符串
  * 用于从思源的资产路径中提取文件名
@@ -13,15 +14,7 @@ export function cleanAssetPath(asset) {
     }
     return path && path.split('/').pop().replace(/-\d{14}-[a-z0-9]{7}/, '');
 }
-/**
- * 判断是否是思源的资产路径
- * 用于判定笔记中引用的资产链接是否是来自思源的
- * @param {string} path - 路径
- * @returns {boolean} - 是否是思源的资产路径
- */
-export function isSiyuanAssetPath(path) {
-    return path && path.startsWith('assets/')
-}
+
 /**
  * 用于判定是否是思源附件文件夹的子路径
  * 思源附件文件夹路径中的标志性部分是'/data/assets'

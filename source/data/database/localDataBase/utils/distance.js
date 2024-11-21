@@ -15,7 +15,6 @@ function 清理缓存() {
 
 function 生成向量哈希(向量) {
     // 一个简单的哈希函数，用于生成向量的特征
-    
     let hash = 0;
     for (let i = 0; i < 向量.length; i++) {
         const val = 向量[i];

@@ -1,22 +1,135 @@
-.thumbnail-card {
-    transition: box-shadow 0.3s ease;
-}
-.thumbnail-card:hover{
-    box-shadow: 0 10px 16px var(--b3-theme-primary) ;
-    transform: scale(1.05);
+:root {
+    /* 基础主题色 */
+    --cc-theme-primary: var(--b3-theme-primary, #3573f0);
+    --cc-theme-primary-light: var(--b3-theme-primary-light, rgba(53, 115, 240, .72));
+    --cc-theme-primary-lighter: var(--b3-theme-primary-lighter, rgba(53, 115, 240, .48));
+    --cc-theme-primary-lightest: var(--b3-theme-primary-lightest, rgba(53, 115, 240, .24));
+    --cc-theme-secondary: var(--b3-theme-secondary, #f3a92f);
 
+    /* 背景和表面 */
+    --cc-theme-background: var(--b3-theme-background, #1e1e1e);
+    --cc-theme-background-light: var(--b3-theme-background-light, rgba(255, 255, 255, .075));
+    --cc-theme-surface: var(--b3-theme-surface, #262626);
+    --cc-theme-surface-light: var(--b3-theme-surface-light, rgba(41, 42, 45, .86));
+    --cc-theme-surface-lighter: var(--b3-theme-surface-lighter, rgba(230, 230, 230, .06));
+
+    /* 状态颜色 */
+    --cc-theme-error: var(--b3-theme-error, #d23f31);
+    --cc-theme-success: var(--b3-theme-success, #65b84d);
+
+    /* 文字颜色 */
+    --cc-theme-on-primary: var(--b3-theme-on-primary, #fff);
+    --cc-theme-on-secondary: var(--b3-theme-on-secondary, #fff);
+    --cc-theme-on-background: var(--b3-theme-on-background, #dadada);
+    --cc-theme-on-surface: var(--b3-theme-on-surface, #9aa0a6);
+    --cc-theme-on-surface-light: var(--b3-theme-on-surface-light, #bababa);
+    --cc-theme-on-error: var(--b3-theme-on-error, #fff);
+
+    /* 边框和阴影 */
+    --cc-border-color: var(--b3-border-color, #363636);
+    --cc-border-radius: var(--b3-border-radius, 6px);
+    --cc-border-radius-b: var(--b3-border-radius-b, 12px);
+    --cc-scroll-color: var(--b3-scroll-color, rgba(230, 230, 230, .2));
+
+    /* 交互状态 */
+    --cc-list-hover: var(--b3-list-hover, rgba(255, 255, 255, .075));
+    --cc-list-icon-hover: var(--b3-list-icon-hover, rgba(201, 209, 217, .1));
+
+    /* 菜单和提示 */
+    --cc-menu-background: var(--b3-menu-background, var(--cc-theme-surface));
+    --cc-tooltips-background: var(--b3-tooltips-background, #030303);
+    --cc-tooltips-color: var(--b3-tooltips-color, var(--cc-theme-on-surface-light));
+    --cc-tooltips-shadow: var(--b3-tooltips-shadow, 0 2px 8px rgba(0, 0, 0, .3));
+
+    /* 卡片样式 */
+    --cc-card-error-color: var(--b3-card-error-color, rgb(243, 153, 147));
+    --cc-card-error-background: var(--b3-card-error-background, #442724);
+    --cc-card-warning-color: var(--b3-card-warning-color, rgb(255, 213, 153));
+    --cc-card-warning-background: var(--b3-card-warning-background, #554636);
+    --cc-card-info-color: var(--b3-card-info-color, rgb(166, 213, 250));
+    --cc-card-info-background: var(--b3-card-info-background, #28405c);
+    --cc-card-success-color: var(--b3-card-success-color, rgb(183, 223, 185));
+    --cc-card-success-background: var(--b3-card-success-background, #425347);
+
+    /* 过渡动画 */
+    --cc-transition: var(--b3-transition, all .2s cubic-bezier(0, 0, .2, 1) 0ms);
+    --cc-width-transition: var(--b3-width-transition, width .2s cubic-bezier(0, 0, .2, 1) 0ms);
+    --cc-color-transition: var(--b3-color-transition, color .2s cubic-bezier(0, 0, .2, 1) 0ms);
+    --cc-background-transition: var(--b3-background-transition, background 20ms ease-in 0s);
+
+    /* 对话框和按钮阴影 */
+    --cc-dialog-shadow: var(--b3-dialog-shadow, 0 8px 24px #010409);
+    --cc-button-shadow: var(--b3-button-shadow, 0 5px 5px -3px rgb(0 0 0 / .2), 0 8px 10px 1px rgb(0 0 0 / .14), 0 3px 14px 2px rgb(0 0 0 / .12));
+
+    /* 1. 间距系统 */
+    --cc-space-xs: 2px;
+    --cc-space-sm: 5px;
+    --cc-space-md: 10px;
+    --cc-space-lg: 16px;
+    --cc-space-xl: 20px;
+
+    /* 2. 尺寸系统 */
+    --cc-size-icon-xs: 16px;
+    --cc-size-icon-sm: 18px;
+    --cc-size-icon-md: 20px;
+    --cc-size-icon-lg: 24px;
+    --cc-size-icon-xl: 32px;
+
+    --cc-size-progress-sm: 16px;
+    --cc-size-progress-md: 20px;
+    --cc-size-progress-lg: 24px;
+
+    /* 3. 交互效果 */
+    --cc-scale-hover: 1.05;
+    --cc-opacity-hover: 0.8;
+    --cc-opacity-disabled: 0.68;
+
+    /* 4. 阴影效果 */
+    --cc-shadow-hover: 0 10px 16px;
+    --cc-shadow-active: 0 5px 8px;
+
+    /* 5. 边框系统 */
+    --cc-border-width: 1px;
+    --cc-border-width-thick: 2px;
+    --cc-outline-offset: 2px;
+
+    /* 6. 动画时间 */
+    --cc-duration-fast: 0.2s;
+    --cc-duration-normal: 0.3s;
+    --cc-duration-slow: 0.5s;
+
+    /* 7. 动画曲线 */
+    --cc-ease-in-out: cubic-bezier(0, 0, .2, 1);
+    --cc-ease-out: ease-out;
+    --cc-ease: ease;
+
+    /* 颜色变量 */
+    --cc-icon-color-default: var(--cc-theme-error, red);
+    --cc-icon-color-enabled: var(--cc-theme-secondary, rgb(253, 128, 0));
+
+}
+
+.thumbnail-card {
+    transition: box-shadow var(--cc-duration-normal) var(--cc-ease);
+}
+
+.thumbnail-card:hover {
+    box-shadow: var(--cc-shadow-hover) var(--cc-theme-primary);
+    transform: scale(var(--cc-scale-hover));
 }
 
 
 .asset-selected {
-     /*box-shadow: 0 10px 16px var(--b3-theme-primary) ;*/
-    transform: scale(1.05);
-    outline:2px solid var(--b3-theme-primary);
-    outline: offset 2px; ;
+    /*box-shadow: 0 10px 16px var(--b3-theme-primary) ;*/
+    transform: scale(var(--cc-scale-hover));
+    outline: var(--cc-border-width-thick) solid var(--cc-theme-primary);
+    outline-offset: var(--cc-outline-offset);
 }
-.cc_ui-container{
+
+.cc_ui-container {
     max-height: 100%;
 }
+
 .disk-info {
     display: flex;
     flex-wrap: wrap;
@@ -25,10 +138,10 @@
 
 .disk {
     width: 100%;
-    margin: 10px;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+    margin: var(--cc-space-md);
+    padding: var(--cc-space-md);
+    border: var(--cc-border-width) solid var(--cc-border-color);
+    border-radius: var(--cc-border-radius);
 }
 
 .disk-header {
@@ -41,14 +154,14 @@
 }
 
 .disk-body {
-    margin-top: 10px;
+    margin-top: var(--cc-space-md);
 }
 
 .disk-progress {
     width: 100%;
-    height: 20px;
+    height: var(--cc-size-progress-md);
     background-color: #f0f0f0;
-    border-radius: 5px;
+    border-radius: var(--cc-border-radius);
     overflow: hidden;
 }
 
@@ -61,11 +174,12 @@
     margin-top: 5px;
     text-align: right;
 }
-.cc-dialog__close{
+
+.cc-dialog__close {
     cursor: pointer;
-    width: 18px;
-    height:18px;
-    opacity: .68;
-    color: var(--b3-theme-on-surface);
-    padding-right: 2px;
+    width: var(--cc-size-icon-md);
+    height: var(--cc-size-icon-md);
+    opacity: var(--cc-opacity-disabled);
+    color: var(--cc-theme-on-surface);
+    padding-right: var(--cc-space-xs);
 }
