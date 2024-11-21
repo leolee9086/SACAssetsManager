@@ -60,29 +60,4 @@ export async function 查找最相似点(输入点, 点数据集, 查找阈值 =
     return tops;
 }
 
-/*export function 查找最相似点(输入点, 点数据集, 查找阈值 = 10, 相似度算法=计算余弦相似度, 过滤条件) {
-    let 拷贝点
-    if (!Array.isArray(输入点)) {
-        拷贝点 = JSON.parse(输入点)
-    } else {
-        拷贝点 = 输入点
-    }
-    let similarityScores = [];
-    for (let v of 点数据集) {
-        let similarity = 相似度算法(拷贝点, v.vector);
-        similarityScores.push({
-            data: v,
-            score: similarity
-        });
-    }
-    //前置过滤得了
-    if (过滤条件) {
-        similarityScores = similarityScores.filter(i => {
-            return 过滤条件(i)
-        })
-    }
-    similarityScores.sort((a, b) => b.score - a.score);
-    let tops = similarityScores.slice(0, 查找阈值)
-    return tops;
-}*/
 export {查找最相似点 as findSimilarity}
