@@ -329,7 +329,7 @@ export async function 自动曝光(sharpObj, 强度 = 1.0) {
         const { width, height } = info;
 
         // 定义常量
-        const MAX_TEXTURE_SIZE = 8192;
+        const MAX_TEXTURE_SIZE = 2048;
         const OVERLAP_SIZE = 64; // 重叠区域大小
         // 如果图像足够小，直接处理
         if (width <= MAX_TEXTURE_SIZE && height <= MAX_TEXTURE_SIZE) {

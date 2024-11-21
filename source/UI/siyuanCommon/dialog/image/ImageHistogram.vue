@@ -1,5 +1,5 @@
 <template>
-    <div class="histogram-wrapper">
+    <div class="histogram-wrapper" style="height: calc(100vh - 71px)">
         <!-- 左侧图像预览区域 -->
         <div class="toolbar">
             <button class="open-file-btn" @click="openNewFile">
@@ -13,15 +13,21 @@
                  @mousemove="handleMouseMove"
                  @mouseup="handleMouseUp"
                  @mouseleave="handleMouseUp">
-                <canvas ref="previewCanvas" alt="预览图"></canvas>
-                <div class="zoom-controls">
-                    <button @click="zoomIn">+</button>
-                    <button @click="zoomOut">-</button>
-                    <button @click="resetZoom">重置</button>
-                </div>
-                <div class="split-line" 
-                     :style="{ left: `${splitPosition}%` }"
-                     @mousedown.stop="handleSplitDrag">
+                <div class="comparison-container" ref="comparisonContainer">
+                    <!-- 原始图像 -->
+                    <img ref="processedImg"
+                         :style="getImageStyle()" 
+                         alt="处理后图像" />
+                    <!-- 处理后的图像 -->
+                    <img ref="originalImg" 
+                         :style="[getImageStyle(), getClipStyle()]" 
+                         alt="原始图像" />
+                    <!-- 分割线 -->
+                    <div class="split-line" 
+                         :style="getSplitLineStyle"
+                         @mousedown.stop="handleSplitDrag">
+                        <div class="split-handle"></div>
+                    </div>
                 </div>
             </div>
             <div class="image-info">
@@ -139,7 +145,9 @@ const openNewFile = async () => {
 const appData = inject('appData')
 const histogram = ref({})
 const imagePath = toRef(appData.imagePath || window.imagePath)
-const previewCanvas = ref(null);
+const comparisonContainer = ref(null)
+const originalImg = ref(null)
+const processedImg = ref(null)
 const info = ref({})
 const channels = ref([
     { key: 'r', label: 'R', color: '#ff0000', visible: true },
@@ -246,12 +254,12 @@ const processWithThumbnail = async (processingPipeline, signal) => {
     }
 };
 
-// 修改处理更新函数
+// 修处理更新函数
 const handleProcessingUpdate = async (processingPipeline) => {
     if (!processingPipeline) return;
 
     try {
-        // 立即取消之前的处理
+        // 即取消之前的处理
         if (previewState.value.currentController) {
             previewState.value.currentController.abort();
         }
@@ -382,7 +390,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
 
     } catch (error) {
         if (error.name === 'AbortError') {
-            console.log('渲染已取消');
+            console.log('渲染已消');
         } else {
             console.error('处理图像失败:', error);
         }
@@ -481,131 +489,240 @@ const dragStart = ref({ x: 0, y: 0 })
 const splitPosition = ref(50)
 const isSplitDragging = ref(false)
 
-// 缩放控制
+// 缩放控制 - 以鼠标位置为中心
 const handleWheel = (e) => {
     e.preventDefault()
+    
+    const container = comparisonContainer.value
+    if (!container) return
+    
+    const rect = container.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    
+    // 计算鼠标相对于当前变换后内容的位置
+    const relativeX = (mouseX - offset.value.x) / scale.value
+    const relativeY = (mouseY - offset.value.y) / scale.value
+    
+    // 计算新的缩放比例
+    const oldScale = scale.value
     const delta = e.deltaY > 0 ? 0.9 : 1.1
-    scale.value = Math.min(Math.max(0.1, scale.value * delta), 5)
-    generatePreview(currentSharpObject.value)
-}
-
-const zoomIn = () => {
-    scale.value = Math.min(50, scale.value * 1.2)
-    generatePreview(currentSharpObject.value)
-}
-
-const zoomOut = () => {
-    scale.value = Math.max(0.1, scale.value * 0.8)
-    generatePreview(currentSharpObject.value)
-}
-
-const resetZoom = () => {
-    scale.value = 1
-    offset.value = { x: 0, y: 0 }
-    generatePreview(currentSharpObject.value)
-}
-
-// 拖动控制
-const handleMouseDown = (e) => {
-    isDragging.value = true
-    dragStart.value = {
-        x: e.clientX - offset.value.x,
-        y: e.clientY - offset.value.y
+    const newScale = Math.min(Math.max(0.1, oldScale * delta), 50)
+    
+    // 更新偏移量，保持鼠标位置不变
+    offset.value = {
+        x: mouseX - (relativeX * newScale),
+        y: mouseY - (relativeY * newScale)
     }
+    
+    scale.value = newScale
 }
 
+// 分割线拖动控制
 const handleMouseMove = (e) => {
     if (isDragging.value) {
         offset.value = {
             x: e.clientX - dragStart.value.x,
             y: e.clientY - dragStart.value.y
         }
-        generatePreview(currentSharpObject.value)
     } else if (isSplitDragging.value) {
-        const container = previewCanvas.value.parentElement
-        const percentage = (e.clientX - container.getBoundingClientRect().left) / container.clientWidth * 100
+        const container = comparisonContainer.value
+        if (!container) return
+        
+        const rect = container.getBoundingClientRect()
+        const imageRect = getImageDisplayRect(rect)
+        
+        // 计算鼠标相对于图像显示区域的位置
+        const mouseX = e.clientX - rect.left - imageRect.left
+        const percentage = (mouseX / imageRect.width) * 100
+        
+        // 限制有效范围内
         splitPosition.value = Math.max(0, Math.min(100, percentage))
-        generatePreview(currentSharpObject.value)
     }
 }
 
-const handleMouseUp = () => {
-    isDragging.value = false
-    isSplitDragging.value = false
+// 计算图像实际显示区域
+const getImageDisplayRect = (containerRect) => {
+    if (!originalImageInfo.value.width || !originalImageInfo.value.height) {
+        return {
+            left: 0,
+            top: 0,
+            width: containerRect.width,
+            height: containerRect.height,
+            scale: 1
+        }
+    }
+
+    const imageAspect = originalImageInfo.value.width / originalImageInfo.value.height
+    const containerAspect = containerRect.width / containerRect.height
+    
+    let baseWidth, baseHeight
+    
+    // 计算基础尺寸
+    if (imageAspect > containerAspect) {
+        baseWidth = containerRect.width
+        baseHeight = containerRect.width / imageAspect
+    } else {
+        baseHeight = containerRect.height
+        baseWidth = containerRect.height * imageAspect
+    }
+
+    // 计算居中位置
+    const baseLeft = (containerRect.width - baseWidth) / 2
+    const baseTop = (containerRect.height - baseHeight) / 2
+
+    // 应用缩放和平移，确保正确计算实际显示位置
+    const scaledWidth = baseWidth * scale.value
+    const scaledHeight = baseHeight * scale.value
+    
+    // 计算实际显示位置，考虑缩放中心点
+    const left = baseLeft + offset.value.x + (baseWidth - scaledWidth) / 2
+    const top = baseTop + offset.value.y + (baseHeight - scaledHeight) / 2
+    
+    return {
+        left,
+        top,
+        width: scaledWidth,
+        height: scaledHeight,
+        baseWidth,
+        baseHeight,
+        baseLeft,
+        baseTop,
+        scale: scale.value
+    }
 }
 
-const handleSplitDrag = () => {
+// 更新图像样式计算
+const getImageStyle = () => {
+    const container = comparisonContainer.value
+    if (!container) return {}
+    
+    const rect = container.getBoundingClientRect()
+    const imageRect = getImageDisplayRect(rect)
+    
+    return {
+        position: 'absolute',
+        width: `${imageRect.baseWidth}px`,
+        height: `${imageRect.baseHeight}px`,
+        left: `${imageRect.baseLeft}px`,
+        top: `${imageRect.baseTop}px`,
+        transform: `translate(${offset.value.x}px, ${offset.value.y}px) scale(${scale.value})`,
+        transformOrigin: 'center',
+        transition: isDragging.value ? 'none' : 'transform 0.1s',
+        willChange: 'transform'
+    }
+}
+
+// 更新裁剪样式计算
+const getClipStyle = () => {
+    return {
+        clipPath: `inset(0 ${100 - splitPosition.value}% 0 0)`,
+        willChange: 'clip-path'
+    }
+}
+
+// 修改分割线样式计算
+const getSplitLineStyle = computed(() => {
+    const container = comparisonContainer.value
+    if (!container) {
+        return { display: 'none' }
+    }
+    
+    const rect = container.getBoundingClientRect()
+    const imageRect = getImageDisplayRect(rect)
+    
+    // 计算分割线在图像区域内的实际位置
+    const splitX = imageRect.left + // 实际显示位置
+                  (imageRect.width * (splitPosition.value / 100)) // 分割比例
+    
+    return {
+        position: 'absolute',
+        left: `${splitX}px`,
+        top: `${imageRect.top}px`,
+        height: `${imageRect.height}px`,
+        transform: 'none',
+        pointerEvents: 'auto',
+        cursor: 'col-resize'
+    }
+})
+
+// 修改分割线拖拽处理函数
+const handleSplitDrag = (e) => {
+    e.preventDefault()
     isSplitDragging.value = true
+    
+    const handleDrag = (moveEvent) => {
+        const container = comparisonContainer.value
+        if (!container) return
+        
+        const rect = container.getBoundingClientRect()
+        const imageRect = getImageDisplayRect(rect)
+        
+        // 计算鼠标相对于图像显示区域的位置
+        const mouseX = moveEvent.clientX - rect.left
+        
+        // 将鼠标位置限制在图像显示区域内
+        const boundedX = Math.max(imageRect.left, Math.min(imageRect.left + imageRect.width, mouseX))
+        
+        // 计算相对于图像显示区域的百分比
+        const percentage = ((boundedX - imageRect.left) / imageRect.width) * 100
+        splitPosition.value = Math.max(0, Math.min(100, percentage))
+    }
+    
+    const handleDragEnd = () => {
+        isSplitDragging.value = false
+        document.removeEventListener('mousemove', handleDrag)
+        document.removeEventListener('mouseup', handleDragEnd)
+    }
+    
+    document.addEventListener('mousemove', handleDrag)
+    document.addEventListener('mouseup', handleDragEnd)
 }
 
 // 修改预览生成函数
 const generatePreview = async (sharpObj) => {
     try {
-        const previewSharp = sharpObj.clone()
-        const originalSharp = await fromFilePath(imagePath.value)
+        if (!originalImg.value || !processedImg.value) return
 
+        // 修复 Promise 链式调用
         const [processedBuffer, originalBuffer] = await Promise.all([
-            previewSharp.png().toBuffer(),
-            originalSharp.png().toBuffer()
+            sharpObj.clone().png().toBuffer(),
+            (async () => {
+                const originalImage = await fromFilePath(imagePath.value)
+                return originalImage.png().toBuffer()
+            })()
         ])
 
-        const [processedBitmap, originalBitmap] = await Promise.all([
-            createImageBitmap(new Blob([processedBuffer], { type: 'image/png' })),
-            createImageBitmap(new Blob([originalBuffer], { type: 'image/png' }))
-        ])
+        // 创建 Blob URLs 并清理旧的
+        if (originalImg.value.src.startsWith('blob:')) {
+            URL.revokeObjectURL(originalImg.value.src)
+        }
+        if (processedImg.value.src.startsWith('blob:')) {
+            URL.revokeObjectURL(processedImg.value.src)
+        }
 
-        const canvas = previewCanvas.value
-        const ctx = canvas.getContext('2d')
-        const container = canvas.parentElement
-        
-        canvas.width = container.clientWidth
-        canvas.height = container.clientHeight
+        // 创建新的 Blob URLs
+        const processedUrl = URL.createObjectURL(new Blob([processedBuffer], { type: 'image/png' }))
+        const originalUrl = URL.createObjectURL(new Blob([originalBuffer], { type: 'image/png' }))
 
-        const baseScale = Math.min(
-            container.clientWidth / processedBitmap.width,
-            container.clientHeight / processedBitmap.height
-        )
-        
-        const finalScale = baseScale * scale.value
-        const drawWidth = processedBitmap.width * finalScale
-        const drawHeight = processedBitmap.height * finalScale
-        
-        const centerX = (canvas.width - drawWidth) / 2 + offset.value.x
-        const centerY = (canvas.height - drawHeight) / 2 + offset.value.y
+        // 更新图像源
+        originalImg.value.src = originalUrl
+        processedImg.value.src = processedUrl
 
-        // 清除画布
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-        // 绘制原图
-        ctx.save()
-        ctx.beginPath()
-        ctx.rect(0, 0, canvas.width * splitPosition.value / 100, canvas.height)
-        ctx.clip()
-        ctx.drawImage(
-            originalBitmap,
-            centerX, centerY,
-            drawWidth, drawHeight
-        )
-        ctx.restore()
-
-        // 绘制处理后的图像
-        ctx.save()
-        ctx.beginPath()
-        ctx.rect(canvas.width * splitPosition.value / 100, 0, canvas.width, canvas.height)
-        ctx.clip()
-        ctx.drawImage(
-            processedBitmap,
-            centerX, centerY,
-            drawWidth, drawHeight
-        )
-        ctx.restore()
-
-        originalBitmap.close()
-        processedBitmap.close()
     } catch (error) {
         console.error('生成预览图失败:', error)
     }
 }
+
+// 在组件卸载时清理 Blob URLs
+onUnmounted(() => {
+    if (originalImg.value?.src.startsWith('blob:')) {
+        URL.revokeObjectURL(originalImg.value.src)
+    }
+    if (processedImg.value?.src.startsWith('blob:')) {
+        URL.revokeObjectURL(processedImg.value.src)
+    }
+})
 
 // 添加简单的防抖函数实现
 const debounce = (fn, delay) => {
@@ -643,6 +760,47 @@ onUnmounted(() => {
     }
     previewState.value.thumbnailCache = null;
 });
+
+// 优化鼠标事件坐标计算
+const getRelativeCoordinates = (e, containerRect, imageRect) => {
+    // 获取鼠标相对于容器的坐标
+    const containerX = e.clientX - containerRect.left
+    const containerY = e.clientY - containerRect.top
+
+    // 计算鼠标相对于图像显示区域的坐标
+    const imageX = (containerX - imageRect.left) / imageRect.scale
+    const imageY = (containerY - imageRect.top) / imageRect.scale
+
+    return {
+        container: { x: containerX, y: containerY },
+        image: { x: imageX, y: imageY }
+    }
+}
+
+// 优化图像拖动处理
+const handleMouseDown = (e) => {
+    if (isSplitDragging.value) return
+    
+    isDragging.value = true
+    const containerRect = comparisonContainer.value.getBoundingClientRect()
+    const imageRect = getImageDisplayRect(containerRect)
+    
+    // 记录起始点，考虑当前偏移量
+    dragStart.value = {
+        x: e.clientX - offset.value.x,
+        y: e.clientY - offset.value.y,
+        initialOffset: { ...offset.value }
+    }
+    
+    document.body.style.cursor = 'grabbing'
+}
+
+const handleMouseUp = (e) => {
+    if (isDragging.value) {
+        isDragging.value = false
+        document.body.style.cursor = 'grab'
+    }
+}
 </script>
 <style scoped>
 .histogram-wrapper {
@@ -809,8 +967,47 @@ input[type="checkbox"] {
     top: 0;
     bottom: 0;
     width: 2px;
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(221, 101, 21, 0.897);
     cursor: col-resize;
-    z-index: 1;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.split-line:hover,
+.split-line:active {
+    background: rgb(255, 166, 0);
+    width: 1px;
+}
+
+.split-handle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    background: orange;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+}
+
+.comparison-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 添加处理后图像的样式 */
+.processed {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
 }
 </style>

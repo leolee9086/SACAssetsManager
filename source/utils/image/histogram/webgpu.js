@@ -1,4 +1,4 @@
-const MAX_TEXTURE_SIZE = 8192; // WebGPU 最大纹理尺寸
+const MAX_TEXTURE_SIZE = 2048; // WebGPU 最大纹理尺寸
 
 /**
  * WebGPU 实现的直方图计算
