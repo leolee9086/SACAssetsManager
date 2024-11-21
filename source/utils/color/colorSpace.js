@@ -1,4 +1,11 @@
-//rgba到hsl的转换
+/**
+ * 将RGBA颜色值转换为HSL颜色空间
+ * @param {number[]} ragaPixel - RGBA颜色值数组 [r, g, b, a]，每个分量范围0-255
+ * @returns {number[]} HSL颜色值数组 [h, s, l]
+ * h: 色相(0-360度)
+ * s: 饱和度(0-1)
+ * l: 亮度(0-1)
+ */
 export function rgbaToHsl(ragaPixel){
     const [r,g,b,a]=ragaPixel
     const max=Math.max(r,g,b)
@@ -9,7 +16,14 @@ export function rgbaToHsl(ragaPixel){
     const h=0
     return [h,s,l]
 }
-//hsl到rgba的转换
+/**
+ * 将HSL颜色值转换为RGBA颜色空间
+ * @param {number[]} hslPixel - HSL颜色值数组 [h, s, l]
+ * h: 色相(0-360度)
+ * s: 饱和度(0-1)
+ * l: 亮度(0-1)
+ * @returns {number[]} RGBA颜色值数组 [r, g, b, a]，每个分量范围0-255
+ */
 export function hslToRgba(hslPixel){
     const [h,s,l]=hslPixel
     const r=0
@@ -18,7 +32,11 @@ export function hslToRgba(hslPixel){
     const a=1
     return [r,g,b,a]
 }
-//rgba到hex的转换
+/**
+ * 将RGBA颜色值转换为十六进制颜色代码
+ * @param {number[]} rgbaPixel - RGBA颜色值数组 [r, g, b, a]，每个分量范围0-255
+ * @returns {string} 十六进制颜色代码（不包含#前缀）
+ */
 export function rgbaToHex(rgbaPixel){
     const [r,g,b,a]=rgbaPixel
     const hex=((r<<16)|(g<<8)|b).toString(16)
@@ -27,13 +45,15 @@ export function rgbaToHex(rgbaPixel){
 
 
 /**
- * rgba颜色转换为lab颜色
- * 公式：https://en.wikipedia.org/wiki/Lab_color_space
- * 
- * @param {*} r 
- * @param {*} g 
- * @param {*} b 
- * @param {*} a 
+ * 将RGBA颜色值转换为LAB颜色空间
+ * @param {number} r - 红色分量，范围0-255
+ * @param {number} g - 绿色分量，范围0-255
+ * @param {number} b - 蓝色分量，范围0-255
+ * @param {number} [a=1] - 透明度，范围0-1
+ * @returns {{L: number, a: number, b: number}} LAB颜色值对象
+ * L: 亮度，范围0-100
+ * a: 红绿对立色，负值偏绿，正值偏红
+ * b: 蓝黄对立色，负值偏蓝，正值偏黄
  */
 export function RGBA2LAB(r, g, b, a=1) {
     const X = 0.412453 * r + 0.357580 * g + 0.180423 * b;
