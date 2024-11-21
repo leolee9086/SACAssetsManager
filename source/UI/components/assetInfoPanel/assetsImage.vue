@@ -27,14 +27,8 @@ import { watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
 import { getCommonThumbnailsFromAssets } from '../../utils/tumbnail.js';
 import multiSrcImage from '../common/multiSrcImage.vue';
 import { plugin } from '../../../pluginSymbolRegistry.js';
-const debounce = (func, delay) => {
-    let timeout;
-    return function (...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), delay);
-    };
-};
-
+import { getAssetNames as getNames,函数工具,toArray } from '../componentUtils.js';
+const {debounce}=函数工具
 const handleWheel = debounce((event) => {
     if (event.deltaY < 0) {
         previousImage();
@@ -49,9 +43,7 @@ const name = ref('无选择');
 const currentIndex = ref(0);
 const assetsData = ref([]);
 
-const getNames = (asset) => {
-    return asset.path.split('/').pop()
-}
+
 
 const getLabel = (assets) => {
     if (assets.length > 0) {
@@ -62,9 +54,7 @@ const getLabel = (assets) => {
         }
     }
 }
-const toArray = (value) => {
-    return Array.isArray(value) ? value : [value];
-}
+
 const updateImageSrc = () => {
     if (assetsData.value.length > 0&&assetsData.value[0]) {
         imageSrc.value = getCommonThumbnailsFromAssets(toArray(assetsData.value[currentIndex.value]));
