@@ -12,15 +12,14 @@
             @loadeddata="handleAudioLoad" :src="audioSrc"></audio>
     </div>
 </template>
-
 <script setup lang="jsx">
 import { computed, toRef, defineEmits, ref, onMounted } from 'vue';
 import { 计算素材缩略图样式, 计算扩展名标签样式 } from '../assetStyles.js';
 import { LAYOUT_COLUMN } from '../../../utils/threhold.js';
 import { getAssetItemColor } from '../../../../data/attributies/getAsyncAttributes.js';
-import { rgb数组转字符串 } from '../../../../utils/color/convert.js';
-import { 获取素材属性值, 计算素材类型角标 } from '../../../../data/attributies/parseAttributies.js';
-
+import { 色彩工具,素材条目管理工具 } from '../../componentUtils.js';
+const {rgb数组转字符串}=色彩工具
+const { 获取素材属性值, 计算素材类型角标 } = 素材条目管理工具
 const props = defineProps(['cardData', 'displayMode', 'attributeName', 'showAudio', 'showIframe', 'size', 'cellReady']);
 const attributeName = toRef(props, 'attributeName');
 const displayMode = toRef(props, 'displayMode');
@@ -30,13 +29,11 @@ const emit = defineEmits(['cell-ready']);
 const audioLoaded = ref(false); // 新增状态变量
 const audioPallet = ref([]);
 const audioSrc = ref(''); // 初始音频源为空
-
 onMounted(() => {
     // 异步获取素材属性值
     获取素材属性值(cardData.data, attributeName.value).then((src) => {
         audioSrc.value = src; // 更新音频的 src
     });
-
     getAssetItemColor(cardData.data).then(() => {
         audioPallet.value = cardData.data.colorPllet;
     });

@@ -74,6 +74,7 @@ import { findTagsByFilePath, removeFilesFromTag } from '../../../data/tags.js';
 import { 打开标签资源视图 } from '../../siyuanCommon/tabs/assetsTab.js';
 import { 选择标签 } from '../../siyuanCommon/dialog/tagPicker.js';
 import { watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
+import { 计算标签文件数量 } from '../componentUtils.js';
 const fileTags = ref([])
 const showTagsByFile = ref(false)
 let assets = []
@@ -81,15 +82,7 @@ function toggleShowTagsByFile() {
     showTagsByFile.value = !showTagsByFile.value;
 }
 // 计算每个标签的文件数量
-const tagCounts = computed(() => {
-    const counts = {}
-    fileTags.value.forEach(file => {
-        file.tags.forEach(tag => {
-            counts[tag] = (counts[tag] || 0) + 1
-        })
-    })
-    return counts
-})
+const tagCounts = computed(() => 计算标签文件数量(fileTags.value))
 async function 从标签移除文件路径数组并刷新(文件路径数组, tagLabel) {
     await removeFilesFromTag(文件路径数组, tagLabel)
     refresh(assets)
@@ -131,7 +124,6 @@ function refresh(assets) {
 watchStatu(状态注册表.选中的资源, (newVal) => {
     assets = Array.from(new Set(newVal));
     refresh(assets);
-
 })
 
 </script>
