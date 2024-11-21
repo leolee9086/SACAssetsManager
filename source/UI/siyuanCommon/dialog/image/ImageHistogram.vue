@@ -219,40 +219,6 @@ const getDynamicResolution = () => {
     return resolutionConfig.resolutionLevels.slow;  // 1440
 };
 
-// 修改缩略图处理函数
-const processWithThumbnail = async (processingPipeline, signal) => {
-    try {
-        const resolution = getDynamicResolution();
-        
-        if (!previewState.value.thumbnailCache || 
-            previewState.value.currentResolution !== resolution) {
-            const originalImage = await fromFilePath(imagePath.value);
-            previewState.value.thumbnailCache = await originalImage
-                .resize(resolution, resolution, { 
-                    fit: 'inside',
-                    withoutEnlargement: true
-                })
-                .toBuffer();
-            previewState.value.currentResolution = resolution;
-        }
-
-        if (signal.aborted) return;
-
-        let processedImg = await sharp(previewState.value.thumbnailCache);
-        processedImg = await processingPipeline(processedImg);
-
-        if (signal.aborted) return;
-
-        currentSharpObject.value = processedImg;
-        await generatePreview(processedImg);
-
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error('缩略图处理失败:', error);
-        }
-        throw error;
-    }
-};
 
 // 修处理更新函数
 const handleProcessingUpdate = async (processingPipeline) => {

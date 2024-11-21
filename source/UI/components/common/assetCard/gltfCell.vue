@@ -6,7 +6,7 @@
         <div class="alt-text" v-if="!modelLoaded" :style="$计算素材缩略图样式">
             <div v-if="!isPlaying" class="play-button" :style="{ height: size + 'px', zIndex: 1 }" @click="handlePlay">
                 <i class="play-icon">▶</i>
-                <div class="file-size">{{ formatFileSize(cardData.data?.size) }}</div>
+                <div class="file-size">{{ 格式化文件大小(cardData.data?.size) }}</div>
             </div>
             <img v-if="thumbnailDataUrl && !isPlaying" style="width:100%;height:100%;position:absolute;"
                 :src="thumbnailDataUrl" class="thumbnail-img" />
@@ -39,6 +39,8 @@
 
 <script setup lang="jsx">
 import { computed, toRef, shallowRef, defineEmits, ref, onMounted, onBeforeUnmount } from 'vue';
+import { 文件系统工具 } from '../../componentUtils.js';
+const {格式化文件大小} =文件系统工具
 import { 计算素材缩略图样式, 计算扩展名标签样式 } from '../assetStyles.js';
 import { LAYOUT_COLUMN } from '../../../utils/threhold.js';
 import { 获取素材属性值, 计算素材类型角标 } from '../../../../data/attributies/parseAttributies.js';
@@ -111,18 +113,7 @@ const updateLights = () => {
 
 };
 
-// 工具函数
-const formatFileSize = (bytes) => {
-    if (!bytes) return '未知大小';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex++;
-    }
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
-};
+
 // 创建一个单独的函数来获取配置好的 GLTFLoader
 const createGLTFLoader = (renderer) => {
     const loader = new GLTFLoader();

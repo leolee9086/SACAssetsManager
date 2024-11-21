@@ -17,6 +17,7 @@ import { LAYOUT_COLUMN } from '../../../utils/threhold.js';
 import { getAssetItemColor } from '../../../../data/attributies/getAsyncAttributes.js';
 import { rgb数组转字符串 } from '../../../../utils/color/convert.js';
 import { 获取素材属性值, 计算素材类型角标 } from '../../../../data/attributies/parseAttributies.js';
+import { 图片工具 } from '../../componentUtils.js';
 const props = defineProps(['cardData', 'displayMode', 'attributeName', 'showImage', 'showIframe', 'size', 'cellReady']);
 const attributeName = toRef(props, 'attributeName')
 const displayMode = toRef(props, 'displayMode');
@@ -25,7 +26,7 @@ const size = toRef(props, 'size');
 const emit = defineEmits(['cell-ready'])
 const imageLoaded = ref(false); // 新增状态变量
 const imagePallet = ref([])
-const imageSrc = ref('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAgAB/ax5LIAAAAAASUVORK5CYII='); // 使用 base64 编码的透明图片
+const imageSrc = ref(图片工具.空图片base64); // 使用 base64 编码的透明图片
 
 onMounted(
     () => {

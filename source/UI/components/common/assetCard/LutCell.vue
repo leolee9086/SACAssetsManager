@@ -21,26 +21,21 @@
 import { computed, toRef, ref, onMounted, watch } from 'vue';
 import { 计算素材缩略图样式, 计算扩展名标签样式 } from '../assetStyles.js';
 import { LAYOUT_COLUMN } from '../../../utils/threhold.js';
-import { getAssetItemColor } from '../../../../data/attributies/getAsyncAttributes.js';
 import { rgb数组转字符串 } from '../../../../utils/color/convert.js';
 import { 获取素材属性值, 计算素材类型角标 } from '../../../../data/attributies/parseAttributies.js';
 import ImageComparison from '../../../components/editors/ImageComparison.vue?';
 import { processImageWithLUTFile } from '../../../../utils/Lut/lutProcessor.js';
-
 async function handleFileUpload() {
     const { dialog } = window.require('@electron/remote');
-
     const result = await dialog.showOpenDialog({
         properties: ['openFile'],
         filters: [
             { name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
         ]
     });
-
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
         imageSrc.value = filePath;
-      
     }
 }
 

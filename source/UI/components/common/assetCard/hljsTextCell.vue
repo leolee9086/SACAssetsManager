@@ -10,64 +10,18 @@
 import { ref, toRef, onMounted, nextTick } from 'vue';
 import { 获取素材属性值 } from '../../../../data/attributies/parseAttributies.js';
 import { getTextEditorWebview, writeHljsIframe } from '../../../../utils/DOM/iframe.js';
+import { 文件系统工具 } from '../../componentUtils.js';
 const props = defineProps(['cardData', 'attributeName','ariaLabel']);
 const attributeName = toRef(props, 'attributeName');
 const displayMode = toRef(props, 'displayMode');
 const label = toRef(props, 'ariaLabel');
-
 const { cardData } = props;
-
-
 const contentFrame = ref(null);
-const webviewHTML = ref('');
-
-// 使用 window.require 引入 fs 模块
-const fs = window.require('fs');
-
-const readFileInChunks = (filePath, chunkSize, maxBytes, callback) => {
-    let bytesReadTotal = 0;
-    let position = 0;
-
-    const readNextChunk = () => {
-        if (bytesReadTotal >= maxBytes) {
-            callback(null, null); // 已达到最大读取字节数
-            return;
-        }
-
-        fs.open(filePath, 'r', (err, fd) => {
-            if (err) {
-                callback(err, null);
-                return;
-            }
-            const buffer = Buffer.alloc(chunkSize);
-            fs.read(fd, buffer, 0, chunkSize, position, (err, bytesRead, buffer) => {
-                if (err) {
-                    callback(err, null);
-                    return;
-                }
-                if (bytesRead > 0) {
-                    bytesReadTotal += bytesRead;
-                    position += bytesRead;
-                    callback(null, buffer.toString('utf8', 0, bytesRead));
-                    setTimeout(readNextChunk, 0); // 使用闲时回调
-                } else {
-                    callback(null, null); // 文件读取完毕
-                }
-                fs.close(fd, (err) => {
-                    if (err) console.error(err);
-                });
-            });
-        });
-    };
-
-    readNextChunk();
-};
-
+const readFileInChunks = 文件系统工具.readFileInChunks
 const loadAndHighlightFile = async () => {
     const path = await 获取素材属性值(cardData.data, attributeName.value);
     const maxBytes = 10000; // 最大读取字节数
     const chunkSize = 1000; // 每次读取的字节数
-
     readFileInChunks(path, chunkSize, maxBytes, (err, data) => {
         if (err) {
             console.error(err);
