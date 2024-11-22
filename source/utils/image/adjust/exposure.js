@@ -1,112 +1,7 @@
 import { getHistogramFromSharp } from "../histogram.js";
-import { fromBuffer } from "../../fromDeps/sharpInterface/useSharp/toSharp.js";
 import { requirePluginDeps } from "../../module/requireDeps.js";
 const sharp = requirePluginDeps('sharp')
-class ResourcePool {
-    constructor(device) {
-        this.device = device;
-        this.buffers = new Map();
-        this.textures = new Map();
-        this.mappedBuffers = new Set();
-        this.registry = new FinalizationRegistry(this.cleanup.bind(this));
-    }
-
-    async getBuffer(size, usage, label = '') {
-        const key = `${size}_${usage}_${label}`;
-        let buffer;
-
-        if (this.buffers.has(key)) {
-            const bufferRef = this.buffers.get(key);
-            buffer = bufferRef.deref();
-
-            if (buffer) {
-                // 如果缓冲区已映射，尝试取消映射
-                if (this.mappedBuffers.has(buffer)) {
-                    try {
-                        buffer.unmap();
-                        this.mappedBuffers.delete(buffer);
-                    } catch (e) {
-                        // 忽略未映射缓冲区的错误
-                    }
-                }
-                return buffer;
-            }
-        }
-
-        // 创建新的缓冲区
-        buffer = this.device.createBuffer({
-            size,
-            usage,
-            label: `pool_buffer_${label}`
-        });
-
-        this.buffers.set(key, new WeakRef(buffer));
-        this.registry.register(buffer, {
-            type: 'buffer',
-            key
-        });
-
-        return buffer;
-    }
-
-    markBufferMapped(buffer) {
-        this.mappedBuffers.add(buffer);
-    }
-
-    markBufferUnmapped(buffer) {
-        this.mappedBuffers.delete(buffer);
-    }
-
-    getTexture(width, height, format, usage, label = '') {
-        const key = `${width}_${height}_${format}_${usage}_${label}`;
-        if (!this.textures.has(key)) {
-            const texture = this.device.createTexture({
-                size: [width, height],
-                format,
-                usage,
-                label: `pool_texture_${label}`
-            });
-            this.textures.set(key, new WeakRef(texture));
-            this.registry.register(texture, {
-                type: 'texture',
-                key
-            });
-        }
-        const textureRef = this.textures.get(key);
-        const texture = textureRef.deref();
-        if (texture) return texture;
-
-        // 如果原始texture已被回收，创建新的
-        const newTexture = this.device.createTexture({
-            size: [width, height],
-            format,
-            usage,
-            label: `pool_texture_${label}`
-        });
-        this.textures.set(key, new WeakRef(newTexture));
-        return newTexture;
-    }
-
-    cleanup({ type, key }) {
-        if (type === 'buffer') {
-            const bufferRef = this.buffers.get(key);
-            if (bufferRef) {
-                const buffer = bufferRef.deref();
-                if (buffer && this.mappedBuffers.has(buffer)) {
-                    try {
-                        buffer.unmap();
-                    } catch (e) {
-                        // 忽略清理错误
-                    }
-                    this.mappedBuffers.delete(buffer);
-                }
-            }
-            this.buffers.delete(key);
-        } else if (type === 'texture') {
-            this.textures.delete(key);
-        }
-    }
-} const adapter = await navigator.gpu.requestAdapter();
+const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter.requestDevice();
 const autoExposureShader = `
 struct Uniforms {
@@ -159,9 +54,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
 
 `
-
-// 创建全局资源池
-const resourcePool = new ResourcePool(device);
 
 async function 创建自动曝光GPU管线(device, 宽度, 高度) {
     if (!device) {
@@ -306,18 +198,7 @@ function 创建输出纹理(device, width, height) {
     });
 }
 
-function 创建绑定组(device, bindGroupLayout, uniformBuffer, inputTexture, outputTexture, histogramBuffer, cdfBuffer) {
-    return device.createBindGroup({
-        layout: bindGroupLayout,
-        entries: [
-            { binding: 0, resource: { buffer: uniformBuffer } },
-            { binding: 1, resource: inputTexture.createView() },
-            { binding: 2, resource: outputTexture.createView() },
-            { binding: 3, resource: { buffer: histogramBuffer } },
-            { binding: 4, resource: { buffer: cdfBuffer } }
-        ]
-    });
-}
+
 
 export async function 自动曝光(sharpObj, 强度 = 1.0) {
     if (!device) {
@@ -795,23 +676,6 @@ function 分析直方图特征(直方图) {
     };
 }
 
-// 添加辅助函数用于验证图像数据
-function 验证图像数据(data, width, height, channels) {
-    if (!data || !data.length) {
-        throw new Error('无效的图像数据');
-    }
-
-    if (width < 1 || height < 1) {
-        throw new Error(`无效的图像尺寸: ${width}x${height}`);
-    }
-
-    const expectedLength = width * height * channels;
-    if (data.length !== expectedLength) {
-        throw new Error(`数据长度不匹配: 期望 ${expectedLength}, 实际 ${data.length}`);
-    }
-
-    return true;
-}
 
 async function 创建并设置缓冲区(device, histogram, cdf) {
     // 创建直方图缓冲区
@@ -839,10 +703,3 @@ async function 创建并设置缓冲区(device, histogram, cdf) {
     return { histogramBuffer, cdfBuffer };
 }
 
-// 添加一个辅助函数来等待 GPU 操作完成
-async function 等待GPU操作完成(device) {
-    const fence = device.createFence();
-    const fenceValue = 1;
-    device.queue.signal(fence, fenceValue);
-    await fence.onCompletion(fenceValue);
-}

@@ -24,13 +24,35 @@ export function rgbaToHsl(ragaPixel){
  * l: 亮度(0-1)
  * @returns {number[]} RGBA颜色值数组 [r, g, b, a]，每个分量范围0-255
  */
-export function hslToRgba(hslPixel){
-    const [h,s,l]=hslPixel
-    const r=0
-    const g=0
-    const b=0
-    const a=1
-    return [r,g,b,a]
+export function hslToRgba(hslPixel) {
+    const [h, s, l] = hslPixel
+    
+    // 如果饱和度为0，则为灰度颜色
+    if (s === 0) {
+        const rgb = Math.round(l * 255)
+        return [rgb, rgb, rgb, 1]
+    }
+
+    // 辅助函数：计算色相对应的RGB值
+    const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1
+        if (t > 1) t -= 1
+        if (t < 1/6) return p + (q - p) * 6 * t
+        if (t < 1/2) return q
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+        return p
+    }
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    const h1 = h / 360 // 将色相角度转换为0-1范围
+
+    // 计算RGB分量
+    const r = Math.round(hue2rgb(p, q, h1 + 1/3) * 255)
+    const g = Math.round(hue2rgb(p, q, h1) * 255)
+    const b = Math.round(hue2rgb(p, q, h1 - 1/3) * 255)
+    
+    return [r, g, b, 1]
 }
 /**
  * 将RGBA颜色值转换为十六进制颜色代码

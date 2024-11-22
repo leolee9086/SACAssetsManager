@@ -5,3 +5,6 @@
 import ImageHistogram from '../ImageHistogram.vue';
 const imagePath = window.imagePath
 </script>
+<style >
+@import url('/plugins/SACAssetsManager/index.css');
+</style>
