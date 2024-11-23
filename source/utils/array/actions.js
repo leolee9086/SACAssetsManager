@@ -23,11 +23,9 @@ export function sliceDelete(array, start, end) {
     if (typeof start !== 'number' || typeof end !== 'number') {
         throw new TypeError('起始和结束索引必须是数字');
     }
-
     // 处理负数索引
     const actualStart = start < 0 ? Math.max(array.length + start, 0) : start;
     const actualEnd = end < 0 ? Math.max(array.length + end, 0) : end;
-
     // 边界检查
     if (actualStart < 0 || actualEnd < 0) {
         throw new RangeError('索引不能小于0');

@@ -38,13 +38,34 @@
           </div>
         </div>
         <div class="control-body">
-          <input type="range" 
-            v-model="control.value" 
-            :min="control.min" 
-            :max="control.max" 
-            :step="control.step"
-            @input="updateProcessing" 
-            :disabled="!control.enabled">
+          <template v-for="param in control.params" :key="param.key">
+            <div class="param-item">
+              <label>{{ param.label }}</label>
+              
+              <!-- 滑块类型参数 -->
+              <input v-if="param.type === 'slider'"
+                type="range"
+                :value="param.value"
+                :min="param.min"
+                :max="param.max"
+                :step="param.step"
+                @input="e => updateParamValue(param, e.target.value)"
+                :disabled="!control.enabled">
+              
+              <!-- 矩阵类型参数 -->
+              <div v-else-if="param.type === 'matrix3x3'" class="matrix-editor">
+                <div v-for="(row, i) in 3" :key="i" class="matrix-row">
+                  <input v-for="(col, j) in 3" 
+                    :key="j"
+                    type="number"
+                    v-model="param.value[i][j]"
+                    step="0.1"
+                    @input="updateProcessing"
+                    :disabled="!control.enabled">
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -53,7 +74,9 @@
 
 <script setup>
 import { ref } from 'vue';
-import { 参数定义注册表 } from './pipelineBuilder.js';
+import { 参数定义注册表 ,getValueType, convert} from './pipelineBuilder.js';
+import { fromBuffer } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+//import { getValueType, convert } from '../../../../utils/typeConverter.js';
 
 const controls = ref([]);
 const draggingId = ref(null);
@@ -62,20 +85,22 @@ const showEffectSelector = ref(false);
 
 // 添加效果
 const addEffect = (selectedEffect) => {
+  // 确保有默认的params
+  const defaultParams = selectedEffect.params || [];
+  
   const newEffect = {
     ...selectedEffect,
     id: `effect-${Date.now()}`,
     enabled: true,
-    value: selectedEffect.defaultValue
+    params: defaultParams.map(param => ({
+      ...param,
+      value: Array.isArray(param.defaultValue) 
+        ? JSON.parse(JSON.stringify(param.defaultValue))
+        : param.defaultValue
+    }))
   };
 
   controls.value.push(newEffect);
-  // 从可用效果列表中移除
-  const index = availableEffects.value.findIndex(e => e.key === selectedEffect.key);
-  if (index > -1) {
-    availableEffects.value.splice(index, 1);
-  }
-
   showEffectSelector.value = false;
   updateProcessing();
 };
@@ -84,10 +109,7 @@ const addEffect = (selectedEffect) => {
 const removeEffect = (control) => {
   const index = controls.value.findIndex(c => c.id === control.id);
   if (index > -1) {
-    const removed = controls.value.splice(index, 1)[0];
-    availableEffects.value.push({
-      ...参数定义注册表.find(def => def.key === removed.key)
-    });
+    controls.value.splice(index, 1);
   }
   updateProcessing();
 };
@@ -122,9 +144,23 @@ const createProcessingPipeline = () => {
     let processed = sharpInstance;
 
     for await (const control of controls.value) {
-      const value = parseFloat(control.value);
-      if (control.enabled && value !== control.defaultValue) {
-        processed = await control.处理函数(processed, value);
+      if (control.enabled) {
+        // 创建参数对象
+        const params = control.params.map(item=>item.value)
+        
+        // 如果需要克隆，在处理前创建新的 Sharp 实例
+        if (control.needClone) {
+          const buffer = await processed.toBuffer();
+          processed = fromBuffer(buffer);
+        }
+        
+        // 传递参数对象
+        try{
+        processed = await control.处理函数(processed, ...params);
+
+      }catch(e){
+          console.error(e)
+        }
       }
     }
 
@@ -142,7 +178,9 @@ const updateProcessing = () => {
 // 导出重置函数
 const reset = () => {
   controls.value.forEach(control => {
-    control.value = control.defaultValue;
+    control.params.forEach(param => {
+      param.value = param.defaultValue;
+    });
   });
   updateProcessing();
 };
@@ -150,7 +188,10 @@ const reset = () => {
 // 导出当前设置
 const getCurrentSettings = () => {
   return controls.value.reduce((acc, control) => {
-    acc[control.key] = control.value;
+    acc[control.key] = control.params.reduce((acc, param) => {
+      acc[param.key] = param.value;
+      return acc;
+    }, {});
     return acc;
   }, {});
 };
@@ -159,7 +200,11 @@ const getCurrentSettings = () => {
 const loadSettings = (settings) => {
   controls.value.forEach(control => {
     if (settings[control.key] !== undefined) {
-      control.value = settings[control.key];
+      control.params.forEach(param => {
+        if (settings[control.key][param.key] !== undefined) {
+          param.value = settings[control.key][param.key];
+        }
+      });
     }
   });
   updateProcessing();
@@ -171,6 +216,19 @@ defineExpose({
   getCurrentSettings,
   loadSettings
 });
+
+// 更新参数值
+const updateParamValue = (param, newValue) => {
+  if (param.updateValue) {
+    // 使用参数定义中的类型安全更新函数
+    param.value = param.updateValue(newValue);
+  } else {
+    // 降级处理
+    const inputType = getValueType(newValue);
+    param.value = convert(newValue, inputType, param.expectedType || 'number');
+  }
+  updateProcessing();
+};
 </script>
 
 <style scoped>
@@ -366,5 +424,31 @@ input[type="range"]::-webkit-slider-thumb {
 .control-body {
   padding: 0 var(--cc-space-sm);
   cursor: default;
+}
+
+.param-item {
+  margin: var(--cc-space-sm) 0;
+}
+
+.matrix-editor {
+  background: var(--cc-theme-surface-light);
+  padding: var(--cc-space-sm);
+  border-radius: var(--cc-border-radius-sm);
+}
+
+.matrix-row {
+  display: flex;
+  gap: var(--cc-space-sm);
+  margin: var(--cc-space-xs) 0;
+}
+
+.matrix-row input {
+  width: 50px;
+  text-align: center;
+  padding: var(--cc-space-xs);
+  background: var(--cc-theme-surface);
+  border: var(--cc-border-width) solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius-sm);
+  color: var(--cc-theme-on-surface);
 }
 </style>

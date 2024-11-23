@@ -1,4 +1,21 @@
 /**
+ * 自动色阶调整
+ * @param {Sharp} img - Sharp图像对象
+ * @param {number} 下限 - 最低像素值百分位数，默认为1
+ * @param {number} 上限 - 最高像素值百分位数，默认为99
+ * @returns {Sharp} 处理后的Sharp对象
+ * @example
+ * 自动色阶(图像)  // 使用默认参数进行自动色阶调整
+ * 自动色阶(图像, 2, 98) // 使用自定义参数进行自动色阶调整
+ */
+export const 自动色阶 = (img, 下限 = 1, 上限 = 99) => {
+    return img.normalize({
+        lower: 下限,
+        upper: 上限
+    });
+};
+
+/**
  * 调整亮度
  * @param {Sharp} img - Sharp图像对象
  * @param {number} 值 - 亮度调整值，范围[-1,1]，0为原始亮度，正值增加亮度，负值降低亮度
@@ -127,5 +144,26 @@ export const 调整白场 = (img, 值) => {
 export const 调整中间调 = (img, 值) => {
     return img.linear(1, 值 * 30);
 }
+
+/**
+ * 自适应直方图均衡化 (CLAHE)
+ * @param {Sharp} img - Sharp图像对象
+ * @param {Object} options - 配置选项
+ * @param {number} options.width - 局部区域宽度，默认为8
+ * @param {number} options.height - 局部区域高度，默认为8
+ * @param {number} options.clipLimit - 对比度限制阈值，默认为3
+ * @returns {Sharp} 处理后的Sharp对象
+ */
+export const 自适应均衡化 = (img, {
+    width = 8,
+    height = 8,
+    clipLimit = 3
+} = {}) => {
+    return img.clahe({
+        width,
+        height,
+        maxSlope: clipLimit
+    });
+};
 
 
