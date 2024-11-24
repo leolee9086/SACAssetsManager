@@ -219,6 +219,22 @@ const updateParamValue = (effect, param, newValue) => {
 const openEffectSelector = () => {
   showEffectSelector.value = true;
 };
+
+// 暴露给父组件的方法
+defineExpose({
+  getCurrentSettings() {
+    return {
+      effectStack: props.effectStack,
+      // 其他需要保存的设置...
+    }
+  },
+  
+  loadSettings(settings) {
+    if (settings && settings.effectStack) {
+      emit('update:effect-stack', settings.effectStack)
+    }
+  }
+})
 </script>
 
 <style scoped>
