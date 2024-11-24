@@ -16,7 +16,6 @@ export async function 打开图片编辑器窗口(imagePath) {
     newWindow.loadURL(import.meta.resolve('./panelStyleEditor.html'));
     const baseStyle = document.querySelector('link[href^="base"]');
     const baseStyleSrc=baseStyle.getAttribute('href')
-    newWindowContents.openDevTools()
     newWindowContents.on('dom-ready', () => {
         newWindowContents.executeJavaScript(`
             window.workspaceDir ='${siyuan.config.system.workspaceDir.replace(/\\/g, '/')}'

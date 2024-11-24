@@ -9,6 +9,7 @@
         <div class="content-wrapper">
             <!-- 左侧工具栏 -->
             <div class="tools-sidebar">
+                <!-- 几何变换工具组 -->
                 <div class="tool-button" @click="rotate(-90)" title="向左旋转">
                     <span class="icon">↶</span>
                 </div>
@@ -25,14 +26,28 @@
                     title="透视校正">
                     <span class="icon">⟁</span>
                 </div>
-                <div class="tool-button" @click="toggleResizeMode" :class="{ active: isResizeMode }" 
-                    title="缩放">
+                <div class="tool-button" @click="toggleResizeMode" :class="{ active: isResizeMode }" title="缩放">
                     <span class="icon">⤧</span>
                 </div>
+
                 <div class="tool-button separator"></div>
+
+                <!-- 编辑工具组 -->
                 <div class="tool-button" @click="toggleEditMode" :class="{ active: isEditMode }" title="编辑模式">
                     <span class="icon">✎</span>
                 </div>
+                <div class="tool-button" @click="toggleCropMode" :class="{ active: isCropMode }" title="裁剪">
+                    <span class="icon">✂</span>
+                </div>
+
+                <div class="tool-button separator"></div>
+
+                <!-- 视图模式组 -->
+                <div class="tool-button" @click="toggleProcessedOnlyView" :class="{ active: isProcessedOnlyView }"
+                    title="仅处理后">
+                    <span class="icon">▣</span>
+                </div>
+
                 <div class="tool-button" @click="toggleSplitView" :class="{ active: isSplitViewEnabled }" title="裂像预览">
                     <span class="icon">◫</span>
                 </div>
@@ -44,29 +59,45 @@
                     @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
                     <div class="comparison-container" ref="comparisonContainer">
                         <img ref="processedImg" :src="processedImg?.src" :style="getImageStyle()" alt="处理后图像" />
-                        <img v-if="isSplitViewEnabled" v-show="originalImg?.src" ref="originalImg"
+                        <img v-if="viewState.mode === 'split'" v-show="originalImg?.src" ref="originalImg"
                             :src="originalImg?.src" :style="[getImageStyle(), getClipStyle()]" alt="原始图像" />
-                        <div v-if="isSplitViewEnabled" class="split-line" :style="getSplitLineStyle"
+                        <div v-if="viewState.mode === 'split'" class="split-line" :style="getSplitLineStyle"
                             @mousedown.stop="handleSplitDrag">
                             <div class="split-handle"></div>
+                        </div>
+                        <div v-if="isCropMode" class="crop-overlay">
+                            <div class="crop-box" :style="cropBoxStyle" @mousedown.stop="handleCropBoxMouseDown">
+                                <!-- 裁剪框的控制点 -->
+                                <div v-for="handle in cropHandles" :key="handle.position" class="crop-handle"
+                                    :class="handle.position"
+                                    @mousedown.stop="(e) => handleCropResize(e, handle.position)">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- 性能监控面板 -->
-                <floatLayerWindow title='处理状态'>
+                <floatLayerWindow title='处理状态' :initial-width="400" :initial-height="300">
                     <div class="performance-panel">
-                        <div class="performance-item">
-                            处理时间: {{ performanceStats.processingTime || 0 }} ms
-                        </div>
-                        <div class="performance-item">
-                            内存使用: {{ performanceStats.memoryUsage || 0 }} MB
-                        </div>
-                        <div class="image-info">
-                            <div class="info-item">图像路径: {{ imagePath }}</div>
-                            <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{
-                                originalImageInfo?.height || 0
+                        <!-- 添加直方图部分 -->
+                        <HistogramPanel v-model:channels="channels" :sharp-object="currentSharpObject"
+                            @histogram-updated="handleHistogramUpdate" />
+
+                        <!-- 原有的性能信息 -->
+                        <div class="performance-stats">
+                            <div class="performance-item">
+                                处理时间: {{ performanceStats.processingTime || 0 }} ms
+                            </div>
+                            <div class="performance-item">
+                                内存使用: {{ performanceStats.memoryUsage || 0 }} MB
+                            </div>
+                            <div class="image-info">
+                                <div class="info-item">图像路径: {{ imagePath }}</div>
+                                <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{
+                                    originalImageInfo?.height || 0
                                 }}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -75,8 +106,6 @@
 
             <!-- 右侧控制面板 -->
             <div class="control-section">
-                <HistogramPanel v-model:channels="channels" :sharp-object="currentSharpObject"
-                    @histogram-updated="handleHistogramUpdate" />
                 <ImageAdjuster ref="imageAdjuster" :effect-stack="effectStack" :dragging-effect-id="draggingEffectId"
                     @update:effect-stack="handleEffectStackChange" @effect-param-change="updateProcessingPipeline" />
             </div>
@@ -97,7 +126,7 @@
         </div>
 
         <!-- 修改几何变换确认面板 -->
-        <div class="geometry-confirm" v-if="hasGeometryChanges || isResizeMode">
+        <div class="geometry-confirm" v-if="hasGeometryChanges || isResizeMode || isCropMode">
             <div class="geometry-options">
                 <div class="option-group" v-if="isResizeMode">
                     <label>调整大小:</label>
@@ -118,6 +147,18 @@
                         <option value="png">PNG</option>
                         <option value="webp">WebP</option>
                     </select>
+                </div>
+                <div class="option-group" v-if="isCropMode">
+                    <label>裁剪尺寸:</label>
+                    <div class="size-inputs">
+                        <input type="number" v-model="cropBox.width" @input="handleCropInput('width')" />
+                        <span>x</span>
+                        <input type="number" v-model="cropBox.height" @input="handleCropInput('height')" />
+                        <label>
+                            <input type="checkbox" v-model="cropBox.maintainAspectRatio" />
+                            保持比例
+                        </label>
+                    </div>
                 </div>
             </div>
             <div class="button-group">
@@ -216,7 +257,7 @@ const 添加新文件 = async (newPath) => {
 
     } catch (error) {
         console.error('处理新图像失败:', error);
-        throw new Error('图像处理失败，请确保文件格式正确且未损坏');
+        throw new Error('图像处理失败，请确文件格式正确且未损坏');
     }
 
 }
@@ -356,7 +397,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
         previewState.value.currentController = new AbortController();
         const { signal } = previewState.value.currentController;
 
-        // 更新版本号
+        // 新版本号
         const currentVersion = ++previewState.value.renderVersion;
 
         // 获取图像尺寸
@@ -576,23 +617,6 @@ const handleWheel = (e) => {
     scale.value = newScale
 }
 
-// 分割线拖动控制
-const handleMouseMove = (e) => {
-    if (isDragging.value) {
-        offset.value = {
-            x: e.clientX - dragStart.value.x,
-            y: e.clientY - dragStart.value.y
-        }
-    } else if (isSplitDragging.value) {
-        const container = comparisonContainer.value
-        if (!container) return
-        const rect = container.getBoundingClientRect()
-        const imageRect = getImageDisplayRect(rect)
-        const mouseX = e.clientX - rect.left - imageRect.left
-        const percentage = (mouseX / imageRect.width) * 100
-        splitPosition.value = Math.max(0, Math.min(100, percentage))
-    }
-}
 // 更新图像样式计算
 const getImageStyle = () => {
     const container = comparisonContainer.value;
@@ -616,7 +640,7 @@ const getImageStyle = () => {
 };
 
 // 修改裁剪样式计算
-const getClipStyle = () => {
+/*const getClipStyle = () => {
     const container = comparisonContainer.value;
     if (!container) {
         return {};
@@ -638,10 +662,10 @@ const getClipStyle = () => {
         clipPath: `inset(0 ${100 - clipPercentage}% 0 0)`,
         willChange: 'clip-path'
     };
-};
+};*/
 
 // 修改分割线样式计算
-const getSplitLineStyle = computed(() => {
+/*const getSplitLineStyle = computed(() => {
     const container = comparisonContainer.value;
     if (!container) {
         return { display: 'none' };
@@ -658,10 +682,10 @@ const getSplitLineStyle = computed(() => {
         cursor: 'col-resize',
         zIndex: 10
     };
-});
+});*/
 
 // 修改分割线拖拽处理函数
-const handleSplitDrag = (e) => {
+/*const handleSplitDrag = (e) => {
     e.preventDefault();
     isSplitDragging.value = true;
     const handleDrag = (moveEvent) => {
@@ -679,7 +703,7 @@ const handleSplitDrag = (e) => {
     };
     document.addEventListener('mousemove', handleDrag);
     document.addEventListener('mouseup', handleDragEnd);
-};
+};*/
 
 // 修改预览生成函数
 const generatePreview = async (sharpObj) => {
@@ -768,12 +792,16 @@ const handleMouseDown = (e) => {
     document.body.style.cursor = 'grabbing'
 }
 
-const handleMouseUp = (e) => {
-    if (isDragging.value) {
-        isDragging.value = false
-        document.body.style.cursor = 'grab'
+const handleMouseUp = () => {
+    if (isDraggingCrop.value) {
+        isDraggingCrop.value = false;
+        cropResizeHandle.value = null;
     }
-}
+    if (isDragging.value) {
+        isDragging.value = false;
+        document.body.style.cursor = 'default';
+    }
+};
 
 // 添加图片历史记录状态
 const imageHistory = ref([]);
@@ -876,7 +904,7 @@ const createProcessingPipeline = () => {
                 try {
                     processed = await effect.处理函数(processed, ...params);
                 } catch (e) {
-                    console.error('���果处理失败:', e);
+                    console.error('果处理失败:', e);
                 }
             }
         }
@@ -895,7 +923,6 @@ const updateProcessingPipeline = () => {
 
 // 添加新的响应式状态
 const isEditMode = ref(false)
-const isSplitViewEnabled = ref(true)
 
 // 添加状态切换函数
 const toggleEditMode = () => {
@@ -904,7 +931,7 @@ const toggleEditMode = () => {
 }
 
 // 修改裂像预览切换函数
-const toggleSplitView = async () => {
+/*const toggleSplitView = async () => {
     isSplitViewEnabled.value = !isSplitViewEnabled.value;
 
     // 如果开启裂像预览，需要重新触发处理管线
@@ -912,7 +939,7 @@ const toggleSplitView = async () => {
         // 直接使用当前的效果栈
         const currentStack = effectStack.value;
 
-        // 构建处理管线
+        // 构建理管线
         const processingPipeline = async (img) => {
             let processedImg = img.clone();
 
@@ -941,7 +968,7 @@ const toggleSplitView = async () => {
             await generatePreview(currentSharpObject.value);
         }
     }
-};
+};*/
 
 // 添加几何变换状态追踪
 const hasGeometryChanges = computed(() => {
@@ -994,81 +1021,91 @@ const cancelChanges = () => {
     flips.value = { horizontal: false, vertical: false };
     perspectiveMode.value = false;
     isResizeMode.value = false;
-    
+    isCropMode.value = false;
+
     // 重置缩放选项
     if (originalImageInfo.value) {
         resizeOptions.value.width = originalImageInfo.value.width;
         resizeOptions.value.height = originalImageInfo.value.height;
     }
-    
+
     // 重新生成预览
     if (currentSharpObject.value) {
         generatePreview(currentSharpObject.value);
     }
 };
 
-// 修改确认变更函数
+// 修改确认变更函数，添加裁剪的实际处理
 const confirmChanges = async () => {
     try {
-        const processingPipeline = async (img) => {
-            let processed = img;
-            
-            // 应用几何变换
-            if (hasGeometryChanges.value) {
-                if (rotation.value !== 0) {
-                    processed = processed.rotate(rotation.value, {
-                        background: { r: 0, g: 0, b: 0, alpha: 0 }
-                    });
-                }
-                
-                if (flips.value.horizontal) {
-                    processed = processed.flop();
-                }
-                if (flips.value.vertical) {
-                    processed = processed.flip();
-                }
-            }
-            
-            // 应用缩放
-            if (isResizeMode.value) {
-                processed = processed.resize(
-                    resizeOptions.value.width,
-                    resizeOptions.value.height,
-                    {
-                        fit: 'fill',
-                        withoutEnlargement: false
-                    }
-                );
-            }
-            
-            return processed;
-        };
+        let processedImage = currentSharpObject.value;
 
-        const processedImage = await processingPipeline(currentSharpObject.value);
-        
+        // 处理裁剪
+        if (isCropMode.value) {
+            const cropArea = getActualCropArea();
+            if (!cropArea) throw new Error('无法获取裁剪区域');
+
+            // 确保裁剪区域在有效范围内
+            cropArea.left = Math.max(0, Math.min(cropArea.left, originalImageInfo.value.width));
+            cropArea.top = Math.max(0, Math.min(cropArea.top, originalImageInfo.value.height));
+            cropArea.width = Math.min(cropArea.width, originalImageInfo.value.width - cropArea.left);
+            cropArea.height = Math.min(cropArea.height, originalImageInfo.value.height - cropArea.top);
+
+            processedImage = await processedImage.extract(cropArea);
+        }
+
+        // 处理几何变换
+        if (hasGeometryChanges.value) {
+            if (rotation.value !== 0) {
+                processedImage = processedImage.rotate(rotation.value, {
+                    background: { r: 0, g: 0, b: 0, alpha: 0 }
+                });
+            }
+            if (flips.value.horizontal) {
+                processedImage = processedImage.flop();
+            }
+            if (flips.value.vertical) {
+                processedImage = processedImage.flip();
+            }
+        }
+
+        // 处理缩放
+        if (isResizeMode.value) {
+            processedImage = processedImage.resize(
+                resizeOptions.value.width,
+                resizeOptions.value.height,
+                {
+                    fit: 'fill',
+                    withoutEnlargement: false
+                }
+            );
+        }
+
         // 导出处理后的图像
         const outputOptions = {
             quality: 100,
             ...(outputFormat.value === 'png' ? { alpha: true } : {}),
             ...(outputFormat.value === 'webp' ? { lossless: true } : {})
         };
-        
+
         const processedBuffer = await processedImage[outputFormat.value](outputOptions).toBuffer();
-        
+
         // 生成新文件路径
-        const pathParts = imagePath.value.match(/^(.+?)(?:_(?:geometry|resize))?(\.[^.]+)$/);
-        if (!pathParts) {
-            throw new Error('无效的文件路径');
-        }
-        const [_, basePath] = pathParts;
-        const suffix = isResizeMode.value ? 'resize' : 'geometry';
+        const pathParts = imagePath.value.match(/^(.+?)(?:_(?:geometry|resize|crop))?(\.[^.]+)$/);
+        if (!pathParts) throw new Error('无效的文件路径');
+
+        const [_, basePath, ext] = pathParts;
+        const suffix = isCropMode.value ? 'crop' :
+            isResizeMode.value ? 'resize' :
+                'geometry';
         const newPath = `${basePath}_${suffix}.${outputFormat.value}`;
-        
+
+        // 保存文件
         await 覆盖保存(newPath, processedBuffer);
-        
+
         // 重置所有状态
         cancelChanges();
-        
+
         // 加载新文件
         await 添加新文件(newPath);
 
@@ -1093,6 +1130,315 @@ watch(() => originalImageInfo.value, (newInfo) => {
         resizeOptions.value.height = newInfo.height;
     }
 }, { deep: true });
+
+// 添加裁剪相关的状态
+const isCropMode = ref(false);
+const cropBox = ref({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    maintainAspectRatio: false
+});
+const isDraggingCrop = ref(false);
+const cropStartPos = ref({ x: 0, y: 0 });
+const cropResizeHandle = ref(null);
+
+// 裁剪框的控制点
+const cropHandles = [
+    { position: 'nw' }, { position: 'n' }, { position: 'ne' },
+    { position: 'w' }, { position: 'e' },
+    { position: 'sw' }, { position: 's' }, { position: 'se' }
+];
+
+// 切换裁剪模式
+const toggleCropMode = () => {
+    isCropMode.value = !isCropMode.value;
+    if (isCropMode.value) {
+        initCropBox();
+    }
+};
+
+// 修改初始化裁剪框函数，使其相对于原图定位
+const initCropBox = () => {
+    const container = comparisonContainer.value;
+    if (!container || !processedImg.value) return;
+
+    const rect = container.getBoundingClientRect();
+    const imgRect = processedImg.value.getBoundingClientRect();
+
+    // 计算实际的图像区域（考虑缩放和偏移）
+    const imageArea = {
+        x: imgRect.left - rect.left,
+        y: imgRect.top - rect.top,
+        width: imgRect.width,
+        height: imgRect.height
+    };
+
+    // 初始化裁剪框为图像区域的80%
+    cropBox.value = {
+        x: imageArea.x + imageArea.width * 0.1,
+        y: imageArea.y + imageArea.height * 0.1,
+        width: imageArea.width * 0.8,
+        height: imageArea.height * 0.8,
+        maintainAspectRatio: false
+    };
+};
+
+// 添加获取实际裁剪区域的函数
+const getActualCropArea = () => {
+    const container = comparisonContainer.value;
+    if (!container || !processedImg.value) return null;
+
+    const rect = container.getBoundingClientRect();
+    const imgRect = processedImg.value.getBoundingClientRect();
+
+    // 计算裁剪框相对于图像的比例
+    const relativeX = (cropBox.value.x - imgRect.left + rect.left) / imgRect.width;
+    const relativeY = (cropBox.value.y - imgRect.top + rect.top) / imgRect.height;
+    const relativeWidth = cropBox.value.width / imgRect.width;
+    const relativeHeight = cropBox.value.height / imgRect.height;
+
+    // 转换为原始图像上的像素坐标
+    return {
+        left: Math.round(relativeX * originalImageInfo.value.width),
+        top: Math.round(relativeY * originalImageInfo.value.height),
+        width: Math.round(relativeWidth * originalImageInfo.value.width),
+        height: Math.round(relativeHeight * originalImageInfo.value.height)
+    };
+};
+
+// 处理裁剪框拖动
+const handleCropResize = (e, position) => {
+    if (!isCropMode.value) return;
+
+    isDraggingCrop.value = true;
+    cropResizeHandle.value = position;
+    cropStartPos.value = {
+        x: e.clientX,
+        y: e.clientY,
+        initialBox: { ...cropBox.value }
+    };
+};
+
+// 修改鼠标移动处理函数，限制裁剪框在图像范围内
+const handleMouseMove = (e) => {
+    if (isDraggingCrop.value && processedImg.value) {
+        const container = comparisonContainer.value;
+        const rect = container.getBoundingClientRect();
+        const imgRect = processedImg.value.getBoundingClientRect();
+
+        // 计算图像边界
+        const bounds = {
+            left: imgRect.left - rect.left,
+            top: imgRect.top - rect.top,
+            right: imgRect.right - rect.left,
+            bottom: imgRect.bottom - rect.top
+        };
+
+        if (cropResizeHandle.value) {
+            // 处理裁剪框缩放
+            const dx = e.clientX - cropStartPos.value.x;
+            const dy = e.clientY - cropStartPos.value.y;
+            const initialBox = cropStartPos.value.initialBox;
+
+            let newBox = { ...cropBox.value };
+
+            // 根据不同的控制点处理缩放
+            switch (cropResizeHandle.value) {
+                case 'nw':
+                    newBox.x = initialBox.x + dx;
+                    newBox.y = initialBox.y + dy;
+                    newBox.width = initialBox.width - dx;
+                    newBox.height = initialBox.height - dy;
+                    break;
+                case 'n':
+                    newBox.y = initialBox.y + dy;
+                    newBox.height = initialBox.height - dy;
+                    break;
+                case 'ne':
+                    newBox.y = initialBox.y + dy;
+                    newBox.width = initialBox.width + dx;
+                    newBox.height = initialBox.height - dy;
+                    break;
+                case 'w':
+                    newBox.x = initialBox.x + dx;
+                    newBox.width = initialBox.width - dx;
+                    break;
+                case 'e':
+                    newBox.width = initialBox.width + dx;
+                    break;
+                case 'sw':
+                    newBox.x = initialBox.x + dx;
+                    newBox.width = initialBox.width - dx;
+                    newBox.height = initialBox.height + dy;
+                    break;
+                case 's':
+                    newBox.height = initialBox.height + dy;
+                    break;
+                case 'se':
+                    newBox.width = initialBox.width + dx;
+                    newBox.height = initialBox.height + dy;
+                    break;
+            }
+
+            // 限制裁剪框在图像范围内
+            newBox.x = Math.max(bounds.left, Math.min(bounds.right - newBox.width, newBox.x));
+            newBox.y = Math.max(bounds.top, Math.min(bounds.bottom - newBox.height, newBox.y));
+            newBox.width = Math.min(newBox.width, bounds.right - newBox.x);
+            newBox.height = Math.min(newBox.height, bounds.bottom - newBox.y);
+
+            // 确保最小尺寸
+            newBox.width = Math.max(50, newBox.width);
+            newBox.height = Math.max(50, newBox.height);
+
+            cropBox.value = newBox;
+        } else {
+            // 处理裁剪框拖动
+            let newX = e.clientX - cropStartPos.value.x;
+            let newY = e.clientY - cropStartPos.value.y;
+
+            // 限制在图像范围内
+            newX = Math.max(bounds.left, Math.min(bounds.right - cropBox.value.width, newX));
+            newY = Math.max(bounds.top, Math.min(bounds.bottom - cropBox.value.height, newY));
+
+            cropBox.value.x = newX;
+            cropBox.value.y = newY;
+        }
+    } else if (isDragging.value && !isCropMode.value) {
+        // 原有的图像拖动逻辑
+        offset.value = {
+            x: e.clientX - dragStart.value.x,
+            y: e.clientY - dragStart.value.y
+        };
+    }
+};
+
+
+// 计算裁剪框样式
+const cropBoxStyle = computed(() => ({
+    left: `${cropBox.value.x}px`,
+    top: `${cropBox.value.y}px`,
+    width: `${cropBox.value.width}px`,
+    height: `${cropBox.value.height}px`
+}));
+
+// 添加视图状态管理
+const viewState = ref({
+  mode: 'split', // 'split' | 'processed' | 'original'
+  options: {
+    split: {
+      position: 50,
+      isDragging: false
+    }
+  }
+});
+
+// 替换原有的视图相关状态
+const isSplitViewEnabled = computed(() => viewState.value.mode === 'split');
+const isProcessedOnlyView = computed(() => viewState.value.mode === 'processed');
+
+// 修改视图切换函数
+const toggleProcessedOnlyView = async () => {
+  if (viewState.value.mode === 'processed') {
+    viewState.value.mode = 'split';
+  } else {
+    viewState.value.mode = 'processed';
+  }
+  await updatePreview();
+};
+
+const toggleSplitView = async () => {
+  if (viewState.value.mode === 'split') {
+    viewState.value.mode = 'processed';
+  } else {
+    viewState.value.mode = 'split';
+  }
+  await updatePreview();
+};
+
+// 添加更新预览的辅助函数
+const updatePreview = async () => {
+  if (currentSharpObject.value) {
+    await generatePreview(currentSharpObject.value);
+  }
+};
+
+// 修改分割线拖拽相关函数
+const handleSplitDrag = (e) => {
+  e.preventDefault();
+  viewState.value.options.split.isDragging = true;
+  
+  const handleDrag = (moveEvent) => {
+    const container = comparisonContainer.value;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const mouseX = moveEvent.clientX - rect.left;
+    const percentage = (mouseX / rect.width) * 100;
+    viewState.value.options.split.position = Math.max(0, Math.min(100, percentage));
+  };
+  
+  const handleDragEnd = () => {
+    viewState.value.options.split.isDragging = false;
+    document.removeEventListener('mousemove', handleDrag);
+    document.removeEventListener('mouseup', handleDragEnd);
+  };
+  
+  document.addEventListener('mousemove', handleDrag);
+  document.addEventListener('mouseup', handleDragEnd);
+};
+
+// 修改分割线样式计算
+const getSplitLineStyle = computed(() => {
+  const container = comparisonContainer.value;
+  if (!container || viewState.value.mode !== 'split') {
+    return { display: 'none' };
+  }
+  
+  const splitX = container.getBoundingClientRect().width * 
+    (viewState.value.options.split.position / 100);
+    
+  return {
+    position: 'absolute',
+    left: `${splitX}px`,
+    top: '0',
+    height: '100%',
+    transform: 'translateX(-1px)',
+    pointerEvents: 'auto',
+    cursor: 'col-resize',
+    zIndex: 10
+  };
+});
+
+// 修改裁剪样式计算
+const getClipStyle = () => {
+  if (viewState.value.mode !== 'split') {
+    return {};
+  }
+  
+  const container = comparisonContainer.value;
+  if (!container) return {};
+  
+  const rect = container.getBoundingClientRect();
+  const imageRect = getImageDisplayRect(rect, originalImageInfo.value, scale.value, offset.value);
+  const splitX = rect.width * (viewState.value.options.split.position / 100);
+  
+  let clipPercentage;
+  if (imageRect.scaledWidth === 0) {
+    clipPercentage = viewState.value.options.split.position;
+  } else {
+    const imageLeft = imageRect.actualLeft;
+    const imageRight = imageLeft + imageRect.scaledWidth;
+    clipPercentage = Math.max(0, Math.min(100,
+      ((splitX - imageLeft) / (imageRight - imageLeft)) * 100
+    ));
+  }
+  
+  return {
+    clipPath: `inset(0 ${100 - clipPercentage}% 0 0)`,
+    willChange: 'clip-path'
+  };
+};
 
 </script>
 <style scoped>
@@ -1645,5 +1991,105 @@ select {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+}
+
+/* 添加裁剪相关样式 */
+.crop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+}
+
+.crop-box {
+    position: absolute;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    cursor: move;
+}
+
+.crop-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #fff;
+    border: 1px solid #666;
+}
+
+.crop-handle.nw {
+    top: -5px;
+    left: -5px;
+    cursor: nw-resize;
+}
+
+.crop-handle.n {
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    cursor: n-resize;
+}
+
+.crop-handle.ne {
+    top: -5px;
+    right: -5px;
+    cursor: ne-resize;
+}
+
+.crop-handle.w {
+    top: 50%;
+    left: -5px;
+    transform: translateY(-50%);
+    cursor: w-resize;
+}
+
+.crop-handle.e {
+    top: 50%;
+    right: -5px;
+    transform: translateY(-50%);
+    cursor: e-resize;
+}
+
+.crop-handle.sw {
+    bottom: -5px;
+    left: -5px;
+    cursor: sw-resize;
+}
+
+.crop-handle.s {
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    cursor: s-resize;
+}
+
+.crop-handle.se {
+    bottom: -5px;
+    right: -5px;
+    cursor: se-resize;
+}
+
+/* 修改性能面板样式 */
+.performance-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+}
+
+.performance-stats {
+    border-top: 1px solid #3a3a3a;
+    padding-top: 12px;
+    margin-top: 12px;
+}
+
+/* 调整直方图面板在浮动窗口中的样式 */
+:deep(.histogram-panel) {
+    min-height: 150px;
+    background: #2a2a2a;
+    border-radius: 4px;
+    padding: 8px;
 }
 </style>
