@@ -11,7 +11,6 @@
         {{ channel.label }}
       </label>
     </div>
-
     <!-- 直方图显示 -->
     <div class="histogram-chart">
       <ECharts ref="histogramChart"
@@ -26,27 +25,13 @@ import { computed, ref,watch,onUnmounted  } from 'vue';
 import ECharts from '../../components/common/echarts.vue';
 import { 创建经典直方图配置 } from '../../../utils/fromDeps/echarts/presets.js';
 import { getHistogramFromSharp } from '../../../utils/image/histogram.js';
-
+import { 防抖 } from '../../../utils/functionTools.js';
 const props = defineProps({
   channels: Array,
   sharpObject: Object
 });
-
 const emit = defineEmits(['update:channels', 'histogramUpdated']);
-
 const histogram = ref({});
-
-// 防抖函数
-const debounce = (fn, delay) => {
-  let timer = null;
-  return (...args) => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      fn.apply(this, args);
-      timer = null;
-    }, delay);
-  };
-};
 
 // 更新直方图数据
 const updateHistogram = async (sharpObj) => {
@@ -61,7 +46,7 @@ const updateHistogram = async (sharpObj) => {
 };
 
 // 创建防抖后的更新函数
-const debouncedUpdate = debounce(updateHistogram, 300);
+const debouncedUpdate = 防抖(updateHistogram, 300);
 
 // 监听 sharpObject 的变化
 watch(() => props.sharpObject, (newSharpObj) => {

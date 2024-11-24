@@ -20,11 +20,8 @@
     <div class="effects-list">
       <div v-for="control in controls" :key="control.id" class="control-item"
         :class="{ 'dragging': draggingId === control.id }">
-        <div class="control-header" draggable="true"
-          @dragstart="handleDragStart($event, control)" 
-          @dragend="handleDragEnd" 
-          @dragover.prevent
-          @drop="handleDrop($event, control)">
+        <div class="control-header" draggable="true" @dragstart="handleDragStart($event, control)"
+          @dragend="handleDragEnd" @dragover.prevent @drop="handleDrop($event, control)">
           <div class="control-left">
             <span class="drag-handle">⋮⋮</span>
             <label>
@@ -41,27 +38,12 @@
           <template v-for="param in control.params" :key="param.key">
             <div class="param-item">
               <label>{{ param.label }}</label>
-              
-              <!-- 滑块类型参数 -->
-              <input v-if="param.type === 'slider'"
-                type="range"
-                :value="param.value"
-                :min="param.min"
-                :max="param.max"
-                :step="param.step"
-                @input="e => updateParamValue(param, e.target.value)"
-                :disabled="!control.enabled">
-              
-              <!-- 矩阵类型参数 -->
+              <input v-if="param.type === 'slider'" type="range" :value="param.value" :min="param.min" :max="param.max"
+                :step="param.step" @input="e => updateParamValue(param, e.target.value)" :disabled="!control.enabled">
               <div v-else-if="param.type === 'matrix3x3'" class="matrix-editor">
                 <div v-for="(row, i) in 3" :key="i" class="matrix-row">
-                  <input v-for="(col, j) in 3" 
-                    :key="j"
-                    type="number"
-                    v-model="param.value[i][j]"
-                    step="0.1"
-                    @input="updateProcessing"
-                    :disabled="!control.enabled">
+                  <input v-for="(col, j) in 3" :key="j" type="number" v-model="param.value[i][j]" step="0.1"
+                    @input="updateProcessing" :disabled="!control.enabled">
                 </div>
               </div>
             </div>
@@ -74,7 +56,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { 参数定义注册表 ,getValueType, convert} from './pipelineBuilder.js';
+import { 参数定义注册表, getValueType, convert } from './pipelineBuilder.js';
 import { fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
 //import { getValueType, convert } from '../../../../utils/typeConverter.js';
 
@@ -87,14 +69,14 @@ const showEffectSelector = ref(false);
 const addEffect = (selectedEffect) => {
   // 确保有默认的params
   const defaultParams = selectedEffect.params || [];
-  
+
   const newEffect = {
     ...selectedEffect,
     id: `effect-${Date.now()}`,
     enabled: true,
     params: defaultParams.map(param => ({
       ...param,
-      value: Array.isArray(param.defaultValue) 
+      value: Array.isArray(param.defaultValue)
         ? JSON.parse(JSON.stringify(param.defaultValue))
         : param.defaultValue
     }))
@@ -146,19 +128,19 @@ const createProcessingPipeline = () => {
     for await (const control of controls.value) {
       if (control.enabled) {
         // 创建参数对象
-        const params = control.params.map(item=>item.value)
-        
+        const params = control.params.map(item => item.value)
+
         // 如果需要克隆，在处理前创建新的 Sharp 实例
         if (control.needClone) {
           const buffer = await processed.toBuffer();
           processed = fromBuffer(buffer);
         }
-        
-        // 传递参数对象
-        try{
-        processed = await control.处理函数(processed, ...params);
 
-      }catch(e){
+        // 传递参数对象
+        try {
+          processed = await control.处理函数(processed, ...params);
+
+        } catch (e) {
           console.error(e)
         }
       }

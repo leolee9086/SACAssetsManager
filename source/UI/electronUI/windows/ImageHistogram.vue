@@ -53,10 +53,13 @@
                 内存使用: {{ performanceStats.memoryUsage || 0 }} MB
             </div>
         </div>
+        <textureGallery></textureGallery>
+
     </div>
 </template>
 
 <script setup>
+import textureGallery from './textureGallery.vue';
 import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
 import { ref, computed, inject, toRef, onUnmounted,onMounted, shallowRef } from 'vue';
