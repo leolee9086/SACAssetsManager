@@ -9,65 +9,41 @@
         <div class="content-wrapper">
             <!-- 左侧工具栏 -->
             <div class="tools-sidebar">
-                <div class="tool-button" 
-                     @click="rotate(-90)" 
-                     title="向左旋转">
+                <div class="tool-button" @click="rotate(-90)" title="向左旋转">
                     <span class="icon">↶</span>
                 </div>
-                <div class="tool-button" 
-                     @click="rotate(90)" 
-                     title="向右旋转">
+                <div class="tool-button" @click="rotate(90)" title="向右旋转">
                     <span class="icon">↷</span>
                 </div>
-                <div class="tool-button" 
-                     @click="flip('horizontal')" 
-                     title="水平翻转">
+                <div class="tool-button" @click="flip('horizontal')" title="水平翻转">
                     <span class="icon">↔</span>
                 </div>
-                <div class="tool-button" 
-                     @click="flip('vertical')" 
-                     title="垂直翻转">
+                <div class="tool-button" @click="flip('vertical')" title="垂直翻转">
                     <span class="icon">↕</span>
                 </div>
-                <div class="tool-button" 
-                     @click="togglePerspectiveMode"
-                     :class="{ active: perspectiveMode }" 
-                     title="透视校正">
+                <div class="tool-button" @click="togglePerspectiveMode" :class="{ active: perspectiveMode }"
+                    title="透视校正">
                     <span class="icon">⟁</span>
                 </div>
                 <div class="tool-button separator"></div>
-                <div class="tool-button" 
-                     @click="toggleEditMode"
-                     :class="{ active: isEditMode }" 
-                     title="编辑模式">
+                <div class="tool-button" @click="toggleEditMode" :class="{ active: isEditMode }" title="编辑模式">
                     <span class="icon">✎</span>
                 </div>
-                <div class="tool-button" 
-                     @click="toggleSplitView"
-                     :class="{ active: isSplitViewEnabled }" 
-                     title="裂像预览">
+                <div class="tool-button" @click="toggleSplitView" :class="{ active: isSplitViewEnabled }" title="裂像预览">
                     <span class="icon">◫</span>
                 </div>
             </div>
 
             <!-- 左侧预览区域 -->
             <div class="preview-section">
-                <div class="image-container" @wheel="handleWheel" @mousedown="handleMouseDown" 
-                     @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
+                <div class="image-container" @wheel="handleWheel" @mousedown="handleMouseDown"
+                    @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
                     <div class="comparison-container" ref="comparisonContainer">
-                        <img ref="processedImg" 
-                             :src="processedImg?.src" 
-                             :style="getImageStyle()" 
-                             alt="处理后图像" />
-                        <img v-if="isSplitViewEnabled" v-show="originalImg?.src" 
-                             ref="originalImg"
-                             :src="originalImg?.src" 
-                             :style="[getImageStyle(), getClipStyle()]" 
-                             alt="原始图像" />
-                        <div v-if="isSplitViewEnabled" 
-                             class="split-line" 
-                             :style="getSplitLineStyle" 
-                             @mousedown.stop="handleSplitDrag">
+                        <img ref="processedImg" :src="processedImg?.src" :style="getImageStyle()" alt="处理后图像" />
+                        <img v-if="isSplitViewEnabled" v-show="originalImg?.src" ref="originalImg"
+                            :src="originalImg?.src" :style="[getImageStyle(), getClipStyle()]" alt="原始图像" />
+                        <div v-if="isSplitViewEnabled" class="split-line" :style="getSplitLineStyle"
+                            @mousedown.stop="handleSplitDrag">
                             <div class="split-handle"></div>
                         </div>
                     </div>
@@ -84,7 +60,8 @@
                         </div>
                         <div class="image-info">
                             <div class="info-item">图像路径: {{ imagePath }}</div>
-                            <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{ originalImageInfo?.height || 0
+                            <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{
+                                originalImageInfo?.height || 0
                                 }}
                             </div>
                         </div>
@@ -106,11 +83,8 @@
             <textureGallery></textureGallery>
             <div class="history-gallery">
                 <div class="gallery-container" ref="galleryContainer">
-                    <div v-for="(item, index) in imageHistory" 
-                         :key="index" 
-                         class="gallery-item"
-                         :class="{ active: item.path === imagePath }"
-                         @click="switchToImage(item.path)">
+                    <div v-for="(item, index) in imageHistory" :key="index" class="gallery-item"
+                        :class="{ active: item.path === imagePath }" @click="switchToImage(item.path)">
                         <img :src="item.thumbnail" :alt="item.name" />
                         <div class="image-name">{{ item.name }}</div>
                     </div>
@@ -126,51 +100,53 @@ import textureGallery from './textureGallery.vue';
 import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
 import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef } from 'vue';
-import { fromFilePath,fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { fromFilePath, fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
 import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
 import { debounce } from '../../../utils/functionTools.js';
 import { getImageDisplayRect } from './utils/css.js';
+import { 选择图片文件 } from '../../../utils/useRemote/dialog.js';
 
 const sharp = requirePluginDeps('sharp')
 const originalImageInfo = ref({})
-const openNewFile = async () => {
+const 重置所有状态 = () => {
+    previewState.value = {
+        lastFullRenderTime: 0,
+        lastAdjustmentTime: 0,
+        isAdjusting: false,
+        previewTimeout: null,
+        thumbnailCache: null,
+        pendingFullRender: false,
+        currentController: new AbortController(),
+        renderVersion: 0
+    };
+
+}
+const 添加到文件历史 = (newPath, thumbnailUrl) => {
+    // 添加到历史开头
+    imageHistory.value.unshift({
+        path: newPath,
+        name: newPath.split(/[\\/]/).pop(),
+        thumbnail: thumbnailUrl
+    });
+}
+const 清理重复文件历史 = (newPath) => {
+    const existingIndex = imageHistory.value.findIndex(item => item.path === newPath);
+    if (existingIndex !== -1) {
+        // 如果存在，先清理旧的缩略图
+        URL.revokeObjectURL(imageHistory.value[existingIndex].thumbnail);
+        imageHistory.value.splice(existingIndex, 1);
+    }
+}
+const 限制历史长度 =(length)=>{
+    if (imageHistory.value.length > length) {
+                    const removed = imageHistory.value.pop();
+                    URL.revokeObjectURL(removed.thumbnail);
+                }
+}
+const 添加新文件 =async(newPath)=>{
     try {
-        // 确保 controller 存在
-        if (!previewState.value.currentController) {
-            previewState.value.currentController = new AbortController();
-        }
-
-        // 取消当前正在进行的所有处理
-        previewState.value.currentController.abort();
-        previewState.value.currentController = new AbortController();
-
-        const result = await window.require("@electron/remote").dialog.showOpenDialog({
-            properties: ['openFile'],
-            filters: [
-                { name: '图像文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
-            ]
-        });
-
-        if (!result.canceled && result.filePaths.length > 0) {
-            const newPath = result.filePaths[0];
-            
-            try {
-                // 先创建 Sharp 对象测试文件是否可用
                 const testImage = await fromFilePath(newPath);
-                const metadata = await testImage.metadata();
-                
-                // 重置所有状态
-                previewState.value = {
-                    lastFullRenderTime: 0,
-                    lastAdjustmentTime: 0,
-                    isAdjusting: false,
-                    previewTimeout: null,
-                    thumbnailCache: null,
-                    pendingFullRender: false,
-                    currentController: new AbortController(),
-                    renderVersion: 0
-                };
-
+                重置所有状态()
                 if (currentSharpObject.value) {
                     currentSharpObject.value = null;
                 }
@@ -179,58 +155,50 @@ const openNewFile = async () => {
                     .resize(100, 100, { fit: 'contain' })
                     .png()
                     .toBuffer();
-                
                 const thumbnailUrl = URL.createObjectURL(
                     new Blob([thumbnail], { type: 'image/png' })
                 );
-                
-                // 检查是否已存在于历史记录
-                const existingIndex = imageHistory.value.findIndex(item => item.path === newPath);
-                if (existingIndex !== -1) {
-                    // 如果存在，先清理旧的缩略图
-                    URL.revokeObjectURL(imageHistory.value[existingIndex].thumbnail);
-                    imageHistory.value.splice(existingIndex, 1);
-                }
-                
-                // 添加到历史开头
-                imageHistory.value.unshift({
-                    path: newPath,
-                    name: newPath.split(/[\\/]/).pop(),
-                    thumbnail: thumbnailUrl
-                });
-                
-                // 限制历史记录数量
-                if (imageHistory.value.length > 10) {
-                    const removed = imageHistory.value.pop();
-                    URL.revokeObjectURL(removed.thumbnail);
-                }
-
-                // 更新路径和图像信息
+                清理重复文件历史(newPath)
+                添加到文件历史(newPath, thumbnailUrl)
+                限制历史长度(10)
                 imagePath.value = newPath;
+                const metadata = await testImage.metadata();
                 originalImageInfo.value = {
                     width: metadata.width,
                     height: metadata.height,
                     format: metadata.format
                 };
-
-                // 设置新的 Sharp 对象
                 currentSharpObject.value = testImage;
-
-                // 生成预览
                 await generatePreview(testImage);
-
-                // 重置效果栈
+                //重新应用效果器
+                let oldEffectStack = effectStack.value
                 effectStack.value = [];
-
-                // 重置调整器
                 if (imageAdjuster.value) {
                     await resetAdjustments();
                 }
+                effectStack.value=oldEffectStack
+                await generatePreview(currentSharpObject.value);
 
             } catch (error) {
                 console.error('处理新图像失败:', error);
                 throw new Error('图像处理失败，请确保文件格式正确且未损坏');
             }
+
+}
+const openNewFile = async () => {
+    try {
+        // 确保 controller 存在
+        if (!previewState.value.currentController) {
+            previewState.value.currentController = new AbortController();
+        }
+        // 取消当前正在进行的所有处理
+        previewState.value.currentController.abort();
+        previewState.value.currentController = new AbortController();
+        const result = await 选择图片文件()
+
+        if (!result.canceled && result.filePaths.length > 0) {
+            const newPath = result.filePaths[0];
+            添加新文件(newPath)
         }
     } catch (error) {
         console.error('打开文件失败:', error);
@@ -246,7 +214,6 @@ const resetAdjustments = async () => {
     try {
         // 重置效果栈
         effectStack.value = [];
-        
         // 重新生成预览
         if (currentSharpObject.value) {
             await generatePreview(currentSharpObject.value);
@@ -262,14 +229,12 @@ const switchToImage = async (path) => {
         imagePath.value = path;
         const originalImage = await fromFilePath(path);
         currentSharpObject.value = originalImage;
-        
         const metadata = await originalImage.metadata();
         originalImageInfo.value = {
             width: metadata.width,
             height: metadata.height,
             format: metadata.format
         };
-
         await generatePreview(originalImage);
         await resetAdjustments();
     } catch (error) {
@@ -278,7 +243,6 @@ const switchToImage = async (path) => {
 };
 
 const appData = inject('appData')
-const histogram = ref({})
 const imagePath = toRef(appData.imagePath || window.imagePath)
 const comparisonContainer = ref(null)
 const originalImg = ref(null)
@@ -290,19 +254,13 @@ const channels = ref([
     { key: 'b', label: 'B', color: '#0000ff', visible: true },
     { key: 'brightness', label: '亮度', color: 'white', visible: true } // 添加亮度
 ]);
-
 const imageAdjuster = ref(null);
-const currentProcessing = ref(null);
 const currentSharpObject = shallowRef(null);
-
-// 添加性能监控相关的响应式数据
 const performanceStats = ref({
     processingTime: 0,
     memoryUsage: 0,
     isProcessing: false
 });
-
-// 添加预览控制状态
 const previewState = ref({
     lastFullRenderTime: 0,
     lastAdjustmentTime: 0,
@@ -313,8 +271,6 @@ const previewState = ref({
     currentController: new AbortController(),  // 确保初始化时就有 controller
     renderVersion: 0
 });
-
-// 处理直方图更新
 const handleHistogramUpdate = (result) => {
     info.value = result.info;
 };
@@ -341,8 +297,6 @@ const resolutionConfig = {
 const getDynamicResolution = () => {
     const now = performance.now();
     const timeSinceLastAdjustment = now - previewState.value.lastAdjustmentTime;
-
-    // 更激进的降级策略
     if (timeSinceLastAdjustment < resolutionConfig.adjustmentThreshold.rapid) {
         return resolutionConfig.resolutionLevels.rapid;  // 480
     } else if (timeSinceLastAdjustment < resolutionConfig.adjustmentThreshold.normal) {
@@ -466,7 +420,6 @@ const handleProcessingUpdate = async (processingPipeline) => {
                     await processWithFullResolution(processingPipeline, signal);
                 }
             };
-
             // 延迟开始分辨率提升
             previewState.value.previewTimeout = setTimeout(upgradeResolution, 300);
 
@@ -488,10 +441,9 @@ const handleProcessingUpdate = async (processingPipeline) => {
                 throw error;
             }
         }
-
     } catch (error) {
         if (error.name === 'AbortError') {
-            console.log('渲已');
+            console.log('渲染已取消');
         } else {
             console.error('处理图像失败:', error);
         }
@@ -531,51 +483,7 @@ const processWithFullResolution = async (processingPipeline, signal) => {
 };
 
 onMounted(async () => {
-    try {
-        // 初始化预览状态
-        if (!previewState.value.currentController) {
-            previewState.value.currentController = new AbortController();
-        }
-
-        // 初始化 Sharp 对象
-        const sharpObj = await fromFilePath(imagePath.value);
-        currentSharpObject.value = sharpObj;
-
-        // 获取元数据
-        const metadata = await sharpObj.metadata();
-        originalImageInfo.value = {
-            width: metadata.width,
-            height: metadata.height,
-            format: metadata.format
-        };
-
-        // 添加初始图片到画廊
-        const fileName = imagePath.value.split(/[\\/]/).pop();
-        const thumbnail = await sharpObj
-            .resize(100, 100, { fit: 'contain' })
-            .png()
-            .toBuffer();
-            
-        const thumbnailUrl = URL.createObjectURL(
-            new Blob([thumbnail], { type: 'image/png' })
-        );
-        
-        imageHistory.value = [{
-            path: imagePath.value,
-            name: fileName,
-            thumbnail: thumbnailUrl
-        }];
-
-        // 生成初始预览
-        await generatePreview(sharpObj);
-
-        // 初始化处理管道
-        const initialProcessing = async (img) => img.clone();
-        await handleProcessingUpdate(initialProcessing);
-
-    } catch (error) {
-        console.error('组件初始化失败:', error);
-    }
+    添加新文件(imagePath.value)
 });
 
 // 导出保存当前设置的方法
@@ -686,20 +594,20 @@ const getClipStyle = () => {
 
     const rect = container.getBoundingClientRect();
     const imageRect = getImageDisplayRect(rect, originalImageInfo.value, scale.value, offset.value);
-    
+
     // 计算分割线在容器中的位置（像素）
     const splitX = rect.width * (splitPosition.value / 100);
-    
+
     // 计算相对于图像显示区域的裁剪位置
     let clipPercentage;
-    
+
     if (imageRect.scaledWidth === 0) {
         clipPercentage = splitPosition.value;
     } else {
         // 计算分割线相对于图像左边缘的位置
         const imageLeft = imageRect.actualLeft;
         const imageRight = imageLeft + imageRect.scaledWidth;
-        
+
         // 将分割线位置转换为相对于图像宽度的百分比
         clipPercentage = Math.max(0, Math.min(100,
             ((splitX - imageLeft) / (imageRight - imageLeft)) * 100
@@ -721,10 +629,10 @@ const getSplitLineStyle = computed(() => {
 
     const rect = container.getBoundingClientRect();
     const imageRect = getImageDisplayRect(rect, originalImageInfo.value, scale.value, offset.value);
-    
+
     // 计算分割线位置
     const splitX = rect.width * (splitPosition.value / 100);
-    
+
     return {
         position: 'absolute',
         left: `${splitX}px`,
@@ -747,11 +655,11 @@ const handleSplitDrag = (e) => {
         if (!container) return;
 
         const rect = container.getBoundingClientRect();
-        
+
         // 计算鼠标相于容器的位置百分
         const mouseX = moveEvent.clientX - rect.left;
         const percentage = (mouseX / rect.width) * 100;
-        
+
         // 限制在0-100范围内
         splitPosition.value = Math.max(0, Math.min(100, percentage));
     };
@@ -777,7 +685,7 @@ const generatePreview = async (sharpObj) => {
 
         // 生成处理后的图像
         const processedBuffer = await sharpObj.clone().png().toBuffer();
-        
+
         // 清理旧的 Blob URLs
         if (processedImg.value.src?.startsWith('blob:')) {
             URL.revokeObjectURL(processedImg.value.src);
@@ -797,7 +705,7 @@ const generatePreview = async (sharpObj) => {
             try {
                 const originalImage = await fromFilePath(imagePath.value);
                 const originalBuffer = await originalImage.png().toBuffer();
-                
+
                 if (originalImg.value) {
                     const originalUrl = URL.createObjectURL(
                         new Blob([originalBuffer], { type: 'image/png' })
@@ -885,14 +793,14 @@ const perspectivePoints = ref([
 const rotate = async (degrees) => {
     try {
         rotation.value = (rotation.value + degrees) % 360
-        
+
         // 创建新的处理管道
         const processingPipeline = async (img) => {
             return img.rotate(rotation.value, {
                 background: { r: 0, g: 0, b: 0, alpha: 0 }
             })
         }
-        
+
         await handleProcessingUpdate(processingPipeline)
     } catch (error) {
         console.error('旋转处理失败:', error)
@@ -903,7 +811,7 @@ const rotate = async (degrees) => {
 const flip = async (direction) => {
     try {
         flips.value[direction] = !flips.value[direction]
-        
+
         const processingPipeline = async (img) => {
             if (flips.value.horizontal) {
                 img = img.flop()
@@ -913,7 +821,7 @@ const flip = async (direction) => {
             }
             return img
         }
-        
+
         await handleProcessingUpdate(processingPipeline)
     } catch (error) {
         console.error('翻转处理失败:', error)
@@ -927,7 +835,7 @@ const togglePerspectiveMode = () => {
         // 初始化控制点位置
         const rect = comparisonContainer.value.getBoundingClientRect()
         const imageRect = getImageDisplayRect(rect)
-        
+
         perspectivePoints.value = [
             { x: imageRect.left + 50, y: imageRect.top + 50 },
             { x: imageRect.right - 50, y: imageRect.top + 50 },
@@ -946,40 +854,40 @@ const draggingEffectId = ref(null);
 
 // 处理效果堆栈的变更
 const handleEffectStackChange = (newStack) => {
-  effectStack.value = newStack;
-  updateProcessingPipeline();
+    effectStack.value = newStack;
+    updateProcessingPipeline();
 };
 
 // 创建处理管道
 const createProcessingPipeline = () => {
-  return async (sharpInstance) => {
-    let processed = sharpInstance;
+    return async (sharpInstance) => {
+        let processed = sharpInstance;
 
-    for await (const effect of effectStack.value) {
-      if (effect.enabled) {
-        const params = effect.params.map(item => item.value);
+        for await (const effect of effectStack.value) {
+            if (effect.enabled) {
+                const params = effect.params.map(item => item.value);
 
-        if (effect.needClone) {
-          const buffer = await processed.toBuffer();
-          processed = fromBuffer(buffer);
+                if (effect.needClone) {
+                    const buffer = await processed.toBuffer();
+                    processed = fromBuffer(buffer);
+                }
+
+                try {
+                    processed = await effect.处理函数(processed, ...params);
+                } catch (e) {
+                    console.error('效果处理失败:', e);
+                }
+            }
         }
 
-        try {
-          processed = await effect.处理函数(processed, ...params);
-        } catch (e) {
-          console.error('效果处理失败:', e);
-        }
-      }
-    }
-
-    return processed;
-  };
+        return processed;
+    };
 };
 
 // 更新处理管道
 const updateProcessingPipeline = () => {
-  const pipeline = createProcessingPipeline();
-  handleProcessingUpdate(pipeline);
+    const pipeline = createProcessingPipeline();
+    handleProcessingUpdate(pipeline);
 };
 
 
@@ -997,22 +905,22 @@ const toggleEditMode = () => {
 // 修改裂像预览切换函数
 const toggleSplitView = async () => {
     isSplitViewEnabled.value = !isSplitViewEnabled.value;
-    
+
     // 如果开启裂像预览，需要重新触发处理管线
     if (isSplitViewEnabled.value && effectStack.value) {
         // 直接使用当前的效果栈
         const currentStack = effectStack.value;
-        
+
         // 构建处理管线
         const processingPipeline = async (img) => {
             let processedImg = img.clone();
-            
+
             // 应用每个启用的效果
             for (const effect of currentStack) {
                 if (effect.enabled) {
                     try {
                         processedImg = await effect.处理函数(
-                            processedImg, 
+                            processedImg,
                             ...effect.params.map(p => p.value)
                         );
                     } catch (e) {
@@ -1020,7 +928,7 @@ const toggleSplitView = async () => {
                     }
                 }
             }
-            
+
             return processedImg;
         };
 
@@ -1065,7 +973,8 @@ const toggleSplitView = async () => {
     border-radius: 4px;
     overflow: hidden;
     cursor: move;
-    min-height: 0; /* 重要：防止内容溢出 */
+    min-height: 0;
+    /* 重要：防止内容溢出 */
 }
 
 .control-section {
@@ -1081,7 +990,8 @@ const toggleSplitView = async () => {
 }
 
 .gallery-section {
-    height: 130px; /* 增加高度以容纳画廊和可能的边距 */
+    height: 130px;
+    /* 增加高度以容纳画廊和可能的边距 */
     flex-shrink: 0;
     background: #2a2a2a;
     padding: 10px;
@@ -1091,7 +1001,8 @@ const toggleSplitView = async () => {
 /* 修改画廊样式 */
 .history-gallery {
     height: 110px;
-    position: relative; /* 改为相对定位 */
+    position: relative;
+    /* 改为相对定位 */
     width: 100%;
     background: transparent;
     box-shadow: none;
@@ -1315,10 +1226,13 @@ input[type="checkbox"] {
 .history-gallery {
     position: fixed;
     bottom: 0;
-    left: 16px;  /* 与主容器 padding 对齐 */
-    right: 356px;  /* 为右侧控制面板留出空间 320px + 20px gap + 16px padding */
+    left: 16px;
+    /* 与主容器 padding 对齐 */
+    right: 356px;
+    /* 为右侧控制面板留出空间 320px + 20px gap + 16px padding */
     height: 110px;
-    background: #2a2a2a;  /* 使用与其他组件相同的背景色 */
+    background: #2a2a2a;
+    /* 使用与其他组件相同的背景色 */
     border-radius: 4px;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
 }
