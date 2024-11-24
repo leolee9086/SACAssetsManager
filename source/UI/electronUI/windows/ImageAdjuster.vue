@@ -2,32 +2,32 @@
   <div class="adjustment-controls">
     <div class="effects-list-container">
       <div class="effects-list">
-        <div v-for="control in controls" :key="control.id" class="control-item"
-          :class="{ 'dragging': draggingId === control.id }">
-          <div class="control-header" draggable="true" @dragstart="handleDragStart($event, control)"
-            @dragend="handleDragEnd" @dragover.prevent @drop="handleDrop($event, control)">
+        <div v-for="effect in effectStack" :key="effect.id" class="control-item"
+          :class="{ 'dragging': draggingEffectId === effect.id }">
+          <div class="control-header" draggable="true" @dragstart="handleDragStart($event, effect)"
+            @dragend="handleDragEnd" @dragover.prevent @drop="handleDrop($event, effect)">
             <div class="control-left">
               <span class="drag-handle">⋮⋮</span>
               <label>
-                <input type="checkbox" v-model="control.enabled" />
-                {{ control.label }}
+                <input type="checkbox" v-model="effect.enabled" />
+                {{ effect.label }}
               </label>
             </div>
             <div class="control-right">
-              <span class="value-display">{{ control.value }}</span>
-              <button class="remove-btn" @click="removeEffect(control)">×</button>
+              <span class="value-display">{{ effect.value }}</span>
+              <button class="remove-btn" @click="removeEffect(effect)">×</button>
             </div>
           </div>
           <div class="control-body">
-            <template v-for="param in control.params" :key="param.key">
+            <template v-for="param in effect.params" :key="param.key">
               <div class="param-item">
                 <label>{{ param.label }}</label>
                 <input v-if="param.type === 'slider'" type="range" :value="param.value" :min="param.min" :max="param.max"
-                  :step="param.step" @input="e => updateParamValue(param, e.target.value)" :disabled="!control.enabled">
+                  :step="param.step" @input="e => updateParamValue(effect, param, e.target.value)" :disabled="!effect.enabled">
                 <div v-else-if="param.type === 'matrix3x3'" class="matrix-editor">
                   <div v-for="(row, i) in 3" :key="i" class="matrix-row">
                     <input v-for="(col, j) in 3" :key="j" type="number" v-model="param.value[i][j]" step="0.1"
-                      @input="updateProcessing" :disabled="!control.enabled">
+                      @input="updateProcessing" :disabled="!effect.enabled">
                   </div>
                 </div>
               </div>
@@ -76,21 +76,27 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { 参数定义注册表, getValueType, convert } from './pipelineBuilder.js';
-import { fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { 参数定义注册表 } from './pipelineBuilder.js';
 import FloatLayerWindow from '../../components/common/floatLayerWindow/floatLayerWindow.vue';
-//import { getValueType, convert } from '../../../../utils/typeConverter.js';
-import _pinyin from '../../../../static/pinyin.js'
+import _pinyin from '../../../../static/pinyin.js';
 
+const props = defineProps({
+  effectStack: {
+    type: Array,
+    required: true
+  },
+  draggingEffectId: {
+    type: String,
+    default: null
+  }
+});
 
-const pinyin = _pinyin.default
-pinyin.initialize()
-console.log(pinyin)
-const controls = ref([]);
-const draggingId = ref(null);
-const availableEffects = ref([...参数定义注册表]);
+const emit = defineEmits(['update:effect-stack', 'effect-param-change']);
+
+// 效果选择器相关
 const showEffectSelector = ref(false);
 const searchQuery = ref('');
+const availableEffects = ref([...参数定义注册表]);
 
 // 获取文本的所有可能搜索形式（原文、拼音、首字母）
 const getSearchableText = (text) => {
@@ -122,149 +128,91 @@ const filteredEffects = computed(() => {
 
 // 添加效果
 const addEffect = (selectedEffect) => {
-  // 确保有默认的params
-  const defaultParams = selectedEffect.params || [];
-
   const newEffect = {
     ...selectedEffect,
     id: `effect-${Date.now()}`,
     enabled: true,
-    params: defaultParams.map(param => ({
+    params: selectedEffect.params?.map(param => ({
       ...param,
       value: Array.isArray(param.defaultValue)
         ? JSON.parse(JSON.stringify(param.defaultValue))
         : param.defaultValue
-    }))
+    })) || []
   };
 
-  controls.value.push(newEffect);
+  emit('update:effect-stack', [...props.effectStack, newEffect]);
   showEffectSelector.value = false;
-  updateProcessing();
 };
 
 // 移除效果
-const removeEffect = (control) => {
-  const index = controls.value.findIndex(c => c.id === control.id);
-  if (index > -1) {
-    controls.value.splice(index, 1);
-  }
-  updateProcessing();
+const removeEffect = (effect) => {
+  const newStack = props.effectStack.filter(e => e.id !== effect.id);
+  emit('update:effect-stack', newStack);
 };
 
-// 拖拽相关函数
-const handleDragStart = (e, control) => {
-  draggingId.value = control.id;
+// 处理拖拽排序
+const handleDragStart = (e, effect) => {
+  emit('update:dragging-effect-id', effect.id);
   e.dataTransfer.effectAllowed = 'move';
 };
 
 const handleDragEnd = () => {
-  draggingId.value = null;
+  emit('update:dragging-effect-id', null);
 };
 
 const handleDrop = (e, target) => {
   e.preventDefault();
-  const draggedIndex = controls.value.findIndex(c => c.id === draggingId.value);
-  const targetIndex = controls.value.findIndex(c => c.id === target.id);
+  const draggedIndex = props.effectStack.findIndex(e => e.id === props.draggingEffectId);
+  const targetIndex = props.effectStack.findIndex(e => e.id === target.id);
 
   if (draggedIndex === targetIndex) return;
 
-  const item = controls.value[draggedIndex];
-  controls.value.splice(draggedIndex, 1);
-  controls.value.splice(targetIndex, 0, item);
+  const newStack = [...props.effectStack];
+  const [removed] = newStack.splice(draggedIndex, 1);
+  newStack.splice(targetIndex, 0, removed);
 
-  updateProcessing();
+  emit('update:effect-stack', newStack);
 };
-
-// 更新处理管道
-const createProcessingPipeline = () => {
-  return async (sharpInstance) => {
-    let processed = sharpInstance;
-
-    for await (const control of controls.value) {
-      if (control.enabled) {
-        // 创建参数对象
-        const params = control.params.map(item => item.value)
-
-        // 如果需要克隆，在处理前创建新的 Sharp 实例
-        if (control.needClone) {
-          const buffer = await processed.toBuffer();
-          processed = fromBuffer(buffer);
-        }
-
-        // 传递参数对象
-        try {
-          processed = await control.处理函数(processed, ...params);
-
-        } catch (e) {
-          console.error(e)
-        }
-      }
-    }
-
-    return processed;
-  };
-};
-
-const emit = defineEmits(['update:processing']);
-
-// 更新处理函数
-const updateProcessing = () => {
-  emit('update:processing', createProcessingPipeline());
-};
-
-// 导出重置函数
-const reset = () => {
-  controls.value.forEach(control => {
-    control.params.forEach(param => {
-      param.value = param.defaultValue;
-    });
-  });
-  updateProcessing();
-};
-
-// 导出当前设置
-const getCurrentSettings = () => {
-  return controls.value.reduce((acc, control) => {
-    acc[control.key] = control.params.reduce((acc, param) => {
-      acc[param.key] = param.value;
-      return acc;
-    }, {});
-    return acc;
-  }, {});
-};
-
-// 导出加载设置函数
-const loadSettings = (settings) => {
-  controls.value.forEach(control => {
-    if (settings[control.key] !== undefined) {
-      control.params.forEach(param => {
-        if (settings[control.key][param.key] !== undefined) {
-          param.value = settings[control.key][param.key];
-        }
-      });
-    }
-  });
-  updateProcessing();
-};
-
-// 暴露方法给父组件
-defineExpose({
-  reset,
-  getCurrentSettings,
-  loadSettings
-});
 
 // 更新参数值
-const updateParamValue = (param, newValue) => {
-  if (param.updateValue) {
-    // 使用参数定义中的类型安全更新函数
-    param.value = param.updateValue(newValue);
-  } else {
-    // 降级处理
-    const inputType = getValueType(newValue);
-    param.value = convert(newValue, inputType, param.expectedType || 'number');
-  }
-  updateProcessing();
+const updateParamValue = (effect, param, newValue) => {
+  const newStack = props.effectStack.map(e => {
+    if (e.id === effect.id) {
+      return {
+        ...e,
+        params: e.params.map(p => {
+          if (p.key === param.key) {
+            // 根据参数类型进行适当的值转换
+            let convertedValue = newValue;
+            if (param.type === 'slider' || param.type === 'number') {
+              // 确保数值类型参数被转换为数字
+              convertedValue = Number(newValue);
+              
+              // 验证数值是否在有效范围内
+              if (typeof param.min !== 'undefined') {
+                convertedValue = Math.max(param.min, convertedValue);
+              }
+              if (typeof param.max !== 'undefined') {
+                convertedValue = Math.min(param.max, convertedValue);
+              }
+            }
+            
+            return {
+              ...p,
+              value: param.updateValue ? 
+                param.updateValue(convertedValue) : 
+                convertedValue
+            };
+          }
+          return p;
+        })
+      };
+    }
+    return e;
+  });
+
+  emit('update:effect-stack', newStack);
+  emit('effect-param-change');
 };
 
 // 打开效果选择器
