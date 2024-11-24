@@ -8,7 +8,6 @@ import { 自动曝光 } from '../../../utils/image/adjust/exposure.js';
 import { 生成法线图 } from '../../../utils/fromDeps/sharpInterface/useSharp/Generator/normalMap.js';
 import { 去雾滤镜 } from '../../../utils/fromDeps/sharpInterface/useSharp/adjust/dehazing.js';
 import * as kernels from '../../../utils/fromDeps/sharpInterface/kernels.js';
-import { TextureGenerator } from '../../../utils/image/textures.js/generators.js';
 // 类型转换器定义
 const converters = {
   'string-number': value => Number(value),

@@ -28,11 +28,11 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-
+import { 防抖 } from '../../../../utils/functionTools.js';
 const props = defineProps({
   visible: {
     type: Boolean,
-    default: false
+    default: true
   },
   title: {
     type: String,
@@ -45,6 +45,14 @@ const props = defineProps({
   initialHeight: {
     type: Number,
     default: 800
+  },
+  initialX: {
+    type: Number,
+    default: 100
+  },
+  initialY: {
+    type: Number,
+    default: 100
   }
 })
 
@@ -151,6 +159,45 @@ const startResize = (e, position) => {
   document.addEventListener('mouseup', stopResize)
 }
 
+// 计算新的尺寸和位置
+const calculateNewDimensions = (dx, dy, pos, dragStart) => {
+  let newWidth = dragStart.width
+  let newHeight = dragStart.height
+  let newX = dragStart.left
+  let newY = dragStart.top
+
+  if (pos.includes('e')) {
+    newWidth = Math.max(200, dragStart.width + dx)
+  }
+  if (pos.includes('w')) {
+    const w = Math.max(200, dragStart.width - dx)
+    newWidth = w
+    newX = dragStart.left + (dragStart.width - w)
+  }
+  if (pos.includes('s')) {
+    newHeight = Math.max(100, dragStart.height + dy)
+  }
+  if (pos.includes('n')) {
+    const h = Math.max(100, dragStart.height - dy)
+    newHeight = h
+    newY = dragStart.top + (dragStart.height - h)
+  }
+
+  return { newWidth, newHeight, newX, newY }
+}
+
+// 更新窗口尺寸和位置
+const updateWindowDimensions = (dimensions) => {
+  const { newWidth, newHeight, newX, newY } = dimensions
+  currentX.value = newX
+  currentY.value = newY
+  floatLayer.value.style.width = `${newWidth}px`
+  floatLayer.value.style.height = `${newHeight}px`
+  updatePosition()
+  emit('resize', { width: newWidth, height: newHeight })
+}
+
+// 重构后的 onResize 函数
 const onResize = (e) => {
   if (!isResizing.value) return
 
@@ -158,33 +205,10 @@ const onResize = (e) => {
   const dy = e.clientY - dragStart.value.y
   const pos = dragStart.value.position
 
-  let newWidth = dragStart.value.width
-  let newHeight = dragStart.value.height
-  let newX = dragStart.value.left
-  let newY = dragStart.value.top
-
-  // 根据不同方向处理缩放
-  if (pos.includes('e')) newWidth = Math.max(200, dragStart.value.width + dx)
-  if (pos.includes('w')) {
-    const w = Math.max(200, dragStart.value.width - dx)
-    newWidth = w
-    newX = dragStart.value.left + (dragStart.value.width - w)
-  }
-  if (pos.includes('s')) newHeight = Math.max(100, dragStart.value.height + dy)
-  if (pos.includes('n')) {
-    const h = Math.max(100, dragStart.value.height - dy)
-    newHeight = h
-    newY = dragStart.value.top + (dragStart.value.height - h)
-  }
-
-  // 更新位置和尺寸
-  currentX.value = newX
-  currentY.value = newY
-  floatLayer.value.style.width = `${newWidth}px`
-  floatLayer.value.style.height = `${newHeight}px`
-  updatePosition()
-
-  emit('resize', { width: newWidth, height: newHeight })
+  防抖(() => {
+    const newDimensions = calculateNewDimensions(dx, dy, pos, dragStart.value)
+    updateWindowDimensions(newDimensions)
+  })()
 }
 
 const stopResize = () => {
@@ -206,19 +230,17 @@ const close = () => {
 // 生命周期钩子
 onMounted(() => {
   ensureContainer()
-  // 确保容器创建后再设置挂载状态
   nextTick(() => {
-
     isMounted.value = true
-    nextTick(
-      () => {
-        if (floatLayer.value) {
-          console.error(floatLayer.value)
-          floatLayer.value.style.width = `${props.initialWidth}px`
-          floatLayer.value.style.height = `${props.initialHeight}px`
-        }
+    nextTick(() => {
+      if (floatLayer.value) {
+        floatLayer.value.style.width = `${props.initialWidth}px`
+        floatLayer.value.style.height = `${props.initialHeight}px`
+        currentX.value = props.initialX
+        currentY.value = props.initialY
+        updatePosition()
       }
-    )
+    })
   })
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)

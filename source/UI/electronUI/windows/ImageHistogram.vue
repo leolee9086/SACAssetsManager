@@ -1,68 +1,77 @@
 <template>
-    <div class="histogram-wrapper" style="height: calc(100vh - 71px)">
-        <!-- 左侧图像预览区域 -->
-        <div class="toolbar">
-            <button class="open-file-btn" @click="openNewFile">
-                打开文件
-            </button>
+    <div class="main-container">
+        <!-- 顶部工具栏 -->
+        <Teleport to="#title-group-left">
+            <div class="button" @click="openNewFile">打开文件</div>
+        </Teleport>
+
+        <!-- 主体内容区域 -->
+        <div class="content-wrapper">
+            <!-- 左侧预览区域 -->
+            <div class="preview-section">
+                <div class="image-container" @wheel="handleWheel" @mousedown="handleMouseDown" 
+                     @mousemove="handleMouseMove" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
+                    <div class="comparison-container" ref="comparisonContainer">
+                        <img ref="processedImg" :style="getImageStyle()" alt="处理后图像" />
+                        <img ref="originalImg" :style="[getImageStyle(), getClipStyle()]" alt="原始图像" />
+                        <div class="split-line" :style="getSplitLineStyle" @mousedown.stop="handleSplitDrag">
+                            <div class="split-handle"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 性能监控面板 -->
+                <floatLayerWindow title='处理状态'>
+                    <div class="performance-panel">
+                        <div class="performance-item">
+                            处理时间: {{ performanceStats.processingTime || 0 }} ms
+                        </div>
+                        <div class="performance-item">
+                            内存使用: {{ performanceStats.memoryUsage || 0 }} MB
+                        </div>
+                        <div class="image-info">
+                            <div class="info-item">图像路径: {{ imagePath }}</div>
+                            <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{ originalImageInfo?.height || 0
+                                }}
+                            </div>
+                        </div>
+                    </div>
+                </floatLayerWindow>
+            </div>
+
+            <!-- 右侧控制面板 -->
+            <div class="control-section">
+                <HistogramPanel v-model:channels="channels" :sharp-object="currentSharpObject"
+                    @histogram-updated="handleHistogramUpdate" />
+                <ImageAdjuster ref="imageAdjuster" @update:processing="handleProcessingUpdate" />
+            </div>
         </div>
-        <div class="preview-section">
-            <div class="image-container" 
-                 @wheel="handleWheel"
-                 @mousedown="handleMouseDown"
-                 @mousemove="handleMouseMove"
-                 @mouseup="handleMouseUp"
-                 @mouseleave="handleMouseUp">
-                <div class="comparison-container" ref="comparisonContainer">
-                    <!-- 原始图像 -->
-                    <img ref="processedImg"
-                         :style="getImageStyle()" 
-                         alt="处理后图像" />
-                    <!-- 处理后的图像 -->
-                    <img ref="originalImg" 
-                         :style="[getImageStyle(), getClipStyle()]" 
-                         alt="原始图像" />
-                    <!-- 分割线 -->
-                    <div class="split-line" 
-                         :style="getSplitLineStyle"
-                         @mousedown.stop="handleSplitDrag">
-                        <div class="split-handle"></div>
+
+        <!-- 底部画廊 -->
+        <div class="gallery-section">
+            <textureGallery></textureGallery>
+            <div class="history-gallery">
+                <div class="gallery-container" ref="galleryContainer">
+                    <div v-for="(item, index) in imageHistory" 
+                         :key="index" 
+                         class="gallery-item"
+                         :class="{ active: item.path === imagePath }"
+                         @click="switchToImage(item.path)">
+                        <img :src="item.thumbnail" :alt="item.name" />
+                        <div class="image-name">{{ item.name }}</div>
                     </div>
                 </div>
             </div>
-            <div class="image-info">
-                <div class="info-item">图像路径: {{ imagePath }}</div>
-                <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{ originalImageInfo?.height || 0 }}</div>
-            </div>
         </div>
-
-        <!-- 右侧控制面板 -->
-        <div class="control-section">
-            <HistogramPanel v-model:channels="channels" :sharp-object="currentSharpObject"
-                @histogram-updated="handleHistogramUpdate" />
-
-            <ImageAdjuster ref="imageAdjuster" @update:processing="handleProcessingUpdate" />
-        </div>
-
-        <!-- 添加性能监控面板 -->
-        <div class="performance-panel">
-            <div class="performance-item">
-                处理时间: {{ performanceStats.processingTime || 0 }} ms
-            </div>
-            <div class="performance-item">
-                内存使用: {{ performanceStats.memoryUsage || 0 }} MB
-            </div>
-        </div>
-        <textureGallery></textureGallery>
-
     </div>
 </template>
 
 <script setup>
+import floatLayerWindow from '../../components/common/floatLayerWindow/floatLayerWindow.vue';
 import textureGallery from './textureGallery.vue';
 import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
-import { ref, computed, inject, toRef, onUnmounted,onMounted, shallowRef } from 'vue';
+import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef } from 'vue';
 import { fromFilePath } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
 import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
 const sharp = requirePluginDeps('sharp')
@@ -88,6 +97,39 @@ const openNewFile = async () => {
         if (!result.canceled && result.filePaths.length > 0) {
             const newPath = result.filePaths[0];
             
+            // 添加到历史记录
+            const fileName = newPath.split(/[\\/]/).pop();
+            const originalImage = await fromFilePath(newPath);
+            
+            // 生成缩略图
+            const thumbnail = await originalImage
+                .resize(100, 100, { fit: 'contain' })
+                .png()
+                .toBuffer();
+            
+            const thumbnailUrl = URL.createObjectURL(
+                new Blob([thumbnail], { type: 'image/png' })
+            );
+            
+            // 检查是否已存在
+            const existingIndex = imageHistory.value.findIndex(item => item.path === newPath);
+            if (existingIndex !== -1) {
+                imageHistory.value.splice(existingIndex, 1);
+            }
+            
+            // 添加到历史开头
+            imageHistory.value.unshift({
+                path: newPath,
+                name: fileName,
+                thumbnail: thumbnailUrl
+            });
+            
+            // 限制历史记录数量
+            if (imageHistory.value.length > 10) {
+                const removed = imageHistory.value.pop();
+                URL.revokeObjectURL(removed.thumbnail);
+            }
+            
             // 重置所有状态
             previewState.value = {
                 lastFullRenderTime: 0,
@@ -99,7 +141,7 @@ const openNewFile = async () => {
                 currentController: new AbortController(),
                 renderVersion: 0
             };
-            
+
             // 清理当前的 Sharp 对象
             if (currentSharpObject.value) {
                 currentSharpObject.value = null;
@@ -112,7 +154,7 @@ const openNewFile = async () => {
                 // 创建新的 Sharp 对象并获取元数据
                 const originalImage = await fromFilePath(newPath);
                 const metadata = await originalImage.metadata();
-                
+
                 // 更新图像信息
                 originalImageInfo.value = {
                     width: metadata.width,
@@ -122,13 +164,13 @@ const openNewFile = async () => {
 
                 // 设置新的 Sharp 对象
                 currentSharpObject.value = originalImage;
-                
+
                 // 生成预览
                 await generatePreview(originalImage);
 
                 // 重置调整器
                 await resetAdjustments();
-                
+
             } catch (error) {
                 console.error('处理新图像失败:', error);
                 throw error;
@@ -141,8 +183,26 @@ const openNewFile = async () => {
     }
 };
 
+// 切换到历史图片
+const switchToImage = async (path) => {
+    try {
+        imagePath.value = path;
+        const originalImage = await fromFilePath(path);
+        currentSharpObject.value = originalImage;
+        
+        const metadata = await originalImage.metadata();
+        originalImageInfo.value = {
+            width: metadata.width,
+            height: metadata.height,
+            format: metadata.format
+        };
 
-
+        await generatePreview(originalImage);
+        await resetAdjustments();
+    } catch (error) {
+        console.error('切换图片失败:', error);
+    }
+};
 
 const appData = inject('appData')
 const histogram = ref({})
@@ -208,7 +268,7 @@ const resolutionConfig = {
 const getDynamicResolution = () => {
     const now = performance.now();
     const timeSinceLastAdjustment = now - previewState.value.lastAdjustmentTime;
-    
+
     // 更激进的降级策略
     if (timeSinceLastAdjustment < resolutionConfig.adjustmentThreshold.rapid) {
         return resolutionConfig.resolutionLevels.rapid;  // 480
@@ -238,8 +298,8 @@ const handleProcessingUpdate = async (processingPipeline) => {
         const currentVersion = ++previewState.value.renderVersion;
 
         // 获取图像尺寸
-        const isLargeImage = originalImageInfo.value.width > 4096 || 
-                           originalImageInfo.value.height > 4096;
+        const isLargeImage = originalImageInfo.value.width > 4096 ||
+            originalImageInfo.value.height > 4096;
 
 
         if (isLargeImage) {
@@ -260,7 +320,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
                     const resolution = getDynamicResolution();
                     const originalImage = await fromFilePath(imagePath.value);
                     const lowResBuffer = await originalImage
-                        .resize(resolution, resolution, { 
+                        .resize(resolution, resolution, {
                             fit: 'inside',
                             withoutEnlargement: true
                         })
@@ -303,9 +363,9 @@ const handleProcessingUpdate = async (processingPipeline) => {
                     try {
                         const originalImage = await fromFilePath(imagePath.value);
                         const higherResBuffer = await originalImage
-                            .resize(nextLevel, nextLevel, { 
+                            .resize(nextLevel, nextLevel, {
                                 fit: 'inside',
-                                withoutEnlargement: true 
+                                withoutEnlargement: true
                             })
                             .toBuffer();
 
@@ -358,7 +418,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
 
     } catch (error) {
         if (error.name === 'AbortError') {
-            console.log('渲染已消');
+            console.log('渲已消');
         } else {
             console.error('处理图像失败:', error);
         }
@@ -407,7 +467,7 @@ onMounted(async () => {
         // 初始化 Sharp 对象
         const sharpObj = await fromFilePath(imagePath.value);
         currentSharpObject.value = sharpObj;
-        
+
         // 获取元数据
         const metadata = await sharpObj.metadata();
         originalImageInfo.value = {
@@ -415,6 +475,23 @@ onMounted(async () => {
             height: metadata.height,
             format: metadata.format
         };
+
+        // 添加初始图片到画廊
+        const fileName = imagePath.value.split(/[\\/]/).pop();
+        const thumbnail = await sharpObj
+            .resize(100, 100, { fit: 'contain' })
+            .png()
+            .toBuffer();
+            
+        const thumbnailUrl = URL.createObjectURL(
+            new Blob([thumbnail], { type: 'image/png' })
+        );
+        
+        imageHistory.value = [{
+            path: imagePath.value,
+            name: fileName,
+            thumbnail: thumbnailUrl
+        }];
 
         // 生成初始预览
         await generatePreview(sharpObj);
@@ -460,29 +537,29 @@ const isSplitDragging = ref(false)
 // 缩放控制 - 以鼠标位置为中心
 const handleWheel = (e) => {
     e.preventDefault()
-    
+
     const container = comparisonContainer.value
     if (!container) return
-    
+
     const rect = container.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
-    
+
     // 计算鼠标相对于当前变换后内容的位置
     const relativeX = (mouseX - offset.value.x) / scale.value
     const relativeY = (mouseY - offset.value.y) / scale.value
-    
+
     // 计算新的缩放比例
     const oldScale = scale.value
     const delta = e.deltaY > 0 ? 0.9 : 1.1
     const newScale = Math.min(Math.max(0.1, oldScale * delta), 50)
-    
+
     // 更新偏移量，保持鼠标位置不变
     offset.value = {
         x: mouseX - (relativeX * newScale),
         y: mouseY - (relativeY * newScale)
     }
-    
+
     scale.value = newScale
 }
 
@@ -496,14 +573,14 @@ const handleMouseMove = (e) => {
     } else if (isSplitDragging.value) {
         const container = comparisonContainer.value
         if (!container) return
-        
+
         const rect = container.getBoundingClientRect()
         const imageRect = getImageDisplayRect(rect)
-        
+
         // 计算鼠标相对于图像显示区域的位置
         const mouseX = e.clientX - rect.left - imageRect.left
         const percentage = (mouseX / imageRect.width) * 100
-        
+
         // 限制有效范围内
         splitPosition.value = Math.max(0, Math.min(100, percentage))
     }
@@ -523,9 +600,9 @@ const getImageDisplayRect = (containerRect) => {
 
     const imageAspect = originalImageInfo.value.width / originalImageInfo.value.height
     const containerAspect = containerRect.width / containerRect.height
-    
+
     let baseWidth, baseHeight
-    
+
     // 计算基础尺寸
     if (imageAspect > containerAspect) {
         baseWidth = containerRect.width
@@ -542,11 +619,11 @@ const getImageDisplayRect = (containerRect) => {
     // 应用缩放和平移，确保正确计算实际显示位置
     const scaledWidth = baseWidth * scale.value
     const scaledHeight = baseHeight * scale.value
-    
+
     // 计算实际显示位置，考虑缩放中心点
     const left = baseLeft + offset.value.x + (baseWidth - scaledWidth) / 2
     const top = baseTop + offset.value.y + (baseHeight - scaledHeight) / 2
-    
+
     return {
         left,
         top,
@@ -564,10 +641,10 @@ const getImageDisplayRect = (containerRect) => {
 const getImageStyle = () => {
     const container = comparisonContainer.value
     if (!container) return {}
-    
+
     const rect = container.getBoundingClientRect()
     const imageRect = getImageDisplayRect(rect)
-    
+
     return {
         position: 'absolute',
         width: `${imageRect.baseWidth}px`,
@@ -595,14 +672,14 @@ const getSplitLineStyle = computed(() => {
     if (!container) {
         return { display: 'none' }
     }
-    
+
     const rect = container.getBoundingClientRect()
     const imageRect = getImageDisplayRect(rect)
-    
+
     // 计算分割线在图像区域内的实际位置
     const splitX = imageRect.left + // 实际显示位置
-                  (imageRect.width * (splitPosition.value / 100)) // 分割比例
-    
+        (imageRect.width * (splitPosition.value / 100)) // 分割比例
+
     return {
         position: 'absolute',
         left: `${splitX}px`,
@@ -618,31 +695,31 @@ const getSplitLineStyle = computed(() => {
 const handleSplitDrag = (e) => {
     e.preventDefault()
     isSplitDragging.value = true
-    
+
     const handleDrag = (moveEvent) => {
         const container = comparisonContainer.value
         if (!container) return
-        
+
         const rect = container.getBoundingClientRect()
         const imageRect = getImageDisplayRect(rect)
-        
+
         // 计算鼠标相对于图像显示区域的位置
         const mouseX = moveEvent.clientX - rect.left
-        
+
         // 将鼠标位置限制在图像显示区域内
         const boundedX = Math.max(imageRect.left, Math.min(imageRect.left + imageRect.width, mouseX))
-        
+
         // 计算相对于图像显示区域的百分比
         const percentage = ((boundedX - imageRect.left) / imageRect.width) * 100
         splitPosition.value = Math.max(0, Math.min(100, percentage))
     }
-    
+
     const handleDragEnd = () => {
         isSplitDragging.value = false
         document.removeEventListener('mousemove', handleDrag)
         document.removeEventListener('mouseup', handleDragEnd)
     }
-    
+
     document.addEventListener('mousemove', handleDrag)
     document.addEventListener('mouseup', handleDragEnd)
 }
@@ -690,6 +767,10 @@ onUnmounted(() => {
     if (processedImg.value?.src.startsWith('blob:')) {
         URL.revokeObjectURL(processedImg.value.src)
     }
+    // 清理缩略图
+    imageHistory.value.forEach(item => {
+        URL.revokeObjectURL(item.thumbnail);
+    });
 })
 
 // 添加简单的防抖函数实现
@@ -727,7 +808,7 @@ onUnmounted(() => {
         clearTimeout(previewState.value.previewTimeout);
     }
     previewState.value.thumbnailCache = null;
-});
+})
 
 // 优化鼠标事件坐标计算
 const getRelativeCoordinates = (e, containerRect, imageRect) => {
@@ -748,18 +829,18 @@ const getRelativeCoordinates = (e, containerRect, imageRect) => {
 // 优化图像拖动处理
 const handleMouseDown = (e) => {
     if (isSplitDragging.value) return
-    
+
     isDragging.value = true
     const containerRect = comparisonContainer.value.getBoundingClientRect()
     const imageRect = getImageDisplayRect(containerRect)
-    
+
     // 记录起始点，考虑当前偏移量
     dragStart.value = {
         x: e.clientX - offset.value.x,
         y: e.clientY - offset.value.y,
         initialOffset: { ...offset.value }
     }
-    
+
     document.body.style.cursor = 'grabbing'
 }
 
@@ -769,8 +850,74 @@ const handleMouseUp = (e) => {
         document.body.style.cursor = 'grab'
     }
 }
+
+// 添加图片历史记录状态
+const imageHistory = ref([]);
+const galleryContainer = ref(null);
 </script>
 <style scoped>
+.main-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #1e1e1e;
+}
+
+.content-wrapper {
+    display: flex;
+    flex: 1;
+    gap: 20px;
+    padding: 16px;
+    min-height: 0; /* 重要：防止内容溢出 */
+}
+
+.preview-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0; /* 重要：防止内容溢出 */
+}
+
+.image-container {
+    flex: 1;
+    position: relative;
+    background: #2a2a2a;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: move;
+    min-height: 0; /* 重要：防止内容溢出 */
+}
+
+.control-section {
+    width: 320px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: #2a2a2a;
+    padding: 16px;
+    border-radius: 4px;
+    overflow-y: auto;
+}
+
+.gallery-section {
+    height: 130px; /* 增加高度以容纳画廊和可能的边距 */
+    flex-shrink: 0;
+    background: #2a2a2a;
+    padding: 10px;
+    border-top: 1px solid #3a3a3a;
+}
+
+/* 修改画廊样式 */
+.history-gallery {
+    height: 110px;
+    position: relative; /* 改为相对定位 */
+    width: 100%;
+    background: transparent;
+    box-shadow: none;
+}
+
 .histogram-wrapper {
     display: flex;
     gap: 20px;
@@ -977,5 +1124,81 @@ input[type="checkbox"] {
     left: 0;
     width: 100%;
     height: 100%;
+}
+
+/* 添加画廊样式 */
+.history-gallery {
+    position: fixed;
+    bottom: 0;
+    left: 16px;  /* 与主容器 padding 对齐 */
+    right: 356px;  /* 为右侧控制面板留出空间 320px + 20px gap + 16px padding */
+    height: 110px;
+    background: #2a2a2a;  /* 使用与其他组件相同的背景色 */
+    border-radius: 4px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.gallery-container {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    height: 100%;
+    padding-bottom: 10px;
+}
+
+.gallery-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.gallery-container::-webkit-scrollbar-track {
+    background: #1e1e1e;
+    border-radius: 3px;
+}
+
+.gallery-container::-webkit-scrollbar-thumb {
+    background: #666;
+    border-radius: 3px;
+}
+
+.gallery-item {
+    flex: 0 0 auto;
+    width: 100px;
+    height: 100px;
+    position: relative;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    overflow: hidden;
+    transition: all 0.2s;
+}
+
+.gallery-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.gallery-item.active {
+    border-color: orange;
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-size: 10px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 </style>

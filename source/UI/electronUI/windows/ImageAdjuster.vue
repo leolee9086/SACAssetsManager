@@ -1,69 +1,124 @@
 <template>
   <div class="adjustment-controls">
-    <div class="pipeline-controls">
-      <button @click="showEffectSelector = true" class="add-effect">添加效果</button>
-    </div>
-    <div v-if="showEffectSelector" class="effect-selector-overlay" @click="showEffectSelector = false">
-      <div class="effect-selector" @click.stop>
-        <div class="effect-selector-header">
-          <h3>选择效果</h3>
-          <button class="close-btn" @click="showEffectSelector = false">×</button>
-        </div>
-        <div class="effect-selector-content">
-          <div v-for="effect in availableEffects" :key="effect.key" class="effect-option" @click="addEffect(effect)">
-            <span>{{ effect.label }}</span>
-            <span class="effect-description">{{ effect.description }}</span>
+    <div class="effects-list-container">
+      <div class="effects-list">
+        <div v-for="control in controls" :key="control.id" class="control-item"
+          :class="{ 'dragging': draggingId === control.id }">
+          <div class="control-header" draggable="true" @dragstart="handleDragStart($event, control)"
+            @dragend="handleDragEnd" @dragover.prevent @drop="handleDrop($event, control)">
+            <div class="control-left">
+              <span class="drag-handle">⋮⋮</span>
+              <label>
+                <input type="checkbox" v-model="control.enabled" />
+                {{ control.label }}
+              </label>
+            </div>
+            <div class="control-right">
+              <span class="value-display">{{ control.value }}</span>
+              <button class="remove-btn" @click="removeEffect(control)">×</button>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
-    <div class="effects-list">
-      <div v-for="control in controls" :key="control.id" class="control-item"
-        :class="{ 'dragging': draggingId === control.id }">
-        <div class="control-header" draggable="true" @dragstart="handleDragStart($event, control)"
-          @dragend="handleDragEnd" @dragover.prevent @drop="handleDrop($event, control)">
-          <div class="control-left">
-            <span class="drag-handle">⋮⋮</span>
-            <label>
-              <input type="checkbox" v-model="control.enabled" />
-              {{ control.label }}
-            </label>
-          </div>
-          <div class="control-right">
-            <span class="value-display">{{ control.value }}</span>
-            <button class="remove-btn" @click="removeEffect(control)">×</button>
-          </div>
-        </div>
-        <div class="control-body">
-          <template v-for="param in control.params" :key="param.key">
-            <div class="param-item">
-              <label>{{ param.label }}</label>
-              <input v-if="param.type === 'slider'" type="range" :value="param.value" :min="param.min" :max="param.max"
-                :step="param.step" @input="e => updateParamValue(param, e.target.value)" :disabled="!control.enabled">
-              <div v-else-if="param.type === 'matrix3x3'" class="matrix-editor">
-                <div v-for="(row, i) in 3" :key="i" class="matrix-row">
-                  <input v-for="(col, j) in 3" :key="j" type="number" v-model="param.value[i][j]" step="0.1"
-                    @input="updateProcessing" :disabled="!control.enabled">
+          <div class="control-body">
+            <template v-for="param in control.params" :key="param.key">
+              <div class="param-item">
+                <label>{{ param.label }}</label>
+                <input v-if="param.type === 'slider'" type="range" :value="param.value" :min="param.min" :max="param.max"
+                  :step="param.step" @input="e => updateParamValue(param, e.target.value)" :disabled="!control.enabled">
+                <div v-else-if="param.type === 'matrix3x3'" class="matrix-editor">
+                  <div v-for="(row, i) in 3" :key="i" class="matrix-row">
+                    <input v-for="(col, j) in 3" :key="j" type="number" v-model="param.value[i][j]" step="0.1"
+                      @input="updateProcessing" :disabled="!control.enabled">
+                  </div>
                 </div>
               </div>
-            </div>
-          </template>
+            </template>
+          </div>
         </div>
       </div>
     </div>
+    
+    <div class="add-effect-container">
+      <button @click="openEffectSelector" class="add-effect">
+        <span class="plus-icon">+</span>
+      </button>
+    </div>
+
+    <FloatLayerWindow
+      v-if="showEffectSelector"
+      v-model:visible="showEffectSelector"
+      :title="'选择效果'"
+      :initial-width="400"
+      :initial-height="500"
+      :initial-x="200"
+      :initial-y="100"
+    >
+      <div class="effect-selector-content">
+        <div class="search-container">
+          <input 
+            type="text" 
+            v-model="searchQuery" 
+            placeholder="搜索效果..."
+            class="search-input"
+          >
+        </div>
+        <div v-for="effect in filteredEffects" 
+          :key="effect.key" 
+          class="effect-option" 
+          @click="addEffect(effect)"
+        >
+          <span>{{ effect.label }}</span>
+          <span class="effect-description">{{ effect.description }}</span>
+        </div>
+      </div>
+    </FloatLayerWindow>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { 参数定义注册表, getValueType, convert } from './pipelineBuilder.js';
 import { fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import FloatLayerWindow from '../../components/common/floatLayerWindow/floatLayerWindow.vue';
 //import { getValueType, convert } from '../../../../utils/typeConverter.js';
+import _pinyin from '../../../../static/pinyin.js'
 
+
+const pinyin = _pinyin.default
+pinyin.initialize()
+console.log(pinyin)
 const controls = ref([]);
 const draggingId = ref(null);
 const availableEffects = ref([...参数定义注册表]);
 const showEffectSelector = ref(false);
+const searchQuery = ref('');
+
+// 获取文本的所有可能搜索形式（原文、拼音、首字母）
+const getSearchableText = (text) => {
+  if (!text) return [''];
+  
+  return [
+    text.toLowerCase(),
+    pinyin.getFullChars(text).toLowerCase(),
+    pinyin.getCamelChars(text).toLowerCase()
+  ];
+};
+
+// 修改过滤效果的计算属性，支持拼音搜索
+const filteredEffects = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim();
+  if (!query) return availableEffects.value;
+  
+  return availableEffects.value.filter(effect => {
+    // 获取效果名称的所有搜索形式
+    const labelTexts = getSearchableText(effect.label);
+    // 获取描述的所有搜索形式
+    const descTexts = effect.description ? getSearchableText(effect.description) : [''];
+    
+    // 如果任一搜索形式包含查询字符串，则匹配成功
+    return labelTexts.some(text => text.includes(query)) ||
+           descTexts.some(text => text.includes(query));
+  });
+});
 
 // 添加效果
 const addEffect = (selectedEffect) => {
@@ -211,34 +266,26 @@ const updateParamValue = (param, newValue) => {
   }
   updateProcessing();
 };
+
+// 打开效果选择器
+const openEffectSelector = () => {
+  showEffectSelector.value = true;
+};
 </script>
 
 <style scoped>
 .adjustment-controls {
   display: flex;
   flex-direction: column;
-  gap: var(--cc-space-lg);
+  height: 100%;
+  position: relative;
+}
+
+.effects-list-container {
+  flex: 1;
   overflow-y: auto;
   padding: var(--cc-space-lg);
-}
-
-.pipeline-controls {
-  margin-bottom: var(--cc-space-lg);
-}
-
-.add-effect {
-  padding: var(--cc-space-sm) var(--cc-space-md);
-  background: var(--cc-theme-surface);
-  border: var(--cc-border-width) solid var(--cc-border-color);
-  border-radius: var(--cc-border-radius);
-  color: var(--cc-theme-on-surface);
-  cursor: pointer;
-  transition: var(--cc-transition);
-}
-
-.add-effect:hover {
-  background: var(--cc-theme-surface-light);
-  color: var(--cc-theme-on-surface-light);
+  padding-bottom: calc(var(--cc-space-lg) + 80px);
 }
 
 .effects-list {
@@ -253,6 +300,7 @@ const updateParamValue = (param, newValue) => {
   padding: var(--cc-space-md);
   cursor: default;
   transition: var(--cc-transition);
+  border: var(--cc-border-width) solid var(--cc-border-color);
 }
 
 .control-item:hover {
@@ -325,63 +373,10 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-.effect-selector-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--cc-theme-surface-lighter);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.effect-selector {
-  background: var(--cc-theme-surface);
-  border-radius: var(--cc-border-radius-b);
-  width: 90%;
-  max-width: 400px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--cc-dialog-shadow);
-}
-
-.effect-selector-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--cc-space-lg);
-  border-bottom: var(--cc-border-width) solid var(--cc-border-color);
-}
-
-.effect-selector-header h3 {
-  margin: 0;
-  color: var(--cc-theme-on-background);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--cc-theme-on-surface);
-  font-size: var(--cc-size-icon-lg);
-  cursor: pointer;
-  padding: var(--cc-space-sm);
-  opacity: var(--cc-opacity-disabled);
-  transition: var(--cc-transition);
-}
-
-.close-btn:hover {
-  opacity: 1;
-  color: var(--cc-theme-on-surface-light);
-}
-
 .effect-selector-content {
-  padding: 16px;
+  padding: var(--cc-space-md);
   overflow-y: auto;
-  max-height: 60vh;
+  height: 100%;
 }
 
 .effect-option {
@@ -432,5 +427,60 @@ input[type="range"]::-webkit-slider-thumb {
   border: var(--cc-border-width) solid var(--cc-border-color);
   border-radius: var(--cc-border-radius-sm);
   color: var(--cc-theme-on-surface);
+}
+
+.add-effect-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-top: var(--cc-border-width) solid var(--cc-border-color);
+}
+
+.add-effect {
+  width: 100%;
+  background: var(--cc-theme-surface);
+  border: 2px dashed var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  color: var(--cc-theme-on-surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cc-space-sm);
+}
+
+.add-effect:hover {
+  background: var(--cc-theme-surface-light);
+  border-color: var(--cc-theme-primary);
+  color: var(--cc-theme-primary);
+}
+
+.plus-icon {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.search-container {
+  padding: var(--cc-space-sm);
+  position: sticky;
+  top: 0;
+  background: var(--cc-theme-surface);
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  padding: var(--cc-space-sm);
+  border: var(--cc-border-width) solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  background: var(--cc-theme-surface-light);
+  color: var(--cc-theme-on-surface);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--cc-theme-primary);
 }
 </style>
