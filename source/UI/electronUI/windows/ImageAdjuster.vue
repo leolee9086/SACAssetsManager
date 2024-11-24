@@ -75,7 +75,7 @@
 <script setup>
 import { ref } from 'vue';
 import { 参数定义注册表 ,getValueType, convert} from './pipelineBuilder.js';
-import { fromBuffer } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
 //import { getValueType, convert } from '../../../../utils/typeConverter.js';
 
 const controls = ref([]);

@@ -1,14 +1,14 @@
 import {
     调整锐度, 调整平滑度, 调整清晰度,
     调整锐化半径, 调整细节保护, 调整细节
-} from '../../../../utils/fromDeps/sharpInterface/useSharp/adjust/clarity.js';
-import { 调整亮度, 调整对比度, 调整阴影 } from '../../../../utils/fromDeps/sharpInterface/useSharp/adjust/light.js';
-import { 调整色相偏移 } from '../../../../utils/fromDeps/sharpInterface/useSharp/adjust/color.js';
-import { 自动曝光 } from '../../../../utils/image/adjust/exposure.js';
-import { 生成法线图 } from '../../../../utils/fromDeps/sharpInterface/useSharp/Generator/normalMap.js';
-import { 去雾滤镜 } from '../../../../utils/fromDeps/sharpInterface/useSharp/adjust/dehazing.js';
-import * as kernels from '../../../../utils/fromDeps/sharpInterface/kernels.js';
-import { TextureGenerator } from '../../../../utils/image/textures.js/generators.js';
+} from '../../../utils/fromDeps/sharpInterface/useSharp/adjust/clarity.js';
+import { 调整亮度, 调整对比度, 调整阴影 } from '../../../utils/fromDeps/sharpInterface/useSharp/adjust/light.js';
+import { 调整色相偏移 } from '../../../utils/fromDeps/sharpInterface/useSharp/adjust/color.js';
+import { 自动曝光 } from '../../../utils/image/adjust/exposure.js';
+import { 生成法线图 } from '../../../utils/fromDeps/sharpInterface/useSharp/Generator/normalMap.js';
+import { 去雾滤镜 } from '../../../utils/fromDeps/sharpInterface/useSharp/adjust/dehazing.js';
+import * as kernels from '../../../utils/fromDeps/sharpInterface/kernels.js';
+import { TextureGenerator } from '../../../utils/image/textures.js/generators.js';
 // 类型转换器定义
 const converters = {
   'string-number': value => Number(value),

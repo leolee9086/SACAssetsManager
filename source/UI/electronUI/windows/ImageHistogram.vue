@@ -59,10 +59,9 @@
 <script setup>
 import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
-import { ref, computed, inject, toRef, onUnmounted } from 'vue';
-import { onMounted, shallowRef } from '../../../../../static/vue.esm-browser.js';
-import { fromFilePath } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
-import { requirePluginDeps } from '../../../../utils/module/requireDeps.js';
+import { ref, computed, inject, toRef, onUnmounted,onMounted, shallowRef } from 'vue';
+import { fromFilePath } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
 const sharp = requirePluginDeps('sharp')
 const originalImageInfo = ref({})
 const openNewFile = async () => {

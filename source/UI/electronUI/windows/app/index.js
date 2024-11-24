@@ -1,5 +1,5 @@
-import { loadModule } from "../../../../../../static/vue3-sfc-loader.esm.js";
-import * as Vue from '../../../../../../static/vue.esm-browser.js'
+import { loadModule } from "../../../../../static/vue3-sfc-loader.esm.js";
+import * as Vue from '../../../../../static/vue.esm-browser.js'
 function fixURL(url) {
     if (url.startsWith('http:/') && !url.startsWith('http://')) {
         return url.replace('http:/', 'http://');
@@ -20,6 +20,7 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data
             ...moduleCache
         },
         async getFile(url) {
+            console.log(url)
             const res = await fetch(fixURL(url));
             if (!res.ok) {
                 throw Object.assign(new Error(res.statusText + ' ' + url), { res });
