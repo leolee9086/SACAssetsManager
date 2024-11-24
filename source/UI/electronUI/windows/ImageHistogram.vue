@@ -25,6 +25,10 @@
                     title="透视校正">
                     <span class="icon">⟁</span>
                 </div>
+                <div class="tool-button" @click="toggleResizeMode" :class="{ active: isResizeMode }" 
+                    title="缩放">
+                    <span class="icon">⤧</span>
+                </div>
                 <div class="tool-button separator"></div>
                 <div class="tool-button" @click="toggleEditMode" :class="{ active: isEditMode }" title="编辑模式">
                     <span class="icon">✎</span>
@@ -91,6 +95,36 @@
                 </div>
             </div>
         </div>
+
+        <!-- 修改几何变换确认面板 -->
+        <div class="geometry-confirm" v-if="hasGeometryChanges || isResizeMode">
+            <div class="geometry-options">
+                <div class="option-group" v-if="isResizeMode">
+                    <label>调整大小:</label>
+                    <div class="size-inputs">
+                        <input type="number" v-model="resizeOptions.width" @input="handleResizeInput('width')" />
+                        <span>x</span>
+                        <input type="number" v-model="resizeOptions.height" @input="handleResizeInput('height')" />
+                        <label>
+                            <input type="checkbox" v-model="resizeOptions.maintainAspectRatio" />
+                            保持比例
+                        </label>
+                    </div>
+                </div>
+                <div class="option-group">
+                    <label>输出格式:</label>
+                    <select v-model="outputFormat">
+                        <option value="jpeg">JPEG</option>
+                        <option value="png">PNG</option>
+                        <option value="webp">WebP</option>
+                    </select>
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="confirm-button" @click="confirmChanges">确认</button>
+                <button class="cancel-button" @click="cancelChanges">取消</button>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -99,12 +133,13 @@ import floatLayerWindow from '../../components/common/floatLayerWindow/floatLaye
 import textureGallery from './textureGallery.vue';
 import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
-import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef } from 'vue';
+import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef, watch } from 'vue';
 import { fromFilePath, fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
 import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
 import { debounce } from '../../../utils/functionTools.js';
 import { getImageDisplayRect } from './utils/css.js';
 import { 选择图片文件 } from '../../../utils/useRemote/dialog.js';
+import { 覆盖保存 } from '../../../utils/fs/write.js';
 
 const sharp = requirePluginDeps('sharp')
 const originalImageInfo = ref({})
@@ -137,52 +172,52 @@ const 清理重复文件历史 = (newPath) => {
         imageHistory.value.splice(existingIndex, 1);
     }
 }
-const 限制历史长度 =(length)=>{
+const 限制历史长度 = (length) => {
     if (imageHistory.value.length > length) {
-                    const removed = imageHistory.value.pop();
-                    URL.revokeObjectURL(removed.thumbnail);
-                }
+        const removed = imageHistory.value.pop();
+        URL.revokeObjectURL(removed.thumbnail);
+    }
 }
-const 添加新文件 =async(newPath)=>{
+const 添加新文件 = async (newPath) => {
     try {
-                const testImage = await fromFilePath(newPath);
-                重置所有状态()
-                if (currentSharpObject.value) {
-                    currentSharpObject.value = null;
-                }
-                const thumbnail = await testImage
-                    .clone()
-                    .resize(100, 100, { fit: 'contain' })
-                    .png()
-                    .toBuffer();
-                const thumbnailUrl = URL.createObjectURL(
-                    new Blob([thumbnail], { type: 'image/png' })
-                );
-                清理重复文件历史(newPath)
-                添加到文件历史(newPath, thumbnailUrl)
-                限制历史长度(10)
-                imagePath.value = newPath;
-                const metadata = await testImage.metadata();
-                originalImageInfo.value = {
-                    width: metadata.width,
-                    height: metadata.height,
-                    format: metadata.format
-                };
-                currentSharpObject.value = testImage;
-                await generatePreview(testImage);
-                //重新应用效果器
-                let oldEffectStack = effectStack.value
-                effectStack.value = [];
-                if (imageAdjuster.value) {
-                    await resetAdjustments();
-                }
-                effectStack.value=oldEffectStack
-                await generatePreview(currentSharpObject.value);
+        const testImage = await fromFilePath(newPath);
+        重置所有状态()
+        if (currentSharpObject.value) {
+            currentSharpObject.value = null;
+        }
+        const thumbnail = await testImage
+            .clone()
+            .resize(100, 100, { fit: 'contain' })
+            .png()
+            .toBuffer();
+        const thumbnailUrl = URL.createObjectURL(
+            new Blob([thumbnail], { type: 'image/png' })
+        );
+        清理重复文件历史(newPath)
+        添加到文件历史(newPath, thumbnailUrl)
+        限制历史长度(10)
+        imagePath.value = newPath;
+        const metadata = await testImage.metadata();
+        originalImageInfo.value = {
+            width: metadata.width,
+            height: metadata.height,
+            format: metadata.format
+        };
+        currentSharpObject.value = testImage;
+        await generatePreview(testImage);
+        //重新应用效果器
+        let oldEffectStack = effectStack.value
+        effectStack.value = [];
+        if (imageAdjuster.value) {
+            await resetAdjustments();
+        }
+        effectStack.value = oldEffectStack
+        await generatePreview(currentSharpObject.value);
 
-            } catch (error) {
-                console.error('处理新图像失败:', error);
-                throw new Error('图像处理失败，请确保文件格式正确且未损坏');
-            }
+    } catch (error) {
+        console.error('处理新图像失败:', error);
+        throw new Error('图像处理失败，请确保文件格式正确且未损坏');
+    }
 
 }
 const openNewFile = async () => {
@@ -331,7 +366,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
 
         if (isLargeImage) {
             // 大图像使用渐进式渲染
-            // 记录调整时间
+            // 记录调整时
             previewState.value.lastAdjustmentTime = performance.now();
             previewState.value.isAdjusting = true;
 
@@ -367,7 +402,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
 
                 } catch (error) {
                     if (error.name !== 'AbortError') {
-                        console.error('低分辨率处理��败:', error);
+                        console.error('低分辨率处理败:', error);
                     }
                     throw error;
                 }
@@ -551,15 +586,10 @@ const handleMouseMove = (e) => {
     } else if (isSplitDragging.value) {
         const container = comparisonContainer.value
         if (!container) return
-
         const rect = container.getBoundingClientRect()
         const imageRect = getImageDisplayRect(rect)
-
-        // 计算鼠标相对于图像显示区域的位
         const mouseX = e.clientX - rect.left - imageRect.left
         const percentage = (mouseX / imageRect.width) * 100
-
-        // 限制有效范内
         splitPosition.value = Math.max(0, Math.min(100, percentage))
     }
 }
@@ -591,29 +621,19 @@ const getClipStyle = () => {
     if (!container) {
         return {};
     }
-
     const rect = container.getBoundingClientRect();
     const imageRect = getImageDisplayRect(rect, originalImageInfo.value, scale.value, offset.value);
-
-    // 计算分割线在容器中的位置（像素）
     const splitX = rect.width * (splitPosition.value / 100);
-
-    // 计算相对于图像显示区域的裁剪位置
     let clipPercentage;
-
     if (imageRect.scaledWidth === 0) {
         clipPercentage = splitPosition.value;
     } else {
-        // 计算分割线相对于图像左边缘的位置
         const imageLeft = imageRect.actualLeft;
         const imageRight = imageLeft + imageRect.scaledWidth;
-
-        // 将分割线位置转换为相对于图像宽度的百分比
         clipPercentage = Math.max(0, Math.min(100,
             ((splitX - imageLeft) / (imageRight - imageLeft)) * 100
         ));
     }
-    console.log(clipPercentage)
     return {
         clipPath: `inset(0 ${100 - clipPercentage}% 0 0)`,
         willChange: 'clip-path'
@@ -626,13 +646,8 @@ const getSplitLineStyle = computed(() => {
     if (!container) {
         return { display: 'none' };
     }
-
     const rect = container.getBoundingClientRect();
-    const imageRect = getImageDisplayRect(rect, originalImageInfo.value, scale.value, offset.value);
-
-    // 计算分割线位置
     const splitX = rect.width * (splitPosition.value / 100);
-
     return {
         position: 'absolute',
         left: `${splitX}px`,
@@ -649,27 +664,19 @@ const getSplitLineStyle = computed(() => {
 const handleSplitDrag = (e) => {
     e.preventDefault();
     isSplitDragging.value = true;
-
     const handleDrag = (moveEvent) => {
         const container = comparisonContainer.value;
         if (!container) return;
-
         const rect = container.getBoundingClientRect();
-
-        // 计算鼠标相于容器的位置百分
         const mouseX = moveEvent.clientX - rect.left;
         const percentage = (mouseX / rect.width) * 100;
-
-        // 限制在0-100范围内
         splitPosition.value = Math.max(0, Math.min(100, percentage));
     };
-
     const handleDragEnd = () => {
         isSplitDragging.value = false;
         document.removeEventListener('mousemove', handleDrag);
         document.removeEventListener('mouseup', handleDragEnd);
     };
-
     document.addEventListener('mousemove', handleDrag);
     document.addEventListener('mouseup', handleDragEnd);
 };
@@ -682,10 +689,8 @@ const generatePreview = async (sharpObj) => {
             console.warn('processedImg reference not found');
             return;
         }
-
         // 生成处理后的图像
         const processedBuffer = await sharpObj.clone().png().toBuffer();
-
         // 清理旧的 Blob URLs
         if (processedImg.value.src?.startsWith('blob:')) {
             URL.revokeObjectURL(processedImg.value.src);
@@ -754,10 +759,6 @@ const handleMouseDown = (e) => {
     if (isSplitDragging.value) return
 
     isDragging.value = true
-    const containerRect = comparisonContainer.value.getBoundingClientRect()
-    const imageRect = getImageDisplayRect(containerRect)
-
-    // 记录起始点，考虑当前偏移量
     dragStart.value = {
         x: e.clientX - offset.value.x,
         y: e.clientY - offset.value.y,
@@ -875,7 +876,7 @@ const createProcessingPipeline = () => {
                 try {
                     processed = await effect.处理函数(processed, ...params);
                 } catch (e) {
-                    console.error('效果处理失败:', e);
+                    console.error('���果处理失败:', e);
                 }
             }
         }
@@ -941,6 +942,157 @@ const toggleSplitView = async () => {
         }
     }
 };
+
+// 添加几何变换状态追踪
+const hasGeometryChanges = computed(() => {
+    return rotation.value !== 0 ||
+        flips.value.horizontal ||
+        flips.value.vertical ||
+        perspectiveMode.value;
+});
+
+// 添加新的响应式状态
+const resizeOptions = ref({
+    width: 0,
+    height: 0,
+    maintainAspectRatio: true
+});
+
+const outputFormat = ref('jpeg');
+
+// 处理尺寸输入
+const handleResizeInput = (dimension) => {
+    if (resizeOptions.value.maintainAspectRatio) {
+        const aspectRatio = originalImageInfo.value.width / originalImageInfo.value.height;
+        if (dimension === 'width') {
+            resizeOptions.value.height = Math.round(resizeOptions.value.width / aspectRatio);
+        } else {
+            resizeOptions.value.width = Math.round(resizeOptions.value.height * aspectRatio);
+        }
+    }
+};
+
+// 添加新的响应式状态
+const isResizeMode = ref(false);
+
+
+
+// 添加缩放模式切换函数
+const toggleResizeMode = () => {
+    isResizeMode.value = !isResizeMode.value;
+    if (isResizeMode.value) {
+        // 初始化缩放选项为原始尺寸
+        resizeOptions.value.width = originalImageInfo.value.width;
+        resizeOptions.value.height = originalImageInfo.value.height;
+    }
+};
+
+// 取消变更函数
+const cancelChanges = () => {
+    // 重置所有几何变换状态
+    rotation.value = 0;
+    flips.value = { horizontal: false, vertical: false };
+    perspectiveMode.value = false;
+    isResizeMode.value = false;
+    
+    // 重置缩放选项
+    if (originalImageInfo.value) {
+        resizeOptions.value.width = originalImageInfo.value.width;
+        resizeOptions.value.height = originalImageInfo.value.height;
+    }
+    
+    // 重新生成预览
+    if (currentSharpObject.value) {
+        generatePreview(currentSharpObject.value);
+    }
+};
+
+// 修改确认变更函数
+const confirmChanges = async () => {
+    try {
+        const processingPipeline = async (img) => {
+            let processed = img;
+            
+            // 应用几何变换
+            if (hasGeometryChanges.value) {
+                if (rotation.value !== 0) {
+                    processed = processed.rotate(rotation.value, {
+                        background: { r: 0, g: 0, b: 0, alpha: 0 }
+                    });
+                }
+                
+                if (flips.value.horizontal) {
+                    processed = processed.flop();
+                }
+                if (flips.value.vertical) {
+                    processed = processed.flip();
+                }
+            }
+            
+            // 应用缩放
+            if (isResizeMode.value) {
+                processed = processed.resize(
+                    resizeOptions.value.width,
+                    resizeOptions.value.height,
+                    {
+                        fit: 'fill',
+                        withoutEnlargement: false
+                    }
+                );
+            }
+            
+            return processed;
+        };
+
+        const processedImage = await processingPipeline(currentSharpObject.value);
+        
+        // 导出处理后的图像
+        const outputOptions = {
+            quality: 100,
+            ...(outputFormat.value === 'png' ? { alpha: true } : {}),
+            ...(outputFormat.value === 'webp' ? { lossless: true } : {})
+        };
+        
+        const processedBuffer = await processedImage[outputFormat.value](outputOptions).toBuffer();
+        
+        // 生成新文件路径
+        const pathParts = imagePath.value.match(/^(.+?)(?:_(?:geometry|resize))?(\.[^.]+)$/);
+        if (!pathParts) {
+            throw new Error('无效的文件路径');
+        }
+        const [_, basePath] = pathParts;
+        const suffix = isResizeMode.value ? 'resize' : 'geometry';
+        const newPath = `${basePath}_${suffix}.${outputFormat.value}`;
+        
+        await 覆盖保存(newPath, processedBuffer);
+        
+        // 重置所有状态
+        cancelChanges();
+        
+        // 加载新文件
+        await 添加新文件(newPath);
+
+    } catch (error) {
+        console.error('确认变更失败:', error);
+        alert('确认变更失败: ' + error.message);
+    }
+};
+
+// 在组件挂载时初始化尺寸
+onMounted(() => {
+    if (originalImageInfo.value) {
+        resizeOptions.value.width = originalImageInfo.value.width;
+        resizeOptions.value.height = originalImageInfo.value.height;
+    }
+});
+
+// 监听原始图像信息变化
+watch(() => originalImageInfo.value, (newInfo) => {
+    if (newInfo) {
+        resizeOptions.value.width = newInfo.width;
+        resizeOptions.value.height = newInfo.height;
+    }
+}, { deep: true });
 
 </script>
 <style scoped>
@@ -1391,5 +1543,107 @@ input[type="checkbox"] {
 .tool-button.active {
     background: #dd6515;
     color: white;
+}
+
+/* 添加确认按钮样式 */
+.geometry-confirm {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.confirm-button,
+.cancel-button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.confirm-button {
+    background: #dd6515;
+    color: white;
+}
+
+.confirm-button:hover {
+    background: #c55a13;
+}
+
+.cancel-button {
+    background: #3a3a3a;
+    color: white;
+}
+
+.cancel-button:hover {
+    background: #4a4a4a;
+}
+
+/* 添加几何变换选项样式 */
+.geometry-confirm {
+    background: #2a2a2a;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.geometry-options {
+    margin-bottom: 16px;
+}
+
+.option-group {
+    margin-bottom: 12px;
+}
+
+.option-group label {
+    display: block;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.size-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.size-inputs input[type="number"] {
+    width: 80px;
+    padding: 4px 8px;
+    background: #3a3a3a;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    color: #fff;
+}
+
+.size-inputs span {
+    color: #fff;
+}
+
+.size-inputs label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 12px;
+}
+
+select {
+    padding: 4px 8px;
+    background: #3a3a3a;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    color: #fff;
+    width: 100%;
+}
+
+.button-group {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 </style>
