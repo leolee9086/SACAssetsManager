@@ -27,7 +27,6 @@ if (!window[METHOD_MANAGER]) {
                 // 清理失效的引用
                 this.cleanup();
             },
-            
             // 清理失效的引用
             cleanup() {
                 for (const [methodName, targets] of methodTargetsMap.entries()) {
@@ -38,7 +37,6 @@ if (!window[METHOD_MANAGER]) {
                     }
                 }
             },
-            
             // 获取拥有特定方法的所有对象
             getTargetsByMethod(methodName) {
                 this.cleanup();
@@ -48,12 +46,10 @@ if (!window[METHOD_MANAGER]) {
                     .map(ref => ref.deref())
                     .filter(Boolean);
             },
-            
             // 获取对象的所有方法
             getMethodsByTarget(target) {
                 return Array.from(targetMethodsMap.get(target) || []);
             },
-            
             // 移除对象的方法记录
             removeTarget(target) {
                 const methods = targetMethodsMap.get(target);
@@ -71,7 +67,6 @@ if (!window[METHOD_MANAGER]) {
                 }
                 targetMethodsMap.delete(target);
             },
-
             // 添加方法元数据
             addMethodMetadata(methodName, metadata) {
                 if (!methodMetadataMap.has(methodName)) {

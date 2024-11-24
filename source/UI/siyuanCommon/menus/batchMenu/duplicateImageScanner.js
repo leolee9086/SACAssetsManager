@@ -152,7 +152,6 @@ async function 计算图片哈希(filePath, mode = 'simple') {
     try {
         // 直接读取文件
         const fileData = await fs.readFile(filePath);
-
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {

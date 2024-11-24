@@ -7,3 +7,7 @@
 export function isSiyuanAssetPath(path) {
     return path && path.startsWith('assets/')
 }
+
+
+
+

@@ -22,6 +22,5 @@ export const 异步映射 = async (数组, 映射函数) => {
             return await 映射函数(项);
         })
     );
-    
     return 结果数组;
 }

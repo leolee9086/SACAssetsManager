@@ -21,7 +21,6 @@ export const 按属性名分组 = (array, key, defaultGroups = {}) => {
 export const 按指定值分组 = (array, key, allowedValues, defaultGroups = {}) => {
     // 创建允许值的Set以提高查找效率
     const allowedSet = new Set(allowedValues);
-    
     return array.reduce((groups, item) => {
         const groupKey = item[key];
         // 只有当值在允许列表中时才进行分组
