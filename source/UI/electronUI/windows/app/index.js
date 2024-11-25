@@ -1,5 +1,6 @@
 import { loadModule } from "../../../../../static/vue3-sfc-loader.esm.js";
 import * as Vue from '../../../../../static/vue.esm-browser.js'
+
 function fixURL(url) {
     if (url.startsWith('http:/') && !url.startsWith('http://')) {
         return url.replace('http:/', 'http://');
@@ -133,7 +134,8 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data
     }
     return oldApp
 }
-const app= initVueApp(import.meta.resolve('./app.vue'),'editorRoot')
+//const app= initVueApp(import.meta.resolve('./app.vue'),'editorRoot')
 
-console.log(app)
-app.mount(document.querySelector('#app'))
+//console.log(app)
+//app.mount(document.querySelector('#app'))
+import '../draw.js'

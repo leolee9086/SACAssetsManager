@@ -17,6 +17,21 @@
                 </div>
             </div>
         </div>
+        
+        <div class="additional-tools">
+            <div class="text-tool" 
+                 :class="{ 'active': selectedTool === 'text' }"
+                 @click="selectTool('text')">
+                <svg viewBox="0 0 24 24" class="text-icon">
+                    <text x="4" y="18" class="large-t">T</text>
+                    <text x="12" y="18" class="small-t">t</text>
+                </svg>
+            </div>
+            <input type="color" 
+                   :value="currentColor"
+                   @input="updateColor"
+                   class="color-picker">
+        </div>
     </div>
 </template>
 
@@ -29,8 +44,9 @@ import Pencil from '/plugins/SACAssetsManager/assets/pencil.svg'
 import Eraser from '/plugins/SACAssetsManager/assets/eraser.svg'
 
 const selectedTool = ref('brush')
+const currentColor = ref('#E24A4A')
 
-const tools = [
+const tools = ref([
     {
         type: 'Pencil',
         color: '#E24A4A',
@@ -61,14 +77,35 @@ const tools = [
         icon: "/plugins/SACAssetsManager/assets/eraser.webp",
         isImage: true
     },
-]
+])
+
+tools.value.push({
+    type: 'text',
+    color: '#E24A4A',
+    icon: 'text_fields',
+    isImage: false
+})
+
+const updateColor = (event) => {
+    const newColor = event.target.value
+    currentColor.value = newColor
+    const selectedToolItem = tools.value.find(tool => tool.type === selectedTool.value)
+    if (selectedToolItem) {
+        selectedToolItem.color = newColor
+    }
+    emit('color-changed', newColor)
+}
 
 const selectTool = (toolType) => {
     selectedTool.value = toolType
+    const selectedToolItem = tools.value.find(tool => tool.type === toolType)
+    if (selectedToolItem) {
+        currentColor.value = selectedToolItem.color
+    }
     emit('tool-selected', toolType)
 }
 
-const emit = defineEmits(['tool-selected'])
+const emit = defineEmits(['tool-selected', 'color-changed'])
 </script>
 
 <style scoped>
@@ -168,5 +205,66 @@ const emit = defineEmits(['tool-selected'])
     min-height: 100% !important;
 }
 
+.additional-tools {
+    margin-top: 20px;
+    background: #2a2a2a;
+    border-radius: 12px;
+    width: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 3px solid var(--cc-scroll-color);
+    border-style: groove;
+}
+
+.text-tool {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #E24A4A;
+}
+
+.text-tool.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+.color-picker {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 0 auto;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: 8px;
+}
+
+.text-icon {
+    width: 24px;
+    height: 24px;
+}
+
+.large-t {
+    font-size: 18px;
+    font-weight: bold;
+    fill: currentColor;
+}
+
+.small-t {
+    font-size: 14px;
+    font-weight: bold;
+    fill: currentColor;
+}
 
 </style>
