@@ -189,6 +189,9 @@ export class DrawingTools {
             points: [],
             lastTime: performance.now()
         };
+
+        // 添加预测点配置
+        this.usePredictedPoints = false;
     }
 
     // 异步加载笔刷
@@ -226,6 +229,7 @@ export class DrawingTools {
             if (this.points.length > 2) {
                 this.renderPoints()
             }
+            // 直接请求下一帧，不做任何时序控制
             requestAnimationFrame(render)
         }
         requestAnimationFrame(render)
@@ -664,22 +668,21 @@ export class DrawingTools {
         if (!this.isDrawing) return;
 
         if (e.getCoalescedEvents) {
-            // 获取所有合并的事件点
+            // 处理合并的事件点
             const events = e.getCoalescedEvents();
             for (const event of events) {
-                this.collectPoint(event);
+                this.draw(event);
             }
             
-            // 获取预测点（如果支持）
-            if (e.getPredictedEvents) {
+            // 根据开关决定是否使用预测点
+            if (this.usePredictedPoints && e.getPredictedEvents) {
                 const predicted = e.getPredictedEvents();
                 for (const event of predicted) {
-                    this.collectPoint(event, true);
+                    this.draw(event);
                 }
             }
         } else {
-            // 降级处理
-            this.collectPoint(e);
+            this.draw(e);
         }
     }
 
@@ -700,33 +703,19 @@ export class DrawingTools {
         }
     }
 
-    collectPoint(e, isPredicted = false) {
-        const now = performance.now();
-        const point = this.getCanvasPoint(e);
+    // 简化点收集逻辑
+    collectPoint(e) {
+        const point = this.getCanvasPoint(e)
         
-        // 基础采样控制
-        if (now - this.pointCollector.lastTime < this.pointProcessConfig.samplingInterval) {
-            return;
-        }
-        
-        const newPoint = {
+        this.points.push({
             x: point.x,
             y: point.y,
             pressure: this.getPressure(e),
-            timestamp: now,
             tool: this.currentTool,
             color: this.currentColor,
             size: this.currentSize,
             opacity: this.currentOpacity
-        };
-
-        this.pointCollector.points.push(newPoint);
-        this.pointCollector.lastTime = now;
-
-        // 当收集到足够的点时进行处理
-        if (this.pointCollector.points.length >= this.pointProcessConfig.batchSize) {
-            this.processPoints();
-        }
+        })
     }
 
     processPoints() {
@@ -898,6 +887,29 @@ export function initDrawingTest(containerId) {
     blendModeLabel.appendChild(blendModeSelect);
 
     toolbar.appendChild(blendModeLabel);
+
+    // 添加预测点开关
+    const predictContainer = document.createElement('div');
+    predictContainer.style.display = 'flex';
+    predictContainer.style.alignItems = 'center';
+    predictContainer.style.gap = '5px';
+    
+    const predictSwitch = document.createElement('input');
+    predictSwitch.type = 'checkbox';
+    predictSwitch.id = 'predictSwitch';
+    predictSwitch.checked = false;
+    
+    const predictLabel = document.createElement('label');
+    predictLabel.htmlFor = 'predictSwitch';
+    predictLabel.textContent = '引用预测点优化';
+    
+    predictSwitch.onchange = (e) => {
+        drawingTools.usePredictedPoints = e.target.checked;
+    };
+    
+    predictContainer.appendChild(predictSwitch);
+    predictContainer.appendChild(predictLabel);
+    toolbar.appendChild(predictContainer);
 
     // 添加事件监听
     canvas.addEventListener('mousedown', (e) => {
