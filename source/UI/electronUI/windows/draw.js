@@ -176,28 +176,18 @@ export class DrawingTools {
             flatBrush: { defaultColor: '#000000', defaultSize: 1, defaultOpacity: 1.0 }
         }
 
-        // 添加点收集器
-        this.pointCollector = {
-            points: [],
-            lastProcessTime: 0,
-            processInterval: 16  // 约60fps
+        // 优化采样配置
+        this.pointProcessConfig = {
+            minDistance: 0.5,        // 降低最小距离阈值
+            maxDistance: 100,        // 提高最大距离容忍度
+            samplingInterval: 4,     // 提高采样频率 (~240fps)
+            batchSize: 3            // 小批量处理点数
         };
 
-        // 添加点处理相关的配置
-        this.pointProcessConfig = {
-            minDistance: 2,          // 最小点距离
-            maxDistance: 50,         // 最大点距离
-            velocityThreshold: 10,   // 速度阈值
-            samplingInterval: 16,    // 采样间隔(ms)
-            maxPointsPerFrame: 50    // 每帧最大处理点数
-        };
-        
-        // 添加点状态追踪
-        this.pointTracker = {
-            lastX: null,
-            lastY: null,
-            lastTime: null,
-            velocity: 0
+        // 简化点收集器
+        this.pointCollector = {
+            points: [],
+            lastTime: performance.now()
         };
     }
 
@@ -427,31 +417,19 @@ export class DrawingTools {
         if (this.points.length < 2 || this.isRendering) return;
 
         this.isRendering = true;
-        let lastValidPoint = null;
+        let lastPoint = null;
 
         for (const point of this.points) {
-            if (!point) continue;
-
-            if (!lastValidPoint) {
-                lastValidPoint = point;
+            if (!lastPoint) {
+                lastPoint = point;
                 continue;
             }
 
-            // 计算当前段的速度方向
-            const dx = point.x - lastValidPoint.x;
-            const dy = point.y - lastValidPoint.y;
-            const distance = Math.hypot(dx, dy);
-
-            // 如果距离合理，则渲染
-            if (distance >= this.pointProcessConfig.minDistance && 
-                distance <= this.pointProcessConfig.maxDistance) {
-                this.drawStroke(lastValidPoint, point);
-            }
-
-            lastValidPoint = point;
+            this.drawStroke(lastPoint, point);
+            lastPoint = point;
         }
 
-        // 清理已渲染的点
+        // 保留最后一个点
         this.points = this.points.slice(-1);
         this.isRendering = false;
     }
@@ -637,11 +615,14 @@ export class DrawingTools {
     }
 
     stopDrawing() {
+        if (this.pointCollector.points.length > 0) {
+            this.processPoints(); // 处理剩余的点
+        }
+        
         this.isDrawing = false;
-        this.points.push(null);  // 添加结束标记
-        this.lastPoint = null;   // 清除最后一个点
-        this.pointCollector.points = [];  // 清空收集器
-        console.log('停止绘制');
+        this.points = [];
+        this.pointCollector.points = [];
+        this.pointCollector.lastTime = performance.now();
     }
 
     // 添加清理方法
@@ -720,81 +701,52 @@ export class DrawingTools {
     }
 
     collectPoint(e, isPredicted = false) {
-        const point = this.getCanvasPoint(e);
         const now = performance.now();
+        const point = this.getCanvasPoint(e);
         
-        // 计算速度
-        if (this.pointTracker.lastTime) {
-            const dt = now - this.pointTracker.lastTime;
-            const dx = point.x - this.pointTracker.lastX;
-            const dy = point.y - this.pointTracker.lastY;
-            this.pointTracker.velocity = Math.sqrt(dx * dx + dy * dy) / dt;
-        }
-
-        // 更新追踪器
-        this.pointTracker.lastX = point.x;
-        this.pointTracker.lastY = point.y;
-        this.pointTracker.lastTime = now;
-
-        // 基于速度动态调整采样
-        const samplingInterval = this.pointTracker.velocity > this.pointProcessConfig.velocityThreshold
-            ? this.pointProcessConfig.samplingInterval / 2
-            : this.pointProcessConfig.samplingInterval;
-
-        // 检查是否应该采样这个点
-        if (this.pointCollector.lastProcessTime && 
-            now - this.pointCollector.lastProcessTime < samplingInterval) {
+        // 基础采样控制
+        if (now - this.pointCollector.lastTime < this.pointProcessConfig.samplingInterval) {
             return;
         }
-
-        this.pointCollector.points.push({
+        
+        const newPoint = {
             x: point.x,
             y: point.y,
             pressure: this.getPressure(e),
             timestamp: now,
-            isPredicted: isPredicted,
             tool: this.currentTool,
             color: this.currentColor,
             size: this.currentSize,
-            opacity: this.currentOpacity,
-            velocity: this.pointTracker.velocity
-        });
+            opacity: this.currentOpacity
+        };
 
-        // 处理收集的点
-        if (this.pointCollector.points.length >= 2) {
-            this.processCollectedPoints();
+        this.pointCollector.points.push(newPoint);
+        this.pointCollector.lastTime = now;
+
+        // 当收集到足够的点时进行处理
+        if (this.pointCollector.points.length >= this.pointProcessConfig.batchSize) {
+            this.processPoints();
         }
     }
 
-    processCollectedPoints() {
+    processPoints() {
         const points = this.pointCollector.points;
         if (points.length < 2) return;
 
-        // 按时间戳排序
-        points.sort((a, b) => a.timestamp - b.timestamp);
-
-        // 移除预测点和重复点
+        // 简单的点过滤
         const filteredPoints = this.filterPoints(points);
         
-        // 限制每帧处理的点数
-        const pointsToProcess = filteredPoints.slice(0, this.pointProcessConfig.maxPointsPerFrame);
-
-        for (const point of pointsToProcess) {
-            if (this.validatePoint(point)) {
-                this.points.push(point);
-            }
+        // 添加有效点到渲染队列
+        for (const point of filteredPoints) {
+            this.points.push(point);
         }
 
-        // 保留未处理的点
-        this.pointCollector.points = filteredPoints.slice(this.pointProcessConfig.maxPointsPerFrame);
-        this.pointCollector.lastProcessTime = performance.now();
+        // 保留最后一个点作为下一批的起始点
+        this.pointCollector.points = [points[points.length - 1]];
     }
 
     filterPoints(points) {
         return points.reduce((filtered, point, index, array) => {
-            // 跳过预测点
-            if (point.isPredicted) return filtered;
-
             // 第一个点总是保留
             if (filtered.length === 0) {
                 filtered.push(point);
@@ -804,33 +756,14 @@ export class DrawingTools {
             const lastPoint = filtered[filtered.length - 1];
             const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
 
-            // 距离过小的点跳过
-            if (distance < this.pointProcessConfig.minDistance) {
-                return filtered;
+            // 简化的距离检查
+            if (distance >= this.pointProcessConfig.minDistance && 
+                distance <= this.pointProcessConfig.maxDistance) {
+                filtered.push(point);
             }
 
-            // 距离过大的点可能是异常，跳过
-            if (distance > this.pointProcessConfig.maxDistance) {
-                return filtered;
-            }
-
-            filtered.push(point);
             return filtered;
         }, []);
-    }
-
-    validatePoint(point) {
-        if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
-            return false;
-        }
-
-        // 检查点是否在画布范围内
-        if (point.x < 0 || point.x > this.canvas.width || 
-            point.y < 0 || point.y > this.canvas.height) {
-            return false;
-        }
-
-        return true;
     }
 }
 
@@ -850,7 +783,7 @@ export function initDrawingTest(containerId) {
     // 创建画布
     const canvas = document.createElement('canvas')
     canvas.width = 4096
-    canvas.height =1440
+    canvas.height =1960
 
     canvas.style.border = '1px solid #ccc'
     canvas.style.backgroundColor = '#fff'
