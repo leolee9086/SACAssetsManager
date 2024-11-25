@@ -89,6 +89,7 @@ export class DrawingTools {
         this.isRendering = false; // 添加渲染信号
         this.currentOpacity = 1.0; // 添加透明度属性
         this.currentBlendMode = 'source-over'; // 添加当前混合模式属性
+        this.lastPoint = null;  // 添加最后一个点的记录
 
         // 添加画笔尺寸配置
         this.brushSizes = {
@@ -149,10 +150,10 @@ export class DrawingTools {
 
         if (this.pressureSupported) {
             this.canvas.style.touchAction = 'none';
-            this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this));
-            this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this));
-            this.canvas.addEventListener('pointerup', this.handlePointerUp.bind(this));
-            this.canvas.addEventListener('pointerout', this.handlePointerUp.bind(this));
+            this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this), { passive: true });
+            this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this), { passive: true });
+            this.canvas.addEventListener('pointerup', this.handlePointerUp.bind(this), { passive: true });
+            this.canvas.addEventListener('pointerout', this.handlePointerUp.bind(this), { passive: true });
         }
 
         this.loadBrushes().then(() => {
@@ -174,6 +175,30 @@ export class DrawingTools {
             pen: { defaultColor: '#000000', defaultSize: 1, defaultOpacity: 1.0 },
             flatBrush: { defaultColor: '#000000', defaultSize: 1, defaultOpacity: 1.0 }
         }
+
+        // 添加点收集器
+        this.pointCollector = {
+            points: [],
+            lastProcessTime: 0,
+            processInterval: 16  // 约60fps
+        };
+
+        // 添加点处理相关的配置
+        this.pointProcessConfig = {
+            minDistance: 2,          // 最小点距离
+            maxDistance: 50,         // 最大点距离
+            velocityThreshold: 10,   // 速度阈值
+            samplingInterval: 16,    // 采样间隔(ms)
+            maxPointsPerFrame: 50    // 每帧最大处理点数
+        };
+        
+        // 添加点状态追踪
+        this.pointTracker = {
+            lastX: null,
+            lastY: null,
+            lastTime: null,
+            velocity: 0
+        };
     }
 
     // 异步加载笔刷
@@ -229,6 +254,10 @@ export class DrawingTools {
 
     startDrawing(e) {
         this.isDrawing = true;
+        // 清空之前的点
+        this.points = [];
+        this.lastPoint = null;
+        
         const point = this.getCanvasPoint(e);
         this.points.push({
             x: point.x,
@@ -237,7 +266,7 @@ export class DrawingTools {
             tool: this.currentTool,
             color: this.currentColor,
             size: this.currentSize,
-            isStart: true
+            isStart: true  // 标记为起始点
         });
     }
 
@@ -398,31 +427,32 @@ export class DrawingTools {
         if (this.points.length < 2 || this.isRendering) return;
 
         this.isRendering = true;
-        let lastPoint = null;
-        const pointsToRender = [...this.points];
+        let lastValidPoint = null;
 
-        for (const point of pointsToRender) {
+        for (const point of this.points) {
             if (!point) continue;
 
-            if (point.isStart) {
-                lastPoint = point;
+            if (!lastValidPoint) {
+                lastValidPoint = point;
                 continue;
             }
 
-            if (lastPoint) {
-                try {
-                    await this.drawStroke(lastPoint, point);
-                } catch (error) {
-                    console.error('绘制错误:', error);
-                }
+            // 计算当前段的速度方向
+            const dx = point.x - lastValidPoint.x;
+            const dy = point.y - lastValidPoint.y;
+            const distance = Math.hypot(dx, dy);
+
+            // 如果距离合理，则渲染
+            if (distance >= this.pointProcessConfig.minDistance && 
+                distance <= this.pointProcessConfig.maxDistance) {
+                this.drawStroke(lastValidPoint, point);
             }
-            lastPoint = point;
+
+            lastValidPoint = point;
         }
 
-        if (this.points.includes(null)) {
-            this.points = [];
-        }
-
+        // 清理已渲染的点
+        this.points = this.points.slice(-1);
         this.isRendering = false;
     }
 
@@ -607,9 +637,11 @@ export class DrawingTools {
     }
 
     stopDrawing() {
-        this.isDrawing = false
-        this.points.push(null)
-        console.log('停止绘制')
+        this.isDrawing = false;
+        this.points.push(null);  // 添加结束标记
+        this.lastPoint = null;   // 清除最后一个点
+        this.pointCollector.points = [];  // 清空收集器
+        console.log('停止绘制');
     }
 
     // 添加清理方法
@@ -649,8 +681,25 @@ export class DrawingTools {
 
     handlePointerMove(e) {
         if (!this.isDrawing) return;
-        // 直接使用类的当前状态而不是传入参数
-        this.draw(e);
+
+        if (e.getCoalescedEvents) {
+            // 获取所有合并的事件点
+            const events = e.getCoalescedEvents();
+            for (const event of events) {
+                this.collectPoint(event);
+            }
+            
+            // 获取预测点（如果支持）
+            if (e.getPredictedEvents) {
+                const predicted = e.getPredictedEvents();
+                for (const event of predicted) {
+                    this.collectPoint(event, true);
+                }
+            }
+        } else {
+            // 降级处理
+            this.collectPoint(e);
+        }
     }
 
     handlePointerUp(e) {
@@ -668,6 +717,120 @@ export class DrawingTools {
             this.currentOpacity = config.defaultOpacity;
             this.clearBrushCache(); // 清除缓存以重新生成画笔
         }
+    }
+
+    collectPoint(e, isPredicted = false) {
+        const point = this.getCanvasPoint(e);
+        const now = performance.now();
+        
+        // 计算速度
+        if (this.pointTracker.lastTime) {
+            const dt = now - this.pointTracker.lastTime;
+            const dx = point.x - this.pointTracker.lastX;
+            const dy = point.y - this.pointTracker.lastY;
+            this.pointTracker.velocity = Math.sqrt(dx * dx + dy * dy) / dt;
+        }
+
+        // 更新追踪器
+        this.pointTracker.lastX = point.x;
+        this.pointTracker.lastY = point.y;
+        this.pointTracker.lastTime = now;
+
+        // 基于速度动态调整采样
+        const samplingInterval = this.pointTracker.velocity > this.pointProcessConfig.velocityThreshold
+            ? this.pointProcessConfig.samplingInterval / 2
+            : this.pointProcessConfig.samplingInterval;
+
+        // 检查是否应该采样这个点
+        if (this.pointCollector.lastProcessTime && 
+            now - this.pointCollector.lastProcessTime < samplingInterval) {
+            return;
+        }
+
+        this.pointCollector.points.push({
+            x: point.x,
+            y: point.y,
+            pressure: this.getPressure(e),
+            timestamp: now,
+            isPredicted: isPredicted,
+            tool: this.currentTool,
+            color: this.currentColor,
+            size: this.currentSize,
+            opacity: this.currentOpacity,
+            velocity: this.pointTracker.velocity
+        });
+
+        // 处理收集的点
+        if (this.pointCollector.points.length >= 2) {
+            this.processCollectedPoints();
+        }
+    }
+
+    processCollectedPoints() {
+        const points = this.pointCollector.points;
+        if (points.length < 2) return;
+
+        // 按时间戳排序
+        points.sort((a, b) => a.timestamp - b.timestamp);
+
+        // 移除预测点和重复点
+        const filteredPoints = this.filterPoints(points);
+        
+        // 限制每帧处理的点数
+        const pointsToProcess = filteredPoints.slice(0, this.pointProcessConfig.maxPointsPerFrame);
+
+        for (const point of pointsToProcess) {
+            if (this.validatePoint(point)) {
+                this.points.push(point);
+            }
+        }
+
+        // 保留未处理的点
+        this.pointCollector.points = filteredPoints.slice(this.pointProcessConfig.maxPointsPerFrame);
+        this.pointCollector.lastProcessTime = performance.now();
+    }
+
+    filterPoints(points) {
+        return points.reduce((filtered, point, index, array) => {
+            // 跳过预测点
+            if (point.isPredicted) return filtered;
+
+            // 第一个点总是保留
+            if (filtered.length === 0) {
+                filtered.push(point);
+                return filtered;
+            }
+
+            const lastPoint = filtered[filtered.length - 1];
+            const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
+
+            // 距离过小的点跳过
+            if (distance < this.pointProcessConfig.minDistance) {
+                return filtered;
+            }
+
+            // 距离过大的点可能是异常，跳过
+            if (distance > this.pointProcessConfig.maxDistance) {
+                return filtered;
+            }
+
+            filtered.push(point);
+            return filtered;
+        }, []);
+    }
+
+    validatePoint(point) {
+        if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
+            return false;
+        }
+
+        // 检查点是否在画布范围内
+        if (point.x < 0 || point.x > this.canvas.width || 
+            point.y < 0 || point.y > this.canvas.height) {
+            return false;
+        }
+
+        return true;
     }
 }
 
@@ -806,19 +969,19 @@ export function initDrawingTest(containerId) {
     // 添加事件监听
     canvas.addEventListener('mousedown', (e) => {
         drawingTools.startDrawing(e)
-    })
+    }, { passive: true });
 
     canvas.addEventListener('mousemove', (e) => {
-        drawingTools.draw(e);  // 直接传入事件对象
-    })
+        drawingTools.draw(e);
+    }, { passive: true });
 
     canvas.addEventListener('mouseup', () => {
         drawingTools.stopDrawing()
-    })
+    }, { passive: true });
 
     canvas.addEventListener('mouseleave', () => {
         drawingTools.stopDrawing()
-    })
+    }, { passive: true });
 
     return {
         canvas,
