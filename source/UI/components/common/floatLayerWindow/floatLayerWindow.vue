@@ -2,7 +2,13 @@
   <Teleport to="#float-layer-container" v-if="isMounted">
     <div class="float-layer-window" v-if="visible">
       <div class="float-layer" ref="floatLayer" @mouseenter="isHandleVisible = true"
-        @mouseleave="isHandleVisible = false">
+        @mouseleave="isHandleVisible = false"
+        :class="{ 
+          'headless': headless,
+          'no-background': !showBackground,
+          'no-shadow': !showShadow,
+          'no-border':!showBackground,
+        }">
         <!-- 缩放手柄 -->
         <div v-for="handle in resizeHandles" :key="handle.position" class="resize-handle"
           :class="[`resize-${handle.position}`, { 'visible': isHandleVisible }]"
@@ -10,13 +16,13 @@
         </div>
 
         <!-- 标题栏 -->
-        <div class="float-header" @mousedown="startDrag">
-          <h2>{{ title }}</h2>
+        <div v-if="!headless" class="float-header" @mousedown="startDrag">
+          <span>{{ title }}</span>
           <button @click="close">×</button>
         </div>
 
         <!-- 修改内容区域的结构 -->
-        <div class="content-wrapper">
+        <div class="content-wrapper" :class="{ 'draggable': headless }" @mousedown="headless ? startDrag($event) : undefined">
           <div class="content">
             <slot></slot>
           </div>
@@ -53,6 +59,26 @@ const props = defineProps({
   initialY: {
     type: Number,
     default: 100
+  },
+  headless: {
+    type: Boolean,
+    default: false
+  },
+  minWidth: {
+    type: Number,
+    default: 200  // 默认最小宽度
+  },
+  minHeight: {
+    type: Number,
+    default: 100  // 默认最小高度
+  },
+  showBackground: {
+    type: Boolean,
+    default: true  // 是否显示背景
+  },
+  showShadow: {
+    type: Boolean,
+    default: true  // 是否显示阴影
   }
 })
 
@@ -167,18 +193,18 @@ const calculateNewDimensions = (dx, dy, pos, dragStart) => {
   let newY = dragStart.top
 
   if (pos.includes('e')) {
-    newWidth = Math.max(200, dragStart.width + dx)
+    newWidth = Math.max(props.minWidth, dragStart.width + dx)
   }
   if (pos.includes('w')) {
-    const w = Math.max(200, dragStart.width - dx)
+    const w = Math.max(props.minWidth, dragStart.width - dx)
     newWidth = w
     newX = dragStart.left + (dragStart.width - w)
   }
   if (pos.includes('s')) {
-    newHeight = Math.max(100, dragStart.height + dy)
+    newHeight = Math.max(props.minHeight, dragStart.height + dy)
   }
   if (pos.includes('n')) {
-    const h = Math.max(100, dragStart.height - dy)
+    const h = Math.max(props.minHeight, dragStart.height - dy)
     newHeight = h
     newY = dragStart.top + (dragStart.height - h)
   }
@@ -278,20 +304,30 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+.float-layer.no-background {
+  background: transparent;
+  border: none;
+}
+
+.float-layer.no-shadow {
+  box-shadow: none;
+}
+
 .float-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--cc-space-md);
+  padding: var(--cc-space-sm);
   background: var(--cc-theme-surface-light);
   border-bottom: var(--cc-border-width) solid var(--cc-border-color);
   cursor: move;
   color: var(--cc-theme-on-surface);
+  height: 40px;
 }
 
 .float-header h2 {
   margin: 0;
-  font-size: var(--cc-size-icon-md);
+  font-size: var(--cc-size-icon-sm);
 }
 
 .float-header button {
@@ -318,7 +354,7 @@ onUnmounted(() => {
 .content {
   position: absolute;
   inset: 0;
-  padding: var(--cc-space-lg);
+  padding: var(--cc-space-sm);
   overflow: auto;
 }
 
@@ -414,5 +450,23 @@ onUnmounted(() => {
 
 .resize-handle:hover::after {
   background: var(--cc-theme-primary);
+}
+
+.float-layer.headless {
+  border-radius: var(--cc-border-radius);
+}
+
+.content-wrapper.draggable {
+  cursor: move;
+  user-select: none;
+}
+
+/* 当处于headless模式时,调整内容区域的padding */
+.float-layer.headless .content-wrapper {
+  height: 100%;
+}
+
+.float-layer.headless .content {
+  height: 100%;
 }
 </style>

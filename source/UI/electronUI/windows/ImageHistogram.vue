@@ -7,66 +7,27 @@
 
         <!-- 主体内容区域 -->
         <div class="content-wrapper">
-            <!-- 左侧工具栏 -->
-            <div class="tools-sidebar">
-                <!-- 几何变换工具组 -->
-                <div class="tool-button" @click="canUseGeometryTools && rotate(-90)" :class="{
-                    disabled: !canUseGeometryTools,
-                    active: rotation.value !== 0
-                }" title="向左旋转">
-                    <span class="icon">↶</span>
-                </div>
-                <div class="tool-button" @click="canUseGeometryTools && rotate(90)" :class="{
-                    disabled: !canUseGeometryTools,
-                    active: rotation.value !== 0
-                }" title="向右旋转">
-                    <span class="icon">↷</span>
-                </div>
-                <div class="tool-button" @click="canUseGeometryTools && flip('horizontal')" :class="{
-                    disabled: !canUseGeometryTools,
-                    active: flips.horizontal
-                }" title="水平翻转">
-                    <span class="icon">↔</span>
-                </div>
-                <div class="tool-button" @click="canUseGeometryTools && flip('vertical')" :class="{
-                    disabled: !canUseGeometryTools,
-                    active: flips.vertical
-                }" title="垂直翻转">
-                    <span class="icon">↕</span>
-                </div>
-
-
-                <div class="tool-button separator"></div>
-                <div class="tool-button" @click="togglePerspectiveMode" :class="{ active: perspectiveMode }"
-                    title="透视校正">
-                    <span class="icon">⟁</span>
-                </div>
-                <div class="tool-button" @click="toggleResizeMode" :class="{ active: isResizeMode }" title="缩放">
-                    <span class="icon">⤧</span>
-                </div>
-                <div class="tool-button" @click="toggleStackMode" :class="{ active: isStackMode }" title="堆栈">
-                    <span class="icon">🎚️</span>
-                </div>
-                <!-- 编辑工具组 -->
-                <div class="tool-button" @click="toggleEditMode" :class="{ active: isEditMode }" title="编辑模式">
-                    <span class="icon">✎</span>
-                </div>
-                <div class="tool-button" @click="toggleCropMode" :class="{ active: isCropMode }" title="裁剪">
-                    <span class="icon">✂</span>
-                </div>
-
-                <div class="tool-button separator"></div>
-
-                <!-- 视图模式组 -->
-                <div class="tool-button" @click="toggleProcessedOnlyView" :class="{ active: isProcessedOnlyView }"
-                    title="仅处理后">
-                    <span class="icon">▣</span>
-                </div>
-
-                <div class="tool-button" @click="toggleSplitView" :class="{ active: isSplitViewEnabled }" title="裂像预览">
-                    <span class="icon">◫</span>
-                </div>
-            </div>
+            <ImageToolbar 
+                :rotation="rotation.value"
+                :flips="flips"
+                :perspective-mode="perspectiveMode"
+                :is-resize-mode="isResizeMode"
+                :is-stack-mode="isStackMode"
+                :is-edit-mode="isEditMode"
+                :is-crop-mode="isCropMode"
+                :is-processed-only-view="isProcessedOnlyView"
+                :is-split-view-enabled="isSplitViewEnabled"
+                :can-use-geometry-tools="canUseGeometryTools"
+                @rotate="rotate"
+                @flip="flip"
+                @toggle-perspective-mode="togglePerspectiveMode"
+                @toggle-resize-mode="toggleResizeMode"
+                @toggle-stack-mode="toggleStackMode"
+                @toggle-edit-mode="toggleEditMode"
+                @toggle-crop-mode="toggleCropMode"
+                @toggle-processed-only-view="toggleProcessedOnlyView"
+                @toggle-split-view="toggleSplitView"
+            />
 
             <!-- 左侧预览区域 -->
             <div class="preview-section">
@@ -94,29 +55,21 @@
                 </div>
 
                 <!-- 性能监控面板 -->
-                <floatLayerWindow title='处理状态' :initial-width="400" :initial-height="300">
-                    <div class="performance-panel">
-                        <!-- 添加直方图部分 -->
-                        <HistogramPanel v-model:channels="channels" :sharp-object="currentSharpObject"
-                            @histogram-updated="handleHistogramUpdate" />
+                <floatLayerWindow headless="true" title='处理状态' :initial-width="400" :initial-height="300">
+                    <PerformancePanel :stats="performanceStats" :sharp-object="currentSharpObject"
+                        :image-path="imagePath" :image-info="originalImageInfo"
+                        @histogram-updated="handleHistogramUpdate" />
+                </floatLayerWindow>
+                <floatLayerWindow 
+                headless="true" 
+                title='处理状态' 
+                :show-background="false"
+                :show-shadow="false"
 
-                        <!-- 原有的性能信息 -->
-                        <div class="performance-stats">
-                            <div class="performance-item">
-                                处理时间: {{ performanceStats.processingTime || 0 }} ms
-                            </div>
-                            <div class="performance-item">
-                                内存使用: {{ performanceStats.memoryUsage || 0 }} MB
-                            </div>
-                            <div class="image-info">
-                                <div class="info-item">图像路径: {{ imagePath }}</div>
-                                <div class="info-item">原始尺寸: {{ originalImageInfo?.width || 0 }}*{{
-                                    originalImageInfo?.height || 0
-                                }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                :initial-width="100" 
+                :initial-height="300">
+                    <BrushToolbar  />
+
                 </floatLayerWindow>
             </div>
 
@@ -190,7 +143,6 @@
 <script setup>
 import floatLayerWindow from '../../components/common/floatLayerWindow/floatLayerWindow.vue';
 import textureGallery from './textureGallery.vue';
-import HistogramPanel from './HistogramPanel.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
 import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef, watch } from 'vue';
 import { fromFilePath, fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
@@ -198,7 +150,10 @@ import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
 import { getImageDisplayRect } from './utils/css.js';
 import { 选择图片文件 } from '../../../utils/useRemote/dialog.js';
 import { 覆盖保存 } from '../../../utils/fs/write.js';
-import { 重置所有状态, previewState, 文件历史管理器, 历史队列, effectStack, 效果堆栈管理器,cropBox,裁剪框控制器 } from './state/index.js';
+import { 重置所有状态, previewState, 文件历史管理器, 历史队列, effectStack, 效果堆栈管理器, cropBox, 裁剪框控制器 } from './state/index.js';
+import PerformancePanel from './perfoemancePanel.vue';
+import ImageToolbar from './ImageToolbar.vue'
+import BrushToolbar from './BrushToolbar.vue';
 const sharp = requirePluginDeps('sharp')
 const originalImageInfo = ref({})
 // 添加图片历史记录状态
@@ -303,12 +258,6 @@ const comparisonContainer = ref(null)
 const originalImg = ref(null)
 const processedImg = ref(null)
 const info = ref({})
-const channels = ref([
-    { key: 'r', label: 'R', color: '#ff0000', visible: true },
-    { key: 'g', label: 'G', color: '#00ff00', visible: true },
-    { key: 'b', label: 'B', color: '#0000ff', visible: true },
-    { key: 'brightness', label: '亮度', color: 'white', visible: true } // 添加亮度
-]);
 const imageAdjuster = ref(null);
 const currentSharpObject = shallowRef(null);
 const performanceStats = ref({
@@ -958,6 +907,10 @@ const cropHandles = [
     { position: 'sw' }, { position: 's' }, { position: 'se' }
 ];
 
+
+
+
+
 // 修改初始化裁剪框函数，使其相对于原图定位
 const initCropBox = () => {
     const container = comparisonContainer.value;
@@ -977,36 +930,48 @@ const initCropBox = () => {
     // 初始化裁剪框
     裁剪框控制器.应用裁剪框(imageArea)
     裁剪框控制器.设置比例保持(false)
- 
-};
 
+};
+const xywh2ltwh = (xywh) => {
+    if (!xywh || typeof xywh !== 'object') {
+        console.warn('无效的XYWH格式数据')
+        return null
+    }
+
+    return {
+        left: xywh.x,
+        top: xywh.y,
+        width: xywh.width,
+        height: xywh.height
+    }
+}
 // 添加获取实际裁剪区域的函数
 const getActualCropArea = () => {
     const container = comparisonContainer.value;
     if (!container || !processedImg.value) return null;
-
     const rect = container.getBoundingClientRect();
     const imgRect = processedImg.value.getBoundingClientRect();
-
-    // 计算裁剪框相对于图像的比例
-    const relativeX = (cropBox.value.x - imgRect.left + rect.left) / imgRect.width;
-    const relativeY = (cropBox.value.y - imgRect.top + rect.top) / imgRect.height;
-    const relativeWidth = cropBox.value.width / imgRect.width;
-    const relativeHeight = cropBox.value.height / imgRect.height;
-
-    // 转换为原始图像上的像素坐标
-    return {
-        left: Math.round(relativeX * originalImageInfo.value.width),
-        top: Math.round(relativeY * originalImageInfo.value.height),
-        width: Math.round(relativeWidth * originalImageInfo.value.width),
-        height: Math.round(relativeHeight * originalImageInfo.value.height)
-    };
+    const 映射结果 = 裁剪框控制器.坐标映射(
+        {
+            x: imgRect.left - rect.left,
+            y: imgRect.top - rect.top
+        },
+        {
+            width: imgRect.width,
+            height: imgRect.height
+        },
+        {
+            width: originalImageInfo.value.width,
+            height: originalImageInfo.value.height
+        }
+    );
+    if (!映射结果) return null;
+    return xywh2ltwh(映射结果);
 };
 
 // 处理裁剪框拖动
 const handleCropResize = (e, position) => {
     if (!isCropMode.value) return;
-
     isDraggingCrop.value = true;
     cropResizeHandle.value = position;
     cropStartPos.value = {
@@ -1084,7 +1049,7 @@ const handleMouseMove = (e) => {
             newBox.height = Math.min(newBox.height, bounds.bottom - newBox.y);
             newBox.width = Math.max(50, newBox.width);
             newBox.height = Math.max(50, newBox.height);
-            cropBox.value = newBox;
+            裁剪框控制器.应用裁剪框(newBox);
         } else {
             // 处理裁剪框拖动
             let newX = e.clientX - cropStartPos.value.x;
@@ -1106,12 +1071,7 @@ const handleMouseMove = (e) => {
 
 
 // 计算裁剪框样式
-const cropBoxStyle = computed(() => ({
-    left: `${cropBox.value.x}px`,
-    top: `${cropBox.value.y}px`,
-    width: `${cropBox.value.width}px`,
-    height: `${cropBox.value.height}px`
-}));
+const cropBoxStyle = computed(裁剪框控制器.获取css尺寸样式);
 
 // 添加视图状态管理
 const viewState = ref({
@@ -1123,13 +1083,6 @@ const viewState = ref({
         }
     }
 });
-
-// 添加更新预览的辅助函数
-const updatePreview = async () => {
-    if (currentSharpObject.value) {
-        await generatePreview(currentSharpObject.value);
-    }
-};
 
 // 修改分割线拖拽相关函数
 const handleSplitDrag = (e) => {
@@ -1177,7 +1130,6 @@ const getSplitLineStyle = computed(() => {
     };
 });
 
-// 修改裁剪样式计算
 const getClipStyle = () => {
     if (viewState.value.mode !== 'split') {
         return {};
@@ -1581,17 +1533,7 @@ watch(() => editorState.value.activeMode, (newMode, oldMode) => {
     position: absolute;
 }
 
-.image-info {
-    padding: 8px;
-    background: #2a2a2a;
-    border-radius: 4px;
-}
 
-.info-item {
-    color: #fff;
-    font-size: 12px;
-    margin-bottom: 4px;
-}
 
 /* 右侧控制面板样式 */
 .control-section {
@@ -2107,28 +2049,6 @@ select {
     bottom: -5px;
     right: -5px;
     cursor: se-resize;
-}
-
-/* 修改性能面板样式 */
-.performance-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px;
-}
-
-.performance-stats {
-    border-top: 1px solid #3a3a3a;
-    padding-top: 12px;
-    margin-top: 12px;
-}
-
-/* 调整直方图面板在浮动窗口中的样式 */
-:deep(.histogram-panel) {
-    min-height: 150px;
-    background: #2a2a2a;
-    border-radius: 4px;
-    padding: 8px;
 }
 
 /* 添加禁用状态样式 */

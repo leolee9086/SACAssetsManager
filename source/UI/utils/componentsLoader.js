@@ -286,7 +286,10 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = `${siyua
             if (type === '.js') {
                 return asyncModules[path]
             }
-
+            if(type==='.svg'){
+                console.log(type, source, path, options)
+                return get
+            }
         },
 
         addStyle(textContent) {

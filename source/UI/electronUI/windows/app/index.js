@@ -42,7 +42,9 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data
             if (type === '.js') {
                 return asyncModules[path]
             }
-
+            if(type==='.svg'){
+             return source()
+            }
         },
 
         addStyle(textContent) {
