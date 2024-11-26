@@ -1,10 +1,9 @@
 import { fromURL } from "../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js"
 import { batchLoadImageFromUrl as loadImages, loadImageFromUrl as loadImage } from "../../../utils/image/loader/fromURL.js"
-import { hexToRgb } from "../../../utils/color/convert.js"
-import { requirePluginDeps } from "../../../utils/module/requireDeps.js"
 import { 获取事件canvas坐标 } from "../../../utils/canvas/events.js"
 import { ispressureSupported } from "../../../utils/system/surport/pressure.js"
-const sharp = requirePluginDeps('sharp')
+import { 尖头马克笔, 宽头马克笔, 水彩笔, 铅笔, 钢笔, 鸭嘴笔 } from "../../../utils/canvas/draw/brushes.js"
+import { brushImageProcessor } from '../../../utils/canvas/draw/brushes.js'
 
 
 /**
@@ -72,8 +71,6 @@ export class DrawingTools {
             watercolor: '/plugins/SACAssetsManager/assets/brushes/watercolor.png',
             pencil: '/plugins/SACAssetsManager/assets/brushes/pencil.png'
         }
-        this.coloredBrushCache = new Map()
-        this.currentBrush = null;
         this.blendModes = [
             'clear',
             'source',
@@ -232,98 +229,29 @@ export class DrawingTools {
         });
     }
 
-    // 修改处理带颜色的画笔图片方法
-    async processColoredBrush(brushKey, color) {
-        const cacheKey = `${brushKey}-${color}-${this.currentOpacity}-${this.currentBlendMode}`;
-        if (this.currentBrush?.cacheKey === cacheKey) {
-            return this.currentBrush.img;
-        }
-        if (this.coloredBrushCache.has(cacheKey)) {
-            const cached = this.coloredBrushCache.get(cacheKey);
-            this.currentBrush = { cacheKey, img: cached };
-            return cached;
-        }
-        try {
-            const rgb = hexToRgb(color)
-            if (!rgb) throw new Error('无效的颜色值')
-            let originalImage = await fromURL(this.brushes[brushKey])
-            // 调整大小并提取alpha通道
-            let alphaChannel = await originalImage
-                .resize(this.brushSizes[brushKey].width, this.brushSizes[brushKey].height, {
-                    fit: 'contain',
-                    background: { r: 0, g: 0, b: 0, alpha: 0 }
-                })
-                .extractChannel(3) // 提取alpha通道
-            // 为水彩笔刷添加随机噪波效果
-            if (brushKey === 'watercolor') {
-                alphaChannel = await alphaChannel
-                    .raw()
-                    .toBuffer()
-                    .then(buffer => {
-                        const newBuffer = Buffer.alloc(buffer.length * 3)
-                        for (let i = 0; i < buffer.length; i++) {
-                            const alpha = buffer[i]
-                            const noise = Math.floor(Math.random() * 41) - 20
-                            newBuffer[i] = Math.max(0, Math.min(255,
-                                Math.floor((alpha + noise) * this.currentOpacity)
-                            ))
-                        }
-                        return sharp(newBuffer, {
-                            raw: {
-                                width: this.brushSizes[brushKey].width,
-                                height: this.brushSizes[brushKey].height,
-                                channels: 1
-                            }
-                        }).png()
-                    })
-            } else {
-                alphaChannel = await alphaChannel.linear(this.currentOpacity, 0)
-            }
-            const rgbImage = await sharp({
-                create: {
-                    width: this.brushSizes[brushKey].width,
-                    height: this.brushSizes[brushKey].height,
-                    channels: 3,
-                    background: { r: rgb.r, g: rgb.g, b: rgb.b }
-                }
-            }).raw().toBuffer()
-            const processedImageBuffer = await sharp(rgbImage, {
-                raw: {
-                    width: this.brushSizes[brushKey].width,
-                    height: this.brushSizes[brushKey].height,
-                    channels: 3
-                }
-            })
-                .joinChannel(await alphaChannel.toBuffer())
-                .png()
-                .toBuffer()
-            const blob = new Blob([processedImageBuffer], { type: 'image/png' })
-            const url = URL.createObjectURL(blob)
-            const img = await loadImage(url)
-            this.coloredBrushCache.set(cacheKey, img);
-            this.currentBrush = { cacheKey, img };
-            URL.revokeObjectURL(url)
-            return img
-        } catch (error) {
-            console.error('处理彩色画笔失败:', error)
-            throw error
-        }
-    }
-
-
-
     // 修改绘制方法
     draw = async (e) => {
         if (!this.isDrawing) return;
         const point = 获取事件canvas坐标(e, this.canvas);
         const toolConfig = this.toolConfigs[this.currentTool];
         const actualOpacity = this.currentOpacity || toolConfig.defaultOpacity;
+
+        // 只为图片类型的笔刷处理图片
         if (!['pen', 'flatBrush'].includes(this.currentTool)) {
-            const brushKey = `${this.currentTool}-${this.currentColor}-${actualOpacity}-${this.currentBlendMode}`;
-            if (!this.currentBrush || this.currentBrush.cacheKey !== brushKey) {
-                this.brushImages[this.currentTool] = await this.processColoredBrush(this.currentTool, this.currentColor);
-            }
+            const brushImage = await brushImageProcessor.processColoredBrush(
+                this.brushes[this.currentTool],
+                this.currentColor,
+                actualOpacity,
+                this.currentBlendMode,
+                {
+                    width: this.brushSizes[this.currentTool].width,
+                    height: this.brushSizes[this.currentTool].height,
+                    effect: this.currentTool === 'watercolor' ? 'watercolor' : null
+                }
+            )
+            this.brushImages[this.currentTool] = brushImage;
         }
+
         this.points.push({
             x: point.x,
             y: point.y,
@@ -376,149 +304,27 @@ export class DrawingTools {
     }
 
     drawMarker(startX, startY, endX, endY, color, size, opacity) {
-        const spacing = 1
-        const dx = endX - startX
-        const dy = endY - startY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        const angle = Math.atan2(dy, dx)
-        this.ctx.save()
-        this.ctx.globalAlpha = opacity / 10
-        for (let i = 0; i < distance; i += spacing) {
-            const x = startX + (Math.cos(angle) * i)
-            const y = startY + (Math.sin(angle) * i)
-            this.ctx.drawImage(
-                this.brushImages.marker,
-                x - (size * 10) / 2,
-                y - (size * 10) / 2,
-                size * 10,
-                size * 10
-            )
-        }
-        this.ctx.restore()
+        尖头马克笔(this.ctx, this.brushImages.marker, startX, startY, endX, endY, color, size, opacity)
     }
     drawWideMarker(startX, startY, endX, endY, color, size, opacity) {
-        this.ctx.save()
-        this.ctx.globalAlpha = opacity / 30
-        this.ctx.globalCompositeOperation = 'multiply'
-        const spacing = 5
-        const dx = endX - startX
-        const dy = endY - startY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        const angle = Math.atan2(dy, dx)
-        for (let i = 0; i < distance; i += spacing) {
-            const x = startX + (Math.cos(angle) * i)
-            const y = startY + (Math.sin(angle) * i)
-            this.ctx.drawImage(
-                this.brushImages.wideMaker,
-                x - (size * 15) / 2,
-                y - (size * 15) / 2,
-                size * 15,
-                size * 15
-            )
-        }
-        this.ctx.restore()
+        宽头马克笔(this.ctx, this.brushImages.wideMaker, startX, startY, endX, endY, color, size, opacity)
     }
+  
 
     drawWatercolor(startX, startY, endX, endY, color, size, opacity) {
-        this.ctx.save()
-        this.ctx.globalAlpha = opacity / 10
-        this.ctx.globalCompositeOperation = 'source-over'
-
-        const spacing = 5
-        const dx = endX - startX
-        const dy = endY - startY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        const angle = Math.atan2(dy, dx)
-
-        for (let i = 0; i < distance; i += spacing) {
-            const x = startX + (Math.cos(angle) * i)
-            const y = startY + (Math.sin(angle) * i)
-
-            this.ctx.drawImage(
-                this.brushImages.watercolor,
-                x - (size * 20) / 2,
-                y - (size * 20) / 2,
-                size * 20,
-                size * 20
-            )
-        }
-
-        this.ctx.restore()
+        水彩笔(this.ctx, this.brushImages.watercolor, startX, startY, endX, endY, color, size, opacity)
     }
 
     drawPencil(startX, startY, endX, endY, color, size, opacity) {
-        this.ctx.save()
-        this.ctx.globalAlpha = opacity
-
-        const spacing = 2
-        const dx = endX - startX
-        const dy = endY - startY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        const angle = Math.atan2(dy, dx)
-
-        for (let i = 0; i < distance; i += spacing) {
-            const x = startX + (Math.cos(angle) * i)
-            const y = startY + (Math.sin(angle) * i)
-
-            this.ctx.drawImage(
-                this.brushImages.pencil,
-                x - (size * 5) / 2,
-                y - (size * 5) / 2,
-                size * 5,
-                size * 5
-            )
-        }
-
-        this.ctx.restore()
+        铅笔(this.ctx, this.brushImages.pencil, startX, startY, endX, endY, color, size, opacity)
     }
 
     drawPen(startX, startY, endX, endY, color, size, opacity) {
-        this.ctx.save();
-        this.ctx.globalAlpha = opacity;
-
-        const spacing = 0.5; // 非常密集的间距
-        const dx = endX - startX;
-        const dy = endY - startY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dy, dx);
-
-        for (let i = 0; i < distance; i += spacing) {
-            const x = startX + (Math.cos(angle) * i);
-            const y = startY + (Math.sin(angle) * i);
-
-            this.ctx.beginPath();
-            this.ctx.arc(x, y, size, 0, Math.PI * 2);
-            this.ctx.fillStyle = color;
-            this.ctx.fill();
-        }
-
-        this.ctx.restore();
+        钢笔(this.ctx, null, startX, startY, endX, endY, color, size, opacity)
     }
 
     drawFlatBrush(startX, startY, endX, endY, color, size, opacity) {
-        this.ctx.save();
-        this.ctx.globalAlpha = opacity;
-
-        const spacing = 0.5; // 非常密集的间距
-        const dx = endX - startX;
-        const dy = endY - startY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dy, dx);
-
-        for (let i = 0; i < distance; i += spacing) {
-            const x = startX + (Math.cos(angle) * i);
-            const y = startY + (Math.sin(angle) * i);
-
-            this.ctx.fillStyle = color;
-            this.ctx.fillRect(
-                x - (size * 2),
-                y - size / 2,
-                size * 4,
-                size
-            );
-        }
-
-        this.ctx.restore();
+        鸭嘴笔(this.ctx, null, startX, startY, endX, endY, color, size, opacity)
     }
     stopDrawing() {
         if (this.pointCollector.points.length > 0) {
@@ -530,8 +336,7 @@ export class DrawingTools {
         this.pointCollector.lastTime = performance.now();
     }
     clearBrushCache() {
-        this.coloredBrushCache.clear();
-        this.currentBrush = null;
+        brushImageProcessor.clearCache()
     }
     setOpacity(opacity) {
         this.currentOpacity = Math.max(0, Math.min(1, opacity));
@@ -669,7 +474,7 @@ export function initDrawingTest(containerId) {
     colorPicker.value = currentColor
     colorPicker.onchange = (e) => {
         drawingTools.currentColor = e.target.value;
-        drawingTools.clearBrushCache();  // ��除缓存以重新生成画笔
+        drawingTools.clearBrushCache();  // 除缓存以重新生成画笔
     }
     toolbar.appendChild(colorPicker)
     const sizeSlider = document.createElement('input')
