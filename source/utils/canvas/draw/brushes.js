@@ -16,7 +16,7 @@ const BRUSH_TYPES = {
 const brushConfigs = {
     尖头马克笔: {
         type: BRUSH_TYPES.IMAGE,
-        opacity: 0.0001,
+        opacity: 0.1,
         spacing: 1,
         sizeMultiplier: 10,
     },
@@ -29,14 +29,14 @@ const brushConfigs = {
     },
     水彩笔: {
         type: BRUSH_TYPES.IMAGE,
-        opacity:  0.0000001,
+        opacity:  1,
         spacing: 1,
         sizeMultiplier: 20,
         compositeOperation: 'source-over',
-  //        pickupEnabled: true,  // 启用沾染
-    //    pickupRadius: 20,     // 沾染影响半径
-     //   pickupDecay: 0.95,    // 沾衰减率
-       // flowEnabled: true,
+        pickupEnabled: true,  // 启用沾染
+       pickupRadius: 20,     // 沾染影响半径
+       pickupDecay: 0.95,    // 沾衰减率
+     flowEnabled: true,
     },
     铅笔: {
         type: BRUSH_TYPES.IMAGE,
@@ -129,51 +129,66 @@ const brushConfigs = {
 const createBrush = (brushName) => {
     const config = brushConfigs[brushName]
 
-    // 返回绘制函数
-    return (ctx, brushSamples, startX, startY, endX, endY, color, size, opacity, pressure = 1, velocity = 0) => {
+    return async (ctx, brushSamples, startX, startY, endX, endY, color, size, opacity, pressure = 1, velocity = 0) => {
         ctx.save()
 
-        const dx = endX - startX
-        const dy = endY - startY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        const angle = Math.atan2(dy, dx)
+        try {
+            const dx = endX - startX
+            const dy = endY - startY
+            const distance = Math.sqrt(dx * dx + dy * dy)
+            const angle = Math.atan2(dy, dx)
 
-        // 计算际大小和不透明度
-        const effectiveSize = calculateEffectiveSize(config, size, pressure)
-        const effectiveOpacity = calculateEffectiveOpacity(config, opacity, pressure, velocity)
+            const effectiveSize = calculateEffectiveSize(config, size, pressure)
+            const effectiveOpacity = calculateEffectiveOpacity(config, opacity, pressure, velocity)
 
-        ctx.globalAlpha = effectiveOpacity
-        if (config.compositeOperation) {
-            ctx.globalCompositeOperation = config.compositeOperation
+            ctx.globalAlpha = effectiveOpacity
+            if (config.compositeOperation) {
+                ctx.globalCompositeOperation = config.compositeOperation
+            }
+
+            if (config.type === BRUSH_TYPES.SHAPE) {
+                drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize)
+            } else {
+                const sample = selectBrushSample(brushSamples, pressure, velocity, config)
+                if (sample) {
+                    await drawImageBrush(ctx, sample, config, startX, startY, distance, angle, effectiveSize)
+                } else {
+                    console.error('无效的笔刷样本')
+                }
+            }
+        } catch (error) {
+            console.error('笔刷绘制失败:', error)
+        } finally {
+            ctx.restore()
         }
-        if (config.type === BRUSH_TYPES.SHAPE) {
-            drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize)
-        } else {
-            const sample = selectBrushSample(brushSamples, pressure, velocity, config)
-            drawImageBrush(ctx, sample, config, startX, startY, distance, angle, effectiveSize)
-        }
-
-        ctx.restore()
     }
 }
 
 function selectBrushSample(samples, pressure, velocity, config) {
+
+    if (config.type === BRUSH_TYPES.SHAPE) {
+        return null;
+    }
+
+    if (!samples) {
+        console.error('笔刷样本为空')
+        return null
+    }
+
     // 检查是否是新的变体系统
     if (samples.variants && Array.isArray(samples.variants)) {
-        // 根据压力和速度算强度因子
         const intensityFactor = pressure * (1 + velocity * 0.2)
-
-        // 使用强度因子影响索引选择
         const index = Math.min(
             samples.variants.length - 1,
             Math.floor(Math.random() * samples.variants.length + intensityFactor * 2)
         )
-
-        return samples.variants[index] || samples.variants[0]
+        const selectedSample = samples.variants[index] || samples.variants[0]
+        return selectedSample
     }
 
-    // 向后兼容：如果没有新的变体系统，返回基础样本
-    return samples.base || samples
+    // 向后兼容
+    const sample = samples.base || samples
+    return sample
 }
 
 // 新增：计算有效大小
@@ -193,18 +208,22 @@ function calculateEffectiveOpacity(config, opacity, pressure, velocity) {
     return effectiveOpacity
 }
 
-function drawImageBrush(ctx, sample, config, startX, startY, distance, angle, effectiveSize) {
+// 修改 drawImageBrush 函数
+async function drawImageBrush(ctx, sample, config, startX, startY, distance, angle, effectiveSize) {
     // 计算笔触间距
     const spacing = config.spacing * effectiveSize
     const numPoints = Math.max(1, Math.floor(distance / spacing))
 
     // 特殊处理单点情况
     if (numPoints <= 1) {
-        drawBrushPoint(ctx, sample, startX, startY, angle, effectiveSize, config)
+        await drawBrushPoint(ctx, sample, startX, startY, angle, effectiveSize, config)
         return
     }
 
-    // 绘制多个笔触点
+    // 创建一个数组来存储所有的绘制操作
+    const drawOperations = []
+
+    // 准备所有绘制点
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints
         const x = startX + (distance * t * Math.cos(angle))
@@ -221,70 +240,80 @@ function drawImageBrush(ctx, sample, config, startX, startY, distance, angle, ef
             pointAngle += (Math.random() - 0.5) * config.angleJitter
         }
 
+        // 将每个点的绘制操作添加到数组中
+        drawOperations.push(
+            drawBrushPoint(
+                ctx, 
+                sample, 
+                x + offsetX, 
+                y + offsetY, 
+                pointAngle, 
+                effectiveSize, 
+                config
+            )
+        )
+    }
 
-        drawBrushPoint(ctx, sample, x + offsetX, y + offsetY, pointAngle, effectiveSize, config)
+    // 按顺序执行所有绘制操作
+    for (const operation of drawOperations) {
+        await operation
     }
 }
 
-function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
+async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
     const width = size * (config.widthMultiplier || 1)
     const height = size * (config.heightMultiplier || 1)
 
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(angle + (config.angle || 0) * Math.PI / 180)
+    try {
+        ctx.save()
+        ctx.translate(x, y)
+        ctx.rotate(angle + (config.angle || 0) * Math.PI / 180)
 
-    // 处理特殊效果
-    if (config.spreadFactor) {
-        const spread = size * config.spreadFactor * Math.random()
-        ctx.translate(spread * (Math.random() - 0.5), spread * (Math.random() - 0.5))
-    }
+        // 处理特殊效果
+        if (config.spreadFactor) {
+            const spread = size * config.spreadFactor * Math.random()
+            ctx.translate(spread * (Math.random() - 0.5), spread * (Math.random() - 0.5))
+        }
 
-    // 处理笔刷纹理
-    if (config.textureStrength) {
-        ctx.globalAlpha *= (1 - Math.random() * config.textureStrength)
-    }
-    // 绘制笔刷图像
-
-    // 如果启用了沾染功能，传入 ctx 而不是颜色
-    if (config.pickupEnabled) {
-        brushImageProcessor.recordPickup(
-            Date.now(),
-            { x, y },
-            ctx,  // 传入整个 context
-            config.pressure || 1
-        )
-    }
-    // 如果启用了流动效果，在每个点都添加流动
-    if (config.flowEnabled) {
-        const color = ctx.fillStyle || '#000000'
-        const rgb = typeof color === 'string' ?
-            hexToRgb(color) :
-            { r: 0, g: 0, b: 0 }
-
-        brushImageProcessor.addFlowEffect(
-            { x, y },
-            rgb,
-            config.pressure || 1,
-            {
-                type: 'watercolor',
-                context: ctx,
-                spread: config.spreadFactor || 0.3
+        // 处理笔刷纹理
+        if (config.textureStrength) {
+            ctx.globalAlpha *= (1 - Math.random() * config.textureStrength)
+        }
+        if (config.type === BRUSH_TYPES.SHAPE) {
+            // 几何笔刷直接绘制
+            switch (config.shape) {
+                case 'circle':
+                    drawCircle(ctx, width)
+                    break
+                case 'rectangle':
+                    drawRectangle(ctx, width, height)
+                    break
+                default:
+                    drawCircle(ctx, width)
             }
-        )
+        } else if (sample) {
+
+            const transform = ctx.getTransform()
+            ctx.resetTransform()
+            
+            try {
+                const transformedX = transform.e - width/2
+                const transformedY = transform.f - height/2
+                await mixer.mixColors(ctx, sample, transformedX, transformedY, width, height)
+            } catch (error) {
+                console.error('混合操作失败，使用降级方案:', error)
+                ctx.setTransform(transform)
+                ctx.drawImage(sample, -width/2, -height/2, width, height)
+            }
+            
+        } else {
+            console.error('无效的笔刷样本')
+        }
+    } catch (error) {
+        console.error('绘制点失败:', error)
+    } finally {
+        ctx.restore()
     }
-   /* ctx.drawImage(
-        sample,
-        -width / 2,
-        -height / 2,
-        width,
-        height
-    )*/
-
-   mixer.mixColors(ctx, sample, x, y, width, height);
-
-
-    ctx.restore()
 }
 
 function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) {
@@ -293,46 +322,20 @@ function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) 
     const distance = Math.sqrt(dx * dx + dy * dy)
     const angle = Math.atan2(dy, dx)
 
-    // 计算笔触间距
     const spacing = config.spacing * effectiveSize
     const numPoints = Math.max(1, Math.floor(distance / spacing))
 
-    // 特殊处理单点情况
     if (numPoints <= 1) {
-        drawShapePoint(ctx, config, startX, startY, angle, effectiveSize)
+        drawBrushPoint(ctx, null, startX, startY, angle, effectiveSize, config)
         return
     }
 
-    // 绘制多个形状点
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints
         const x = startX + (distance * t * Math.cos(angle))
         const y = startY + (distance * t * Math.sin(angle))
-
-        drawShapePoint(ctx, config, x, y, angle, effectiveSize)
+        drawBrushPoint(ctx, null, x, y, angle, effectiveSize, config)
     }
-}
-
-function drawShapePoint(ctx, config, x, y, angle, size) {
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(angle + (config.angle || 0) * Math.PI / 180)
-
-    const width = size * (config.widthMultiplier || 1)
-    const height = size * (config.heightMultiplier || 1)
-
-    switch (config.shape) {
-        case 'circle':
-            drawCircle(ctx, width)
-            break
-        case 'rectangle':
-            drawRectangle(ctx, width, height)
-            break
-        default:
-            drawCircle(ctx, width)
-    }
-
-    ctx.restore()
 }
 
 function drawCircle(ctx, diameter) {
