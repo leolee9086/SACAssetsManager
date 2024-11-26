@@ -210,7 +210,6 @@ function calculateEffectiveOpacity(config, opacity, pressure, velocity) {
 
 // 修改 drawImageBrush 函数
 async function drawImageBrush(ctx, sample, config, startX, startY, distance, angle, effectiveSize) {
-    // 计算笔触间距
     const spacing = config.spacing * effectiveSize
     const numPoints = Math.max(1, Math.floor(distance / spacing))
 
@@ -240,6 +239,9 @@ async function drawImageBrush(ctx, sample, config, startX, startY, distance, ang
             pointAngle += (Math.random() - 0.5) * config.angleJitter
         }
 
+        // 计算当前点的压力（可以根据距离渐变）
+        const pointPressure = config.pressure * (1 - (i / numPoints) * 0.3)
+
         // 将每个点的绘制操作添加到数组中
         drawOperations.push(
             drawBrushPoint(
@@ -248,8 +250,11 @@ async function drawImageBrush(ctx, sample, config, startX, startY, distance, ang
                 x + offsetX, 
                 y + offsetY, 
                 pointAngle, 
-                effectiveSize, 
-                config
+                effectiveSize,
+                {
+                    ...config,
+                    pressure: pointPressure
+                }
             )
         )
     }
@@ -257,6 +262,11 @@ async function drawImageBrush(ctx, sample, config, startX, startY, distance, ang
     // 按顺序执行所有绘制操作
     for (const operation of drawOperations) {
         await operation
+    }
+
+    // 最后一次渲染流动效果
+    if (config.flowEnabled) {
+        brushImageProcessor.renderFlowEffects(ctx)
     }
 }
 
@@ -266,21 +276,65 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
 
     try {
         ctx.save()
-        ctx.translate(x, y)
-        ctx.rotate(angle + (config.angle || 0) * Math.PI / 180)
+        
+        // 获取当前变换矩阵
+        const transform = ctx.getTransform()
+        
+        // 计算实际的世界坐标（考虑所有变换）
+        const worldPoint = {
+            x: x * transform.a + y * transform.c + transform.e,
+            y: x * transform.b + y * transform.d + transform.f
+        }
 
-        // 处理特殊效果
+        // 处理特殊效果的偏移
+        let offsetX = 0
+        let offsetY = 0
         if (config.spreadFactor) {
             const spread = size * config.spreadFactor * Math.random()
-            ctx.translate(spread * (Math.random() - 0.5), spread * (Math.random() - 0.5))
+            offsetX = spread * (Math.random() - 0.5)
+            offsetY = spread * (Math.random() - 0.5)
+        }
+
+        // 计算偏移后的世界坐标（考虑旋转）
+        const angle_rad = angle + (config.angle || 0) * Math.PI / 180
+        const cos = Math.cos(angle_rad)
+        const sin = Math.sin(angle_rad)
+        
+        const effectPoint = {
+            x: worldPoint.x + (offsetX * cos - offsetY * sin) * transform.a,
+            y: worldPoint.y + (offsetX * sin + offsetY * cos) * transform.d
+        }
+
+        // 处理沾染效果
+        if (config.pickupEnabled) {
+            const currentState = ctx.save()
+            ctx.setTransform(1, 0, 0, 1, 0, 0)
+            
+            await brushImageProcessor.recordPickup(
+                Date.now(),
+                effectPoint,
+                ctx,
+                config.pressure || 1
+            )
+            
+            ctx.restore(currentState)
+        }
+
+        // 应用绘制变换
+        ctx.translate(x, y)
+        ctx.rotate(angle_rad)
+
+        if (config.spreadFactor) {
+            ctx.translate(offsetX, offsetY)
         }
 
         // 处理笔刷纹理
         if (config.textureStrength) {
             ctx.globalAlpha *= (1 - Math.random() * config.textureStrength)
         }
+
         if (config.type === BRUSH_TYPES.SHAPE) {
-            // 几何笔刷直接绘制
+            // 几何笔刷绘制
             switch (config.shape) {
                 case 'circle':
                     drawCircle(ctx, width)
@@ -292,23 +346,57 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
                     drawCircle(ctx, width)
             }
         } else if (sample) {
-
-            const transform = ctx.getTransform()
-            ctx.resetTransform()
-            
+            // 图像笔刷绘制
             try {
-                const transformedX = transform.e - width/2
-                const transformedY = transform.f - height/2
-                await mixer.mixColors(ctx, sample, transformedX, transformedY, width, height)
-            } catch (error) {
-                console.error('混合操作失败，使用降级方案:', error)
-                ctx.setTransform(transform)
                 ctx.drawImage(sample, -width/2, -height/2, width, height)
+                
+                // 处理流动效果 - 限制在有效半径内
+                if (config.flowEnabled && config.pressure > 0.1) {
+                    // 获取当前颜色
+                    let currentColor
+                    if (typeof ctx.fillStyle === 'string') {
+                        // 处理十六进制或 CSS 颜色字符串
+                        currentColor = hexToRgb(ctx.fillStyle)
+                    } else if (typeof ctx.strokeStyle === 'string') {
+                        // 如果 fillStyle 不可用，尝试使用 strokeStyle
+                        currentColor = hexToRgb(ctx.strokeStyle)
+                    }
+
+                    if (!currentColor) {
+                        // 从配置中获取颜色
+                        currentColor = config.color ? hexToRgb(config.color) : { r: 0, g: 0, b: 0 }
+                    }
+
+                    const tempCtx = ctx.canvas.getContext('2d')
+                    tempCtx.save()
+                    tempCtx.setTransform(1, 0, 0, 1, 0, 0)
+
+                    await brushImageProcessor.addFlowEffect(
+                        effectPoint,
+                        currentColor, // 使用正确的颜色
+                        config.pressure || 1,
+                        {
+                            type: 'watercolor',
+                            context: tempCtx,
+                            spread: config.spreadFactor || 0.3,
+                            radius: effectiveRadius * Math.abs(transform.a),
+                            minPressure: 0.1,
+                            color: currentColor // 确保颜色也在选项中传递
+                        }
+                    )
+
+                    // 只在实际需要时渲染流动效果
+                    if (brushImageProcessor.flowEffects.active.size > 0) {
+                        brushImageProcessor.renderFlowEffects(tempCtx)
+                    }
+                    
+                    tempCtx.restore()
+                }
+            } catch (error) {
+                console.error('绘制失败:', error)
             }
-            
-        } else {
-            console.error('无效的笔刷样本')
         }
+
     } catch (error) {
         console.error('绘制点失败:', error)
     } finally {
