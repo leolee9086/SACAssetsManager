@@ -242,7 +242,7 @@ export class DrawingTools {
                 this.brushes[this.currentTool],
                 this.currentColor,
                 actualOpacity,
-                this.currentBlendMode,
+               // this.currentBlendMode,
                 {
                     width: this.brushSizes[this.currentTool].width,
                     height: this.brushSizes[this.currentTool].height,
@@ -480,7 +480,7 @@ export function initDrawingTest(containerId) {
     const sizeSlider = document.createElement('input')
     sizeSlider.type = 'range'
     sizeSlider.min = '0.5'
-    sizeSlider.max = '3'
+    sizeSlider.max = '30'
     sizeSlider.step = '0.01'
     sizeSlider.value = '1'
     sizeSlider.onchange = (e) => {

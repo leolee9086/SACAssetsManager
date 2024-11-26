@@ -24,3 +24,12 @@ export  function hexToRgb(hex) {
         b: parseInt(result[3], 16)
     };
 }
+ 
+// 新增：RGB转十六进制的辅助函数
+export function rgbToHex(rgb) {
+    const toHex = (n) => {
+        const hex = Math.round(n).toString(16)
+        return hex.length === 1 ? '0' + hex : hex
+    }
+    return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`
+}
