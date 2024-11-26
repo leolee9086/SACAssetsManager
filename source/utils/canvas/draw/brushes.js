@@ -280,7 +280,7 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
         // 获取当前变换矩阵
         const transform = ctx.getTransform()
         
-        // 计算实际的世界坐标（考虑所有变换）
+        // 使用变换矩阵计算实际的世界坐标
         const worldPoint = {
             x: x * transform.a + y * transform.c + transform.e,
             y: x * transform.b + y * transform.d + transform.f
@@ -295,18 +295,15 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
             offsetY = spread * (Math.random() - 0.5)
         }
 
-        // 计算偏移后的世界坐标（考虑旋转）
-        const angle_rad = angle + (config.angle || 0) * Math.PI / 180
-        const cos = Math.cos(angle_rad)
-        const sin = Math.sin(angle_rad)
-        
+        // 计算偏移后的世界坐标
         const effectPoint = {
-            x: worldPoint.x + (offsetX * cos - offsetY * sin) * transform.a,
-            y: worldPoint.y + (offsetX * sin + offsetY * cos) * transform.d
+            x: worldPoint.x + (offsetX * transform.a + offsetY * transform.c),
+            y: worldPoint.y + (offsetX * transform.b + offsetY * transform.d)
         }
 
-        // 处理沾染效果
+        // 处理沾染效果 - 使用世界坐标
         if (config.pickupEnabled) {
+            // 临时重置变换以处理沾染
             const currentState = ctx.save()
             ctx.setTransform(1, 0, 0, 1, 0, 0)
             
@@ -322,8 +319,9 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
 
         // 应用绘制变换
         ctx.translate(x, y)
-        ctx.rotate(angle_rad)
+        ctx.rotate(angle + (config.angle || 0) * Math.PI / 180)
 
+        // 应用特殊效果的偏移
         if (config.spreadFactor) {
             ctx.translate(offsetX, offsetY)
         }
@@ -334,7 +332,7 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
         }
 
         if (config.type === BRUSH_TYPES.SHAPE) {
-            // 几何笔刷绘制
+            // 几何笔刷直接绘制
             switch (config.shape) {
                 case 'circle':
                     drawCircle(ctx, width)
@@ -350,47 +348,32 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
             try {
                 ctx.drawImage(sample, -width/2, -height/2, width, height)
                 
-                // 处理流动效果 - 限制在有效半径内
-                if (config.flowEnabled && config.pressure > 0.1) {
-                    // 获取当前颜色
-                    let currentColor
-                    if (typeof ctx.fillStyle === 'string') {
-                        // 处理十六进制或 CSS 颜色字符串
-                        currentColor = hexToRgb(ctx.fillStyle)
-                    } else if (typeof ctx.strokeStyle === 'string') {
-                        // 如果 fillStyle 不可用，尝试使用 strokeStyle
-                        currentColor = hexToRgb(ctx.strokeStyle)
-                    }
+                // 处理流动效果 - 使用世界坐标
+                if (config.flowEnabled) {
+                    const currentColor = ctx.fillStyle || '#000000'
+                    const rgb = typeof currentColor === 'string' ?
+                        hexToRgb(currentColor) :
+                        { r: 0, g: 0, b: 0 }
 
-                    if (!currentColor) {
-                        // 从配置中获取颜色
-                        currentColor = config.color ? hexToRgb(config.color) : { r: 0, g: 0, b: 0 }
-                    }
-
-                    const tempCtx = ctx.canvas.getContext('2d')
-                    tempCtx.save()
-                    tempCtx.setTransform(1, 0, 0, 1, 0, 0)
-
+                    // 临时重置变换以添加流动效果
+                    const currentState = ctx.save()
+                    ctx.setTransform(1, 0, 0, 1, 0, 0)
+                    
                     await brushImageProcessor.addFlowEffect(
-                        effectPoint,
-                        currentColor, // 使用正确的颜色
+                        { x, y },
+                        rgb,
                         config.pressure || 1,
                         {
                             type: 'watercolor',
-                            context: tempCtx,
-                            spread: config.spreadFactor || 0.3,
-                            radius: effectiveRadius * Math.abs(transform.a),
-                            minPressure: 0.1,
-                            color: currentColor // 确保颜色也在选项中传递
+                            context: ctx,
+                            spread: config.spreadFactor || 0.3
                         }
                     )
 
-                    // 只在实际需要时渲染流动效果
-                    if (brushImageProcessor.flowEffects.active.size > 0) {
-                        brushImageProcessor.renderFlowEffects(tempCtx)
-                    }
-                    
-                    tempCtx.restore()
+                    // 渲染流动效果
+                    brushImageProcessor.renderFlowEffects(ctx)
+
+                    ctx.restore(currentState)
                 }
             } catch (error) {
                 console.error('绘制失败:', error)
