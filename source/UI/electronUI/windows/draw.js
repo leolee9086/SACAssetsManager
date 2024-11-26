@@ -1,40 +1,11 @@
 import { fromURL } from "../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js"
+import { batchLoadImageFromUrl as loadImages, loadImageFromUrl as loadImage } from "../../../utils/image/loader/fromURL.js"
+import { hexToRgb } from "../../../utils/color/convert.js"
 import { requirePluginDeps } from "../../../utils/module/requireDeps.js"
+import { 获取事件canvas坐标 } from "../../../utils/canvas/events.js"
+import { ispressureSupported } from "../../../utils/system/surport/pressure.js"
 const sharp = requirePluginDeps('sharp')
-/**
- * 异步加载图片
- * @param {string} src - 图片路径
- * @returns {Promise<HTMLImageElement>} - 返回加载完成的图片对象
- */
-export function loadImage(src) {
-    return new Promise((resolve, reject) => {
-        const img = new Image()
 
-        img.onload = () => {
-            resolve(img)
-        }
-
-        img.onerror = (error) => {
-            reject(new Error(`Failed to load image: ${src}`))
-        }
-
-        // 设置跨域属性（如果需要的话）
-        img.crossOrigin = 'anonymous'
-
-        // 开始加载图片
-        img.src = src
-    })
-}
-
-/**
- * 批量加载多个图片
- * @param {string[]} sources - 图片路径数组
- * @returns {Promise<HTMLImageElement[]>} - 返回加载完成的图片对象数组
- */
-export function loadImages(sources) {
-    const promises = sources.map(src => loadImage(src))
-    return Promise.all(promises)
-}
 
 /**
  * 预加载图片并缓存
@@ -42,12 +13,10 @@ export function loadImages(sources) {
  * @returns {Promise<HTMLImageElement>}
  */
 const imageCache = new Map()
-
 export function preloadImage(src) {
     if (imageCache.has(src)) {
         return Promise.resolve(imageCache.get(src))
     }
-
     return loadImage(src).then(img => {
         imageCache.set(src, img)
         return img
@@ -62,7 +31,6 @@ export function preloadImage(src) {
 export function isImageCached(src) {
     return imageCache.has(src)
 }
-
 /**
  * 清除图片缓存
  * @param {string} [src] - 可选，特定图片路径。如果不提供，则清除所有缓存
@@ -90,8 +58,6 @@ export class DrawingTools {
         this.currentOpacity = 1.0; // 添加透明度属性
         this.currentBlendMode = 'source-over'; // 添加当前混合模式属性
         this.lastPoint = null;  // 添加最后一个点的记录
-
-        // 添加画笔尺寸配置
         this.brushSizes = {
             marker: { width: 20, height: 20, defaultOpacity: 0.6 },
             wideMaker: { width: 30, height: 30, defaultOpacity: 0.3 },
@@ -100,20 +66,14 @@ export class DrawingTools {
             pen: { width: 2, height: 2, defaultOpacity: 1.0 },
             flatBrush: { width: 8, height: 8, defaultOpacity: 1.0 }
         }
-
-        // 预加载笔刷图片
         this.brushes = {
             marker: '/plugins/SACAssetsManager/assets/brushes/marker.png',
             wideMaker: '/plugins/SACAssetsManager/assets/brushes/wide-marker.png',
             watercolor: '/plugins/SACAssetsManager/assets/brushes/watercolor.png',
             pencil: '/plugins/SACAssetsManager/assets/brushes/pencil.png'
         }
-
-        // 缓存不同颜色的画笔图片
         this.coloredBrushCache = new Map()
-        this.currentBrush = null; // 添加当前画笔缓存
-
-        // 添加混合模式配置
+        this.currentBrush = null;
         this.blendModes = [
             'clear',
             'source',
@@ -143,10 +103,7 @@ export class DrawingTools {
             'difference',
             'exclusion'
         ];
-
-        // 仅添加压感支持检测
-        this.pressureSupported = window.PointerEvent &&
-            typeof window.PointerEvent === 'function';
+        this.pressureSupported = ispressureSupported()
 
         if (this.pressureSupported) {
             this.canvas.style.touchAction = 'none';
@@ -160,13 +117,9 @@ export class DrawingTools {
             this.initRenderLoop()
             console.log('笔刷加载完成，初始化渲染循环')
         })
-
-        // 添加默认颜色和工具配置
         this.currentTool = 'marker'
         this.currentColor = '#000000'  // 设置默认颜色
         this.currentSize = 1
-        
-        // 为每个工具定义默认配置
         this.toolConfigs = {
             marker: { defaultColor: '#e24a4a', defaultSize: 1, defaultOpacity: 0.6 },
             wideMaker: { defaultColor: '#f7d147', defaultSize: 1, defaultOpacity: 0.3 },
@@ -175,23 +128,55 @@ export class DrawingTools {
             pen: { defaultColor: '#000000', defaultSize: 1, defaultOpacity: 1.0 },
             flatBrush: { defaultColor: '#000000', defaultSize: 1, defaultOpacity: 1.0 }
         }
-
-        // 优化采样配置
         this.pointProcessConfig = {
             minDistance: 0.5,        // 降低最小距离阈值
             maxDistance: 100,        // 提高最大距离容忍度
             samplingInterval: 4,     // 提高采样频率 (~240fps)
             batchSize: 3            // 小批量处理点数
         };
-
-        // 简化点收集器
         this.pointCollector = {
             points: [],
             lastTime: performance.now()
         };
-
-        // 添加预测点配置
         this.usePredictedPoints = false;
+
+        // 添加工具配置
+        this.tools = [
+            { name: 'marker', label: '尖头马克笔', color: '#e24a4a' },
+            { name: 'wideMaker', label: '荧光笔', color: '#f7d147' },
+            { name: 'watercolor', label: '水彩笔', color: '#4a90e2' },
+            { name: 'pencil', label: '铅笔', color: '#2c3e50' },
+            { name: 'pen', label: '钢笔', color: '#000000' },
+            { name: 'flatBrush', label: '鸭嘴笔', color: '#000000' }
+        ];
+
+        // 添加基础事件监听
+        this.initBaseEvents();
+    }
+
+    // 添加新方法
+    initBaseEvents() {
+        this.canvas.addEventListener('mousedown', (e) => {
+            this.startDrawing(e);
+        }, { passive: true });
+
+        this.canvas.addEventListener('mousemove', (e) => {
+            this.draw(e);
+        }, { passive: true });
+
+        this.canvas.addEventListener('mouseup', () => {
+            this.stopDrawing();
+        }, { passive: true });
+
+        this.canvas.addEventListener('mouseleave', () => {
+            this.stopDrawing();
+        }, { passive: true });
+    }
+
+    // 添加清除画布方法
+    clearCanvas() {
+        const ctx = this.canvas.getContext('2d');
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
     // 异步加载笔刷
@@ -203,18 +188,11 @@ export class DrawingTools {
                 processedImageBuffer = await processedImageBuffer.resize(this.brushSizes[key].width, this.brushSizes[key].height, {
                     fit: 'contain',
                     background: { r: 0, g: 0, b: 0, alpha: 0 }
-                })
-                    .png()
-                    .toBuffer()
-                // 将处理后的Buffer转换为Blob
+                }).png().toBuffer()
                 const blob = new Blob([processedImageBuffer], { type: 'image/png' })
                 const url = URL.createObjectURL(blob)
-
-                // 加载处理后的图片
                 this.brushImages[key] = await loadImage(url)
                 console.log(`加载并处理笔刷: ${key}`)
-
-                // 清理URL
                 URL.revokeObjectURL(url)
             })
             await Promise.all(loadPromises)
@@ -236,23 +214,13 @@ export class DrawingTools {
     }
 
     getCanvasPoint(e) {
-        const rect = this.canvas.getBoundingClientRect()
-        const scaleX = this.canvas.width / rect.width
-        const scaleY = this.canvas.height / rect.height
-
-        return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
-        }
+        return 获取事件canvas坐标(e, this.canvas)
     }
-
     startDrawing(e) {
         this.isDrawing = true;
-        // 清空之前的点
         this.points = [];
         this.lastPoint = null;
-        
-        const point = this.getCanvasPoint(e);
+        const point = 获取事件canvas坐标(e, this.canvas);
         this.points.push({
             x: point.x,
             y: point.y,
@@ -267,23 +235,18 @@ export class DrawingTools {
     // 修改处理带颜色的画笔图片方法
     async processColoredBrush(brushKey, color) {
         const cacheKey = `${brushKey}-${color}-${this.currentOpacity}-${this.currentBlendMode}`;
-
         if (this.currentBrush?.cacheKey === cacheKey) {
             return this.currentBrush.img;
         }
-
         if (this.coloredBrushCache.has(cacheKey)) {
             const cached = this.coloredBrushCache.get(cacheKey);
             this.currentBrush = { cacheKey, img: cached };
             return cached;
         }
-
         try {
-            const rgb = this.hexToRgb(color)
+            const rgb = hexToRgb(color)
             if (!rgb) throw new Error('无效的颜色值')
-
             let originalImage = await fromURL(this.brushes[brushKey])
-
             // 调整大小并提取alpha通道
             let alphaChannel = await originalImage
                 .resize(this.brushSizes[brushKey].width, this.brushSizes[brushKey].height, {
@@ -291,20 +254,16 @@ export class DrawingTools {
                     background: { r: 0, g: 0, b: 0, alpha: 0 }
                 })
                 .extractChannel(3) // 提取alpha通道
-
             // 为水彩笔刷添加随机噪波效果
             if (brushKey === 'watercolor') {
                 alphaChannel = await alphaChannel
                     .raw()
                     .toBuffer()
                     .then(buffer => {
-                        // 创建带随机噪波的新buffer
                         const newBuffer = Buffer.alloc(buffer.length * 3)
                         for (let i = 0; i < buffer.length; i++) {
                             const alpha = buffer[i]
-                            // 生成-20到20之间的随机噪波
                             const noise = Math.floor(Math.random() * 41) - 20
-                            // 混合原始alpha值和噪波，确保在0-255范围内
                             newBuffer[i] = Math.max(0, Math.min(255,
                                 Math.floor((alpha + noise) * this.currentOpacity)
                             ))
@@ -318,11 +277,8 @@ export class DrawingTools {
                         }).png()
                     })
             } else {
-                // 非水彩笔刷正常处理透明度
                 alphaChannel = await alphaChannel.linear(this.currentOpacity, 0)
             }
-
-            // 创建RGB通道
             const rgbImage = await sharp({
                 create: {
                     width: this.brushSizes[brushKey].width,
@@ -331,8 +287,6 @@ export class DrawingTools {
                     background: { r: rgb.r, g: rgb.g, b: rgb.b }
                 }
             }).raw().toBuffer()
-
-            // 使用joinChannel合成最终图片
             const processedImageBuffer = await sharp(rgbImage, {
                 raw: {
                     width: this.brushSizes[brushKey].width,
@@ -343,21 +297,12 @@ export class DrawingTools {
                 .joinChannel(await alphaChannel.toBuffer())
                 .png()
                 .toBuffer()
-
-            // 转换为Blob并创建URL
             const blob = new Blob([processedImageBuffer], { type: 'image/png' })
             const url = URL.createObjectURL(blob)
-
-            // 加载处理后的图片
             const img = await loadImage(url)
-
-            // 更新缓存
             this.coloredBrushCache.set(cacheKey, img);
             this.currentBrush = { cacheKey, img };
-
-            // 清理URL
             URL.revokeObjectURL(url)
-
             return img
         } catch (error) {
             console.error('处理彩色画笔失败:', error)
@@ -365,46 +310,20 @@ export class DrawingTools {
         }
     }
 
-    // 添加辅助方法：将十六进制颜色转换为RGB对象
-    hexToRgb(hex) {
-        // 确保颜色值以#开头
-        const validHex = hex.startsWith('#') ? hex : `#${hex}`;
-        
-        // 支持 3 位和 6 位十六进制
-        const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-        const processedHex = validHex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
-        
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(processedHex);
-        if (!result) {
-            console.warn('无效的颜色值:', hex);
-            return { r: 0, g: 0, b: 0 }; // 返回默认黑色而不是 null
-        }
-        
-        return {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        };
-    }
+
 
     // 修改绘制方法
     draw = async (e) => {
         if (!this.isDrawing) return;
-
-        const point = this.getCanvasPoint(e);
-        
-        // 使用当前工具的配置
+        const point = 获取事件canvas坐标(e, this.canvas);
         const toolConfig = this.toolConfigs[this.currentTool];
         const actualOpacity = this.currentOpacity || toolConfig.defaultOpacity;
-        
-        // 只有需要画笔的工具才处理画笔图片
         if (!['pen', 'flatBrush'].includes(this.currentTool)) {
             const brushKey = `${this.currentTool}-${this.currentColor}-${actualOpacity}-${this.currentBlendMode}`;
             if (!this.currentBrush || this.currentBrush.cacheKey !== brushKey) {
                 this.brushImages[this.currentTool] = await this.processColoredBrush(this.currentTool, this.currentColor);
             }
         }
-
         this.points.push({
             x: point.x,
             y: point.y,
@@ -416,29 +335,21 @@ export class DrawingTools {
             isStart: false
         });
     }
-
     async renderPoints() {
         if (this.points.length < 2 || this.isRendering) return;
-
         this.isRendering = true;
         let lastPoint = null;
-
         for (const point of this.points) {
             if (!lastPoint) {
                 lastPoint = point;
                 continue;
             }
-
             this.drawStroke(lastPoint, point);
             lastPoint = point;
         }
-
-        // 保留最后一个点
         this.points = this.points.slice(-1);
         this.isRendering = false;
     }
-
-    // 修改绘制笔画方法
     async drawStroke(lastPoint, point) {
         const drawFn = {
             'marker': this.drawMarker,
@@ -448,7 +359,6 @@ export class DrawingTools {
             'pen': this.drawPen,
             'flatBrush': this.drawFlatBrush
         }[point.tool];
-
         if (drawFn) {
             const pressure = point.pressure || 1.0;
             const sizeMultiplier = pressure * 0.5 + 0.5; // 压感对大小的影响较小
@@ -471,10 +381,8 @@ export class DrawingTools {
         const dy = endY - startY
         const distance = Math.sqrt(dx * dx + dy * dy)
         const angle = Math.atan2(dy, dx)
-
         this.ctx.save()
         this.ctx.globalAlpha = opacity / 10
-
         for (let i = 0; i < distance; i += spacing) {
             const x = startX + (Math.cos(angle) * i)
             const y = startY + (Math.sin(angle) * i)
@@ -486,10 +394,8 @@ export class DrawingTools {
                 size * 10
             )
         }
-
         this.ctx.restore()
     }
-
     drawWideMarker(startX, startY, endX, endY, color, size, opacity) {
         this.ctx.save()
         this.ctx.globalAlpha = opacity / 30
@@ -499,11 +405,9 @@ export class DrawingTools {
         const dy = endY - startY
         const distance = Math.sqrt(dx * dx + dy * dy)
         const angle = Math.atan2(dy, dx)
-
         for (let i = 0; i < distance; i += spacing) {
             const x = startX + (Math.cos(angle) * i)
             const y = startY + (Math.sin(angle) * i)
-
             this.ctx.drawImage(
                 this.brushImages.wideMaker,
                 x - (size * 15) / 2,
@@ -512,7 +416,6 @@ export class DrawingTools {
                 size * 15
             )
         }
-
         this.ctx.restore()
     }
 
@@ -572,109 +475,92 @@ export class DrawingTools {
     drawPen(startX, startY, endX, endY, color, size, opacity) {
         this.ctx.save();
         this.ctx.globalAlpha = opacity;
-        
+
         const spacing = 0.5; // 非常密集的间距
         const dx = endX - startX;
         const dy = endY - startY;
         const distance = Math.sqrt(dx * dx + dy * dy);
         const angle = Math.atan2(dy, dx);
-        
+
         for (let i = 0; i < distance; i += spacing) {
             const x = startX + (Math.cos(angle) * i);
             const y = startY + (Math.sin(angle) * i);
-            
+
             this.ctx.beginPath();
             this.ctx.arc(x, y, size, 0, Math.PI * 2);
             this.ctx.fillStyle = color;
             this.ctx.fill();
         }
-        
+
         this.ctx.restore();
     }
 
     drawFlatBrush(startX, startY, endX, endY, color, size, opacity) {
         this.ctx.save();
         this.ctx.globalAlpha = opacity;
-        
+
         const spacing = 0.5; // 非常密集的间距
         const dx = endX - startX;
         const dy = endY - startY;
         const distance = Math.sqrt(dx * dx + dy * dy);
         const angle = Math.atan2(dy, dx);
-        
+
         for (let i = 0; i < distance; i += spacing) {
             const x = startX + (Math.cos(angle) * i);
             const y = startY + (Math.sin(angle) * i);
-            
+
             this.ctx.fillStyle = color;
             this.ctx.fillRect(
-                x - (size * 2), 
+                x - (size * 2),
                 y - size / 2,
                 size * 4,
                 size
             );
         }
-        
+
         this.ctx.restore();
     }
-
     stopDrawing() {
         if (this.pointCollector.points.length > 0) {
             this.processPoints(); // 处理剩余的点
         }
-        
         this.isDrawing = false;
         this.points = [];
         this.pointCollector.points = [];
         this.pointCollector.lastTime = performance.now();
     }
-
-    // 添加清理方法
     clearBrushCache() {
         this.coloredBrushCache.clear();
         this.currentBrush = null;
     }
-
-    // 添加设置透明度的方法
     setOpacity(opacity) {
         this.currentOpacity = Math.max(0, Math.min(1, opacity));
         this.clearBrushCache(); // 清除缓存以重新生成带新透明度的画笔
     }
-
-    // 添加设置混合模式的方法
     setBlendMode(mode) {
         if (this.blendModes.includes(mode)) {
             this.currentBlendMode = mode;
             this.clearBrushCache(); // 清除缓存以重新生成画笔
         }
     }
-
-    // 获取压感值的辅助方法
     getPressure(e) {
         if (this.pressureSupported && e.pressure !== undefined && e.pressure !== 0) {
             return e.pressure;
         }
         return 1.0;
     }
-
-    // 指针事件处理器
     handlePointerDown(e) {
         this.currentTool = this.currentTool;  // 确保使用当前选中的工具
         this.currentColor = this.currentColor;  // 确保使用当前选中的颜色
         this.startDrawing(e);
     }
-
     handlePointerMove(e) {
         if (!this.isDrawing) return;
-
         if (e.getCoalescedEvents) {
-            // 处理合并的事件点
             const events = e.getCoalescedEvents();
             for (const event of events) {
                 this.draw(event);
             }
-            
-            // 根据开关决定是否使用预测点
             if (this.usePredictedPoints && e.getPredictedEvents) {
                 const predicted = e.getPredictedEvents();
                 for (const event of predicted) {
@@ -685,16 +571,12 @@ export class DrawingTools {
             this.draw(e);
         }
     }
-
     handlePointerUp(e) {
         this.stopDrawing();
     }
-
-    // 添加工具切换方法
     setTool(toolName) {
         if (this.toolConfigs[toolName]) {
             this.currentTool = toolName;
-            // 切换工具时应用该工具的默认配置
             const config = this.toolConfigs[toolName];
             this.currentColor = config.defaultColor;
             this.currentSize = config.defaultSize;
@@ -702,11 +584,8 @@ export class DrawingTools {
             this.clearBrushCache(); // 清除缓存以重新生成画笔
         }
     }
-
-    // 简化点收集逻辑
     collectPoint(e) {
-        const point = this.getCanvasPoint(e)
-        
+        const point = 获取事件canvas坐标(e, this.canvas)
         this.points.push({
             x: point.x,
             y: point.y,
@@ -717,77 +596,52 @@ export class DrawingTools {
             opacity: this.currentOpacity
         })
     }
-
     processPoints() {
         const points = this.pointCollector.points;
         if (points.length < 2) return;
-
-        // 简单的点过滤
         const filteredPoints = this.filterPoints(points);
-        
-        // 添加有效点到渲染队列
         for (const point of filteredPoints) {
             this.points.push(point);
         }
-
-        // 保留最后一个点作为下一批的起始点
         this.pointCollector.points = [points[points.length - 1]];
     }
-
     filterPoints(points) {
         return points.reduce((filtered, point, index, array) => {
-            // 第一个点总是保留
             if (filtered.length === 0) {
                 filtered.push(point);
                 return filtered;
             }
-
             const lastPoint = filtered[filtered.length - 1];
             const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
-
-            // 简化的距离检查
-            if (distance >= this.pointProcessConfig.minDistance && 
+            if (distance >= this.pointProcessConfig.minDistance &&
                 distance <= this.pointProcessConfig.maxDistance) {
                 filtered.push(point);
             }
-
             return filtered;
         }, []);
     }
 }
-
 export function initDrawingTest(containerId) {
     const container = document.getElementById(containerId)
     if (!container) {
         console.error('找不到容器:', containerId)
         return
     }
-
-    // 创建测试容器
     container.style.display = 'flex'
     container.style.flexDirection = 'column'
     container.style.gap = '10px'
     container.style.padding = '20px'
-
-    // 创建画布
     const canvas = document.createElement('canvas')
     canvas.width = 4096
-    canvas.height =1960
-
+    canvas.height = 1960
     canvas.style.border = '1px solid #ccc'
     canvas.style.backgroundColor = '#fff'
     container.appendChild(canvas)
-
-    // 初始化绘画工具
     const drawingTools = new DrawingTools(canvas)
-
-    // 创建工具栏
     const toolbar = document.createElement('div')
     toolbar.style.display = 'flex'
     toolbar.style.gap = '10px'
     container.appendChild(toolbar)
-
-    // 定义工具
     const tools = [
         { name: 'marker', label: '尖头马克笔', color: '#e24a4a' },
         { name: 'wideMaker', label: '荧光笔', color: '#f7d147' },
@@ -796,36 +650,28 @@ export function initDrawingTest(containerId) {
         { name: 'pen', label: '钢笔', color: '#000000' },
         { name: 'flatBrush', label: '鸭嘴笔', color: '#000000' }
     ]
-
     let currentTool = tools[0]
     let currentColor = currentTool.color
-    let currentSize = 1
-
-    // 添加工具按钮
     tools.forEach(tool => {
         const button = document.createElement('button')
         button.textContent = tool.label
         button.style.padding = '8px 16px'
         button.style.cursor = 'pointer'
-    
+
         button.addEventListener('click', () => {
             drawingTools.setTool(tool.name);  // 使用新的setTool方法
             colorPicker.value = drawingTools.currentColor;  // 更新颜色选择器的值
         })
         toolbar.appendChild(button)
     })
-
-    // 添加颜色选择器
     const colorPicker = document.createElement('input')
     colorPicker.type = 'color'
     colorPicker.value = currentColor
     colorPicker.onchange = (e) => {
         drawingTools.currentColor = e.target.value;
-        drawingTools.clearBrushCache();  // 清除缓存以重新生成画笔
+        drawingTools.clearBrushCache();  // ��除缓存以重新生成画笔
     }
     toolbar.appendChild(colorPicker)
-
-    // 添加大小滑块
     const sizeSlider = document.createElement('input')
     sizeSlider.type = 'range'
     sizeSlider.min = '0.5'
@@ -837,8 +683,6 @@ export function initDrawingTest(containerId) {
         drawingTools.currentSize = newSize;  // 直接更新 drawingTools 的状态
     }
     toolbar.appendChild(sizeSlider)
-
-    // 添加清除按钮
     const clearButton = document.createElement('button')
     clearButton.textContent = '清除画布'
     clearButton.style.padding = '8px 16px'
@@ -848,8 +692,6 @@ export function initDrawingTest(containerId) {
         ctx.clearRect(0, 0, canvas.width, canvas.height)
     })
     toolbar.appendChild(clearButton)
-
-    // 添加透明度滑块
     const opacitySlider = document.createElement('input');
     opacitySlider.type = 'range';
     opacitySlider.min = '0';
@@ -860,8 +702,6 @@ export function initDrawingTest(containerId) {
         drawingTools.setOpacity(parseFloat(e.target.value));
     };
     toolbar.appendChild(opacitySlider);
-
-    // 添加混合模式选择器
     const blendModeSelect = document.createElement('select');
     blendModeSelect.style.padding = '8px';
     drawingTools.blendModes.forEach(mode => {
@@ -873,68 +713,37 @@ export function initDrawingTest(containerId) {
         }
         blendModeSelect.appendChild(option);
     });
-
     blendModeSelect.onchange = (e) => {
         drawingTools.setBlendMode(e.target.value);
     };
-
-    // 创建标签
     const blendModeLabel = document.createElement('label');
     blendModeLabel.textContent = '混合模式：';
     blendModeLabel.style.display = 'flex';
     blendModeLabel.style.alignItems = 'center';
     blendModeLabel.style.gap = '5px';
     blendModeLabel.appendChild(blendModeSelect);
-
     toolbar.appendChild(blendModeLabel);
-
-    // 添加预测点开关
     const predictContainer = document.createElement('div');
     predictContainer.style.display = 'flex';
     predictContainer.style.alignItems = 'center';
     predictContainer.style.gap = '5px';
-    
     const predictSwitch = document.createElement('input');
     predictSwitch.type = 'checkbox';
     predictSwitch.id = 'predictSwitch';
     predictSwitch.checked = false;
-    
     const predictLabel = document.createElement('label');
     predictLabel.htmlFor = 'predictSwitch';
     predictLabel.textContent = '引用预测点优化';
-    
     predictSwitch.onchange = (e) => {
         drawingTools.usePredictedPoints = e.target.checked;
     };
-    
     predictContainer.appendChild(predictSwitch);
     predictContainer.appendChild(predictLabel);
     toolbar.appendChild(predictContainer);
-
-    // 添加事件监听
-    canvas.addEventListener('mousedown', (e) => {
-        drawingTools.startDrawing(e)
-    }, { passive: true });
-
-    canvas.addEventListener('mousemove', (e) => {
-        drawingTools.draw(e);
-    }, { passive: true });
-
-    canvas.addEventListener('mouseup', () => {
-        drawingTools.stopDrawing()
-    }, { passive: true });
-
-    canvas.addEventListener('mouseleave', () => {
-        drawingTools.stopDrawing()
-    }, { passive: true });
-
     return {
         canvas,
         drawingTools,
-        clear: () => {
-            const ctx = canvas.getContext('2d')
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
-        }
+        clear: () => drawingTools.clearCanvas()
     }
 }
 initDrawingTest('app')
