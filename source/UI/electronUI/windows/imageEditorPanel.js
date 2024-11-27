@@ -22,8 +22,6 @@ export async function 打开图片编辑器窗口(imagePath) {
         imagePath: imagePath,
         baseStyleSrc: '/stage/build/app/' + baseStyleSrc
     });
-    
-    // 使用 URL 参数加载页面
     newWindow.loadURL(import.meta.resolve('./panelStyleEditor.html') + '?' + params.toString());
     newWindowContents.openDevTools()
 }
