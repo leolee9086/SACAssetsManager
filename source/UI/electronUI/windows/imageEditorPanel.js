@@ -13,21 +13,17 @@ export async function 打开图片编辑器窗口(imagePath) {
     });
     const newWindowContents = newWindow.webContents
     require('@electron/remote').require('@electron/remote/main').enable(newWindowContents);    // 加载新的页面
-    newWindow.loadURL(import.meta.resolve('./panelStyleEditor.html'));
+    // 构建带参数的 URL
     const baseStyle = document.querySelector('link[href^="base"]');
-    const baseStyleSrc=baseStyle.getAttribute('href')
-    newWindowContents.on('dom-ready', () => {
-        newWindowContents.executeJavaScript(`
-            window.workspaceDir ='${siyuan.config.system.workspaceDir.replace(/\\/g, '/')}'
-            window.pluginName = '${plugin.name}'
-            window.imagePath = '${imagePath}'
-            try{
-                document.getElementById('baseStyle').setAttribute('href','${'/stage/build/app/'+baseStyleSrc}')
-            }catch(e){
-                console.warn(e)
-            }
-            import('${import.meta.resolve('./app.js')}')
-        `);
+    const baseStyleSrc = baseStyle.getAttribute('href')
+    const params = new URLSearchParams({
+        workspaceDir: siyuan.config.system.workspaceDir.replace(/\\/g, '/'),
+        pluginName: plugin.name,
+        imagePath: imagePath,
+        baseStyleSrc: '/stage/build/app/' + baseStyleSrc
     });
     
+    // 使用 URL 参数加载页面
+    newWindow.loadURL(import.meta.resolve('./panelStyleEditor.html') + '?' + params.toString());
+    newWindowContents.openDevTools()
 }

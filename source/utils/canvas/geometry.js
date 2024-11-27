@@ -33,3 +33,19 @@ export const drawArrow = (ctx, point, side) => {
     ctx.fillStyle = '#67C23A';
     ctx.fill();
   };
+
+
+
+  // 绘制圆形
+export  function drawCircle(ctx, diameter) {
+  ctx.beginPath()
+  ctx.arc(0, 0, diameter / 2, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+// 绘制矩形
+export function drawRectangle(ctx, width, height) {
+  ctx.beginPath()
+  ctx.rect(-width / 2, -height / 2, width, height)
+  ctx.fill()
+}

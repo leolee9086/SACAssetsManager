@@ -1,6 +1,9 @@
 import { brushImageProcessor } from './brushSampleProcessor.js'
 import { hexToRgb, rgbToHex } from "../../color/convert.js"
 import { mixer } from './gpuMix.js'
+import { 计算点距离和角度 } from '../../math/geometry/geom2d.js'
+import { drawCircle,drawRectangle } from '../geometry.js'
+
 /**
  * 笔刷类型定义
  */
@@ -268,7 +271,6 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
 
     try {
         ctx.save()
-        
         // 获取当前变换矩阵
         const transform = ctx.getTransform()
         
@@ -385,19 +387,13 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
 }
 
 function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) {
-    const dx = endX - startX
-    const dy = endY - startY
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    const angle = Math.atan2(dy, dx)
-
+    const {distance,angle}=计算点距离和角度(startX, startY, endX, endY)
     const spacing = config.spacing * effectiveSize
     const numPoints = Math.max(1, Math.floor(distance / spacing))
-
     if (numPoints <= 1) {
         drawBrushPoint(ctx, null, startX, startY, angle, effectiveSize, config)
         return
     }
-
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints
         const x = startX + (distance * t * Math.cos(angle))
@@ -406,17 +402,6 @@ function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) 
     }
 }
 
-function drawCircle(ctx, diameter) {
-    ctx.beginPath()
-    ctx.arc(0, 0, diameter / 2, 0, Math.PI * 2)
-    ctx.fill()
-}
-
-function drawRectangle(ctx, width, height) {
-    ctx.beginPath()
-    ctx.rect(-width / 2, -height / 2, width, height)
-    ctx.fill()
-}
 
 /**
  * 导出笔刷函数

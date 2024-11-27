@@ -1,6 +1,6 @@
 import { requirePluginDeps } from "../../module/requireDeps.js"
 const sharp = requirePluginDeps('sharp')
-import { hexToRgb, rgbToHex } from "../../color/convert.js"
+import { hexToRgb, rgbToHex,rgbToHsl,hslToRgb,rgbToCmy,cmyToRgb } from "../../color/convert.js"
 import { fromURL } from "../../fromDeps/sharpInterface/useSharp/toSharp.js"
 
 const brushImageProcessor = {
@@ -381,29 +381,13 @@ const brushImageProcessor = {
         return true
     },
 
-    // 将 RGB 转换为 CMY (青色、品红、黄色)
-    rgbToCmy(rgb) {
-        return {
-            c: 1 - (rgb.r / 255),
-            m: 1 - (rgb.g / 255),
-            y: 1 - (rgb.b / 255)
-        }
-    },
-
-    // 将 CMY 转换回 RGB
-    cmyToRgb(cmy) {
-        return {
-            r: Math.round((1 - cmy.c) * 255),
-            g: Math.round((1 - cmy.m) * 255),
-            b: Math.round((1 - cmy.y) * 255)
-        }
-    },
+  
 
     // 减色混合
     mixColors(color1, color2, ratio = 0.5) {
         // 转换为 CMY
-        const cmy1 = this.rgbToCmy(color1)
-        const cmy2 = this.rgbToCmy(color2)
+        const cmy1 = rgbToCmy(color1)
+        const cmy2 = rgbToCmy(color2)
 
         // 在 CMY 空间中混合（减色混合）
         const mixedCmy = {
@@ -418,7 +402,7 @@ const brushImageProcessor = {
         mixedCmy.y = Math.min(1, mixedCmy.y)
 
         // 转换回 RGB
-        return this.cmyToRgb(mixedCmy)
+        return cmyToRgb(mixedCmy)
     },
 
     async processPickupEffects() {
@@ -662,71 +646,11 @@ const brushImageProcessor = {
         }
     },
 
-    // RGB 转 RYB
-    rgbToRyb(r, g, b) {
-        // 移除RGB中的白色
-        let w = Math.min(r, g, b)
-        r -= w
-        g -= w
-        b -= w
-
-        let mg = Math.max(r, g, b)
-
-        // 获取黄色
-        let y = Math.min(r, g)
-        r -= y
-        g -= y
-
-        // 如果蓝色和绿色都存在，将绿色的一半转换为黄色
-        if (b && g) {
-            b /= 2
-            g /= 2
-        }
-
-        // 重新分配绿色
-        y += g
-        b += g
-
-        // 归一化到最大值
-        let my = Math.max(r, y, b)
-        if (my) {
-            let n = mg / my
-            r *= n
-            y *= n
-            b *= n
-        }
-
-        return { r, y, b }
-    },
-
-    // RYB 转 RGB
-    rybToRgb(r, y, b) {
-        // 获取绿色
-        let g = y
-
-        // 如果黄色和蓝色都存在，产生绿色
-        if (y && b) {
-            g = b
-            b *= 2
-        }
-
-        // 如果红色和黄色都存在，产生橙色
-        if (r && y) {
-            r = Math.max(r, y)
-        }
-
-        return {
-            r: Math.min(255, Math.round(r)),
-            g: Math.min(255, Math.round(g)),
-            b: Math.min(255, Math.round(b))
-        }
-    },
-
     // 混合两种颜料颜色
     mixPigments(color1, color2, ratio = 0.5) {
         // 转换为 HSL 空间进行混合
-        const hsl1 = this.rgbToHsl(color1.r, color1.g, color1.b);
-        const hsl2 = this.rgbToHsl(color2.r, color2.g, color2.b);
+        const hsl1 = rgbToHsl(color1.r, color1.g, color1.b);
+        const hsl2 = rgbToHsl(color2.r, color2.g, color2.b);
 
         // 智能色相混合
         let h1 = hsl1.h * 360;
@@ -753,7 +677,7 @@ const brushImageProcessor = {
         );
 
         // 转换回 RGB
-        const rgb = this.hslToRgb(hue, sat, light);
+        const rgb = hslToRgb(hue, sat, light);
 
         return {
             r: Math.round(rgb.r),
@@ -762,62 +686,7 @@ const brushImageProcessor = {
         };
     },
 
-    // 添加辅助函数
-    rgbToHsl(r, g, b) {
-        r /= 255;
-        g /= 255;
-        b /= 255;
 
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        let h, s, l = (max + min) / 2;
-
-        if (max === min) {
-            h = s = 0;
-        } else {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-            switch (max) {
-                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                case g: h = (b - r) / d + 2; break;
-                case b: h = (r - g) / d + 4; break;
-            }
-            h /= 6;
-        }
-
-        return { h, s, l };
-    },
-
-    hslToRgb(h, s, l) {
-        let r, g, b;
-
-        if (s === 0) {
-            r = g = b = l;
-        } else {
-            const hue2rgb = (p, q, t) => {
-                if (t < 0) t += 1;
-                if (t > 1) t -= 1;
-                if (t < 1 / 6) return p + (q - p) * 6 * t;
-                if (t < 1 / 2) return q;
-                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-                return p;
-            };
-
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-
-            r = hue2rgb(p, q, h + 1 / 3);
-            g = hue2rgb(p, q, h);
-            b = hue2rgb(p, q, h - 1 / 3);
-        }
-
-        return {
-            r: Math.round(r * 255),
-            g: Math.round(g * 255),
-            b: Math.round(b * 255)
-        };
-    }
 }
 
 // 导出笔刷图片处理器

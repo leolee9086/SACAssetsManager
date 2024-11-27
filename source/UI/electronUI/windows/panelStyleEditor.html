@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <link id="baseStyle" href="" rel="stylesheet">
     <meta charset="UTF-8">
@@ -29,6 +30,9 @@
             -webkit-app-region: no-drag;
         }
     </style>
+    <script type="module">
+        import './app.js'
+    </script>
 </head>
 
 <body>
@@ -37,17 +41,52 @@
         </div>
         <div class="title-group right" id="title-group-right">
             <div id="devTools" class="button">开发者工具</div>
-
             <div id="minimize" class="button">最小化</div>
             <div id="maximize" class="button">最大化</div>
             <div id="close" class="button">关闭</div>
         </div>
     </div>
-<div id="app"></div>
-   <!--<div id="app" class="fn__flex fn__flex-column" 
+    <div id="app"></div>
+    <!--<div id="app" class="fn__flex fn__flex-column" 
     style="width:100vw;height: calc(100vh - 71px);"
     >
-    </div>--> 
+    </div>-->
+    <script>
+        // 在 panelStyleEditor.html 的脚本中
+        const urlParams = new URLSearchParams(window.location.search);
+        window.workspaceDir = urlParams.get('workspaceDir');
+        window.pluginName = urlParams.get('pluginName');
+        window.imagePath = urlParams.get('imagePath');
+        // 设置基础样式
+        try {
+            document.getElementById('baseStyle').setAttribute('href', urlParams.get('baseStyleSrc'));
+        } catch (e) {
+            console.warn(e);
+        }
+        const remote = require('@electron/remote');
+        const currentWindow = remote.getCurrentWindow();
+        document.getElementById('minimize').addEventListener('click', () => {
+            currentWindow.minimize();
+        });
+        document.getElementById('maximize').addEventListener('click', () => {
+            if (currentWindow.isMaximized()) {
+                currentWindow.unmaximize();
+            } else {
+                currentWindow.maximize();
+            }
+        });
+        document.getElementById('close').addEventListener('click', () => {
+            currentWindow.close();
+        });
+        document.getElementById('devTools').addEventListener('click', () => {
+            if (currentWindow.webContents.isDevToolsOpened()) {
+                currentWindow.webContents.closeDevTools();
+            } else {
+                currentWindow.webContents.openDevTools();
+            }
+        });
+
+    </script>
 
 </body>
 
