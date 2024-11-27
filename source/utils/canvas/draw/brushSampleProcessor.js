@@ -11,11 +11,11 @@ const brushImageProcessor = {
     pickupHistory: [],
     flowEffects: {
         active: new Set(),
-        gravity: 0.2,        // 增加重力
-        tension: 0.4,        // 增加表面张力
-        viscosity: 0.92,     // 调整粘度
-        maxFlowDistance: 150, // 增加最大流动距离
-        minOpacity: 0.15,    // 提高最小不透明度
+        gravity: 0.2,        // 保持重力
+        tension: 0.4,        // 保持表面张力
+        viscosity: 0.92,     // 保持粘度
+        maxFlowDistance: 50, // 减小最大流动距离
+        minOpacity: 0.05,    // 降低最小不透明度
     },
 
     async bufferToImage(buffer) {
@@ -457,7 +457,7 @@ const brushImageProcessor = {
         if (!this.currentBrush) return
 
         try {
-            // 确保颜色值在合理范围内
+            // 确保颜色值在合理范围���
             const color = {
                 r: Math.min(255, Math.max(0, Math.round(mixedColor.r))),
                 g: Math.min(255, Math.max(0, Math.round(mixedColor.g))),
@@ -492,24 +492,41 @@ const brushImageProcessor = {
 
     // 添加流动效果
     addFlowEffect(position, color, pressure, options = {}) {
+        // 从当前笔刷中获取颜色
+        let effectColor 
+        if (!effectColor && this.currentBrush) {
+            const hexColor = this.currentBrush.cacheKey.split('-')[1]
+            if (hexColor) {
+                effectColor = hexToRgb(hexColor)
+            }
+        }
+
+        if (!effectColor) {
+            console.warn('无法获取有效的颜色，使用默认颜色')
+            effectColor = { r: 0, g: 0, b: 0 }
+        }
+
+        // 进一步降低基础不透明度
+        const baseOpacity = Math.min(0.3, pressure)
+
         const flowEffect = {
             id: Date.now() + Math.random(),
             position: { ...position },
             velocity: { x: 0, y: 0 },
-            color: { ...color },
+            color: effectColor,
             pressure,
-            opacity: Math.min(1, pressure * 0.8),
+            opacity: baseOpacity,
             age: 0,
             droplets: [],
             options: {
                 type: 'watercolor',
-                spread: 0.3,
+                spread: 0.2,
                 ...options
             }
         }
 
-        // 添加初始水滴
-        this.addDroplets(flowEffect, 3 + Math.floor(pressure * 5))
+        // 保持较少的水滴数量
+        this.addDroplets(flowEffect, 1 + Math.floor(pressure * 2))
 
         this.flowEffects.active.add(flowEffect)
         this.startFlowAnimation()
@@ -519,7 +536,10 @@ const brushImageProcessor = {
     addDroplets(flowEffect, count) {
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * Math.PI * 2
-            const distance = Math.random() * 5 * flowEffect.pressure
+            const distance = Math.random() * 3 * flowEffect.pressure
+
+            // 进一步降低初始不透明度
+            const dropletOpacity = flowEffect.opacity * (0.1 + Math.random() * 0.2)
 
             flowEffect.droplets.push({
                 position: {
@@ -527,11 +547,11 @@ const brushImageProcessor = {
                     y: flowEffect.position.y + Math.sin(angle) * distance
                 },
                 velocity: {
-                    x: Math.random() * 2 - 1,
-                    y: Math.random() * 2
+                    x: (Math.random() * 1 - 0.5) * flowEffect.pressure,
+                    y: Math.random() * 1 * flowEffect.pressure
                 },
-                size: (0.5 + Math.random() * 0.5) * flowEffect.pressure * 5,
-                opacity: flowEffect.opacity * (0.7 + Math.random() * 0.3)
+                size: (0.3 + Math.random() * 0.4) * flowEffect.pressure * 4,
+                opacity: dropletOpacity
             })
         }
     },
@@ -557,7 +577,6 @@ const brushImageProcessor = {
         for (const effect of this.flowEffects.active) {
             effect.age++
 
-            // 更新每个水滴
             effect.droplets = effect.droplets.filter(droplet => {
                 // 应用重力
                 droplet.velocity.y += this.flowEffects.gravity
@@ -570,19 +589,23 @@ const brushImageProcessor = {
                 droplet.position.x += droplet.velocity.x
                 droplet.position.y += droplet.velocity.y
 
-                // 减小不透明度
-                droplet.opacity *= 0.98
+                // 更平缓的不透明度衰减
+                droplet.opacity *= 0.99
 
-                // 随机添加新的水滴
-                if (Math.random() < 0.1 * effect.pressure) {
+                // 降低分裂概率
+                if (Math.random() < 0.02 * effect.pressure) {
                     this.splitDroplet(effect, droplet)
                 }
 
-                // 保持水滴存活，直到不透明度太低
-                return droplet.opacity > this.flowEffects.minOpacity
+                // 检查距离限制
+                const dx = droplet.position.x - effect.position.x
+                const dy = droplet.position.y - effect.position.y
+                const distance = Math.sqrt(dx * dx + dy * dy)
+
+                return distance < this.flowEffects.maxFlowDistance 
+                    && droplet.opacity > this.flowEffects.minOpacity
             })
 
-            // 如果所有水滴都消失，移除这个效果
             if (effect.droplets.length === 0) {
                 this.flowEffects.active.delete(effect)
             }
@@ -591,16 +614,17 @@ const brushImageProcessor = {
 
     // 分裂水滴
     splitDroplet(effect, parentDroplet) {
-        if (Math.random() > effect.pressure) return
+        if (Math.random() > effect.pressure * 0.5) return
 
         const newDroplet = {
             position: { ...parentDroplet.position },
             velocity: {
-                x: parentDroplet.velocity.x + (Math.random() - 0.5) * 2,
-                y: parentDroplet.velocity.y + Math.random()
+                x: parentDroplet.velocity.x + (Math.random() - 0.5),
+                y: parentDroplet.velocity.y + Math.random() * 0.5
             },
-            size: parentDroplet.size * 0.6,
-            opacity: parentDroplet.opacity * 0.7
+            size: parentDroplet.size * 0.5,
+            // 子水滴继承更低的不透明度
+            opacity: parentDroplet.opacity * 0.3
         }
 
         effect.droplets.push(newDroplet)
@@ -612,13 +636,17 @@ const brushImageProcessor = {
             for (const droplet of effect.droplets) {
                 ctx.save()
 
-                // 设置混合模式
-                ctx.globalCompositeOperation = 'source-over'
+                // 改为变亮混合模式
+                ctx.globalCompositeOperation = 'lighten'
 
-                // 设置颜色和不透明度
-                ctx.fillStyle = `rgba(${effect.color.r}, ${effect.color.g}, ${effect.color.b}, ${droplet.opacity})`
+                const r = effect.color?.r ?? 0
+                const g = effect.color?.g ?? 0
+                const b = effect.color?.b ?? 0
+                // 确保最大不透明度非常低
+                const a = Math.min(0.05, droplet.opacity ?? 0.02)
 
-                // 绘制水滴
+                ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`
+
                 ctx.beginPath()
                 ctx.arc(
                     droplet.position.x,

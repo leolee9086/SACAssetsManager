@@ -227,21 +227,16 @@ async function drawImageBrush(ctx, sample, config, startX, startY, distance, ang
         const t = i / numPoints
         const x = startX + (distance * t * Math.cos(angle))
         const y = startY + (distance * t * Math.sin(angle))
-
-        // 添加随机抖动
         const jitter = config.jitter || 0
         const offsetX = jitter ? (Math.random() - 0.5) * jitter * effectiveSize : 0
         const offsetY = jitter ? (Math.random() - 0.5) * jitter * effectiveSize : 0
-
         // 计算每个点的转角度
         let pointAngle = angle
         if (config.angleJitter) {
             pointAngle += (Math.random() - 0.5) * config.angleJitter
         }
-
         // 计算当前点的压力（可以根据距离渐变）
         const pointPressure = config.pressure * (1 - (i / numPoints) * 0.3)
-
         // 将每个点的绘制操作添加到数组中
         drawOperations.push(
             drawBrushPoint(
@@ -258,18 +253,15 @@ async function drawImageBrush(ctx, sample, config, startX, startY, distance, ang
             )
         )
     }
-
     // 按顺序执行所有绘制操作
     for (const operation of drawOperations) {
         await operation
     }
-
     // 最后一次渲染流动效果
     if (config.flowEnabled) {
         brushImageProcessor.renderFlowEffects(ctx)
     }
 }
-
 async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
     const width = size * (config.widthMultiplier || 1)
     const height = size * (config.heightMultiplier || 1)
@@ -350,17 +342,22 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
                 
                 // 处理流动效果 - 使用世界坐标
                 if (config.flowEnabled) {
-                    const currentColor = ctx.fillStyle || '#000000'
-                    const rgb = typeof currentColor === 'string' ?
-                        hexToRgb(currentColor) :
-                        { r: 0, g: 0, b: 0 }
+                    // 获取当前的填充颜色
+                    const currentStyle = ctx.fillStyle
+                    let rgb
+                    if (typeof currentStyle === 'string') {
+                        rgb = hexToRgb(currentStyle)
+                    } else {
+                        console.warn('未能识别的颜色格式:', currentStyle)
+                        rgb = { r: 0, g: 0, b: 0 }
+                    }
 
                     // 临时重置变换以添加流动效果
                     const currentState = ctx.save()
                     ctx.setTransform(1, 0, 0, 1, 0, 0)
                     
                     await brushImageProcessor.addFlowEffect(
-                        { x, y },
+                        effectPoint, // 使用之前计算的effectPoint
                         rgb,
                         config.pressure || 1,
                         {
