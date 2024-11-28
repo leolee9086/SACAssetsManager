@@ -44,7 +44,9 @@ export function clearImageCache(src) {
 export class DrawingTools {
     constructor(canvas) {
         this.canvas = canvas
-        this.ctx = canvas.getContext('2d')
+        this.ctx = canvas.getContext('2d', {
+            willReadFrequently: true  // 添加此属性以优化频繁读取性能
+        })
         this.isDrawing = false
         this.points = []
         this.currentTool = 'marker'
@@ -103,6 +105,21 @@ export class DrawingTools {
         this.pressureSupported = ispressureSupported()
 
         if (this.pressureSupported) {
+                // 阻止所有默认的鼠标和触摸事件
+    this.canvas.style.touchAction = 'none';
+    this.canvas.style.userSelect = 'none';
+    this.canvas.style.webkitUserSelect = 'none';
+    this.canvas.style.webkitTouchCallout = 'none';
+    
+    // 阻止默认事件
+    this.canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+    this.canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+    this.canvas.addEventListener('touchend', e => e.preventDefault(), { passive: false });
+    this.canvas.addEventListener('mousedown', e => e.preventDefault(), { passive: false });
+    this.canvas.addEventListener('mousemove', e => e.preventDefault(), { passive: false });
+    this.canvas.addEventListener('mouseup', e => e.preventDefault(), { passive: false });
+    
+
             this.canvas.style.touchAction = 'none';
             this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this), { passive: true });
             this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this), { passive: true });
@@ -148,7 +165,7 @@ export class DrawingTools {
         ];
 
         // 添加基础事件监听
-        this.initBaseEvents();
+       // this.initBaseEvents();
     }
 
     // 添加新方法
@@ -235,8 +252,6 @@ export class DrawingTools {
         const point = 获取事件canvas坐标(e, this.canvas);
         const toolConfig = this.toolConfigs[this.currentTool];
         const actualOpacity = this.currentOpacity || toolConfig.defaultOpacity;
-
-        // 只为图片类型的笔刷处理图片
         if (!['pen', 'flatBrush'].includes(this.currentTool)) {
             const brushImage = await brushImageProcessor.processColoredBrush(
                 this.brushes[this.currentTool],
@@ -359,7 +374,7 @@ export class DrawingTools {
         this.currentColor = this.currentColor;  // 确保使用当前选中的颜色
         this.startDrawing(e);
     }
-    handlePointerMove(e) {
+    async handlePointerMove(e) {
         if (!this.isDrawing) return;
         if (e.getCoalescedEvents) {
             const events = e.getCoalescedEvents();

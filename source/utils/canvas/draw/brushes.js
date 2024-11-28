@@ -1,9 +1,6 @@
 import { brushImageProcessor } from './brushSampleProcessor.js'
 import { hexToRgb, rgbToHex } from "../../color/convert.js"
 import { mixer } from './gpuMix.js'
-import { 计算点距离和角度 } from '../../math/geometry/geom2d.js'
-import { drawCircle,drawRectangle } from '../geometry.js'
-
 /**
  * 笔刷类型定义
  */
@@ -19,7 +16,7 @@ const BRUSH_TYPES = {
 const brushConfigs = {
     尖头马克笔: {
         type: BRUSH_TYPES.IMAGE,
-        opacity: 0.1,
+        opacity: 1,
         spacing: 1,
         sizeMultiplier: 10,
     },
@@ -32,14 +29,15 @@ const brushConfigs = {
     },
     水彩笔: {
         type: BRUSH_TYPES.IMAGE,
-        opacity:  1,
-        spacing: 1,
+        opacity:0.7,
+        spacing: 0.08,
         sizeMultiplier: 20,
         compositeOperation: 'source-over',
         pickupEnabled: true,  // 启用沾染
-       pickupRadius: 20,     // 沾染影响半径
-       pickupDecay: 0.95,    // 沾衰减率
-     flowEnabled: true,
+        pickupRadius: 20,     // 沾染影响半径
+        pickupDecay: 0.95,    // 沾衰减率
+        flowEnabled: true,
+        usePigment:true
     },
     铅笔: {
         type: BRUSH_TYPES.IMAGE,
@@ -213,118 +211,60 @@ function calculateEffectiveOpacity(config, opacity, pressure, velocity) {
 
 // 修改 drawImageBrush 函数
 async function drawImageBrush(ctx, sample, config, startX, startY, distance, angle, effectiveSize) {
+    // 计算笔触间距
     const spacing = config.spacing * effectiveSize
     const numPoints = Math.max(1, Math.floor(distance / spacing))
-
-    // 特殊处理单点情况
     if (numPoints <= 1) {
         await drawBrushPoint(ctx, sample, startX, startY, angle, effectiveSize, config)
         return
     }
-
-    // 创建一个数组来存储所有的绘制操作
     const drawOperations = []
-
-    // 准备所有绘制点
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints
         const x = startX + (distance * t * Math.cos(angle))
         const y = startY + (distance * t * Math.sin(angle))
+
+        // 添加随机抖动
         const jitter = config.jitter || 0
         const offsetX = jitter ? (Math.random() - 0.5) * jitter * effectiveSize : 0
         const offsetY = jitter ? (Math.random() - 0.5) * jitter * effectiveSize : 0
+
         // 计算每个点的转角度
         let pointAngle = angle
         if (config.angleJitter) {
             pointAngle += (Math.random() - 0.5) * config.angleJitter
         }
-        // 计算当前点的压力（可以根据距离渐变）
-        const pointPressure = config.pressure * (1 - (i / numPoints) * 0.3)
+
         // 将每个点的绘制操作添加到数组中
         drawOperations.push(
             drawBrushPoint(
-                ctx, 
-                sample, 
-                x + offsetX, 
-                y + offsetY, 
-                pointAngle, 
+                ctx,
+                sample,
+                x + offsetX,
+                y + offsetY,
+                pointAngle,
                 effectiveSize,
-                {
-                    ...config,
-                    pressure: pointPressure
-                }
+                config
             )
         )
     }
+
     // 按顺序执行所有绘制操作
     for (const operation of drawOperations) {
         await operation
     }
-    // 最后一次渲染流动效果
-    if (config.flowEnabled) {
-        brushImageProcessor.renderFlowEffects(ctx)
-    }
 }
+
 async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
     const width = size * (config.widthMultiplier || 1)
     const height = size * (config.heightMultiplier || 1)
-
     try {
-        ctx.save()
-        // 获取当前变换矩阵
-        const transform = ctx.getTransform()
-        
-        // 使用变换矩阵计算实际的世界坐标
-        const worldPoint = {
-            x: x * transform.a + y * transform.c + transform.e,
-            y: x * transform.b + y * transform.d + transform.f
-        }
 
-        // 处理特殊效果的偏移
-        let offsetX = 0
-        let offsetY = 0
-        if (config.spreadFactor) {
-            const spread = size * config.spreadFactor * Math.random()
-            offsetX = spread * (Math.random() - 0.5)
-            offsetY = spread * (Math.random() - 0.5)
-        }
-
-        // 计算偏移后的世界坐标
-        const effectPoint = {
-            x: worldPoint.x + (offsetX * transform.a + offsetY * transform.c),
-            y: worldPoint.y + (offsetX * transform.b + offsetY * transform.d)
-        }
-
-        // 处理沾染效果 - 使用世界坐标
-        if (config.pickupEnabled) {
-            // 临时重置变换以处理沾染
-            const currentState = ctx.save()
-            ctx.setTransform(1, 0, 0, 1, 0, 0)
-            
-            await brushImageProcessor.recordPickup(
-                Date.now(),
-                effectPoint,
-                ctx,
-                config.pressure || 1
-            )
-            
-            ctx.restore(currentState)
-        }
-
-        // 应用绘制变换
-        ctx.translate(x, y)
-        ctx.rotate(angle + (config.angle || 0) * Math.PI / 180)
-
-        // 应用特殊效果的偏移
-        if (config.spreadFactor) {
-            ctx.translate(offsetX, offsetY)
-        }
 
         // 处理笔刷纹理
         if (config.textureStrength) {
             ctx.globalAlpha *= (1 - Math.random() * config.textureStrength)
         }
-
         if (config.type === BRUSH_TYPES.SHAPE) {
             // 几何笔刷直接绘制
             switch (config.shape) {
@@ -338,47 +278,14 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
                     drawCircle(ctx, width)
             }
         } else if (sample) {
-            // 图像笔刷绘制
-            try {
-                ctx.drawImage(sample, -width/2, -height/2, width, height)
-                
-                // 处理流动效果 - 使用世界坐标
-                if (config.flowEnabled) {
-                    // 获取当前的填充颜色
-                    const currentStyle = ctx.fillStyle
-                    let rgb
-                    if (typeof currentStyle === 'string') {
-                        rgb = hexToRgb(currentStyle)
-                    } else {
-                        console.warn('未能识别的颜色格式:', currentStyle)
-                        rgb = { r: 0, g: 0, b: 0 }
-                    }
 
-                    // 临时重置变换以添加流动效果
-                    const currentState = ctx.save()
-                    ctx.setTransform(1, 0, 0, 1, 0, 0)
-                    
-                    await brushImageProcessor.addFlowEffect(
-                        effectPoint, // 使用之前计算的effectPoint
-                        rgb,
-                        config.pressure || 1,
-                        {
-                            type: 'watercolor',
-                            context: ctx,
-                            spread: config.spreadFactor || 0.3
-                        }
-                    )
+            if(config.usePigment){
+                mixer.mixColors(ctx, sample, x-width / 2, y- height / 2, width, height)
 
-                    // 渲染流动效果
-                    brushImageProcessor.renderFlowEffects(ctx)
-
-                    ctx.restore(currentState)
-                }
-            } catch (error) {
-                console.error('绘制失败:', error)
+            }else{
+            ctx.drawImage(sample, x-width / 2, y- height / 2, width, height)
             }
         }
-
     } catch (error) {
         console.error('绘制点失败:', error)
     } finally {
@@ -387,13 +294,19 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
 }
 
 function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) {
-    const {distance,angle}=计算点距离和角度(startX, startY, endX, endY)
+    const dx = endX - startX
+    const dy = endY - startY
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    const angle = Math.atan2(dy, dx)
+
     const spacing = config.spacing * effectiveSize
     const numPoints = Math.max(1, Math.floor(distance / spacing))
+
     if (numPoints <= 1) {
         drawBrushPoint(ctx, null, startX, startY, angle, effectiveSize, config)
         return
     }
+
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints
         const x = startX + (distance * t * Math.cos(angle))
@@ -402,6 +315,17 @@ function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) 
     }
 }
 
+function drawCircle(ctx, diameter) {
+    ctx.beginPath()
+    ctx.arc(0, 0, diameter / 2, 0, Math.PI * 2)
+    ctx.fill()
+}
+
+function drawRectangle(ctx, width, height) {
+    ctx.beginPath()
+    ctx.rect(-width / 2, -height / 2, width, height)
+    ctx.fill()
+}
 
 /**
  * 导出笔刷函数

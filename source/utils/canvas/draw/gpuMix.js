@@ -7,6 +7,69 @@ const device = await adapter.requestDevice({
     }
 });
 
+// 在 WebGPUMixer 类的开始添加 BufferPool 类
+class BufferPool {
+    constructor(device, maxSize = 10) {
+        this.device = device;
+        this.pools = new Map();
+        this.maxSize = maxSize;
+    }
+
+    getBuffer(size, usage) {
+        const key = `${size}_${usage}`;
+        if (!this.pools.has(key)) {
+            this.pools.set(key, []);
+        }
+        const pool = this.pools.get(key);
+        if (pool.length > 0) {
+            const buffer = pool.pop();
+            // 如果是需要映射的缓冲区，确保它处于映射状态
+            if (usage & GPUBufferUsage.MAP_WRITE) {
+                return this.device.createBuffer({
+                    size,
+                    usage,
+                    mappedAtCreation: true
+                });
+            }
+            return buffer;
+        }
+        return this.createBuffer(size, usage);
+    }
+
+    returnBuffer(buffer) {
+        // 如果缓冲区是可映射的，我们不重用它
+        if (buffer.usage & GPUBufferUsage.MAP_WRITE) {
+            buffer.destroy();
+            return;
+        }
+
+        const key = `${buffer.size}_${buffer.usage}`;
+        const pool = this.pools.get(key) || [];
+        if (pool.length < this.maxSize) {
+            pool.push(buffer);
+            this.pools.set(key, pool);
+        } else {
+            buffer.destroy();
+        }
+    }
+
+    createBuffer(size, usage) {
+        return this.device.createBuffer({
+            size,
+            usage,
+            // 如果是需要映射的缓冲区，创建时就进行映射
+            mappedAtCreation: !!(usage & GPUBufferUsage.MAP_WRITE)
+        });
+    }
+
+    clear() {
+        for (const pool of this.pools.values()) {
+            pool.forEach(buffer => buffer.destroy());
+        }
+        this.pools.clear();
+    }
+}
+
 export class WebGPUMixer {
     constructor() {
         this.device = device;
@@ -18,8 +81,7 @@ export class WebGPUMixer {
 
         // 添加资源池
         this.texturePool = new Map();
-        this.bufferPool = new Map();
-        this.maxPoolSize = 10; // 限制池大小
+        this.bufferPool = null; // 将在 init 方法中初始化
 
         // 初始化离屏canvas
         this.offscreenCanvas = new OffscreenCanvas(1, 1);
@@ -39,12 +101,19 @@ export class WebGPUMixer {
         // 添加新的参数
         this.pigmentParams = {
             scatteringCoeff: 10.0,
-            thicknessScale: 1.0,
-            alphaExponent: 1.5,
-            ditherStrength: 0.001
+            thicknessScale: 1.5,
+            alphaExponent: 1.8,
+            ditherStrength: 0.02,
+            maxOpacity: 0.1,
+            canvasWeight: 0.3
+
         };
 
         this.paramUpdateQueue = Promise.resolve(); // 添加参数更新队列
+        this.textureCache = new Map(); // 添加纹理缓存
+        this.pendingOperations = Promise.resolve(); // 添加操作队列
+
+
     }
 
     initStagingBuffer() {
@@ -104,12 +173,10 @@ export class WebGPUMixer {
                     @builtin(position) position: vec4f,
                     @location(0) texCoord: vec2f,
                 }
-
                 struct KMCoefficients {
                     K: vec3f,  // 吸收系数
                     S: vec3f   // 散射系数
                 }
-
                 struct PigmentParams {
                     scatteringCoeff: f32,    // 散射系数基准值
                     thicknessScale: f32,     // 厚度缩放因子
@@ -118,13 +185,11 @@ export class WebGPUMixer {
                     maxOpacity: f32,         // 最大不透明度
                     canvasWeight: f32        // 画布颜色权重
                 }
-
                 // 绑定组声明
                 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
                 @group(0) @binding(1) var outputTexture: texture_2d<f32>;
                 @group(0) @binding(2) var textureSampler: sampler;
                 @group(0) @binding(3) var<uniform> params: PigmentParams;
-
                 // 顶点着色器
                 @vertex
                 fn vertexMain(@location(0) position: vec2f) -> VertexOutput {
@@ -133,7 +198,6 @@ export class WebGPUMixer {
                     output.texCoord = position * 0.5 + 0.5;
                     return output;
                 }
-
                 // 色彩空间转换函数
                 fn sRGBToLinear(srgb: vec3f) -> vec3f {
                     let cutoff = vec3f(0.04045);
@@ -141,20 +205,17 @@ export class WebGPUMixer {
                     let a = vec3f(0.055);
                     let gamma = vec3f(2.4);
                     let scale = vec3f(1.0 / 1.055);
-                    
                     return select(
                         pow((srgb + a) * scale, gamma),
                         srgb * slope,
                         srgb <= cutoff
                     );
                 }
-
                 fn linearToSRGB(linear: vec3f) -> vec3f {
                     let cutoff = vec3f(0.0031308);
                     let slope = vec3f(12.92);
                     let a = vec3f(0.055);
                     let gamma = vec3f(1.0 / 2.4);
-                    
                     return select(
                         (1.0 + a) * pow(linear, gamma) - a,
                         linear * slope,
@@ -162,36 +223,56 @@ export class WebGPUMixer {
                     );
                 }
 
-                // 改进的 RGB 到 KM 系数转换
-                fn RGBToKM(color: vec3f, S: vec3f) -> KMCoefficients {
-                    let R = clamp(color, vec3f(EPSILON), vec3f(1.0 - EPSILON));
-                    let K_over_S = pow(1.0 - R, vec3f(2.0)) / (2.0 * R);
-                    let K = K_over_S * S;
-                    
-                    return KMCoefficients(K, S);
-                }
+              // 改进 RGB 到 KM 系数的转换
+fn RGBToKM(color: vec3f, S: vec3f) -> KMCoefficients {
+    // 对于接近白色的颜色，降低散射系数以保持亮度
+    let whiteness = (color.r + color.g + color.b) / 3.0;
+    let adjustedS = mix(S, S * 0.5, pow(whiteness, 2.0));
+    
+    let R = clamp(color, vec3f(EPSILON), vec3f(1.0 - EPSILON));
+    // 修改 K/S 比率计算，使其在接近白色时更准确
+    let K_over_S = (pow(1.0 - R, vec3f(2.0))) / (2.0 * R);
+    let K = K_over_S * adjustedS;
+    
+    return KMCoefficients(K, adjustedS);
+}
 
                 // 改进的 KM 系数到 RGB 转换
-                fn KMToRGB(km: KMCoefficients) -> vec3f {
-                    let K_over_S = km.K / km.S;
-                    let a = (1.0 + K_over_S);
-                    let root = sqrt(max(a * a - 1.0, vec3f(0.0)));
-                    let R = (a - root) / (a + root);
-                    
-                    return clamp(R, vec3f(0.0), vec3f(1.0));
-                }
-
+fn KMToRGB(km: KMCoefficients) -> vec3f {
+    let K_over_S = km.K / km.S;
+    
+    // 标准 K-M 方程的反函数
+    // R = 1 + K/S - sqrt((K/S)² + 2K/S)
+    let a = 1.0 + K_over_S;
+    let root = sqrt(K_over_S * K_over_S + 2.0 * K_over_S);
+    let R = a - root;
+    
+    return clamp(R, vec3f(0.0), vec3f(1.0));
+}
                 // 添加 alpha 混合函数
                 fn blendAlpha(a1: f32, a2: f32) -> f32 {
                     // Porter-Duff alpha 合成
                     return a1 + a2 * (1.0 - a1);
                 }
-
+               fn premultiplyAlpha(color: vec4f) -> vec4f {
+                    // 计算在白色背景下的RGB值，并保留alpha
+                    let premultipliedRGB = color.rgb * color.a + vec3f(1.0) * (1.0 - color.a);
+                    return vec4f(premultipliedRGB, color.a);
+                }
+                    
+                // 添加新的辅助函数用于限制颜色衰减
+                fn limitColorDecay(color: vec3f, original: vec3f, limit: f32) -> vec3f {
+                    let decay = max(original - color, vec3f(0.0));
+                    let limitedDecay = min(decay, vec3f(limit));
+                    return original - limitedDecay;
+                }
                 // 改进的颜料混合函数
                 fn mixPigmentsKM(color1: vec4f, color2: vec4f, params: PigmentParams) -> vec4f {
-                    // 转换到线性空间
+                                
+                let premultipliedColor1 = premultiplyAlpha(color1);
+                   let premultipliedColor2 = premultiplyAlpha(color2);
                     let c1 = sRGBToLinear(color1.rgb);
-                    let c2 = sRGBToLinear(color2.rgb);
+                    let c2 = sRGBToLinear(premultipliedColor2.rgb);
                     
                     // 为每个颜色通道调整散射系数
                     let S = vec3f(
@@ -199,20 +280,18 @@ export class WebGPUMixer {
                         params.scatteringCoeff * 1.2,  // Green
                         params.scatteringCoeff * 1.4   // Blue
                     );
-                    
-                    // 转换为 KM 系数
+                  
                     let km1 = RGBToKM(c1, S);
                     let km2 = RGBToKM(c2, S);
-                    
-                    // 调整 alpha 和混合权重
-                    let alpha = min(color1.a, params.maxOpacity);  // 限制最大不透明度
-                    let brushWeight = pow(alpha, params.alphaExponent);
-                    
+                    let alpha = min(color1.a, color1.a);  // 限制最大不透明度
+                    let canvasAlpha = color2.a;  // 获取画布的 alpha 值
+                    let combinedAlpha = blendAlpha(alpha, canvasAlpha);  // 结合画笔和画布的 alpha
+                    let brushWeight = pow(alpha, params.alphaExponent);  // 使用结合后的 alpha 计算权重                    
                     // 调整画布权重
-                    let canvasWeight = 1.0 + params.canvasWeight;  // 增加画布颜色的影响
+                    let canvasWeight = 0.5 + params.canvasWeight;  // 增加画布颜色的影响
                     let thickness = brushWeight * params.thicknessScale;
                     var t1 = thickness;
-                    var t2 = (1.0 - thickness) * canvasWeight;
+                    var t2 = (1.0 - thickness) * 1.0;
                     let total = t1 + t2;
                     
                     // 归一化权重
@@ -234,14 +313,14 @@ export class WebGPUMixer {
                     // 计算最终的 alpha 值，考虑最大不透明度
                     let final_alpha = min(blendAlpha(alpha, color2.a), params.maxOpacity);
                     
-                    return vec4f(mixed_srgb, final_alpha);
+                    return vec4f(mixed_srgb, 1.0);
                 }
 
                 // 改进的色彩校正函数
                 fn correctColor(mixed: vec4f, target_alpha: f32) -> vec4f {
-                    if (target_alpha < EPSILON) {
-                        return vec4f(0.0);
-                    }
+                   if (target_alpha < EPSILON) {
+                      return vec4f(0.0);
+                   }
                     
                     var adjusted = mixed.rgb;
                     let luminance = dot(adjusted, vec3f(0.299, 0.587, 0.114));
@@ -250,6 +329,21 @@ export class WebGPUMixer {
                     if (luminance > 0.85) {
                         let preserveFactor = 1.0 - pow(luminance - 0.85, 2.0);
                         adjusted = mix(adjusted, mixed.rgb, preserveFactor);
+                    }
+                        
+                    // 对过暗颜色进行修正
+                    if (luminance < 0.3) {
+                        let boostFactor = smoothstep(0.0, 0.15, luminance);
+                        adjusted = mix(adjusted, adjusted + vec3f(0.5), boostFactor);
+                    }
+                        // 限制饱和度变化
+                    let maxComponent = max(max(adjusted.r, adjusted.g), adjusted.b);
+                    let minComponent = min(min(adjusted.r, adjusted.g), adjusted.b);
+                    let saturation = (maxComponent - minComponent) / maxComponent;
+                    if (saturation > 0.8) { // 限制最大饱和度
+                        let desaturationFactor = (saturation - 0.8) / 0.2;
+                        let desaturated = vec3f(luminance);
+                        adjusted = mix(adjusted, desaturated, desaturationFactor * 0.3); // 轻微去饱和
                     }
                     
                     // 改进的透明度处理
@@ -286,12 +380,11 @@ export class WebGPUMixer {
                     let canvas = textureSample(outputTexture, textureSampler, texCoord);
                     
                     var mixed = mixPigmentsKM(brush, canvas, params);
-                    mixed = correctColor(mixed, mixed.a);
+                   mixed = correctColor(mixed, mixed.a);
                     
                     // 微弱的抖动以减少色带
-                    let dither = getDither(fragCoord.xy, params.ditherStrength * 0.25);
-                    
-                    return vec4f(mixed.rgb + vec3f(dither), mixed.a);
+                   let dither = getDither(fragCoord.xy, params.ditherStrength * 0.25);
+                    return vec4f(mixed.rgb, brush.a);
                 }
                 `
             });
@@ -419,6 +512,8 @@ export class WebGPUMixer {
             // 更新参数缓冲区
             this.updateParams(this.pigmentParams);
 
+            this.bufferPool = new BufferPool(this.device);
+
         } catch (error) {
             console.error('WebGPU initialization failed:', error);
             throw error;
@@ -472,11 +567,11 @@ export class WebGPUMixer {
     }
 
     // 优化后的混合方法
+    //brushImage中有bitmap和buffer数据
     async mixColors(ctx, brushImage, x, y, width, height) {
         if (!this.initialized) {
             await this.init();
         }
-
         try {
             // 确保尺寸为正整数
             width = Math.max(1, Math.ceil(width));
@@ -489,28 +584,21 @@ export class WebGPUMixer {
                 this.offscreenCanvas.width = width;
                 this.offscreenCanvas.height = height;
             }
-
-            // 在离屏canvas上绘制笔刷图像
             this.offscreenCtx.clearRect(0, 0, width, height);
             this.offscreenCtx.drawImage(brushImage, 0, 0, width, height);
             const imageData = this.offscreenCtx.getImageData(0, 0, width, height);
-
-            // 计算对齐的行跨度
+            const imageData1 = ctx.getImageData(x, y, width, height);
             const bytesPerRow = Math.ceil((width * 4) / 256) * 256;
-
-            // 创建源数据缓冲区
-            const sourceBuffer = this.device.createBuffer({
-                size: bytesPerRow * height,
-                usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-            });
-
+            const bufferSize = bytesPerRow * height;
+            const sourceBuffer = this.bufferPool.getBuffer(
+                bufferSize,
+                GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
+            );
             const stagingBuffer = this.device.createBuffer({
-                size: bytesPerRow * height,
+                size: bufferSize,
                 usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
                 mappedAtCreation: true
             });
-
-            // 写入数据到暂存缓冲区
             const arrayBuffer = stagingBuffer.getMappedRange();
             const sourceArray = new Uint8Array(arrayBuffer);
             for (let y = 0; y < height; y++) {
@@ -519,16 +607,13 @@ export class WebGPUMixer {
                 for (let x = 0; x < width; x++) {
                     const sourceOffset = sourceStart + x * 4;
                     const destOffset = destStart + x * 4;
-                    // 转换为 BGRA 顺序
-                    sourceArray[destOffset] = imageData.data[sourceOffset + 2]; // B
+                    sourceArray[destOffset] = imageData.data[sourceOffset + 2];     // B
                     sourceArray[destOffset + 1] = imageData.data[sourceOffset + 1]; // G
-                    sourceArray[destOffset + 2] = imageData.data[sourceOffset]; // R
+                    sourceArray[destOffset + 2] = imageData.data[sourceOffset];     // R
                     sourceArray[destOffset + 3] = imageData.data[sourceOffset + 3]; // A
                 }
             }
             stagingBuffer.unmap();
-
-            // 从暂存缓冲区复制到源缓冲区
             const copyCommandEncoder = this.device.createCommandEncoder();
             copyCommandEncoder.copyBufferToBuffer(
                 stagingBuffer,
@@ -539,7 +624,6 @@ export class WebGPUMixer {
             );
             this.device.queue.submit([copyCommandEncoder.finish()]);
 
-            // 创建理时使用 bgra8unorm 格式
             const texture = this.device.createTexture({
                 size: { width, height, depthOrArrayLayers: 1 },
                 format: 'bgra8unorm',
@@ -566,7 +650,75 @@ export class WebGPUMixer {
                     depthOrArrayLayers: 1,
                 }
             );
+            // 对 imageData1 进行与 imageData 相同的处理
+            const bytesPerRow1 = Math.ceil((width * 4) / 256) * 256;
+            const bufferSize1 = bytesPerRow1 * height;
 
+            const sourceBuffer1 = this.bufferPool.getBuffer(
+                bufferSize1,
+                GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
+            );
+            const stagingBuffer1 = this.device.createBuffer({
+                size: bufferSize1,
+                usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
+                mappedAtCreation: true
+            });
+
+            const arrayBuffer1 = stagingBuffer1.getMappedRange();
+            const sourceArray1 = new Uint8Array(arrayBuffer1);
+            for (let y = 0; y < height; y++) {
+                const sourceStart1 = y * width * 4;
+                const destStart1 = y * bytesPerRow1;
+                for (let x = 0; x < width; x++) {
+                    const sourceOffset1 = sourceStart1 + x * 4;
+                    const destOffset1 = destStart1 + x * 4;
+                    sourceArray1[destOffset1] = imageData1.data[sourceOffset1 + 2];     // B
+                    sourceArray1[destOffset1 + 1] = imageData1.data[sourceOffset1 + 1]; // G
+                    sourceArray1[destOffset1 + 2] = imageData1.data[sourceOffset1];     // R
+                    sourceArray1[destOffset1 + 3] = imageData1.data[sourceOffset1 + 3]; // A
+                }
+            }
+            stagingBuffer1.unmap();
+
+            // 从暂存缓冲区复制到源缓冲区
+            const copyCommandEncoder1 = this.device.createCommandEncoder();
+            copyCommandEncoder1.copyBufferToBuffer(
+                stagingBuffer1,
+                0,
+                sourceBuffer1,
+                0,
+                bytesPerRow1 * height
+            );
+            this.device.queue.submit([copyCommandEncoder1.finish()]);
+
+            // 创建纹理
+            const texture1 = this.device.createTexture({
+                size: { width, height, depthOrArrayLayers: 1 },
+                format: 'bgra8unorm',
+                usage: GPUTextureUsage.TEXTURE_BINDING |
+                    GPUTextureUsage.COPY_DST |
+                    GPUTextureUsage.RENDER_ATTACHMENT |
+                    GPUTextureUsage.COPY_SRC
+            });
+
+            // 复制数据到纹理
+            const commandEncoder1 = this.device.createCommandEncoder();
+            commandEncoder1.copyBufferToTexture(
+                {
+                    buffer: sourceBuffer1,
+                    bytesPerRow: bytesPerRow1,
+                    rowsPerImage: height,
+                },
+                {
+                    texture: texture1,
+                },
+                {
+                    width,
+                    height,
+                    depthOrArrayLayers: 1,
+                }
+            );
+            this.device.queue.submit([commandEncoder1.finish()]);
             // 使用与管线布局匹配的绑定组
             const bindGroup = this.device.createBindGroup({
                 layout: this.bindGroupLayout,
@@ -577,7 +729,7 @@ export class WebGPUMixer {
                     },
                     {
                         binding: 1,
-                        resource: texture.createView()
+                        resource: texture1.createView()
                     },
                     {
                         binding: 2,
@@ -593,18 +745,14 @@ export class WebGPUMixer {
                     }
                 ]
             });
-
-            // 更新参数
             await this.updateParams({
                 scatteringCoeff: 10.0,       // 散射系数
                 thicknessScale: 0.9,         // 略微降低厚度缩放
                 alphaExponent: 1.5,          // alpha 指数
                 ditherStrength: 0.001,       // 抖动强度
-                maxOpacity: 0.95,            // 最大不透明度（水彩效果）
-                canvasWeight: 0.2            // 画布颜色权重增加 20%
+                maxOpacity: 1,            // 最大不透明度（水彩效果）
+                canvasWeight: 0            // 画布颜色权重增加 20%
             });
-
-            // 设置渲染通道
             const renderPassDescriptor = {
                 colorAttachments: [{
                     view: this.gpuContext.getCurrentTexture().createView(),
@@ -613,135 +761,28 @@ export class WebGPUMixer {
                     storeOp: 'store'
                 }]
             };
-
-            // 确保在使用管线之前检查其是否有效
-            if (!this.pipeline) {
-                throw new Error('Pipeline not initialized');
-            }
-
             const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
             passEncoder.setPipeline(this.pipeline);
             passEncoder.setBindGroup(0, bindGroup);
             passEncoder.setVertexBuffer(0, this.vertexBuffer);
             passEncoder.draw(6, 1, 0, 0);
             passEncoder.end();
-
-            // 提交命令
             this.device.queue.submit([commandEncoder.finish()]);
-
-            // 等待 GPU 完成
-            await this.device.queue.onSubmittedWorkDone();
-
-            // 清理临时缓冲区
-            stagingBuffer.destroy();
-            sourceBuffer.destroy();
-
-            // 从 GPU canvas 复制到 2D context
+            this.device.queue.onSubmittedWorkDone();
+            this.bufferPool.returnBuffer(sourceBuffer);
+            stagingBuffer.destroy(); // 直接销毁 staging buffer
+            ctx.globalCompositeOperation = 'source-over';
             ctx.drawImage(this.gpuCanvas, x, y);
 
-        } catch (error) {
+            // 恢复默认混合模式（可选）
+            ctx.globalCompositeOperation = 'source-over';
+                    } catch (error) {
             console.error('WebGPU operation failed:', error);
-            this.fallbackMixColors(ctx, brushImage, x, y, width, height);
         }
     }
 
-    // 添加降级实现
-    fallbackMixColors(ctx, brushImage, x, y, width, height) {
-        // 创建临时画布进行混合计算
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = width;
-        tempCanvas.height = height;
-        const tempCtx = tempCanvas.getContext('2d');
 
-        // 获取当前画布内容
-        const currentContent = ctx.getImageData(x, y, width, height);
-        tempCtx.putImageData(currentContent, 0, 0);
 
-        // 获取笔刷图像数据
-        tempCtx.drawImage(brushImage, 0, 0);
-        const brushData = tempCtx.getImageData(0, 0, width, height);
-
-        // 手动计算混合结果
-        const result = new ImageData(width, height);
-        for (let i = 0; i < brushData.data.length; i += 4) {
-            const brush = {
-                r: brushData.data[i] / 255,
-                g: brushData.data[i + 1] / 255,
-                b: brushData.data[i + 2] / 255,
-                a: brushData.data[i + 3] / 255
-            };
-
-            const canvas = {
-                r: currentContent.data[i] / 255,
-                g: currentContent.data[i + 1] / 255,
-                b: currentContent.data[i + 2] / 255,
-                a: currentContent.data[i + 3] / 255
-            };
-
-            // 简化的颜料混合
-            const mixed = this.simpleMixColors(brush, canvas);
-
-            // 计算所需的颜色值
-            const required = this.calculateRequiredColor(mixed, canvas);
-
-            result.data[i] = required.r * 255;
-            result.data[i + 1] = required.g * 255;
-            result.data[i + 2] = required.b * 255;
-            result.data[i + 3] = required.a * 255;
-        }
-
-        ctx.putImageData(result, x, y);
-    }
-
-    // 简化的颜料混合算法（用于降级实现）
-    simpleMixColors(color1, color2) {
-        const t = color1.a;
-        return {
-            r: color1.r * t + color2.r * (1 - t),
-            g: color1.g * t + color2.g * (1 - t),
-            b: color1.b * t + color2.b * (1 - t),
-            a: color1.a + color2.a * (1 - color1.a)
-        };
-    }
-
-    calculateRequiredColor(target, background) {
-        if (target.a < 0.001) return target;
-
-        // 计算所需的基础颜色值
-        const required = {
-            r: (target.r - background.r * (1 - target.a)) / target.a,
-            g: (target.g - background.g * (1 - target.a)) / target.a,
-            b: (target.b - background.b * (1 - target.a)) / target.a,
-            a: target.a
-        };
-
-        // 应用平滑过渡
-        const smoothness = this.smoothstep(0, 0.3, target.a);
-        const adjusted = {
-            r: this.lerp(target.r, required.r, smoothness),
-            g: this.lerp(target.g, required.g, smoothness),
-            b: this.lerp(target.b, required.b, smoothness),
-            a: target.a
-        };
-
-        // 处理浅色和高透明度
-        const luminance = 
-            0.299 * adjusted.r + 
-            0.587 * adjusted.g + 
-            0.114 * adjusted.b;
-        const saturation = this.smoothstep(0, 0.1, target.a);
-
-        adjusted.r = this.lerp(luminance, adjusted.r, saturation);
-        adjusted.g = this.lerp(luminance, adjusted.g, saturation);
-        adjusted.b = this.lerp(luminance, adjusted.b, saturation);
-
-        // 裁剪到有效范围
-        adjusted.r = Math.max(0, Math.min(1, adjusted.r));
-        adjusted.g = Math.max(0, Math.min(1, adjusted.g));
-        adjusted.b = Math.max(0, Math.min(1, adjusted.b));
-
-        return adjusted;
-    }
 
     // 设备丢失处理
     async handleDeviceLost() {
@@ -774,6 +815,10 @@ export class WebGPUMixer {
         this.clearResources();
         this.device = null;
         this.initialized = false;
+        if (this.bufferPool) {
+            this.bufferPool.clear();
+            this.bufferPool = null;
+        }
     }
 
     createTextureFromBitmap(bitmap) {
@@ -795,7 +840,6 @@ export class WebGPUMixer {
             { texture },
             { width: bitmap.width, height: bitmap.height, depthOrArrayLayers: 1 }
         );
-
         return texture;
     }
 
@@ -806,8 +850,6 @@ export class WebGPUMixer {
             try {
                 // 更新存储的参数
                 Object.assign(this.pigmentParams, params);
-
-                // 创建新的参数数组
                 const paramArray = new Float32Array([
                     this.pigmentParams.scatteringCoeff,
                     this.pigmentParams.thicknessScale,
@@ -816,8 +858,6 @@ export class WebGPUMixer {
                     this.pigmentParams.maxOpacity,
                     this.pigmentParams.canvasWeight
                 ]);
-
-                // 直接使用 writeBuffer 而不是 mapping
                 this.device.queue.writeBuffer(
                     this.paramsBuffer,
                     0,
@@ -829,8 +869,6 @@ export class WebGPUMixer {
                 console.error('Failed to update parameters:', error);
             }
         });
-
-        // 等待更新完成
         await this.paramUpdateQueue;
     }
 
@@ -845,4 +883,83 @@ export class WebGPUMixer {
     }
 }
 
-export const mixer = new WebGPUMixer();
+// MixerPool 类管理多个 WebGPUMixer 实例
+class MixerPool {
+    constructor(poolSize = 3) { // 默认创建3个混合器
+        this.mixers = [];
+        this.currentIndex = 0;
+        this.poolSize = poolSize;
+        this.initialized = false;
+        this.initPromise = this.initialize();
+    }
+
+    async initialize() {
+        try {
+            // 并行初始化所有混合器
+            const initPromises = Array(this.poolSize).fill(0).map(() => {
+                const mixer = new WebGPUMixer();
+                this.mixers.push(mixer);
+                return mixer.init();
+            });
+
+            await Promise.all(initPromises);
+            this.initialized = true;
+        } catch (error) {
+            console.error('Failed to initialize mixer pool:', error);
+            throw error;
+        }
+    }
+
+    // 获取下一个可用的混合器
+    getNextMixer() {
+        const mixer = this.mixers[this.currentIndex];
+        this.currentIndex = (this.currentIndex + 1) % this.poolSize;
+        return mixer;
+    }
+
+    // 代理方法：混色操作
+    async mixColors(ctx, brushImage, x, y, width, height) {
+        if (!this.initialized) {
+            await this.initPromise;
+        }
+
+        const mixer = this.getNextMixer();
+        return mixer.mixColors(ctx, brushImage, x, y, width, height);
+    }
+
+    // 清理所有资源
+    destroy() {
+        this.mixers.forEach(mixer => mixer.destroy());
+        this.mixers = [];
+        this.initialized = false;
+    }
+}
+
+// 创建代理对象
+class MixerProxy {
+    constructor() {
+        // 根据设备性能确定池大小
+        const poolSize = this.determineOptimalPoolSize();
+        this.pool = new MixerPool(poolSize);
+    }
+
+    // 根据设备性能确定最佳池大小
+    determineOptimalPoolSize() {
+        const hardwareConcurrency = navigator.hardwareConcurrency || 4;
+        // 使用处理器核心数的一半作为混合器数量，但不少于2个，不多于6个
+        return hardwareConcurrency
+    }
+
+    // 代理混色方法
+    async mixColors(ctx, brushImage, x, y, width, height) {
+        return this.pool.mixColors(ctx, brushImage, x, y, width, height);
+    }
+
+    // 代理销毁方法
+    destroy() {
+        return this.pool.destroy();
+    }
+}
+
+// 导出单例代理对象
+export const mixer = new MixerProxy();

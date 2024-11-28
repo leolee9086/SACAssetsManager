@@ -3,7 +3,7 @@ const sharp = requirePluginDeps('sharp')
 import { hexToRgb, rgbToHex,rgbToHsl,hslToRgb} from "../../color/convert.js"
 import { 基于色相的颜料混色 } from "../../color/mix.js"
 import { fromURL } from "../../fromDeps/sharpInterface/useSharp/toSharp.js"
-
+import { GPU图像平均颜色分析器 } from "../../image/analyze/calculateAverage.js"
 const brushImageProcessor = {
     cache: new Map(),
     sharpCache: new Map(),
@@ -18,6 +18,10 @@ const brushImageProcessor = {
         maxFlowDistance: 50, // 减小最大流动距离
         minOpacity: 0.05,    // 降低最小不透明度
     },
+
+    // 添加节流控制
+    lastPickupTime: 0,
+    pickupThrottleInterval: 50, // 50ms 的节流间隔
 
     async bufferToImage(buffer) {
         const blob = new Blob([buffer], { type: 'image/png' });
@@ -169,11 +173,7 @@ const brushImageProcessor = {
         const variants = []
         const variantCount = 5
         let currentIndex = 0
-        
-        // 创建初始的几个变体以供立即使用
         await this.generateInitialVariants(variants, alphaChannel, opacity, options, 5)
-        
-        // 使用 requestIdleCallback 在空闲时间生成其余变体
         const generateRemainingVariants = async (deadline) => {
             while (currentIndex < variantCount && deadline.timeRemaining() > 0) {
                 const opacityLevel = 0.4 + (1.2 * (currentIndex / (variantCount - 1)))
@@ -181,7 +181,6 @@ const brushImageProcessor = {
                     0.35 * (1 + Math.sin(currentIndex * Math.PI / (variantCount / 4))) +
                     (currentIndex / variantCount) * 0.35
                 )
-                
                 try {
                     const variant = await this.processBaseImage(
                         alphaChannel,
@@ -206,8 +205,6 @@ const brushImageProcessor = {
                 requestIdleCallback(generateRemainingVariants)
             }
         }
-        
-        // 开始在空闲时间生成变体
         if ('requestIdleCallback' in window) {
             requestIdleCallback(generateRemainingVariants)
         } else {
@@ -242,15 +239,11 @@ const brushImageProcessor = {
                     setTimeout(fallbackGeneration, 0)
                 }
             }
-            
             setTimeout(fallbackGeneration, 0)
         }
-        
-        // 添加获取随机变体的辅助方法
         const getRandomVariant = () => {
             return variants[Math.floor(Math.random() * variants.length)]
         }
-        
         return {
             variants,
             getRandomVariant,
@@ -262,14 +255,13 @@ const brushImageProcessor = {
     // 生成初始变体的辅助方法
     async generateInitialVariants(variants, alphaChannel, opacity, options, count) {
         const { rgb } = options
-        const variantCount = 50
+        const variantCount = 5
         for (let i = 0; i < count; i++) {
             const opacityLevel = 0.4 + (1.2 * (i / (variantCount - 1)))
             const noiseLevel = 0.1 + (
                 0.35 * (1 + Math.sin(i * Math.PI / (variantCount / 4))) +
                 (i / variantCount) * 0.35
             )
-            
             const variant = await this.processBaseImage(
                 alphaChannel,
                 opacity * opacityLevel,
@@ -303,149 +295,155 @@ const brushImageProcessor = {
 
     // 修改: 记录沾染事件
     async recordPickup(timestamp, position, ctx, pressure) {
-        const radius = 5
-        const imageData = ctx.getImageData(
-            Math.max(0, position.x - radius),
-            Math.max(0, position.y - radius),
-            radius * 2,
-            radius * 2
-        )
+        // 添加节流控制
+        if (timestamp - this.lastPickupTime < this.pickupThrottleInterval) {
+            return false;
+        }
+        this.lastPickupTime = timestamp;
 
-        // 使用 Uint32Array 加速像素处理
-        const uint32View = new Uint32Array(imageData.data.buffer)
-        let r = 0, g = 0, b = 0, totalAlpha = 0
-        let count = 0
-        
-        // 使用跳跃式采样来减少计算量
-        // 每隔几个像素采样一次，可以显著提高性能
-        const sampleStep = 2
-        for (let i = 0; i < uint32View.length; i += sampleStep) {
-            const pixel = uint32View[i]
-            const alpha = (pixel >> 24) & 0xff
-            
-            // 使用位运算提取颜色值，并且只在alpha值足够大时处理
-            if (alpha > 25) { // 0.1 * 255 ≈ 25
-                b += pixel & 0xff
-                g += (pixel >> 8) & 0xff
-                r += (pixel >> 16) & 0xff
-                totalAlpha += alpha
-                count++
+        const RADIUS = 5
+        const SIZE = RADIUS * 2
+        const x = Math.max(0, Math.floor(position.x - RADIUS))
+        const y = Math.max(0, Math.floor(position.y - RADIUS))
+        const 颜色分析器 = await this.getGPUAnalyzer()
+        try {
+            const imageData = ctx.getImageData(x, y, SIZE, SIZE)
+            const { 平均颜色: color, 平均透明度: averageAlpha } = await 颜色分析器.计算平均颜色(
+                imageData.data,
+                SIZE,
+                SIZE
+            )
+            if (averageAlpha <= 0.15) return false
+            const historyEntry = {
+                timestamp,
+                position: { x: position.x, y: position.y },
+                color,
+                pressure: Math.min(pressure, 1),
+                alpha: Math.min(averageAlpha, 0.9)
             }
+            this.pickupHistory.unshift(historyEntry)
+            this.pickupHistory.length = Math.min(this.pickupHistory.length, 10) // 减少历史记录长度
+            return averageAlpha > 0.3
+                ? Promise.all([
+                    this.processPickupEffects(),
+                    this.addFlowEffect(
+                        position,
+                        color,
+                        pressure * averageAlpha * 0.7,
+                        { type: 'watercolor', context: ctx }
+                    )
+                ]).then(() => true)
+                : this.processPickupEffects().then(() => true)
+        } catch (error) {
+            console.warn('颜色分析失败:', error)
+            return false
         }
-
-        // 快速检查是否有足够的有效像素
-        if (count === 0) return false
-        
-        const averageAlpha = totalAlpha / (count * 255) // 归一化 alpha 值
-
-        // 提前返回，避免不必要的计算
-        if (averageAlpha <= 0.15) return false
-
-        // 创建颜色对象时直接计算平均值
-        const color = {
-            r: r / count,
-            g: g / count,
-            b: b / count,
-            a: averageAlpha
-        }
-
-        // 使用数组的unshift代替shift，并直接限制长度
-        this.pickupHistory.unshift({
-            timestamp,
-            position: { x: position.x, y: position.y }, // 创建新对象避免引用问题
-            color,
-            pressure: Math.min(pressure, 1),
-            alpha: Math.min(averageAlpha, 0.9)
-        })
-        
-        // 直接截断数组而不是循环移除
-        if (this.pickupHistory.length > 20) {
-            this.pickupHistory.length = 20
-        }
-
-        // 只在必要时处理效果
-        if (averageAlpha > 0.3) {
-            // 并行处理效果
-            await Promise.all([
-                this.processPickupEffects(),
-                this.addFlowEffect(
-                    position,
-                    color,
-                    pressure * averageAlpha * 0.7,
-                    { type: 'watercolor', context: ctx }
-                )
-            ])
-        } else {
-            await this.processPickupEffects()
-        }
-
-        return true
     },
+
+    // 获取或创建GPU分析器的单例
+    async getGPUAnalyzer() {
+        if (!this._gpuAnalyzer) {
+            this._gpuAnalyzer = new GPU图像平均颜色分析器()
+            this._ensureCleanup()
+        }
+        return this._gpuAnalyzer
+    },
+
+    // 确保清理GPU资源
+    _ensureCleanup() {
+        if (this._cleanupRegistered) return
+        
+        this._cleanupRegistered = true
+        // 在对象被销毁时清理GPU资源
+        Object.defineProperty(this, 'cleanup', {
+            value: function() {
+                if (this._gpuAnalyzer) {
+                    this._gpuAnalyzer.释放资源()
+                    this._gpuAnalyzer = null
+                }
+            },
+            writable: false,
+            configurable: false
+        })
+    },
+
+    // 优化处理沾染效果
     async processPickupEffects() {
         if (this.pickupHistory.length === 0) return;
         const now = Date.now();
         const recentHistory = this.pickupHistory.filter(
-            record => (now - record.timestamp) / 1000 <= 1
+            record => (now - record.timestamp) / 1000 <= 0.5 // 减少时间窗口到0.5秒
         );
         if (recentHistory.length === 0) return;
         let mixedColor = recentHistory[0].color;
         let currentAlpha = recentHistory[0].alpha;
-        // 调整混合比例和强度
         for (let i = 1; i < recentHistory.length; i++) {
             const record = recentHistory[i];
-            const ratio = record.alpha * 0.4; // 增加混合强度
+            const ratio = record.alpha * 0.3; // 稍微降低混合强度
             mixedColor = 基于色相的颜料混色(mixedColor, record.color, ratio);
-            currentAlpha = Math.min(0.9, currentAlpha + (record.alpha * 0.25)); // 提高最大不透明度
+            currentAlpha = Math.min(0.8, currentAlpha + (record.alpha * 0.2)); // 降低最大不透明度
         }
-        // 更新笔刷变体时保持较高的不透明度
         await this.updateBrushVariants({
             ...mixedColor,
-            a: Math.min(0.9, currentAlpha * 1.2) // 略微提高不透明度
+            a: Math.min(0.8, currentAlpha * 1.1) // 略微降低不透明度
         });
-
         this.pickupHistory = recentHistory;
     },
 
     // 新增: 更新笔刷变体
     async updateBrushVariants(mixedColor) {
+        // 快速返回检查
         if (!this.currentBrush) return
-
         try {
-            // 确保颜色值在合理范围���
+            // 使用位运算进行颜色值限制
             const color = {
-                r: Math.min(255, Math.max(0, Math.round(mixedColor.r))),
-                g: Math.min(255, Math.max(0, Math.round(mixedColor.g))),
-                b: Math.min(255, Math.max(0, Math.round(mixedColor.b)))
+                r: mixedColor.r >> 0,  // 向下取整
+                g: mixedColor.g >> 0,
+                b: mixedColor.b >> 0
             }
-
-            // 转换为十六进制颜色
+            color.r = color.r < 0 ? 0 : (color.r > 255 ? 255 : color.r)
+            color.g = color.g < 0 ? 0 : (color.g > 255 ? 255 : color.g)
+            color.b = color.b < 0 ? 0 : (color.b > 255 ? 255 : color.b)
+            const { brushImagePath, opacity, options, cacheKey } = this.currentBrush
+            const newOpacity = opacity * 0.8 > 0.6 ? 0.6 : opacity * 0.8
             const hexColor = rgbToHex(color)
-
-            // 使用较低的不透明度生成新变体
+            const brushOptions = Object.assign({}, options, { type: 'watercolor' })
             const newVariants = await this.processColoredBrush(
-                this.currentBrush.brushImagePath,
+                brushImagePath,
                 hexColor,
-                Math.min(this.currentBrush.opacity * 0.8, 0.6), // 降低不透明度
-                {
-                    ...this.currentBrush.options,
-                    type: 'watercolor'
-                }
+                newOpacity,
+                brushOptions
             )
-
             if (newVariants?.base) {
-                this.cache.set(this.currentBrush.cacheKey, newVariants)
+                this.cache.set(cacheKey, newVariants)
                 this.currentBrush.variants = newVariants
             }
-
             return newVariants
         } catch (error) {
-            console.error('更新笔刷变体失败:', error)
+            console.error('更新笔刷变体失��:', error)
             return this.currentBrush.variants
         }
     },
 
     // 添加流动效果
     addFlowEffect(position, color, pressure, options = {}) {
+        // 确保使用正确的坐标系
+        const ctx = options.context
+        if (!ctx) {
+            console.warn('缺少上下文信息，无法正确处理流动特效')
+            return
+        }
+
+        // 获取当前变换矩阵的逆矩阵
+        const transform = ctx.getTransform()
+        const inverseTransform = transform.inverse()
+        
+        // 将世界坐标转换回本地坐标
+        const localPosition = {
+            x: position.x * inverseTransform.a + position.y * inverseTransform.c + inverseTransform.e,
+            y: position.x * inverseTransform.b + position.y * inverseTransform.d + inverseTransform.f
+        }
+
         // 从当前笔刷中获取颜色
         let effectColor 
         if (!effectColor && this.currentBrush) {
@@ -456,20 +454,17 @@ const brushImageProcessor = {
         }
 
         if (!effectColor) {
-            console.warn('无法获取有效的颜色，使用默认颜色')
-            effectColor = { r: 0, g: 0, b: 0 }
+            effectColor = color || { r: 0, g: 0, b: 0 }
         }
-
-        // 进一步降低基础不透明度
-        const baseOpacity = Math.min(0.3, pressure)
 
         const flowEffect = {
             id: Date.now() + Math.random(),
-            position: { ...position },
+            position: localPosition,  // 使用本地坐标
+            transform: transform,     // 保存当前变换矩阵
             velocity: { x: 0, y: 0 },
             color: effectColor,
             pressure,
-            opacity: baseOpacity,
+            opacity: Math.min(0.3, pressure),
             age: 0,
             droplets: [],
             options: {
@@ -479,21 +474,19 @@ const brushImageProcessor = {
             }
         }
 
-        // 保持较少的水滴数量
-        this.addDroplets(flowEffect, 1 + Math.floor(pressure * 2))
-
+        this.addDroplets(flowEffect, 1 + Math.floor(pressure * 1.5))
         this.flowEffects.active.add(flowEffect)
         this.startFlowAnimation()
     },
 
-    // 添加水滴
+    // 优化水滴添加
     addDroplets(flowEffect, count) {
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * Math.PI * 2
-            const distance = Math.random() * 3 * flowEffect.pressure
+            const distance = Math.random() * 2 * flowEffect.pressure // 减小距离
 
             // 进一步降低初始不透明度
-            const dropletOpacity = flowEffect.opacity * (0.1 + Math.random() * 0.2)
+            const dropletOpacity = flowEffect.opacity * (0.05 + Math.random() * 0.15)
 
             flowEffect.droplets.push({
                 position: {
@@ -501,10 +494,10 @@ const brushImageProcessor = {
                     y: flowEffect.position.y + Math.sin(angle) * distance
                 },
                 velocity: {
-                    x: (Math.random() * 1 - 0.5) * flowEffect.pressure,
-                    y: Math.random() * 1 * flowEffect.pressure
+                    x: (Math.random() * 0.5 - 0.25) * flowEffect.pressure,
+                    y: Math.random() * 0.5 * flowEffect.pressure
                 },
-                size: (0.3 + Math.random() * 0.4) * flowEffect.pressure * 4,
+                size: (0.2 + Math.random() * 0.3) * flowEffect.pressure * 3,
                 opacity: dropletOpacity
             })
         }
@@ -526,38 +519,36 @@ const brushImageProcessor = {
         this.flowAnimationFrame = requestAnimationFrame(animate)
     },
 
-    // 更新流动效果
+    // 优化流动效果更新
     updateFlowEffects() {
         for (const effect of this.flowEffects.active) {
             effect.age++
 
-            effect.droplets = effect.droplets.filter(droplet => {
-                // 应用重力
-                droplet.velocity.y += this.flowEffects.gravity
+            // 获取变换矩阵的缩放因子
+            const scale = effect.transform ? Math.sqrt(
+                effect.transform.a * effect.transform.a + 
+                effect.transform.b * effect.transform.b
+            ) : 1
 
-                // 应用粘度
+            effect.droplets = effect.droplets.filter(droplet => {
+                // 应用考虑缩放的重力和速度
+                droplet.velocity.y += this.flowEffects.gravity * 0.5 / scale
                 droplet.velocity.x *= this.flowEffects.viscosity
                 droplet.velocity.y *= this.flowEffects.viscosity
 
-                // 更新位置
-                droplet.position.x += droplet.velocity.x
-                droplet.position.y += droplet.velocity.y
+                // 更新位置（在本地坐标系中）
+                droplet.position.x += droplet.velocity.x / scale
+                droplet.position.y += droplet.velocity.y / scale
 
-                // 更平缓的不透明度衰减
-                droplet.opacity *= 0.99
-
-                // 降低分裂概率
-                if (Math.random() < 0.02 * effect.pressure) {
-                    this.splitDroplet(effect, droplet)
-                }
-
-                // 检查距离限制
+                // 计算与原始位置的距离（考虑缩放）
                 const dx = droplet.position.x - effect.position.x
                 const dy = droplet.position.y - effect.position.y
-                const distance = Math.sqrt(dx * dx + dy * dy)
+                const distance = Math.sqrt(dx * dx + dy * dy) * scale
 
-                return distance < this.flowEffects.maxFlowDistance 
-                    && droplet.opacity > this.flowEffects.minOpacity
+                droplet.opacity *= 0.95
+
+                return distance < this.flowEffects.maxFlowDistance * 0.3
+                    && droplet.opacity > this.flowEffects.minOpacity * 1.5
             })
 
             if (effect.droplets.length === 0) {
@@ -580,27 +571,28 @@ const brushImageProcessor = {
             // 子水滴继承更低的不透明度
             opacity: parentDroplet.opacity * 0.3
         }
-
         effect.droplets.push(newDroplet)
     },
 
-    // 渲染流动效果
+    // 优化流动效果渲染
     renderFlowEffects(ctx) {
+        ctx.save()
+        ctx.globalCompositeOperation = 'lighten'
+
         for (const effect of this.flowEffects.active) {
+            // 应用原始变换矩阵
+            if (effect.transform) {
+                ctx.setTransform(effect.transform)
+            }
+
             for (const droplet of effect.droplets) {
-                ctx.save()
-
-                // 改为变亮混合模式
-                ctx.globalCompositeOperation = 'lighten'
-
                 const r = effect.color?.r ?? 0
                 const g = effect.color?.g ?? 0
                 const b = effect.color?.b ?? 0
-                // 确保最大不透明度非常低
-                const a = Math.min(0.05, droplet.opacity ?? 0.02)
+                const a = Math.min(0.03, droplet.opacity ?? 0.01)
 
                 ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`
-
+                
                 ctx.beginPath()
                 ctx.arc(
                     droplet.position.x,
@@ -610,10 +602,10 @@ const brushImageProcessor = {
                     Math.PI * 2
                 )
                 ctx.fill()
-
-                ctx.restore()
             }
         }
+
+        ctx.restore()
     },
 
 }
