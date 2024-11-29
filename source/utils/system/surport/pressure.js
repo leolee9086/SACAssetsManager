@@ -1,4 +1,10 @@
-export  const ispressureSupported =()=>{
-    return window.PointerEvent &&
-    typeof window.PointerEvent === 'function';
+export const isPressureSupported = () => {
+    return (
+        window.PointerEvent &&
+        'pressure' in window.PointerEvent.prototype
+    ) || (
+            window.TouchEvent &&
+            'force' in window.TouchEvent.prototype
+        );
+
 }

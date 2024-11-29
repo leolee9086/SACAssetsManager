@@ -1,10 +1,9 @@
 import { fromURL } from "../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js"
-import { batchLoadImageFromUrl as loadImages, loadImageFromUrl as loadImage } from "../../../utils/image/loader/fromURL.js"
+import { loadImageFromUrl as loadImage } from "../../../utils/image/loader/fromURL.js"
 import { 获取事件canvas坐标 } from "../../../utils/canvas/events.js"
-import { ispressureSupported } from "../../../utils/system/surport/pressure.js"
+import { isPressureSupported } from "../../../utils/system/surport/pressure.js"
 import { 尖头马克笔, 宽头马克笔, 水彩笔, 铅笔, 钢笔, 鸭嘴笔 } from "../../../utils/canvas/draw/brushes.js"
 import { brushImageProcessor } from '../../../utils/canvas/draw/brushes.js'
-import { preloadImage, isImageCached, clearImageCache } from "./cache.js"
 import { 按距离采样点序列 } from "../../math/geometry/geom2d.js"
 export class DrawingTools {
     constructor(canvas) {
@@ -67,7 +66,7 @@ export class DrawingTools {
             'difference',
             'exclusion'
         ];
-        this.pressureSupported = ispressureSupported()
+        this.pressureSupported = isPressureSupported()
 
         if (this.pressureSupported) {
             // 阻止所有默认的鼠标和触摸事件
