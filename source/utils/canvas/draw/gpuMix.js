@@ -6,6 +6,70 @@ const device = await adapter.requestDevice({
         maxStorageBufferBindingSize: 128 * 1024 * 1024, // 128MB
     }
 });
+class TextureManager {
+    constructor() {
+        this.device = device;
+        this.textureCache = new Map();
+        this.maxCacheSize = 100; // 可根据需要调整缓存大小
+    }
+
+    // 创建纹理
+    createTexture(width, height, options = {}) {
+        const {
+            format = 'rgba8unorm',
+            usage = GPUTextureUsage.TEXTURE_BINDING | 
+                    GPUTextureUsage.COPY_DST | 
+                    GPUTextureUsage.RENDER_ATTACHMENT,
+            label = ''
+        } = options;
+
+        return this.device.createTexture({
+            size: { width, height, depthOrArrayLayers: 1 },
+            format,
+            usage,
+            label
+        });
+    }
+
+    // 从 ImageData 创建纹理
+    async createTextureFromImageData(imageData, options = {}) {
+        const { width, height } = imageData;
+        const texture = this.createTexture(width, height, options);
+
+        this.device.queue.writeTexture(
+            { texture },
+            imageData.data,
+            { bytesPerRow: width * 4 },
+            { width, height }
+        );
+
+        return texture;
+    }
+
+    // 从 Canvas/Image/ImageBitmap 创建纹理
+    async createTextureFromImage(source, options = {}) {
+        const texture = this.createTexture(
+            source.width,
+            source.height,
+            options
+        );
+
+        this.device.queue.copyExternalImageToTexture(
+            { source },
+            { texture },
+            { width: source.width, height: source.height }
+        );
+
+        return texture;
+    }
+
+    // 清理纹理
+    destroyTexture(texture) {
+        if (texture) {
+            texture.destroy();
+        }
+    }
+}
 
 // 在 WebGPUMixer 类的开始添加 BufferPool 类
 class BufferPool {
@@ -134,6 +198,8 @@ export class WebGPUMixer {
 
         try {
             // 初始化 WebGPU context
+            this.textureManager = new TextureManager();
+
             this.gpuContext = this.gpuCanvas.getContext('webgpu');
             if (!this.gpuContext) {
                 throw new Error('Failed to get WebGPU context');
@@ -573,11 +639,8 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
             await this.init();
         }
         try {
-            // 确保尺寸为正整数
             width = Math.max(1, Math.ceil(width));
             height = Math.max(1, Math.ceil(height));
-
-            // 调整 GPU canvas 大小
             if (this.gpuCanvas.width !== width || this.gpuCanvas.height !== height) {
                 this.gpuCanvas.width = width;
                 this.gpuCanvas.height = height;
@@ -586,150 +649,25 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
             }
             this.offscreenCtx.clearRect(0, 0, width, height);
             this.offscreenCtx.drawImage(brushImage, 0, 0, width, height);
-            const imageData = this.offscreenCtx.getImageData(0, 0, width, height);
-            const imageData1 = ctx.getImageData(x, y, width, height);
-            const bytesPerRow = Math.ceil((width * 4) / 256) * 256;
-            const bufferSize = bytesPerRow * height;
-            const sourceBuffer = this.bufferPool.getBuffer(
-                bufferSize,
-                GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-            );
-            const stagingBuffer = this.device.createBuffer({
-                size: bufferSize,
-                usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
-                mappedAtCreation: true
-            });
-            const arrayBuffer = stagingBuffer.getMappedRange();
-            const sourceArray = new Uint8Array(arrayBuffer);
-            for (let y = 0; y < height; y++) {
-                const sourceStart = y * width * 4;
-                const destStart = y * bytesPerRow;
-                for (let x = 0; x < width; x++) {
-                    const sourceOffset = sourceStart + x * 4;
-                    const destOffset = destStart + x * 4;
-                    sourceArray[destOffset] = imageData.data[sourceOffset + 2];     // B
-                    sourceArray[destOffset + 1] = imageData.data[sourceOffset + 1]; // G
-                    sourceArray[destOffset + 2] = imageData.data[sourceOffset];     // R
-                    sourceArray[destOffset + 3] = imageData.data[sourceOffset + 3]; // A
-                }
-            }
-            stagingBuffer.unmap();
-            const copyCommandEncoder = this.device.createCommandEncoder();
-            copyCommandEncoder.copyBufferToBuffer(
-                stagingBuffer,
-                0,
-                sourceBuffer,
-                0,
-                bytesPerRow * height
-            );
-            this.device.queue.submit([copyCommandEncoder.finish()]);
-
-            const texture = this.device.createTexture({
-                size: { width, height, depthOrArrayLayers: 1 },
-                format: 'bgra8unorm',
-                usage: GPUTextureUsage.TEXTURE_BINDING |
-                    GPUTextureUsage.COPY_DST |
-                    GPUTextureUsage.RENDER_ATTACHMENT |
-                    GPUTextureUsage.COPY_SRC
-            });
-
-            // 复制数据到纹理
             const commandEncoder = this.device.createCommandEncoder();
-            commandEncoder.copyBufferToTexture(
-                {
-                    buffer: sourceBuffer,
-                    bytesPerRow,
-                    rowsPerImage: height,
-                },
-                {
-                    texture: texture,
-                },
-                {
-                    width,
-                    height,
-                    depthOrArrayLayers: 1,
-                }
-            );
-            // 对 imageData1 进行与 imageData 相同的处理
-            const bytesPerRow1 = Math.ceil((width * 4) / 256) * 256;
-            const bufferSize1 = bytesPerRow1 * height;
-
-            const sourceBuffer1 = this.bufferPool.getBuffer(
-                bufferSize1,
-                GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-            );
-            const stagingBuffer1 = this.device.createBuffer({
-                size: bufferSize1,
-                usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
-                mappedAtCreation: true
-            });
-
-            const arrayBuffer1 = stagingBuffer1.getMappedRange();
-            const sourceArray1 = new Uint8Array(arrayBuffer1);
-            for (let y = 0; y < height; y++) {
-                const sourceStart1 = y * width * 4;
-                const destStart1 = y * bytesPerRow1;
-                for (let x = 0; x < width; x++) {
-                    const sourceOffset1 = sourceStart1 + x * 4;
-                    const destOffset1 = destStart1 + x * 4;
-                    sourceArray1[destOffset1] = imageData1.data[sourceOffset1 + 2];     // B
-                    sourceArray1[destOffset1 + 1] = imageData1.data[sourceOffset1 + 1]; // G
-                    sourceArray1[destOffset1 + 2] = imageData1.data[sourceOffset1];     // R
-                    sourceArray1[destOffset1 + 3] = imageData1.data[sourceOffset1 + 3]; // A
-                }
-            }
-            stagingBuffer1.unmap();
-
-            // 从暂存缓冲区复制到源缓冲区
-            const copyCommandEncoder1 = this.device.createCommandEncoder();
-            copyCommandEncoder1.copyBufferToBuffer(
-                stagingBuffer1,
-                0,
-                sourceBuffer1,
-                0,
-                bytesPerRow1 * height
-            );
-            this.device.queue.submit([copyCommandEncoder1.finish()]);
-
-            // 创建纹理
-            const texture1 = this.device.createTexture({
-                size: { width, height, depthOrArrayLayers: 1 },
-                format: 'bgra8unorm',
-                usage: GPUTextureUsage.TEXTURE_BINDING |
-                    GPUTextureUsage.COPY_DST |
-                    GPUTextureUsage.RENDER_ATTACHMENT |
-                    GPUTextureUsage.COPY_SRC
-            });
-
-            // 复制数据到纹理
-            const commandEncoder1 = this.device.createCommandEncoder();
-            commandEncoder1.copyBufferToTexture(
-                {
-                    buffer: sourceBuffer1,
-                    bytesPerRow: bytesPerRow1,
-                    rowsPerImage: height,
-                },
-                {
-                    texture: texture1,
-                },
-                {
-                    width,
-                    height,
-                    depthOrArrayLayers: 1,
-                }
-            );
-            this.device.queue.submit([commandEncoder1.finish()]);
-            // 使用与管线布局匹配的绑定组
+            const [brushTexture, canvasTexture] = await Promise.all([
+                this.textureManager.createTextureFromImageData(
+                    this.offscreenCtx.getImageData(0, 0, width, height)
+                ),
+                this.textureManager.createTextureFromImageData(
+                    ctx.getImageData(x, y, width, height)
+                )
+            ]);
             const bindGroup = this.device.createBindGroup({
                 layout: this.bindGroupLayout,
                 entries: [
                     {
                         binding: 0,
-                        resource: texture.createView()
+                        resource: brushTexture.createView()
                     },
                     {
                         binding: 1,
-                        resource: texture1.createView()
+                        resource: canvasTexture.createView()
                     },
                     {
                         binding: 2,
@@ -751,7 +689,7 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
                 alphaExponent: 1.5,          // alpha 指数
                 ditherStrength: 0.001,       // 抖动强度
                 maxOpacity: 1,            // 最大不透明度（水彩效果）
-                canvasWeight: 0            // 画布颜色权重增加 20%
+                canvasWeight: 2           // 画布颜色权重增加 20%
             });
             const renderPassDescriptor = {
                 colorAttachments: [{
@@ -769,21 +707,13 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
             passEncoder.end();
             this.device.queue.submit([commandEncoder.finish()]);
             this.device.queue.onSubmittedWorkDone();
-            this.bufferPool.returnBuffer(sourceBuffer);
-            stagingBuffer.destroy(); // 直接销毁 staging buffer
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.drawImage(this.gpuCanvas, x, y);
+            const bitmap = this.gpuCanvas.transferToImageBitmap();
 
-            // 恢复默认混合模式（可选）
-            ctx.globalCompositeOperation = 'source-over';
-                    } catch (error) {
+            ctx.drawImage(bitmap, x, y);
+        } catch (error) {
             console.error('WebGPU operation failed:', error);
         }
     }
-
-
-
-
     // 设备丢失处理
     async handleDeviceLost() {
         this.initialized = false;
@@ -794,23 +724,17 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
             console.error('Failed to reinitialize WebGPU:', error);
         }
     }
-
-    // 清理资源
     clearResources() {
         // 理纹理池
         for (const pool of this.texturePool.values()) {
             pool.forEach(texture => texture.destroy());
         }
         this.texturePool.clear();
-
-        // 清理其他资源
         if (this.vertexBuffer) {
             this.vertexBuffer.destroy();
             this.vertexBuffer = null;
         }
     }
-
-    // 析构函数
     destroy() {
         this.clearResources();
         this.device = null;
@@ -820,7 +744,6 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
             this.bufferPool = null;
         }
     }
-
     createTextureFromBitmap(bitmap) {
         const texture = this.device.createTexture({
             size: {
@@ -842,10 +765,7 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
         );
         return texture;
     }
-
-    // 更新参数方法
     async updateParams(params) {
-        // 使用队列确保参数更新的顺序执行
         this.paramUpdateQueue = this.paramUpdateQueue.then(async () => {
             try {
                 // 更新存储的参数
@@ -871,13 +791,10 @@ fn KMToRGB(km: KMCoefficients) -> vec3f {
         });
         await this.paramUpdateQueue;
     }
-
-    // 添加辅助函数
     smoothstep(edge0, edge1, x) {
         x = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
         return x * x * (3 - 2 * x);
     }
-
     lerp(a, b, t) {
         return a + (b - a) * t;
     }

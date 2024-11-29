@@ -181,7 +181,6 @@ export class DrawingTools {
             const pressure = point.pressure || 1.0;
             const sizeMultiplier = pressure * 0.5 + 0.5;
             const opacityMultiplier = point.opacity * pressure;
-            
             this.currentDrawFn(
                 lastPoint.x,
                 lastPoint.y,
