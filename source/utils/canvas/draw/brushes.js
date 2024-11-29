@@ -1,152 +1,23 @@
 import { brushImageProcessor } from './brushSampleProcessor.js'
-import { hexToRgb, rgbToHex } from "../../color/convert.js"
 import { mixer } from './gpuMix.js'
-/**
- * 笔刷类型定义
- */
-const BRUSH_TYPES = {
-    MARKER: 'marker',
-    IMAGE: 'image',
-    SHAPE: 'shape'
-}
-
-/**
- * 笔刷配置
- */
-const brushConfigs = {
-    尖头马克笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 1,
-        spacing: 1,
-        sizeMultiplier: 10,
-        usePigment: true
-
-    },
-    宽头马克笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 1 / 30,
-        spacing: 5,
-        sizeMultiplier: 15,
-    },
-    水彩笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 0.1,
-        spacing: 0.08,
-        sizeMultiplier: 20,
-        pickupEnabled: true,  // 启用沾染
-        pickupRadius: 20,     // 沾染影响半径
-        pickupDecay: 0.95,    // 沾衰减率
-        flowEnabled: true,
-        usePigment: true
-    },
-    铅笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 1,
-        spacing: 2,
-        sizeMultiplier: 5
-    },
-    钢笔: {
-        type: BRUSH_TYPES.SHAPE,
-        opacity: 1,
-        spacing: 1,
-        shape: 'circle',
-        sizeMultiplier: 1
-    },
-    鸭嘴笔: {
-        type: BRUSH_TYPES.SHAPE,
-        opacity: 1,
-        spacing: 1,
-        shape: 'rectangle',
-        sizeMultiplier: 1,
-        widthMultiplier: 4,
-        heightMultiplier: 1,
-        angle: 45
-    },
-    毛笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 0.7,
-        spacing: 1,
-        sizeMultiplier: 12,
-        pressureSensitive: true,
-        compositeOperation: 'source-over',
-        inkFlow: 0.8,
-        spreadFactor: 1.2
-    },
-    粉笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 0.9,
-        spacing: 3,
-        sizeMultiplier: 8,
-        compositeOperation: 'overlay',
-        textureStrength: 0.8,
-        roughness: 0.6
-    },
-    油画笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 0.95,
-        spacing: 4,
-        sizeMultiplier: 25,
-        compositeOperation: 'hard-light',
-        paintThickness: 0.8,
-        blendFactor: 0.6,
-        bristleCount: 12
-    },
-    喷枪: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 0.05,
-        spacing: 1,
-        sizeMultiplier: 30,
-        compositeOperation: 'source-over',
-        sprayRadius: 20,
-        falloff: 0.7,
-        density: 0.8
-    },
-    蜡笔: {
-        type: BRUSH_TYPES.SHAPE,
-        opacity: 0.9,
-        spacing: 2,
-        shape: 'rectangle',
-        widthMultiplier: 3,
-        heightMultiplier: 0.8,
-        texturePattern: 'grainy',
-        pressureVariation: 0.3,
-        edgeRoughness: 0.4
-    },
-    针管笔: {
-        type: BRUSH_TYPES.SHAPE,
-        opacity: 1,
-        spacing: 0.2,
-        shape: 'circle',
-        smoothing: 0.9,
-        minWidth: 0.5,
-        maxWidth: 2,
-        inkFlow: 0.95
-    }
-}
-
+import { brushConfigs,BRUSH_TYPES } from './brushes/configs.js'
 /**
  * 工厂函数
  */
-const createBrush = (brushName) => {
-    const config = brushConfigs[brushName]
-
+const createBrush = (config) => {
     return async (ctx, brushSamples, startX, startY, endX, endY, color, size, opacity, pressure = 1, velocity = 0) => {
         ctx.save()
-
         try {
             const dx = endX - startX
             const dy = endY - startY
             const distance = Math.sqrt(dx * dx + dy * dy)
             const angle = Math.atan2(dy, dx)
-
             const effectiveSize = calculateEffectiveSize(config, size, pressure)
             const effectiveOpacity = calculateEffectiveOpacity(config, opacity, pressure, velocity)
-
             ctx.globalAlpha = effectiveOpacity
             if (config.compositeOperation) {
                 ctx.globalCompositeOperation = config.compositeOperation
             }
-
             if (config.type === BRUSH_TYPES.SHAPE) {
                 drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize)
             } else {
@@ -248,7 +119,6 @@ async function drawImageBrush(ctx, sample, config, startX, startY, distance, ang
             )
         )
     }
-
     // 按顺序执行所有绘制操作
     for (const operation of drawOperations) {
         await operation
@@ -303,22 +173,17 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
         ctx.restore()
     }
 }
-
-
 function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) {
     const dx = endX - startX
     const dy = endY - startY
     const distance = Math.sqrt(dx * dx + dy * dy)
     const angle = Math.atan2(dy, dx)
-
     const spacing = config.spacing * effectiveSize
     const numPoints = Math.max(1, Math.floor(distance / spacing))
-
     if (numPoints <= 1) {
         drawBrushPoint(ctx, null, startX, startY, angle, effectiveSize, config)
         return
     }
-
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints
         const x = startX + (distance * t * Math.cos(angle))
@@ -339,21 +204,25 @@ function drawRectangle(ctx, width, height) {
     ctx.fill()
 }
 
+
+
+
+
 /**
  * 导出笔刷函数
  */
-export const 尖头马克笔 = createBrush('尖头马克笔')
-export const 宽头马克笔 = createBrush('宽头马克笔')
-export const 水彩笔 = createBrush('水彩笔')
-export const 铅笔 = createBrush('铅笔')
-export const 钢笔 = createBrush('钢笔')
-export const 鸭嘴笔 = createBrush('鸭嘴笔')
-export const 毛笔 = createBrush('毛笔')
-export const 粉笔 = createBrush('粉笔')
-export const 油画笔 = createBrush('油画笔')
-export const 喷枪 = createBrush('喷枪')
-export const 蜡笔 = createBrush('蜡笔')
-export const 针管笔 = createBrush('针管笔')
+export const 尖头马克笔 = createBrush(brushConfigs.尖头马克笔)
+export const 宽头马克笔 = createBrush(brushConfigs.宽头马克笔)
+export const 水彩笔 = createBrush(brushConfigs.水彩笔)
+export const 铅笔 = createBrush(brushConfigs.铅笔)
+export const 钢笔 = createBrush(brushConfigs.钢笔)
+export const 鸭嘴笔 = createBrush(brushConfigs.鸭嘴笔)
+export const 毛笔 = createBrush(brushConfigs.毛笔)
+export const 粉笔 = createBrush(brushConfigs.粉笔)
+export const 油画笔 = createBrush(brushConfigs.油画笔)
+export const 喷枪 = createBrush(brushConfigs.喷枪)
+export const 蜡笔 = createBrush(brushConfigs.蜡笔)
+export const 针管笔 = createBrush(brushConfigs.针管笔)
 
 
 export { brushImageProcessor } 
