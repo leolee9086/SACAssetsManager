@@ -19,25 +19,25 @@ const brushConfigs = {
         opacity: 1,
         spacing: 1,
         sizeMultiplier: 10,
+        usePigment: true
+
     },
     宽头马克笔: {
         type: BRUSH_TYPES.IMAGE,
         opacity: 1 / 30,
         spacing: 5,
         sizeMultiplier: 15,
-        compositeOperation: 'darken'
     },
     水彩笔: {
         type: BRUSH_TYPES.IMAGE,
-        opacity:0.7,
+        opacity: 0.1,
         spacing: 0.08,
         sizeMultiplier: 20,
-        compositeOperation: 'source-over',
         pickupEnabled: true,  // 启用沾染
         pickupRadius: 20,     // 沾染影响半径
         pickupDecay: 0.95,    // 沾衰减率
         flowEnabled: true,
-        usePigment:true
+        usePigment: true
     },
     铅笔: {
         type: BRUSH_TYPES.IMAGE,
@@ -259,7 +259,15 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
     const width = size * (config.widthMultiplier || 1)
     const height = size * (config.heightMultiplier || 1)
     try {
+        ctx.save()
+        ctx.translate(x, y)
+        ctx.rotate(angle + (config.angle || 0) * Math.PI / 180)
 
+        // 处理特殊效果
+        if (config.spreadFactor) {
+            const spread = size * config.spreadFactor * Math.random()
+            ctx.translate(spread * (Math.random() - 0.5), spread * (Math.random() - 0.5))
+        }
 
         // 处理笔刷纹理
         if (config.textureStrength) {
@@ -278,13 +286,16 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
                     drawCircle(ctx, width)
             }
         } else if (sample) {
-
+            const transform = ctx.getTransform()
+            ctx.resetTransform()
+            const transformedX = transform.e - width / 2
+            const transformedY = transform.f - height / 2
             if(config.usePigment){
-                mixer.mixColors(ctx, sample, x-width / 2, y- height / 2, width, height)
-
-            }else{
-            ctx.drawImage(sample, x-width / 2, y- height / 2, width, height)
+                mixer.mixColors(ctx, sample, transformedX, transformedY, width, height)
+                return
             }
+            ctx.drawImage(sample, x-width / 2, y- height / 2, width, height)
+
         }
     } catch (error) {
         console.error('绘制点失败:', error)
@@ -292,6 +303,7 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
         ctx.restore()
     }
 }
+
 
 function drawShapeBrush(ctx, config, startX, startY, endX, endY, effectiveSize) {
     const dx = endX - startX

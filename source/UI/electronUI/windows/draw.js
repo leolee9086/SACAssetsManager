@@ -317,7 +317,6 @@ export class DrawingTools {
                 opacityMultiplier);
         }
     }
-
     drawMarker(startX, startY, endX, endY, color, size, opacity) {
         尖头马克笔(this.ctx, this.brushImages.marker, startX, startY, endX, endY, color, size, opacity)
     }
