@@ -2,6 +2,7 @@ import { 欧几里得聚类, CIEDE2000聚类 } from '../../../utils/color/Kmeans
 import { 找到文件颜色, 添加到颜色索引 } from '../color/colorIndex.js'
 import { awaitForEach } from '../../../utils/array/walk.js'
 import { 缩放图像到32 } from './utils/sharp.js'
+import { isValidImageBuffer } from '../../../utils/image/isImage.js'
 /**
  * 获取图像的主色调
  * @param {Object} buffer - 图像的缓冲区对象
@@ -9,7 +10,7 @@ import { 缩放图像到32 } from './utils/sharp.js'
  * @returns {Promise<Array>} 返回主色调数组
  */
 export async function getColor(buffer, filePath) {
-    if (!isValidBuffer(buffer)) {
+    if (!isValidImageBuffer(buffer)) {
         return
     }
     buffer = extractBufferData(buffer)
@@ -29,14 +30,7 @@ export async function getColor(buffer, filePath) {
     }
 }
 
-/**
- * 验证缓冲区对象是否有效
- * @param {Object} buffer - 图像的缓冲区对象
- * @returns {boolean} 是否有效
- */
-function isValidBuffer(buffer) {
-    return buffer.type || buffer.isImage || Buffer.isBuffer(buffer)
-}
+
 
 /**
  * 提取缓冲区数据

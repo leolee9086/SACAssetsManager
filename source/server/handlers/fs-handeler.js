@@ -9,7 +9,6 @@ export const 响应文件夹扩展名请求 =async (req,res,next)=>{
     if (!dirPath) {
         return res.status(400).json({ error: 'dirPath 参数是必须的' });
     }
-
     try {
         const extensions = await 提取所有子目录文件扩展名(dirPath);
         res.json({ extensions });
@@ -18,9 +17,6 @@ export const 响应文件夹扩展名请求 =async (req,res,next)=>{
         res.status(500).json({ error: '服务器内部错误' });
     }
 }
-
-
-
 export const 获取文件夹第一张图片 = async (req, res, next) => {
     const fs = require('fs').promises
     const path = require('path')
@@ -28,11 +24,9 @@ export const 获取文件夹第一张图片 = async (req, res, next) => {
     if (!dirPath) {
         return res.status(400).json({ error: 'dirPath 参数是必须的' });
     }
-
     try {
         const files = await fs.readdir(dirPath);
         const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
-        
         for (const file of files) {
             const filePath = path.join(dirPath, file);
             const stat = await fs.stat(filePath);
@@ -44,8 +38,6 @@ export const 获取文件夹第一张图片 = async (req, res, next) => {
                 return res.send(imageBuffer);
             }
         }
-        
-        // 如果没有找到图片，使用第一个文件作为localPath并重定向到thumbnail
         if (files.length > 0) {
             const firstFilePath = path.join(dirPath, files[0]);
             res.redirect(`/thumbnail?localPath=${encodeURIComponent(firstFilePath)}`);

@@ -1,6 +1,6 @@
 import { getColor } from './color.js'
 import { diffColor } from '../../../utils/color/Kmeans.js'
-import { globalTaskQueue, 添加优先级任务 } from '../queue/taskQueue.js'
+import { globalTaskQueue,  添加后进先出后台任务 } from '../queue/taskQueue.js'
 import { 内置缩略图生成器序列 } from './loaders/internal.js'
 import { getCommonLoader } from './loaders/query.js'
 import { tumbnailCache } from './cache/index.js'
@@ -90,8 +90,7 @@ export const 准备缩略图 = async (imagePath, loaderID = null) => {
             return imagePath
         }
     }
-    const 时间优先级 = 0-Date.now();
-    添加优先级任务(缩略图任务函数, 时间优先级)
+    添加后进先出后台任务(缩略图任务函数)
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)

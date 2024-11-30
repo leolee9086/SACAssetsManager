@@ -3,12 +3,12 @@ import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
 import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
-import { ignoreDir } from './dirs/ignored.js'
-import { globalTaskQueue, 添加优先级任务 } from '../queue/taskQueue.js'
+import { globalTaskQueue, 添加优先级任务,添加后进先出后台任务 } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
 import { 查找子文件夹, 删除缩略图缓存行, 计算哈希 } from '../thumbnail/indexer.js'
 import { getCachePath } from './cached/fs.js'
 import { 查找文件夹状态 } from '../../dataBase/mainDb.js'
+import { 判定路径排除 } from '../../../utils/fs/windowsSystemDirs.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 
@@ -152,7 +152,6 @@ export async function 更新目录索引(root) {
 
     api = api.crawl(root)
     api.withPromise().then(async (results) => {
-        console.log(results)
         globalTaskQueue.start();
         // 先处理需要立即更新的队列
         for (const path of 需要立即更新队列) {
@@ -188,14 +187,7 @@ export async function 更新目录索引(root) {
         )
     })
 }
-const 判定路径排除 = (name, path) => {
-    for (let dir of ignoreDir) {
-        if (path.toLowerCase().indexOf(dir.toLowerCase()) !== -1) {
-            return true
-        }
-    }
-    return false
-}
+
 async function 处理缓存文件(path, entry) {
     删除缩略图缓存行(path);
     let hash = 计算哈希(entry)

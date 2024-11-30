@@ -7,10 +7,8 @@ export function 计算图像感知哈希(data,THUMBNAIL_SIZE) {
     for (let i = 0, j = 0; i < data.length; i += 4, j++) {
         grayData[j] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
     }
-
     // 计算 DCT
     const dct = 应用离散余弦变换(grayData, size);
-
     // 提取低频部分
     const dctLow = new Float64Array(dctSize * dctSize);
     for (let i = 0; i < dctSize; i++) {
@@ -18,10 +16,8 @@ export function 计算图像感知哈希(data,THUMBNAIL_SIZE) {
             dctLow[i * dctSize + j] = dct[i * size + j];
         }
     }
-
     // 计算平均值（不包括第一个元素，因为它代表直流分量）
     const avg = dctLow.slice(1).reduce((sum, val) => sum + val, 0) / (dctSize * dctSize - 1);
-
     // 生成哈希
     let hash = '';
     for (let i = 0; i < dctLow.length; i++) {
