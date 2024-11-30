@@ -17,7 +17,7 @@ export const brushConfigs = {
         opacity: 1,
         spacing: 1,
         sizeMultiplier: 10,
-        usePigment: true,
+      //  usePigment: true,
         name: 'marker',
         label: '尖头马克笔',
         defaultColor: '#e24a4a',

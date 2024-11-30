@@ -161,7 +161,10 @@ async function drawBrushPoint(ctx, sample, x, y, angle, size, config) {
             const transformedX = transform.e - width / 2
             const transformedY = transform.f - height / 2
             if(config.usePigment){
+                //注意,这里的await对颜料的流动性模拟有巨大影响
+               // await mixer.mixColors(ctx, sample, transformedX, transformedY, width, height)
                 mixer.mixColors(ctx, sample, transformedX, transformedY, width, height)
+
                 return
             }
             ctx.drawImage(sample, x-width / 2, y- height / 2, width, height)
