@@ -1,4 +1,3 @@
-
 import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { Query } from '../../../static/mingo.js';
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
@@ -16,9 +15,8 @@ const { pipeline } = require('stream');
  * @param {AbortSignal} signal 
  * @returns 
  */
-const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController, maxDepth, search, extensions) => {
-    //因为遍历速度非常快,所以需要另行创建一个控制器避免提前结束响应
-    //当signal触发中止时,walkController也中止
+// 处理信号和控制器的设置
+const setupWalkController = (signal, walkController) => {
     signal.addEventListener('abort', () => {
         walkController.abort()
     })
@@ -27,85 +25,116 @@ const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkControll
     }
     const walkSignal = walkController.signal
     walkSignal.walkController = walkController
-    let filterFun
-    if (filter) {
-        filterFun = (entry) => {
-            if (filter) {
-                if (walkController.aborted) {
-                    return false
-                }
-                return filter.test(entry)
-            }
+    return walkSignal
+}
+
+// 创建过滤函数
+const createFilterFunction = (filter, walkController) => {
+    if (!filter) return undefined
+    return (entry) => {
+        if (walkController.aborted) {
+            return false
         }
-    } else {
-        filterFun = undefined
+        return filter.test(entry)
     }
-    let chunked = ''
-    walkAsyncWithFdir(cwd, filterFun, {
-        ifFile: (statProxy) => {
-            globalTaskQueue.paused = true
-            let data = stat2assetsItemStringLine(statProxy)
-            reportHeartbeat()
-            res.write(data)
-        },
-        end: () => {
-            walkController.abort()
-            globalTaskQueue.paused = false
-            if (chunked) {
-                res.write(chunked)
-                chunked = ''
-            }
-            res.end();
+}
+
+// 创建文件处理回调
+const createFileHandler = (res) => (statProxy) => {
+    globalTaskQueue.paused = true
+    let data = stat2assetsItemStringLine(statProxy)
+    reportHeartbeat()
+    res.write(data)
+}
+
+// 创建结束处理回调
+const createEndHandler = (walkController, res, chunkedRef) => () => {
+    walkController.abort()
+    globalTaskQueue.paused = false
+    if (chunkedRef.value) {
+        res.write(chunkedRef.value)
+        chunkedRef.value = ''
+    }
+    res.end()
+}
+
+// 创建进度处理回调
+const createProgressHandler = (res, chunkedRef) => (walkCount) => {
+    chunkedRef.value += `data:${JSON.stringify({ walkCount })}\n`
+    requestIdleCallback(() => {
+        globalTaskQueue.paused = true
+        if (chunkedRef.value) {
+            res.write(chunkedRef.value)
+            chunkedRef.value = ''
         }
-    }, (walkCount) => {
-        chunked += `data:${JSON.stringify({ walkCount })}\n`
-        requestIdleCallback(() => {
+    }, { timeout: 17, deadline: 18 })
+}
 
-            globalTaskQueue.paused = true
-            if (chunked) {
-                res.write(chunked)
-                chunked = ''
+const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController, maxDepth, search, extensions) => {
+    const walkSignal = setupWalkController(signal, walkController)
+    const filterFun = createFilterFunction(filter, walkController)
+    
+    // 使用对象引用来共享chunked状态
+    const chunkedRef = { value: '' }
+    
+    walkAsyncWithFdir(
+        cwd, 
+        filterFun,
+        {
+            ifFile: createFileHandler(res),
+            end: createEndHandler(walkController, res, chunkedRef)
+        },
+        createProgressHandler(res, chunkedRef),
+        walkSignal,
+        timeout,
+        maxDepth,
+        search,
+        extensions
+    )
+}
+
+// 1. 解析遍历配置
+const parseStreamConfig = (req) => {
+    let scheme
+    if (req.query && req.query.setting) {
+        try {
+            scheme = JSON.parse(req.query.setting)
+        } catch (e) {
+            console.error(e)
+            throw (e)
+        }
+    } else if (req.body) {
+        scheme = req.body
+    }
+    return scheme
+}
+// 2. 创建过滤器
+const 创建流过滤器 = (_filter, signal, walkController) => {
+    if (!_filter) return _filter
+    return {
+        test: (statProxy) => {
+            if (signal.aborted) {
+                walkController.abort()
+                return false
             }
-        }, { timeout: 17, deadline: 18 })
-
-    }, walkSignal, timeout, maxDepth, search, extensions);
-
-};
+            if (walkController.signal.aborted) {
+                return false
+            }
+            return statProxy.type !== 'file' || _filter.test(statProxy)
+        }
+    }
+}
 export const globStream = (req, res) => {
     let fn = async () => {
-        let scheme
         globalTaskQueue.paused = true
-        if (req.query && req.query.setting) {
-            try {
-                scheme = JSON.parse(req.query.setting)
-            } catch (e) {
-                console.error(e)
-                throw (e)
-            }
-        } else if (req.body) {
-            scheme = req.body
-        }
+        let scheme = parseStreamConfig(req)
         console.log('globStream', scheme)
         const _filter = parseQuery(req)
         const walkController = new AbortController()
         const controller = new AbortController();
-        let filter
-        if (_filter) {
-            filter = {
-                test: (statProxy) => {
-                    if (signal.aborted) {
-                        walkController.abort()
-                        return false
-                    }
-                    if (walkController.signal.aborted) {
-                        return false
-                    }
-                    return statProxy.type !== 'file' || _filter.test(statProxy)
-                }
-            }
-        } else {
-            filter = _filter
-        }
+        const { signal } = controller;
+
+        let filter = 创建流过滤器(_filter, signal, walkController)
         const timeout = parseInt(scheme.timeout) || 1000
         const cwd = scheme.cwd
         //设置响应头
@@ -114,7 +143,6 @@ export const globStream = (req, res) => {
         });
         //没有compression中间件的情况下,也就没有res.flush方法
         res.flushHeaders()
-        const { signal } = controller;
         await createWalkStream(cwd, filter, signal, res, timeout, walkController, scheme.depth, scheme.search, scheme.extensions)
         res.on('close', () => {
             reportHeartbeat()

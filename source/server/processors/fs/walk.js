@@ -214,31 +214,74 @@ async function 处理缓存文件(path, entry) {
         })
     }
 }
-export async function walkAsyncWithFdir(root, _filter, _stepCallback, countCallBack, signal = { aborted: false }, timeout, maxDepth = Infinity, search, extensions) {
-    const stepCallback = buildStepCallback(_stepCallback)
-    const filter = buildFilter(_filter, signal)
-    let { results, approximateCount } = await 查找子文件夹(root, search, extensions)
-    countCallBack(approximateCount)
+
+// 初始化遍历参数和回调
+const initializeWalkParams = (_stepCallback, _filter, signal) => {
+    return {
+        stepCallback: buildStepCallback(_stepCallback),
+        filter: buildFilter(_filter, signal)
+    }
+}
+
+// 处理单个文件结果
+const processFileResult = async (result, filter, stepCallback) => {
+    if (result.type !== 'file') {
+        return false
+    }
+    reportHeartbeat()
+    let flag = await filter(result)
+    if (flag) {
+        await stepCallback(result)
+    }
+    return true
+}
+
+// 处理遍历结果
+const processWalkResults = async (results, filter, stepCallback) => {
     const stats = {}
     for await (const result of results) {
         globalTaskQueue.pause()
         stats[result.path] = result
-        if (result.type !== 'file') {
-            continue
-        }
-        reportHeartbeat()
-        let flag = await filter(result)
-        if (flag) {
-            await stepCallback(result)
-        }
+        await processFileResult(result, filter, stepCallback)
     }
-    // 将更新目录索引加入全局队列并设置优先级为2
- //   更新目录索引(root, stats, signal)
+    return stats
+}
+
+// 安排目录索引更新任务
+const scheduleDirectoryIndexing = (root, stats, signal) => {
     globalTaskQueue.push(
         globalTaskQueue.priority(
-            async () => {更新目录索引(root, stats, signal);return {}},
-            0-Date.now()
+            async () => {
+                await 更新目录索引(root, stats, signal)
+                return {}
+            },
+            0 - Date.now()
         )
     )
+}
+
+export async function walkAsyncWithFdir(
+    root, 
+    _filter, 
+    _stepCallback, 
+    countCallBack, 
+    signal = { aborted: false }, 
+    timeout, 
+    maxDepth = Infinity, 
+    search, 
+    extensions
+) {
+    // 初始化参数
+    const { stepCallback, filter } = initializeWalkParams(_stepCallback, _filter, signal)
+    
+    // 获取子文件夹信息
+    let { results, approximateCount } = await 查找子文件夹(root, search, extensions)
+    countCallBack(approximateCount)
+    
+    // 处理遍历结果
+    const stats = await processWalkResults(results, filter, stepCallback)
+    
+    // 安排目录索引更新
+    scheduleDirectoryIndexing(root, stats, signal)
 }
 

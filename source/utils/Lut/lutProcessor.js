@@ -15,32 +15,25 @@ import { uploadData, readResult } from './dataHandlers.js';
  */
 export async function processImageWithLUT(image, lutData, intensity = 1.0) {
     let resources = null;
-
     try {
         if (!image || !lutData) {
             throw new Error('输入图像或 LUT 数据无效');
         }
-
         const { device } = await initializeWebGPU();
         const textures = createTextures(device, image);
         resources = textures;
-
         const uniformBuffer = device.createBuffer({
             size: 4,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-
         device.queue.writeBuffer(
             uniformBuffer,
             0,
             new Float32Array([intensity])
         );
-
         const pipeline = createComputePipeline(device);
         const bindGroup = createBindGroup(device, pipeline, textures, uniformBuffer);
-
         await uploadData(device, textures, image, lutData);
-
         const commandEncoder = device.createCommandEncoder();
         const computePass = commandEncoder.beginComputePass();
         computePass.setPipeline(pipeline);
@@ -50,19 +43,15 @@ export async function processImageWithLUT(image, lutData, intensity = 1.0) {
             Math.ceil(image.height / 8)
         );
         computePass.end();
-
         device.queue.submit([commandEncoder.finish()]);
-
         const resultData = await readResult(
             device,
             textures.outputTexture,
             image.width,
             image.height
         );
-
         destroyResources(textures);
         uniformBuffer.destroy();
-
         return { success: true, result: resultData };
     } catch (error) {
         console.error('LUT 处理失败:', error);
@@ -100,14 +89,11 @@ export async function processImageWithLUT(image, lutData, intensity = 1.0) {
  */
 export async function processFiles(imagePath, lutPath) {
     try {
-        console.log(imagePath, lutPath)
-
         // 并行处理图像和 LUT 文件
         const [imageResult, lutResult] = await Promise.all([
             processImageFile(imagePath),
             processLUTFile(lutPath)
         ]);
-
         return {
             image: imageResult,
             lut: lutResult
@@ -138,7 +124,6 @@ async function processImageFile(imagePath) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(image, 0, 0);
         const imageData = ctx.getImageData(0, 0, image.width, image.height);
-
         return {
             data: imageData.data,
             width: image.width,
@@ -164,17 +149,14 @@ async function processLUTFile(lutPath) {
         const fileName = lutPath.split('/').pop();
         const blobURL = URL.createObjectURL(blob);
         const fileSize = blob.size;
-
         // 读取.cube文件内容
         const text = await blob.text();
         const lutData = parseCubeFile(text);
-
         // 验证解析后的LUT数据
         const expectedSize = 32 * 32 * 32 * 4; // RGBA 格式
         if (lutData.length !== expectedSize) {
             throw new Error(`解析后的LUT数据大小不正确: ${lutData.length} bytes (应为 ${expectedSize} bytes)`);
         }
-
         return {
             data: lutData,
             blob,
@@ -195,26 +177,55 @@ async function processLUTFile(lutPath) {
  */
 function parseCubeFile(content) {
     const lines = content.split('\n');
-    const lutData = new Uint8Array(32 * 32 * 32 * 4);
-    let dataIndex = 0;
-    let currentIndex = 0;
-
+    let lutSize = 32; // 默认大小
+    let domainMin = [0, 0, 0];
+    let domainMax = [1, 1, 1];
+    
+    // 首先解析头部信息
     for (const line of lines) {
-        // 跳过注释和元数���行
-        if (line.trim().startsWith('#') || line.trim().startsWith('TITLE') ||
-            line.trim().startsWith('LUT_3D_SIZE') || line.trim().startsWith('DOMAIN_MIN') ||
-            line.trim().startsWith('DOMAIN_MAX') || line.trim() === '') {
+        const trimmedLine = line.trim();
+        if (trimmedLine.startsWith('LUT_3D_SIZE')) {
+            lutSize = parseInt(trimmedLine.split(/\s+/)[1]);
+        } else if (trimmedLine.startsWith('DOMAIN_MIN')) {
+            domainMin = trimmedLine.split(/\s+/).slice(1).map(Number);
+        } else if (trimmedLine.startsWith('DOMAIN_MAX')) {
+            domainMax = trimmedLine.split(/\s+/).slice(1).map(Number);
+        }
+    }
+
+    // 创建适当大小的数组
+    const lutData = new Uint8Array(lutSize * lutSize * lutSize * 4);
+    let currentIndex = 0;
+    let dataCount = 0;
+
+    // 解析数据行
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine === '' || trimmedLine.startsWith('#') || 
+            trimmedLine.startsWith('TITLE') || trimmedLine.startsWith('LUT_3D_SIZE') ||
+            trimmedLine.startsWith('DOMAIN_MIN') || trimmedLine.startsWith('DOMAIN_MAX')) {
             continue;
         }
 
-        // 解析RGB值
-        const [r, g, b] = line.trim().split(/\s+/).map(Number);
+        const [r, g, b] = trimmedLine.split(/\s+/).map(Number);
+        
+        // 根据 domain 范围进行归一化
+        const normalizedR = (r - domainMin[0]) / (domainMax[0] - domainMin[0]);
+        const normalizedG = (g - domainMin[1]) / (domainMax[1] - domainMin[1]);
+        const normalizedB = (b - domainMin[2]) / (domainMax[2] - domainMin[2]);
 
-        // 转换为0-255范围的值
-        lutData[currentIndex++] = Math.round(r * 255);
-        lutData[currentIndex++] = Math.round(g * 255);
-        lutData[currentIndex++] = Math.round(b * 255);
-        lutData[currentIndex++] = 255; // Alpha 通道设为255
+        lutData[currentIndex++] = Math.round(normalizedR * 255);
+        lutData[currentIndex++] = Math.round(normalizedG * 255);
+        lutData[currentIndex++] = Math.round(normalizedB * 255);
+        lutData[currentIndex++] = 255;
+        
+        dataCount++;
+    }
+
+    // 验证数据完整性
+    const expectedCount = lutSize * lutSize * lutSize;
+    if (dataCount !== expectedCount) {
+        throw new Error(`LUT 数据不完整: 期望 ${expectedCount} 个颜色点, 实际读取到 ${dataCount} 个`);
     }
 
     return lutData;
@@ -323,5 +334,3 @@ export function cleanupPreview(result) {
         URL.revokeObjectURL(result.preview.blobURL);
     }
 }
-let result = await processImageWithLUTFile("file:///D:/%E5%8D%95%E4%BD%93%E6%A8%A1%E5%9E%8B%E7%B4%A0%E6%9D%90/%E5%8E%A8%E5%8D%AB/%E5%8E%A8%E6%88%BF/%E9%A4%90%E5%85%B7/%20(15).png", 'C:/D5 WorkSpace/customlut/beach7.cube', 0.1)
-fetch(result.blobURL)

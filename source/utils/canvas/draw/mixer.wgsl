@@ -1,5 +1,5 @@
    // 常量定义
-#import {fn sRGBToLinear,fn linearToSRGB} from './colors.wgsl';
+#import {fn sRGBToLinear,fn linearToSRGB,fn RGBToKM,fn KMToRGB,fn PremultiplyAlpha} from './colors.wgsl';
 #import {f32 PI,f32 EPSILON} from './constants.wgsl'
 
                 // 结构体定义
@@ -35,39 +35,12 @@ fn vertexMain(@location(0) position: vec2f) -> VertexOutput {
     return output;
 }
 
-
-              // 改进 RGB 到 KM 系数的转换
-fn RGBToKM(color: vec3f, S: vec3f) -> KMCoefficients {
-    // 对于接近白色的颜色，降低散射系数以保持亮度
-    let whiteness = (color.r + color.g + color.b) / 3.0;
-    let adjustedS = mix(S, S * 0.5, pow(whiteness, 2.0));
-    let R = clamp(color, vec3f(EPSILON), vec3f(1.0 - EPSILON));
-    // 修改 K/S 比率计算，使其在接近白色时更准确
-    let K_over_S = (pow(1.0 - R, vec3f(2.0))) / (2.0 * R);
-    let K = K_over_S * adjustedS;
-    return KMCoefficients(K, adjustedS);
-}
-
-                // 改进的 KM 系数到 RGB 转换
-fn KMToRGB(km: KMCoefficients) -> vec3f {
-    let K_over_S = km.K / km.S;
-    // 标准 K-M 方程的反函数
-    // R = 1 + K/S - sqrt((K/S)² + 2K/S)
-    let a = 1.0 + K_over_S;
-    let root = sqrt(K_over_S * K_over_S + 2.0 * K_over_S);
-    let R = a - root;
-    return clamp(R, vec3f(0.0), vec3f(1.0));
-}
  // 添加 alpha 混合函数
 fn blendAlpha(a1: f32, a2: f32) -> f32 {
 // Porter-Duff alpha 合成
     return a1 + a2 * (1.0 - a1);
 }
-fn premultiplyAlpha(color: vec4f) -> vec4f {
- // 计算在白色背景下的RGB值，并保留alpha
-    let premultipliedRGB = color.rgb * color.a + vec3f(1.0) * (1.0 - color.a);
-    return vec4f(premultipliedRGB, color.a);
-}
+
                     
 // 添加新的辅助函数用于限制颜色衰减
 fn limitColorDecay(color: vec3f, original: vec3f, limit: f32) -> vec3f {
@@ -77,8 +50,8 @@ fn limitColorDecay(color: vec3f, original: vec3f, limit: f32) -> vec3f {
 }
  // 改进的颜料混合函数
 fn mixPigmentsKM(color1: vec4f, color2: vec4f, params: PigmentParams, texCoord: vec2f) -> vec4f {
-    let premultipliedColor1 = premultiplyAlpha(color1);
-    let premultipliedColor2 = premultiplyAlpha(color2);
+    let premultipliedColor1 = PremultiplyAlpha(color1);
+    let premultipliedColor2 = PremultiplyAlpha(color2);
     let c1 = sRGBToLinear(color1.rgb);
     let c2 = sRGBToLinear(premultipliedColor2.rgb);         
     // 为每个颜色通道调整散射系数
@@ -141,29 +114,18 @@ fn mixPigmentsKM(color1: vec4f, color2: vec4f, params: PigmentParams, texCoord: 
         exp(log(km1.K + vec3f(1.0)) * t1 + log(km2.K + vec3f(1.0)) * t2) - vec3f(1.0),
         exp(log(km1.S + vec3f(1.0)) * t1 + log(km2.S + vec3f(1.0)) * t2) - vec3f(1.0)
     );
-                    
-                    // 转换回 RGB
     let mixed_linear = KMToRGB(mixed_km);
     let mixed_srgb = linearToSRGB(mixed_linear);
-                    
-                    // 计算最终的 alpha 值，考虑最大不透明度
     let final_alpha = min(blendAlpha(alpha, color2.a), params.maxOpacity);
-
     return vec4f(mixed_srgb, 1.0);
 }
-              
-                // 添加噪声函数
 fn hash2D(p: vec2f) -> f32 {
     let k = vec2f(0.3183099, 0.3678794);
     let kp = p * k;
     return fract(16.0 * k.x * k.y * fract(kp.x + kp.y));
 }
-
-                // 添加抖动函数
 fn getDither(pos: vec2f, strength: f32) -> f32 {
-                    // 使用像素位置生成伪随机值
     let rand = hash2D(pos);
-                    // 将随机值映射到 [-strength, strength] 范围
     return (rand * 2.0 - 1.0) * strength;
 }
 
