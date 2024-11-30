@@ -88,55 +88,73 @@ export async function 写入缩略图缓存行(fullName, updateTime, stat, entry
     return
 }
 
-export async function 查找子文件夹(dirPath, search, extensions) {
-    const start = Date.now()
-    let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(dirPath)
-    // 准备 SQL 查询语句
+function 构建子文件夹查询SQL(search, extensions) {
     let sql = `
-            SELECT stat
-            FROM thumbnails 
-            WHERE fullName LIKE ? || '%' 
-            AND fullName != ? 
-        `;
-    // 如果有search参数，添加额外的过滤条件
+        SELECT stat
+        FROM thumbnails 
+        WHERE fullName LIKE ? || '%' 
+        AND fullName != ? 
+    `;
+    
     if (search) {
         sql += ` AND fullName LIKE '%' || ? || '%'`;
     }
-    // 如果有extensions参数，添加额外的过滤条件
+    
     if (extensions && extensions.length > 0) {
-        const placeholders = extensions.map(() => '?').join(', ');
         sql += ` AND (`;
         sql += extensions.map(() => `fullName LIKE '%' || ?`).join(' OR ');
         sql += `)`;
     }
+    
     sql += ` LIMIT 100000`;
-    const stmt = 磁盘缩略图数据库.prepare(sql);
-    const countStmt = 磁盘缩略图数据库.prepare('SELECT MAX(rowid) as approximate_count FROM thumbnails');
-    const approximateCount = countStmt.get().approximate_count;
+    return sql;
+}
 
-    // 执行查询并返回结果
-    let results;
+function 构建子文件夹查询参数(dirPath, search, extensions) {
     const params = [转换为相对磁盘根目录路径(dirPath) + "%", 转换为相对磁盘根目录路径(dirPath)];
+    
     if (search) {
         params.push(search);
     }
+    
     if (extensions && extensions.length > 0) {
         params.push(...extensions.map(ext => `.${ext}`));
     }
-    results = stmt.all(...params);
-
-    // 返回子文件夹的完整路径列表
-    console.log("查询耗时", Date.now() - start, '结果数量', approximateCount)
-    return {
-        results: results.map(item => {
-            let json = JSON.parse(item.stat)
-            return {
-                ...json, path: 磁盘缩略图数据库.root + json.path
-            }
-        }),
-        approximateCount: approximateCount
-    }
+    
+    return params;
 }
+
+function 处理子文件夹查询结果(results, 数据库根目录) {
+    return results.map(item => {
+        let json = JSON.parse(item.stat);
+        return {
+            ...json,
+            path: 数据库根目录 + json.path
+        };
+    });
+}
+
+export async function 查找子文件夹(dirPath, search, extensions) {
+    const start = Date.now();
+    let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(dirPath);
+    
+    const sql = 构建子文件夹查询SQL(search, extensions);
+    const params = 构建子文件夹查询参数(dirPath, search, extensions);
+    
+    const stmt = 磁盘缩略图数据库.prepare(sql);
+    const countStmt = 磁盘缩略图数据库.prepare('SELECT MAX(rowid) as approximate_count FROM thumbnails');
+    const approximateCount = countStmt.get().approximate_count;
+    
+    const results = stmt.all(...params);
+    
+    console.log("查询耗时", Date.now() - start, '结果数量', approximateCount);
+    
+    return {
+        results: 处理子文件夹查询结果(results, 磁盘缩略图数据库.root),
+        approximateCount: approximateCount
+    };
+}
+
 export async function 查找文件hash(filePath) {
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(filePath)
     const stmt = 磁盘缩略图数据库.prepare('SELECT fullName, statHash, updateTime FROM thumbnails WHERE fullName = ?');

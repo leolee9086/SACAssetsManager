@@ -4,7 +4,7 @@ import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
 import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
 import { ignoreDir } from './dirs/ignored.js'
-import { globalTaskQueue } from '../queue/taskQueue.js'
+import { globalTaskQueue, 添加优先级任务 } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../utils/heartBeat.js'
 import { 查找子文件夹, 删除缩略图缓存行, 计算哈希 } from '../thumbnail/indexer.js'
 import { getCachePath } from './cached/fs.js'
@@ -60,40 +60,35 @@ async function 文件遍历回调(path, isDir, fixedroot, 遍历优先级, count
     let fixedPath = path.replace(/\\/g, '/')
     reportHeartbeat()
     try {
-        timouters[path] = () => globalTaskQueue.push(
-            globalTaskQueue.priority(
-                async () => {
-                    索引遍历缓存.delete(path)
-                    timouters[path] = undefined
-                    return { path }
-                }, 1
-            )
-        )
+        let 删除索引任务函数 = async () => {
+            索引遍历缓存.delete(path)
+            timouters[path] = undefined
+            return { path }
+        }
+        timouters[path] = () =>添加优先级任务(删除索引任务函数,1)
         if (isThumbnail(path) || isMetaData(path)) {
             return
         }
         batch.push(path)
         count++
-        globalTaskQueue.push(
-            globalTaskQueue.priority(
-                async () => {
-                    reportHeartbeat()
-                    for (let i = 0; i < Math.max((Math.min(15 / (batch.time || 0.1), 30)), 1); i += 1) {
-                        const _path = batch.pop()
-                        if (_path) {
-                            if (isThumbnail(_path) || isMetaData(_path)) {
-                                continue;
-                            }
-                            const start = performance.now()
-                            await statWithNew(_path);
-                            timouters[_path] && timouters[_path]()
-                            batch.time = performance.now() - start
-                        }
+        let 真实遍历优先级 = (遍历优先级) / (fixedPath.replace(fixedroot, '')).length
+        let 遍历任务函数 =  async () => {
+            reportHeartbeat()
+            for (let i = 0; i < Math.max((Math.min(15 / (batch.time || 0.1), 30)), 1); i += 1) {
+                const _path = batch.pop()
+                if (_path) {
+                    if (isThumbnail(_path) || isMetaData(_path)) {
+                        continue;
                     }
-                    return { path }
-                }, (遍历优先级) / (fixedPath.replace(fixedroot, '')).length
-            )
-        )
+                    const start = performance.now()
+                    await statWithNew(_path);
+                    timouters[_path] && timouters[_path]()
+                    batch.time = performance.now() - start
+                }
+            }
+            return { path }
+        }
+        添加优先级任务(遍历任务函数,真实遍历优先级)
     } catch (e) {
         console.warn(e)
     }
@@ -135,7 +130,7 @@ async function 计算文件夹优先级(path, fixedroot, 基础优先级) {
     }
 }
 
-async function 更新目录索引(root) {
+export async function 更新目录索引(root) {
     let fixedroot = root.replace(/\\/g, '/');
     let 基础优先级 = await 计算目录遍历优先级(fixedroot);
     let count = 0;
@@ -216,7 +211,7 @@ async function 处理缓存文件(path, entry) {
 }
 
 // 初始化遍历参数和回调
-const initializeWalkParams = (_stepCallback, _filter, signal) => {
+export const initializeWalkParams = (_stepCallback, _filter, signal) => {
     return {
         stepCallback: buildStepCallback(_stepCallback),
         filter: buildFilter(_filter, signal)
@@ -237,7 +232,7 @@ const processFileResult = async (result, filter, stepCallback) => {
 }
 
 // 处理遍历结果
-const processWalkResults = async (results, filter, stepCallback) => {
+export const processWalkResults = async (results, filter, stepCallback) => {
     const stats = {}
     for await (const result of results) {
         globalTaskQueue.pause()
@@ -248,40 +243,10 @@ const processWalkResults = async (results, filter, stepCallback) => {
 }
 
 // 安排目录索引更新任务
-const scheduleDirectoryIndexing = (root, stats, signal) => {
-    globalTaskQueue.push(
-        globalTaskQueue.priority(
-            async () => {
-                await 更新目录索引(root, stats, signal)
-                return {}
-            },
-            0 - Date.now()
-        )
-    )
+export  const 调度文件夹索引任务 = (root, stats, signal) => {
+    let 任务函数 =             async () => {
+        await 更新目录索引(root, stats, signal)
+        return {}
+    }
+    添加后进先出后台任务(任务函数)
 }
-
-export async function walkAsyncWithFdir(
-    root, 
-    _filter, 
-    _stepCallback, 
-    countCallBack, 
-    signal = { aborted: false }, 
-    timeout, 
-    maxDepth = Infinity, 
-    search, 
-    extensions
-) {
-    // 初始化参数
-    const { stepCallback, filter } = initializeWalkParams(_stepCallback, _filter, signal)
-    
-    // 获取子文件夹信息
-    let { results, approximateCount } = await 查找子文件夹(root, search, extensions)
-    countCallBack(approximateCount)
-    
-    // 处理遍历结果
-    const stats = await processWalkResults(results, filter, stepCallback)
-    
-    // 安排目录索引更新
-    scheduleDirectoryIndexing(root, stats, signal)
-}
-

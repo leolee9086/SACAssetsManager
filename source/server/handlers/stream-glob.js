@@ -1,4 +1,3 @@
-import { walkAsyncWithFdir } from '../processors/fs/walk.js'
 import { Query } from '../../../static/mingo.js';
 import { buildFileListStream } from '../processors/streams/fileList2Stats.js'
 import { buildFilterStream } from '../processors/streams/withFilter.js';
@@ -8,6 +7,8 @@ import { globalTaskQueue } from '../middlewares/runtime_queue.js';
 import { statWithCatch } from '../processors/fs/stat.js';
 import { buildCache } from '../processors/cache/cache.js';
 import { reportHeartbeat } from '../utils/heartBeat.js';
+import { 查找子文件夹 } from '../processors/thumbnail/indexer.js'
+import { 更新目录索引,processWalkResults,调度文件夹索引任务 } from '../processors/fs/walk.js'
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -70,27 +71,37 @@ const createProgressHandler = (res, chunkedRef) => (walkCount) => {
     }, { timeout: 17, deadline: 18 })
 }
 
-const createWalkStream = (cwd, filter, signal, res, timeout = 3000, walkController, maxDepth, search, extensions) => {
+
+
+
+
+const createWalkStream = async (cwd, filter, signal, res, timeout = 3000, walkController, maxDepth, search, extensions) => {
     const walkSignal = setupWalkController(signal, walkController)
     const filterFun = createFilterFunction(filter, walkController)
-    
-    // 使用对象引用来共享chunked状态
     const chunkedRef = { value: '' }
     
-    walkAsyncWithFdir(
-        cwd, 
+    // 获取子文件夹信息
+    const { results, approximateCount } = await 查找子文件夹(cwd, search, extensions)
+    
+    // 创建回调函数
+    const progressHandler = createProgressHandler(res, chunkedRef)
+    const fileHandler = createFileHandler(res)
+    const endHandler = createEndHandler(walkController, res, chunkedRef)
+    
+    // 报告初始计数
+    progressHandler(approximateCount)
+    
+    // 处理遍历结果
+    const stats = await processWalkResults(
+        results,
         filterFun,
-        {
-            ifFile: createFileHandler(res),
-            end: createEndHandler(walkController, res, chunkedRef)
-        },
-        createProgressHandler(res, chunkedRef),
-        walkSignal,
-        timeout,
-        maxDepth,
-        search,
-        extensions
+        fileHandler
     )
+    
+    // 安排目录索引更新
+    调度文件夹索引任务(cwd, stats, walkSignal)
+    // 处理结束
+    endHandler()
 }
 
 // 1. 解析遍历配置
@@ -133,7 +144,6 @@ export const globStream = (req, res) => {
         const walkController = new AbortController()
         const controller = new AbortController();
         const { signal } = controller;
-
         let filter = 创建流过滤器(_filter, signal, walkController)
         const timeout = parseInt(scheme.timeout) || 1000
         const cwd = scheme.cwd
@@ -146,7 +156,6 @@ export const globStream = (req, res) => {
         await createWalkStream(cwd, filter, signal, res, timeout, walkController, scheme.depth, scheme.search, scheme.extensions)
         res.on('close', () => {
             reportHeartbeat()
-
             globalTaskQueue.paused = false
         });
         return new Promise((resolve, reject) => {

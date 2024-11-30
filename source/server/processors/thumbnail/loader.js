@@ -1,9 +1,9 @@
 import { getColor } from './color.js'
 import { diffColor } from '../../../utils/color/Kmeans.js'
-import { globalTaskQueue } from '../queue/taskQueue.js'
+import { globalTaskQueue, 添加优先级任务 } from '../queue/taskQueue.js'
 import { 内置缩略图生成器序列 } from './loaders/internal.js'
-import { getCommonLoader, getLoader } from './loaders/query.js'
-import { tumbnailCache, 查询所有缓存 } from './cache/index.js'
+import { getCommonLoader } from './loaders/query.js'
+import { tumbnailCache } from './cache/index.js'
 import { 写入缩略图缓存 } from './cache/writer.js'
 import { 创建缩略图生成上下文 } from './cache/context.js'
 import { 从缓存获取缩略图 } from './cache/reader.js'
@@ -81,7 +81,7 @@ async function 处理原始图片(ctx) {
 }
 
 export const 准备缩略图 = async (imagePath, loaderID = null) => {
-    let fn = async () => {
+    let 缩略图任务函数 = async () => {
         try {
             await genThumbnailColor(imagePath, loaderID)
         } catch (e) {
@@ -90,23 +90,15 @@ export const 准备缩略图 = async (imagePath, loaderID = null) => {
             return imagePath
         }
     }
-    const priority = -Date.now();
-    if (priority === 0) {
-        fn = globalTaskQueue.priority(fn, -Number.MIN_SAFE_INTEGER);
-    } else {
-        fn = globalTaskQueue.priority(fn, priority);
-    }
-    globalTaskQueue.push(fn);
+    const 时间优先级 = 0-Date.now();
+    添加优先级任务(缩略图任务函数, 时间优先级)
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
     const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
     if (!thumbnailBuffer) {
         return null
     }
-    console.log(thumbnailBuffer)
-    const colors = await getColor(thumbnailBuffer, filePath)
-    console.log(colors)
-    return colors
+    return await getColor(thumbnailBuffer, filePath)
 }
 export async function diffFileColor(filePath, color) {
     let simiColor = await genThumbnailColor(filePath)
