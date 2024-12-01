@@ -40,5 +40,4 @@ export const addScript = (path, id) => {
 export const addEcharts=  async()=>{
     await addScript(`/stage/protyle/js/echarts/echarts.min.js?v=5.3.2`, "protyleEchartsScript")
     await addScript(`/stage/protyle/js/echarts/echarts-gl.min.js?v=2.0.9`, "protyleEchartsGLScript")
-
 }

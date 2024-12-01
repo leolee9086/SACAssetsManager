@@ -25,9 +25,7 @@
         }" title="垂直翻转">
             <span class="icon">↕</span>
         </div>
-
         <div class="tool-button separator"></div>
-
         <!-- 编辑工具组 -->
         <div class="tool-button" @click="onTogglePerspectiveMode" :class="{ active: perspectiveMode }" title="透视校正">
             <span class="icon">⟁</span>

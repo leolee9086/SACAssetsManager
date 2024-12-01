@@ -8,56 +8,8 @@ import { 自动曝光 } from '../../../utils/image/adjust/exposure.js';
 import { 生成法线图 } from '../../../utils/fromDeps/sharpInterface/useSharp/Generator/normalMap.js';
 import { 去雾滤镜 } from '../../../utils/fromDeps/sharpInterface/useSharp/adjust/dehazing.js';
 import * as kernels from '../../../utils/fromDeps/sharpInterface/kernels.js';
-// 类型转换器定义
-const converters = {
-  'string-number': value => Number(value),
-  'number-string': value => String(value),
-  'string-boolean': value => value === 'true',
-  'boolean-string': value => value.toString(),
-  'string-array': value => JSON.parse(value),
-  'array-string': value => JSON.stringify(value),
-  // 可以根据需要添加更多转换器
-};
-
-/**
- * 获取值的类型
- * @param {*} value 需要检测类型的值
- * @returns {string} 类型名称
- */
-export function getValueType(value) {
-  if (Array.isArray(value)) return 'array';
-  if (value === null) return 'null';
-  return (typeof value).toLowerCase();
-}
-
-/**
- * 类型转换函数
- * @param {*} value 要转换的值
- * @param {string} fromType 源类型
- * @param {string} toType 目标类型
- * @returns {*} 转换后的值
- */
-export function convert(value, fromType, toType) {
-  // 如果类型相同,直接返回
-  if (fromType === toType) return value;
-  
-  // 获取转换器key
-  const converterKey = `${fromType}-${toType}`;
-  const converter = converters[converterKey];
-  
-  if (!converter) {
-    console.warn(`No converter found for ${converterKey}`);
-    return value;
-  }
-  
-  try {
-    return converter(value);
-  } catch (error) {
-    console.error(`Error converting ${fromType} to ${toType}:`, error);
-    return value;
-  }
-}
-
+import { getValueType } from '../../../utils/object/type.js';
+import { 显式类型转换 } from '../../../utils/converters/index.js';
 /**
  * 创建类型安全的参数更新函数
  * @param {string} expectedType 期望的类型
@@ -66,7 +18,7 @@ export function convert(value, fromType, toType) {
 export function createTypeSafeUpdater(expectedType) {
   return function(value) {
     const inputType = getValueType(value);
-    return convert(value, inputType, expectedType);
+    return 显式类型转换(value, inputType, expectedType);
   };
 }
 
@@ -82,7 +34,6 @@ function createKernelProcessor(kernel, name) {
     const height = kernel.length;
     const sum = kernel.flat().reduce((acc, val) => acc + Math.abs(val), 0);
     const defaultScale = sum === 0 ? 1 : 1 / sum;
-    
     return {
         key: `卷积_${name}`,
         label:  `卷积_${name}`,

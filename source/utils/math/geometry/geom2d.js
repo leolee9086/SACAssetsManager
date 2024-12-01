@@ -23,3 +23,17 @@ export const 按距离采样点序列 = (原始点序列, 最小采样距离, �
         return 采样后点序列;
     }, []);
 };
+
+export const xywh2ltwh = (xywh) => {
+    if (!xywh || typeof xywh !== 'object') {
+        console.warn('无效的XYWH格式数据')
+        return null
+    }
+
+    return {
+        left: xywh.x,
+        top: xywh.y,
+        width: xywh.width,
+        height: xywh.height
+    }
+}

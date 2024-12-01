@@ -79,7 +79,7 @@ import { ref, computed } from 'vue';
 import { 参数定义注册表 } from './pipelineBuilder.js';
 import FloatLayerWindow from '../../components/common/floatLayerWindow/floatLayerWindow.vue';
 import _pinyin from '../../../../static/pinyin.js';
-
+import {  以关键词匹配对象 } from '../../../utils/strings/search.js';
 const props = defineProps({
   effectStack: {
     type: Array,
@@ -90,40 +90,19 @@ const props = defineProps({
     default: null
   }
 });
-
 const emit = defineEmits(['update:effect-stack', 'effect-param-change']);
-
 // 效果选择器相关
 const showEffectSelector = ref(false);
 const searchQuery = ref('');
 const availableEffects = ref([...参数定义注册表]);
-
 // 获取文本的所有可能搜索形式（原文、拼音、首字母）
-const getSearchableText = (text) => {
-  if (!text) return [''];
-  
-  return [
-    text.toLowerCase(),
-    pinyin.getFullChars(text).toLowerCase(),
-    pinyin.getCamelChars(text).toLowerCase()
-  ];
-};
-
 // 修改过滤效果的计算属性，支持拼音搜索
 const filteredEffects = computed(() => {
-  const query = searchQuery.value.toLowerCase().trim();
-  if (!query) return availableEffects.value;
-  
-  return availableEffects.value.filter(effect => {
-    // 获取效果名称的所有搜索形式
-    const labelTexts = getSearchableText(effect.label);
-    // 获取描述的所有搜索形式
-    const descTexts = effect.description ? getSearchableText(effect.description) : [''];
-    
-    // 如果任一搜索形式包含查询字符串，则匹配成功
-    return labelTexts.some(text => text.includes(query)) ||
-           descTexts.some(text => text.includes(query));
-  });
+  const 查询文本 = searchQuery.value.trim();
+  if (!查询文本) return availableEffects.value;
+  return availableEffects.value.filter(效果 => 
+    以关键词匹配对象(查询文本, 效果, ['label', 'description'])
+  );
 });
 
 // 添加效果

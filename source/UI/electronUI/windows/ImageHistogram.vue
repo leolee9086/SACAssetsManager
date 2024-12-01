@@ -146,6 +146,8 @@ import textureGallery from './textureGallery.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
 import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef, watch } from 'vue';
 import { fromFilePath, fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { xywh2ltwh } from '../../../utils/math/geometry/geom2d.js';
+
 import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
 import { getImageDisplayRect } from './utils/css.js';
 import { 选择图片文件 } from '../../../utils/useRemote/dialog.js';
@@ -154,6 +156,7 @@ import { 重置所有状态, previewState, 文件历史管理器, 历史队列, 
 import PerformancePanel from './perfoemancePanel.vue';
 import ImageToolbar from './ImageToolbar.vue'
 import BrushToolbar from './BrushToolbar.vue';
+
 const sharp = requirePluginDeps('sharp')
 const originalImageInfo = ref({})
 // 添加图片历史记录状态
@@ -194,7 +197,6 @@ const 添加新文件 = async (newPath) => {
         console.error('处理新图像失败:', error);
         throw new Error('图像处理失败，请确文件格式正确且未损坏');
     }
-
 }
 const openNewFile = async () => {
     try {
@@ -442,27 +444,20 @@ const handleProcessingUpdate = async (processingPipeline) => {
 // 添加全辨率处理函
 const processWithFullResolution = async (processingPipeline, signal) => {
     const startTime = performance.now();
-
     try {
         // 如果已被取消，直返回
         if (signal.aborted) return;
-
         // 重要：这里移除了额外的时间检查，因为已经在上层确保了时机
         let processedImg = await fromFilePath(imagePath.value);
-
         // 检查是否已取消
         if (signal.aborted) return;
-
         processedImg = await processingPipeline(processedImg);
-
         // 最终检查是否已取消
         if (signal.aborted) return;
-
         // 更新预览和记录渲染时间
         currentSharpObject.value = processedImg;
         await generatePreview(processedImg);
         previewState.value.lastFullRenderTime = performance.now() - startTime;
-
     } catch (error) {
         if (error.name !== 'AbortError') {
             console.error('全分辨率处理失败:', error);
@@ -840,7 +835,6 @@ const confirmChanges = async () => {
                     )
                 }
                 break
-
             case 'crop':
                 // 处理裁剪
                 if (isCropMode.value) {
@@ -907,19 +901,13 @@ const cropHandles = [
     { position: 'sw' }, { position: 's' }, { position: 'se' }
 ];
 
-
-
-
-
 // 修改初始化裁剪框函数，使其相对于原图定位
-const initCropBox = () => {
+const 初始化裁剪框 = () => {
     const container = comparisonContainer.value;
     const processedImage = processedImg.value;
     if (!container || !processedImage) return;
-
     const rect = container.getBoundingClientRect();
     const imgRect = processedImage.getBoundingClientRect();
-
     // 计算实际的图像区域（考虑缩放和偏移）
     const imageArea = {
         x: imgRect.left - rect.left,
@@ -932,19 +920,6 @@ const initCropBox = () => {
     裁剪框控制器.设置比例保持(false)
 
 };
-const xywh2ltwh = (xywh) => {
-    if (!xywh || typeof xywh !== 'object') {
-        console.warn('无效的XYWH格式数据')
-        return null
-    }
-
-    return {
-        left: xywh.x,
-        top: xywh.y,
-        width: xywh.width,
-        height: xywh.height
-    }
-}
 // 添加获取实际裁剪区域的函数
 const getActualCropArea = () => {
     const container = comparisonContainer.value;
@@ -1303,7 +1278,7 @@ const isCropMode = computed({
                 }
                 editorState.value.activeMode = 'crop'
                 viewState.value.mode = 'processed'
-                initCropBox()
+                初始化裁剪框()
             } else {
                 editorState.value.activeMode = null
             }

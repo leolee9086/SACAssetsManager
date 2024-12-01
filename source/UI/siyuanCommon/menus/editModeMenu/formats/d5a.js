@@ -10,7 +10,6 @@ export const d5a内置缩略图单次确认 = (assets) => {
         click: async () => {
             const path = require('path')
             const fs = require('fs')
-
             const writeIcon = await confirmAsPromise(
                 翻译`确定修改?`,
                 翻译`确认后将尝试为${d5aCount}个d5a文件内置缩略图。此操作不可撤销，是否继续？`
@@ -44,8 +43,6 @@ export const d5a内置缩略图单次确认 = (assets) => {
                 '处理完成',
                 `处理完成！成功：${successCount}个，失败：${failCount}个。`
             )
-
-
         }
     }
 }

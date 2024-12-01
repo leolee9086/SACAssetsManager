@@ -37,7 +37,6 @@ export const bufferToBase64Image = async (buffer, options = {}) => {
         if (options.quality) {
             applyCompression(sharpInstance, metadata.format, options.quality);
         }
-
         const data = await sharpInstance.toBuffer();
         return `data:image/${metadata.format};base64,${data.toString('base64')}`;
     } catch (error) {
@@ -48,6 +47,5 @@ export const bufferToBase64Image = async (buffer, options = {}) => {
 // 将文件转换为 buffer
 export const fileToBuffer = async (file) => {
     return await file.arrayBuffer();
-  };
-  
-  
+};
+
