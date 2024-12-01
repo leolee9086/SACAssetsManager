@@ -26,8 +26,8 @@
 
 <script setup>
 import { ref } from 'vue'
-import FloatLayerWindow from '../../components/common/floatLayerWindow/floatLayerWindow.vue'
-import { testTextureGenerator } from '../../../utils/image/textures.js/generators.js'
+import FloatLayerWindow from '../../../components/common/floatLayerWindow/floatLayerWindow.vue'
+import { testTextureGenerator } from '../../../../utils/image/textures.js/generators.js'
 
 const visible = ref(false)
 const textureResults = ref({})

@@ -22,6 +22,6 @@ export async function 打开图片编辑器窗口(imagePath) {
         imagePath: imagePath,
         baseStyleSrc: '/stage/build/app/' + baseStyleSrc
     });
-    newWindow.loadURL(import.meta.resolve('./panelStyleEditor.html') + '?' + params.toString());
+    newWindow.loadURL(import.meta.resolve('./imageAdjuster') + '?' + params.toString());
     newWindowContents.openDevTools()
 }

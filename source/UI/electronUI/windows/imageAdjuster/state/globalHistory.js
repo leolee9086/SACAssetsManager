@@ -1,5 +1,5 @@
-import { ref } from "../../../../../static/vue.esm-browser.js";
-import { fromFilePath } from "../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js";
+import { ref } from "../../../../../../static/vue.esm-browser.js";
+import { fromFilePath } from "../../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js";
 export const 历史队列 = ref([]);
 export const 文件历史管理器 = {
     历史队列,

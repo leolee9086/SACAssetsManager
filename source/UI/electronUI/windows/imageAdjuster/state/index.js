@@ -1,5 +1,5 @@
-import { computed, effect, ref } from '../../../../../static/vue.esm-browser.js'
-import { fromBuffer } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { computed, effect, ref } from '../../../../../../static/vue.esm-browser.js'
+import { fromBuffer } from '../../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
 export const previewState = ref({
     lastFullRenderTime: 0,
     lastAdjustmentTime: 0,

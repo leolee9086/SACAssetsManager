@@ -1,4 +1,4 @@
-import { ref } from "../../../../../static/vue.esm-browser.js"
+import { ref } from "../../../../../../static/vue.esm-browser.js"
 export const cropBox = ref(
     {
         x: 0,

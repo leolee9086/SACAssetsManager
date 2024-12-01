@@ -141,17 +141,17 @@
 </template>
 
 <script setup>
-import floatLayerWindow from '../../components/common/floatLayerWindow/floatLayerWindow.vue';
+import floatLayerWindow from '../../../components/common/floatLayerWindow/floatLayerWindow.vue';
 import textureGallery from './textureGallery.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
 import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef, watch } from 'vue';
-import { fromFilePath, fromBuffer } from '../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
-import { xywh2ltwh } from '../../../utils/math/geometry/geom2d.js';
+import { fromFilePath, fromBuffer } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { xywh2ltwh } from '../../../../utils/math/geometry/geom2d.js';
 
-import { requirePluginDeps } from '../../../utils/module/requireDeps.js';
+import { requirePluginDeps } from '../../../../utils/module/requireDeps.js';
 import { getImageDisplayRect } from './utils/css.js';
-import { 选择图片文件 } from '../../../utils/useRemote/dialog.js';
-import { 覆盖保存 } from '../../../utils/fs/write.js';
+import { 选择图片文件 } from '../../../../utils/useRemote/dialog.js';
+import { 覆盖保存 } from '../../../../utils/fs/write.js';
 import { 重置所有状态, previewState, 文件历史管理器, 历史队列, effectStack, 效果堆栈管理器, cropBox, 裁剪框控制器 } from './state/index.js';
 import PerformancePanel from './perfoemancePanel.vue';
 import ImageToolbar from './ImageToolbar.vue'

@@ -1,5 +1,5 @@
-import { loadModule } from "../../../../../static/vue3-sfc-loader.esm.js";
-import * as Vue from '../../../../../static/vue.esm-browser.js'
+import { loadModule } from "../../../../../../static/vue3-sfc-loader.esm.js";
+import * as Vue from '../../../../../../static/vue.esm-browser.js'
 
 function fixURL(url) {
     if (url.startsWith('http:/') && !url.startsWith('http://')) {
