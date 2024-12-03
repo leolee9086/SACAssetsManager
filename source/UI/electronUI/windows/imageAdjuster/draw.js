@@ -1,5 +1,13 @@
-import { DrawingTools } from "../../../utils/canvas/draw/index.js"
-
+import { brushConfigs, createToolButtonConfigs } from "../../../../utils/canvas/draw/brushes/configs.js"
+import { DrawingTools } from "../../../../utils/canvas/draw/index.js"
+const createCanvas=(width,height)=>{
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    canvas.style.border = '1px solid #ccc'
+    canvas.style.backgroundColor = '#fff'
+    return canvas
+}
 export function initDrawingTest(containerId) {
     const container = document.getElementById(containerId)
     if (!container) {
@@ -10,25 +18,14 @@ export function initDrawingTest(containerId) {
     container.style.flexDirection = 'column'
     container.style.gap = '10px'
     container.style.padding = '20px'
-    const canvas = document.createElement('canvas')
-    canvas.width = 4096
-    canvas.height = 1960
-    canvas.style.border = '1px solid #ccc'
-    canvas.style.backgroundColor = '#fff'
+    const canvas = createCanvas(4096,1960)
     container.appendChild(canvas)
     const drawingTools = new DrawingTools(canvas)
     const toolbar = document.createElement('div')
     toolbar.style.display = 'flex'
     toolbar.style.gap = '10px'
     container.appendChild(toolbar)
-    const tools = [
-        { name: 'marker', label: '尖头马克笔', color: '#e24a4a' },
-        { name: 'wideMaker', label: '荧光笔', color: '#f7d147' },
-        { name: 'watercolor', label: '水彩笔', color: '#4a90e2' },
-        { name: 'pencil', label: '铅笔', color: '#2c3e50' },
-        { name: 'pen', label: '钢笔', color: '#000000' },
-        { name: 'flatBrush', label: '鸭嘴笔', color: '#000000' }
-    ]
+    const tools = createToolButtonConfigs()
     let currentTool = tools[0]
     let currentColor = currentTool.color
     tools.forEach(tool => {

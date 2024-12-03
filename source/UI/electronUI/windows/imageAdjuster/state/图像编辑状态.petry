@@ -1,0 +1,110 @@
+//- 声明此Petri网使用的定义文件路径
+ctx: "./imageEditorDefine.js"
+
+//- === 网络声明 ===
+net
+  type: colored-timed-petri
+  extensions
+    - color
+    - time
+    - priority
+    - inhibitor
+    - reset
+  loop: auto-animateFrame
+  panic: 
+    retry:1
+
+//- === 库所声明 ===
+prototype 画笔
+    target: $state.value.画笔状态
+    prototype 图像画笔
+        target:$parent.当前图像画笔名
+        place 马克笔
+            capacity: infinity
+            mode: merge
+            state:
+                name: "马克笔"
+            alias:"马克笔"
+    place 大小
+        capacity: infinity
+        mode: merge
+        state:
+            size:{
+                get:(t)=>t
+                set:(input, t) => t += input
+            } 
+               
+prototype 系统状态
+    target state.value.系统状态
+
+prototype 工具栏
+    fn _点击触发器_
+    place 马克笔按钮
+    place 水彩笔按钮
+    place 铅笔按钮
+    place 橡皮按钮
+    
+        
+//- === 变迁声明 ===
+transitions
+  //拉姆达符号之后的函数名表示这个变迁使用的原型函数
+  λ 计算画笔贴图
+    //输入两个颜色的token,输出一个颜色的,值的数量就是token数量
+    //输出brush,表示这个变迁丢弃其它输出,只取用输出值中的brush属性
+    //没有指定为输入输出的视为从state取值
+    delay:200
+    in 
+        @token size
+        @token source
+        undefined 
+    out 
+        @token[2] result.buffer
+    id: 从尺寸计算画笔贴图
+    runtime
+        buffer.less:warn
+        buffer.more:panic 
+  
+  λ 更新工具状态
+    priority: 1
+  λ 混色
+    id: "普通混色"
+    in
+      @token r
+      @token g
+      @token b
+    out
+      @token color
+
+  // 长度优先模式
+  λ longest(混色)
+    id: "长匹配混色"
+    in
+      @token r[repeat]
+      @token g
+      @token b[repeat]
+    out
+      @token color
+      
+  // 短长度模式
+  λ shortest(混色)
+    id: "短匹配混色"
+    in
+      @token r
+      @token g
+      @token b
+    out
+      @token color
+
+//- === 连接声明 ===
+flows
+  //- 基础流转
+  //- 库所拥有一个size Token(代表size被设置过一次)
+  画笔.大小-{size:1}-> λ(从尺寸计算画笔贴图) -{buffer:1}->画布.当前画笔贴图
+  λ(从尺寸计算画笔贴图) -{buffer:1}->状态栏.当前画笔预览
+    //-需要添加提供source token的流转
+  画笔.马克笔-{source:1}-> λ(从尺寸计算画笔贴图)
+  //-使用函数式调用的库所代表一个触发器,没有token数量标记表示全部为1
+  //-没有颜色标记表示直接从输出产生一个未分色(any类型)token传递到下一个库所
+  工具栏(马克笔按钮)-{name:1}->λ(从URL加载画笔贴图)->画笔.马克笔
+  λ(从URL加载画笔贴图)->系统状态.连接空闲
+  系统状态.连接忙碌!>λ(从URL加载画笔贴图)

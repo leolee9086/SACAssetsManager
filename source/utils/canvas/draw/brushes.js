@@ -5,6 +5,7 @@ import { brushConfigs,BRUSH_TYPES } from './brushes/configs.js'
  * 工厂函数
  */
 const createBrush = (config) => {
+    console.log(config)
     return async (ctx, brushSamples, startX, startY, endX, endY, color, size, opacity, pressure = 1, velocity = 0) => {
         ctx.save()
         try {

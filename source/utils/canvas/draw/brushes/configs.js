@@ -7,7 +7,9 @@ export const BRUSH_TYPES = {
     IMAGE: 'image',
     SHAPE: 'shape'
 }
-
+export const createToolButtonConfigs=()=>{
+    return Object.entries(brushConfigs).map(([key, config]) => config)
+}
 /**
  * 笔刷配置
  */
