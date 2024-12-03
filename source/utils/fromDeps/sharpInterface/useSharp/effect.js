@@ -1,6 +1,8 @@
 /**
  * 特效处理模块 - 提供各种图像特效
  */
+import { requirePluginDeps } from "../../../module/requireDeps.js";
+const sharp = requirePluginDeps('sharp')
 
 /**
  * 添加水印
@@ -188,3 +190,51 @@ export default {
     添加光晕效果,
     添加边角效果
 };
+
+
+
+// 辅助方法
+export const 添加水彩效果 = async (alphaChannel, opacity, options) => {
+    return alphaChannel
+        .raw()
+        .toBuffer()
+        .then(buffer => {
+            const newBuffer = Buffer.alloc(buffer.length * 3)
+            for (let i = 0; i < buffer.length; i++) {
+                const alpha = buffer[i]
+                const noise = Math.floor(Math.random() * 41) - 20
+                newBuffer[i] = Math.max(0, Math.min(255,
+                    Math.floor((alpha + noise) * opacity)
+                ))
+            }
+            return sharp(newBuffer, {
+                raw: {
+                    width: options.width,
+                    height: options.height,
+                    channels: 1
+                }
+            }).png()
+        })
+}
+
+export const 创建纯色图片=async(rgb, alphaChannel, options) =>{
+    const rgbImage = await sharp({
+        create: {
+            width: options.width,
+            height: options.height,
+            channels: 3,
+            background: rgb
+        }
+    }).raw().toBuffer()
+    let buffer = await sharp(rgbImage, {
+        raw: {
+            width: options.width,
+            height: options.height,
+            channels: 3
+        }
+    })
+        .joinChannel(await alphaChannel.toBuffer())
+        .png()
+        .toBuffer()
+    return buffer
+}

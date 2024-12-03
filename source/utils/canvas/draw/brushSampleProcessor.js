@@ -3,7 +3,9 @@ const sharp = requirePluginDeps('sharp')
 import { hexToRgb, rgbToHex,rgbToHsl,hslToRgb} from "../../color/convert.js"
 import { 基于色相的颜料混色 } from "../../color/mix.js"
 import { fromURL } from "../../fromDeps/sharpInterface/useSharp/toSharp.js"
+import { 添加水彩效果,创建纯色图片 } from "../../fromDeps/sharpInterface/useSharp/effect.js"
 import { GPU图像平均颜色分析器 } from "../../image/analyze/calculateAverage.js"
+import { bufferToImageBitmap } from "../../image/toImage/buffer.js"
 const brushImageProcessor = {
     cache: new Map(),
     sharpCache: new Map(),
@@ -23,17 +25,7 @@ const brushImageProcessor = {
     lastPickupTime: 0,
     pickupThrottleInterval: 50, // 50ms 的节流间隔
 
-    async bufferToImage(buffer) {
-        const blob = new Blob([buffer], { type: 'image/png' });
-        try {
-            // 使用 createImageBitmap 直接创建可用于 Canvas 的位图对象
-            // 这比创建 Image 对象更高效，因为它是为 Canvas 渲染优化的
-            const bitmap = await createImageBitmap(blob);
-            return bitmap;
-        } catch (error) {
-            throw new Error('图片处理失败: ' + error.message);
-        }
-    },
+   
     async processColoredBrush(brushImagePath, color, opacity, options = {}) {
         const cacheKey = `${brushImagePath}-${color}`
 
@@ -115,51 +107,7 @@ const brushImageProcessor = {
         return await processingPromise
     },
 
-    // 辅助方法
-    async applyWatercolorEffect(alphaChannel, opacity, options) {
-        return alphaChannel
-            .raw()
-            .toBuffer()
-            .then(buffer => {
-                const newBuffer = Buffer.alloc(buffer.length * 3)
-                for (let i = 0; i < buffer.length; i++) {
-                    const alpha = buffer[i]
-                    const noise = Math.floor(Math.random() * 41) - 20
-                    newBuffer[i] = Math.max(0, Math.min(255,
-                        Math.floor((alpha + noise) * opacity)
-                    ))
-                }
-                return sharp(newBuffer, {
-                    raw: {
-                        width: options.width,
-                        height: options.height,
-                        channels: 1
-                    }
-                }).png()
-            })
-    },
 
-    async createColoredImage(rgb, alphaChannel, options) {
-        const rgbImage = await sharp({
-            create: {
-                width: options.width,
-                height: options.height,
-                channels: 3,
-                background: rgb
-            }
-        }).raw().toBuffer()
-        let buffer = await sharp(rgbImage, {
-            raw: {
-                width: options.width,
-                height: options.height,
-                channels: 3
-            }
-        })
-            .joinChannel(await alphaChannel.toBuffer())
-            .png()
-            .toBuffer()
-        return this.bufferToImage(buffer)
-    },
 
     clearCache() {
         this.cache.clear()
@@ -285,12 +233,12 @@ const brushImageProcessor = {
 
         let processedAlpha
         if (options.effect === 'watercolor') {
-            processedAlpha = await this.applyWatercolorEffect(alphaChannel, opacity, options)
+            processedAlpha = await 添加水彩效果(alphaChannel, opacity, options)
         } else {
             processedAlpha = await alphaChannel.linear(opacity, 0)
         }
 
-        return await this.createColoredImage(rgb, processedAlpha, options)
+        return await bufferToImageBitmap(await 创建纯色图片(rgb, processedAlpha, options))
     },
 
     // 修改: 记录沾染事件

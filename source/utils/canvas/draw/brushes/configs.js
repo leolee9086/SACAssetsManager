@@ -115,7 +115,10 @@ export const brushConfigs = {
         pressureSensitive: true,
         compositeOperation: 'source-over',
         inkFlow: 0.8,
-        spreadFactor: 1.2
+        spreadFactor: 1.2,
+        name: 'calligraphyBrush',
+        label: '毛笔',
+
     },
     粉笔: {
         type: BRUSH_TYPES.IMAGE,
