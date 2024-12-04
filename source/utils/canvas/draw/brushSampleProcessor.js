@@ -1,11 +1,23 @@
 import { requirePluginDeps } from "../../module/requireDeps.js"
 const sharp = requirePluginDeps('sharp')
-import { hexToRgb, rgbToHex,rgbToHsl,hslToRgb} from "../../color/convert.js"
+import { hexToRgb, rgbToHex, rgbToHsl, hslToRgb } from "../../color/convert.js"
 import { 基于色相的颜料混色 } from "../../color/mix.js"
 import { fromURL } from "../../fromDeps/sharpInterface/useSharp/toSharp.js"
-import { 添加水彩效果,创建纯色图片 } from "../../fromDeps/sharpInterface/useSharp/effect.js"
+import { 添加水彩效果, 创建纯色图片 } from "../../fromDeps/sharpInterface/useSharp/effect.js"
 import { GPU图像平均颜色分析器 } from "../../image/analyze/calculateAverage.js"
 import { bufferToImageBitmap } from "../../image/toImage/buffer.js"
+
+const 计算不透明度级别 = (当前索引, 变体总数) => {
+    return 0.4 + (1.2 * (当前索引 / (变体总数 - 1)))
+}
+// 计算噪声级别
+const 计算噪声级别 = (当前索引, 变体总数) => {
+    return 0.1 + (
+        0.35 * (1 + Math.sin(当前索引 * Math.PI / (变体总数 / 4))) +
+        (当前索引 / 变体总数) * 0.35
+    )
+}
+
 const brushImageProcessor = {
     cache: new Map(),
     sharpCache: new Map(),
@@ -25,7 +37,7 @@ const brushImageProcessor = {
     lastPickupTime: 0,
     pickupThrottleInterval: 50, // 50ms 的节流间隔
 
-   
+
     async processColoredBrush(brushImagePath, color, opacity, options = {}) {
         const cacheKey = `${brushImagePath}-${color}`
 
@@ -124,11 +136,9 @@ const brushImageProcessor = {
         await this.generateInitialVariants(variants, alphaChannel, opacity, options, 5)
         const generateRemainingVariants = async (deadline) => {
             while (currentIndex < variantCount && deadline.timeRemaining() > 0) {
-                const opacityLevel = 0.4 + (1.2 * (currentIndex / (variantCount - 1)))
-                const noiseLevel = 0.1 + (
-                    0.35 * (1 + Math.sin(currentIndex * Math.PI / (variantCount / 4))) +
-                    (currentIndex / variantCount) * 0.35
-                )
+                const opacityLevel = 计算不透明度级别(currentIndex, variantCount)
+                const noiseLevel = 计算噪声级别(currentIndex, variantCount)
+
                 try {
                     const variant = await this.processBaseImage(
                         alphaChannel,
@@ -144,51 +154,16 @@ const brushImageProcessor = {
                 } catch (error) {
                     console.error('生成变体失败:', error)
                 }
-                
+
                 currentIndex++
             }
-            
+
             // 如果还有变体需要生成，继续请求闲时回调
             if (currentIndex < variantCount) {
                 requestIdleCallback(generateRemainingVariants)
             }
         }
-        if ('requestIdleCallback' in window) {
-            requestIdleCallback(generateRemainingVariants)
-        } else {
-            // 降级方案：使用 setTimeout 分批处理
-            const fallbackGeneration = () => {
-                const batchSize = 5
-                const startIndex = currentIndex
-                const endIndex = Math.min(startIndex + batchSize, variantCount)
-                
-                for (let i = startIndex; i < endIndex; i++) {
-                    const opacityLevel = 0.4 + (1.2 * (i / (variantCount - 1)))
-                    const noiseLevel = 0.1 + (
-                        0.35 * (1 + Math.sin(i * Math.PI / (variantCount / 4))) +
-                        (i / variantCount) * 0.35
-                    )
-                    
-                    this.processBaseImage(
-                        alphaChannel,
-                        opacity * opacityLevel,
-                        {
-                            ...options,
-                            rgb,
-                            effect: 'watercolor',
-                            noiseLevel
-                        }
-                    ).then(variant => variants.push(variant))
-                    
-                    currentIndex = i + 1
-                }
-                
-                if (currentIndex < variantCount) {
-                    setTimeout(fallbackGeneration, 0)
-                }
-            }
-            setTimeout(fallbackGeneration, 0)
-        }
+        requestIdleCallback(generateRemainingVariants)
         const getRandomVariant = () => {
             return variants[Math.floor(Math.random() * variants.length)]
         }
@@ -300,11 +275,11 @@ const brushImageProcessor = {
     // 确保清理GPU资源
     _ensureCleanup() {
         if (this._cleanupRegistered) return
-        
+
         this._cleanupRegistered = true
         // 在对象被销毁时清理GPU资源
         Object.defineProperty(this, 'cleanup', {
-            value: function() {
+            value: function () {
                 if (this._gpuAnalyzer) {
                     this._gpuAnalyzer.释放资源()
                     this._gpuAnalyzer = null
@@ -385,7 +360,7 @@ const brushImageProcessor = {
         // 获取当前变换矩阵的逆矩阵
         const transform = ctx.getTransform()
         const inverseTransform = transform.inverse()
-        
+
         // 将世界坐标转换回本地坐标
         const localPosition = {
             x: position.x * inverseTransform.a + position.y * inverseTransform.c + inverseTransform.e,
@@ -393,7 +368,7 @@ const brushImageProcessor = {
         }
 
         // 从当前笔刷中获取颜色
-        let effectColor 
+        let effectColor
         if (!effectColor && this.currentBrush) {
             const hexColor = this.currentBrush.cacheKey.split('-')[1]
             if (hexColor) {
@@ -454,7 +429,6 @@ const brushImageProcessor = {
     // 开始流动动画
     startFlowAnimation() {
         if (this.flowAnimationFrame) return
-
         const animate = () => {
             this.updateFlowEffects()
             if (this.flowEffects.active.size > 0) {
@@ -463,7 +437,6 @@ const brushImageProcessor = {
                 this.flowAnimationFrame = null
             }
         }
-
         this.flowAnimationFrame = requestAnimationFrame(animate)
     },
 
@@ -474,7 +447,7 @@ const brushImageProcessor = {
 
             // 获取变换矩阵的缩放因子
             const scale = effect.transform ? Math.sqrt(
-                effect.transform.a * effect.transform.a + 
+                effect.transform.a * effect.transform.a +
                 effect.transform.b * effect.transform.b
             ) : 1
 
@@ -540,7 +513,7 @@ const brushImageProcessor = {
                 const a = Math.min(0.03, droplet.opacity ?? 0.01)
 
                 ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`
-                
+
                 ctx.beginPath()
                 ctx.arc(
                     droplet.position.x,
