@@ -10,7 +10,6 @@ import * as loader from '../../../../static/vue3-sfc-loader.esm.js'
 export async function createWebComponent(component, tagName, props = {}) {
     const styleElements = [];
     const asyncModules = {};
-    
     // 处理字符串模板的情况
     if (typeof component === 'string') {
         const mixinOptions = {
@@ -34,23 +33,19 @@ export async function createWebComponent(component, tagName, props = {}) {
                 styleElements.push(style);
             }
         };
-
         component = await loader.loadModule('/component.vue', mixinOptions);
     }
-
     // 使用 Vue 的 defineCustomElement 创建 Web Component
     const CustomElement = Vue.defineCustomElement({
         ...component,
         styles: styleElements.map(el => el.textContent)
     });
-
     // 检查是否已注册
     if (!customElements.get(tagName)) {
         customElements.define(tagName, CustomElement);
     } else {
         console.warn(`Web Component ${tagName} 已经被注册`);
     }
-
     return CustomElement;
 }
 

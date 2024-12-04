@@ -4,7 +4,7 @@ import { confirmAsPromise } from "../../../../utils/siyuanUI/confirm.js";
 const path = require('path');
 const fs = require('fs').promises;
 const { clipboard } = require('electron');
-
+import { 从文件树生成markdown列表,从文件树生成markdown段落 } from "../../../../utils/siyuanData/contentBuilder.js";
 /**
  * 获取文件属性
  * @param {string} fullPath - 文件的完整路径
@@ -93,8 +93,6 @@ export const 构建树结构 = (entries, basePath, sortBy, sortOrder) => {
     return tree;
 };
 
-import { 从文件树生成markdown列表 } from "./fileTree2mdFormatters/index.js";
-import { 从文件树生成markdown段落 } from "./fileTree2mdFormatters/index.js";
 
 /**
  * 执行复制文档树结构
