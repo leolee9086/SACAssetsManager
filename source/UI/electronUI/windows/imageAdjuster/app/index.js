@@ -131,6 +131,6 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data
     }
     return oldApp
 }
-//const app= initVueApp(import.meta.resolve('./app.vue'),'editorRoot')
-//app.mount(document.querySelector('#app'))
-import '../draw.js'
+const app= initVueApp(import.meta.resolve('./app.vue'),'editorRoot')
+app.mount(document.querySelector('#app'))
+//import '../draw.js'

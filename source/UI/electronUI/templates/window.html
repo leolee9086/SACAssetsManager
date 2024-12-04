@@ -30,9 +30,6 @@
             -webkit-app-region: no-drag;
         }
     </style>
-    <script type="module">
-        import './app.js'
-    </script>
 </head>
 
 <body>
@@ -47,19 +44,21 @@
         </div>
     </div>
     <div id="app"></div>
-    <!--<div id="app" class="fn__flex fn__flex-column" 
-    style="width:100vw;height: calc(100vh - 71px);"
-    >
-    </div>-->
     <script>
         // 在 panelStyleEditor.html 的脚本中
-        const urlParams = new URLSearchParams(window.location.search);
-        window.workspaceDir = urlParams.get('workspaceDir');
-        window.pluginName = urlParams.get('pluginName');
-        window.imagePath = urlParams.get('imagePath');
+        window.params = new Proxy(new URLSearchParams(window.location.search), {
+            get(target, prop) {
+                return target.get(prop);
+            }
+        });
+        
+        // 现在可以直接这样访问参数
+        window.workspaceDir = window.params.workspaceDir;
+        window.pluginName = window.params.pluginName;
+        window.imagePath = window.params.imagePath;
         // 设置基础样式
         try {
-            document.getElementById('baseStyle').setAttribute('href', urlParams.get('baseStyleSrc'));
+            document.getElementById('baseStyle').setAttribute('href', window.params.baseStyleSrc);
         } catch (e) {
             console.warn(e);
         }
@@ -85,9 +84,9 @@
                 currentWindow.webContents.openDevTools();
             }
         });
-
     </script>
-
+    <script type="module">
+        await import(window.params.modulePath)
+    </script>
 </body>
-
 </html>
