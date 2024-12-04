@@ -246,3 +246,12 @@ const 触发编辑页签打开 = (detail) => {
     'editor-tab-open', detail
   )
 }
+
+
+
+
+
+/***
+ * 引入这个模块只是为了测试
+ */
+import('/plugins/SACAssetsManager/source/utils/test.js')
