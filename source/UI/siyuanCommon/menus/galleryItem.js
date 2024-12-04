@@ -12,6 +12,8 @@ import { 添加插件菜单内容 } from "./pluginMenu/pluginMenu.js";
 import { isValidFilePath } from "../../../utils/strings/regexs/index.js";
 import { 打开本地资源视图 } from "../tabs/assetsTab.js";
 import { isImage } from "../../../utils/image/isImage.js";
+import { 根据背景色获取黑白前景色 } from "../../../utils/color/processColor.js";
+import { fetchSync } from "../../../utils/netWork/fetchSync.js";
 async function checkClipboardForFilePath() {
     try {
         const text = await navigator.clipboard.readText();
@@ -26,41 +28,86 @@ async function checkClipboardForFilePath() {
 }
 
 const { eventBus } = plugin
-function 添加批处理菜单组(menu,options){
-    menu.addSeparator();
-    menu.addItem(文件批处理菜单组.删除所有ThumbsDB(options))
-    menu.addItem(文件批处理菜单组.扫描重复文件(options));
-    menu.addItem(文件批处理菜单组.快速扫描重复文件(options));
-    menu.addItem(文件批处理菜单组.处理重复文件(options));
-    menu.addItem(文件批处理菜单组.扫描空文件夹(options));
-    menu.addSeparator();
-    menu.addItem(文件批处理菜单组.整理纯色和接近纯色的图片(options));
-    menu.addItem(文件批处理菜单组.图片去重(options));
-    menu.addItem(文件批处理菜单组.图片去重(options, true));
-    menu.addItem(文件批处理菜单组.基于pHash的图片去重(options));
-    menu.addItem(文件批处理菜单组.基于pHash的图片去重(options, true));
-    menu.addSeparator();
-    menu.addItem(文件批处理菜单组.展平并按扩展名分组(options));
-    menu.addItem(文件批处理菜单组.归集图片文件(options));
-    menu.addItem(文件批处理菜单组.复制文档树结构(options));
-    menu.addSeparator();
-    menu.addItem(文件批处理菜单组.批量打包文件(options));
+/**
+ * 通用菜单构建函数
+ * @param {Menu} menu - 菜单对象
+ * @param {Array} menuItems - 菜单项配置数组
+ * @param {Object} args - 传递给菜单项action的参数
+ */
+function 构建菜单(menu, menuItems, args = {}) {
+    menuItems.forEach(item => {
+        if (item.separator) {
+            menu.addSeparator();
+        }
+        menu.addItem(item.action(args, ...(item.args || [])));
+    });
 }
-async function 添加颜色操作菜单(menu, asset) {
+
+function 添加批处理菜单组(menu, options) {
+    const menuItems = [
+        { action: 文件批处理菜单组.删除所有ThumbsDB, separator: true },
+        { action: 文件批处理菜单组.扫描重复文件 },
+        { action: 文件批处理菜单组.快速扫描重复文件 },
+        { action: 文件批处理菜单组.处理重复文件 },
+        { action: 文件批处理菜单组.扫描空文件夹, separator: true },
+        { action: 文件批处理菜单组.整理纯色和接近纯色的图片 },
+        { action: 文件批处理菜单组.图片去重 },
+        { action: 文件批处理菜单组.图片去重, args: [true] },
+        { action: 文件批处理菜单组.基于pHash的图片去重 },
+        { action: 文件批处理菜单组.基于pHash的图片去重, args: [true], separator: true },
+        { action: 文件批处理菜单组.展平并按扩展名分组 },
+        { action: 文件批处理菜单组.归集图片文件 },
+        { action: 文件批处理菜单组.复制文档树结构, separator: true },
+        { action: 文件批处理菜单组.批量打包文件 }
+    ];
+    
+    构建菜单(menu, menuItems, options);
+}
+function 添加颜色操作菜单(menu, asset) {
     const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
     try {
-        const response = await fetch(colorUrl);
-        const colorData = await response.json();
+        const response = fetchSync(colorUrl);
         
-        if (colorData && Array.isArray(colorData)) {
-            colorData.forEach(colorInfo => {
-                const colorHex = `#${colorInfo.color.map(c => c.toString(16).padStart(2, '0')).join('')}`;
-                menu.addItem({
-                    label: `颜色操作: ${colorHex}`,
-                    icon: `<span style="background-color: ${colorHex}; width: 16px; height: 16px; display: inline-block; margin-right: 5px;"></span>`,
-                    submenu: 生成颜色子菜单(colorHex, colorInfo)
+        if (response.ok) {
+            const colorData = response.json();
+            if (colorData && Array.isArray(colorData)) {
+                colorData.forEach(colorInfo => {
+                    const colorHex = `#${colorInfo.color.map(c => c.toString(16).padStart(2, '0')).join('')}`;
+                    
+                    // 创建一个文档片段来包含 SVG 和 colorSpan
+                    const fragment = document.createDocumentFragment();
+                    
+                    // 创建 SVG 元素
+                    const svg = document.createElement('svg');
+                    svg.setAttribute('class', 'b3-menu__icon');
+                    svg.style = '';
+                    
+                    // 创建 use 元素
+                    const use = document.createElement('use');
+                    use.setAttribute('xlink:href', '#');
+                    svg.appendChild(use);
+                    
+                    // 创建颜色span
+                    const colorSpan = document.createElement('div');
+                    colorSpan.style.backgroundColor = colorHex;
+                    colorSpan.style.marginRight = '5px';
+                    colorSpan.innerHTML = `颜色操作: ${colorHex}`;
+                    colorSpan.style.color = 根据背景色获取黑白前景色(colorHex); // 添加这行
+
+                    colorSpan.setAttribute('class', 'b3-menu__label');
+                    
+                    // 将 SVG 和 colorSpan 添加到文档片段
+                    fragment.appendChild(svg);
+                    fragment.appendChild(colorSpan);
+                    
+                    menu.addItem({
+                        element: fragment,
+                        submenu: 生成颜色子菜单(colorHex, colorInfo)
+                    });
                 });
-            });
+            }
+        } else {
+            console.error('获取颜色信息失败:', response.statusText);
         }
     } catch (error) {
         console.error('获取颜色信息失败:', error);
