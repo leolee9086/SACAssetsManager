@@ -161,6 +161,16 @@ const sharp = requirePluginDeps('sharp')
 const originalImageInfo = ref({})
 // 添加图片历史记录状态
 const galleryContainer = ref(null);
+const 生成缩略图 = async (sharpObject) => {
+    const thumbnail = await sharpObject
+        .clone()
+        .resize(100, 100, { fit: 'contain' })
+        .png()
+        .toBuffer();
+    return URL.createObjectURL(
+        new Blob([thumbnail], { type: 'image/png' })
+    );
+};
 const 添加新文件 = async (newPath) => {
     try {
         const testImage = await fromFilePath(newPath);
@@ -168,14 +178,7 @@ const 添加新文件 = async (newPath) => {
         if (currentSharpObject.value) {
             currentSharpObject.value = null;
         }
-        const thumbnail = await testImage
-            .clone()
-            .resize(100, 100, { fit: 'contain' })
-            .png()
-            .toBuffer();
-        const thumbnailUrl = URL.createObjectURL(
-            new Blob([thumbnail], { type: 'image/png' })
-        );
+        const thumbnailUrl = await 生成缩略图(testImage);
         文件历史管理器.添加(newPath, thumbnailUrl)
         imagePath.value = newPath;
         const metadata = await testImage.metadata();
@@ -629,7 +632,6 @@ const handleMouseDown = (e) => {
         y: e.clientY - offset.value.y,
         initialOffset: { ...offset.value }
     }
-
     document.body.style.cursor = 'grabbing'
 }
 

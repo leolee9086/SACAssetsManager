@@ -10,7 +10,6 @@ export function addSendFileWithMemoryCache(req,res,next) {
     function sendFileWithCache(filePath,cache,ignoreError=false) {
         //如果cache是一个字符串,使用它创建缓存
         const cacheObject = typeof cache === 'string'?buildCache(cache):cache
-        
         return new Promise((resolve,reject)=>{
             try{
                 if(cacheObject.get(filePath)){

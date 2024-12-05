@@ -6,9 +6,32 @@ function 从assets打开efu文件页签(assets){
     }).forEach(
         item=>打开efu文件视图页签(item.path)
     )
-
 }
-
+const 执行打开资源文件所在笔记= (assets) => {
+    assets.forEach(asset => {
+        if (asset.type === 'note') {
+            clientApi.openTab(
+                {
+                    app: plugin.app,
+                    doc: {
+                        id: asset.id,
+                        action: "cb-get-focus"
+                    }
+                }
+            )
+            return
+        }
+        clientApi.openTab(
+            {
+                app: plugin.app,
+                doc: {
+                    id: asset.block_id,
+                    action: "cb-get-focus"
+                }
+            }
+        )
+    });
+} 
 export const 打开efu文件视图=(assets)=>{
     return {
         label: "在新页签打开efu文件列表",
@@ -18,31 +41,7 @@ export const 打开efu文件视图=(assets)=>{
 export const 打开资源文件所在笔记 = (assets) => {
     return {
         label: "所在笔记",
-        click: () => {
-            assets.forEach(asset => {
-                if (asset.type === 'note') {
-                    clientApi.openTab(
-                        {
-                            app: plugin.app,
-                            doc: {
-                                id: asset.id,
-                                action: "cb-get-focus"
-                            }
-                        }
-                    )
-                    return
-                }
-                clientApi.openTab(
-                    {
-                        app: plugin.app,
-                        doc: {
-                            id: asset.block_id,
-                            action: "cb-get-focus"
-                        }
-                    }
-                )
-            });
-        }
+        click: ()=>执行打开资源文件所在笔记(assets)
     }
 }
 export const 使用默认应用打开附件 = (assets) => {

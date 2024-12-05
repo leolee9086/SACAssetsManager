@@ -1,15 +1,19 @@
-import { loadModule } from "../../../../../../static/vue3-sfc-loader.esm.js";
-import * as Vue from '../../../../../../static/vue.esm-browser.js'
+import { loadModule } from "../../../../static/vue3-sfc-loader.esm.js";
+import * as Vue from '../../../../static/vue.esm-browser.js'
+
+
+const moduleCache  ={
+    Vue,
+    vue:Vue
+}
+
 function fixURL(url) {
     if (url.startsWith('http:/') && !url.startsWith('http://')) {
         return url.replace('http:/', 'http://');
     }
     return url;
 }
-const moduleCache  ={
-    Vue,
-    vue:Vue
-}
+
 export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data={}) => {
     const asyncModules = {}
     const styleElements = []
@@ -131,6 +135,3 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data
     }
     return oldApp
 }
-const app= initVueApp(import.meta.resolve('./app.vue'),'editorRoot')
-app.mount(document.querySelector('#app'))
-//import '../draw.js'

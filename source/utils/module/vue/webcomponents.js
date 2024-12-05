@@ -51,23 +51,3 @@ export async function createWebComponent(component, tagName, props = {}) {
 
 //使用示例:
 
-// 1. 使用模板字符串创建
-const template = `<div>Hello {{name}}</div>`;
-const props = {
-    name: {
-        type: String,
-        default: 'World'
-    }
-};
-const helloword= await createWebComponent(template, 'hello-world', props);
-// 2. 使用 Vue 组件对象创建
-const component = {
-    template: '<div>{{count}}</div>',
-    props: ['count'],
-    setup(props) {
-        return {
-            count: Vue.toRef(props, 'count')
-        }
-    }
-};
-await createWebComponent(component, 'counter-component');
