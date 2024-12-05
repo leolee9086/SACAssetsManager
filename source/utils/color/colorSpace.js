@@ -58,13 +58,22 @@ export const hue2rgb = (p, q, t) => {
  * @param {number[]} rgbaPixel - RGBA颜色值数组 [r, g, b, a]，每个分量范围0-255
  * @returns {string} 十六进制颜色代码（不包含#前缀）
  */
-export function rgbaToHex(rgbaPixel){
-    const [r,g,b,a]=rgbaPixel
-    const hex=((r<<16)|(g<<8)|b).toString(16)
+export function rgbaToHex(rgbaPixel) {
+    const [r, g, b, a] = rgbaPixel
+    // 确保每个颜色分量都是两位数的十六进制
+    const toHex = n => n.toString(16).padStart(2, '0')
+    // 组合RGB值
+    const hex = `${toHex(r)}${toHex(g)}${toHex(b)}`
+    // 如果透明度不是1或255，则添加透明度值
+    if (a !== undefined && a !== 1 && a !== 255) {
+        const alpha = a <= 1 ? Math.round(a * 255) : a
+        return hex + toHex(alpha)
+    }
     return hex
 }
-
-
+export const rgbaArrayToHexString = (colorArray) => {
+    return `#${colorArray.map(c => c.toString(16).padStart(2, '0')).join('')}`;
+}
 /**
  * 将RGBA颜色值转换为LAB颜色空间
  * @param {number} r - 红色分量，范围0-255

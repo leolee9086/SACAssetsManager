@@ -9,40 +9,15 @@ import { thumbnail } from "../../../server/endPoints.js";
 import { 模式切换菜单项 } from "./modeMenu/modeSwitch.js";
 import { 计算主标签 } from "./common/menuHead.js";
 import { 添加插件菜单内容 } from "./pluginMenu/pluginMenu.js";
-import { isValidFilePath } from "../../../utils/strings/regexs/index.js";
 import { 打开本地资源视图 } from "../tabs/assetsTab.js";
 import { isImage } from "../../../utils/image/isImage.js";
 import { 根据背景色获取黑白前景色 } from "../../../utils/color/processColor.js";
 import { fetchSync } from "../../../utils/netWork/fetchSync.js";
-async function checkClipboardForFilePath() {
-    try {
-        const text = await navigator.clipboard.readText();
-        // 将剪贴板内容按行分割
-        const lines = text.split('\n').map(item=>item.trim());
-        // 对每一行进行路径验证，并返回有效路径的数组
-        const validPaths = lines.map(line => isValidFilePath(line)).filter(item=>item);
-        return validPaths;
-    } catch (error) {
-        console.error("无法读取剪贴板内容:", error);
-    }
-}
+import { 构建菜单 } from "../../../utils/siyuanUI/menu.js";
+import { checkClipboardForFilePath } from "../../../utils/browser/clipBoard.js";
+import { rgbaArrayToHexString } from "../../../utils/color/colorSpace.js";
 
 const { eventBus } = plugin
-/**
- * 通用菜单构建函数
- * @param {Menu} menu - 菜单对象
- * @param {Array} menuItems - 菜单项配置数组
- * @param {Object} args - 传递给菜单项action的参数
- */
-function 构建菜单(menu, menuItems, args = {}) {
-    menuItems.forEach(item => {
-        if (item.separator) {
-            menu.addSeparator();
-        }
-        menu.addItem(item.action(args, ...(item.args || [])));
-    });
-}
-
 function 添加批处理菜单组(menu, options) {
     const menuItems = [
         { action: 文件批处理菜单组.删除所有ThumbsDB, separator: true },
@@ -60,46 +35,18 @@ function 添加批处理菜单组(menu, options) {
         { action: 文件批处理菜单组.复制文档树结构, separator: true },
         { action: 文件批处理菜单组.批量打包文件 }
     ];
-    
     构建菜单(menu, menuItems, options);
 }
 function 添加颜色操作菜单(menu, asset) {
     const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
     try {
         const response = fetchSync(colorUrl);
-        
         if (response.ok) {
             const colorData = response.json();
             if (colorData && Array.isArray(colorData)) {
                 colorData.forEach(colorInfo => {
-                    const colorHex = `#${colorInfo.color.map(c => c.toString(16).padStart(2, '0')).join('')}`;
-                    
-                    // 创建一个文档片段来包含 SVG 和 colorSpan
-                    const fragment = document.createDocumentFragment();
-                    
-                    // 创建 SVG 元素
-                    const svg = document.createElement('svg');
-                    svg.setAttribute('class', 'b3-menu__icon');
-                    svg.style = '';
-                    
-                    // 创建 use 元素
-                    const use = document.createElement('use');
-                    use.setAttribute('xlink:href', '#');
-                    svg.appendChild(use);
-                    
-                    // 创建颜色span
-                    const colorSpan = document.createElement('div');
-                    colorSpan.style.backgroundColor = colorHex;
-                    colorSpan.style.marginRight = '5px';
-                    colorSpan.innerHTML = `颜色操作: ${colorHex}`;
-                    colorSpan.style.color = 根据背景色获取黑白前景色(colorHex); // 添加这行
-
-                    colorSpan.setAttribute('class', 'b3-menu__label');
-                    
-                    // 将 SVG 和 colorSpan 添加到文档片段
-                    fragment.appendChild(svg);
-                    fragment.appendChild(colorSpan);
-                    
+                    const colorHex = rgbaArrayToHexString(colorInfo.color);
+                    const fragment = 创建颜色菜单项(colorHex, colorInfo);
                     menu.addItem({
                         element: fragment,
                         submenu: 生成颜色子菜单(colorHex, colorInfo)
@@ -112,6 +59,22 @@ function 添加颜色操作菜单(menu, asset) {
     } catch (error) {
         console.error('获取颜色信息失败:', error);
     }
+}
+
+function 创建颜色菜单项(colorHex, colorInfo) {
+    const fragment = document.createDocumentFragment();
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'b3-menu__icon');
+    svg.innerHTML = '<use xlink:href="#iconColors"></use>';
+    const colorSpan = document.createElement('div');
+    colorSpan.style.backgroundColor = colorHex;
+    colorSpan.style.marginRight = '5px';
+    colorSpan.innerHTML = `颜色操作: ${colorHex}`;
+    colorSpan.style.color = 根据背景色获取黑白前景色(colorHex);
+    colorSpan.setAttribute('class', 'b3-menu__label');
+    fragment.appendChild(svg);
+    fragment.appendChild(colorSpan);
+    return fragment;
 }
 function 生成颜色子菜单(colorHex, colorInfo) {
     return [
@@ -133,15 +96,7 @@ function 生成颜色子菜单(colorHex, colorInfo) {
         }
     ];
 }
-
-
-export const 打开附件组菜单 = (event, assets, options) => {
-    const { position, panelController } = options
-    plugin.附件编辑模式 = plugin.附件编辑模式 || {
-        label: '常规',
-        value: "常规"
-    }
-    const menu = new clientApi.Menu('sac-galleryitem-menu')
+function 添加附件选中信息(menu,assets){
     menu.addItem(
         {
             label: 计算主标签(assets, plugin.附件编辑模式),
@@ -150,6 +105,16 @@ export const 打开附件组菜单 = (event, assets, options) => {
         }
     )
     menu.addSeparator()
+}
+
+export const 打开附件组菜单 = (event, assets, options) => {
+    const { position, panelController } = options
+    plugin.附件编辑模式 = plugin.附件编辑模式 || {
+        label: '常规',
+        value: "常规"
+    }
+    const menu = new clientApi.Menu('sac-galleryitem-menu')
+    添加附件选中信息(menu,assets)
     menu.addItem(模式切换菜单项(event, assets, options))
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
         添加批处理菜单组(menu,options)
@@ -166,7 +131,6 @@ export const 打开附件组菜单 = (event, assets, options) => {
         menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
         menu.addItem(文件移动菜单组.移动到回收站(assets, panelController))
         menu.addItem(文件移动菜单组.创建文件夹并移动(assets, panelController))
-
         文件移动菜单组.移动到最近目录菜单组(assets, event).forEach(
             item => {
                 menu.addItem(item)
