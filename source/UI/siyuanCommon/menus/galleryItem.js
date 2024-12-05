@@ -16,7 +16,7 @@ import { fetchSync } from "../../../utils/netWork/fetchSync.js";
 import { 构建菜单 } from "../../../utils/siyuanUI/menu.js";
 import { checkClipboardForFilePath } from "../../../utils/browser/clipBoard.js";
 import { rgbaArrayToHexString } from "../../../utils/color/colorSpace.js";
-
+import { h, f } from "../../../utils/DOM/builder.js";
 const { eventBus } = plugin
 function 添加批处理菜单组(menu, options) {
     const menuItems = [
@@ -62,19 +62,28 @@ function 添加颜色操作菜单(menu, asset) {
 }
 
 function 创建颜色菜单项(colorHex, colorInfo) {
-    const fragment = document.createDocumentFragment();
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'b3-menu__icon');
-    svg.innerHTML = '<use xlink:href="#iconColors"></use>';
-    const colorSpan = document.createElement('div');
-    colorSpan.style.backgroundColor = colorHex;
-    colorSpan.style.marginRight = '5px';
-    colorSpan.innerHTML = `颜色操作: ${colorHex}`;
-    colorSpan.style.color = 根据背景色获取黑白前景色(colorHex);
-    colorSpan.setAttribute('class', 'b3-menu__label');
-    fragment.appendChild(svg);
-    fragment.appendChild(colorSpan);
-    return fragment;
+    return f(
+        h('svg', {
+            class: 'b3-menu__icon',
+            viewBox: '0 0 24 24',
+            width: '16',    // 添加具体宽度
+            height: '16',   // 添加具体高度
+            fill: 'currentColor'  // 添加填充颜色
+
+        },
+            h('svg:use', {
+                'xlink:href': '#iconColors'
+            })
+        ),
+        h('div', {
+            class: 'b3-menu__label',
+            style: {
+                backgroundColor: colorHex,
+                marginRight: '5px',
+                color: 根据背景色获取黑白前景色(colorHex)
+            },    
+        }, `颜色操作: ${colorHex}`)
+    );
 }
 function 生成颜色子菜单(colorHex, colorInfo) {
     return [
@@ -96,7 +105,7 @@ function 生成颜色子菜单(colorHex, colorInfo) {
         }
     ];
 }
-function 添加附件选中信息(menu,assets){
+function 添加附件选中信息(menu, assets) {
     menu.addItem(
         {
             label: 计算主标签(assets, plugin.附件编辑模式),
@@ -104,7 +113,6 @@ function 添加附件选中信息(menu,assets){
             type: 'readonly'
         }
     )
-    menu.addSeparator()
 }
 
 export const 打开附件组菜单 = (event, assets, options) => {
@@ -114,10 +122,12 @@ export const 打开附件组菜单 = (event, assets, options) => {
         value: "常规"
     }
     const menu = new clientApi.Menu('sac-galleryitem-menu')
-    添加附件选中信息(menu,assets)
+    添加附件选中信息(menu, assets)
+    menu.addSeparator()
+
     menu.addItem(模式切换菜单项(event, assets, options))
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
-        添加批处理菜单组(menu,options)
+        添加批处理菜单组(menu, options)
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '插件') {
         menu.addSeparator();
@@ -143,8 +153,8 @@ export const 打开附件组菜单 = (event, assets, options) => {
             menu.addItem(元数据编辑菜单组.d5a内置缩略图(assets))
             menu.addItem(元数据编辑菜单组.d5a内置缩略图单次确认(assets))
         }
-     
-        if (assets.find(item =>item&&isImage(item.path))) {
+
+        if (assets.find(item => item && isImage(item.path))) {
             menu.addItem(元数据编辑菜单组.打开图片编辑器对话框(assets))
             menu.addItem(元数据编辑菜单组.打开简版图片编辑器(assets))
 
