@@ -5,32 +5,21 @@
             <div v-for="(tool, index) in tools" :key="index" class="tool-item"
                 :class="{ 'active': selectedTool === tool.type }" @click="selectTool(tool.type)">
                 <div class="tool-wrapper">
-                    <img v-if="tool.isImage" 
-                         :src="tool.icon" 
-                         :alt="tool.type"
-                         class="tool-icon"
-                         :style="{ color: tool.color }" />
-                    <div v-else 
-                                v-html="tool.icon" 
-                                class="tool-icon"
-                                :style="{ color: tool.color }" />
+                    <img v-if="tool.isImage" :src="tool.icon" :alt="tool.type" class="tool-icon"
+                        :style="{ color: tool.color }" />
+                    <div v-else v-html="tool.icon" class="tool-icon" :style="{ color: tool.color }" />
                 </div>
             </div>
         </div>
-        
+
         <div class="additional-tools">
-            <div class="text-tool" 
-                 :class="{ 'active': selectedTool === 'text' }"
-                 @click="selectTool('text')">
+            <div class="text-tool" :class="{ 'active': selectedTool === 'text' }" @click="selectTool('text')">
                 <svg viewBox="0 0 24 24" class="text-icon">
                     <text x="4" y="18" class="large-t">T</text>
                     <text x="12" y="18" class="small-t">t</text>
                 </svg>
             </div>
-            <input type="color" 
-                   :value="currentColor"
-                   @input="updateColor"
-                   class="color-picker">
+            <input type="color" :value="currentColor" @input="updateColor" class="color-picker">
         </div>
     </div>
 </template>
@@ -129,7 +118,7 @@ const emit = defineEmits(['tool-selected', 'color-changed'])
     width: 60px;
     overflow: visible;
     position: relative;
-    border: 3px solid var(--cc-scroll-color) ;
+    border: 3px solid var(--cc-scroll-color);
     border-style: groove;
 }
 
@@ -266,5 +255,4 @@ const emit = defineEmits(['tool-selected', 'color-changed'])
     font-weight: bold;
     fill: currentColor;
 }
-
 </style>
