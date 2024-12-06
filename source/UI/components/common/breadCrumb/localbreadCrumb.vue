@@ -21,24 +21,18 @@
                 </svg>
             </button>
         </div>
-        <div v-if="IncludeSubfolders" @wheel="horizontalScroll" class="fn__flex subFolders">
-            <div class="fn__space"></div>
-            <template v-for="(子文件夹信息, i) in 子文件夹数组" :key="i+子文件夹信息.name">
-                <div v-if="i < 100" @click.left.stop="() => { toggleShow(子文件夹信息, i) }"
-                    @click.right.stop="(e) => { 右键菜单(子文件夹数组[i], e) }" :class="{ 'subfolderShown': 子文件夹信息.show }"
-                    style="border-radius:15px;min-width:80px;width:80px;height:80px;background-color: var(--b3-theme-background-light);">
-                    <div style="border-radius:15px;min-width:80px;width:80px;height:80px;overflow: hidden;">
-                        <img :src="子文件夹信息.thumbnailUrl" @error="使用默认图标($event)" style="    width: 100%;
-    height: 100%;
-    object-fit: contain;">
-                    </div>
-                    <div style="font-size: small;text-align: center;">{{ 子文件夹信息.name }}</div>
-                    <div style="font-size: x-small;text-align: center;">{{ 子文件夹信息.fileCount }}个文件</div>
-                    <div style="font-size: x-small;text-align: center;">{{ 子文件夹信息.folderCount }}个目录</div>
-                </div>
-                <div class="fn__space"></div>
+        <thumbnailGallery
+            v-if="IncludeSubfolders"
+            :items="子文件夹数组"
+            :showBorder="true"
+            @itemClick="(item) => toggleShow(item)"
+            @itemContextMenu="(item, event) => 右键菜单(item, event)"
+            @imageError="使用默认图标">
+            <template #extra-info="{ item }">
+                <div style="font-size: x-small;">{{ item.fileCount }}个文件</div>
+                <div style="font-size: x-small;">{{ item.folderCount }}个目录</div>
             </template>
-        </div>
+        </thumbnailGallery>
     </div>
 </template>
 <script setup>
@@ -46,10 +40,10 @@ import { defineProps, defineEmits, ref, onMounted, watch } from 'vue'
 import breadCrumbItem from './breadCrumbItem.vue'
 import { 构建搜索模式 } from '../../../../utils/globBuilder.js';
 import { plugin } from 'runtime'
-import { horizontalScroll } from '../../../utils/scroll.js'
 import { commonIcon } from '../icons.js'
 import { 打开文件夹图标菜单 } from '../../../siyuanCommon/menus/folderItem.js';
 import { fs } from '../../../../server/endPoints.js';
+import thumbnailGallery from '../thumbnailGalleryHori.vue'
 const IncludeSubfolders = ref(true)
 const emit = defineEmits(['globChange'])
 const 右键菜单 = (子文件夹信息, event) => {
