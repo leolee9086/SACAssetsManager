@@ -309,3 +309,14 @@ export const 参数定义注册表 = [
 ]
 
 
+export const buildFlipPipeLine=(flips)=>{
+    return (img)=>{
+        if (flips.horizontal) {
+            img = img.flop()
+        }
+        if (flips.vertical) {
+            img = img.flip()
+        }
+        return img
+    }
+}

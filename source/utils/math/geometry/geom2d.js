@@ -37,3 +37,51 @@ export const xywh2ltwh = (xywh) => {
         height: xywh.height
     }
 }
+
+export const ltwh2xywh = (ltwh) => {
+    if (!ltwh || typeof ltwh !== 'object') {
+        console.warn('无效的LTWH格式数据')
+        return null
+    }
+
+    return {
+        x: ltwh.left,
+        y: ltwh.top,
+        width: ltwh.width,
+        height: ltwh.height
+    }
+}
+
+export const ltrb2xywh = (bounds) => {
+    if (!bounds || typeof bounds !== 'object') {
+        console.warn('无效的边界格式数据')
+        return null
+    }
+
+    return {
+        x: bounds.left,
+        y: bounds.top,
+        width: bounds.right - bounds.left,
+        height: bounds.bottom - bounds.top
+    }
+}
+
+export const xywh2ltrb = (xywh) => {
+    if (!xywh || typeof xywh !== 'object') {
+        console.warn('无效的XYWH格式数据')
+        return null
+    }
+
+    return {
+        left: xywh.x,
+        top: xywh.y,
+        right: xywh.x + xywh.width,
+        bottom: xywh.y + xywh.height
+    }
+}
+
+
+
+export const genRatioWh=(wh)=>{
+    return wh.width/wh.height
+}
