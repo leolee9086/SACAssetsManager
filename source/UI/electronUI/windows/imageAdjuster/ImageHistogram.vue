@@ -60,21 +60,8 @@
             </div>
         </div>
         <textureGallery></textureGallery>
+        <imageGalleryHori :history-queue="历史队列" :current-path="imagePath" @select="switchToImage" />
 
-        <!-- 底部画廊 -->
-        <div class="gallery-section">
-            <div class="history-gallery">
-                <div class="gallery-container" ref="galleryContainer">
-                    <template v-for="(item, index) in 历史队列" :key="index">
-                        <div v-if="item?.path" class="gallery-item" :class="{ active: item.path === imagePath }"
-                            @click="switchToImage(index)">
-                            <img :src="item.thumbnail" :alt="item.name" />
-                            <div class="image-name">{{ item.name }}</div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </div>
 
         <!-- 修改几何变换确认面板 -->
         <div class="geometry-confirm" v-if="hasGeometryChanges || isResizeMode || isCropMode">
@@ -124,6 +111,7 @@
 import floatLayerWindow from '../../../components/common/floatLayerWindow/floatLayerWindow.vue';
 import textureGallery from './textureGallery.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
+import imageGalleryHori from './components/imageGalleryHori.vue';
 import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef, watch } from 'vue';
 import { fromFilePath, fromBuffer } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
 import { requirePluginDeps } from '../../../../utils/module/requireDeps.js';
@@ -650,7 +638,7 @@ const handleMouseUp = () => {
 
 // 添加几何矫正相关的状态
 const rotation = ref(0)
-const { state : flips } = useFlips("globalProcess")
+const { state: flips } = useFlips("globalProcess")
 //const perspectiveMode = ref(false)
 const perspectivePoints = ref([
     { x: 0, y: 0 },
@@ -706,15 +694,15 @@ const updateProcessingPipeline = () => {
 const hasGeometryChanges = computed(() => $hasGeometryChanges(editorState, perspectiveMode, isResizeMode, isCropMode, isStackMode))
 
 // 添加新的响应式状态
-const {state:resizeOptions} = useResizeOptions("globalProcess")
+const { state: resizeOptions } = useResizeOptions("globalProcess")
 
 const outputFormat = ref('jpeg');
 
 // 处理尺寸输入
 const handleResizeInput = (dimension) => {
-    const imageInfo =  originalImageInfo.value
-    const aspectRatio= genRatioWh(imageInfo)
-    useResizeOptions("globalProcess").handleResizeInputWithRatio(dimension,aspectRatio)
+    const imageInfo = originalImageInfo.value
+    const aspectRatio = genRatioWh(imageInfo)
+    useResizeOptions("globalProcess").handleResizeInputWithRatio(dimension, aspectRatio)
 };
 
 
@@ -1001,11 +989,11 @@ const {
     handleSplitDrag,
     getSplitLineStyle,
     getClipStyle,
-}=AddSplitControllerToView(
-    ()=>comparisonContainer.value,
-    ()=>originalImageInfo.value,
-    ()=>scale.value,
-    ()=>offset.value,
+} = AddSplitControllerToView(
+    () => comparisonContainer.value,
+    () => originalImageInfo.value,
+    () => scale.value,
+    () => offset.value,
     viewState)
 
 
@@ -1187,24 +1175,6 @@ watch(() => editorState.value.activeMode, (newMode, oldMode) => {
     overflow-y: auto;
 }
 
-.gallery-section {
-    height: 130px;
-    /* 增加高度以容纳画廊和可能的边距 */
-    flex-shrink: 0;
-    background: #2a2a2a;
-    padding: 10px;
-    border-top: 1px solid #3a3a3a;
-}
-
-/* 修改画廊样式 */
-.history-gallery {
-    height: 110px;
-    position: relative;
-    /* 改为相对定位 */
-    width: 100%;
-    background: transparent;
-    box-shadow: none;
-}
 
 .histogram-wrapper {
     display: flex;
@@ -1407,70 +1377,6 @@ input[type="checkbox"] {
     left: 0;
     width: 100%;
     height: 100%;
-}
-
-/* 添加画廊样式 */
-.history-gallery {
-    position: fixed;
-    bottom: 0;
-    left: 16px;
-    /* 与主容器 padding 对齐 */
-    right: 356px;
-    /* 为右侧控制面板留出空间 320px + 20px gap + 16px padding */
-    height: 110px;
-    background: #2a2a2a;
-    /* 使用与其他组件相同的背景色 */
-    border-radius: 4px;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-}
-
-.gallery-container {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    height: 100%;
-    padding-bottom: 10px;
-}
-
-.gallery-container::-webkit-scrollbar {
-    height: 6px;
-}
-
-.gallery-container::-webkit-scrollbar-track {
-    background: #1e1e1e;
-    border-radius: 3px;
-}
-
-.gallery-container::-webkit-scrollbar-thumb {
-    background: #666;
-    border-radius: 3px;
-}
-
-.gallery-item {
-    flex: 0 0 auto;
-    width: 100px;
-    height: 100px;
-    position: relative;
-    cursor: pointer;
-    border: 2px solid transparent;
-    border-radius: 4px;
-    overflow: hidden;
-    transition: all 0.2s;
-}
-
-.gallery-item:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.gallery-item.active {
-    border-color: orange;
-}
-
-.gallery-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
 }
 
 .image-name {
