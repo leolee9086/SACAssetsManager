@@ -7,7 +7,7 @@ import { globalTaskQueue } from '../middlewares/runtime_queue.js';
 import { statWithCatch } from '../processors/fs/stat.js';
 import { buildCache } from '../processors/cache/cache.js';
 import { reportHeartbeat } from '../utils/heartBeat.js';
-import { 查找子文件夹 } from '../processors/thumbnail/indexer.js'
+import { 查找子文件夹,流式查找子文件夹 } from '../processors/thumbnail/indexer.js'
 import { 更新目录索引,processWalkResults,调度文件夹索引任务 } from '../processors/fs/walk.js'
 const { pipeline } = require('stream');
 /**
@@ -75,7 +75,7 @@ const createProgressHandler = (res, chunkedRef) => (walkCount) => {
 
 
 
-const createWalkStream = async (cwd, filter, signal, res, timeout = 3000, walkController, maxDepth, search, extensions) => {
+const createWalk = async (cwd, filter, signal, res, timeout = 3000, walkController, maxDepth, search, extensions) => {
     const walkSignal = setupWalkController(signal, walkController)
     const filterFun = createFilterFunction(filter, walkController)
     const chunkedRef = { value: '' }
@@ -103,6 +103,45 @@ const createWalkStream = async (cwd, filter, signal, res, timeout = 3000, walkCo
     // 处理结束
     endHandler()
 }
+const createWalkStream = async (cwd, filter, signal, res, timeout = 3000, walkController, maxDepth, search, extensions) => {
+    const walkSignal = setupWalkController(signal, walkController)
+    const filterFun = createFilterFunction(filter, walkController)
+    const chunkedRef = { value: '' }
+    
+    // 创建回调函数
+    const progressHandler = createProgressHandler(res, chunkedRef)
+    const fileHandler = createFileHandler(res)
+    const endHandler = createEndHandler(walkController, res, chunkedRef)
+    
+    let walkCount = 0
+    const stats = []
+    
+    // 使用流式查找并处理结果
+    for await (const result of 流式查找子文件夹(cwd, search, extensions)) {
+        if (walkSignal.aborted) break
+        
+        walkCount++
+        // 每处理100个文件更新一次进度
+        if (walkCount % 100 === 0) {
+            progressHandler(walkCount)
+        }
+        
+        // 应用过滤器
+        if (!filterFun || filterFun(result)) {
+            stats.push(result)
+            fileHandler(result)
+        }
+    }
+    
+    // 最后一次进度更新
+    progressHandler(walkCount)
+    
+    // 安排目录索引更新
+    调度文件夹索引任务(cwd, stats, walkSignal)
+    // 处理结束
+    endHandler()
+}
+
 
 // 1. 解析遍历配置
 const parseStreamConfig = (req) => {

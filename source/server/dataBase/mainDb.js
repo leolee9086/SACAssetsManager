@@ -140,20 +140,39 @@ export async function 查找子文件夹(dirPath, search, extensions) {
     
     const sql = 构建子文件夹查询SQL(search, extensions);
     const params = 构建子文件夹查询参数(dirPath, search, extensions);
-    
     const stmt = 磁盘缩略图数据库.prepare(sql);
     const countStmt = 磁盘缩略图数据库.prepare('SELECT MAX(rowid) as approximate_count FROM thumbnails');
     const approximateCount = countStmt.get().approximate_count;
-    
     const results = stmt.all(...params);
-    
     console.log("查询耗时", Date.now() - start, '结果数量', approximateCount);
-    
     return {
         results: 处理子文件夹查询结果(results, 磁盘缩略图数据库.root),
         approximateCount: approximateCount
     };
 }
+
+
+export async function* 流式查找子文件夹(dirPath, search, extensions) {
+    const start = Date.now();
+    let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(dirPath);
+    const sql = 构建子文件夹查询SQL(search, extensions);
+    const params = 构建子文件夹查询参数(dirPath, search, extensions);
+    const stmt = 磁盘缩略图数据库.prepare(sql);
+    // 使用each方法逐行处理结果
+    const each = stmt.iterate(...params);
+    let count = 0;
+    for (const row of each) {
+        count++;
+        let json = JSON.parse(row.stat);
+        yield {
+            ...json,
+            path: 磁盘缩略图数据库.root + json.path
+        };
+    }
+    console.log("流式查询耗时", Date.now() - start, '结果数量', count);
+}
+
+
 
 export async function 查找文件hash(filePath) {
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(filePath)
