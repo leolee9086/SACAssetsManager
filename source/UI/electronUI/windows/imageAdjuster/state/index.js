@@ -44,8 +44,15 @@ export const $isViewModeLocked = (editorState) => {
     ['perspective', 'resize', 'crop'].includes(editorState.value.activeMode)
 
 }
-
+import { 构建编辑器模式切换器, 构建视图模式切换器 } from './useViewState.js';
 export const $perspectiveModeState = (editorState, stateTransition, isStackMode, viewState) => {
+    const 退出堆栈模式 = () => {
+        if (isStackMode.value) {
+            isStackMode.value = false
+        }
+    }
+    const 切换编辑器模式到透视 = 构建编辑器模式切换器(editorState,'perspective')
+    const 切换视图到仅结果 = 构建视图模式切换器(viewState,'processed')
     return {
         get: () => editorState.value.geometry.perspective,
         set: async (val) => {
@@ -53,15 +60,12 @@ export const $perspectiveModeState = (editorState, stateTransition, isStackMode,
                 stateTransition.value.pending = { mode: 'perspective', value: val }
                 return
             }
-
             try {
                 if (val) {
                     // 如果当前是堆栈模式,先退出
-                    if (isStackMode.value) {
-                        isStackMode.value = false
-                    }
-                    editorState.value.activeMode = 'perspective'
-                    viewState.value.mode = 'processed'
+                    退出堆栈模式()
+                    切换编辑器模式到透视()
+                    切换视图到仅结果()
                 } else {
                     editorState.value.activeMode = null
                 }
@@ -250,7 +254,7 @@ export const $getSplitLineStyle = (getContainer, viewState) => {
 }
 
 
-export const AddSplitControllerToView = (getContainer,getImageInfo,getSacle,getOffset, viewState) => {
+export const AddSplitControllerToView = (getContainer, getImageInfo, getSacle, getOffset, viewState) => {
     const handleDrag = (moveEvent) => {
         const container = getContainer();
         if (!container) return;
@@ -270,7 +274,7 @@ export const AddSplitControllerToView = (getContainer,getImageInfo,getSacle,getO
         document.addEventListener('mousemove', handleDrag);
         document.addEventListener('mouseup', handleDragEnd);
     }
-    const getSplitLineStyle=computed(
+    const getSplitLineStyle = computed(
         () => $getSplitLineStyle(getContainer, viewState)
     )
     const getClipStyle = computed(() => {
@@ -279,7 +283,7 @@ export const AddSplitControllerToView = (getContainer,getImageInfo,getSacle,getO
         }
         const container = getContainer();
         if (!container) return {};
-    
+
         const rect = container.getBoundingClientRect();
         const imageRect = getImageDisplayRect(rect, getImageInfo(), getSacle(), getOffset());
         const splitX = rect.width * (viewState.value.options.split.position / 100);
@@ -298,9 +302,9 @@ export const AddSplitControllerToView = (getContainer,getImageInfo,getSacle,getO
             willChange: 'clip-path'
         };
     });
-    
+
     return {
-        handleDrag, 
+        handleDrag,
         handleDragEnd,
         handleSplitDrag,
         getSplitLineStyle,
