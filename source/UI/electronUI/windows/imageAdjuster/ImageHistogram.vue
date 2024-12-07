@@ -64,46 +64,18 @@
 
 
         <!-- 修改几何变换确认面板 -->
-        <div class="geometry-confirm" v-if="hasGeometryChanges || isResizeMode || isCropMode">
-            <div class="geometry-options">
-                <div class="option-group" v-if="isResizeMode">
-                    <label>调整大小:</label>
-                    <div class="size-inputs">
-                        <input type="number" v-model="resizeOptions.width" @input="handleResizeInput('width')" />
-                        <span>x</span>
-                        <input type="number" v-model="resizeOptions.height" @input="handleResizeInput('height')" />
-                        <label>
-                            <input type="checkbox" v-model="resizeOptions.maintainAspectRatio" />
-                            保持比例
-                        </label>
-                    </div>
-                </div>
-                <div class="option-group">
-                    <label>输出格式:</label>
-                    <select v-model="outputFormat">
-                        <option value="jpeg">JPEG</option>
-                        <option value="png">PNG</option>
-                        <option value="webp">WebP</option>
-                    </select>
-                </div>
-                <div class="option-group" v-if="isCropMode">
-                    <label>裁剪尺寸:</label>
-                    <div class="size-inputs">
-                        <input type="number" v-model="cropBox.width" @input="handleCropInput('width')" />
-                        <span>x</span>
-                        <input type="number" v-model="cropBox.height" @input="handleCropInput('height')" />
-                        <label>
-                            <input type="checkbox" v-model="cropBox.maintainAspectRatio" />
-                            保持比例
-                        </label>
-                    </div>
-                </div>
-            </div>
-            <div class="button-group">
-                <button class="confirm-button" @click="confirmChanges">确认</button>
-                <button class="cancel-button" @click="cancelChanges">取消</button>
-            </div>
-        </div>
+        <GeometryConfirm
+            :has-geometry-changes="hasGeometryChanges"
+            :is-resize-mode="isResizeMode"
+            :is-crop-mode="isCropMode"
+            :resize-options="resizeOptions"
+            :crop-box="cropBox"
+            :output-format="outputFormat"
+            @resize-input="handleResizeInput"
+            @crop-input="handleCropInput"
+            @confirm-changes="confirmChanges"
+            @cancel-changes="cancelChanges"
+        />
     </div>
 </template>
 
@@ -145,6 +117,7 @@ import ImageToolbar from './ImageToolbar.vue'
 import BrushToolbar from './BrushToolbar.vue';
 import { buildFlipPipeLine } from './pipelineBuilder.js';
 import { genRatioWh } from '../../../../utils/math/geometry/geom2d.js';
+import GeometryConfirm from './components/GeometryConfirm.vue';
 
 const sharp = requirePluginDeps('sharp')
 const originalImageInfo = ref({})
@@ -439,7 +412,7 @@ const processWithFullResolution = async (processingPipeline, signal) => {
     try {
         // 如果已被取消，直返回
         if (signal.aborted) return;
-        // 重要：这里移除了额外的时间检查，因为已经在上层确保了时机
+        // 重要：这里除了额外的时间检查，因为已经在上层确保了时机
         let processedImg = await fromFilePath(imagePath.value);
         // 检查是否已取消
         if (signal.aborted) return;
@@ -752,7 +725,7 @@ const cancelChanges = async () => {
         // 清除激活模式
         editorState.value.activeMode = null
 
-        // 重新生成预览
+        // 重新生成���览
         if (currentSharpObject.value) {
             await generatePreview(currentSharpObject.value)
         }
@@ -1128,6 +1101,36 @@ watch(() => editorState.value.activeMode, (newMode, oldMode) => {
     }
 })
 
+// 添加裁剪输入处理函数
+const handleCropInput = (cropData) => {
+    if (!cropBox.value) return;
+    
+    // 获取图像容器和图像元素
+    const container = comparisonContainer.value;
+    const image = processedImg.value;
+    if (!container || !image) return;
+
+    // 获取图像的实际显示尺寸和位置
+    const bounds = 获取相对图像边界(container, image);
+    
+    // 根据输入的裁剪数据更新裁剪框
+    const newBox = {
+        x: bounds.left + (bounds.width * (cropData.x / 100)),
+        y: bounds.top + (bounds.height * (cropData.y / 100)),
+        width: bounds.width * (cropData.width / 100),
+        height: bounds.height * (cropData.height / 100)
+    };
+
+    // 确保裁剪框在图像范围内
+    newBox.x = Math.max(bounds.left, Math.min(bounds.right - newBox.width, newBox.x));
+    newBox.y = Math.max(bounds.top, Math.min(bounds.bottom - newBox.height, newBox.y));
+    newBox.width = Math.min(newBox.width, bounds.right - newBox.x);
+    newBox.height = Math.min(newBox.height, bounds.bottom - newBox.y);
+
+    // 应用新的裁剪框尺寸
+    裁剪框控制器.应用裁剪框(newBox);
+};
+
 </script>
 <style scoped>
 .main-container {
@@ -1486,107 +1489,6 @@ input[type="checkbox"] {
     color: white;
 }
 
-/* 添加确认按钮样式 */
-.geometry-confirm {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 10px;
-    z-index: 1000;
-}
-
-.confirm-button,
-.cancel-button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-}
-
-.confirm-button {
-    background: #dd6515;
-    color: white;
-}
-
-.confirm-button:hover {
-    background: #c55a13;
-}
-
-.cancel-button {
-    background: #3a3a3a;
-    color: white;
-}
-
-.cancel-button:hover {
-    background: #4a4a4a;
-}
-
-/* 添加几何变换选项样式 */
-.geometry-confirm {
-    background: #2a2a2a;
-    padding: 16px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.geometry-options {
-    margin-bottom: 16px;
-}
-
-.option-group {
-    margin-bottom: 12px;
-}
-
-.option-group label {
-    display: block;
-    color: #fff;
-    margin-bottom: 4px;
-}
-
-.size-inputs {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.size-inputs input[type="number"] {
-    width: 80px;
-    padding: 4px 8px;
-    background: #3a3a3a;
-    border: 1px solid #4a4a4a;
-    border-radius: 4px;
-    color: #fff;
-}
-
-.size-inputs span {
-    color: #fff;
-}
-
-.size-inputs label {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 12px;
-}
-
-select {
-    padding: 4px 8px;
-    background: #3a3a3a;
-    border: 1px solid #4a4a4a;
-    border-radius: 4px;
-    color: #fff;
-    width: 100%;
-}
-
-.button-group {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
 
 /* 添加裁剪相关样式 */
 .crop-overlay {
