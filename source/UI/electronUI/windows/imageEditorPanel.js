@@ -51,3 +51,9 @@ export async function 打开图片编辑器窗口(imagePath) {
 export async function 打开图片画板窗口(imagePath) {
     await createEditorWindow(imagePath, './draw/app.js');
 }
+// 打开图片画板窗口
+export async function 打开xbel窗口(imagePath) {
+    await createEditorWindow(imagePath, './xbel/index.js');
+}
+
+打开xbel窗口()

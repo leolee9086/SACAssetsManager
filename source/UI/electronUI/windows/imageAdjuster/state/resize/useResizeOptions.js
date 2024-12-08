@@ -18,6 +18,25 @@ const createResizeController = (resizeOptions) => ({
             maintainAspectRatio: maintainRatio
         };
     },
+    使用图片信息重置(imageInfo) {
+        if (imageInfo) {
+            resizeOptions.value = {
+                width: imageInfo.value.width,
+                height: imageInfo.value.height,
+                maintainAspectRatio: true
+            }
+        }
+    },
+    async 应用到sharp图片对象(sharpObj){
+        return await sharpObj.resize(
+            resizeOptions.value.width,
+            resizeOptions.value.height,
+            {
+                fit: 'fill',
+                withoutEnlargement: false
+            }
+        )
+    },
     setWidth(width) {
         const newWidth = parseInt(width) || 0;
         resizeOptions.value.width = newWidth;

@@ -14,7 +14,7 @@
                 @rotate="rotate" @flip="flip" @toggle-perspective-mode="togglePerspectiveMode"
                 @toggle-resize-mode="toggleResizeMode" @toggle-stack-mode="toggleStackMode"
                 @toggle-edit-mode="toggleEditMode" @toggle-crop-mode="toggleCropMode"
-                @toggle-processed-only-view="toggleProcessedOnlyView" @toggle-split-view="toggleSplitView" />
+                @toggle-processed-only-view="切换裂像预览与仅结果预览" @toggle-split-view="切换裂像预览与仅结果预览" />
 
             <!-- 左侧预览区域 -->
             <div class="preview-section">
@@ -64,18 +64,10 @@
 
 
         <!-- 修改几何变换确认面板 -->
-        <GeometryConfirm
-            :has-geometry-changes="hasGeometryChanges"
-            :is-resize-mode="isResizeMode"
-            :is-crop-mode="isCropMode"
-            :resize-options="resizeOptions"
-            :crop-box="cropBox"
-            :output-format="outputFormat"
-            @resize-input="handleResizeInput"
-            @crop-input="handleCropInput"
-            @confirm-changes="confirmChanges"
-            @cancel-changes="cancelChanges"
-        />
+        <GeometryConfirm :has-geometry-changes="hasGeometryChanges" :is-resize-mode="isResizeMode"
+            :is-crop-mode="isCropMode" :resize-options="resizeOptions" :crop-box="cropBox" :output-format="outputFormat"
+            @resize-input="handleResizeInput" @crop-input="handleCropInput" @confirm-changes="confirmChanges"
+            @cancel-changes="cancelChanges" />
     </div>
 </template>
 
@@ -91,9 +83,8 @@ import { getImageDisplayRect } from './utils/css.js';
 import { 选择图片文件 } from '../../../../utils/useRemote/dialog.js';
 import { 覆盖保存 } from '../../../../utils/fs/write.js';
 import { 获取实际裁剪区域, 获取相对图像边界 } from './utils/common.js';
+import { previewState, 从sharp对象更新处理后预览图像, 从路径更新原始预览图像, 刷新并获取预览控制器信号, 更新处理前后预览图像, 清除预览更新定时器, 获取上次预览更新间隔 as 获取上次预览更新间隔, 设置预览更新定时器, 重置所有预览状态, 重置预览控制器 } from './state/previewState.js'
 import {
-    重置所有状态,
-    previewState,
     文件历史管理器,
     历史队列,
     effectStack,
@@ -101,8 +92,6 @@ import {
     cropBox,
     裁剪框控制器,
     $hasGeometryChanges,
-    $getSplitLineStyle,
-    $isViewModeLocked,
     $perspectiveModeState,
     $isResizeMode,
     $isStackMode,
@@ -110,45 +99,41 @@ import {
     $是否裁剪模式状态量,
     useResizeOptions,
     useFlips,
-    AddSplitControllerToView
+    AddSplitControllerToView,
+    尺寸调整模式控制器
 } from './state/index.js';
 import PerformancePanel from './perfoemancePanel.vue';
 import ImageToolbar from './ImageToolbar.vue'
 import BrushToolbar from './BrushToolbar.vue';
 import { buildFlipPipeLine } from './pipelineBuilder.js';
-import { genRatioWh } from '../../../../utils/math/geometry/geom2d.js';
 import GeometryConfirm from './components/GeometryConfirm.vue';
+import {
+    originalImageInfo,
+    从sharp对象更新原始图状态,
+    从文件路径更新原始图状态,
+    原始图是否超大图片,
+    原始图比例
+} from './state/imageInfos.js';
+import { 从图片元素和容器初始化裁剪框, 停止拖拽裁剪框, 开始拖拽裁剪框, 更新裁剪开始位置 } from './state/cropBoxController.js';
+import { cropStartPos, cropResizeHandle, isDraggingCrop, cropHandles } from './state/cropBoxController.js';
+// 1. 添加编辑器状态管理
+import { editorState, 切换编辑器到空闲模式, canUseGeometryTools } from './state/editorState.js';
+import { 生成缩略图 } from './utils/thumbnail.js';
+import { 清理处理前后图像blob } from './state/previewState.js';
 
 const sharp = requirePluginDeps('sharp')
-const originalImageInfo = ref({})
-// 添加图片历史记录状态
-const galleryContainer = ref(null);
-const 生成缩略图 = async (sharpObject) => {
-    const thumbnail = await sharpObject
-        .clone()
-        .resize(100, 100, { fit: 'contain' })
-        .png()
-        .toBuffer();
-    return URL.createObjectURL(
-        new Blob([thumbnail], { type: 'image/png' })
-    );
-};
+
 const 添加新文件 = async (newPath) => {
     try {
         const testImage = await fromFilePath(newPath);
-        重置所有状态()
+        重置所有预览状态()
         if (currentSharpObject.value) {
             currentSharpObject.value = null;
         }
         const thumbnailUrl = await 生成缩略图(testImage);
         文件历史管理器.添加(newPath, thumbnailUrl)
         imagePath.value = newPath;
-        const metadata = await testImage.metadata();
-        originalImageInfo.value = {
-            width: metadata.width,
-            height: metadata.height,
-            format: metadata.format
-        };
+        await 从文件路径更新原始图状态(newPath)
         currentSharpObject.value = testImage;
         await generatePreview(testImage);
         //重新应用效果器
@@ -166,14 +151,8 @@ const 添加新文件 = async (newPath) => {
 const openNewFile = async () => {
     try {
         // 确保 controller 存在
-        if (!previewState.value.currentController) {
-            previewState.value.currentController = new AbortController();
-        }
-        // 取消当前正在进行的所有处理
-        previewState.value.currentController.abort();
-        previewState.value.currentController = new AbortController();
+        重置预览控制器()
         const result = await 选择图片文件()
-
         if (!result.canceled && result.filePaths.length > 0) {
             const newPath = result.filePaths[0];
             添加新文件(newPath)
@@ -206,12 +185,7 @@ const switchToImage = async (index) => {
     try {
         const originalImage = await 文件历史管理器.获取指定sharp对象(index)
         currentSharpObject.value = originalImage;
-        const metadata = await originalImage.metadata();
-        originalImageInfo.value = {
-            width: metadata.width,
-            height: metadata.height,
-            format: metadata.format
-        };
+        从sharp对象更新原始图状态(originalImage)
         await generatePreview(originalImage);
         await resetAdjustments();
     } catch (error) {
@@ -222,8 +196,7 @@ const switchToImage = async (index) => {
 const appData = inject('appData')
 const imagePath = toRef(appData.imagePath || window.imagePath)
 const comparisonContainer = ref(null)
-const originalImg = ref(null)
-const processedImg = ref(null)
+import { originalImg,processedImg } from './state/previewState.js';
 const info = ref({})
 const imageAdjuster = ref(null);
 const currentSharpObject = shallowRef(null);
@@ -257,11 +230,9 @@ const resolutionConfig = {
 
 // 添加动态分辨率控制
 const getDynamicResolution = () => {
-    const now = performance.now();
-    const timeSinceLastAdjustment = now - previewState.value.lastAdjustmentTime;
-    if (timeSinceLastAdjustment < resolutionConfig.adjustmentThreshold.rapid) {
+    if (获取上次预览更新间隔() < resolutionConfig.adjustmentThreshold.rapid) {
         return resolutionConfig.resolutionLevels.rapid;  // 480
-    } else if (timeSinceLastAdjustment < resolutionConfig.adjustmentThreshold.normal) {
+    } else if (获取上次预览更新间隔() < resolutionConfig.adjustmentThreshold.normal) {
         return Math.min(
             resolutionConfig.resolutionLevels.normal,  // 960
             previewState.value.currentResolution || Infinity
@@ -277,32 +248,20 @@ const handleProcessingUpdate = async (processingPipeline) => {
 
     try {
         // 即取消之前的处理
-        if (previewState.value.currentController) {
-            previewState.value.currentController.abort();
-        }
-        previewState.value.currentController = new AbortController();
-        const { signal } = previewState.value.currentController;
-
+        const signal = await 刷新并获取预览控制器信号()
         // 新版本号
         const currentVersion = ++previewState.value.renderVersion;
 
         // 获取图像尺寸
-        const isLargeImage = originalImageInfo.value.width > 4096 ||
-            originalImageInfo.value.height > 4096;
+        const isLargeImage = 原始图是否超大图片.value
 
 
         if (isLargeImage) {
             // 大图像使用渐进式渲染
             // 记录调整时
-            previewState.value.lastAdjustmentTime = performance.now();
-            previewState.value.isAdjusting = true;
-
+            锁定预览更新()
             // 清除之前的定时器
-            if (previewState.value.previewTimeout) {
-                clearTimeout(previewState.value.previewTimeout);
-                previewState.value.previewTimeout = null;
-            }
-
+            清除预览更新定时器()
             // 立即进行低分辨率渲染
             const lowResProcessing = async () => {
                 try {
@@ -315,8 +274,7 @@ const handleProcessingUpdate = async (processingPipeline) => {
                         })
                         .toBuffer();
                     if (signal.aborted) return;
-                    let processedImg = await sharp(lowResBuffer);
-                    processedImg = await processingPipeline(processedImg);
+                    let processedImg = 对buffer应用效果堆栈(lowResBuffer,processingPipeline)
                     if (signal.aborted) return;
                     currentSharpObject.value = processedImg;
                     await generatePreview(processedImg);
@@ -336,7 +294,6 @@ const handleProcessingUpdate = async (processingPipeline) => {
             // 定义分辨率提升函数
             const upgradeResolution = async () => {
                 if (signal.aborted) return;
-
                 const currentRes = previewState.value.currentResolution;
                 const nextLevel = Object.values(resolutionConfig.resolutionLevels)
                     .filter(size => size > currentRes)
@@ -354,16 +311,11 @@ const handleProcessingUpdate = async (processingPipeline) => {
 
                         if (signal.aborted) return;
 
-                        let processedImg = await sharp(higherResBuffer);
-                        processedImg = await processingPipeline(processedImg);
-
+                        let processedImg = 对buffer应用效果堆栈(higherResBuffer,processingPipeline)
                         if (signal.aborted) return;
-
                         currentSharpObject.value = processedImg;
                         await generatePreview(processedImg);
                         previewState.value.currentResolution = nextLevel;
-
-                        // 继续提升分辨率
                         previewState.value.previewTimeout = setTimeout(upgradeResolution, 200);
                     } catch (error) {
                         if (error.name !== 'AbortError') {
@@ -372,24 +324,19 @@ const handleProcessingUpdate = async (processingPipeline) => {
                     }
                 } else {
                     // 最终渲染原图
-                    previewState.value.isAdjusting = false;
+                    解锁预览更新()
                     await processWithFullResolution(processingPipeline, signal);
                 }
             };
             // 延迟开始分辨率提升
-            previewState.value.previewTimeout = setTimeout(upgradeResolution, 300);
-
+            设置预览更新定时器(upgradeResolution)
         } else {
             // 小图像直接进行全分辨率渲染
             try {
-                const originalImage = await fromFilePath(imagePath.value);
-                let processedImg = await processingPipeline(originalImage);
-
+                let processedImg =await 对图像路径应用效果堆栈(imagePath.value,processingPipeline)
                 if (signal.aborted) return;
-
                 currentSharpObject.value = processedImg;
                 await generatePreview(processedImg);
-
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     console.error('图像处理失:', error);
@@ -517,54 +464,10 @@ const getImageStyle = () => {
     };
 };
 
-
 // 修改预览生成函数
-const generatePreview = async (sharpObj) => {
-    try {
-        // 检查 DOM 引用是否存在
-        if (!processedImg.value) {
-            console.warn('processedImg reference not found');
-            return;
-        }
-        // 生成处理后的图像
-        const processedBuffer = await sharpObj.clone().png().toBuffer();
-        // 清理旧的 Blob URLs
-        if (processedImg.value.src?.startsWith('blob:')) {
-            URL.revokeObjectURL(processedImg.value.src);
-        }
-        if (originalImg.value?.src?.startsWith('blob:')) {
-            URL.revokeObjectURL(originalImg.value.src);
-        }
-
-        // 更新处理后的图像
-        const processedUrl = URL.createObjectURL(
-            new Blob([processedBuffer], { type: 'image/png' })
-        );
-        processedImg.value.src = processedUrl;
-
-        // 如果启用了裂像预览，确保原始图像也被更新
-        if (isSplitViewEnabled.value) {
-            try {
-                const originalImage = await fromFilePath(imagePath.value);
-                const originalBuffer = await originalImage.png().toBuffer();
-
-                if (originalImg.value) {
-                    const originalUrl = URL.createObjectURL(
-                        new Blob([originalBuffer], { type: 'image/png' })
-                    );
-                    originalImg.value.src = originalUrl;
-                }
-            } catch (error) {
-                console.error('生成原始图像预览失败:', error);
-            }
-        } else if (originalImg.value) {
-            originalImg.value.src = '';
-        }
-
-    } catch (error) {
-        console.error('生成预览图失败:', error);
-    }
-};
+const generatePreview = async(处理后sharp对象)=>{
+    await 更新处理前后预览图像(处理后sharp对象,imagePath.value)
+}
 
 // 确保在组件卸载时清理资源
 onUnmounted(() => {
@@ -599,7 +502,7 @@ const handleMouseDown = (e) => {
 
 const handleMouseUp = () => {
     if (isDraggingCrop.value) {
-        isDraggingCrop.value = false;
+        停止拖拽裁剪框()
         cropResizeHandle.value = null;
     }
     if (isDragging.value) {
@@ -673,8 +576,7 @@ const outputFormat = ref('jpeg');
 
 // 处理尺寸输入
 const handleResizeInput = (dimension) => {
-    const imageInfo = originalImageInfo.value
-    const aspectRatio = genRatioWh(imageInfo)
+    const aspectRatio = 原始图比例.value
     useResizeOptions("globalProcess").handleResizeInputWithRatio(dimension, aspectRatio)
 };
 
@@ -697,14 +599,8 @@ const cancelChanges = async () => {
 
             case 'resize':
                 // 重置缩放选项
-                if (originalImageInfo.value) {
-                    resizeOptions.value = {
-                        width: originalImageInfo.value.width,
-                        height: originalImageInfo.value.height,
-                        maintainAspectRatio: true
-                    }
-                }
-                isResizeMode.value = false
+                useResizeOptions("globalProcess").使用图片信息重置(originalImageInfo.value)
+                尺寸调整模式控制器(isResizeMode).退出尺寸调整模式()
                 break
 
             case 'crop':
@@ -722,8 +618,7 @@ const cancelChanges = async () => {
         viewState.value.mode = 'split'
         viewState.value.options.split.position = 50
 
-        // 清除激活模式
-        editorState.value.activeMode = null
+        切换编辑器到空闲模式()
 
         // 重新生成���览
         if (currentSharpObject.value) {
@@ -754,14 +649,7 @@ const confirmChanges = async () => {
             case 'resize':
                 // 处理缩放
                 if (isResizeMode.value) {
-                    processedImage = await processedImage.resize(
-                        resizeOptions.value.width,
-                        resizeOptions.value.height,
-                        {
-                            fit: 'fill',
-                            withoutEnlargement: false
-                        }
-                    )
+                    processedImage = await useResizeOptions('globalProcess').应用到sharp图片对象(processedImage)
                 }
                 break
             case 'crop':
@@ -818,34 +706,14 @@ watch(() => originalImageInfo.value, (newInfo) => {
     从图片信息重置缩放状态(newInfo)
 }, { deep: true });
 
-const isDraggingCrop = ref(false);
-const cropStartPos = ref({ x: 0, y: 0 });
-const cropResizeHandle = ref(null);
 
-// 裁剪框的控制点
-const cropHandles = [
-    { position: 'nw' }, { position: 'n' }, { position: 'ne' },
-    { position: 'w' }, { position: 'e' },
-    { position: 'sw' }, { position: 's' }, { position: 'se' }
-];
+
 
 // 修改初始化裁剪框函数，使其相对于原图定位
 const 初始化裁剪框 = () => {
     const container = comparisonContainer.value;
     const processedImage = processedImg.value;
-    if (!container || !processedImage) return;
-    const rect = container.getBoundingClientRect();
-    const imgRect = processedImage.getBoundingClientRect();
-    // 计算实际的图像区域（考虑缩放和偏移）
-    const imageArea = {
-        x: imgRect.left - rect.left,
-        y: imgRect.top - rect.top,
-        width: imgRect.width,
-        height: imgRect.height
-    };
-    // 初始化裁剪框
-    裁剪框控制器.应用裁剪框(imageArea)
-    裁剪框控制器.设置比例保持(false)
+    从图片元素和容器初始化裁剪框(container, processedImage)
 };
 // 添加获取实际裁剪区域的函数
 
@@ -853,13 +721,8 @@ const 初始化裁剪框 = () => {
 // 处理裁剪框拖动
 const handleCropResize = (e, position) => {
     if (!isCropMode.value) return;
-    isDraggingCrop.value = true;
-    cropResizeHandle.value = position;
-    cropStartPos.value = {
-        x: e.clientX,
-        y: e.clientY,
-        initialBox: { ...cropBox.value }
-    };
+    开始拖拽裁剪框()
+    更新裁剪开始位置(e, position)
 };
 
 // 修改鼠标移动处理函数，限制裁剪框在图像范围内
@@ -946,17 +809,8 @@ const handleMouseMove = (e) => {
 // 计算裁剪框样式
 const cropBoxStyle = computed(裁剪框控制器.获取css尺寸样式);
 
-// 添加视图状态管理
-const viewState = ref({
-    mode: 'split', // 'split' | 'processed' | 'original'
-    options: {
-        split: {
-            position: 50,
-            isDragging: false
-        }
-    }
-});
-
+import { viewState, 切换裂像预览与仅结果预览, isSplitViewEnabled, isProcessedOnlyView } from './state/useViewState.js';
+import { 对buffer应用效果堆栈, 对图像路径应用效果堆栈 } from './process/pipeline.js';
 
 const {
     handleSplitDrag,
@@ -970,23 +824,8 @@ const {
     viewState)
 
 
-// 1. 添加编辑器状态管理
-const editorState = ref({
-    activeMode: null, // 'perspective' | 'resize' | 'stack' | 'edit' | 'crop' | null
-    geometry: {
-        hasChanges: false,
-        perspective: false,
-        resize: false,
-        stack: false
-    },
-    view: {
-        mode: 'split', // 'split' | 'processed' | 'original'
-        splitPosition: 50
-    }
-})
 
 // 2. 视图锁定相关的计算属性
-const isViewModeLocked = computed(() => $isViewModeLocked(editorState))
 // 添加状态转换锁和队列
 const stateTransition = ref({
     isLocked: false,
@@ -1054,10 +893,7 @@ const togglePerspectiveMode = async (forceValue) => {
     perspectiveMode.value = newValue
 }
 
-const toggleResizeMode = async (forceValue) => {
-    const newValue = typeof forceValue === 'boolean' ? forceValue : !isResizeMode.value
-    isResizeMode.value = newValue
-}
+const toggleResizeMode = 尺寸调整模式控制器.切换尺寸调整模式
 
 const toggleCropMode = async (forceValue) => {
     const newValue = typeof forceValue === 'boolean' ? forceValue : !isCropMode.value
@@ -1069,42 +905,18 @@ const toggleEditMode = async (forceValue) => {
     isEditMode.value = newValue
 }
 
-// 4. 修改模式切换函数
-const toggleProcessedOnlyView = () => {
-    if (isViewModeLocked.value) return
-    viewState.value.mode = viewState.value.mode === 'processed' ? 'split' : 'processed'
-}
 
-const toggleSplitView = () => {
-    if (isViewModeLocked.value) return
-    viewState.value.mode = viewState.value.mode === 'split' ? 'processed' : 'split'
-}
 
-// 添加几何工具可用性的计算属性
-const canUseGeometryTools = computed(() => {
-    return ['perspective', 'crop'].includes(editorState.value.activeMode)
-})
-
-// 添加分割视图状态的计算属性
-const isSplitViewEnabled = computed(() => viewState.value.mode === 'split')
 
 // 添加仅显示处理后视图的计算属性
-const isProcessedOnlyView = computed(() => viewState.value.mode === 'processed')
 // 3. 修改现有的状态计算属性
 const perspectiveMode = computed($perspectiveModeState(editorState, stateTransition, isStackMode, viewState))
 
 
-// 添加状态转换监听
-watch(() => editorState.value.activeMode, (newMode, oldMode) => {
-    if (newMode !== oldMode) {
-        console.log(`Mode changed from ${oldMode} to ${newMode}`)
-    }
-})
-
 // 添加裁剪输入处理函数
 const handleCropInput = (cropData) => {
     if (!cropBox.value) return;
-    
+
     // 获取图像容器和图像元素
     const container = comparisonContainer.value;
     const image = processedImg.value;
@@ -1112,7 +924,7 @@ const handleCropInput = (cropData) => {
 
     // 获取图像的实际显示尺寸和位置
     const bounds = 获取相对图像边界(container, image);
-    
+
     // 根据输入的裁剪数据更新裁剪框
     const newBox = {
         x: bounds.left + (bounds.width * (cropData.x / 100)),

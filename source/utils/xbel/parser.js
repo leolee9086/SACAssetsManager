@@ -1,0 +1,175 @@
+/**
+ * @typedef {Object} BookmarkNode
+ * @property {'bookmark'} type
+ * @property {string} title
+ * @property {string} desc
+ * @property {string} href
+ * @property {string} [added]
+ * @property {string} [modified]
+ * @property {string} [id]
+ * @property {string} [visited]
+ * @property {string} [icon]
+ */
+
+/**
+ * @typedef {Object} FolderNode
+ * @property {'folder'} type
+ * @property {string} title
+ * @property {string} desc
+ * @property {Array<BookmarkNode|FolderNode|SeparatorNode>} children
+ * @property {string} [added]
+ * @property {string} [modified]
+ * @property {string} [id]
+ */
+
+/**
+ * @typedef {Object} SeparatorNode
+ * @property {'separator'} type
+ */
+
+/**
+ * @typedef {Object} RootNode
+ * @property {'root'} type
+ * @property {string} title
+ * @property {string} desc
+ * @property {string} version
+ * @property {Array<BookmarkNode|FolderNode|SeparatorNode>} children
+ */
+
+/**
+ * 处理节点的通用属性
+ * @param {Element} element - DOM元素
+ * @param {string[]} attrs - 需要处理的属性名数组
+ * @returns {Object} 属性对象
+ */
+function processAttributes(element, attrs) {
+    const result = {};
+    if (!element || !attrs?.length) return result;
+    
+    attrs.forEach(attr => {
+        const value = element.getAttribute(attr);
+        if (value?.trim()) result[attr] = value.trim();
+    });
+    return result;
+}
+
+/**
+ * 获取节点的标题和描述
+ * @param {Element} element - DOM元素
+ * @returns {{title: string, desc: string}}
+ */
+function getMetadata(element) {
+    if (!element) {
+        return { title: "", desc: "" };
+    }
+    
+    const titleNode = element.querySelector("title");
+    const descNode = element.querySelector("desc");
+    
+    return {
+        title: titleNode?.textContent?.trim() || "",
+        desc: descNode?.textContent?.trim() || ""
+    };
+}
+
+/**
+ * 递归处理XBEL节点
+ * @param {Element} node - 当前处理的节点
+ * @returns {Array<BookmarkNode|FolderNode|SeparatorNode>}
+ * @throws {Error} 当遇到无效的节点类型时抛出异常
+ */
+function processNode(node) {
+    if (!node) return [];
+    const items = [];
+    
+    for (const child of node.children) {
+        const nodeName = child.nodeName.toLowerCase();
+        
+        switch (nodeName) {
+            case "separator":
+                items.push({ type: "separator" });
+                break;
+                
+            case "folder": {
+                const metadata = getMetadata(child);
+                const folder = {
+                    type: "folder",
+                    ...metadata,
+                    children: processNode(child),
+                    ...processAttributes(child, ["added", "modified", "id"])
+                };
+                items.push(folder);
+                break;
+            }
+                
+            case "bookmark": {
+                const metadata = getMetadata(child);
+                const href = child.getAttribute("href")?.trim();
+                if (!href) {
+                    console.warn("发现没有href属性的书签:", metadata.title);
+                    continue;
+                }
+                
+                const bookmark = {
+                    type: "bookmark",
+                    ...metadata,
+                    href,
+                    ...processAttributes(child, ["added", "modified", "id", "visited", "icon"])
+                };
+                items.push(bookmark);
+                break;
+            }
+                
+            case "info":
+            case "title":
+            case "desc":
+                // 这些是元数据节点，可以忽略
+                break;
+                
+            default:
+                console.warn(`忽略未知的节点类型: ${nodeName}`);
+        }
+    }
+    
+    return items;
+}
+
+/**
+ * 解析XBEL格式的书签文件
+ * @param {string} xbelContent - XBEL格式的XML字符串
+ * @returns {RootNode} 解析后的书签树
+ * @throws {Error} 解析错误时抛出异常
+ */
+function parseXBEL(xbelContent) {
+    if (!xbelContent?.trim()) {
+        throw new Error('XBEL内容不能为空');
+    }
+
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xbelContent, "text/xml");
+    
+    const parseError = xmlDoc.querySelector('parsererror');
+    if (parseError) {
+        throw new Error('XML解析错误: ' + parseError.textContent);
+    }
+
+    const xbelRoot = xmlDoc.querySelector("xbel");
+    if (!xbelRoot) {
+        throw new Error('无效的XBEL文件：缺少xbel根元素');
+    }
+
+    const version = xbelRoot.getAttribute("version")?.trim();
+    if (!version) {
+        console.warn('XBEL文件未指定版本，使用默认版本1.0');
+    }
+
+    const metadata = getMetadata(xbelRoot);
+    return {
+        type: "root",
+        ...metadata,
+        version: version || "1.0",
+        children: processNode(xbelRoot)
+    };
+}
+
+export default parseXBEL;

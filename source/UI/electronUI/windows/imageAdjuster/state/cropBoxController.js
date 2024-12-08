@@ -8,6 +8,43 @@ export const cropBox = ref(
         maintainAspectRatio: false
     }
 )
+export const cropStartPos = ref({ x: 0, y: 0 })
+export const cropResizeHandle = ref(null)
+export const isDraggingCrop = ref(false)
+export const 开始拖拽裁剪框 =()=>isDraggingCrop.value=true
+export const 停止拖拽裁剪框 =()=>{
+    isDraggingCrop.value = false
+};
+
+// 裁剪框的控制点
+export const cropHandles = [
+    { position: 'nw' }, { position: 'n' }, { position: 'ne' },
+    { position: 'w' }, { position: 'e' },
+    { position: 'sw' }, { position: 's' }, { position: 'se' }
+];
+export const 更新裁剪开始位置 =(e, position) => {
+    cropResizeHandle.value = position;
+    cropStartPos.value = {
+        x: e.clientX,
+        y: e.clientY,
+        initialBox: { ...cropBox.value }
+    };
+};
+export const 从图片元素和容器初始化裁剪框 = (container,processedImage)=>{
+    if (!container || !processedImage) return;
+    const rect = container.getBoundingClientRect();
+    const imgRect = processedImage.getBoundingClientRect();
+    // 计算实际的图像区域（考虑缩放和偏移）
+    const imageArea = {
+        x: imgRect.left - rect.left,
+        y: imgRect.top - rect.top,
+        width: imgRect.width,
+        height: imgRect.height
+    };
+    // 初始化裁剪框
+    裁剪框控制器.应用裁剪框(imageArea)
+    裁剪框控制器.设置比例保持(false)
+}
 
 export const 裁剪框控制器 = {
     移动裁剪框: (x, y, width, height) => {

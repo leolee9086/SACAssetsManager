@@ -1,24 +1,6 @@
 import { computed, ref, watch } from '../../../../../../static/vue.esm-browser.js'
-export const previewState = ref({
-    lastFullRenderTime: 0,
-    lastAdjustmentTime: 0,
-    isAdjusting: false,
-    previewTimeout: null,
-    thumbnailCache: null,
-    pendingFullRender: false,
-    currentController: new AbortController(),  // 确保初始化时就有 controller
-    renderVersion: 0
-});
-export const 重置所有状态 = () => {
-    previewState.value.lastFullRenderTime = 0
-    previewState.value.lastAdjustmentTime = 0
-    previewState.value.isAdjusting = false
-    previewState.value.previewTimeout = null
-    previewState.value.thumbnailCache = null
-    previewState.value.pendingFullRender = false
-    previewState.value.currentController = new AbortController()
-    previewState.value.renderVersion = 0
-}
+
+
 
 export { 历史队列, 文件历史管理器 } from './globalHistory.js'
 export { effectStack, 效果堆栈管理器 } from './effectStack.js'
@@ -103,6 +85,24 @@ export const $isResizeMode = (editorState, stateTransition, viewState, isStackMo
         }
     })
 }
+export const 尺寸调整模式控制器 = (isResizeMode)=>{
+    return {
+        退出尺寸调整模式:()=>{
+            isResizeMode.value = false
+        },
+        切换尺寸调整模式:(forceValue)=>{
+            const newValue = typeof forceValue === 'boolean' ? forceValue : !isResizeMode.value
+            isResizeMode.value = newValue
+        }
+    }
+}
+
+
+
+
+
+
+
 
 
 
