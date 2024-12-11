@@ -186,121 +186,126 @@
 
 /* 基础容器 */
 .cc-content-viewer {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: var(--cc-space-xl);
+    margin: 0 auto;
+    padding: var(--cc-space-xl);
 }
 
 /* 面板组件 */
 .cc-panel {
-  margin-bottom: var(--cc-space-xl);
+    margin-bottom: var(--cc-space-xl);
 }
 
 .cc-panel__title {
-  color: var(--cc-theme-on-background);
-  margin-bottom: var(--cc-space-md);
+    color: var(--cc-theme-on-background);
+    margin-bottom: var(--cc-space-md);
 }
 
 /* 按钮组件 */
 .cc-button-group {
-  display: flex;
-  gap: var(--cc-space-md);
-  margin-bottom: var(--cc-space-md);
+    display: flex;
+    gap: var(--cc-space-md);
+    margin-bottom: var(--cc-space-md);
 }
 
 .cc-button {
-  padding: var(--cc-space-sm) var(--cc-space-lg);
-  border: var(--cc-border-width) solid var(--cc-border-color);
-  border-radius: var(--cc-border-radius);
-  background: var(--cc-theme-surface-lighter);
-  color: var(--cc-theme-on-background);
-  cursor: pointer;
-  transition: var(--cc-transition);
+    padding: var(--cc-space-sm) var(--cc-space-lg);
+    border: var(--cc-border-width) solid var(--cc-border-color);
+    border-radius: var(--cc-border-radius);
+    background: var(--cc-theme-surface-lighter);
+    color: var(--cc-theme-on-background);
+    cursor: pointer;
+    transition: var(--cc-transition);
 }
 
 .cc-button:hover {
-  background: var(--cc-theme-surface-light);
-  border-color: var(--cc-theme-primary);
+    background: var(--cc-theme-surface-light);
+    border-color: var(--cc-theme-primary);
 }
 
 .cc-button--secondary {
-  background: transparent;
+    background: transparent;
 }
 
 /* 输入组件 */
 .cc-input-group {
-  display: flex;
-  gap: var(--cc-space-md);
-  margin-top: var(--cc-space-md);
+    display: flex;
+    gap: var(--cc-space-md);
+    margin-top: var(--cc-space-md);
 }
 
 .cc-input {
-  flex: 1;
-  padding: var(--cc-space-sm);
-  border: var(--cc-border-width) solid var(--cc-border-color);
-  border-radius: var(--cc-border-radius);
-  background: var(--cc-theme-surface-lighter);
-  color: var(--cc-theme-on-background);
+    flex: 1;
+    padding: var(--cc-space-sm);
+    border: var(--cc-border-width) solid var(--cc-border-color);
+    border-radius: var(--cc-border-radius);
+    background: var(--cc-theme-surface-lighter);
+    color: var(--cc-theme-on-background);
 }
 
 .cc-textarea {
-  width: 100%;
-  padding: var(--cc-space-sm);
-  border: var(--cc-border-width) solid var(--cc-border-color);
-  border-radius: var(--cc-border-radius);
-  margin-bottom: var(--cc-space-md);
-  resize: vertical;
-  background: var(--cc-theme-surface-lighter);
-  color: var(--cc-theme-on-background);
+    width: 100%;
+    padding: var(--cc-space-sm);
+    border: var(--cc-border-width) solid var(--cc-border-color);
+    border-radius: var(--cc-border-radius);
+    margin-bottom: var(--cc-space-md);
+    resize: vertical;
+    background: var(--cc-theme-surface-lighter);
+    color: var(--cc-theme-on-background);
 }
 
 /* 状态组件 */
 .cc-loading {
-  text-align: center;
-  padding: var(--cc-space-xl);
-  color: var(--cc-theme-on-surface);
+    text-align: center;
+    padding: var(--cc-space-xl);
+    color: var(--cc-theme-on-surface);
 }
 
 .cc-alert {
-  padding: var(--cc-space-md);
-  margin: var(--cc-space-md) 0;
-  border: var(--cc-border-width) solid;
-  border-radius: var(--cc-border-radius);
+    padding: var(--cc-space-md);
+    margin: var(--cc-space-md) 0;
+    border: var(--cc-border-width) solid;
+    border-radius: var(--cc-border-radius);
 }
 
 .cc-alert--error {
-  color: var(--cc-theme-error);
-  border-color: var(--cc-theme-error);
+    color: var(--cc-theme-error);
+    border-color: var(--cc-theme-error);
 }
 
 /* 动作组 */
 .cc-action-group {
-  display: flex;
-  gap: var(--cc-space-md);
-  justify-content: flex-end;
+    display: flex;
+    gap: var(--cc-space-md);
+    justify-content: flex-end;
 }
 
 /* 列布局样式 */
 .cc-column {
-  display: block;
-  position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%
 }
 
-.cc-column--flex {
-  display: flex;
-  flex-direction: column;
-}
+
 
 .cc-column--shrink {
-  flex-shrink: 1;
-  min-width: 0;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
 /* 可选的宽度工具类 */
 .cc-column--w-full {
-  width: 100%;
+    width: 100%;
 }
 
 .cc-column--w-auto {
-  width: auto;
+    width: auto;
+}
+
+/* Flex 工具类 */
+.cc-flex-1 {
+    flex: 1 1 0%;
+    /* flex-grow: 1, flex-shrink: 1, flex-basis: 0% */
+    min-width: 0;
+    /* 防止子元素溢出 */
 }

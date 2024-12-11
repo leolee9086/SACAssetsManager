@@ -5,7 +5,6 @@ export async function 修改d5a缩略图(d5aFilePath, thumbnailPath, callbacks =
         try {
             await addFileToZip(d5aFilePath, thumbnailPath, 'icon.jpg')
             const successMsg = `成功将缩略图${thumbnailPath}写入 ${d5aFilePath}`
-            console.log(successMsg)
             if (callbacks.onSuccess) {
                 await callbacks.onSuccess(successMsg)
             }

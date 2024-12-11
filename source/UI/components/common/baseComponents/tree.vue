@@ -2,22 +2,28 @@
   <div class="cc-tree-node" :class="[node.type, { 'cc-tree-node--focus': isFocused }]">
     <div 
       class="cc-tree-item"
-      :style="{ '--file-toggle-width': `${indent}px` }"
+      :style="{ 
+        '--file-toggle-width': `${indent}px`,
+        'padding-left': `${getNodePadding}px`
+      }"
       :draggable="draggable"
       :data-type="node.type"
       :data-path="node.path"
     >
       <!-- 展开/折叠按钮 -->
       <span 
+        v-if="hasChildren"
         class="cc-tree-item__toggle"
-        :class="{ 'fn__hidden': !hasChildren }"
-        :style="{ 'padding-left': `${indent - 18}px` }"
         @click="toggleNode"
       >
         <svg class="cc-tree-item__arrow" :class="{ 'cc-tree-item__arrow--open': isExpanded }">
           <use xlink:href="#iconRight"></use>
         </svg>
       </span>
+      <span 
+        v-else
+        class="cc-tree-item__toggle-placeholder"
+      ></span>
 
       <!-- 节点图标 -->
       <slot 
@@ -78,7 +84,8 @@
         v-for="child in node.children"
         :key="child.id"
         :node="child"
-        :indent="indent + 18"
+        :indent="indent"
+        :level="level + 1"
         :draggable="draggable"
       >
         <template v-for="(_, name) in $slots" #[name]="slotData">
@@ -107,6 +114,10 @@ const props = defineProps({
     type: Number,
     default: 22
   },
+  level: {
+    type: Number,
+    default: 0
+  },
   draggable: {
     type: Boolean,
     default: true
@@ -116,6 +127,13 @@ const props = defineProps({
 const isExpanded = ref(true);
 const isFocused = ref(false);
 const hasChildren = computed(() => props.node.children?.length > 0);
+
+// 计算节点的实际缩进值
+const getNodePadding = computed(() => {
+  const ARROW_WIDTH = 18; // 箭头图标的宽度
+  const basePadding = props.level * props.indent;
+  return basePadding;
+});
 
 const toggleNode = () => {
   if (hasChildren.value) {
@@ -130,12 +148,14 @@ const toggleNode = () => {
 }
 
 .cc-tree-item {
-  padding: var(--cc-space-sm) var(--cc-space-md);
   display: flex;
   align-items: center;
   gap: var(--cc-space-sm);
   cursor: pointer;
   transition: var(--cc-transition);
+  padding-top: var(--cc-space-sm);
+  padding-bottom: var(--cc-space-sm);
+  padding-right: var(--cc-space-md);
 }
 
 .cc-tree-item:hover {
@@ -146,13 +166,22 @@ const toggleNode = () => {
   background-color: var(--cc-list-hover);
 }
 
-.cc-tree-item__toggle {
-  cursor: pointer;
+.cc-tree-item__toggle,
+.cc-tree-item__toggle-placeholder {
+  flex-shrink: 0;
+  width: 18px; /* 固定箭头区域宽度 */
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--cc-size-icon-sm);
-  height: var(--cc-size-icon-sm);
+}
+
+.cc-tree-item__toggle {
+  cursor: pointer;
+}
+
+.cc-tree-item__toggle-placeholder {
+  cursor: default;
 }
 
 .cc-tree-item__arrow {
@@ -204,7 +233,8 @@ const toggleNode = () => {
 }
 
 .cc-tree-node__children {
-  margin-left: var(--cc-space-lg);
+  margin: 0;
+  padding-left: var(--cc-space-md);
   border-left: var(--cc-border-width) solid var(--cc-border-color);
 }
 

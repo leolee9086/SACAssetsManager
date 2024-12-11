@@ -10,7 +10,6 @@ export const 递归扫描文件夹并执行任务 = async (dir, controller, 文�
             }
         });
     };
-
     await 添加任务(async () => {
         const entries = await fs.readdir(dir, { withFileTypes: true });
         for await (const entry of entries) {

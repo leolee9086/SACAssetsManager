@@ -6,19 +6,69 @@
     <meta charset="UTF-8">
     <title>图片编辑器</title>
     <link id="pluginBaseStyle" href="/plugins/SACAssetsManager/index.css" rel="stylesheet">
-
+    <link id="themeDefaultStyle" rel="stylesheet" type="text/css" href="/appearance/themes/midnight/theme.css?v=3.1.12">
     <style>
         body {
             margin: 0;
             overflow: hidden;
+            min-height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
         }
 
-        #title-bar {
+        .dock {
+            height: 42px;
+            display: flex;
+            padding: 0 42px;
+            user-select: none;
+            background-color: var(--b3-theme-surface);
+            box-sizing: border-box;
+            -webkit-user-select: none;
+        }
+
+        .dock--vertical {
+            width: 42px;
+            flex-direction: column;
+            height: 100%;
+            padding: 0;
+        }
+
+        .dock#dockLeft {
+            border-right: .5px solid var(--b3-border-color);
+        }
+
+        .dock__item:hover,
+        .dock__item--active {
+            background-color: var(--b3-theme-background-light);
+        }
+
+        .dock__item {
+            padding: 6px;
+            color: var(--b3-theme-on-surface-light);
+            display: flex;
+            border-radius: var(--b3-border-radius);
+            margin: 7px;
+            cursor: pointer;
+        }
+
+        #app {
+            flex: 1;
+            min-width: .1px;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            min-height: .1px;
+            display: flex;
+            background-color: var(--b3-theme-background);
+        }
+
+        #toolbar {
             display: flex;
             justify-content: space-between;
             background-color: #333;
             color: white;
-            padding: 10px;
             -webkit-app-region: drag;
         }
 
@@ -27,25 +77,78 @@
             gap: 10px;
         }
 
-        .button {
+        .toolbar__item {
             cursor: pointer;
             -webkit-app-region: no-drag;
+        }
+
+        /* 添加工具提示相关样式 */
+        .toolbar__item {
+            position: relative;
+        }
+
+        .toolbar__item::after {
+            content: attr(aria-label);
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 8px;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            font-size: 12px;
+            border-radius: 4px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .toolbar__item:hover::after {
+            opacity: 1;
+            visibility: visible;
         }
     </style>
 </head>
 
-<body>
-    <div id="title-bar">
+<body class="fn__flex-column body--win32">
+    <div id="toolbar" class="toolbar fn__flex">
         <div class="title-group left" id="title-group-left">
         </div>
         <div class="title-group right" id="title-group-right">
-            <div id="devTools" class="button">开发者工具</div>
-            <div id="minimize" class="button">最小化</div>
-            <div id="maximize" class="button">最大化</div>
-            <div id="close" class="button">关闭</div>
+            <div class="fn__flex" id="windowControls">
+                <div class="toolbar__item ariaLabel toolbar__item--win" aria-label="开发者工具" id="devTools">
+                    <svg>
+                        <use xlink:href="#iconCode"></use>
+                    </svg>
+                </div>
+                <div class="toolbar__item ariaLabel toolbar__item--win" aria-label="最小化" id="minWindow">
+                    <svg>
+                        <use xlink:href="#iconMin"></use>
+                    </svg>
+                </div>
+                <div aria-label="最大化" class="ariaLabel toolbar__item toolbar__item--win" id="maxWindow"
+                    style="display: none;">
+                    <svg>
+                        <use xlink:href="#iconMax"></use>
+                    </svg>
+                </div>
+                <div aria-label="向下还原" class="ariaLabel toolbar__item toolbar__item--win" id="restoreWindow"
+                    style="display: flex;">
+                    <svg>
+                        <use xlink:href="#iconRestore"></use>
+                    </svg>
+                </div>
+                <div aria-label="关闭" class="ariaLabel toolbar__item toolbar__item--close" id="closeWindow">
+                    <svg>
+                        <use xlink:href="#iconClose"></use>
+                    </svg>
+                </div>
+            </div>
         </div>
     </div>
     <div id="app"></div>
+
     <script>
         // 在 panelStyleEditor.html 的脚本中
         window.params = new Proxy(new URLSearchParams(window.location.search), {
@@ -53,7 +156,7 @@
                 return target.get(prop);
             }
         });
-        
+
         // 现在可以直接这样访问参数
         window.workspaceDir = window.params.workspaceDir;
         window.pluginName = window.params.pluginName;
@@ -64,31 +167,82 @@
         } catch (e) {
             console.warn(e);
         }
-        const remote = require('@electron/remote');
-        const currentWindow = remote.getCurrentWindow();
-        document.getElementById('minimize').addEventListener('click', () => {
-            currentWindow.minimize();
-        });
-        document.getElementById('maximize').addEventListener('click', () => {
-            if (currentWindow.isMaximized()) {
-                currentWindow.unmaximize();
-            } else {
-                currentWindow.maximize();
-            }
-        });
-        document.getElementById('close').addEventListener('click', () => {
-            currentWindow.close();
-        });
-        document.getElementById('devTools').addEventListener('click', () => {
-            if (currentWindow.webContents.isDevToolsOpened()) {
-                currentWindow.webContents.closeDevTools();
-            } else {
+
+        // 确保在 DOMContentLoaded 之后执行
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // 初始化 remote 模块
+                const remote = window.require('@electron/remote');
+                if (!remote) {
+                    console.error('无法加载 @electron/remote 模块');
+                    return;
+                }
+                
+                const currentWindow = remote.getCurrentWindow();
                 currentWindow.webContents.openDevTools();
+
+                // 开发者工具
+                const devToolsBtn = document.getElementById('devTools');
+                if (devToolsBtn) {
+                    devToolsBtn.addEventListener('click', () => {
+                        if (currentWindow.webContents.isDevToolsOpened()) {
+                            currentWindow.webContents.closeDevTools();
+                        } else {
+                            currentWindow.webContents.openDevTools();
+                        }
+                    });
+                }
+
+                // 最小化
+                const minBtn = document.getElementById('minWindow');
+                if (minBtn) {
+                    minBtn.addEventListener('click', () => {
+                        currentWindow.minimize();
+                    });
+                }
+
+                // 最大化
+                const maxBtn = document.getElementById('maxWindow');
+                if (maxBtn) {
+                    maxBtn.addEventListener('click', () => {
+                        if (currentWindow.isMaximized()) {
+                            currentWindow.unmaximize();
+                            maxBtn.style.display = 'none';
+                            document.getElementById('restoreWindow').style.display = 'flex';
+                        }
+                    });
+                }
+
+                // 还原
+                const restoreBtn = document.getElementById('restoreWindow');
+                if (restoreBtn) {
+                    restoreBtn.addEventListener('click', () => {
+                        if (!currentWindow.isMaximized()) {
+                            currentWindow.maximize();
+                            restoreBtn.style.display = 'none';
+                            document.getElementById('maxWindow').style.display = 'flex';
+                        }
+                    });
+                }
+
+                // 关闭
+                const closeBtn = document.getElementById('closeWindow');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        currentWindow.close();
+                    });
+                }
+            } catch (error) {
+                console.error('初始化窗口控制时出错:', error);
             }
         });
+    
     </script>
     <script type="module">
+        import { addScriptSync } from "../../../utils/DOM/addScript.js";
+        addScriptSync('/appearance/icons/material/icon.js', 'iconDefaultScript')
         await import(window.params.modulePath)
     </script>
 </body>
+
 </html>

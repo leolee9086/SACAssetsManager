@@ -94,21 +94,3 @@ async function createContextMenu(sfcUrl, ctx = {}, event) {
     }
 }
 
-// 使用示例：
-document.addEventListener('contextmenu', async (event) => {
-    const ctx = {
-        selection: window.getSelection().toString(),
-        currentPath: window.location.pathname,
-        // ... 其他上下文数据
-    };
-    
-    try {
-        await createContextMenu(
-            import.meta.resolve('./test.vue'),
-            ctx,
-            event
-        );
-    } catch (error) {
-        // 错误已在函数内部处理
-    }
-});
