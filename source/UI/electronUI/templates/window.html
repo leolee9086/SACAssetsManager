@@ -177,7 +177,6 @@
                     console.error('无法加载 @electron/remote 模块');
                     return;
                 }
-                
                 const currentWindow = remote.getCurrentWindow();
                 currentWindow.webContents.openDevTools();
 
@@ -241,7 +240,7 @@
     <script type="module">
         import { addScriptSync } from "../../../utils/DOM/addScript.js";
         addScriptSync('/appearance/icons/material/icon.js', 'iconDefaultScript')
-        await import(window.params.modulePath)
+        await import('./index.js')
     </script>
 </body>
 

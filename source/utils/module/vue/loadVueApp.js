@@ -1,10 +1,9 @@
 import { loadModule } from "../../../../static/vue3-sfc-loader.esm.js";
 import * as Vue from '../../../../static/vue.esm-browser.js'
 
-
-const moduleCache  ={
+const moduleCache = {
     Vue,
-    vue:Vue
+    vue: Vue
 }
 
 function fixURL(url) {
@@ -14,7 +13,22 @@ function fixURL(url) {
     return url;
 }
 
-export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data={}) => {
+// 创建CSS模块
+function createCSSModule(cssContent) {
+    const style = document.createElement('style');
+    style.textContent = cssContent;
+    document.head.appendChild(style);
+
+    // 返回一个ESM模块
+    return {
+        default: {
+            style,
+            unload: () => style.remove()
+        }
+    };
+}
+
+export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data = {}) => {
     const asyncModules = {}
     const styleElements = []
     const options = {
@@ -27,7 +41,7 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data
             if (!res.ok) {
                 throw Object.assign(new Error(res.statusText + ' ' + url), { res });
             }
-            if (url.endsWith('.js')) {
+            if (url.endsWith('.js') || url.includes('esm.sh')) {
                 if (!asyncModules[url]) {
                     let module = await import(url)
                     asyncModules[url] = module
@@ -38,17 +52,23 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = ``, data
             }
         },
         handleModule(type, source, path, options) {
+            console.log(type, source, path, options)
+            if (path.includes('esm.sh')) {
+                return asyncModules[path]
+            }
             if (type === '.json') {
                 return JSON.parse(source);
             }
             if (type === '.js') {
                 return asyncModules[path]
             }
-            if(type==='.svg'){
-             return source()
+            if (type === '.svg') {
+                return source()
+            }
+            if (type === '.css') {
+                return createCSSModule(source);
             }
         },
-
         addStyle(textContent) {
             const style = Object.assign(document.createElement('style'), { textContent });
             const ref = document.head.getElementsByTagName('style')[0] || null;

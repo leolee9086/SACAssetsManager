@@ -33,3 +33,27 @@ export const 按指定值分组 = (array, key, allowedValues, defaultGroups = {}
         return groups;
     }, { ...defaultGroups });
 };
+
+/**
+ * 多级分组函数
+ * @param {Array} array - 要分组的数组
+ * @param {string[]} keys - 分组的键名数组，按顺序进行多级分组
+ * @param {Object} defaultGroups - 默认分组对象
+ * @returns {Object} 分组后的对象
+ */
+export const 多级分组 = (array, keys, defaultGroups = {}) => {
+    if (!keys.length) return array;
+    
+    return keys.reduce((result, key) => {
+        if (Array.isArray(result)) {
+            // 第一次分组
+            return 按属性名分组(result, key);
+        } else {
+            // 递归处理每个子组
+            return Object.entries(result).reduce((acc, [groupKey, groupArray]) => {
+                acc[groupKey] = 按属性名分组(groupArray, key);
+                return acc;
+            }, {});
+        }
+    }, array);
+};

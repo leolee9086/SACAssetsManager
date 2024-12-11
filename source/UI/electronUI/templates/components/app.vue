@@ -98,12 +98,13 @@
 
 <script setup lang="jsx">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import LayoutRow from '../../../../components/common/layout/layoutRow.vue';
-import LayoutColumn from '../../../../components/common/layout/layoutColumn.vue';
-import LayoutRoot from '../../../../components/common/layout/layoutRoot.vue';
-import ResizeHandle from '../../../../components/common/layout/resizeHandle.vue';
-import Wnd from '../../../../components/common/layout/wnd.vue';
-import { createRenderer, RendererType } from '../renderers/index.js';
+import LayoutRow from '../../../components/common/layout/layoutRow.vue';
+import LayoutColumn from '../../../components/common/layout/layoutColumn.vue';
+import LayoutRoot from '../../../components/common/layout/layoutRoot.vue';
+import ResizeHandle from '../../../components/common/layout/resizeHandle.vue';
+import Wnd from '../../../components/common/layout/wnd.vue';
+import { createRenderer } from '../renderers/registry.js';
+import { RendererType } from '../renderers/base.js';
 
 // Dock 管理相关状态
 const activeLeftPanel = ref(null);
