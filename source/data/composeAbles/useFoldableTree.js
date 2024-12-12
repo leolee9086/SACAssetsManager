@@ -50,11 +50,53 @@ export function useFoldableTree(levels = []) {
         return current
     }
 
+    // 添加获取特定层级所有折叠状态的方法
+    const getAllFoldStates = (level) => {
+        return foldStates[level].value || {};
+    }
+
+    // 添加检查是否所有节点都已折叠的方法
+    const isAllFolded = (level) => {
+        const states = foldStates[level].value;
+        return Object.values(states).every(value => 
+            typeof value === 'boolean' ? value : Object.values(value).every(v => v)
+        );
+    }
+
+    // 添加检查是否所有节点都已展开的方法
+    const isAllExpanded = (level) => {
+        const states = foldStates[level].value;
+        return Object.values(states).every(value => 
+            typeof value === 'boolean' ? !value : Object.values(value).every(v => !v)
+        );
+    }
+
+    // 添加获取当前折叠节点数量的方法
+    const getFoldedCount = (level) => {
+        const states = foldStates[level].value;
+        let count = 0;
+        const countFolded = (obj) => {
+            Object.values(obj).forEach(value => {
+                if (typeof value === 'boolean') {
+                    if (value) count++;
+                } else {
+                    countFolded(value);
+                }
+            });
+        };
+        countFolded(states);
+        return count;
+    }
+
     return {
         foldStates,
         toggleFold,
         getFoldState,
         setAllFoldStates,
-        resetFoldState
+        resetFoldState,
+        getAllFoldStates,
+        isAllFolded,
+        isAllExpanded,
+        getFoldedCount,
     }
 }

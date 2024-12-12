@@ -24,11 +24,12 @@
 <script setup>
 import { ref } from 'vue'
 import { watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
-import { getCommonThumbnailsFromAssets } from '../../utils/tumbnail.js';
-import multiSrcImage from '../common/multiSrcImage.vue';
 import { plugin } from '../../../pluginSymbolRegistry.js';
-import { getAssetNames as getNames,函数工具,toArray } from '../componentUtils.js';
-const {debounce}=函数工具
+import multiSrcImage from '../common/multiSrcImage.vue';
+import { 函数工具 } from '../componentUtils.js';
+import { getAssetsLabel, updateImageSource } from '../refactor.js';
+
+const { debounce } = 函数工具
 const handleWheel = debounce((event) => {
     if (event.deltaY < 0) {
         previousImage();
@@ -36,27 +37,17 @@ const handleWheel = debounce((event) => {
         nextImage();
     }
 }, 200);
+
 const imageSrc = ref([`/plugins/${plugin.name}/assets/wechatDonate.jpg`]);
 const lastAssetPaths = ref([]);
 const name = ref('无选择');
 const currentIndex = ref(0);
 const assetsData = ref([]);
-const getLabel = (assets) => {
-    if (assets.length > 0) {
-        if (assets.length <= 3) {
-            name.value = assets.map(item => getNames(item)).join(', ');
-        } else {
-            name.value = `${getNames(assets[0])} 等 ${assets.length} 个文件`;
-        }
-    }
-}
+
 const updateImageSrc = () => {
-    if (assetsData.value.length > 0&&assetsData.value[0]) {
-        imageSrc.value = getCommonThumbnailsFromAssets(toArray(assetsData.value[currentIndex.value]));
-        
-    }
-    imageSrc.value[0]?null: imageSrc.value = [`/plugins/${plugin.name}/assets/wechatDonate.jpg`];
+    imageSrc.value = updateImageSource(assetsData.value, currentIndex.value, plugin.name);
 }
+
 const previousImage = () => {
     if (assetsData.value.length > 0) {
         currentIndex.value = (currentIndex.value - 1 + assetsData.value.length) % (assetsData.value.length);
@@ -82,7 +73,7 @@ watchStatu(状态注册表.选中的资源, async (newVal) => {
     }
     lastAssetPaths.value = assetPaths;
     assetsData.value = assets.map(item => item.data);
-    getLabel(assetsData.value);
+    name.value = getAssetsLabel(assetsData.value);
     assetsData.value = [assetsData.value].concat(assetsData.value)
     currentIndex.value = 0;
     updateImageSrc();
