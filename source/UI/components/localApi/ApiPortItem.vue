@@ -13,7 +13,7 @@
   <script setup>
   import everythingPortInputter from './everything/portInputter.vue';
   import { 打开everything搜索面板,打开anytxt搜索面板 } from '../../siyuanCommon/tabs/assetsTab.js';
-  import { checkApiAvailability, performSearch } from './anytxt/anytext.js'; 
+  import { checkApiAvailability } from '../../../fromTirdParty/anytext/index.js'; 
   import { onMounted,ref,watch } from 'vue';
 import { updateStatu } from '../../../globalStatus/index.js';
   const {api} = defineProps(['api']);
