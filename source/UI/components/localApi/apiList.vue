@@ -46,17 +46,11 @@ import ApiPortItem from './ApiPortItem.vue';
 import { ref } from 'vue'
 import { 多级分组 } from '../../../utils/array/groupBy.js';
 import { useFoldableTree } from '../../../data/composeAbles/useFoldableTree.js';
-
 const apiList = getStatu(状态注册表.本地文件搜索接口)
 const groupedApiList = ref(多级分组(apiList, ['type', 'host']));
-
-// 使用 useFoldableTree 替换原有的折叠状态管理
 const { getFoldState, toggleFold } = useFoldableTree(['type', 'host']);
-
-// 简化后的折叠切换函数
 const toggleTypeFold = (type) => toggleFold('type', type);
 const toggleHostFold = (type, host) => toggleFold('host', type, host);
-
 </script>
 <style scoped>
 .api-list {

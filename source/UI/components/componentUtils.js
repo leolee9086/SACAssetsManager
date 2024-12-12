@@ -1,5 +1,4 @@
 import { debounce } from "../../utils/functionTools.js"
-import { findTagsByFilePath,removeFilesFromTag } from "../../data/tags.js"
 import { rgba数组转字符串, rgb数组转字符串 } from "../../utils/color/convert.js"
 import { 获取素材属性值,计算素材类型角标 } from "../../data/attributies/parseAttributies.js"
 // 获取素材文件名
@@ -60,7 +59,6 @@ const fs = window.require('fs');
             });
         });
     };
-
     readNextChunk();
 };
 

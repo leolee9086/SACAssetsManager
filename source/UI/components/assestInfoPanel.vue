@@ -11,9 +11,9 @@
           <label>标签</label>
           <tagsGrid></tagsGrid>
         </div>
-        <div class="folder-info" @dblclick="openFolder">
+        <div class="folder-info" @dblclick="()=>在资源管理器打开本地文件夹数组(currentFolderArray.value)">
           <label>本地文件夹</label>
-          <div @dblclick.stop="openFolder" 
+          <div @dblclick.stop="()=>在资源管理器打开本地文件夹数组(currentFolderArray.value)" 
           @click.right.stop ="openFolderAssetsTab"
           class="input-like ariaLabel" placeholder="文件夹"
             :aria-label="`双击在资源管理器打开,右键在新页签打开:\n${Array.from(new Set(currentFolderArray)).join('\n')}`">{{ folder }}</div>
@@ -41,7 +41,6 @@
 import { ref } from 'vue';
 import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
 import _path from '../../polyfills/path.js'
-import { kernelApi } from '../../asyncModules.js';
 import tagsGrid from './assetInfoPanel/tags.vue';
 import { watchStatu, 状态注册表 } from '../../globalStatus/index.js';
 import { verticalScrollFirst } from '../utils/scroll.js';
@@ -70,10 +69,7 @@ const exportImage = () => {
 const eagleMetas = ref([])
 const doc = ref('')
 const lastAssetPaths = ref([]);
-const openFolder = () => {
-  在资源管理器打开本地文件夹数组(currentFolderArray.value)
- 
-};
+
 const openFolderAssetsTab =()=>{
   if (currentFolderArray.value.length > 0) {
     打开文件夹数组素材页签(currentFolderArray.value)

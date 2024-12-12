@@ -6,11 +6,6 @@ import path from '../../polyfills/path.js'
 const 开始原生文件拖拽事件=async(event,files)=>{
     event.preventDefault();
     const remote = window.require('@electron/remote');
-    const { webContents } = remote
-   /* const webContentsId = plugin.serverContainerWebContentsID
-    console.log(webContentsId)
-    const webviewWebContents = webContents.fromId(webContentsId)*/
-    console.log(plugin.dragListenerWebview)
     const webviewWebContents=plugin.dragListenerWebview.$webContents
     let _webContents = remote.getCurrentWindow().webContents
     const dragOperation = event.ctrlKey ? 'copy' : 'move';
@@ -36,11 +31,8 @@ const 将文件写入dataTransfer=async(event,files)=>{
     event.dataTransfer.setData('text/uri-list', files.join('\n'));
     event.dataTransfer.setData('sac/data-assets', JSON.stringify(files.join('\n')));
     event.dataTransfer.effectAllowed = 'copyLink';
-    // 自定义拖拽图标
     const iconPath = await imgeWithConut(files.length, true);
     event.dataTransfer.setDragImage(iconPath, 64, 64);
-    //window.blur()
-
 }
 export const onDragStartWithLayout = async (event, currentLayout) => {
     const selectedData = currentLayout.layout.filter(item => item.selected && item.data).map(item => item.data)
