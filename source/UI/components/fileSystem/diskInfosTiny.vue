@@ -112,7 +112,7 @@ import { ref, onMounted, reactive, nextTick } from 'vue'
 import { listLocalDisks } from '../../../data/diskInfo.js';
 import { plugin } from 'runtime'
 import { commonIcon } from '../common/icons.js'
-import { buildMultiClickListener } from '../../utils/click.js'
+import { buildMultiClickListener } from '../../../utils/DOM/continuousEvent.js';
 import { 打开文件夹图标菜单 } from '../../siyuanCommon/menus/folderItem.js';
 const callbacks = (folder) =>{ 
     folder.callbacks =folder.callbacks ||    buildMultiClickListener(300, [
@@ -128,9 +128,6 @@ const callbacks = (folder) =>{
 const foldUp = ref(true)
 const diskInfos = ref([])
 const folderInfos = reactive([])
-const scrollTop = ref(0)
-const scrollHeight = ref(0)
-const scrollBottom = ref(0)
 const genVisible = (folder, disk) => {
     let flag
     if (!folder) { return false }
@@ -141,14 +138,6 @@ const genVisible = (folder, disk) => {
     !folderInfos.find(item => item.selected) && (flag = true)
     folder.visible = flag
     return flag
-}
-const scrollHandler = (event) => {
-    scrollTop.value = event.target.scrollTop
-    scrollHeight.value = event.target.scrollHeight
-    scrollBottom.value = event.target.scrollTop + event.target.clientHeight
-    let target = event.target
-    let items = target.querySelectorAll('.disk-tiny-item')
-
 }
 const calcMargin = (folder) => {
     const index = folderInfos.findIndex(item => { return item.path === folder.path })
