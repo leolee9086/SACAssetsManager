@@ -6,21 +6,13 @@
             </svg>本地磁盘
         </div>
         <span class="fn__flex-1 fn__space"></span>
-        <span data-type="focus" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="定位打开的文档 "><svg>
-                <use xlink:href="#iconFocus"></use>
-            </svg></span>
+    
         <span class="fn__space"></span>
-        <span data-type="collapse" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="折叠 Ctrl+↑">
+        <span data-type="refresh" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="刷新" @click="refreshDisks">
             <svg>
-                <use xlink:href="#iconContract"></use>
+                <use xlink:href="#iconRefresh"></use>
             </svg>
         </span>
-        <div class="fn__space"></div>
-        <div data-type="more" class="b3-tooltips b3-tooltips__sw block__icon" aria-label="更多">
-            <svg>
-                <use xlink:href="#iconMore"></use>
-            </svg>
-        </div>
         <span class="fn__space"></span>
         <span data-type="layout" class="block__icon b3-tooltips b3-tooltips__nw" aria-label="上"
             @click="foldUp = !foldUp">
@@ -204,6 +196,13 @@ const toggleSUbFolders = async (root) => {
         子文件夹数组[0] && rootItem && (rootItem.selected = true)
     }
     folderInfos.sort(sortDocuments)
+}
+
+// 添加刷新函数
+const refreshDisks = async () => {
+    diskInfos.value = await listLocalDisks();
+    // 清空文件夹信息
+    folderInfos.length = 0;
 }
 
 onMounted(async () => {
