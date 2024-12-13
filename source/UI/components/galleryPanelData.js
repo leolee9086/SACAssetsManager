@@ -99,3 +99,26 @@ const fetchEfuData = async (efuPath, dataTarget, callBack) => {
         callBack && callBack();
     }
 };
+import { ref } from '../../../static/vue.esm-browser.js';
+export const useGlob = ()=>{
+    const globSetting = ref({})
+//最大显示数量
+const search = ref('');
+ return {
+    globSetting,
+    search
+ }
+}
+
+export const 构建遍历参数 = (globSetting,search,selectedExtensions)=>{
+    let realGlob = {
+        ...globSetting,
+    }
+    if (search.value) {
+        realGlob.search = search
+    }
+    if (selectedExtensions[0]) {
+        realGlob.extensions = selectedExtensions
+    }
+    return realGlob
+}

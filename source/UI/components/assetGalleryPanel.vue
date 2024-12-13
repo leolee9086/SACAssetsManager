@@ -11,9 +11,6 @@
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
                     class="b3-slider fn__block" :max="$max" min="32" step="1" type="range">
                 <div class="fn__space fn__flex-1"></div>
-                <input v-if="!everthingEnabled" v-model="maxCount" style="box-sizing: border-box;width:100px;"
-                    :value="1000" type="number">
-                <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
                     <button @click="refreshPanel">{{ plugin.翻译`刷新` }}</button>
                 </div>
@@ -65,7 +62,7 @@
             @dragover.prevent>
             <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :tableViewAttributes="displayAttributes" :assetsSource="数据缓存"
                 :cardDisplayMode="卡片显示模式" @palletAdded="palletAdded" :globSetting="$realGlob"
-                v-if="showPanel && globSetting" :maxCount="maxCount" @layoutCountTotal="(e) => { layoutCountTotal = e }"
+                v-if="showPanel && globSetting"  @layoutCountTotal="(e) => { layoutCountTotal = e }"
                 @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
                 @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
@@ -91,7 +88,7 @@ import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
-import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存 } from "./galleryPanelData.js";
+import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存, 构建遍历参数, useGlob } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
 import { LAYOUT_COLUMN, LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
 import ColorPicker from './galleryPanel/colorPicker.vue'
@@ -334,23 +331,11 @@ const refreshPanel = () => {
  * 遍历选项相关逻辑
  */
 //全局设置
-const globSetting = ref({})
+//const globSetting = ref({})
 //最大显示数量
-const maxCount = ref(1000)
-const search = ref('');
-const $realGlob = computed(() => {
-    let realGlob = {
-        ...globSetting.value,
-        timeout: maxCount.value,
-    }
-    if (search.value) {
-        realGlob.search = search.value
-    }
-    if (selectedExtensions.value[0]) {
-        realGlob.extensions = selectedExtensions.value
-    }
-    return realGlob
-})
+//const search = ref('');
+const {search,globSetting} = useGlob()
+const $realGlob = computed(() => 构建遍历参数(globSetting.value,search.value,selectedExtensions.value))
 watch(
     () => $realGlob.value, () => {
         refreshPanel()
