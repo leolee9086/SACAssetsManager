@@ -45,7 +45,6 @@
                 <div class="fn__space fn__flex-1"></div>
                 <div>
                     <multiple v-model="selectedExtensions" :options="extensions"></multiple>
-
                 </div>
                 <div>
                     <multiple v-if='卡片显示模式 === LAYOUT_ROW' v-model="selectedAttributes" placeholder="显示的属性"

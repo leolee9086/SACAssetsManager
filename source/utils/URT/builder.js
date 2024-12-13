@@ -45,7 +45,7 @@ export const URTDriverType = {
 /**
  * URT 关系定义
  * @typedef {Object} URTRelation
- * @property {string} [parent] - 父资源ID
+ * @property {string} [parent] - 父��源ID
  * @property {string[]} [references] - 引用的其他资源ID
  * @property {string} [derivedFrom] - 派生自哪个资源ID
  * @property {string[]} [versions] - 其他版本的资源ID
@@ -53,14 +53,36 @@ export const URTDriverType = {
  */
 
 /**
+ * 访问级别枚举
+ * @readonly
+ * @enum {string}
+ */
+export const URTAccessLevel = {
+  PUBLIC: 'public',      // 元信息公开，需要基础授权下载
+  PROTECTED: 'protected', // 元信息和内容都需要授权可见
+  PRIVATE: 'private'     // 仅管理员确认后可见
+};
+
+/**
+ * 授权类型枚举
+ * @readonly
+ * @enum {string}
+ */
+export const URTAuthType = {
+  FREE: 'free',         // 免费授权用户(基础下载权限)
+  PREMIUM: 'premium',   // 付费授权用户(完整访问权限)
+  TOKEN: 'token'        // Token授权(临时完整权限)
+};
+
+/**
  * URT 权限定义
  * @typedef {Object} URTPermission
  * @property {string} owner - 所有者ID
- * @property {string[]} readers - 可读用户ID列表
- * @property {string[]} writers - 可写用户ID列表
- * @property {boolean} public - 是否公开
- * @property {string} [accessToken] - 访问令牌
+ * @property {URTAccessLevel} level - 访问级别
+ * @property {URTAuthType[]} allowedAuth - 允许的授权类型
+ * @property {string} [accessToken] - 访问令牌(优先级最高)
  * @property {Date} [expiredAt] - 访问过期时间
+ * @property {boolean} [requireAuth] - 是否需要授权才能下载(默认true)
  */
 
 /**
@@ -260,14 +282,74 @@ function createResource(resource) {
  * @returns {URTPermission}
  */
 function createPermissions(resource) {
+  // token 仅对非文件夹类型资源有效
+  const canHaveToken = resource.type !== 'folder';
+  
   return {
     owner: resource.permissions?.owner || 'system',
-    readers: Array.isArray(resource.permissions?.readers) ? resource.permissions.readers : [],
-    writers: Array.isArray(resource.permissions?.writers) ? resource.permissions.writers : [],
-    public: Boolean(resource.permissions?.public),
-    accessToken: resource.permissions?.accessToken || null,
-    expiredAt: resource.permissions?.expiredAt || null
+    level: resource.permissions?.level || 'private',
+    allowedAuth: Array.isArray(resource.permissions?.allowedAuth) ? 
+      resource.permissions.allowedAuth : ['free'],
+    // token 仅在允许且非文件夹时可用
+    accessToken: canHaveToken ? resource.permissions?.accessToken : null,
+    // token 必须设置过期时间
+    expiredAt: canHaveToken && resource.permissions?.accessToken ? 
+      (resource.permissions?.expiredAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) : // 默认7天过期
+      null,
+    requireAuth: resource.permissions?.requireAuth !== false
   };
+}
+
+/**
+ * 创建资源访问令牌
+ * @param {URTResource} resource 
+ * @param {Object} options
+ * @param {Date} [options.expiredAt] - 过期时间
+ * @param {number} [options.validDays=7] - 有效天数
+ * @returns {string|null} 
+ */
+function createAccessToken(resource, options = {}) {
+  if (resource.type === 'folder') {
+    return null; // 文件夹不支持token访问
+  }
+
+  const expiredAt = options.expiredAt || 
+    new Date(Date.now() + (options.validDays || 7) * 24 * 60 * 60 * 1000);
+
+  // 生成token的逻辑...
+  const token = generateContentId({
+    resourceId: resource.meta.id,
+    expiredAt: expiredAt.toISOString(),
+    timestamp: Date.now()
+  });
+
+  // 更新资源的token信息
+  resource.permissions.accessToken = token;
+  resource.permissions.expiredAt = expiredAt;
+
+  return token;
+}
+
+/**
+ * 验证访问令牌
+ * @param {URTResource} resource 
+ * @param {string} token 
+ * @returns {boolean}
+ */
+function validateAccessToken(resource, token) {
+  if (resource.type === 'folder') {
+    return false;
+  }
+
+  const { accessToken, expiredAt } = resource.permissions;
+  
+  if (!accessToken || !expiredAt) {
+    return false;
+  }
+
+  // 检查token是否匹配且未过期
+  return accessToken === token && 
+    new Date(expiredAt) > new Date();
 }
 
 /**
@@ -528,6 +610,43 @@ export function updateResourceGraph(resource, relation) {
   // 更新资源的修改时间
   resource.meta.modified = new Date().toISOString();
 }
+
+/**
+ * 内容索引结构
+ * @typedef {Object} URTContentIndex
+ * @property {string} content - 文本内容
+ * @property {Object} vectors - 向量嵌入
+ * @property {Array<{start: number, end: number, type: string}>} segments - 内容分段
+ * @property {Object} metadata - 结构化元数据
+ * @property {Object} semantic - 语义标注
+ */
+
+/**
+ * 搜索上下文
+ * @typedef {Object} URTSearchContext
+ * @property {string} query - 搜索查询
+ * @property {string} sessionId - 对话会话ID
+ * @property {Array} history - 历史交互记录
+ * @property {Object} filters - 搜索过滤条件
+ */
+
+/**
+ * AI 交互上下文
+ * @typedef {Object} URTAIContext
+ * @property {Object} capabilities - AI 能力定义
+ * @property {Array} allowedOperations - 允许的操作
+ * @property {Object} memory - 上下��记忆
+ * @property {Object} preferences - 交互偏好
+ */
+
+/**
+ * AI 操作结果
+ * @typedef {Object} URTAIResult
+ * @property {boolean} success - 是否成功
+ * @property {string} action - 执行的动作
+ * @property {Object} changes - 产生的变更
+ * @property {string} explanation - 操作说明
+ */
 
 export {
   createResource,

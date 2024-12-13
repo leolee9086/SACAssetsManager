@@ -12,7 +12,6 @@ export function 创建Vue组件界面(tab, 组件路径, 容器ID = '', 额外�
   if (!组件路径.startsWith('/')) {
     throw new Error('组件路径必须是绝对路径，以/开头');
   }
-
   const app = initVueApp(
     组件路径,
     容器ID,

@@ -2,11 +2,51 @@ import { BaseRenderer } from './base.js';
 import { FileTreeRenderer } from './filetree/index.js';
 export {FileTreeRenderer}
 export class OutlineRenderer extends BaseRenderer {
-  // ... OutlineRenderer 实现
+  async mount(container) {
+    container.innerHTML = `
+      <div class="outline-container">
+        <div class="outline-header">
+          <h3>大纲</h3>
+        </div>
+        <div class="outline-content">
+          <div class="placeholder">暂无大纲内容</div>
+        </div>
+      </div>
+    `;
+  }
+
+  async unmount(container) {
+    container.innerHTML = '';
+  }
+
+  updateOutline(outlineData) {
+    // 用于更新大纲内容的方法
+    console.log('Updating outline with:', outlineData);
+  }
 }
 
 export class BacklinksRenderer extends BaseRenderer {
-  // ... BacklinksRenderer 实现
+  async mount(container) {
+    container.innerHTML = `
+      <div class="backlinks-container">
+        <div class="backlinks-header">
+          <h3>反向链接</h3>
+        </div>
+        <div class="backlinks-content">
+          <div class="placeholder">暂无反向链接</div>
+        </div>
+      </div>
+    `;
+  }
+
+  async unmount(container) {
+    container.innerHTML = '';
+  }
+
+  updateBacklinks(backlinksData) {
+    // 用于更新反向链接的方法
+    console.log('Updating backlinks with:', backlinksData);
+  }
 }
 
 export class BookmarkRenderer extends BaseRenderer {
@@ -154,6 +194,43 @@ style.textContent = `
     flex: 1;
     overflow-y: auto;
     padding: 16px;
+  }
+
+  .outline-container,
+  .backlinks-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .outline-header,
+  .backlinks-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--cc-border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .outline-header h3,
+  .backlinks-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .outline-content,
+  .backlinks-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .outline-content .placeholder,
+  .backlinks-content .placeholder {
+    text-align: center;
+    color: var(--cc-text-secondary);
+    padding: 32px 16px;
   }
 `;
 document.head.appendChild(style); 

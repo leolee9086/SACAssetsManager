@@ -1,5 +1,3 @@
-//import * as jieba from '../static/jieba_rs_wasm.js'
-//await jieba.default(import.meta.resolve(`../static/jieba_rs_wasm_bg.wasm`));
 import kernelApi from './polyfills/KernelApi.js';
 import "./pluginSymbolRegistry.js"
 let clientApiInstance=globalThis[Symbol.for(`clientApi`)]
@@ -16,7 +14,3 @@ export const Constants={
 export const resolveWorkspacePath=(path)=>{
     return `${siyuan.config.system.workspaceDir}${path}`
 }
-/**
- * 测试用代码,发布前记得删除
- */
-import './utils/image/histogram.js'
