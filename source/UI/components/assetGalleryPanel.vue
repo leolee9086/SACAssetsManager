@@ -23,13 +23,11 @@
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex" style="margin:auto">
-                    <button @click.right.stop.prevent="() => { filterColor = []; refreshPanel() }" ref="palletButton"
-                        @click.left="showPallet = !showPallet"
-                        :style="{ padding: 0, margin: 0, width: 24 + 'px', height: 24 + 'px', backgroundColor: filterColor.length ? `rgb(${filterColor.join(',')})` : '' }">
-                        <svg style="width:24px;height:24px;">
-                            <use xlink:href="#iconColorPannel"></use>
-                        </svg>
-                    </button>
+                    <colorPicker
+                        v-model="filterColor"
+                        :pallet="pallet"
+                        @update:modelValue="handleColorChange"
+                    />
                 </div>
                 <div class="fn__flex">
                     <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
@@ -96,6 +94,7 @@ import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存 } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
 import { LAYOUT_COLUMN, LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
+import ColorPicker from './galleryPanel/colorPicker.vue'
 
 //主要数据对象
 const appData = toRef(inject('appData'))
@@ -575,6 +574,12 @@ const openMenu = (event) => {
         files: 数据缓存.value.data,
         data: appData.value
     })
+}
+
+// 颜色变化处理函数
+const handleColorChange = (newColor) => {
+    plugin.eventBus.emit('click-galleryColor', newColor)
+    refreshPanel()
 }
 </script>
 <style scoped>

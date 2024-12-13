@@ -6,8 +6,6 @@
             </svg>本地磁盘
         </div>
         <span class="fn__flex-1 fn__space"></span>
-    
-        <span class="fn__space"></span>
         <span data-type="refresh" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="刷新" @click="refreshDisks">
             <svg>
                 <use xlink:href="#iconRefresh"></use>
@@ -26,73 +24,17 @@
             <template v-for="disk in diskInfos">
                 <div class="fn__flex">
                     <div class="fn__flex-column fn__flex-1">
-                        <div class="fn__flex  disk-tiny" @dblclick="() => { openFolder(disk.name + '/') }"
+                        <div class="fn__flex disk-tiny" @dblclick="() => { openFolder(disk.name + '/') }"
                             @click.stop="toggleSUbFolders(disk.name + '/')">
                             <commonIcon class="block__logoicon" icon="iconDatabase"></commonIcon>
-                            <div :key="disk.name" class=" fn__flex fn__flex-1">
-                                <div class="disk-body-tiny fn__flex-1">
-                                    <div class="disk-progress">
-                                        <div class="disk-header ">
-                                            <span>{{ `${disk.volumeName}(${disk.name})` }}</span>
-                                            <span>{{ (disk.total / 1024).toFixed(2) }} GB</span>
-                                            <span>{{ (disk.free / 1024).toFixed(2) }} GB 可用</span>
-                                        </div>
-                                        <div class="disk-progress-bar"
-                                            :style="{ width: Math.floor(disk.usedPercentage) + '%' }">
-                                            {{ Math.floor(disk.usedPercentage) + '%' }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <DiskItem :disk="disk" />
                         </div>
-                        <div class="fn__flex fn__flex-1" v-if="folderInfos.length > 0">
-                            <div class="fn__flex-column fn__flex-1" style="margin-left: 15px;" @scroll="handleScroll">
-                                <template v-for="(folder, i) in folderInfos">
-                                    <div class="fn__flex  disk-tiny-item"
-                                        v-if="folder && folder.parentPath.startsWith(disk.name + '/')"
-                                        :class="{ 'stripe': i % 2 === 0, 'disk-tiny-item-selected': folder.selected }"
-                                        @click="(e) => callbacks(folder)(e)">
-                                        <span :style="{
-                                            marginLeft: (folder.depth - 1) * 14 + 'px',
-                                            marginTop: 0 - calcMargin(folder) - 7 + 'px',
-                                            marginBottom: 7 + 'px',
-                                            width: (folder.depth - 1) * 14 + 'px',
-                                            borderLeft: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
-                                            borderBottom: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
-                                            zIndex: genVisible(folder) ? 1 : ''
-                                        }"></span>
-                                        <span :style="{
-                                            marginBottom: 7 + 'px',
-                                            width: 14 + 'px',
-                                            borderBottom: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
-                                            zIndex: genVisible(folder) ? 1 : ''
-                                        }"></span>
-                                        <span :style="{
-                                            marginBottom: 7 + 'px',
-                                            width: 14 + 'px',
-                                            borderBottom: genVisible(folder) ? '1px solid var(--b3-theme-secondary)' : '1px solid var(--b3-theme-primary)',
-                                            zIndex: genVisible(folder) ? 1 : ''
-                                        }"></span>
-                                        <div 
-                                        @click.right="(event)=>{
-                                            打开文件夹图标菜单(event,folderInfos[i].path,{
-                                                position:{
-                                                    x:event.x,
-                                                    y:event.y
-                                                }
-                                            })
-                                        }"
-                                        class="disk-tiny-item-text fn__flex fn__flex-1">{{ folderInfos[i].name }}
-                                            <div class="fn__space fn__flex-1" style="">
-                                            </div>
-                                            <span>{{ folder.fileCount }}</span>
-                                            <span class="fn__space"></span>
-                                            <span>{{ folder.folderCount }}</span>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
+                        <FolderList 
+                            :folderInfos="folderInfos"
+                            :diskName="disk.name"
+                            :toggleSUbFolders="toggleSUbFolders"
+                            :openFolder="openFolder"
+                        />
                     </div>
                 </div>
             </template>
@@ -100,43 +42,15 @@
     </div>
 </template>
 <script setup>
-import { ref, onMounted, reactive, nextTick } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
+import DiskItem from './DiskItem.vue';
+import FolderList from './FolderList.vue'
 import { listLocalDisks } from '../../../data/diskInfo.js';
 import { plugin } from 'runtime'
 import { commonIcon } from '../common/icons.js'
-import { buildMultiClickListener } from '../../../utils/DOM/continuousEvent.js';
-import { 打开文件夹图标菜单 } from '../../siyuanCommon/menus/folderItem.js';
-const callbacks = (folder) =>{ 
-    folder.callbacks =folder.callbacks ||    buildMultiClickListener(300, [
-    (event) => {
-        toggleSUbFolders(folder.path)
-    },
-    (event) => {
-        openFolder(folder.path)
-        }
-    ])
-    return folder.callbacks
-}
 const foldUp = ref(true)
 const diskInfos = ref([])
 const folderInfos = reactive([])
-const genVisible = (folder, disk) => {
-    let flag
-    if (!folder) { return false }
-    folder.selected && (flag = true)
-    //  !folderInfos.find(item=>item.path===folder.parentPath)&&(flag=true)
-    folderInfos.find(item => item.selected && item.path.indexOf(folder.path) === 0) && (flag = true)
-    folderInfos.find(item => item.selected && folder.path.indexOf(item.path) === 0) && !folderInfos.find(item => item.selected && item.parentPath === folder.parentPath) && (flag = true)
-    !folderInfos.find(item => item.selected) && (flag = true)
-    folder.visible = flag
-    return flag
-}
-const calcMargin = (folder) => {
-    const index = folderInfos.findIndex(item => { return item.path === folder.path })
-    let parentIndex = folderInfos.findIndex(item => { return item.parentPath === folder.parentPath })
-    return (index - parentIndex) * 19
-
-}
 function sortDocuments(a, b) {
     // 将路径按斜杠分割成数组
     const partsA = a.path.split(/\//).filter(Boolean); // 使用正则表达式分割路径并去除空字符串

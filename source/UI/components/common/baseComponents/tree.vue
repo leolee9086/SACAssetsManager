@@ -1,5 +1,29 @@
 <template>
-  <div class="cc-tree-node" :class="[node.type, { 'cc-tree-node--focus': isFocused }]">
+  <div class="cc-tree-node" :class="[node.type, { 'cc-tree-node--focus': isFocused, 'stripe': isStriped }]">
+    <template v-if="level > 0">
+      <span 
+        class="cc-tree-item__connector-vertical"
+        :style="{
+          marginLeft: `${(level - 1) * indent}px`,
+          marginTop: `${0 - calcMargin - 7}px`,
+          marginBottom: '7px',
+          width: `${indent}px`,
+          borderLeft: !isNodeVisible ? '1px solid var(--cc-border-color)' : '1px solid var(--cc-theme-primary)',
+          borderBottom: !isNodeVisible ? '1px solid var(--cc-border-color)' : '1px solid var(--cc-theme-primary)',
+          zIndex: !isNodeVisible ? 1 : 2
+        }"
+      ></span>
+      <span 
+        class="cc-tree-item__connector-horizontal"
+        :style="{
+          marginBottom: '7px',
+          width: `${indent}px`,
+          borderBottom: !isNodeVisible ? '1px solid var(--cc-border-color)' : '1px solid var(--cc-theme-primary)',
+          zIndex: !isNodeVisible ? 1 : 2
+        }"
+      ></span>
+    </template>
+
     <div 
       class="cc-tree-item"
       :style="{ 
@@ -84,9 +108,13 @@
         v-for="child in node.children"
         :key="child.id"
         :node="child"
+        :nodes="nodes"
+        :parent-path="node.path"
         :indent="indent"
         :level="level + 1"
         :draggable="draggable"
+        :is-striped="isStriped"
+        :is-visible="isNodeVisible"
       >
         <template v-for="(_, name) in $slots" #[name]="slotData">
           <slot :name="name" v-bind="slotData"/>
@@ -121,6 +149,23 @@ const props = defineProps({
   draggable: {
     type: Boolean,
     default: true
+  },
+  isStriped: {
+    type: Boolean,
+    default: false
+  },
+  isVisible: {
+    type: Boolean,
+    default: true
+  },
+  nodes: {
+    type: Array,
+    default: () => [],
+    required: true
+  },
+  parentPath: {
+    type: String,
+    default: ''
   }
 });
 
@@ -135,19 +180,63 @@ const getNodePadding = computed(() => {
   return basePadding;
 });
 
+// 修改连接线计算逻辑
+const calcMargin = computed(() => {
+  if (!props.nodes || !props.node) return 0;
+  
+  const currentIndex = props.nodes.findIndex(item => item.path === props.node.path);
+  const parentIndex = props.nodes.findIndex(item => item.path === props.parentPath);
+  
+  return (currentIndex - parentIndex) * 19; // 使用固定的行高 19px
+});
+
 const toggleNode = () => {
   if (hasChildren.value) {
     isExpanded.value = !isExpanded.value;
   }
 };
+
+// 新增计算属性
+const isNodeVisible = computed(() => {
+    let flag = true;
+    if (!props.nodes || !props.node) return flag;
+    
+    // 查找所有选中的节点
+    const selectedNodes = props.nodes.filter(item => item.selected);
+    
+    if (selectedNodes.length === 0) {
+        return true; // 没有选中节点时显示所有连接线
+    }
+
+    // 当前节点被选中
+    if (props.node.selected) {
+        flag = true;
+    }
+    // 选中节点是当前节点的子孙
+    else if (selectedNodes.some(item => item.path.startsWith(props.node.path + '/'))) {
+        flag = true;
+    }
+    // 当前节点是选中节点的祖先，且没有同级选中项
+    else if (
+        selectedNodes.some(item => props.node.path.startsWith(item.path + '/')) &&
+        !selectedNodes.some(item => item.parentPath === props.node.parentPath)
+    ) {
+        flag = true;
+    }
+
+    return flag;
+});
 </script>
 
 <style scoped>
 .cc-tree-node {
   position: relative;
+  min-height: 28px;
 }
 
 .cc-tree-item {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--cc-space-sm);
@@ -156,8 +245,8 @@ const toggleNode = () => {
   padding-top: var(--cc-space-sm);
   padding-bottom: var(--cc-space-sm);
   padding-right: var(--cc-space-md);
+  min-height: 28px; 
 }
-
 .cc-tree-item:hover {
   background-color: var(--cc-list-hover);
 }
@@ -235,10 +324,35 @@ const toggleNode = () => {
 .cc-tree-node__children {
   margin: 0;
   padding-left: var(--cc-space-md);
-  border-left: var(--cc-border-width) solid var(--cc-border-color);
 }
 
 .fn__hidden {
   display: none;
+}
+
+.cc-tree-item__connector-vertical,
+.cc-tree-item__connector-horizontal {
+  position: absolute;
+  pointer-events: none;
+  height: 14px; /* 设置合适的连接线高度 */
+}
+
+.stripe {
+  background-color: var(--cc-theme-surface-lighter);
+}
+
+/* 可以添加选中状态的样式 */
+.cc-tree-node--selected .cc-tree-item {
+    background-color: var(--cc-theme-primary);
+    color: var(--cc-theme-on-primary);
+}
+
+/* 优化连接线的视觉效果 */
+.cc-tree-item__connector-vertical,
+.cc-tree-item__connector-horizontal {
+    position: absolute;
+    pointer-events: none;
+    height: 14px;
+    transition: border-color 0.3s ease;
 }
 </style>

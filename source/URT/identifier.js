@@ -1,4 +1,4 @@
-import { UltraFastFingerprint } from '../hash/fastBlake.js';
+import { UltraFastFingerprint } from '../utils/hash/fastBlake.js';
 
 const hasher = new UltraFastFingerprint();
 
