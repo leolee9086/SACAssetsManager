@@ -45,7 +45,17 @@
       </div>
 
       <div class="control-section">
-        <h4>晶格点图片</h4>
+        <h4>晶格点设置</h4>
+        <div class="control-group">
+          <span>点形状:</span>
+          <select v-model="nodeShape" @change="updateNodeShape">
+            <option value="circle">圆形</option>
+            <option value="square">正方形</option>
+            <option value="rectangle">矩形</option>
+            <option value="hexagon">六边形</option>
+            <option value="triangle">三角形</option>
+          </select>
+        </div>
         <div class="image-controls">
           <div class="image-upload">
             <input 
@@ -250,18 +260,73 @@ const handleImageUpload = (event) => {
   }
 }
 
-const genGridStyle = (imageUrl = null) => {
+const createShapeMask = (shape, size) => {
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = size;
+  tempCanvas.height = size;
+  const ctx = tempCanvas.getContext('2d');
+  
+  ctx.clearRect(0, 0, size, size);
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = 'transparent';
+  
+  ctx.translate(size/2, size/2);
+  
+  ctx.beginPath();
+  switch(shape) {
+    case 'circle':
+      ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+      break;
+      
+    case 'square':
+      const half = size/2;
+      ctx.rect(-half, -half, size, size);
+      break;
+      
+    case 'rectangle':
+      const width = size;
+      const height = size * 0.66;
+      ctx.rect(-width/2, -height/2, width, height);
+      break;
+      
+    case 'hexagon':
+      const radius = size/2;
+      for(let i = 0; i < 6; i++) {
+        const angle = i * Math.PI / 3;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        if(i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      break;
+      
+    case 'triangle':
+      const r = size/2;
+      ctx.moveTo(0, -r);
+      ctx.lineTo(r * Math.cos(Math.PI/6), r * Math.sin(Math.PI/6));
+      ctx.lineTo(-r * Math.cos(Math.PI/6), r * Math.sin(Math.PI/6));
+      ctx.closePath();
+      break;
+      
+    default:
+      ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+  }
+  
+  ctx.fill();
+  return tempCanvas;
+};
+
+const genGridStyle = async (imageUrl = null) => {
   if (renderer.value) {
     renderer.value.clear();
   }
 
-  // 计算网格显示范围
   const calculateGridRange = () => {
-    // 基于画布尺寸计算需要显示的网格单元数量
     const viewportWidth = width.value;
     const viewportHeight = height.value;
     
-    // 计算一个网格单元的尺寸
     const cellWidth = Math.sqrt(
       basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y
     );
@@ -269,8 +334,7 @@ const genGridStyle = (imageUrl = null) => {
       basis2.value.x * basis2.value.x + basis2.value.y * basis2.value.y
     );
 
-    // 确保至少显示足够多的��格单元以覆盖视口
-    const unitsX = Math.ceil(viewportWidth / cellWidth) + 4; // 额外的单元确保边缘完整
+    const unitsX = Math.ceil(viewportWidth / cellWidth) + 4;
     const unitsY = Math.ceil(viewportHeight / cellHeight) + 4;
 
     return {
@@ -281,6 +345,37 @@ const genGridStyle = (imageUrl = null) => {
     };
   };
 
+  let processedNodeImage = null;
+  if (nodeImageUrl.value) {
+    const img = new Image();
+    img.src = nodeImageUrl.value;
+    
+    await new Promise((resolve) => {
+      img.onload = () => {
+        const tempCanvas = document.createElement('canvas');
+        const size = Math.max(img.width, img.height);
+        tempCanvas.width = size;
+        tempCanvas.height = size;
+        const ctx = tempCanvas.getContext('2d');
+        
+        ctx.drawImage(img, 
+          (size - img.width)/2, 
+          (size - img.height)/2, 
+          img.width, 
+          img.height
+        );
+        
+        const mask = createShapeMask(nodeShape.value, size);
+        
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(mask, 0, 0);
+        
+        processedNodeImage = tempCanvas.toDataURL();
+        resolve();
+      };
+    });
+  }
+
   const pattern = new P1ImagePattern({
     lattice: {
       basis1: new Vector2(basis1.value.x, basis1.value.y),
@@ -288,8 +383,8 @@ const genGridStyle = (imageUrl = null) => {
       shape: 'parallelogram',
       clipMotif: true
     },
-    nodeImage: nodeImageUrl.value ? {
-      imageUrl: nodeImageUrl.value,
+    nodeImage: processedNodeImage ? {
+      imageUrl: processedNodeImage,
       transform: {
         ...nodeTransform.value,
         rotation: (nodeTransform.value.rotation * Math.PI) / 180
@@ -312,60 +407,56 @@ const genGridStyle = (imageUrl = null) => {
         width: lineWidth.value,
         dash: []
       },
-      scale: 1, // 保持原始大小
+      scale: 1,
       smoothing: true
     }
   });
 
-  pattern.loadImages().then(() => {
-    if (!renderer.value) {
-      renderer.value = {
-        canvas: canvas.value,
-        ctx: canvas.value.getContext('2d')
-      };
-    }
+  await pattern.loadImages();
+  
+  if (!renderer.value) {
+    renderer.value = {
+      canvas: canvas.value,
+      ctx: canvas.value.getContext('2d')
+    };
+  }
 
-    renderer.value.canvas.width = width.value;
-    renderer.value.canvas.height = height.value;
-    renderer.value.ctx.clearRect(0, 0, width.value, height.value);
-    
-    // 使用计算的网格范围进行渲染
-    const gridRange = calculateGridRange();
-    pattern.render(renderer.value.ctx, {
-      width: width.value,
-      height: height.value,
-      x: width.value / 2,
-      y: height.value / 2,
-      gridRange: gridRange // 传递网格范围给渲染器
-    });
+  renderer.value.canvas.width = width.value;
+  renderer.value.canvas.height = height.value;
+  renderer.value.ctx.clearRect(0, 0, width.value, height.value);
+  
+  const gridRange = calculateGridRange();
+  pattern.render(renderer.value.ctx, {
+    width: width.value,
+    height: height.value,
+    x: width.value / 2,
+    y: height.value / 2,
+    gridRange: gridRange
   });
 };
-// 添加窗口大小变化监听
+
 const handleResize = () => {
   if (canvas.value) {
-    // 更新画布尺寸
     const container = canvas.value.parentElement;
     width.value = container.clientWidth;
     height.value = container.clientHeight;
     
-    // 重新渲染
     genGridStyle();
   }
 };
 
-// 在组件挂载时添加监听
 onMounted(() => {
   window.addEventListener('resize', handleResize);
-  handleResize(); // 初始化尺寸
+  handleResize();
 });
 
-// 在组件卸载时移除监听
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   if (selectedImageUrl.value) {
     URL.revokeObjectURL(selectedImageUrl.value);
   }
 });
+
 const createEmptyImage = (width, height) => {
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -431,13 +522,12 @@ const resizeObserver = new ResizeObserver(entries => {
 })
 
 const updateBasis = () => {
-  // 确保数值有效
   basis1.value.x = Number(basis1.value.x) || 0;
   basis1.value.y = Number(basis1.value.y) || 0;
   basis2.value.x = Number(basis2.value.x) || 0;
   basis2.value.y = Number(basis2.value.y) || 0;
   
-  genGridStyle();
+  genGridStyle().catch(console.error);
 }
 
 const updateMotifScale = (e) => {
@@ -465,23 +555,12 @@ const triggerNodeFileInput = () => {
 const handleNodeImageUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
-    // 如果已存在旧的URL，先释放它
-    if (nodeImageUrl.value) {
-      URL.revokeObjectURL(nodeImageUrl.value)
-    }
     nodeImageUrl.value = URL.createObjectURL(file)
-    // 重置变换参数
-    nodeTransform.value = {
-      scale: 1,
-      rotation: 0,
-      translate: { x: 0, y: 0 }
-    }
-    genGridStyle()
+    genGridStyle().catch(console.error);
   }
 }
 
 const updateNodeTransform = (e) => {
-  // 根据事件来源更新对应的属性
   const target = e.target;
   if (target.type === 'range') {
     if (target.parentElement.querySelector('span').textContent.includes('缩放')) {
@@ -500,12 +579,10 @@ const triggerFillFileInput = () => {
 const handleFillImageUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
-    // 如果已存在旧的URL，先释放它
     if (fillImageUrl.value) {
       URL.revokeObjectURL(fillImageUrl.value)
     }
     fillImageUrl.value = URL.createObjectURL(file)
-    // 重置变换参数
     fillTransform.value = {
       scale: 1,
       rotation: 0,
@@ -516,7 +593,6 @@ const handleFillImageUpload = (event) => {
 }
 
 const updateFillTransform = (e) => {
-  // 根据事件来源更新对应的属性
   const target = e.target;
   if (target.type === 'range') {
     if (target.parentElement.querySelector('span').textContent.includes('缩放')) {
@@ -555,7 +631,11 @@ onUnmounted(() => {
   }
 });
 
+const nodeShape = ref('circle')
 
+const updateNodeShape = () => {
+  genGridStyle().catch(console.error);
+}
 
 </script>
 
@@ -566,7 +646,6 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* 预览容器样式 */
 .preview-container {
   width: 100%;
   height: 100%;
@@ -582,7 +661,6 @@ onUnmounted(() => {
   align-items: center;
 }
 
-/* 控制面板样式 */
 .controls {
   position: absolute;
   bottom: 20px;
@@ -765,5 +843,19 @@ select {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+
+.control-group select {
+  flex: 1;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: white;
+  cursor: pointer;
+}
+
+.control-group select option {
+  background: #333;
 }
 </style>
