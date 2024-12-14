@@ -188,8 +188,22 @@ export const startSelectionWithController = (event, controller) => {
         controller.previousSelectedItem.value = controller.selectedItems.value
     }
 }
-export const endSelectionWithController =(event,controller)=>{
+export const endSelectionWithController = (event, controller) => {
     controller.isSelecting.value = false;
     controller.selectionBox.value.endX = event.x;
     controller.selectionBox.value.endY = event.y;
+}
+
+export const 计算选择框样式 = (selectionBox) => {
+    const { startX, startY, endX, endY } = selectionBox;
+    return {
+        position: 'fixed',
+        outline: '1px dashed #000',
+        backgroundColor: 'rgba(0, 0, 255, 0.2)',
+        left: `${Math.min(startX, endX)}px`,
+        top: `${Math.min(startY, endY)}px`,
+        width: `${Math.abs(startX - endX)}px`,
+        height: `${Math.abs(startY - endY)}px`,
+        pointerEvents: 'none'
+    };
 }

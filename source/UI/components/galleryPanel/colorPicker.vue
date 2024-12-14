@@ -4,9 +4,9 @@
         ref="palletButton"
         @click.right.stop.prevent="clearColor"
         @click.left="togglePallet"
-        class="color-picker-button"
+        class="cc-panel-toolbar-button"
       >
-        <svg class="color-picker-icon" :style="iconStyle">
+        <svg class="panel-toolbar-button-icon" :style="iconStyle">
           <use xlink:href="#iconColors"></use>
         </svg>
       </button>
@@ -77,24 +77,3 @@
   })
   </script>
   
-  <style scoped>
-  .color-picker-button {
-    position: relative;
-    overflow: hidden;
-    border: none;
-    background-color: transparent;
-    padding: 0;
-    margin: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .color-picker-icon {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  </style>

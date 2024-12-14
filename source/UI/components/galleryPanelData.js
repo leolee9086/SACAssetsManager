@@ -81,7 +81,7 @@ export const 根据数据配置获取数据到缓存 = (数据模型, signal, ca
                 获取本地文件列表数据(files, 数据模型.附件数据源, callBack, 1, signal);
                 return;
             }
-            callBack&&callBack()
+            callBack && callBack()
         })
     };
     const fetcher = dataFetchers[数据模型.dataProviderType];
@@ -99,18 +99,41 @@ const fetchEfuData = async (efuPath, dataTarget, callBack) => {
         callBack && callBack();
     }
 };
+
+
+
+
+
+/**
+ * 状态变量
+ */
 import { ref } from '../../../static/vue.esm-browser.js';
-export const useGlob = ()=>{
-    const globSetting = ref({})
-//最大显示数量
-const search = ref('');
- return {
-    globSetting,
-    search
- }
+
+export const useExtensions = () => {
+    const extensions = ref([])
+    const selectedExtensions = ref([])
+    return {
+        extensions,
+        selectedExtensions
+    }
 }
 
-export const 构建遍历参数 = (globSetting,search,selectedExtensions)=>{
+
+export const useGallery = ()=>{
+    
+}
+
+export const useGlob = () => {
+    const globSetting = ref({})
+    //最大显示数量
+    const search = ref('');
+    return {
+        globSetting,
+        search
+    }
+}
+
+export const 构建遍历参数 = (globSetting, search, selectedExtensions) => {
     let realGlob = {
         ...globSetting,
     }

@@ -11,20 +11,17 @@
                 <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
                     class="b3-slider fn__block" :max="$max" min="32" step="1" type="range">
                 <div class="fn__space fn__flex-1"></div>
-                <div class="fn__flex">
-                    <button @click="refreshPanel">{{ plugin.翻译`刷新` }}</button>
+                <div class="fn__flex" style="margin:auto">
+                    <button @click="refreshPanel" class="cc-panel-toolbar-button">
+                        <svg class="panel-toolbar-button-icon" :style="iconStyle">
+                            <use xlink:href="#iconRefresh"></use>
+                        </svg>
+                    </button>
                 </div>
-                <div class="fn__space fn__flex-1"></div>
-                <div class="fn__flex">
-                    <input v-model="rawSearch" ref="searchInputter" style="box-sizing: border-box;width:100px;">
-                </div>
+
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex" style="margin:auto">
-                    <colorPicker
-                        v-model="filterColor"
-                        :pallet="pallet"
-                        @update:modelValue="handleColorChange"
-                    />
+                    <colorPicker v-model="filterColor" :pallet="pallet" @update:modelValue="handleColorChange" />
                 </div>
                 <div class="fn__flex">
                     <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
@@ -48,6 +45,10 @@
                     <multiple v-if='卡片显示模式 === LAYOUT_COLUMN' v-model="selectedMosanicAttributes" placeholder="显示的属性"
                         :options="Attributes"></multiple>
                 </div>
+                <div class="fn__space fn__flex-1"></div>
+                <div class="fn__flex">
+                    <input v-model="rawSearch" ref="searchInputter" style="box-sizing: border-box;width:100px;">
+                </div>
             </div>
             <div class="fn__space fn__flex-1"></div>
         </div>
@@ -62,7 +63,7 @@
             @dragover.prevent>
             <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :tableViewAttributes="displayAttributes" :assetsSource="数据缓存"
                 :cardDisplayMode="卡片显示模式" @palletAdded="palletAdded" :globSetting="$realGlob"
-                v-if="showPanel && globSetting"  @layoutCountTotal="(e) => { layoutCountTotal = e }"
+                v-if="showPanel && globSetting" @layoutCountTotal="(e) => { layoutCountTotal = e }"
                 @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
                 @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
@@ -88,11 +89,10 @@ import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { extractFileExtensions } from "../../utils/fs/extension.js";
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
-import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存, 构建遍历参数, useGlob } from "./galleryPanelData.js";
+import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存, 构建遍历参数, useGlob, useExtensions } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
 import { LAYOUT_COLUMN, LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
 import ColorPicker from './galleryPanel/colorPicker.vue'
-
 //主要数据对象
 const appData = toRef(inject('appData'))
 /**
@@ -112,8 +112,10 @@ const 卡片显示模式 = computed(() => 根据尺寸获取显示模式($size.v
 /**
  * 获取扩展名列表相关逻辑
  */
-const extensions = ref([])
-const selectedExtensions = ref([])
+const {
+    extensions,
+    selectedExtensions
+} = useExtensions()
 onMounted(() => {
     //当有本地路径时,使用接口获取文件缩略图
     if (appData.value.localPath) {
@@ -302,16 +304,9 @@ const initializeSize = () => {
 
     }
 };
-
-
-
-
-
 const callBack = (...args) => {
     grid.value && grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null;
 };
-
-
 const showPanel = ref(true)
 const refreshPanel = () => {
     controller.abort()
@@ -330,12 +325,8 @@ const refreshPanel = () => {
 /**
  * 遍历选项相关逻辑
  */
-//全局设置
-//const globSetting = ref({})
-//最大显示数量
-//const search = ref('');
-const {search,globSetting} = useGlob()
-const $realGlob = computed(() => 构建遍历参数(globSetting.value,search.value,selectedExtensions.value))
+const { search, globSetting } = useGlob()
+const $realGlob = computed(() => 构建遍历参数(globSetting.value, search.value, selectedExtensions.value))
 watch(
     () => $realGlob.value, () => {
         refreshPanel()
@@ -418,16 +409,13 @@ const layoutCount = reactive({ found: 0, loaded: 0 })
 let currentLayout = reactive({})
 let currentLayoutOffsetTop = 0
 let currentLayoutContainer
-
 const handlerLayoutChange = (data) => {
     currentLayout.value = data.layout || {}
     currentLayoutContainer = data.element
 }
-
 const handlerScrollTopChange = (scrollTop) => {
     currentLayoutOffsetTop = scrollTop
 }
-
 const 获取eagle标签列表 = () => {
     fetch(`http://localhost:${plugin.http服务端口号}/eagle-tags?path=${eaglePath.value}`).then(res => res.json()).then(json => {
         console.log(json)
@@ -441,15 +429,13 @@ const 获取ealge素材库路径 = () => {
 onMounted(() => {
     获取ealge素材库路径()
 })
-
-
 /**
  * 键盘相关逻辑
  */
 onMounted(() => {
     window.addEventListener('keydown', handleKeyDown);
 });
-import { clearSelectionWithLayout, diffByEventKey, endSelectionWithController, handleMultiSelection, startSelectionWithController } from '../utils/selection.js'
+import { clearSelectionWithLayout, diffByEventKey, endSelectionWithController, handleMultiSelection, startSelectionWithController, 计算选择框样式 } from '../utils/selection.js'
 
 const handleKeyDown = (event) => {
     if (event.key === 'Escape') {
@@ -485,10 +471,10 @@ const selectionController = {
     root,
 }
 const startSelection = (e) => { startSelectionWithController(e, selectionController) }
-const 画廊组件容器 = computed(()=>root.value.querySelector('.gallery_container'))
+const 画廊组件容器 = computed(() => root.value.querySelector('.gallery_container'))
 
 const updateSelection = (event) => {
-    let 选择框 =selectionBox.value
+    let 选择框 = selectionBox.value
     let 选择状态中 = isSelecting.value
     let 布局元素矩形 = 画廊组件容器.value.getBoundingClientRect()
     if (选择状态中) {
@@ -528,19 +514,7 @@ plugin.eventBus.on('update-tag', (event) => {
 const handlerDrop = (event) => {
     handlerDropWithTab(event, appData.value.tab)
 };
-const selectionBoxStyle = computed(() => {
-    const { startX, startY, endX, endY } = selectionBox.value;
-    return {
-        position: 'fixed',
-        outline: '1px dashed #000',
-        backgroundColor: 'rgba(0, 0, 255, 0.2)',
-        left: `${Math.min(startX, endX)}px`,
-        top: `${Math.min(startY, endY)}px`,
-        width: `${Math.abs(startX - endX)}px`,
-        height: `${Math.abs(startY - endY)}px`,
-        pointerEvents: 'none'
-    };
-});
+const selectionBoxStyle = computed(() => 计算选择框样式(selectionBox.value));
 const sorter = ref({
     fn: (a, b) => {
         return -(a.data.mtimeMs - b.data.mtimeMs)
@@ -571,8 +545,6 @@ const handleColorChange = (newColor) => {
 .grid__container {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
-    /* Adjust the size as needed */
     gap: 0px 0px;
-    /* Adjust the spacing between buttons */
 }
 </style>
