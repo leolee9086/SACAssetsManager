@@ -551,4 +551,35 @@ export class P1ImagePattern {
             fullHeight: range.actualHeight
         };
     }
+
+    getMinimalSeamlessUnit() {
+        const { basis1, basis2 } = this.config.lattice;
+        
+        // 计算基向量的分量比
+        const ratioX = Math.abs(basis2.x / basis1.x);
+        const ratioY = Math.abs(basis2.y / basis1.y);
+        
+        // 找到最小的整数倍数使得两个基向量的分量比接近整数
+        const findMinimalMultiple = (ratio) => {
+            if (Math.abs(ratio) < 0.001) return 1;
+            const precision = 1e-6;
+            let i = 1;
+            while (i < 10) {
+                if (Math.abs(Math.round(ratio * i) - ratio * i) < precision) {
+                    return i;
+                }
+                i++;
+            }
+            return 1;
+        };
+        
+        const mx = findMinimalMultiple(ratioX);
+        const my = findMinimalMultiple(ratioY);
+        
+        // 计算最小无缝单元的尺寸
+        return {
+            width: Math.abs(basis1.x * mx) + Math.abs(basis2.x * my),
+            height: Math.abs(basis1.y * mx) + Math.abs(basis2.y * my)
+        };
+    }
 }

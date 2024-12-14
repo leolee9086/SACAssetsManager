@@ -27,15 +27,15 @@
         <div class="control-group">
           <span>基向量1:</span>
           <div class="vector-inputs">
-            <input type="number" v-model.number="basis1.x" @input="updateBasis" placeholder="X">
-            <input type="number" v-model.number="basis1.y" @input="updateBasis" placeholder="Y">
+            <input type="number" v-model.number="basis1.x" @input="e => handleBasisInput(basis1, 'x', Number(e.target.value))" placeholder="X">
+            <input type="number" v-model.number="basis1.y" @input="e => handleBasisInput(basis1, 'y', Number(e.target.value))" placeholder="Y">
           </div>
         </div>
         <div class="control-group">
           <span>基向量2:</span>
           <div class="vector-inputs">
-            <input type="number" v-model.number="basis2.x" @input="updateBasis" placeholder="X">
-            <input type="number" v-model.number="basis2.y" @input="updateBasis" placeholder="Y">
+            <input type="number" v-model.number="basis2.x" @input="e => handleBasisInput(basis2, 'x', Number(e.target.value))" placeholder="X">
+            <input type="number" v-model.number="basis2.y" @input="e => handleBasisInput(basis2, 'y', Number(e.target.value))" placeholder="Y">
           </div>
         </div>
         <div class="control-group">
@@ -61,7 +61,7 @@
           <select v-model="nodeShape" @change="updateNodeShape">
             <option value="circle">圆形</option>
             <option value="square">正方形</option>
-            <option value="rectangle">矩��</option>
+            <option value="rectangle">矩形</option>
             <option value="hexagon">六边形</option>
             <option value="triangle">三角形</option>
           </select>
@@ -358,32 +358,51 @@ const createShapeMask = (shape, size, forClipping = false) => {
   return tempCanvas;
 };
 
+const drawSeamlessUnitBox = () => {
+  if (!renderer.value || !canvas.value) return;
+  
+  const ctx = canvas.value.getContext('2d');
+  
+  // 使用已定义的 basis1 和 basis2
+  const b1 = new Vector2(basis1.value.x, basis1.value.y);
+  const b2 = new Vector2(basis2.value.x, basis2.value.y);
+  
+  // 计算单元格的四个顶点
+  const points = [
+    { x: -b1.x/2 - b2.x/2, y: -b1.y/2 - b2.y/2 }, // 左上
+    { x: b1.x/2 - b2.x/2, y: b1.y/2 - b2.y/2 },   // 右上
+    { x: b1.x/2 + b2.x/2, y: b1.y/2 + b2.y/2 },   // 右下
+    { x: -b1.x/2 + b2.x/2, y: -b1.y/2 + b2.y/2 }  // 左下
+  ];
+
+  ctx.save();
+  
+  // 移动到画布中心
+  ctx.translate(width.value/2, height.value/2);
+  
+  // 设置虚线样式
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+  ctx.lineWidth = 1;
+  
+  // 绘制虚线框
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  
+  ctx.restore();
+};
+
+const pattern = ref(null);
 const genGridStyle = async (imageUrl = null) => {
   if (renderer.value) {
     renderer.value.clear();
   }
 
-  const calculateGridRange = () => {
-    const viewportWidth = width.value;
-    const viewportHeight = height.value;
-    
-    const cellWidth = Math.sqrt(
-      basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y
-    );
-    const cellHeight = Math.sqrt(
-      basis2.value.x * basis2.value.x + basis2.value.y * basis2.value.y
-    );
-
-    const unitsX = Math.ceil(viewportWidth / cellWidth) + 4;
-    const unitsY = Math.ceil(viewportHeight / cellHeight) + 4;
-
-    return {
-      minI: -Math.floor(unitsX / 2),
-      maxI: Math.ceil(unitsX / 2),
-      minJ: -Math.floor(unitsY / 2),
-      maxJ: Math.ceil(unitsY / 2)
-    };
-  };
 
   let processedNodeImage = null;
   if (nodeImageUrl.value) {
@@ -481,6 +500,11 @@ const genGridStyle = async (imageUrl = null) => {
     x: width.value / 2,
     y: height.value / 2,
   });
+  
+  // 在pattern渲染完成后绘制虚线框
+  requestAnimationFrame(() => {
+    drawSeamlessUnitBox();
+  });
 };
 
 const handleResize = () => {
@@ -570,13 +594,16 @@ const resizeObserver = new ResizeObserver(entries => {
 })
 
 const updateBasis = () => {
-  basis1.value.x = Number(basis1.value.x) || 0;
-  basis1.value.y = Number(basis1.value.y) || 0;
-  basis2.value.x = Number(basis2.value.x) || 0;
-  basis2.value.y = Number(basis2.value.y) || 0;
+  // 应用限制到两个基向量
+  const normalizedBasis1 = validateAndNormalizeBasis(basis1.value);
+  const normalizedBasis2 = validateAndNormalizeBasis(basis2.value);
+  
+  // 更新值
+  basis1.value = normalizedBasis1;
+  basis2.value = normalizedBasis2;
   
   genGridStyle().catch(console.error);
-}
+};
 
 const updateMotifScale = (e) => {
   motifScale.value = Number(e.target.value)
@@ -707,10 +734,64 @@ const presetGridRatios = [
 ]
 
 const applyPresetRatio = (preset) => {
-  basis1.value = { ...preset.basis1 }
-  basis2.value = { ...preset.basis2 }
-  genGridStyle()
+  const normalizedBasis1 = validateAndNormalizeBasis(preset.basis1);
+  const normalizedBasis2 = validateAndNormalizeBasis(preset.basis2);
+  
+  basis1.value = normalizedBasis1;
+  basis2.value = normalizedBasis2;
+  
+  genGridStyle();
 }
+
+// 添加基向量验证和限制函数
+const validateAndNormalizeBasis = (basis) => {
+  const MIN_COMPONENT = 10; // 最小分量值
+  const MAX_RATIO = 5;     // 最大高宽比
+  
+  // 复制一份以避免直接修改原值
+  let x = Number(basis.x);
+  let y = Number(basis.y);
+  
+  // 确保至少有一个分量不为0
+  if (Math.abs(x) < MIN_COMPONENT && Math.abs(y) < MIN_COMPONENT) {
+    if (x === 0 && y === 0) {
+      x = MIN_COMPONENT;
+    } else {
+      // 将较小的分量调整到最小值
+      if (Math.abs(x) < Math.abs(y)) {
+        x = x === 0 ? MIN_COMPONENT : Math.sign(x) * MIN_COMPONENT;
+      } else {
+        y = y === 0 ? MIN_COMPONENT : Math.sign(y) * MIN_COMPONENT;
+      }
+    }
+  }
+  
+  // 计算当前比例
+  const ratio = Math.max(Math.abs(x), Math.abs(y)) / 
+                Math.min(Math.abs(x) || MIN_COMPONENT, Math.abs(y) || MIN_COMPONENT);
+  
+  // 如果比例超出限制，调整较大的值
+  if (ratio > MAX_RATIO) {
+    if (Math.abs(x) > Math.abs(y)) {
+      x = Math.sign(x) * Math.abs(y) * MAX_RATIO;
+    } else {
+      y = Math.sign(y) * Math.abs(x) * MAX_RATIO;
+    }
+  }
+  
+  return { x, y };
+};
+
+// 为输入框添加验证
+const handleBasisInput = (vector, component, value) => {
+  const newValue = { ...vector.value };
+  newValue[component] = value;
+  
+  const normalized = validateAndNormalizeBasis(newValue);
+  vector.value = normalized;
+  
+  genGridStyle().catch(console.error);
+};
 
 </script>
 
