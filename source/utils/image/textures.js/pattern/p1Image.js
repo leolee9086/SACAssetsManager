@@ -405,7 +405,7 @@ export class P1ImagePattern {
                 break;
             // 可以添加其他形状的边界绘制
             default:
-                // 默认矩形��
+                // 默认矩形
                 const width = this.patternCell.width;
                 const height = this.patternCell.height;
                 ctx.rect(x - width / 2, y - height / 2, width, height);
@@ -526,5 +526,29 @@ export class P1ImagePattern {
         );
 
         ctx.restore();
+    }
+
+    getSeamlessTilingRange(targetWidth, targetHeight) {
+        const range = calculateSeamlessTilingRange(
+            this.config.lattice.basis1,
+            this.config.lattice.basis2,
+            targetWidth,
+            targetHeight
+        );
+        
+        // 使用这个范围来渲染
+        this.render(ctx, {
+            width: range.actualWidth,
+            height: range.actualHeight,
+            gridRange: range
+        });
+        
+        // 返回的图案可以完美地平铺
+        return {
+            width: range.periodWidth,
+            height: range.periodHeight,
+            fullWidth: range.actualWidth,
+            fullHeight: range.actualHeight
+        };
     }
 }
