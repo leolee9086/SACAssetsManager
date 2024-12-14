@@ -63,13 +63,12 @@
 <script setup>
 import { ref, inject, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import FileUploadButton from '../../components/common/inputters/fileUploadButton.vue'
-import { drawRulers, loadImageFile, calculateTileSize } from './imagePreviewerUtils.js'
+import { drawRulers, loadImageFile, calculateTileSize, $loadImageFile,uploadToSiyuan } from './imagePreviewerUtils.js'
 import { createBrushModeHandlers } from './brushModeUtils.js'
 import { createStyleComputed } from './styleUtils.js'
 import { getStatu, setStatu, watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
 
 const appData = inject('appData')
-console.log(appData)
 const isRepeat = ref(true)
 const uvScale = ref(1.0)
 const realSize = ref(1.0)
@@ -79,6 +78,7 @@ const horizontalRulerRef = ref(null)
 const verticalRulerRef = ref(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
+const isImageUploaded = ref(false)
 // 替换本地的 ref 为全局状态
 const isBrushMode = computed({
     get: () => getStatu(状态注册表.笔刷模式),
@@ -129,14 +129,28 @@ const updateRealSize = (e) => {
 
 
 // 修改 toggleBrushMode 函数
-const toggleBrushMode = () => {
-    setStatu(状态注册表.笔刷模式, !getStatu(状态注册表.笔刷模式));
+const toggleBrushMode = async () => {
+    if (!isImageUploaded.value && appData.imagePath) {
+        try {
+            isLoading.value = true
+            const uploadedPath = await uploadToSiyuan(appData.imagePath)
+            appData.imagePath = uploadedPath
+            isImageUploaded.value = true
+        } catch (error) {
+            errorMessage.value = '启用笔刷前上传图片失败：' + error.message
+            return
+        } finally {
+            isLoading.value = false
+        }
+    }
+    
+    setStatu(状态注册表.笔刷模式, !getStatu(状态注册表.笔刷模式))
     if (getStatu(状态注册表.笔刷模式)) {
-        document.body.style.cursor = 'crosshair';
-        addBrushListeners();
+        document.body.style.cursor = 'crosshair'
+        addBrushListeners()
     } else {
-        document.body.style.cursor = 'default';
-        removeBrushListeners();
+        document.body.style.cursor = 'default'
+        removeBrushListeners()
     }
 }
 
@@ -146,7 +160,7 @@ const onImageChange = async (file) => {
     isLoading.value = true
     errorMessage.value = ''
     
-    const { dataUrl, width, height } = await loadImageFile(file)
+    const { dataUrl, width, height } = await $loadImageFile(file)
     
     imageAspectRatio.value = width / height
     const maxDimension = Math.max(width, height)

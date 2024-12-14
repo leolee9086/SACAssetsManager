@@ -69,3 +69,8 @@ const {
     updateProtyleToolbar,
     protyleOptions,
 } = plugin
+
+
+export {
+    confirm
+}
