@@ -275,29 +275,63 @@ export class P1ImagePattern {
         ctx.restore();
     }
 
-    calculateGridRange(width, height, scale) {
+    calculateGridRange(width, height, scale = 1) {
         const { basis1, basis2 } = this.config.lattice;
         
-        // 计算基向量的长度和角度
-        const b1Length = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-        const b2Length = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-        const angle = Math.acos((basis1.x * basis2.x + basis1.y * basis2.y) / (b1Length * b2Length));
-        
-        // 计算平行四边形的外接矩形
-        const boundingWidth = Math.abs(b1Length) + Math.abs(b2Length * Math.cos(angle));
-        const boundingHeight = Math.abs(b2Length * Math.sin(angle));
-        
-        // 计算需要的网格单元数量
-        // 添加额外的边距以确保完全覆盖
-        const margin = 2; // 增加边距单元数
+        // 应用缩放因子到视口尺寸
         const viewportWidth = width / scale;
         const viewportHeight = height / scale;
         
+        // 计算基向量的行列式
+        const det = basis1.x * basis2.y - basis1.y * basis2.x;
+        
+        // 处理退化情况（基向量近似平行）
+        if (Math.abs(det) < 1e-6) {
+            const maxDim = Math.max(viewportWidth, viewportHeight);
+            const minBasisLength = Math.min(
+                Math.hypot(basis1.x, basis1.y),
+                Math.hypot(basis2.x, basis2.y)
+            );
+            const range = Math.ceil(maxDim / minBasisLength);
+            return {
+                minI: -range,
+                maxI: range,
+                minJ: -range,
+                maxJ: range
+            };
+        }
+
+        // 视口的四个角点（相对于中心点）
+        const corners = [
+            {x: -viewportWidth/2, y: -viewportHeight/2},
+            {x: viewportWidth/2, y: -viewportHeight/2},
+            {x: viewportWidth/2, y: viewportHeight/2},
+            {x: -viewportWidth/2, y: viewportHeight/2}
+        ];
+
+        // 对每个角点求解晶格坐标
+        const latticeCoords = corners.map(point => {
+            // 解线性方程组：
+            // point.x = i * basis1.x + j * basis2.x
+            // point.y = i * basis1.y + j * basis2.y
+            
+            const i = (point.x * basis2.y - point.y * basis2.x) / det;
+            const j = (-point.x * basis1.y + point.y * basis1.x) / det;
+            
+            return { i, j };
+        });
+
+        // 计算覆盖所有角点的最小晶格范围
+        const minI = Math.floor(Math.min(...latticeCoords.map(p => p.i)));
+        const maxI = Math.ceil(Math.max(...latticeCoords.map(p => p.i)));
+        const minJ = Math.floor(Math.min(...latticeCoords.map(p => p.j)));
+        const maxJ = Math.ceil(Math.max(...latticeCoords.map(p => p.j)));
+
         return {
-            minI: Math.floor(-viewportWidth / (2 * boundingWidth)) - margin,
-            maxI: Math.ceil(viewportWidth / (2 * boundingWidth)) + margin,
-            minJ: Math.floor(-viewportHeight / (2 * boundingHeight)) - margin,
-            maxJ: Math.ceil(viewportHeight / (2 * boundingHeight)) + margin
+            minI,
+            maxI,
+            minJ,
+            maxJ
         };
     }
 
@@ -371,7 +405,7 @@ export class P1ImagePattern {
                 break;
             // 可以添加其他形状的边界绘制
             default:
-                // 默认矩��边界
+                // 默认矩形��
                 const width = this.patternCell.width;
                 const height = this.patternCell.height;
                 ctx.rect(x - width / 2, y - height / 2, width, height);

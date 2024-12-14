@@ -14,6 +14,16 @@
     <div class="controls">
       <div class="control-section">
         <h4>网格设置</h4>
+        <div class="preset-buttons">
+          <button 
+            v-for="preset in presetGridRatios" 
+            :key="preset.name"
+            class="preset-btn"
+            @click="applyPresetRatio(preset)"
+          >
+            {{ preset.name }}
+          </button>
+        </div>
         <div class="control-group">
           <span>基向量1:</span>
           <div class="vector-inputs">
@@ -51,7 +61,7 @@
           <select v-model="nodeShape" @change="updateNodeShape">
             <option value="circle">圆形</option>
             <option value="square">正方形</option>
-            <option value="rectangle">矩形</option>
+            <option value="rectangle">矩��</option>
             <option value="hexagon">六边形</option>
             <option value="triangle">三角形</option>
           </select>
@@ -465,13 +475,11 @@ const genGridStyle = async (imageUrl = null) => {
   renderer.value.canvas.height = height.value;
   renderer.value.ctx.clearRect(0, 0, width.value, height.value);
   
-  const gridRange = calculateGridRange();
   pattern.render(renderer.value.ctx, {
     width: width.value,
     height: height.value,
     x: width.value / 2,
     y: height.value / 2,
-    gridRange: gridRange
   });
 };
 
@@ -687,6 +695,20 @@ const updateNodeStroke = (e) => {
   } else if(target.type === 'color') {
     nodeStrokeColor.value = target.value
   }
+  genGridStyle()
+}
+
+const presetGridRatios = [
+  { name: '正方形', basis1: { x: 20, y: 0 }, basis2: { x: 0, y: 20 } },
+  { name: '菱形', basis1: { x: 20, y: 20 }, basis2: { x: -20, y: 20 } },
+  { name: '1:2矩形', basis1: { x: 20, y: 0 }, basis2: { x: 0, y: 40 } },
+  { name: '六角形', basis1: { x: 20, y: 0 }, basis2: { x: 10, y: 17.32 } }, // sqrt(3)/2 ≈ 0.866
+  { name: '2:1矩形', basis1: { x: 40, y: 0 }, basis2: { x: 0, y: 20 } }
+]
+
+const applyPresetRatio = (preset) => {
+  basis1.value = { ...preset.basis1 }
+  basis2.value = { ...preset.basis2 }
   genGridStyle()
 }
 
@@ -910,5 +932,32 @@ select {
 
 .control-group select option {
   background: #333;
+}
+
+.preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.preset-btn {
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s;
+}
+
+.preset-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.preset-btn:active {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0.98);
 }
 </style>
