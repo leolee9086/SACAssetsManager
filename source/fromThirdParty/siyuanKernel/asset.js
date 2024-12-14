@@ -1,5 +1,5 @@
-import { getApiUrl, handleApiError } from './utils/apiConfig';
-import { fetchWithTimeout, getAuthHeaders } from './utils/fetchUtils';
+import { getApiUrl, handleApiError } from './utils/apiConfig.js';
+import { fetchWithTimeout, getAuthHeaders } from './utils/fetchUtils.js';
 
 /**
  * 发送资源相关请求的通用方法
@@ -14,11 +14,20 @@ import { fetchWithTimeout, getAuthHeaders } from './utils/fetchUtils';
  */
 const sendAssetRequest = async (endpoint, data, options = {}) => {
   const { isFormData = false } = options;
+  console.log(endpoint, data, options)
   try {
-    const headers = isFormData ? getAuthHeaders({ token: options.token, additionalHeaders: { 'Content-Type': undefined } }) 
-                              : getAuthHeaders({ token: options.token });
+    const headers = getAuthHeaders({ 
+      token: options.token,
+      ...(isFormData ? {} : {
+        additionalHeaders: { 'Content-Type': 'application/json' }
+      })
+    });
+
+    if (isFormData && headers['Content-Type']) {
+      delete headers['Content-Type'];
+    }
+
     const body = isFormData ? data : JSON.stringify(data);
-    
     const response = await fetchWithTimeout(getApiUrl(`/api/asset/${endpoint}`, options.host), {
       method: 'POST',
       headers,
@@ -63,12 +72,13 @@ export const uploadAsset = async (file, params = {}, options = {}) => {
   if (params.assetsDirPath) {
     formData.append('assetsDirPath', params.assetsDirPath);
   }
+  
   return sendAssetRequest('upload', formData, { ...options, isFormData: true });
 };
 
 /**
  * 删除资源文件
- * @param {string[]} paths - 要删除的资源文件路径列表（相对于工作��间的路径）
+ * @param {string[]} paths - 要删除的资源文件路径列表（相对于工作空间的路径）
  * @param {Object} [options] - 可选配置
  * @param {string} [options.host] - API服务器地址
  * @param {string} [options.token] - 自定义认证令牌
@@ -152,7 +162,7 @@ export const uploadCloud = async (params, options = {}) => {
  * @param {string} [options.token] - 自定义认证令牌
  * @returns {Promise<{
  *   code: number,  // 0表示成功，-1表示失败
- *   msg: string,   // 返回��息
+ *   msg: string,   // 返回消息
  *   data: {
  *     succMap: {   // 插入成功的文件映射
  *       [key: string]: string  // key:原路径,value:新路径

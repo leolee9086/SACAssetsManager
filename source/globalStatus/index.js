@@ -3,7 +3,9 @@ import {plugin} from "../asyncModules.js";
 
 export const 状态注册表 = {
     选中的资源:'selectedAssets',
-    本地文件搜索接口:'localApiList'
+    本地文件搜索接口:'localApiList',
+    笔刷模式: 'brushMode',
+    笔刷悬停元素: 'brushHoverElement'
 }
 // 检查是否已经挂载状态
 if (!plugin.status) {
@@ -17,6 +19,12 @@ export function getStatu(key) {
 
 // 设置特定键的状态值
 export function setStatu(key, value) {
+    // 首先检查值是否为 null 或 undefined
+    if (value === null || value === undefined) {
+        plugin.status[key] = value;
+        return;
+    }
+    
     // 检查值是否为响应式对象，如果不是则转换
     if (!value.__v_isReactive) {
         value = reactive(value);
@@ -59,6 +67,10 @@ watchStatu(状态注册表.选中的资源,(newVal,oldVal)=>{
 plugin.eventBus.on('assets-select',(e)=>{
     setStatu(状态注册表.选中的资源,e.detail)
 })
+
+// 初始化笔刷状态
+setStatu(状态注册表.笔刷模式, false);
+setStatu(状态注册表.笔刷悬停元素, null);
 
 
 

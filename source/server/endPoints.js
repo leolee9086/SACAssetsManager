@@ -72,6 +72,18 @@ export const thumbnail = {
 
         return `${baseUrl}?${params.toString()}`;
     },
+    getDimensions: (type, path) => {
+        let baseUrl = `${serverHost()}/thumbnail/dimensions`;
+        let params = new URLSearchParams();
+
+        if (!type) {
+            params.append('path', path);
+        } else {
+            params.append('localPath', path);
+        }
+
+        return `${baseUrl}?${params.toString()}`;
+    },
     upload: upload
 }
 export const metaRecords = {

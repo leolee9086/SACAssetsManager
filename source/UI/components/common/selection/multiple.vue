@@ -1,19 +1,23 @@
 <template>
     <div ref="dropdownContainer">
         <div @click="toggleDropdown" class="multi-select">
-            <span v-if="selectedExtensions.length === 0">{{ placeholder }}</span> <!-- 使用参数 -->
+            <span v-if="selectedExtensions.length === 0">{{ placeholder }}</span>
             <span v-else>{{ selectedExtensions.join(', ') }}</span>
             <span class="arrow" :class="{ open: dropdownOpen }">▼</span>
         </div>
         <div v-if="dropdownOpen" class="dropdown">
-            <input type="text" v-model="searchQuery" :placeholder="searchPlaceholder" class="search-input" /> <!-- 使用参数 -->
-            <div>
-                <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected" />
-                <label>{{ selectAllLabel }}</label> <!-- 使用参数 -->
+            <div class="dropdown-header">
+                <input type="text" v-model="searchQuery" :placeholder="searchPlaceholder" class="search-input" />
+                <div class="select-all">
+                    <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected" />
+                    <label>{{ selectAllLabel }}</label>
+                </div>
             </div>
-            <div v-for="extension in filteredExtensions" :key="extension" class="dropdown-item">
-                <input type="checkbox" :value="extension" v-model="selectedExtensions" />
-                <label>{{ extension }}</label>
+            <div class="dropdown-content">
+                <div v-for="extension in filteredExtensions" :key="extension" class="dropdown-item">
+                    <input type="checkbox" :value="extension" v-model="selectedExtensions" />
+                    <label>{{ extension }}</label>
+                </div>
             </div>
         </div>
     </div>
@@ -96,49 +100,73 @@ onUnmounted(() => {
 
 <style scoped>
 .multi-select {
-    border: 1px solid #ccc;
-    padding: 5px;
+    border: 1px solid var(--b3-border-color);
+    padding: 8px 24px 8px 8px; /* 增加内边距，右侧留出箭头空间 */
     cursor: pointer;
-    display: flex; /* 使用 flexbox 布局 */
-    align-items: center; /* 垂直居中 */
+    display: flex;
+    align-items: center;
     position: relative;
-    width: 100px;
-    overflow: hidden;
-    white-space: nowrap; /* 确保文本不换行 */
-    text-overflow: ellipsis; /* 超出部分显示省略号 */
-    box-sizing: border-box; /* 确保内边距和边框包含在宽度内 */
-    flex-grow: 1; /* 允许文本部分扩展 */
-
+    min-width: 120px; /* 设置最小宽度 */
+    background-color: var(--b3-menu-background);
+    border-radius: 4px; /* 添加圆角 */
 }
 
 .arrow {
     transition: transform 0.3s;
-    margin-left: auto; /* 确保箭头在最右侧 */
-    flex-shrink: 0; /* 防止箭头缩小 */
-    position: absolute; /* 绝对定位箭头 */
-    right: 5px; /* 距离右侧5px */
-    background-color: var(--b3-menu-background);
+    position: absolute;
+    right: 8px;
+    color: var(--b3-theme-on-surface);
+    font-size: 12px; /* 调整箭头大小 */
 }
+
 .arrow.open {
     transform: rotate(180deg);
 }
 
 .dropdown {
-    border: 1px solid #ccc;
+    border: 1px solid var(--b3-border-color);
     position: absolute;
     background-color: var(--b3-menu-background);
     z-index: 1000;
-    width: 100%;
-    max-width: 100px;
-    max-height: 80vh;
+    width: 200px;
+    max-height: 300px;
+    margin-top: 4px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+}
+
+.dropdown-header {
+    position: sticky;
+    top: 0;
+    background-color: var(--b3-menu-background);
+    padding: 8px;
+    border-bottom: 1px solid var(--b3-border-color);
+    z-index: 1;
+}
+
+.select-all {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    margin-top: 4px;
+}
+
+.dropdown-content {
     overflow-y: auto;
-    padding: 5px;
+    padding: 8px;
 }
 
 .dropdown-item {
-    padding: 5px;
+    padding: 6px 8px;
     display: flex;
     align-items: center;
+    cursor: pointer;
+}
+
+.dropdown-item:hover {
+    background-color: var(--b3-list-hover); /* 添加悬停效果 */
 }
 
 .dropdown-item input {
@@ -146,9 +174,10 @@ onUnmounted(() => {
 }
 
 .search-input {
-    width: 100%;
-    padding: 5px;
-    margin-bottom: 5px;
-    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 4px;
+    background-color: var(--b3-menu-background);
+    color: var(--b3-theme-on-background);
 }
 </style>

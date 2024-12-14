@@ -8,5 +8,5 @@ export const 打开文件夹数组素材页签=(页签数组)=>{
 export const 清理重复元素 = (数组)=>{
     return Array.from(new Set(数组))
 }
-export { 异步映射 } from "../../utils/array/index.js";
-export { 异步清理重复元素 } from "../../utils/array/index.js";
+export { 异步映射 } from "../../../utils/array/index.js";
+export { 异步清理重复元素 } from "../../../utils/array/index.js";

@@ -6,15 +6,17 @@ let eventBus
  * 测试全盘信息读取
  */
 //import ('/plugins/SACAssetsManager/source/utils/Math.js')
+let pluginInstance = {}
 module.exports = class SACAssetsManager extends Plugin {
   onload() {
+    pluginInstance=this
     eventBus = this.eventBus
     this.插件自身工作空间路径 = `/data/plugins/${this.name}`
     this.工作空间根路径 = window.siyuan.config.system.workspaceDir
     this.插件自身伺服地址 = `/plugins/${this.name}`
     this.selfURL = this.插件自身伺服地址
-    this.加载状态控制器()
-    this.初始化进程状态()
+    this.初始化插件同步状态()
+    this.初始化插件异步状态()
     this.加载工具webview()
     this.添加全局事件监听()
     this.stayAlive = true
@@ -23,14 +25,15 @@ module.exports = class SACAssetsManager extends Plugin {
     this.创建资源Tab类型()
     this.添加菜单()
     this.加载i18n工具()
-    this.加载icon()
   }
-  async 加载icon(){
+  初始化插件同步状态(){
+    this.最近打开本地文件夹列表 = new Set()
+  }
+  初始化插件异步状态(){
     import(`${this.插件自身伺服地址}/source/UI/icons/addicon.js`)
-  }
-  async 加载状态控制器() {
     import(`${this.插件自身伺服地址}/source/globalStatus/index.js`)
   }
+
   async 写入i18n(lang, content) {
     let targetPath = this.插件自身工作空间路径 + '/i18n/' + `${lang}.json`
     let workspace = await import(`${this.插件自身伺服地址}/source/polyfills/fs.js`)
@@ -87,9 +90,7 @@ module.exports = class SACAssetsManager extends Plugin {
     )
 
   }
-  初始化进程状态() {
-    this.最近打开本地文件夹列表 = new Set()
-  }
+
   /**
    * 只有getter,避免被不小心改掉
    */
@@ -164,7 +165,6 @@ module.exports = class SACAssetsManager extends Plugin {
           }
         )
       },
-
     })
   }
   async 创建web服务() {
@@ -231,6 +231,31 @@ module.exports = class SACAssetsManager extends Plugin {
           controller.abort()
         })
       }
+    })
+
+    // 添加图片预览器Tab定义
+    this.ImagePreviewerTabDefine = this.addTab({
+      type: 'ImagePreviewerTab',
+      init() {
+        this.element.innerHTML = `<div class="plugin-sample__image-previewer">${this.data.text}</div>`;
+        plugin.eventBus.emit('image-previewer-tab-open', this)
+      },
+      beforeDestroy() {
+        this.element.innerHTML = ""
+        this.controllers && this.controllers.forEach(controller => {
+          controller.abort()
+        })
+      }
+    })
+
+    // 添加图片预览器事件监听
+    eventBus.on('image-previewer-tab-open', (e) => {
+      let tab = e.detail;
+      import('/plugins/SACAssetsManager/source/UI/tab.js').then(
+        module => {
+          module.创建图片预览器(tab)
+        }
+      )
     })
   }
 }

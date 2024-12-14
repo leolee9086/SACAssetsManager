@@ -44,13 +44,20 @@ export function 创建编辑器界面(tab) {
     'assetsColumn'
   );
 }
+export function 创建图片预览器(tab) {
+  return 创建Vue组件界面(
+    tab,
+    '/plugins/SACAssetsManager/source/UI/pannels/imagePreviewer/imagePreviewer.vue',
+    'imagePreviewerPanel'
+  );
+}
 
 export function 创建资源信息面板(UI容器){
-  const 资源信息面板 =  initVueApp(import.meta.resolve('./components/assestInfoPanel.vue'))
+  const 资源信息面板 =  initVueApp(import.meta.resolve('./pannels/assetInfoPanel/assestInfoPanel.vue'))
   资源信息面板.mount(UI容器);
-
 }
 export function 创建收藏夹面板(UI容器) {
   const 收藏夹面板 = initVueApp(import.meta.resolve('./components/collectionPanel.vue'));
   收藏夹面板.mount(UI容器);
 }
+

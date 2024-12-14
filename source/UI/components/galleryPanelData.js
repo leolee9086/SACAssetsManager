@@ -137,7 +137,7 @@ export const 构建遍历参数 = (globSetting, search, selectedExtensions) => {
     let realGlob = {
         ...globSetting,
     }
-    if (search.value) {
+    if (search) {
         realGlob.search = search
     }
     if (selectedExtensions[0]) {

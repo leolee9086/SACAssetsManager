@@ -1,7 +1,10 @@
 import { listLoaders as listThumbnailLoaders } from '../processors/thumbnail/loader.js '
 import { globalTaskQueue } from '../middlewares/runtime_queue.js'
+
 const express = require('express')
 const router = express.Router()
+
+
 import {
     默认图片响应,
     getSourcePath,
@@ -53,3 +56,22 @@ export const genThumbnailRouter = router
 export function listLoaders(req, res) {
     res.json(listThumbnailLoaders())
 }
+const sharp= require('sharp')
+router.get('/dimensions', async (req, res) => {
+    try {
+        const { path, localPath } = req.query
+        const imagePath = path || localPath
+        if (!imagePath) {
+            return res.status(400).json({ error: '未提供图片路径' })
+        }
+        const metadata = await sharp(imagePath).metadata()
+        res.json({
+            width: metadata.width,
+            height: metadata.height,
+            format: metadata.format
+        })
+    } catch (error) {
+        console.error('获取图片尺寸失败:', error)
+        res.status(500).json({ error: '获取图片尺寸失败' })
+    }
+})

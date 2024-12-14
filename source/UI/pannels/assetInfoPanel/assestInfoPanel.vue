@@ -39,29 +39,29 @@
 </template>
 <script setup>
 import { ref } from 'vue';
-import { getCommonThumbnailsFromAssets } from '../utils/tumbnail.js'
-import _path from '../../polyfills/path.js'
-import tagsGrid from './assetInfoPanel/tags.vue';
-import { watchStatu, 状态注册表 } from '../../globalStatus/index.js';
-import { verticalScrollFirst } from '../utils/scroll.js';
-import assetsImage from './assetInfoPanel/assetsImage.vue';
+import { getCommonThumbnailsFromAssets } from '../../utils/tumbnail.js'
+import _path from '../../../polyfills/path.js'
+import tagsGrid from '../../components/assetInfoPanel/tags.vue';
+import { watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
+import { verticalScrollFirst } from '../../utils/scroll.js';
+import assetsImage from '../../components/assetInfoPanel/assetsImage.vue';
 import { 异步清理重复元素, 打开文件夹数组素材页签,异步映射 } from './assetinfoPanel.js';
-import { 搜集eagle元数据 } from '../../utils/thirdParty/eagle.js';
-import { 在资源管理器打开本地文件夹数组 } from '../../utils/useRemote/shell.js';
-import { 获取数组中素材所在笔记 } from '../../utils/sql/siyuanSentence.js';
+import { 搜集eagle元数据 } from '../../../utils/thirdParty/eagle.js';
+import { 在资源管理器打开本地文件夹数组 } from '../../../utils/useRemote/shell.js';
+import { 获取数组中素材所在笔记 } from '../../../utils/sql/siyuanSentence.js';
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
-const format = ref('JPG');
+const format = ref('无选择');
 const name = ref('无选择');
 const note = ref('');
 const link = ref('');
 const folder = ref('无选择');
 const rating = ref('★★★★★');
-const dimensions = ref('多种');
-const fileSize = ref('多种');
-const addedDate = ref('多种');
-const createdDate = ref('多种');
-const modifiedDate = ref('多种');
+const dimensions = ref('无选择');
+const fileSize = ref('无选择');
+const addedDate = ref('无选择');
+const createdDate = ref('无选择');
+const modifiedDate = ref('无选择');
 
 const exportImage = () => {
   console.log('导出图片');

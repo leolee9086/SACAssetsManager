@@ -250,6 +250,29 @@ function 添加通用菜单内容(menu, assets) {
         menu.addItem(menuItems.在文件管理器打开附件(assets))
         menu.addItem(menuItems.在新页签打开文件所在路径(assets))
         menu.addItem(menuItems.打开efu文件视图(assets))
+        
+        // 添加图片预览器菜单项
+        if (assets.find(item => isImage(item.path))) {
+            menu.addItem({
+                label: "在预览器中打开",
+                click: () => {
+                    clientApi.openTab({
+                        app:plugin.app,
+                        custom:{
+                            icon: "iconImage",
+                            title: "图片预览器",
+                            id:plugin.name+'ImagePreviewerTab',
+                            data: {
+                                text: '图片预览器',
+                                assets: assets
+                            }
+                        },
+                     
+                    });
+                }
+            });
+        }
+        
         menu.addSeparator();
         menu.addItem(menuItems.复制文件地址(assets))
         menu.addItem(menuItems.复制文件链接(assets))

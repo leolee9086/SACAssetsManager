@@ -13,7 +13,7 @@
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex" style="margin:auto">
                     <button @click="refreshPanel" class="cc-panel-toolbar-button">
-                        <svg class="panel-toolbar-button-icon" :style="iconStyle">
+                        <svg class="panel-toolbar-button-icon">
                             <use xlink:href="#iconRefresh"></use>
                         </svg>
                     </button>
@@ -36,14 +36,11 @@
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div>
-                    <multiple v-model="selectedExtensions" :options="extensions"></multiple>
-                </div>
-                <div>
-                    <multiple v-if='卡片显示模式 === LAYOUT_ROW' v-model="selectedAttributes" placeholder="显示的属性"
-                        :options="Attributes">
-                    </multiple>
-                    <multiple v-if='卡片显示模式 === LAYOUT_COLUMN' v-model="selectedMosanicAttributes" placeholder="显示的属性"
-                        :options="Attributes"></multiple>
+                    <button class="cc-panel-toolbar-button">
+                        <svg class="panel-toolbar-button-icon">
+                            <use xlink:href="#iconFilter"></use>
+                        </svg>
+                    </button>
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
@@ -51,6 +48,18 @@
                 </div>
             </div>
             <div class="fn__space fn__flex-1"></div>
+        </div>
+        <div class=" fn__flex " style="min-height:36px;align-items: center;">
+            <div class="fn__space fn__flex-1 "></div>
+            <multiple v-model="selectedExtensions" :options="extensions"></multiple>
+            <div class="fn__space fn__flex "></div>
+            <multiple v-if='卡片显示模式 === LAYOUT_ROW' v-model="selectedAttributes" placeholder="显示的属性"
+                :options="Attributes">
+            </multiple>
+            <div class="fn__space fn__flex "></div>
+            <multiple v-if='卡片显示模式 === LAYOUT_COLUMN' v-model="selectedMosanicAttributes" placeholder="显示的属性"
+                :options="Attributes"></multiple>
+            <div class="fn__space fn__flex-1 "></div>
         </div>
         <commonBreadCrumb @globChange="(e) => globSetting = e"></commonBreadCrumb>
         <div class=" fn__flex " style="align-items: center;">
@@ -287,6 +296,7 @@ const 创建回调并获取数据 = async () => {
         if (filListProvided.value) {
             数据缓存.value.data.push(...filListProvided.value);
         } else {
+            console.log( $realGlob.value)
             const dataModel = 解析数据模型(appData.value, 数据缓存.value, $realGlob.value, everthingEnabled);
             const fetcher = 根据数据配置获取数据到缓存(dataModel, signal, callBack);
             await fetcher()
@@ -316,6 +326,7 @@ const refreshPanel = () => {
     layoutCount.found = 0
     layoutCount.loaded = 0
     layoutCountTotal.value = 0
+
     nextTick(() => {
         showPanel.value = true
     })
