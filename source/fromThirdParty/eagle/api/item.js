@@ -43,7 +43,7 @@ export const addImageFromURL = (data, options = {}) => {
 };
 
 /**
- * 批量从URL添��图片
+ * 批量从URL添加图片
  * @param {Object} data - 批量添加数据
  * @param {Array<{
  *   url: string,

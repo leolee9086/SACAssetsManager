@@ -200,7 +200,7 @@ import { createGridPattern } from './grid.js';
 import { Vector2 } from '../../../utils/image/textures.js/pattern/geometry-utils.js';
 import { PatternRenderer } from '../../../utils/image/textures.js/pattern/index.js'
 import { PatternDefinition, FundamentalDomain } from '../../../utils/image/textures.js/pattern/index.js';
-import { P1ImagePattern } from '../../../utils/image/textures.js/pattern/p1Image.js'
+import { P1ImagePattern,calculateSeamlessTilingRange } from '../../../utils/image/textures.js/pattern/p1Image.js'
 
 const gridSize = ref(20)
 const lineWidth = ref(1)
@@ -344,7 +344,7 @@ const createShapeMask = (shape, size, forClipping = false) => {
     ctx.fillStyle = '#ffffff';
     ctx.fill();
   } else {
-    // 用于描边的遮罩需要透明填充和描边
+    // 用于描边的遮罩需要透明填充描边
     ctx.fillStyle = 'transparent';
     ctx.fill();
     
@@ -359,42 +359,54 @@ const createShapeMask = (shape, size, forClipping = false) => {
 };
 
 const drawSeamlessUnitBox = () => {
-  if (!renderer.value || !canvas.value) return;
+  if (!canvas.value) return;
   
-  const ctx = canvas.value.getContext('2d');
+  // 创建一个覆盖层画布
+  const overlayCanvas = document.createElement('canvas');
+  overlayCanvas.width = width.value;
+  overlayCanvas.height = height.value;
+  overlayCanvas.style.position = 'absolute';
+  overlayCanvas.style.left = '50%';
+  overlayCanvas.style.top = '50%';
+  overlayCanvas.style.transform = 'translate(-50%, -50%)';
+  overlayCanvas.style.pointerEvents = 'none'; // 确保不影响下层交互
   
-  // 使用已定义的 basis1 和 basis2
+  const ctx = overlayCanvas.getContext('2d');
+  
   const b1 = new Vector2(basis1.value.x, basis1.value.y);
   const b2 = new Vector2(basis2.value.x, basis2.value.y);
   
-  // 计算单元格的四个顶点
-  const points = [
-    { x: -b1.x/2 - b2.x/2, y: -b1.y/2 - b2.y/2 }, // 左上
-    { x: b1.x/2 - b2.x/2, y: b1.y/2 - b2.y/2 },   // 右上
-    { x: b1.x/2 + b2.x/2, y: b1.y/2 + b2.y/2 },   // 右下
-    { x: -b1.x/2 + b2.x/2, y: -b1.y/2 + b2.y/2 }  // 左下
-  ];
+  const tilingRange = calculateSeamlessTilingRange(
+    b1,
+    b2, 
+    width.value,
+    height.value
+  );
 
-  ctx.save();
-  
-  // 移动到画布中心
   ctx.translate(width.value/2, height.value/2);
   
-  // 设置虚线样式
   ctx.setLineDash([5, 5]);
   ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
   ctx.lineWidth = 1;
   
-  // 绘制虚线框
   ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i++) {
-    ctx.lineTo(points[i].x, points[i].y);
-  }
-  ctx.closePath();
+  ctx.rect(
+    -tilingRange.actualWidth/2,
+    -tilingRange.actualHeight/2,
+    tilingRange.actualWidth,
+    tilingRange.actualHeight
+  );
   ctx.stroke();
-  
-  ctx.restore();
+
+  // 移除旧的覆盖层(如果存在)
+  const oldOverlay = canvas.value.parentElement.querySelector('.overlay-canvas');
+  if (oldOverlay) {
+    oldOverlay.remove();
+  }
+
+  // 添加新的覆盖层
+  overlayCanvas.classList.add('overlay-canvas');
+  canvas.value.parentElement.appendChild(overlayCanvas);
 };
 
 const pattern = ref(null);
@@ -501,10 +513,8 @@ const genGridStyle = async (imageUrl = null) => {
     y: height.value / 2,
   });
   
-  // 在pattern渲染完成后绘制虚线框
-  requestAnimationFrame(() => {
     drawSeamlessUnitBox();
-  });
+  
 };
 
 const handleResize = () => {

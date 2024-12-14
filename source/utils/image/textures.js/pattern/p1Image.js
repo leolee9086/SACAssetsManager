@@ -488,7 +488,7 @@ export class P1ImagePattern {
         ctx.rotate((rotation * Math.PI) / 180);
         ctx.scale(scale * fitScale, scale * fitScale);
 
-        // 绘制填充图片，相对于晶格单元中心
+        // 绘制填充图片，相对于���格单元中心
         ctx.drawImage(
             this.fillImage,
             -this.fillImage.width / 2,
@@ -582,4 +582,61 @@ export class P1ImagePattern {
             height: Math.abs(basis1.y * mx) + Math.abs(basis2.y * my)
         };
     }
+}
+export function calculateSeamlessTilingRange(basis1, basis2, targetWidth, targetHeight) {
+    // 1. 首先计算基向量在x和y方向上的投影
+    const projections = {
+        basis1: { x: basis1.x, y: basis1.y },
+        basis2: { x: basis2.x, y: basis2.y }
+    };
+
+    // 2. 计算最大公约数和最小公倍数的辅助函数
+    const gcd = (a, b) => {
+        a = Math.abs(a);
+        b = Math.abs(b);
+        while (b > 0.0001) { // 使用一个小的阈值来处理浮点数误差
+            const temp = b;
+            b = a % b;
+            a = temp;
+        }
+        return a;
+    };
+
+    const lcm = (a, b) => {
+        if (Math.abs(a) < 0.0001 || Math.abs(b) < 0.0001) return Math.max(Math.abs(a), Math.abs(b));
+        return Math.abs(a * b) / gcd(a, b);
+    };
+
+    // 3. 计算x和y方向上的周期
+    const periodsX = lcm(projections.basis1.x, projections.basis2.x);
+    const periodsY = lcm(projections.basis1.y, projections.basis2.y);
+
+    // 4. 计算在目标尺寸内能容纳的完整周期数
+    const maxPeriodsX = Math.max(1, Math.floor(targetWidth / Math.abs(periodsX)));
+    const maxPeriodsY = Math.max(1, Math.floor(targetHeight / Math.abs(periodsY)));
+
+    // 5. 确保周期数是偶数
+    const finalPeriodsX = maxPeriodsX - (maxPeriodsX % 2);
+    const finalPeriodsY = maxPeriodsY - (maxPeriodsY % 2);
+
+    // 6. 计算网格范围
+    const gridRange = {
+        minI: -Math.floor(finalPeriodsX / 2),
+        maxI: Math.floor(finalPeriodsX / 2),
+        minJ: -Math.floor(finalPeriodsY / 2),
+        maxJ: Math.floor(finalPeriodsY / 2)
+    };
+
+    // 7. 计算实际尺寸
+    const actualWidth = Math.abs(periodsX * finalPeriodsX);
+    const actualHeight = Math.abs(periodsY * finalPeriodsY);
+
+    return {
+        gridRange,
+        actualWidth,
+        actualHeight,
+        periodWidth: Math.abs(periodsX),
+        periodHeight: Math.abs(periodsY)
+    };
+
 }
