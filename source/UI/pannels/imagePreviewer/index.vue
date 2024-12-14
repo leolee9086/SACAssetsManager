@@ -64,7 +64,7 @@
 import { ref, inject, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import FileUploadButton from '../../components/common/inputters/fileUploadButton.vue'
 import { drawRulers, loadImageFile, calculateTileSize, $loadImageFile,uploadToSiyuan } from './imagePreviewerUtils.js'
-import { createBrushModeHandlers } from './brushModeUtils.js'
+import { createImageBrushHandlers } from './brushModeUtils.js'
 import { createStyleComputed } from './styleUtils.js'
 import { getStatu, setStatu, watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
 
@@ -102,10 +102,10 @@ const { containerStyle, gridStyle, tileOverlayStyle } = createStyleComputed({
 })
 
 // 获取刷子模式处理器
-const { addBrushListeners, removeBrushListeners } = createBrushModeHandlers({
+const { addBrushListeners, removeBrushListeners } = createImageBrushHandlers({
   isBrushMode,
   currentHoverElement,
-  appData,
+  imagePath: computed(() => appData.imagePath),
   isRepeat,
   tileSize
 })

@@ -2,10 +2,86 @@ const { Plugin } = require("siyuan");
 const clientApi = require("siyuan");
 globalThis[Symbol.for(`clientApi`)] = globalThis[Symbol.for(`clientApi`)] || clientApi
 let eventBus
+
+
+function 同步获取文件夹列表(路径) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `/api/file/readDir`, false); // 使用 POST 方法
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.send(JSON.stringify({ path: 路径 }));
+  
+  if (xhr.status === 200) {
+    const response = JSON.parse(xhr.responseText);
+    if (response.code === 0) {
+      return response.data;
+    }
+  }
+  return [];
+}
+
+function 构建TAB配置() {
+  const TAB_CONFIGS = {};
+  // 使用插件工作空间的完整路径
+  const 基础路径 = `/data/plugins/SACAssetsManager/source/UI/pannels`;
+  
+  try {
+    const 文件列表 = 同步获取文件夹列表(基础路径);
+    
+    文件列表.forEach(文件信息 => {
+      if (文件信息.isDir) {
+        const 文件夹名 = 文件信息.name;
+        const tabName = `${文件夹名}Tab`;
+        
+        TAB_CONFIGS[tabName] = {
+          // 注意这里使用的是前端访问路径
+          component: `/plugins/SACAssetsManager/source/UI/pannels/${文件夹名}/index.vue`,
+          containerId: `${文件夹名}`
+        };
+      }
+    });
+    
+  } catch (错误) {
+    console.error('构建TAB配置时出错:', 错误);
+  }
+  
+  return TAB_CONFIGS;
+}
+
+console.log('测试',构建TAB配置())
+
+
+
 /**
- * 测试全盘信息读取
+ * tab注册
  */
-//import ('/plugins/SACAssetsManager/source/utils/Math.js')
+const TAB_CONFIGS = {
+  AssetsTab: {
+    component: '/plugins/SACAssetsManager/source/UI/components/assetGalleryPanel.vue',
+    containerId: 'assetsColumn'
+  },
+  EditorTab: {
+    component: '/plugins/SACAssetsManager/source/UI/components/editors/image.vue',
+    containerId: 'assetsColumn'
+  },
+  ImagePreviewerTab: {
+    component: '/plugins/SACAssetsManager/source/UI/pannels/gridEditorPanel/index.vue',
+    containerId: 'imagePreviewerPanel'
+  }
+}
+const DOCK_CONFIGS = {
+  AssetsPanel: {
+    icon: "iconInfo",
+    position: "LeftBottom", 
+    component: '/plugins/SACAssetsManager/source/UI/pannels/assetInfoPanel/assestInfoPanel.vue',
+    title: "SACAssetsPanel"
+  },
+  CollectionPanel: {
+    icon: "iconDatabase",
+    position: "RightBottom",
+    component: '/plugins/SACAssetsManager/source/UI/components/collectionPanel.vue', 
+    title: "SACAssetsCollectionPanel"
+  }
+}
 let pluginInstance = {}
 module.exports = class SACAssetsManager extends Plugin {
   onload() {
@@ -122,50 +198,33 @@ module.exports = class SACAssetsManager extends Plugin {
       this.eventBus.emit(eventName, detail)
     }
   }
+  createDock(dockType){
+    const config = DOCK_CONFIGS[dockType];
+    const dock = this.addDock({
+      config: {
+        icon: config.icon,
+        position: config.position,
+        size: { width: 200, height: 0 },
+        title: config.title
+      },
+      data: { text: "" },
+      type: dockType,
+      init() {
+        const container = 插入UI面板容器(this.element);
+        import('/plugins/SACAssetsManager/source/UI/tab.js').then(
+          module => {
+            const app = module.initVueApp(config.component)
+            app.mount(container)
+          }
+        )
+      }
+    });
+    return dock;
+  }
+  
   添加资源信息边栏() {
-    this.addDock({
-      config: {
-        icon: "iconInfo",
-        position: "LeftBottom",
-        size: { width: 200, height: 0 },
-        title: "SACAssetsPanel",
-      },
-      data: {
-        text: "",
-      },
-      type: "config",
-      init() {
-        const UI容器父元素 = this.element
-        this.contollers = []
-        const UI容器 = 插入UI面板容器(UI容器父元素)
-        import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-          module => {
-            module.创建资源信息面板(UI容器)
-          }
-        )
-      },
-    })
-    this.addDock({
-      config: {
-        icon: "iconDatabase",
-        position: "RightBottom",
-        size: { width: 200, height: 0 },
-        title: "SACAssetsCollectionPanel",
-      },
-      data: {
-        text: "",
-      },
-      type: "Collection",
-      init() {
-        const UI容器父元素 = this.element
-        const UI容器 = 插入UI面板容器(UI容器父元素)
-        import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-          module => {
-            module.创建收藏夹面板(UI容器)
-          }
-        )
-      },
-    })
+    this.assetsPanelDock = this.createDock('AssetsPanel');
+    this.collectionPanelDock = this.createDock('CollectionPanel');
   }
   async 创建web服务() {
     const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
@@ -180,83 +239,28 @@ module.exports = class SACAssetsManager extends Plugin {
     import(`/plugins/${this.name}/source/UI/siyuanCommon/index.js`)
 
   }
-  创建资源Tab类型() {
-    eventBus.on(
-      'assets-tab-open', (e) => {
-        let tab = e.detail;
-        import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-          module => {
-            module.创建图库界面(tab)
-          }
-        )
-      }
-    )
-    // 添加editor-tab相关代码
-    eventBus.on('editor-tab-open', (e) => {
-      let tab = e.detail;
-      import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-        module => {
-          module.创建编辑器界面(tab)
+  创建资源Tab类型() {    
+    // 统一的tab创建函数
+    const createTab = (tabType) => {
+      const config = TAB_CONFIGS[tabType];
+      return this.addTab({
+        type: tabType,
+        init() {
+          this.element.innerHTML = `<div class="plugin-sample__${tabType.toLowerCase()}">${this.data.text}</div>`;
+          import('/plugins/SACAssetsManager/source/UI/tab.js').then(module => {
+            module.创建Vue组件界面(this, config.component, config.containerId);
+          });
+        },
+        beforeDestroy() {
+          this.element.innerHTML = "";
+          this.controllers?.forEach(controller => controller.abort());
         }
-      )
-    })
-
-    let plugin = this
-    this.AsseatsTabDefine = this.addTab({
-      type: 'AssetsTab',
-      init() {
-        this.element.innerHTML = `<div class="plugin-sample__custom-tab">${this.data.text}</div>`;
-        plugin.eventBus.emit(
-          'assets-tab-open', this
-        )
-      },
-      beforeDestroy() {
-        this.element.innerHTML = ""
-        this.controllers && this.controllers.forEach(controller => {
-          controller.abort()
-        })
-      }
-
-    })
-    // 添加EditorTab定义
-    this.EditorTabDefine = this.addTab({
-      type: 'EditorTab',
-      init() {
-        this.element.innerHTML = `<div class="plugin-sample__editor-tab">${this.data.text}</div>`;
-        触发编辑页签打开(this)
-      },
-      beforeDestroy() {
-        this.element.innerHTML = ""
-        this.controllers && this.controllers.forEach(controller => {
-          controller.abort()
-        })
-      }
-    })
-
-    // 添加图片预览器Tab定义
-    this.ImagePreviewerTabDefine = this.addTab({
-      type: 'ImagePreviewerTab',
-      init() {
-        this.element.innerHTML = `<div class="plugin-sample__image-previewer">${this.data.text}</div>`;
-        plugin.eventBus.emit('image-previewer-tab-open', this)
-      },
-      beforeDestroy() {
-        this.element.innerHTML = ""
-        this.controllers && this.controllers.forEach(controller => {
-          controller.abort()
-        })
-      }
-    })
-
-    // 添加图片预览器事件监听
-    eventBus.on('image-previewer-tab-open', (e) => {
-      let tab = e.detail;
-      import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-        module => {
-          module.创建图片预览器(tab)
-        }
-      )
-    })
+      });
+    }
+    // 为每种类型创建tab
+    Object.keys(TAB_CONFIGS).forEach(tabType => {
+      this[`${tabType}Define`] = createTab(tabType);
+    });
   }
 }
 function 插入UI面板容器(UI容器父元素) {
@@ -265,22 +269,8 @@ function 插入UI面板容器(UI容器父元素) {
 }
 
 
-
-/***
- * 集中处理插件事件
- */
-const 触发编辑页签打开 = (detail) => {
-  let plugin = globalThis[Symbol.for("SACAssetsManager")]
-  plugin.instance.eventBus.emit(
-    'editor-tab-open', detail
-  )
-}
-
-
-
-
-
 /***
  * 引入这个模块只是为了测试
  */
 import('/plugins/SACAssetsManager/source/utils/test.js')
+

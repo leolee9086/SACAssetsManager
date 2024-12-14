@@ -1,11 +1,11 @@
-import { 
+import {
     Vector2,
     Transform2D,
     polygonsOverlap,
-    calculateBounds ,
-    boundingBoxesOverlap 
+    calculateBounds,
+    boundingBoxesOverlap
 } from './geometry-utils.js';
-export {Transform2D,Vector2}
+export { Transform2D, Vector2 }
 // core/pattern/lattice.js
 export class Lattice {
     constructor(basis1, basis2) {
@@ -114,6 +114,17 @@ export class WallpaperGroup {
         const basis1Length = this.lattice.basis1.length();
         const basis2Length = this.lattice.basis2.length();
         switch (this.type) {
+            case 'p1':
+                return (cellX = 0, cellY = 0) => ({
+                    glideVector: [
+                        this.lattice.basis1,
+                        this.lattice.basis2
+                    ],
+                    // p1群没有其他对称元素
+                    mirrorLines: [],
+                    rotationCenters: [],
+                });
+
             case 'pmg':
                 return (cellX = 0, cellY = 0) => {
                     const cellOrigin = this.lattice.getLatticePoint(cellX, cellY);
@@ -126,7 +137,7 @@ export class WallpaperGroup {
                             },
                             {
                                 point: new Vector2(
-                                    cellOrigin.x + basis1Length/2, 
+                                    cellOrigin.x + basis1Length / 2,
                                     cellOrigin.y
                                 ),
                                 direction: new Vector2(0, 1)
@@ -135,24 +146,24 @@ export class WallpaperGroup {
                         // 2重旋转中心（在镜像线之间的中点）
                         rotationCenters: [
                             new Vector2(
-                                cellOrigin.x + basis1Length/4,
-                                cellOrigin.y + basis2Length/4
+                                cellOrigin.x + basis1Length / 4,
+                                cellOrigin.y + basis2Length / 4
                             ),
                             new Vector2(
-                                cellOrigin.x + basis1Length/4,
-                                cellOrigin.y + 3*basis2Length/4
+                                cellOrigin.x + basis1Length / 4,
+                                cellOrigin.y + 3 * basis2Length / 4
                             ),
                             new Vector2(
-                                cellOrigin.x + 3*basis1Length/4,
-                                cellOrigin.y + basis2Length/4
+                                cellOrigin.x + 3 * basis1Length / 4,
+                                cellOrigin.y + basis2Length / 4
                             ),
                             new Vector2(
-                                cellOrigin.x + 3*basis1Length/4,
-                                cellOrigin.y + 3*basis2Length/4
+                                cellOrigin.x + 3 * basis1Length / 4,
+                                cellOrigin.y + 3 * basis2Length / 4
                             )
                         ],
                         // 滑移反射（垂直方向偏移半个单元格）
-                        glideVector: new Vector2(0, basis2Length/2)
+                        glideVector: new Vector2(0, basis2Length / 2)
                     };
 
                 };
@@ -227,8 +238,8 @@ export class WallpaperGroup {
 
         // 2. 验证是否为PMG群的有效变换
         const trace = transform.matrix[0][0] + transform.matrix[1][1];
-        const hasTranslation = Math.abs(transform.matrix[0][2]) > epsilon || 
-                              Math.abs(transform.matrix[1][2]) > epsilon;
+        const hasTranslation = Math.abs(transform.matrix[0][2]) > epsilon ||
+            Math.abs(transform.matrix[1][2]) > epsilon;
 
         return (
             // 恒等变换
@@ -249,7 +260,26 @@ export class WallpaperGroup {
 
         switch (this.type) {
             case 'p1':
-                symmetries.add(new Transform2D()); // 仅包含单位变换
+                // 1. 单位变换
+                symmetries.add(new Transform2D());
+
+                // 2. 水平方向平移
+                symmetries.add(Transform2D.translation(
+                    this.lattice.basis1.x,
+                    this.lattice.basis1.y
+                ));
+
+                // 3. 垂直方向平移 
+                symmetries.add(Transform2D.translation(
+                    this.lattice.basis2.x,
+                    this.lattice.basis2.y
+                ));
+
+                // 4. 对角线方向平移(基向量之和)
+                symmetries.add(Transform2D.translation(
+                    this.lattice.basis1.x + this.lattice.basis2.x,
+                    this.lattice.basis1.y + this.lattice.basis2.y
+                ));
                 break;
             case 'pmm':
                 // 添加水平和垂直反射
@@ -285,19 +315,19 @@ export class WallpaperGroup {
                     [0, 0, 1]
                 ]);
                 symmetries.add(identityTransform);
-                addedTransforms.push({name: "恒等变换", transform: identityTransform});
+                addedTransforms.push({ name: "恒等变换", transform: identityTransform });
 
                 // 2. 垂直镜像 m (x = w/2)
                 const mirrorTransform = new Transform2D([
-                    [-1, 0, unitCell.width/2],
+                    [-1, 0, unitCell.width / 2],
                     [0, 1, 0],
                     [0, 0, 1]
                 ]);
                 symmetries.add(mirrorTransform);
-                addedTransforms.push({name: "垂直镜像", transform: mirrorTransform});
+                addedTransforms.push({ name: "垂直镜像", transform: mirrorTransform });
 
                 // 3-4. 两个2重旋转中心 (左侧)
-                const rotationPositions = [1/4, 3/4];
+                const rotationPositions = [1 / 4, 3 / 4];
                 rotationPositions.forEach((pos, index) => {
                     const rotationTransform = new Transform2D([
                         [-1, 0, 0],
@@ -305,18 +335,18 @@ export class WallpaperGroup {
                         [0, 0, 1]
                     ]);
                     symmetries.add(rotationTransform);
-                    addedTransforms.push({name: `左侧旋转${index+1}`, transform: rotationTransform});
+                    addedTransforms.push({ name: `左侧旋转${index + 1}`, transform: rotationTransform });
                 });
 
                 // 5. 滑移反射 g
                 const glideTransform = new Transform2D([
-                    [-1, 0, unitCell.width/2],
-                    [0, 1, unitCell.height/2],
+                    [-1, 0, unitCell.width / 2],
+                    [0, 1, unitCell.height / 2],
                     [0, 0, 1]
                 ]);
-                
+
                 symmetries.add(glideTransform);
-                addedTransforms.push({name: "滑移反射", transform: glideTransform});
+                addedTransforms.push({ name: "滑移反射", transform: glideTransform });
 
                 // 6-7. 两个2重旋转中心 (右侧)
                 rotationPositions.forEach((pos, index) => {
@@ -326,17 +356,17 @@ export class WallpaperGroup {
                         [0, 0, 1]
                     ]);
                     symmetries.add(rotationTransform);
-                    addedTransforms.push({name: `右侧旋转${index+1}`, transform: rotationTransform});
+                    addedTransforms.push({ name: `右侧旋转${index + 1}`, transform: rotationTransform });
                 });
 
                 // 8. 第二个垂直镜像 (x = 3w/2)
                 const secondMirrorTransform = new Transform2D([
-                    [-1, 0, 3 * unitCell.width/2],
+                    [-1, 0, 3 * unitCell.width / 2],
                     [0, 1, 0],
                     [0, 0, 1]
                 ]);
                 symmetries.add(secondMirrorTransform);
-                addedTransforms.push({name: "第二垂直镜像", transform: secondMirrorTransform});
+                addedTransforms.push({ name: "第二垂直镜像", transform: secondMirrorTransform });
 
                 // 验证对称操作数量和正确性
                 if (symmetries.size !== 8) {
@@ -348,7 +378,7 @@ export class WallpaperGroup {
                     throw new Error(`PMG群对称操作数量错误: 期望 8 个, 实际 ${symmetries.size} 个`);
                 }
                 // 验证每个变换的有效性
-                addedTransforms.forEach(({name, transform}) => {
+                addedTransforms.forEach(({ name, transform }) => {
                     if (!this.validatePMGSymmetry(transform)) {
                         throw new Error(`无效的PMG群变换: ${name}`);
                     }
@@ -406,7 +436,7 @@ export class WallpaperGroup {
 
             if (!matrixEqual) return false;
 
-            // 额外检查变换效果
+            // 额外检查��换效果
             const testPoints = [
                 new Vector2(0, 0),
                 new Vector2(1, 0),
@@ -497,7 +527,7 @@ export class PatternDefinition {
                         properties: { ...polygon.properties }
                     });
                 }
-        
+
             }
         }
 
@@ -552,7 +582,7 @@ export class PatternDefinition {
         for (let m = mMin; m <= mMax; m++) {
             for (let n = nMin; n <= nMax; n++) {
                 const point = this.lattice.getLatticePoint(m, n);
-                
+
                 // 使用Set避免重点
                 const isUnique = Array.from(points).every(p =>
                     point.distanceTo(p) > epsilon
@@ -568,7 +598,7 @@ export class PatternDefinition {
     }
 
     isValidTransformedPolygon(vertices, existingPolygons, epsilon) {
-        // 检查多边形是否有效
+        // 检查多边��是否有效
         if (!vertices || vertices.length < 3) return false;
 
         // 检查顶点是否重合
@@ -602,7 +632,7 @@ export class PatternDefinition {
         if (!this.lattice || !this.fundamentalDomain) {
             throw new Error('在设置墙纸群之前必须先设置晶格和基本区域');
         }
-        
+        console.log(this.lattice)
         // 创建新的墙纸群对象
         this.wallpaperGroup = new WallpaperGroup(type, this.fundamentalDomain, this.lattice);
 
@@ -612,22 +642,22 @@ export class PatternDefinition {
                 width: this.lattice.basis1.length(),
                 height: this.lattice.basis2.length()
             };
-            
+
             // PMG 群的对称元素
             this.symmetryInfo = {
                 // 垂直镜像线
                 mirrorLine: {
-                    point: new Vector2(unitCell.width/2, 0),
+                    point: new Vector2(unitCell.width / 2, 0),
                     direction: new Vector2(0, 1)
                 },
                 // 滑移向量
-                glideVector: new Vector2(0, unitCell.height/2),
+                glideVector: new Vector2(0, unitCell.height / 2),
                 // 旋转中心
                 rotationCenters: [
-                    new Vector2(0, unitCell.height/4),
-                    new Vector2(0, 3*unitCell.height/4),
-                    new Vector2(unitCell.width, unitCell.height/4),
-                    new Vector2(unitCell.width, 3*unitCell.height/4)
+                    new Vector2(0, unitCell.height / 4),
+                    new Vector2(0, 3 * unitCell.height / 4),
+                    new Vector2(unitCell.width, unitCell.height / 4),
+                    new Vector2(unitCell.width, 3 * unitCell.height / 4)
                 ]
             };
         }
@@ -859,7 +889,7 @@ export class PatternDefinition {
 
         if (!polygon1 || !polygon2) {
             console.log('可用的多边形:', Array.from(pattern.regions).map(r => r.properties?.id));
-            throw new Error(`无法到���定的多边形: ${!polygon1 ? polyId1 : ''} ${!polygon2 ? polyId2 : ''}`);
+            throw new Error(`无法找到指定的多边形: ${!polygon1 ? polyId1 : ''} ${!polygon2 ? polyId2 : ''}`);
         }
 
         // 检查边的顶点是否匹配
@@ -999,16 +1029,16 @@ export class PatternDefinition {
     mirrorPoint(point, line) {
         const dir = line.direction.normalize();
         const v = point.subtract(line.point);
-        
+
         // 计算点到直线的投影
         const proj = dir.scale(v.dot(dir));
-        
+
         // 计算垂直分量并翻转
         const perp = v.subtract(proj);
-        
+
         // 镜像点 = 原点 - 2 * 垂直分量
         return point.subtract(perp.scale(2));
-        }
+    }
 
     // 添加边界条件验证方法
     validateBoundaryConditions() {
@@ -1161,7 +1191,7 @@ export class Pattern {
         return null;
     }
 
-    // 添加获取所有区���的方法
+    // 添加获取所有区的方法
     getAllRegions() {
         return Array.from(this.regions);
     }
@@ -1227,16 +1257,23 @@ export class Pattern {
 
 // 添加 PatternRenderer 类
 export class PatternRenderer {
-    constructor(width = 800, height = 600) {
+    constructor(width = 800, height = 600, canvas) {
         this.width = width;
         this.height = height;
-        this.canvas = document.createElement('canvas');
+        this.canvas = canvas || document.createElement('canvas');
         this.canvas.width = width;
         this.canvas.height = height;
         this.ctx = this.canvas.getContext('2d');
         this.scale = 1;
     }
-
+    clear() {
+        // 获取 2D 上下文
+        const ctx = this.canvas.getContext('2d');
+        // 清除整个画布区域
+        ctx.clearRect(0, 0, this.width, this.height);
+        // 重置变换矩阵
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
     async renderToBlobURL(pattern, options) {
         this.renderPattern(pattern, options);
         return new Promise(resolve => {
@@ -1247,62 +1284,83 @@ export class PatternRenderer {
     }
 
     renderPattern(pattern, options) {
-        const {
-            backgroundColor = '#ffffff',
-            strokeColor = '#000000',
-            defaultFillColor = '#808080',
-            lineWidth = 1,
-            showLabels = true,
-            fontSize = 12,
-            showGrid = true,
-            gridColor = '#cccccc',
-            showSymmetryMarkers = true,
-            scale = this.scale,
-            viewport = null
-        } = options;
+            const {
+        backgroundColor = '#ffffff',
+        strokeColor = '#000000',
+        defaultFillColor = '#808080', 
+        lineWidth = 1,
+        showLabels = true,
+        fontSize = 12,
+        showGrid = true,
+        gridColor = '#cccccc',
+        showSymmetryMarkers = true,
+        showCenterPoint = true, // 添加显示中心点选项
+        centerPointColor = '#ff0000', // 中心点颜色
+        centerPointSize = 5, // 中心点大小
+        scale = this.scale,
+        viewport = null
+    } = options;
+
 
         const ctx = this.ctx;
-        
+
         // 清除并设置背景
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, this.width, this.height);
 
-        // 重新设计变换序列
+        // 修改边界计算方式,确保包含完整的晶格单元
+        const patternBounds = pattern.wallpaperGroup.calculatePatternBounds();
+        const basis1Len = pattern.lattice.basis1.length();
+        const basis2Len = pattern.lattice.basis2.length();
+        
+        // 扩展边界到完整的晶格单元
+        const expandedBounds = {
+            min: new Vector2(
+                Math.floor(patternBounds.min.x / basis1Len) * basis1Len,
+                Math.floor(patternBounds.min.y / basis2Len) * basis2Len
+            ),
+            max: new Vector2(
+                Math.ceil(patternBounds.max.x / basis1Len) * basis1Len,
+                Math.ceil(patternBounds.max.y / basis2Len) * basis2Len
+            )
+        };
+
+        // 使用扩展后的边界计算尺寸
+        const patternWidth = expandedBounds.max.x - expandedBounds.min.x;
+        const patternHeight = expandedBounds.max.y - expandedBounds.min.y;
+
+        // 使用传入的scale计算实际尺寸
+        const scaledWidth = patternWidth * scale;
+        const scaledHeight = patternHeight * scale;
+        
+        // 计算居中偏移量
+        const offsetX = (this.width - scaledWidth) / 2;
+        const offsetY = (this.height - scaledHeight) / 2;
+        
         ctx.save();
         
-        // 1. 设置画布原点到中心
-        const centerX = this.width / 2;
-        const centerY = this.height / 2;
-        ctx.translate(centerX, centerY);
-        
-        // 2. 应用Y轴翻转和缩放
+        // 应用变换
+        ctx.translate(offsetX, offsetY);
         ctx.scale(scale, -scale);
-        
-        // 3. 应用视口变换
-        if (viewport) {
-            // 计算视口中心点
-            const viewportCenterX = viewport.x + viewport.width / 2;
-            const viewportCenterY = viewport.y + viewport.height / 2;
-            // 移动到视口中心
-            ctx.translate(-viewportCenterX, -viewportCenterY);
-        }
+        // 修改变换原点,使用扩展后的边界
+        ctx.translate(-expandedBounds.min.x, -expandedBounds.max.y);
 
         // 绘制网格
         if (showGrid) {
             this.drawGrid(
                 pattern.lattice,
                 gridColor,
-                viewport,
+                patternBounds,
                 lineWidth,
                 options.gridOptions
             );
         }
 
-        // 绘制图案
+        // 绘制图案区域
         const regions = Array.from(pattern.regions);
         for (const region of regions) {
             const vertices = region.vertices;
-            
+
             ctx.beginPath();
             ctx.moveTo(vertices[0].x, vertices[0].y);
             for (let i = 1; i < vertices.length; i++) {
@@ -1313,19 +1371,19 @@ export class PatternRenderer {
             // 填充
             ctx.fillStyle = region.properties?.fillColor || defaultFillColor;
             ctx.fill();
-            
+
             // 描边
             ctx.strokeStyle = strokeColor;
             ctx.lineWidth = lineWidth / scale;
             ctx.stroke();
 
-            // 标签
+            // 绘制标签
             if (showLabels && region.properties?.label) {
                 const center = this.calculatePolygonCenter(vertices);
                 ctx.save();
-                ctx.scale(1, -1); // 翻转文字
+                ctx.scale(1, -1); // 翻转文字方向
                 ctx.fillStyle = '#000000';
-                ctx.font = `${fontSize/scale}px Arial`;
+                ctx.font = `${fontSize / scale}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(region.properties.label, center.x, -center.y);
@@ -1334,22 +1392,48 @@ export class PatternRenderer {
         }
 
         // 绘制对称标记
-      //  if (showSymmetryMarkers && pattern.wallpaperGroup) {
+        if (showSymmetryMarkers && pattern.wallpaperGroup) {
             this.drawSymmetryMarkers(pattern, {
-                viewport,
+                viewport: patternBounds,
                 scale,
                 lineWidth: lineWidth,
                 ...options.symmetryOptions
             });
-       // }
-
+        }
+        // 修改中心点计算,使用扩展后的边界
+        if (showCenterPoint) {
+            // 计算图案中心点,使用扩展后的边界
+            const centerX = (expandedBounds.max.x + expandedBounds.min.x) / 2;
+            const centerY = (expandedBounds.max.y + expandedBounds.min.y) / 2;
+            
+            // 绘制十字线
+            ctx.beginPath();
+            ctx.strokeStyle = centerPointColor;
+            ctx.lineWidth = lineWidth / scale;
+            
+            // 水平线
+            ctx.moveTo(centerX - centerPointSize / scale, centerY);
+            ctx.lineTo(centerX + centerPointSize / scale, centerY);
+            
+            // 垂直线
+            ctx.moveTo(centerX, centerY - centerPointSize / scale);
+            ctx.lineTo(centerX, centerY + centerPointSize / scale);
+            
+            ctx.stroke();
+            
+            // 绘制圆点
+            ctx.beginPath();
+            ctx.fillStyle = centerPointColor;
+            ctx.arc(centerX, centerY, (centerPointSize * 0.3) / scale, 0, Math.PI * 2);
+            ctx.fill();
+        }
         ctx.restore();
     }
 
     drawGrid(lattice, color, viewport, lineWidth, options = {}) {
         const ctx = this.ctx;
         ctx.save();
-        
+
         // 修改: 使用更新的网格选项
         const {
             showHorizontalLines = true,
@@ -1359,7 +1443,7 @@ export class PatternRenderer {
             opacity = 0.3,
             lineWidth: gridLineWidth = lineWidth * 0.5
         } = options;
-        
+
         // 设置网格线样式
         ctx.strokeStyle = color;
         ctx.lineWidth = gridLineWidth;
@@ -1369,18 +1453,18 @@ export class PatternRenderer {
             ctx.setLineDash([]); // 实线
         }
         ctx.globalAlpha = opacity;
-        
+
         // 计算网格范围
         const basis1 = lattice.basis1;
         const basis2 = lattice.basis2;
-        
+
         // 扩展网格范围以确保覆盖视口
         const margin = 1;
         const minX = Math.floor(viewport.min.x / basis1.length()) * basis1.length();
         const maxX = Math.ceil(viewport.max.x / basis1.length()) * basis1.length();
         const minY = Math.floor(viewport.min.y / basis2.length()) * basis2.length();
         const maxY = Math.ceil(viewport.max.y / basis2.length()) * basis2.length();
-        
+
         // 绘制垂直线
         if (showVerticalLines) {
             for (let x = minX; x <= maxX; x += basis1.length()) {
@@ -1390,7 +1474,7 @@ export class PatternRenderer {
                 ctx.stroke();
             }
         }
-        
+
         // 绘制水平线
         if (showHorizontalLines) {
             for (let y = minY; y <= maxY; y += basis2.length()) {
@@ -1400,7 +1484,7 @@ export class PatternRenderer {
                 ctx.stroke();
             }
         }
-        
+
         ctx.restore();
     }
 
@@ -1416,137 +1500,137 @@ export class PatternRenderer {
         );
     }
 
-        drawSymmetryMarkers(pattern, options = {}) {
-            const ctx = this.ctx;
-            ctx.save();
-            
-            const {
-                mirrorLineColor = 'rgba(255, 0, 0, 0.8)',
-                glideLineColor = 'rgba(0, 255, 0, 0.8)',
-                rotationCenterColor = 'rgba(0, 0, 255, 0.8)',
-                markerSize = Math.min(pattern.lattice.basis1.length(), pattern.lattice.basis2.length()) * 0.1,
-                lineWidth = 1,
-                showLabels = true,
-                fontSize = 12,
-                viewport
-            } = options;
-    
-            // 获取对称信息生成函数
-            const getSymmetryInfo = pattern.wallpaperGroup.getSymmetryInfo();
-            
-            // 计算需要绘制的晶格范围
-            const basis1Len = pattern.lattice.basis1.length();
-            const basis2Len = pattern.lattice.basis2.length();
-            
-            const minCellX = Math.floor(viewport.min.x / basis1Len);
-            const maxCellX = Math.ceil(viewport.max.x / basis1Len);
-            const minCellY = Math.floor(viewport.min.y / basis2Len);
-            const maxCellY = Math.ceil(viewport.max.y / basis2Len);
-    
-            // 遍历每个晶格单元
-            for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
-                for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
-                    // 获取当前晶格单元的对称信息
-                    
-                    const symmetryInfo = getSymmetryInfo(cellX, cellY);
-                    
-                    ctx.lineWidth = lineWidth;
-                    console.log(symmetryInfo)
-                    // 1. 绘制镜像线
-                    if (symmetryInfo.mirrorLines) {
-                        ctx.strokeStyle = mirrorLineColor;
-                        ctx.setLineDash([5, 5]);
-                        symmetryInfo.mirrorLines.forEach(
-                            mirrorLine=>{
-                                const start = mirrorLine.point;
-                                const direction = mirrorLine.direction;
-                                const length = basis2Len;
-                                
-                                const end = new Vector2(
-                                    start.x + direction.x * length,
-                                    start.y + direction.y * length
-                                );
-                                
-                                ctx.beginPath();
-                                ctx.moveTo(start.x, start.y);
-                                ctx.lineTo(end.x, end.y);
-                                ctx.stroke();
-                                
-                                if (showLabels) {
-                                    ctx.font = `${fontSize}px Arial`;
-                                    ctx.fillStyle = mirrorLineColor;
-                                    ctx.fillText('m', start.x - 15, start.y + 15);
-                                }
-        
-                            }
-                        )
-                    }
-                    
-                    // 2. 绘制滑移线
-                    if (symmetryInfo.glideVector) {
-                        ctx.strokeStyle = glideLineColor;
-                        ctx.setLineDash([10, 5]);
-                        const cellOrigin = pattern.lattice.getLatticePoint(cellX, cellY);
-                        const start = cellOrigin;
-                        const end = new Vector2(
-                            cellOrigin.x + symmetryInfo.glideVector.x,
-                            cellOrigin.y + symmetryInfo.glideVector.y
-                        );
-                        ctx.beginPath()
-                        ctx.moveTo(start.x, start.y);
-                        ctx.lineTo(end.x, end.y);
-                        ctx.stroke();
-                        this.drawArrow(start, end, markerSize);
-                        if (showLabels) {
-                            ctx.font = `${fontSize}px Arial`;
-                            ctx.fillStyle = glideLineColor;
-                            ctx.fillText('g', (start.x + end.x)/2 - 15, (start.y + end.y)/2 - 5);
-                        }
-                    }
-                    
-                    // 3. 绘制旋转中心
-                    if (symmetryInfo.rotationCenters) {
-                        ctx.fillStyle = rotationCenterColor;
-                        ctx.strokeStyle = rotationCenterColor;
-                        ctx.setLineDash([]);
-                        
-                        for (const center of symmetryInfo.rotationCenters) {
-                            ctx.beginPath();
-                            ctx.arc(center.x, center.y, markerSize * 0.3, 0, Math.PI * 2);
-                            ctx.fill();
-                            
-                            ctx.beginPath();
-                            ctx.arc(center.x, center.y, markerSize, 0, Math.PI, true);
-                            ctx.stroke();
-                            
-                            this.drawRotationArrow(
-                                new Vector2(
-                                    center.x + markerSize * Math.cos(Math.PI),
-                                    center.y + markerSize * Math.sin(Math.PI)
-                                ),
-                                Math.PI,
-                                markerSize * 0.3
+    drawSymmetryMarkers(pattern, options = {}) {
+        const ctx = this.ctx;
+        ctx.save();
+
+        const {
+            mirrorLineColor = 'rgba(255, 0, 0, 0.8)',
+            glideLineColor = 'rgba(0, 255, 0, 0.8)',
+            rotationCenterColor = 'rgba(0, 0, 255, 0.8)',
+            markerSize = Math.min(pattern.lattice.basis1.length(), pattern.lattice.basis2.length()) * 0.1,
+            lineWidth = 1,
+            showLabels = true,
+            fontSize = 12,
+            viewport
+        } = options;
+
+        // 获取对称信息生成函数
+        const getSymmetryInfo = pattern.wallpaperGroup.getSymmetryInfo();
+
+        // 计算需要绘制的晶格范围
+        const basis1Len = pattern.lattice.basis1.length();
+        const basis2Len = pattern.lattice.basis2.length();
+
+        const minCellX = Math.floor(viewport.min.x / basis1Len);
+        const maxCellX = Math.ceil(viewport.max.x / basis1Len);
+        const minCellY = Math.floor(viewport.min.y / basis2Len);
+        const maxCellY = Math.ceil(viewport.max.y / basis2Len);
+
+        // 遍历每个晶格单元
+        for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+            for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+                // 获取当前晶格单元的对称信息
+
+                const symmetryInfo = getSymmetryInfo(cellX, cellY);
+
+                ctx.lineWidth = lineWidth;
+                console.log(symmetryInfo)
+                // 1. 绘制镜像线
+                if (symmetryInfo.mirrorLines) {
+                    ctx.strokeStyle = mirrorLineColor;
+                    ctx.setLineDash([5, 5]);
+                    symmetryInfo.mirrorLines.forEach(
+                        mirrorLine => {
+                            const start = mirrorLine.point;
+                            const direction = mirrorLine.direction;
+                            const length = basis2Len;
+
+                            const end = new Vector2(
+                                start.x + direction.x * length,
+                                start.y + direction.y * length
                             );
-                            
+
+                            ctx.beginPath();
+                            ctx.moveTo(start.x, start.y);
+                            ctx.lineTo(end.x, end.y);
+                            ctx.stroke();
+
                             if (showLabels) {
                                 ctx.font = `${fontSize}px Arial`;
-                                ctx.fillStyle = rotationCenterColor;
-                                ctx.fillText('2', center.x - 5, center.y + markerSize + 15);
+                                ctx.fillStyle = mirrorLineColor;
+                                ctx.fillText('m', start.x - 15, start.y + 15);
                             }
+
+                        }
+                    )
+                }
+
+                // 2. 绘制滑移线
+                if (symmetryInfo.glideVector) {
+                    ctx.strokeStyle = glideLineColor;
+                    ctx.setLineDash([10, 5]);
+                    const cellOrigin = pattern.lattice.getLatticePoint(cellX, cellY);
+                    const start = cellOrigin;
+                    const end = new Vector2(
+                        cellOrigin.x + symmetryInfo.glideVector.x,
+                        cellOrigin.y + symmetryInfo.glideVector.y
+                    );
+                    ctx.beginPath()
+                    ctx.moveTo(start.x, start.y);
+                    ctx.lineTo(end.x, end.y);
+                    ctx.stroke();
+                    this.drawArrow(start, end, markerSize);
+                    if (showLabels) {
+                        ctx.font = `${fontSize}px Arial`;
+                        ctx.fillStyle = glideLineColor;
+                        ctx.fillText('g', (start.x + end.x) / 2 - 15, (start.y + end.y) / 2 - 5);
+                    }
+                }
+
+                // 3. 绘制旋转中心
+                if (symmetryInfo.rotationCenters) {
+                    ctx.fillStyle = rotationCenterColor;
+                    ctx.strokeStyle = rotationCenterColor;
+                    ctx.setLineDash([]);
+
+                    for (const center of symmetryInfo.rotationCenters) {
+                        ctx.beginPath();
+                        ctx.arc(center.x, center.y, markerSize * 0.3, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.beginPath();
+                        ctx.arc(center.x, center.y, markerSize, 0, Math.PI, true);
+                        ctx.stroke();
+
+                        this.drawRotationArrow(
+                            new Vector2(
+                                center.x + markerSize * Math.cos(Math.PI),
+                                center.y + markerSize * Math.sin(Math.PI)
+                            ),
+                            Math.PI,
+                            markerSize * 0.3
+                        );
+
+                        if (showLabels) {
+                            ctx.font = `${fontSize}px Arial`;
+                            ctx.fillStyle = rotationCenterColor;
+                            ctx.fillText('2', center.x - 5, center.y + markerSize + 15);
                         }
                     }
                 }
             }
-            
-            ctx.restore();
         }
+
+        ctx.restore();
+    }
 
     // 辅助方法：绘制箭头
     drawArrow(start, end, size) {
         const ctx = this.ctx;
         const angle = Math.atan2(end.y - start.y, end.x - start.x);
         const arrowAngle = Math.PI / 6; // 30度
-        
+
         // 绘制箭头头部
         ctx.beginPath();
         ctx.moveTo(end.x, end.y);
@@ -1566,7 +1650,7 @@ export class PatternRenderer {
     drawRotationArrow(tip, angle, size) {
         const ctx = this.ctx;
         const arrowAngle = Math.PI / 6;
-        
+
         ctx.beginPath();
         ctx.moveTo(tip.x, tip.y);
         ctx.lineTo(
@@ -1587,14 +1671,14 @@ export const PatternUtils = {
     calculateMotifBounds(vertices) {
         let minX = Infinity, minY = Infinity;
         let maxX = -Infinity, maxY = -Infinity;
-        
+
         for (const vertex of vertices) {
             minX = Math.min(minX, vertex.x);
             minY = Math.min(minY, vertex.y);
             maxX = Math.max(maxX, vertex.x);
             maxY = Math.max(maxY, vertex.y);
         }
-        
+
         return {
             minX, minY, maxX, maxY,
             width: maxX - minX,
@@ -1605,11 +1689,11 @@ export const PatternUtils = {
     calculateViewportScale(bounds, width, height) {
         const viewportWidth = bounds.max.x - bounds.min.x;
         const viewportHeight = bounds.max.y - bounds.min.y;
-        
+
         const padding = 0.1;
         const effectiveWidth = viewportWidth * (1 + padding);
         const effectiveHeight = viewportHeight * (1 + padding);
-        
+
         return Math.min(
             width / effectiveWidth,
             height / effectiveHeight

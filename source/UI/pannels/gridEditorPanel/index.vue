@@ -1,0 +1,769 @@
+<template>
+  <div class="grid-editor-wrapper">
+    <div class="preview-container">
+      <div class="grid-preview">
+        <canvas v-if="!isBrushMode" ref="canvas" :style="{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)'
+        }"></canvas>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="control-section">
+        <h4>网格设置</h4>
+        <div class="control-group">
+          <span>基向量1:</span>
+          <div class="vector-inputs">
+            <input type="number" v-model.number="basis1.x" @input="updateBasis" placeholder="X">
+            <input type="number" v-model.number="basis1.y" @input="updateBasis" placeholder="Y">
+          </div>
+        </div>
+        <div class="control-group">
+          <span>基向量2:</span>
+          <div class="vector-inputs">
+            <input type="number" v-model.number="basis2.x" @input="updateBasis" placeholder="X">
+            <input type="number" v-model.number="basis2.y" @input="updateBasis" placeholder="Y">
+          </div>
+        </div>
+        <div class="control-group">
+          <span>网格线宽:</span>
+          <input type="range" :value="lineWidth" @input="updateLineWidth" min="1" max="5" step="0.5">
+          <span>{{ lineWidth }}px</span>
+        </div>
+        <div class="control-group">
+          <span>网格颜色:</span>
+          <input type="color" :value="lineColor" @input="updateLineColor">
+        </div>
+        <div class="control-group">
+          <span>透明度:</span>
+          <input type="range" :value="opacity" @input="updateOpacity" min="0" max="1" step="0.1">
+          <span>{{ opacity }}</span>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h4>晶格点图片</h4>
+        <div class="image-controls">
+          <div class="image-upload">
+            <input 
+              type="file" 
+              ref="nodeFileInput"
+              @change="handleNodeImageUpload" 
+              accept="image/*"
+              style="display: none"
+            >
+            <button class="upload-btn" @click="triggerNodeFileInput">
+              选择晶格点图片
+            </button>
+          </div>
+          <div class="transform-controls">
+            <div class="control-group">
+              <span>缩放:</span>
+              <input type="range" 
+                     :value="nodeTransform.scale" 
+                     @input="updateNodeTransform" 
+                     min="0.1" 
+                     max="2" 
+                     step="0.1">
+              <span>{{ nodeTransform.scale.toFixed(1) }}</span>
+            </div>
+            <div class="control-group">
+              <span>旋转:</span>
+              <input type="range" 
+                     :value="nodeTransform.rotation" 
+                     @input="updateNodeTransform" 
+                     min="0" 
+                     max="360" 
+                     step="1">
+              <span>{{ nodeTransform.rotation }}°</span>
+            </div>
+            <div class="control-group">
+              <span>位移:</span>
+              <div class="vector-inputs">
+                <input type="number" 
+                       v-model.number="nodeTransform.translate.x" 
+                       @input="updateNodeTransform" 
+                       placeholder="X">
+                <input type="number" 
+                       v-model.number="nodeTransform.translate.y" 
+                       @input="updateNodeTransform" 
+                       placeholder="Y">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h4>填充图片</h4>
+        <div class="image-controls">
+          <div class="image-upload">
+            <input 
+              type="file" 
+              ref="fillFileInput"
+              @change="handleFillImageUpload" 
+              accept="image/*"
+              style="display: none"
+            >
+            <button class="upload-btn" @click="triggerFillFileInput">
+              选择填充图片
+            </button>
+          </div>
+          <div class="transform-controls">
+            <div class="control-group">
+              <span>缩放:</span>
+              <input type="range" 
+                     :value="fillTransform.scale" 
+                     @input="updateFillTransform" 
+                     min="0.1" 
+                     max="2" 
+                     step="0.1">
+              <span>{{ fillTransform.scale.toFixed(1) }}</span>
+            </div>
+            <div class="control-group">
+              <span>旋转:</span>
+              <input type="range" 
+                     :value="fillTransform.rotation" 
+                     @input="updateFillTransform" 
+                     min="0" 
+                     max="360" 
+                     step="1">
+              <span>{{ fillTransform.rotation }}°</span>
+            </div>
+            <div class="control-group">
+              <span>位移:</span>
+              <div class="vector-inputs">
+                <input type="number" 
+                       v-model.number="fillTransform.translate.x" 
+                       @input="updateFillTransform" 
+                       placeholder="X">
+                <input type="number" 
+                       v-model.number="fillTransform.translate.y" 
+                       @input="updateFillTransform" 
+                       placeholder="Y">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="apply-btn" @click="applyGrid">应用设置</button>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { getStatu, setStatu, 状态注册表 } from '../../../globalStatus/index.js'
+import { createGridBrushHandlers } from './gridBrushUtils.js'
+import { createGridPattern } from './grid.js';
+import { Vector2 } from '../../../utils/image/textures.js/pattern/geometry-utils.js';
+import { PatternRenderer } from '../../../utils/image/textures.js/pattern/index.js'
+import { PatternDefinition, FundamentalDomain } from '../../../utils/image/textures.js/pattern/index.js';
+import { P1ImagePattern } from '../../../utils/image/textures.js/pattern/p1Image.js'
+
+const gridSize = ref(20)
+const lineWidth = ref(1)
+const lineColor = ref('#cccccc')
+const opacity = ref(0.5)
+const width = ref(300)
+const height = ref(300)
+
+const isBrushMode = computed({
+  get: () => getStatu(状态注册表.笔刷模式),
+  set: (value) => setStatu(状态注册表.笔刷模式, value)
+})
+
+const currentHoverElement = computed({
+  get: () => getStatu(状态注册表.笔刷悬停元素),
+  set: (value) => setStatu(状态注册表.笔刷悬停元素, value)
+})
+
+const { addBrushListeners, removeBrushListeners } = createGridBrushHandlers({
+  isBrushMode,
+  currentHoverElement,
+  gridSize,
+  lineWidth,
+  lineColor,
+  opacity
+})
+
+const toggleBrushMode = () => {
+  setStatu(状态注册表.笔刷模式, !getStatu(状态注册表.笔刷模式))
+  if (getStatu(状态注册表.笔刷模式)) {
+    document.body.style.cursor = 'crosshair'
+    addBrushListeners()
+  } else {
+    document.body.style.cursor = 'default'
+    removeBrushListeners()
+  }
+}
+
+const renderer = ref(null)
+const canvas = ref(null)
+const basis1 = ref({ x: 20, y: 0 })
+const basis2 = ref({ x: 0, y: 20 })
+const motifScale = ref(1)
+const motifRotation = ref(0)
+const motifTranslate = ref({ x: 0, y: 0 })
+const motifFitMode = ref('contain')
+
+const fileInput = ref(null)
+const selectedFileName = ref('')
+const selectedImageUrl = ref('')
+
+const nodeImageUrl = ref('')
+const fillImageUrl = ref('')
+const nodeTransform = ref({ 
+  scale: 1, 
+  rotation: 0, 
+  translate: { x: 0, y: 0 } 
+})
+const fillTransform = ref({ 
+  scale: 1, 
+  rotation: 0, 
+  translate: { x: 0, y: 0 } 
+})
+
+const nodeFileInput = ref(null)
+const fillFileInput = ref(null)
+
+const triggerFileInput = () => {
+  fileInput.value.click()
+}
+
+const handleImageUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    selectedFileName.value = file.name
+    
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      selectedImageUrl.value = e.target.result
+      
+      genGridStyle(e.target.result)
+    }
+    reader.readAsDataURL(file)
+  }
+}
+
+const genGridStyle = (imageUrl = null) => {
+  if (renderer.value) {
+    renderer.value.clear();
+  }
+
+  // 计算网格显示范围
+  const calculateGridRange = () => {
+    // 基于画布尺寸计算需要显示的网格单元数量
+    const viewportWidth = width.value;
+    const viewportHeight = height.value;
+    
+    // 计算一个网格单元的尺寸
+    const cellWidth = Math.sqrt(
+      basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y
+    );
+    const cellHeight = Math.sqrt(
+      basis2.value.x * basis2.value.x + basis2.value.y * basis2.value.y
+    );
+
+    // 确保至少显示足够多的��格单元以覆盖视口
+    const unitsX = Math.ceil(viewportWidth / cellWidth) + 4; // 额外的单元确保边缘完整
+    const unitsY = Math.ceil(viewportHeight / cellHeight) + 4;
+
+    return {
+      minI: -Math.floor(unitsX / 2),
+      maxI: Math.ceil(unitsX / 2),
+      minJ: -Math.floor(unitsY / 2),
+      maxJ: Math.ceil(unitsY / 2)
+    };
+  };
+
+  const pattern = new P1ImagePattern({
+    lattice: {
+      basis1: new Vector2(basis1.value.x, basis1.value.y),
+      basis2: new Vector2(basis2.value.x, basis2.value.y),
+      shape: 'parallelogram',
+      clipMotif: true
+    },
+    nodeImage: nodeImageUrl.value ? {
+      imageUrl: nodeImageUrl.value,
+      transform: {
+        ...nodeTransform.value,
+        rotation: (nodeTransform.value.rotation * Math.PI) / 180
+      },
+      fitMode: 'contain'
+    } : null,
+    fillImage: fillImageUrl.value ? {
+      imageUrl: fillImageUrl.value,
+      transform: {
+        ...fillTransform.value,
+        rotation: (fillTransform.value.rotation * Math.PI) / 180
+      },
+      fitMode: 'contain'
+    } : null,
+    render: {
+      backgroundColor: 'transparent',
+      showGrid: true,
+      gridStyle: {
+        color: lineColor.value,
+        width: lineWidth.value,
+        dash: []
+      },
+      scale: 1, // 保持原始大小
+      smoothing: true
+    }
+  });
+
+  pattern.loadImages().then(() => {
+    if (!renderer.value) {
+      renderer.value = {
+        canvas: canvas.value,
+        ctx: canvas.value.getContext('2d')
+      };
+    }
+
+    renderer.value.canvas.width = width.value;
+    renderer.value.canvas.height = height.value;
+    renderer.value.ctx.clearRect(0, 0, width.value, height.value);
+    
+    // 使用计算的网格范围进行渲染
+    const gridRange = calculateGridRange();
+    pattern.render(renderer.value.ctx, {
+      width: width.value,
+      height: height.value,
+      x: width.value / 2,
+      y: height.value / 2,
+      gridRange: gridRange // 传递网格范围给渲染器
+    });
+  });
+};
+// 添加窗口大小变化监听
+const handleResize = () => {
+  if (canvas.value) {
+    // 更新画布尺寸
+    const container = canvas.value.parentElement;
+    width.value = container.clientWidth;
+    height.value = container.clientHeight;
+    
+    // 重新渲染
+    genGridStyle();
+  }
+};
+
+// 在组件挂载时添加监听
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+  handleResize(); // 初始化尺寸
+});
+
+// 在组件卸载时移除监听
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  if (selectedImageUrl.value) {
+    URL.revokeObjectURL(selectedImageUrl.value);
+  }
+});
+const createEmptyImage = (width, height) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas.toDataURL();
+}
+
+const updateGridSize = (e) => {
+  gridSize.value = Number(e.target.value)
+  genGridStyle()
+
+}
+
+const updateLineWidth = (e) => {
+
+  lineWidth.value = Number(e.target.value)
+  genGridStyle()
+
+}
+
+const updateLineColor = (e) => {
+
+  lineColor.value = e.target.value
+  genGridStyle()
+
+}
+
+const updateOpacity = (e) => {
+
+  opacity.value = Number(e.target.value)
+  genGridStyle()
+
+}
+
+const applyGrid = () => {
+  emit('update', {
+    gridSize: gridSize.value,
+    lineWidth: lineWidth.value,
+    lineColor: lineColor.value,
+    opacity: opacity.value
+  })
+}
+
+const emit = defineEmits(['update'])
+
+const updateDimensions = () => {
+  const container = document.querySelector('.grid-preview');
+  if (container) {
+    width.value = container.clientWidth;
+    height.value = container.clientHeight;
+  }
+}
+
+const resizeObserver = new ResizeObserver(entries => {
+  for (const entry of entries) {
+    width.value = entry.contentRect.width
+    height.value = entry.contentRect.height
+    if (renderer.value) {
+      renderer.value.width = width.value
+      renderer.value.height = height.value
+    }
+  }
+})
+
+const updateBasis = () => {
+  // 确保数值有效
+  basis1.value.x = Number(basis1.value.x) || 0;
+  basis1.value.y = Number(basis1.value.y) || 0;
+  basis2.value.x = Number(basis2.value.x) || 0;
+  basis2.value.y = Number(basis2.value.y) || 0;
+  
+  genGridStyle();
+}
+
+const updateMotifScale = (e) => {
+  motifScale.value = Number(e.target.value)
+  genGridStyle()
+}
+
+const updateMotifRotation = (e) => {
+  motifRotation.value = Number(e.target.value)
+  genGridStyle()
+}
+
+const updateMotifTranslate = () => {
+  genGridStyle()
+}
+
+const updateMotifFitMode = () => {
+  genGridStyle()
+}
+
+const triggerNodeFileInput = () => {
+  nodeFileInput.value.click()
+}
+
+const handleNodeImageUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 如果已存在旧的URL，先释放它
+    if (nodeImageUrl.value) {
+      URL.revokeObjectURL(nodeImageUrl.value)
+    }
+    nodeImageUrl.value = URL.createObjectURL(file)
+    // 重置变换参数
+    nodeTransform.value = {
+      scale: 1,
+      rotation: 0,
+      translate: { x: 0, y: 0 }
+    }
+    genGridStyle()
+  }
+}
+
+const updateNodeTransform = (e) => {
+  // 根据事件来源更新对应的属性
+  const target = e.target;
+  if (target.type === 'range') {
+    if (target.parentElement.querySelector('span').textContent.includes('缩放')) {
+      nodeTransform.value.scale = Number(target.value);
+    } else if (target.parentElement.querySelector('span').textContent.includes('旋转')) {
+      nodeTransform.value.rotation = Number(target.value);
+    }
+  }
+  genGridStyle();
+}
+
+const triggerFillFileInput = () => {
+  fillFileInput.value.click()
+}
+
+const handleFillImageUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    // 如果已存在旧的URL，先释放它
+    if (fillImageUrl.value) {
+      URL.revokeObjectURL(fillImageUrl.value)
+    }
+    fillImageUrl.value = URL.createObjectURL(file)
+    // 重置变换参数
+    fillTransform.value = {
+      scale: 1,
+      rotation: 0,
+      translate: { x: 0, y: 0 }
+    }
+    genGridStyle()
+  }
+}
+
+const updateFillTransform = (e) => {
+  // 根据事件来源更新对应的属性
+  const target = e.target;
+  if (target.type === 'range') {
+    if (target.parentElement.querySelector('span').textContent.includes('缩放')) {
+      fillTransform.value.scale = Number(target.value);
+    } else if (target.parentElement.querySelector('span').textContent.includes('旋转')) {
+      fillTransform.value.rotation = Number(target.value);
+    }
+  }
+  genGridStyle();
+}
+
+onMounted(() => {
+  const container = document.querySelector('.grid-preview')
+  if (container) {
+    width.value = container.offsetWidth
+    height.value = container.offsetHeight
+    renderer.value = new PatternRenderer(width.value, height.value)
+
+    if (!isBrushMode.value) {
+      renderer.value.canvas.style.position = 'absolute'
+      renderer.value.canvas.style.left = '50%'
+      renderer.value.canvas.style.top = '50%'
+      renderer.value.canvas.style.transform = 'translate(-50%, -50%)'
+      container.appendChild(renderer.value.canvas)
+    }
+  }
+  resizeObserver.observe(container)
+})
+
+onUnmounted(() => {
+  removeBrushListeners();
+  resizeObserver.disconnect();
+  window.removeEventListener('resize', updateDimensions);
+  if (selectedImageUrl.value) {
+    URL.revokeObjectURL(selectedImageUrl.value)
+  }
+});
+
+
+
+</script>
+
+<style scoped>
+.grid-editor-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* 预览容器样式 */
+.preview-container {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  overflow: hidden;
+}
+
+.grid-preview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 控制面板样式 */
+.controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 15px;
+  border-radius: 4px;
+  color: white;
+  z-index: 5;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-group span {
+  font-size: 0.9em;
+  min-width: 80px;
+}
+
+.control-group input[type="range"] {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  height: 6px;
+  -webkit-appearance: none;
+}
+
+.control-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.control-group input[type="color"] {
+  width: 40px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0;
+}
+
+.control-group span:last-child {
+  min-width: 45px;
+  text-align: right;
+  font-size: 0.85em;
+  color: #aaa;
+}
+
+.apply-btn {
+  margin-top: auto;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.9em;
+}
+
+.apply-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.control-btn {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.control-btn.active {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.control-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.control-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 0.9em;
+  color: #ddd;
+}
+
+.vector-inputs {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.vector-inputs input {
+  width: 50%;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: white;
+}
+
+select {
+  flex: 1;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: white;
+}
+
+.controls {
+  width: 320px;
+}
+
+.image-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.upload-btn {
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 3px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background 0.2s;
+}
+
+.upload-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.file-name {
+  font-size: 0.85em;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.image-preview {
+  margin-top: 8px;
+  width: 100%;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+</style>

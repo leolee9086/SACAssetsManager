@@ -4,9 +4,7 @@ import { drawRulers } from '../../../utils/canvas/helpers/rulers.js'
 import { uploadToSiyuanAssets } from '../../../fromThirdParty/siyuanUtils/upload.js'
 const fs = require('fs')
 const path = require("path")
-
 export {drawRulers,uploadToSiyuanAssets as uploadToSiyuan}
-
 // 处理字符串路径的图片
 const handleStringPath = async (filePath) => {
   if (!filePath.startsWith('/assets/')) {

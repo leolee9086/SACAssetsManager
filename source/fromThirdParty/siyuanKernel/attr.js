@@ -1,5 +1,5 @@
-import { getApiUrl, handleApiError } from './utils/apiConfig';
-import { fetchWithTimeout, getAuthHeaders } from './utils/fetchUtils';
+import { getApiUrl, handleApiError } from './utils/apiConfig.js';
+import { fetchWithTimeout, getAuthHeaders } from './utils/fetchUtils.js';
 
 /**
  * 发送属性相关请求的通用方法

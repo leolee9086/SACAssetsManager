@@ -29,28 +29,7 @@ export function 创建Vue组件界面(tab, 组件路径, 容器ID = '', 额外�
   return app;
 }
 
-// 原函数可以改写为：
-export function 创建图库界面(tab) {
-  return 创建Vue组件界面(
-    tab,
-    '/plugins/SACAssetsManager/source/UI/components/assetGalleryPanel.vue',
-    'assetsColumn'
-  );
-}
-export function 创建编辑器界面(tab) {
-  return 创建Vue组件界面(
-    tab,
-    '/plugins/SACAssetsManager/source/UI/components/editors/image.vue',
-    'assetsColumn'
-  );
-}
-export function 创建图片预览器(tab) {
-  return 创建Vue组件界面(
-    tab,
-    '/plugins/SACAssetsManager/source/UI/pannels/imagePreviewer/imagePreviewer.vue',
-    'imagePreviewerPanel'
-  );
-}
+export {initVueApp}
 
 export function 创建资源信息面板(UI容器){
   const 资源信息面板 =  initVueApp(import.meta.resolve('./pannels/assetInfoPanel/assestInfoPanel.vue'))

@@ -69,7 +69,7 @@ onMounted(async () => {
             const data = e.detail.data
             const { doOperations, undoOperations } = data[0];
             (doOperations || []).concat(undoOperations || []).forEach(async (operation) => {
-                if (operation.data && operation.data.indexOf('<span data-type="tag">') > -1) {
+                if (operation.data &&operation.data.indexOf&& operation.data.indexOf('<span data-type="tag">') > -1) {
                     autoRefreshFlag = true
                 }
             });
