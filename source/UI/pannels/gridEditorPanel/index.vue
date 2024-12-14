@@ -105,6 +105,23 @@
             </div>
           </div>
         </div>
+        <div class="control-group">
+          <span>描边宽度:</span>
+          <input type="range" 
+                 :value="nodeStrokeWidth" 
+                 @input="updateNodeStroke" 
+                 min="0" 
+                 max="10" 
+                 step="0.5">
+          <span>{{ nodeStrokeWidth }}px</span>
+        </div>
+        
+        <div class="control-group">
+          <span>描边颜色:</span>
+          <input type="color" 
+                 :value="nodeStrokeColor"
+                 @input="updateNodeStroke">
+        </div>
       </div>
 
       <div class="control-section">
@@ -260,38 +277,36 @@ const handleImageUpload = (event) => {
   }
 }
 
-const createShapeMask = (shape, size) => {
+const createShapeMask = (shape, size, forClipping = false) => {
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = size;
   tempCanvas.height = size;
   const ctx = tempCanvas.getContext('2d');
   
+  const scaledStrokeWidth = nodeStrokeWidth.value / nodeTransform.value.scale;
+  
   ctx.clearRect(0, 0, size, size);
-  
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = 'transparent';
-  
   ctx.translate(size/2, size/2);
   
   ctx.beginPath();
   switch(shape) {
     case 'circle':
-      ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+      ctx.arc(0, 0, size/2 - scaledStrokeWidth/2, 0, Math.PI * 2);
       break;
       
     case 'square':
-      const half = size/2;
-      ctx.rect(-half, -half, size, size);
+      const half = size/2 - scaledStrokeWidth/2;
+      ctx.rect(-half, -half, size - scaledStrokeWidth, size - scaledStrokeWidth);
       break;
       
     case 'rectangle':
-      const width = size;
-      const height = size * 0.66;
+      const width = size - scaledStrokeWidth;
+      const height = size * 0.66 - scaledStrokeWidth;
       ctx.rect(-width/2, -height/2, width, height);
       break;
       
     case 'hexagon':
-      const radius = size/2;
+      const radius = size/2 - scaledStrokeWidth/2;
       for(let i = 0; i < 6; i++) {
         const angle = i * Math.PI / 3;
         const x = Math.cos(angle) * radius;
@@ -303,7 +318,7 @@ const createShapeMask = (shape, size) => {
       break;
       
     case 'triangle':
-      const r = size/2;
+      const r = size/2 - scaledStrokeWidth/2;
       ctx.moveTo(0, -r);
       ctx.lineTo(r * Math.cos(Math.PI/6), r * Math.sin(Math.PI/6));
       ctx.lineTo(-r * Math.cos(Math.PI/6), r * Math.sin(Math.PI/6));
@@ -311,10 +326,25 @@ const createShapeMask = (shape, size) => {
       break;
       
     default:
-      ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+      ctx.arc(0, 0, size/2 - scaledStrokeWidth/2, 0, Math.PI * 2);
   }
   
-  ctx.fill();
+  if (forClipping) {
+    // 用于裁剪的遮罩只需要填充
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  } else {
+    // 用于描边的遮罩需要透明填充和描边
+    ctx.fillStyle = 'transparent';
+    ctx.fill();
+    
+    if(nodeStrokeWidth.value > 0) {
+      ctx.strokeStyle = nodeStrokeColor.value;
+      ctx.lineWidth = scaledStrokeWidth;
+      ctx.stroke();
+    }
+  }
+  
   return tempCanvas;
 };
 
@@ -358,6 +388,7 @@ const genGridStyle = async (imageUrl = null) => {
         tempCanvas.height = size;
         const ctx = tempCanvas.getContext('2d');
         
+        // 绘制原始图片
         ctx.drawImage(img, 
           (size - img.width)/2, 
           (size - img.height)/2, 
@@ -365,10 +396,19 @@ const genGridStyle = async (imageUrl = null) => {
           img.height
         );
         
-        const mask = createShapeMask(nodeShape.value, size);
+        // 创建用于裁剪的遮罩
+        const clipMask = createShapeMask(nodeShape.value, size, true);
         
+        // 使用遮罩裁剪图片
         ctx.globalCompositeOperation = 'destination-in';
-        ctx.drawImage(mask, 0, 0);
+        ctx.drawImage(clipMask, 0, 0);
+        
+        // 恢复正常绘制模式
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // 创建并叠加描边遮罩
+        const strokeMask = createShapeMask(nodeShape.value, size, false);
+        ctx.drawImage(strokeMask, 0, 0);
         
         processedNodeImage = tempCanvas.toDataURL();
         resolve();
@@ -635,6 +675,19 @@ const nodeShape = ref('circle')
 
 const updateNodeShape = () => {
   genGridStyle().catch(console.error);
+}
+
+const nodeStrokeWidth = ref(1)
+const nodeStrokeColor = ref('#000000')
+
+const updateNodeStroke = (e) => {
+  const target = e.target
+  if(target.type === 'range') {
+    nodeStrokeWidth.value = Number(target.value)
+  } else if(target.type === 'color') {
+    nodeStrokeColor.value = target.value
+  }
+  genGridStyle()
 }
 
 </script>
