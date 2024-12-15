@@ -640,3 +640,4 @@ export function calculateSeamlessTilingRange(basis1, basis2, targetWidth, target
     };
 
 }
+

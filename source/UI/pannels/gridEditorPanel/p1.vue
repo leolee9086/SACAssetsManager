@@ -176,9 +176,7 @@ import { getStatu, setStatu, 状态注册表 } from '../../../globalStatus/index
 import { createGridBrushHandlers } from './gridBrushUtils.js'
 import { Vector2 } from '../../../utils/image/textures.js/pattern/geometry-utils.js';
 import { PatternRenderer } from '../../../utils/image/textures.js/pattern/index.js'
-import {  calculateSeamlessTilingRange } from '../../../utils/image/textures.js/pattern/p1Image.js'
-import { P2ImagePattern } from '../../../utils/image/textures.js/pattern/p2Image.js'
-
+import { P1ImagePattern, calculateSeamlessTilingRange } from '../../../utils/image/textures.js/pattern/p1Image.js'
 import { validateAndNormalizeBasis } from './utils.js';
 import { createShapeMask } from '../../../utils/canvas/helpers/mask.js';
 const gridSize = ref(20)
@@ -335,7 +333,7 @@ const genGridStyle = (() => {
       });
     }
 
-    const pattern = new P2ImagePattern({
+    const pattern = new P1ImagePattern({
       lattice: {
         basis1: new Vector2(basis1.value.x, basis1.value.y),
         basis2: new Vector2(basis2.value.x, basis2.value.y),
