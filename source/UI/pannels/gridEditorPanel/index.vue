@@ -14,30 +14,7 @@
     <div class="controls">
       <div class="control-section">
         <h4>网格设置</h4>
-        <div class="preset-buttons">
-          <button v-for="preset in presetGridRatios" :key="preset.name" class="preset-btn"
-            @click="applyPresetRatio(preset)">
-            {{ preset.name }}
-          </button>
-        </div>
-        <div class="control-group">
-          <span>基向量1:</span>
-          <div class="vector-inputs">
-            <input type="number" v-model.number="basis1.x"
-              @input="e => handleBasisInput(basis1, 'x', Number(e.target.value))" placeholder="X">
-            <input type="number" v-model.number="basis1.y"
-              @input="e => handleBasisInput(basis1, 'y', Number(e.target.value))" placeholder="Y">
-          </div>
-        </div>
-        <div class="control-group">
-          <span>基向量2:</span>
-          <div class="vector-inputs">
-            <input type="number" v-model.number="basis2.x"
-              @input="e => handleBasisInput(basis2, 'x', Number(e.target.value))" placeholder="X">
-            <input type="number" v-model.number="basis2.y"
-              @input="e => handleBasisInput(basis2, 'y', Number(e.target.value))" placeholder="Y">
-          </div>
-        </div>
+        
         <div class="control-group">
           <span>网格线宽:</span>
           <input type="range" :value="lineWidth" @input="updateLineWidth" min="1" max="5" step="0.5">
@@ -165,6 +142,95 @@
         </div>
       </div>
 
+      <div class="control-section">
+        <h4>对称类型</h4>
+        <div class="control-group">
+          <span>对称群:</span>
+          <select v-model="symmetryType" @change="updateSymmetryType">
+            <option value="p1">P1 - 基本平移</option>
+            <option value="p2">P2 - 2次旋转</option>
+            <option value="pg">PG - 滑移</option>
+            <option value="pm">PM - 镜像</option>
+            <option value="pgg">PGG - 双滑移</option>
+            <option value="pmm">PMM - 双向镜像</option>
+            <option value="pmg">PMG - 镜像+滑移</option>
+            <option value="p4">P4 - 4次旋转</option>
+            <option value="p4m">P4M - 4次旋转+镜像</option>
+            <option value="p4g">P4G - 4次旋转+镜像(变体)</option>
+            <option value="cm">CM - 菱形中心镜像</option>
+            <option value="cmm">CMM - 菱形双向镜像</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h4>基向量设置</h4>
+        <div class="constraint-info">
+          <span class="constraint-type">{{ symmetryConstraints[symmetryType].constraints }}</span>
+          <span class="constraint-desc">{{ symmetryConstraints[symmetryType].description }}</span>
+        </div>
+        
+        <!-- 正方形控制器 -->
+        <div class="control-group" :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '正方形' }">
+          <span>边长:</span>
+          <input type="number" 
+                 v-model.number="squareSize" 
+                 @input="updateSquareBasis"
+                 :disabled="symmetryConstraints[symmetryType].constraints !== '正方形'">
+        </div>
+        
+        <!-- 菱形控制器 -->
+        <div :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '菱形' }">
+          <div class="control-group">
+            <span>边长:</span>
+            <input type="number" 
+                   v-model.number="rhombusSize" 
+                   @input="updateRhombusBasis"
+                   :disabled="symmetryConstraints[symmetryType].constraints !== '菱形'">
+          </div>
+          <div class="control-group">
+            <span>角度:</span>
+            <input type="range" 
+                   v-model.number="rhombusAngle" 
+                   min="30" 
+                   max="150" 
+                   @input="updateRhombusBasis"
+                   :disabled="symmetryConstraints[symmetryType].constraints !== '菱形'">
+            <span>{{ rhombusAngle }}°</span>
+          </div>
+        </div>
+        
+        <!-- 自由基向量控制 -->
+        <div :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '自由' }">
+          <div class="control-group">
+            <span>基向量1:</span>
+            <div class="vector-inputs">
+              <input type="number" 
+                     v-model.number="basis1.x" 
+                     @input="handleBasisInput"
+                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+              <input type="number" 
+                     v-model.number="basis1.y" 
+                     @input="handleBasisInput"
+                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+            </div>
+          </div>
+          <div class="control-group">
+            <span>基向量2:</span>
+            <div class="vector-inputs">
+              <input type="number" 
+                     v-model.number="basis2.x" 
+                     @input="handleBasisInput"
+                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+              <input type="number" 
+                     v-model.number="basis2.y" 
+                     @input="handleBasisInput"
+                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+            </div>
+          </div>
+        </div>
+      </div>
+
       <button class="apply-btn" @click="applyGrid">应用设置</button>
     </div>
   </div>
@@ -177,7 +243,20 @@ import { createGridBrushHandlers } from './gridBrushUtils.js'
 import { Vector2 } from '../../../utils/image/textures.js/pattern/geometry-utils.js';
 import { PatternRenderer } from '../../../utils/image/textures.js/pattern/index.js'
 import {  calculateSeamlessTilingRange } from '../../../utils/image/textures.js/pattern/p1Image.js'
+import { P1ImagePattern } from '../../../utils/image/textures.js/pattern/p1Image.js';
 import { P2ImagePattern } from '../../../utils/image/textures.js/pattern/p2Image.js'
+import { PGImagePattern } from '../../../utils/image/textures.js/pattern/pgImage.js';
+import { PMImagePattern } from '../../../utils/image/textures.js/pattern/pmImage.js'
+import { PGGImagePattern } from '../../../utils/image/textures.js/pattern/pggImage.js'
+import { 
+  P4GImagePattern , 
+  PMMImagePattern,
+  PMGImagePattern,
+  CMImagePattern,
+  CMMImagePattern,
+  P4ImagePattern,
+  P4MImagePattern 
+} from '../../../utils/image/textures.js/pattern/pmm.js'
 
 import { validateAndNormalizeBasis } from './utils.js';
 import { createShapeMask } from '../../../utils/canvas/helpers/mask.js';
@@ -210,8 +289,8 @@ const { addBrushListeners, removeBrushListeners } = createGridBrushHandlers({
 
 const renderer = ref(null)
 const canvas = ref(null)
-const basis1 = ref({ x: 20, y: 0 })
-const basis2 = ref({ x: 0, y: 20 })
+const basis1 = ref({ x: 80, y: 0 })
+const basis2 = ref({ x: 0, y: 80 })
 
 const fileInput = ref(null)
 const selectedFileName = ref('')
@@ -238,7 +317,7 @@ const fillFileInput = ref(null)
 const drawSeamlessUnitBox = () => {
   if (!canvas.value) return;
 
-  // 创建一个覆盖层画布
+  // 创建一个覆盖层
   const overlayCanvas = document.createElement('canvas');
   overlayCanvas.width = width.value;
   overlayCanvas.height = height.value;
@@ -290,7 +369,7 @@ const genGridStyle = (() => {
   let isRendering = false; // 异步锁
   let lastRenderTime = 0; // 上次渲染时间
   const THROTTLE_INTERVAL = 15; // 节流间隔(ms)
-  let pendingRender = null; // 待执行的渲染任务
+  let pendingRender = null; // 待执行的染任务
 
   const executeRender = async (imageUrl = null) => {
     if (renderer.value) {
@@ -335,7 +414,8 @@ const genGridStyle = (() => {
       });
     }
 
-    const pattern = new P2ImagePattern({
+    const PatternClass = getPatternClass(symmetryType.value)
+    const pattern = new PatternClass({
       lattice: {
         basis1: new Vector2(basis1.value.x, basis1.value.y),
         basis2: new Vector2(basis2.value.x, basis2.value.y),
@@ -631,15 +711,26 @@ const applyPresetRatio = (preset) => {
 }
 
 
-// 为输入框加验证
+// 修改为统一的 handleBasisInput 函数
 const handleBasisInput = (vector, component, value) => {
-  const newValue = { ...vector.value };
-  newValue[component] = value;
+  // 如果传入了具体的向量组件
+  if (component && value !== undefined) {
+    const newValue = { ...vector };
+    newValue[component] = value;
+    vector = newValue;
+  }
 
-  const normalized = validateAndNormalizeBasis(newValue);
-  vector.value = normalized;
+  // 获取当前对称群的约束
+  const constraint = symmetryConstraints[symmetryType.value];
+  
+  // 验证并规范化基向量
+  if (!constraint.validateBasis(basis1.value, basis2.value)) {
+    const normalized = constraint.normalizeBasis(basis1.value, basis2.value);
+    basis1.value = normalized.basis1;
+    basis2.value = normalized.basis2;
+  }
 
-  genGridStyle().catch(console.error);
+  genGridStyle();
 };
 
 const polygonSettings = ref({
@@ -649,7 +740,7 @@ const polygonSettings = ref({
 })
 
 const updatePolygonShape = () => {
-  // 确保边数在合理范围内
+  // 确保边数在合理围内
   if (polygonSettings.value.sides < 3) {
     polygonSettings.value.sides = 3
   } else if (polygonSettings.value.sides > 32) {
@@ -660,6 +751,207 @@ const updatePolygonShape = () => {
   polygonSettings.value.sides = Math.floor(polygonSettings.value.sides)
 
   genGridStyle().catch(console.error)
+}
+
+const symmetryType = ref('pmm')
+
+const getPatternClass = (type) => {
+  const patterns = {
+    p1: P1ImagePattern,
+    p2: P2ImagePattern,
+    pg: PGImagePattern,
+    pm: PMImagePattern,
+    pgg: PGGImagePattern,
+    pmm: PMMImagePattern,
+    pmg: PMGImagePattern,
+    p4: P4ImagePattern,
+    p4m: P4MImagePattern,
+    p4g: P4GImagePattern,
+    cm: CMImagePattern,
+    cmm: CMMImagePattern
+  }
+  return patterns[type]
+}
+
+const updateSymmetryType = () => {
+  genGridStyle()
+}
+
+// 添加基向量约束配置
+const symmetryConstraints = {
+  p1: {
+    name: "P1 - 基本平移",
+    description: "无特殊限制",
+    constraints: "自由",
+    validateBasis: (b1, b2) => true,
+    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
+  },
+  p2: {
+    name: "P2 - 2次旋转",
+    description: "无特殊限制",
+    constraints: "自由",
+    validateBasis: (b1, b2) => true,
+    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
+  },
+  pg: {
+    name: "PG - 滑移",
+    description: "无特殊限制",
+    constraints: "自由",
+    validateBasis: (b1, b2) => true,
+    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
+  },
+  pm: {
+    name: "PM - 镜像",
+    description: "建议基向量垂直于镜面",
+    constraints: "自由",
+    validateBasis: (b1, b2) => true,
+    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
+  },
+  pgg: {
+    name: "PGG - 双滑移",
+    description: "无特殊限制",
+    constraints: "自由",
+    validateBasis: (b1, b2) => true,
+    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
+  },
+  pmm: {
+    name: "PMM - 双向镜像",
+    description: "建议基向量相互垂直",
+    constraints: "矩形",
+    validateBasis: (b1, b2) => {
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      return Math.abs(dotProduct) < 0.001;
+    },
+    normalizeBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      return {
+        basis1: { x: len1, y: 0 },
+        basis2: { x: 0, y: len2 }
+      };
+    }
+  },
+  pmg: {
+    name: "PMG - 镜像+滑移",
+    description: "建议基向量垂直于镜面",
+    constraints: "自由",
+    validateBasis: (b1, b2) => true,
+    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
+  },
+  p4: {
+    name: "P4 - 4次旋转",
+    description: "要求基向量正交且长度相等",
+    constraints: "正方形",
+    validateBasis: (b1, b2) => {
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      return Math.abs(dotProduct) < 0.001 && Math.abs(len1 - len2) < 0.001;
+    },
+    normalizeBasis: (b1, b2) => {
+      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: len, y: 0 },
+        basis2: { x: 0, y: len }
+      };
+    }
+  },
+  p4m: {
+    name: "P4M - 4次旋转+镜像",
+    description: "要求基向量正交且长度相等",
+    constraints: "正方形",
+    validateBasis: (b1, b2) => {
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      return Math.abs(dotProduct) < 0.001 && Math.abs(len1 - len2) < 0.001;
+    },
+    normalizeBasis: (b1, b2) => {
+      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: len, y: 0 },
+        basis2: { x: 0, y: len }
+      };
+    }
+  },
+  p4g: {
+    name: "P4G - 4次旋转+镜像(变体)",
+    description: "要求基向量正交且长度相等",
+    constraints: "正方形",
+    validateBasis: (b1, b2) => {
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      return Math.abs(dotProduct) < 0.001 && Math.abs(len1 - len2) < 0.001;
+    },
+    normalizeBasis: (b1, b2) => {
+      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: len, y: 0 },
+        basis2: { x: 0, y: len }
+      };
+    }
+  },
+  cm: {
+    name: "CM - 菱形中心镜像",
+    description: "要求基向量等长",
+    constraints: "菱形",
+    validateBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      return Math.abs(len1 - len2) < 0.001;
+    },
+    normalizeBasis: (b1, b2) => {
+      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const angle = Math.atan2(b2.y, b2.x);
+      return {
+        basis1: { x: len, y: 0 },
+        basis2: { x: len * Math.cos(angle), y: len * Math.sin(angle) }
+      };
+    }
+  },
+  cmm: {
+    name: "CMM - 菱形双向镜像",
+    description: "要求基向量等长",
+    constraints: "菱形",
+    validateBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      return Math.abs(len1 - len2) < 0.001;
+    },
+    normalizeBasis: (b1, b2) => {
+      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const angle = Math.atan2(b2.y, b2.x);
+      return {
+        basis1: { x: len, y: 0 },
+        basis2: { x: len * Math.cos(angle), y: len * Math.sin(angle) }
+      };
+    }
+  }
+};
+
+// 在 template 中添加约束提示
+
+// 添加新的响应式状态
+const squareSize = ref(40)
+const rhombusSize = ref(40)
+const rhombusAngle = ref(60)
+
+// 更新基向量的处理函数
+const updateSquareBasis = () => {
+  basis1.value = { x: squareSize.value, y: 0 }
+  basis2.value = { x: 0, y: squareSize.value }
+  genGridStyle()
+}
+
+const updateRhombusBasis = () => {
+  const angle = (rhombusAngle.value * Math.PI) / 180
+  basis1.value = { x: rhombusSize.value, y: 0 }
+  basis2.value = {
+    x: rhombusSize.value * Math.cos(angle),
+    y: rhombusSize.value * Math.sin(angle)
+  }
+  genGridStyle()
 }
 
 </script>
@@ -909,5 +1201,40 @@ select {
 .preset-btn:active {
   background: rgba(255, 255, 255, 0.3);
   transform: scale(0.98);
+}
+
+.constraint-info {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.constraint-type {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  margin-right: 8px;
+  font-size: 0.9em;
+}
+
+.constraint-desc {
+  font-size: 0.9em;
+  color: #aaa;
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.disabled input {
+  cursor: not-allowed;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.disabled span {
+  color: #666;
 }
 </style>
