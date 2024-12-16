@@ -31,6 +31,7 @@
         </div>
       </div>
 
+      <!-- 节点���������������������置面板 -->
       <div class="control-section">
         <div class='fn__flex'>
           <h4>晶格点设置</h4>
@@ -159,6 +160,9 @@
             <option value="p4g">P4G - 4次旋转+镜像(变体)</option>
             <option value="cm">CM - 菱形中心镜像</option>
             <option value="cmm">CMM - 菱形双向镜像</option>
+            <option value="p3">P3 - 3次旋转</option>
+            <option value="p3m1">P3M1 - 3次旋转+镜像</option>
+            <option value="p6">P6 - 6次旋转</option>
           </select>
         </div>
       </div>
@@ -231,13 +235,12 @@
         </div>
       </div>
 
-      <button class="apply-btn" @click="applyGrid">应用设置</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getStatu, setStatu, 状态注册表 } from '../../../globalStatus/index.js'
 import { createGridBrushHandlers } from './gridBrushUtils.js'
 import { Vector2 } from '../../../utils/image/textures.js/pattern/geometry-utils.js';
@@ -255,7 +258,10 @@ import {
   CMImagePattern,
   CMMImagePattern,
   P4ImagePattern,
-  P4MImagePattern 
+  P4MImagePattern,
+  P3ImagePattern,
+  P3M1ImagePattern,
+  P6ImagePattern,
 } from '../../../utils/image/textures.js/pattern/pmm.js'
 
 import { validateAndNormalizeBasis } from './utils.js';
@@ -325,7 +331,7 @@ const drawSeamlessUnitBox = () => {
   overlayCanvas.style.left = '50%';
   overlayCanvas.style.top = '50%';
   overlayCanvas.style.transform = 'translate(-50%, -50%)';
-  overlayCanvas.style.pointerEvents = 'none'; // 确保不影响下层交互
+  overlayCanvas.style.pointerEvents = 'none'; // 确保��影响下层交互
 
   const ctx = overlayCanvas.getContext('2d');
 
@@ -366,116 +372,170 @@ const drawSeamlessUnitBox = () => {
 };
 
 const genGridStyle = (() => {
-  let isRendering = false; // 异步锁
-  let lastRenderTime = 0; // 上次渲染时间
-  const THROTTLE_INTERVAL = 15; // 节流间隔(ms)
-  let pendingRender = null; // 待执行的染任务
+  let isRendering = false;
+  let lastRenderTime = 0;
+  const THROTTLE_INTERVAL = 15;
+  let pendingRender = null;
+  
+  // 添加性能统计对象
+  const perfStats = {
+    totalCalls: 0,
+    totalTime: 0,
+    maxTime: 0,
+    minTime: Infinity
+  };
+  
+  // 创建离屏缓冲画布
+  let backBuffer = null;
+  let backBufferCtx = null;
+  
+  // 初始化缓冲区
+  const initializeBuffers = () => {
+    if (!backBuffer) {
+      backBuffer = document.createElement('canvas');
+      backBufferCtx = backBuffer.getContext('2d');
+    }
+    
+    // 确保缓冲区尺寸与显示画布一致
+    backBuffer.width = width.value;
+    backBuffer.height = height.value;
+  };
 
   const executeRender = async (imageUrl = null) => {
-    if (renderer.value) {
-      renderer.value.clear();
-    }
+    const startTime = performance.now();
+    perfStats.totalCalls++;
 
-    let processedNodeImage = null;
-    if (nodeImageUrl.value) {
-      const img = new Image();
-      img.src = nodeImageUrl.value;
+    try {
+      // 初始化缓冲区
+      initializeBuffers();
+      
+      // 清空缓冲区
+      backBufferCtx.clearRect(0, 0, width.value, height.value);
 
-      await new Promise((resolve) => {
-        img.onload = () => {
-          const tempCanvas = document.createElement('canvas');
-          const size = Math.max(img.width, img.height);
-          tempCanvas.width = size;
-          tempCanvas.height = size;
-          const ctx = tempCanvas.getContext('2d');
+      let processedNodeImage = null;
+      if (nodeImageUrl.value) {
+        const img = new Image();
+        img.src = nodeImageUrl.value;
 
-          ctx.drawImage(img,
-            (size - img.width) / 2,
-            (size - img.height) / 2,
-            img.width,
-            img.height
-          );
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const tempCanvas = document.createElement('canvas');
+            const size = Math.max(img.width, img.height);
+            tempCanvas.width = size;
+            tempCanvas.height = size;
+            const ctx = tempCanvas.getContext('2d');
 
-          const shape = {
-            type: 'polygon',
-            sides: polygonSettings.value.sides
-          }
-          const clipMask = createShapeMask(nodeShape.value=="polygon"?shape:nodeShape.value, size, true, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
-          ctx.globalCompositeOperation = 'destination-in';
-          ctx.drawImage(clipMask, 0, 0);
+            ctx.drawImage(img,
+              (size - img.width) / 2,
+              (size - img.height) / 2,
+              img.width,
+              img.height
+            );
 
-          ctx.globalCompositeOperation = 'source-over';
-          const strokeMask = createShapeMask(nodeShape.value=="polygon"?shape:nodeShape.value, size, false, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
-          ctx.drawImage(strokeMask, 0, 0);
+            const shape = {
+              type: 'polygon',
+              sides: polygonSettings.value.sides
+            }
+            const clipMask = createShapeMask(nodeShape.value=="polygon"?shape:nodeShape.value, size, true, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.drawImage(clipMask, 0, 0);
 
-          processedNodeImage = tempCanvas.toDataURL();
-          resolve();
-        };
-      });
-    }
+            ctx.globalCompositeOperation = 'source-over';
+            const strokeMask = createShapeMask(nodeShape.value=="polygon"?shape:nodeShape.value, size, false, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
+            ctx.drawImage(strokeMask, 0, 0);
 
-    const PatternClass = getPatternClass(symmetryType.value)
-    const pattern = new PatternClass({
-      lattice: {
-        basis1: new Vector2(basis1.value.x, basis1.value.y),
-        basis2: new Vector2(basis2.value.x, basis2.value.y),
-        shape: 'parallelogram',
-        clipMotif: true
-      },
-      nodeImage: processedNodeImage ? {
-        imageUrl: processedNodeImage,
-        transform: {
-          ...nodeTransform.value,
-          rotation: (nodeTransform.value.rotation * Math.PI) / 180
-        },
-        fitMode: 'contain'
-      } : null,
-      fillImage: fillImageUrl.value ? {
-        imageUrl: fillImageUrl.value,
-        transform: {
-          ...fillTransform.value,
-          rotation: (fillTransform.value.rotation * Math.PI) / 180
-        },
-        fitMode: 'contain'
-      } : null,
-      render: {
-        backgroundColor: 'transparent',
-        showGrid: true,
-        gridStyle: {
-          color: lineColor.value,
-          width: lineWidth.value,
-          dash: []
-        },
-        scale: 1,
-        smoothing: true
+            processedNodeImage = tempCanvas.toDataURL();
+            resolve();
+          };
+        });
       }
-    });
 
-    await pattern.loadImages();
+      const PatternClass = getPatternClass(symmetryType.value);
+      const pattern = new PatternClass({
+        lattice: {
+          basis1: new Vector2(basis1.value.x, basis1.value.y),
+          basis2: new Vector2(basis2.value.x, basis2.value.y),
+          shape: 'parallelogram',
+          clipMotif: true
+        },
+        nodeImage: processedNodeImage ? {
+          imageUrl: processedNodeImage,
+          transform: {
+            ...nodeTransform.value,
+            rotation: (nodeTransform.value.rotation * Math.PI) / 180
+          },
+          fitMode: 'contain'
+        } : null,
+        fillImage: fillImageUrl.value ? {
+          imageUrl: fillImageUrl.value,
+          transform: {
+            ...fillTransform.value,
+            rotation: (fillTransform.value.rotation * Math.PI) / 180
+          },
+          fitMode: 'contain'
+        } : null,
+        render: {
+          backgroundColor: 'transparent',
+          showGrid: true,
+          gridStyle: {
+            color: lineColor.value,
+            width: lineWidth.value,
+            dash: []
+          },
+          scale: 1,
+          smoothing: true
+        }
+      });
 
-    if (!renderer.value) {
-      renderer.value = {
-        canvas: canvas.value,
-        ctx: canvas.value.getContext('2d')
-      };
+      await pattern.loadImages();
+
+      // 在缓冲区上渲染
+      pattern.render(backBufferCtx, {
+        width: width.value,
+        height: height.value,
+        x: width.value / 2,
+        y: height.value / 2,
+      });
+
+      // 将缓冲区内容���制到显示画布
+      if (!renderer.value) {
+        renderer.value = {
+          canvas: canvas.value,
+          ctx: canvas.value.getContext('2d')
+        };
+      }
+
+      renderer.value.canvas.width = width.value;
+      renderer.value.canvas.height = height.value;
+      
+      // 一次性将缓冲区内容复制到显示画布
+      renderer.value.ctx.clearRect(0, 0, width.value, height.value);
+      renderer.value.ctx.drawImage(backBuffer, 0, 0);
+
+      drawSeamlessUnitBox();
+
+    } finally {
+      const endTime = performance.now();
+      const renderTime = endTime - startTime;
+      
+      perfStats.totalTime += renderTime;
+      perfStats.maxTime = Math.max(perfStats.maxTime, renderTime);
+      perfStats.minTime = Math.min(perfStats.minTime, renderTime);
+
+      console.log(`渲染耗时: ${renderTime.toFixed(2)}ms`);
+      
+      if(perfStats.totalCalls % 10 === 0) {
+        console.log('网格渲染���能统计:', {
+          调用次数: perfStats.totalCalls,
+          平均渲染时间: `${(perfStats.totalTime / perfStats.totalCalls).toFixed(2)}ms`,
+          最长渲染时间: `${perfStats.maxTime.toFixed(2)}ms`,
+          最短渲染时间: `${perfStats.minTime.toFixed(2)}ms`
+        });
+      }
     }
-
-    renderer.value.canvas.width = width.value;
-    renderer.value.canvas.height = height.value;
-    renderer.value.ctx.clearRect(0, 0, width.value, height.value);
-
-    pattern.render(renderer.value.ctx, {
-      width: width.value,
-      height: height.value,
-      x: width.value / 2,
-      y: height.value / 2,
-    });
-
-    drawSeamlessUnitBox();
   };
 
   return async (imageUrl = null) => {
-    // 如果正在渲染，存储新的渲染请求
     if (isRendering) {
       pendingRender = imageUrl;
       return;
@@ -485,7 +545,6 @@ const genGridStyle = (() => {
     const timeSinceLastRender = now - lastRenderTime;
 
     if (timeSinceLastRender < THROTTLE_INTERVAL) {
-      // 如果距离上次渲染时间太短，延迟执行
       if (!pendingRender) {
         pendingRender = imageUrl;
         setTimeout(async () => {
@@ -503,7 +562,6 @@ const genGridStyle = (() => {
       return;
     }
 
-    // 直接执行渲染
     isRendering = true;
     try {
       await executeRender(imageUrl);
@@ -697,7 +755,8 @@ const presetGridRatios = [
   { name: '菱形', basis1: { x: 20, y: 20 }, basis2: { x: -20, y: 20 } },
   { name: '1:2矩形', basis1: { x: 20, y: 0 }, basis2: { x: 0, y: 40 } },
   { name: '六角形', basis1: { x: 20, y: 0 }, basis2: { x: 10, y: 17.32 } }, // sqrt(3)/2 ≈ 0.866
-  { name: '2:1矩形', basis1: { x: 40, y: 0 }, basis2: { x: 0, y: 20 } }
+  { name: '2:1矩形', basis1: { x: 40, y: 0 }, basis2: { x: 0, y: 20 } },
+  { name: '六角形', basis1: { x: 50, y: 0 }, basis2: { x: 25, y: 43.3 } }, // 约等于 50 * cos(120°), 50 * sin(120°)
 ]
 
 const applyPresetRatio = (preset) => {
@@ -711,7 +770,7 @@ const applyPresetRatio = (preset) => {
 }
 
 
-// 修改为统一的 handleBasisInput 函数
+// 修��统一的 handleBasisInput 函数
 const handleBasisInput = (vector, component, value) => {
   // 如果传入了具体的向量组件
   if (component && value !== undefined) {
@@ -723,7 +782,15 @@ const handleBasisInput = (vector, component, value) => {
   // 获取当前对称群的约束
   const constraint = symmetryConstraints[symmetryType.value];
   
-  // 验证并规范化基向量
+  // 对于 p3 群，强制应用六角形约束
+  if (symmetryType.value === 'p3') {
+    const len = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
+    hexagonSize.value = len;
+    updateHexagonBasis();
+    return;
+  }
+
+  // 其他群的约束处理...
   if (!constraint.validateBasis(basis1.value, basis2.value)) {
     const normalized = constraint.normalizeBasis(basis1.value, basis2.value);
     basis1.value = normalized.basis1;
@@ -768,13 +835,23 @@ const getPatternClass = (type) => {
     p4m: P4MImagePattern,
     p4g: P4GImagePattern,
     cm: CMImagePattern,
-    cmm: CMMImagePattern
+    cmm: CMMImagePattern,
+    p3: P3ImagePattern,
+    p3m1: P3M1ImagePattern,
+    p6: P6ImagePattern,
   }
   return patterns[type]
 }
 
 const updateSymmetryType = () => {
-  genGridStyle()
+  // 如果切换到 p3 或 p6 群,自动调整基向量
+  if (symmetryType.value === 'p3' || symmetryType.value === 'p6') {
+    const size = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
+    hexagonSize.value = size;
+    updateHexagonBasis();
+  } else {
+    genGridStyle();
+  }
 }
 
 // 添加基向量约束配置
@@ -927,6 +1004,90 @@ const symmetryConstraints = {
         basis2: { x: len * Math.cos(angle), y: len * Math.sin(angle) }
       };
     }
+  },
+  p3: {
+    name: "P3 - 3次旋转",
+    description: "基向量等长且夹角120°",
+    constraints: "六角形",
+    validateBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      
+      // 计算夹角
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const cosAngle = dotProduct / (len1 * len2);
+      const expectedCos = -0.5; // cos(120°)
+      
+      // 允许一定的误差范围
+      const tolerance = 0.01;
+      return (
+        Math.abs(len1 - len2) < tolerance && 
+        Math.abs(cosAngle - expectedCos) < tolerance
+      );
+    },
+    normalizeBasis: (b1, b2) => {
+      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: size, y: 0 },
+        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
+      };
+    }
+  },
+  p3m1: {
+    name: "P3M1 - 3次旋转+镜像",
+    description: "基向量等长且夹角120°",
+    constraints: "六角形",
+    validateBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      
+      // 计算夹角
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const cosAngle = dotProduct / (len1 * len2);
+      const expectedCos = -0.5; // cos(120°)
+      
+      // 允许一定的误差范围
+      const tolerance = 0.01;
+      return (
+        Math.abs(len1 - len2) < tolerance && 
+        Math.abs(cosAngle - expectedCos) < tolerance
+      );
+    },
+    normalizeBasis: (b1, b2) => {
+      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: size, y: 0 },
+        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
+      };
+    }
+  },
+  p6: {
+    name: "P6 - 6次旋转",
+    description: "基向量等长且夹角120度",
+    constraints: "六角形",
+    validateBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      
+      // 计算夹角
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const cosAngle = dotProduct / (len1 * len2);
+      const expectedCos = -0.5; // cos(120°)
+      
+      // 允许一定的误差范围
+      const tolerance = 0.01;
+      return (
+        Math.abs(len1 - len2) < tolerance && 
+        Math.abs(cosAngle - expectedCos) < tolerance
+      );
+    },
+    normalizeBasis: (b1, b2) => {
+      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: size, y: 0 },
+        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
+      };
+    }
   }
 };
 
@@ -953,6 +1114,54 @@ const updateRhombusBasis = () => {
   }
   genGridStyle()
 }
+
+// 面板折叠状态
+const panelStates = ref({
+  symmetry: true,
+  basis: true,
+  grid: true,
+  nodeImage: true,
+  fillImage: true
+})
+
+// 切换面板显示状态
+const togglePanel = (panel) => {
+  panelStates.value[panel] = !panelStates.value[panel]
+}
+
+// 添加六角形控制状态
+const hexagonSize = ref(40)
+
+// 添加六角形基向量更新函数
+const updateHexagonBasis = () => {
+  const size = hexagonSize.value;
+  
+  // 计算精确的 120 度角的三角函数值
+  const cos120 = -0.5;
+  const sin120 = Math.sqrt(3) / 2;
+  
+  // 设置第个基向量
+  basis1.value = { 
+    x: size, 
+    y: 0 
+  };
+  
+  // 设置第二个基向量，确保与第一个基向量成 120 度角
+  basis2.value = {
+    x: size * cos120,
+    y: size * sin120
+  };
+  
+  genGridStyle();
+}
+
+watch(() => symmetryType.value, (newType) => {
+  if (newType === 'p3') {
+    const size = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
+    hexagonSize.value = size;
+    updateHexagonBasis();
+  }
+});
 
 </script>
 
@@ -1236,5 +1445,44 @@ select {
 
 .disabled span {
   color: #666;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.section-header:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 0.95em;
+  font-weight: normal;
+}
+
+.toggle-icon {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.control-section {
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
+}
+
+.control-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 </style>

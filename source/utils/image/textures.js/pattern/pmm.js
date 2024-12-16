@@ -630,7 +630,7 @@ export class P4ImagePattern extends PGGImagePattern {
         const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
 
         if (Math.abs(length1 - length2) > 1e-6) {
-            throw new Error('p4群要求两个基向量长度必须相等');
+            throw new Error('p4���要求两个基向量长度必须相等');
         }
 
         // 验证基向量垂直
@@ -805,66 +805,66 @@ export class P4GImagePattern extends CMImagePattern {
 
     drawRhombusUnit(ctx, i, j) {
         const { basis1, basis2 } = this.config.lattice;
-    
+
         // 计算单元格的基准位置
         const x = basis1.x * i + basis2.x * j;
         const y = basis1.y * i + basis2.y * j;
-    
+
         // 计算正方形的边长和中心点
         const sideLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
         const halfSide = sideLength / 2;
-    
+
         // 将正方形分成8个三角形区域
         for (let k = 0; k < 4; k++) {
             let points1 = []; // 存储内侧三角形的顶点
             let points2 = []; // 存储外侧三角形的顶点
-    
+
             if (k === 0) {
                 points1 = [
-                    {x: 0, y: halfSide},      // 左边中点
-                    {x: halfSide, y: halfSide},// 中心点
-                    {x: halfSide, y: 0}        // 上边中点
+                    { x: 0, y: halfSide },      // 左边中点
+                    { x: halfSide, y: halfSide },// 中心点
+                    { x: halfSide, y: 0 }        // 上边中点
                 ];
                 points2 = [
-                    {x: 0, y: halfSide},    // 左边中点
-                    {x: 0, y: 0},           // 左上角顶点
-                    {x: halfSide, y: 0}     // 上边中点
+                    { x: 0, y: halfSide },    // 左边中点
+                    { x: 0, y: 0 },           // 左上角顶点
+                    { x: halfSide, y: 0 }     // 上边中点
                 ];
             } else if (k === 1) {
                 points1 = [
-                    {x: halfSide, y: 0},        // 上边中点
-                    {x: halfSide, y: halfSide}, // 中心点
-                    {x: sideLength, y: halfSide} // 右边中点
+                    { x: halfSide, y: 0 },        // 上边中点
+                    { x: halfSide, y: halfSide }, // 中心点
+                    { x: sideLength, y: halfSide } // 右边中点
                 ];
                 points2 = [
-                    {x: halfSide, y: 0},        // 上边中点
-                    {x: sideLength, y: 0},      // 右上角顶点
-                    {x: sideLength, y: halfSide} // 右边中点
+                    { x: halfSide, y: 0 },        // 上边中点
+                    { x: sideLength, y: 0 },      // 右上角顶点
+                    { x: sideLength, y: halfSide } // 右边中点
                 ];
             } else if (k === 2) {
                 points1 = [
-                    {x: sideLength, y: halfSide},  // 右边中点
-                    {x: halfSide, y: halfSide},    // 中心点
-                    {x: halfSide, y: sideLength}   // 下边中点
+                    { x: sideLength, y: halfSide },  // 右边中点
+                    { x: halfSide, y: halfSide },    // 中心点
+                    { x: halfSide, y: sideLength }   // 下边中点
                 ];
                 points2 = [
-                    {x: sideLength, y: halfSide},    // 右边中点
-                    {x: sideLength, y: sideLength},  // 右下角顶点
-                    {x: halfSide, y: sideLength}     // 下边中点
+                    { x: sideLength, y: halfSide },    // 右边中点
+                    { x: sideLength, y: sideLength },  // 右下角顶点
+                    { x: halfSide, y: sideLength }     // 下边中点
                 ];
             } else {
                 points1 = [
-                    {x: halfSide, y: sideLength},  // 下边中点
-                    {x: halfSide, y: halfSide},    // 中心点
-                    {x: 0, y: halfSide}            // 左边中点
+                    { x: halfSide, y: sideLength },  // 下边中点
+                    { x: halfSide, y: halfSide },    // 中心点
+                    { x: 0, y: halfSide }            // 左边中点
                 ];
                 points2 = [
-                    {x: halfSide, y: sideLength},  // 下边中点
-                    {x: 0, y: sideLength},         // 左下角顶点
-                    {x: 0, y: halfSide}            // 左边中点
+                    { x: halfSide, y: sideLength },  // 下边中点
+                    { x: 0, y: sideLength },         // 左下角顶点
+                    { x: 0, y: halfSide }            // 左边中点
                 ];
             }
-    
+
             // 绘制内侧三角形
             ctx.save();
             ctx.translate(x, y);
@@ -874,15 +874,15 @@ export class P4GImagePattern extends CMImagePattern {
             ctx.lineTo(points1[2].x, points1[2].y);
             ctx.closePath();
             ctx.clip();
-    
+
             const centroid1X = (points1[0].x + points1[1].x + points1[2].x) / 3;
             const centroid1Y = (points1[0].y + points1[1].y + points1[2].y) / 3;
-    
+
             ctx.translate(centroid1X, centroid1Y);
-            ctx.rotate(k * Math.PI/2);
+            ctx.rotate(k * Math.PI / 2);
             this.drawFillPattern(ctx, i, j);
             ctx.restore();
-    
+
             // 绘制外侧三角形（沿对角线镜像）
             ctx.save();
             ctx.translate(x, y);
@@ -892,24 +892,24 @@ export class P4GImagePattern extends CMImagePattern {
             ctx.lineTo(points2[2].x, points2[2].y);
             ctx.closePath();
             ctx.clip();
-    
+
             const centroid2X = (points2[0].x + points2[1].x + points2[2].x) / 3;
             const centroid2Y = (points2[0].y + points2[1].y + points2[2].y) / 3;
-    
+
             // 计算对角线角度
-            const diagonalAngle = k * Math.PI/2 + Math.PI/4;
-    
+            const diagonalAngle = k * Math.PI / 2 + Math.PI / 4;
+
             // 应用对角线镜像变换
             ctx.translate(centroid2X, centroid2Y);
             ctx.rotate(diagonalAngle);
             ctx.scale(-1, 1);
             ctx.rotate(-diagonalAngle);
-            ctx.rotate(k * Math.PI/2);
+            ctx.rotate(k * Math.PI / 2);
             this.drawFillPattern(ctx, i, j);
             ctx.restore();
         }
     }
-    
+
     renderRhombusGrid(ctx, gridRange) {
         const { basis1, basis2 } = this.config.lattice;
 
@@ -936,25 +936,21 @@ export class P4GImagePattern extends CMImagePattern {
             }
         }
         ctx.stroke();
-
         // 绘制反射轴（十字和对角线）
         ctx.beginPath();
         ctx.strokeStyle = '#0000ff';
         ctx.setLineDash([5, 5]);
-
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
             for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
                 const x = basis1.x * i + basis2.x * j;
                 const y = basis1.y * i + basis2.y * j;
                 const sideLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
                 const halfSide = sideLength / 2;
-
                 // 绘制中心十字（连接边中点）
                 ctx.moveTo(x + halfSide, y);  // 上边中点
                 ctx.lineTo(x + halfSide, y + sideLength);  // 下边中点
                 ctx.moveTo(x, y + halfSide);  // 左边中点
                 ctx.lineTo(x + sideLength, y + halfSide);  // 右边中点
-
                 // 绘制对角线（连接顶点和中心）
                 ctx.moveTo(x, y + halfSide);
                 ctx.lineTo(x + halfSide, y);  // 左上顶点
@@ -992,6 +988,621 @@ export class P4GImagePattern extends CMImagePattern {
                 ctx.beginPath();
                 ctx.arc(x + halfSide, y, 3, 0, Math.PI * 2);
                 ctx.arc(x, y + halfSide, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    }
+}
+
+
+
+
+
+export class P3M1ImagePattern extends CMImagePattern {
+    constructor(config) {
+        super(config);
+    }
+
+    validateConfig(config) {
+        super.validateConfig(config);
+
+        const { basis1, basis2 } = config.lattice;
+
+        // 验证基向量长度必须相等
+        const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
+
+        if (Math.abs(length1 - length2) > 1e-6) {
+            throw new Error('p3群的两个基向量长度必须相等');
+        }
+
+        // 验证夹角为120度
+        const dotProduct = basis1.x * basis2.x + basis1.y * basis2.y;
+        const angle = Math.acos(dotProduct / (length1 * length2));
+
+        if (Math.abs(angle - (2 * Math.PI / 3)) > 1e-6) {
+            throw new Error('p3群的基向量夹角必须为120度');
+        }
+    }
+
+    drawFillPattern(ctx, x, y) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 计算单元格的位置索引
+        const i = Math.floor((x / basis1.x + 1000000));
+        const j = Math.floor((y / basis2.y + 1000000));
+
+        if (this.fillImage && this.fillImageLoaded) {
+            // 绘制原始图案
+            ctx.save();
+            this.drawFillImage(ctx);
+            ctx.restore();
+
+            // 绘制120度旋转的图案
+            ctx.save();
+            ctx.rotate(2 * Math.PI / 3);
+            this.drawFillImage(ctx);
+            ctx.restore();
+
+            // 绘制240度旋转的图案
+            ctx.save();
+            ctx.rotate(4 * Math.PI / 3);
+            this.drawFillImage(ctx);
+            ctx.restore();
+        }
+    }
+
+    drawNodePattern(ctx, x, y) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 计算单元格的位置索引
+        const i = Math.floor((x / basis1.x + 1000000));
+        const j = Math.floor((y / basis2.y + 1000000));
+
+        if (this.nodeImage && this.nodeImageLoaded) {
+            // 绘制原始图案
+            ctx.save();
+            this.drawNodeImage(ctx);
+            ctx.restore();
+
+            // 绘制120度旋转的图案
+            ctx.save();
+            ctx.rotate(2 * Math.PI / 3);
+            this.drawNodeImage(ctx);
+            ctx.restore();
+
+            // 绘制240度旋转的图案
+            ctx.save();
+            ctx.rotate(4 * Math.PI / 3);
+            this.drawNodeImage(ctx);
+            ctx.restore();
+        }
+    }
+
+
+    renderRhombusGrid(ctx, gridRange) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 旋转基向量90度
+        const rotatedBasis1 = {
+            x: -basis1.y,
+            y: basis1.x
+        };
+        const rotatedBasis2 = {
+            x: -basis2.y,
+            y: basis2.x
+        };
+
+        // 计算基向量长度
+        const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        // 六边形半径应该是基向量长度的 1/√3
+        const hexRadius = basisLength / Math.sqrt(3);
+
+        // 计算六边形的顶点
+        const getHexPoints = (centerX, centerY) => {
+            const points = [];
+            for (let i = 0; i < 6; i++) {
+                const angle = i * Math.PI / 3;
+                points.push({
+                    x: centerX + hexRadius * Math.cos(angle),
+                    y: centerY + hexRadius * Math.sin(angle)
+                });
+            }
+            return points;
+        };
+
+        // 使用旋转后的基向量计算位置
+        for (let i = gridRange.minI - 1; i <= gridRange.maxI + 1; i++) {
+            for (let j = gridRange.minJ - 1; j <= gridRange.maxJ + 1; j++) {
+                const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
+                const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
+
+                const points = getHexPoints(centerX, centerY);
+
+                // 绘制六边形边界
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let k = 1; k < points.length; k++) {
+                    ctx.lineTo(points[k].x, points[k].y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+
+                // 绘制三条对称线
+                ctx.beginPath();
+                ctx.strokeStyle = '#0000ff';
+                ctx.lineWidth = this.config.render.gridWidth;
+                ctx.setLineDash([5, 5]);
+
+                // 绘制三条120度间隔的对称线
+                for (let k = 0; k < 3; k++) {
+                    const angle = k * (2 * Math.PI / 3);
+                    ctx.moveTo(centerX, centerY);
+                    ctx.lineTo(
+                        centerX + hexRadius * Math.cos(angle),
+                        centerY + hexRadius * Math.sin(angle)
+                    );
+                }
+                ctx.stroke();
+
+                // 标记三重旋转中心
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+    }
+    drawRhombusUnit(ctx, i, j) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 旋转基向量90度
+        const rotatedBasis1 = {
+            x: -basis1.y,
+            y: basis1.x
+        };
+        const rotatedBasis2 = {
+            x: -basis2.y,
+            y: basis2.x
+        };
+
+        // 计算中心点位置
+        const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
+        const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
+
+        // 计算基向量长度和六边形半径
+        const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        const hexRadius = basisLength / Math.sqrt(3);
+
+        // 将六边形分成6个扇形区域
+        for (let k = 0; k < 6; k++) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+
+            // 创建扇形裁剪区域
+            ctx.beginPath();
+            const startAngle = k * Math.PI / 3;
+            const endAngle = (k + 1) * Math.PI / 3;
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, hexRadius, startAngle, endAngle);
+            ctx.closePath();
+            ctx.clip();
+
+            // 计算扇形区域重心
+            const centroidRadius = (2 * hexRadius) / 3;  // 扇形重心到中心的距离
+            const centroidAngle = startAngle + Math.PI / 6;  // 扇形重心的角度
+            const centroidX = centroidRadius * Math.cos(centroidAngle);
+            const centroidY = centroidRadius * Math.sin(centroidAngle);
+
+            // 移动到扇形重心并应用变换
+            ctx.translate(centroidX, centroidY);
+
+            // 每个扇形旋转120度
+            const rotation = Math.floor(k / 2) * (2 * Math.PI / 3);
+            ctx.rotate(rotation);
+
+            // 根据k的奇偶性决定是否需要镜像
+            if (k % 2 === 1) {
+                ctx.scale(1, -1);
+            }
+
+            // 绘制图案
+            this.drawFillPattern(ctx, i, j);
+
+            ctx.restore();
+        }
+    }
+}
+
+
+
+export class P3ImagePattern extends CMImagePattern {
+    constructor(config) {
+        super(config);
+    }
+
+    validateConfig(config) {
+        super.validateConfig(config);
+
+        const { basis1, basis2 } = config.lattice;
+
+        // 验证基向量长度必须相等
+        const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
+
+        if (Math.abs(length1 - length2) > 1e-6) {
+            throw new Error('p3群的两个基向量长度必须相等');
+        }
+
+        // 验证夹角为120度
+        const dotProduct = basis1.x * basis2.x + basis1.y * basis2.y;
+        const angle = Math.acos(dotProduct / (length1 * length2));
+
+        if (Math.abs(angle - (2 * Math.PI / 3)) > 1e-6) {
+            throw new Error('p3群的基向量夹角必须为120度');
+        }
+    }
+
+    drawFillPattern(ctx, x, y) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 计算单元格的位置索引
+        const i = Math.floor((x / basis1.x + 1000000));
+        const j = Math.floor((y / basis2.y + 1000000));
+
+        if (this.fillImage && this.fillImageLoaded) {
+            // 绘制原始图案
+            ctx.save();
+            this.drawFillImage(ctx);
+            ctx.restore();
+
+            // 绘制120度旋转的图案
+            ctx.save();
+            ctx.rotate(2 * Math.PI / 3);
+            this.drawFillImage(ctx);
+            ctx.restore();
+
+            // 绘制240度旋转的图案
+            ctx.save();
+            ctx.rotate(4 * Math.PI / 3);
+            this.drawFillImage(ctx);
+            ctx.restore();
+        }
+    }
+
+    drawNodePattern(ctx, x, y) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 计算单元格的位置索引
+        const i = Math.floor((x / basis1.x + 1000000));
+        const j = Math.floor((y / basis2.y + 1000000));
+
+        if (this.nodeImage && this.nodeImageLoaded) {
+            // 绘制原始图案
+            ctx.save();
+            this.drawNodeImage(ctx);
+            ctx.restore();
+
+            // 绘制120度旋转的图案
+            ctx.save();
+            ctx.rotate(2 * Math.PI / 3);
+            this.drawNodeImage(ctx);
+            ctx.restore();
+
+            // 绘制240度旋转的图案
+            ctx.save();
+            ctx.rotate(4 * Math.PI / 3);
+            this.drawNodeImage(ctx);
+            ctx.restore();
+        }
+    }
+
+
+    renderRhombusGrid(ctx, gridRange) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 旋转基向量90度
+        const rotatedBasis1 = {
+            x: -basis1.y,
+            y: basis1.x
+        };
+        const rotatedBasis2 = {
+            x: -basis2.y,
+            y: basis2.x
+        };
+
+        // 计算基向量长度
+        const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        // 六边形半径应该是基向量长度的 1/√3
+        const hexRadius = basisLength / Math.sqrt(3);
+
+        // 计算六边形的顶点
+        const getHexPoints = (centerX, centerY) => {
+            const points = [];
+            for (let i = 0; i < 6; i++) {
+                const angle = i * Math.PI / 3;
+                points.push({
+                    x: centerX + hexRadius * Math.cos(angle),
+                    y: centerY + hexRadius * Math.sin(angle)
+                });
+            }
+            return points;
+        };
+
+        // 使用旋转后的基向量计算位置
+        for (let i = gridRange.minI - 1; i <= gridRange.maxI + 1; i++) {
+            for (let j = gridRange.minJ - 1; j <= gridRange.maxJ + 1; j++) {
+                const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
+                const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
+
+                const points = getHexPoints(centerX, centerY);
+
+                // 绘制六边形边界
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let k = 1; k < points.length; k++) {
+                    ctx.lineTo(points[k].x, points[k].y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+
+                // 绘制三条对称线
+                ctx.beginPath();
+                ctx.strokeStyle = '#0000ff';
+                ctx.lineWidth = this.config.render.gridWidth;
+                ctx.setLineDash([5, 5]);
+
+                // 绘制三条120度间隔的对称线
+                for (let k = 0; k < 3; k++) {
+                    const angle = k * (2 * Math.PI / 3);
+                    ctx.moveTo(centerX, centerY);
+                    ctx.lineTo(
+                        centerX + hexRadius * Math.cos(angle),
+                        centerY + hexRadius * Math.sin(angle)
+                    );
+                }
+                ctx.stroke();
+
+                // 标记三重旋转中心
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+    }
+    drawRhombusUnit(ctx, i, j) {
+        const { basis1, basis2 } = this.config.lattice;
+        
+        // 旋转基向量90度
+        const rotatedBasis1 = {
+            x: -basis1.y,
+            y: basis1.x
+        };
+        const rotatedBasis2 = {
+            x: -basis2.y,
+            y: basis2.x
+        };
+        
+        // 计算中心点位置
+        const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
+        const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
+        
+        // 计算基向量长度和六边形半径
+        const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        const hexRadius = basisLength / Math.sqrt(3);
+        
+        // 将六边形分成3个120度的区域
+        for (let k = 0; k < 3; k++) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            
+            // 创建120度的裁剪区域
+            ctx.beginPath();
+            const startAngle = k * (2 * Math.PI / 3);
+            const endAngle = (k + 1) * (2 * Math.PI / 3);
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, hexRadius, startAngle, endAngle);
+            ctx.closePath();
+            ctx.clip();
+            
+            // 修正120度扇形区域重心计算
+            // 扇形形心到圆心的距离 = (4 * r) / (3 * θ) * sin(θ/2)
+            // 其中 r 是半径, θ 是弧度(这里是 2π/3)
+            const theta = 2 * Math.PI / 3;  // 120度
+            const centroidRadius = (4 * hexRadius) / (3 * theta) * Math.sin(theta/2);
+            const centroidAngle = startAngle + theta/2;  // 扇形的角平分线方向
+            const centroidX = centroidRadius * Math.cos(centroidAngle);
+            const centroidY = centroidRadius * Math.sin(centroidAngle);
+            
+            // 移动到扇形重心并应用旋转
+            ctx.translate(centroidX, centroidY);
+            ctx.rotate(k * (2 * Math.PI / 3));  // 旋转120度
+            
+            // 绘制图案
+            this.drawFillPattern(ctx, i, j);
+            
+            ctx.restore();
+        }
+        }
+}
+
+
+
+
+
+
+export class P6ImagePattern extends CMImagePattern {
+    constructor(config) {
+        super(config);
+    }
+
+    validateConfig(config) {
+        super.validateConfig(config);
+
+        const { basis1, basis2 } = config.lattice;
+
+        // 验证基向量长度必须相等
+        const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
+
+        if (Math.abs(length1 - length2) > 1e-6) {
+            throw new Error('p6群的两个基向量长度必须相等');
+        }
+
+        // 验证夹角为120度
+        const dotProduct = basis1.x * basis2.x + basis1.y * basis2.y;
+        const angle = Math.acos(dotProduct / (length1 * length2));
+
+        if (Math.abs(angle - (2 * Math.PI / 3)) > 1e-6) {
+            throw new Error('p6群的基向量夹角必须为120度');
+        }
+    }
+
+    drawFillPattern(ctx, x, y) {
+        if (this.fillImage && this.fillImageLoaded) {
+            // 绘制6个60度旋转的图案
+            for (let k = 0; k < 6; k++) {
+                ctx.save();
+                ctx.rotate(k * Math.PI / 3); // 每次旋转60度
+                this.drawFillImage(ctx);
+                ctx.restore();
+            }
+        }
+    }
+
+    drawNodePattern(ctx, x, y) {
+        if (this.nodeImage && this.nodeImageLoaded) {
+            // 绘制6个60度旋转的节点图案
+            for (let k = 0; k < 6; k++) {
+                ctx.save();
+                ctx.rotate(k * Math.PI / 3); // 每次旋转60度
+                this.drawNodeImage(ctx);
+                ctx.restore();
+            }
+        }
+    }
+
+    drawRhombusUnit(ctx, i, j) {
+        const { basis1, basis2 } = this.config.lattice;
+        
+        // 旋转基向量90度
+        const rotatedBasis1 = {
+            x: -basis1.y,
+            y: basis1.x
+        };
+        const rotatedBasis2 = {
+            x: -basis2.y,
+            y: basis2.x
+        };
+        
+        // 计算中心点位置
+        const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
+        const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
+        
+        // 计算基向量长度和六边形半径
+        const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        const hexRadius = basisLength / Math.sqrt(3);
+        
+        // 将六边形分成6个60度的区域
+        for (let k = 0; k < 6; k++) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            
+            // 创建60度的裁剪区域
+            ctx.beginPath();
+            const startAngle = k * (Math.PI / 3);
+            const endAngle = (k + 1) * (Math.PI / 3);
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, hexRadius, startAngle, endAngle);
+            ctx.closePath();
+            ctx.clip();
+            
+            // 计算60度扇形区域重心
+            const theta = Math.PI / 3;  // 60度
+            const centroidRadius = (4 * hexRadius) / (3 * theta) * Math.sin(theta/2);
+            const centroidAngle = startAngle + theta/2;
+            const centroidX = centroidRadius * Math.cos(centroidAngle);
+            const centroidY = centroidRadius * Math.sin(centroidAngle);
+            
+            // 移动到扇形重心并应用旋转
+            ctx.translate(centroidX, centroidY);
+            ctx.rotate(k * (Math.PI / 3));  // 旋转60度
+            
+            // 绘制图案
+            this.drawFillPattern(ctx, i, j);
+            
+            ctx.restore();
+        }
+    }
+
+    renderRhombusGrid(ctx, gridRange) {
+        const { basis1, basis2 } = this.config.lattice;
+
+        // 旋转基向量90度
+        const rotatedBasis1 = {
+            x: -basis1.y,
+            y: basis1.x
+        };
+        const rotatedBasis2 = {
+            x: -basis2.y,
+            y: basis2.x
+        };
+
+        const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+        const hexRadius = basisLength / Math.sqrt(3);
+
+        // 计算六边形的顶点
+        const getHexPoints = (centerX, centerY) => {
+            const points = [];
+            for (let i = 0; i < 6; i++) {
+                const angle = i * Math.PI / 3;
+                points.push({
+                    x: centerX + hexRadius * Math.cos(angle),
+                    y: centerY + hexRadius * Math.sin(angle)
+                });
+            }
+            return points;
+        };
+
+        // 绘制网格
+        for (let i = gridRange.minI - 1; i <= gridRange.maxI + 1; i++) {
+            for (let j = gridRange.minJ - 1; j <= gridRange.maxJ + 1; j++) {
+                const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
+                const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
+
+                const points = getHexPoints(centerX, centerY);
+
+                // 绘制六边形边界
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let k = 1; k < points.length; k++) {
+                    ctx.lineTo(points[k].x, points[k].y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+
+                // 绘制六条对称线
+                ctx.beginPath();
+                ctx.strokeStyle = '#0000ff';
+                ctx.lineWidth = this.config.render.gridWidth;
+                ctx.setLineDash([5, 5]);
+
+                // 绘制六条60度间隔的对称线
+                for (let k = 0; k < 6; k++) {
+                    const angle = k * (Math.PI / 3);
+                    ctx.moveTo(centerX, centerY);
+                    ctx.lineTo(
+                        centerX + hexRadius * Math.cos(angle),
+                        centerY + hexRadius * Math.sin(angle)
+                    );
+                }
+                ctx.stroke();
+
+                // 标记六重旋转中心
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
                 ctx.fill();
             }
         }
