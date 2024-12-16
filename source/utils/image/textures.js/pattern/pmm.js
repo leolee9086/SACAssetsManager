@@ -280,15 +280,11 @@ export class CMImagePattern extends P1ImagePattern {
             { x: basis2.x, y: basis2.y }   // 左上顶点
         ];
 
-        // 计算形心
-        const centroidX = (vertices[0].x + vertices[1].x + vertices[2].x + vertices[3].x) / 4;
-        const centroidY = (vertices[0].y + vertices[1].y + vertices[2].y + vertices[3].y) / 4;
-
         // 绘制第一个三角形
         ctx.save();
         ctx.translate(x, y);
 
-        // 创建第一个三角形的裁剪路径（从左上到右下的三角形）
+        // 创建第一个三角形的裁剪路径
         ctx.beginPath();
         ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
         ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
@@ -296,8 +292,12 @@ export class CMImagePattern extends P1ImagePattern {
         ctx.closePath();
         ctx.clip();
 
-        // 绘制原始图案
-        ctx.translate(centroidX, centroidY);
+        // 计算第一个三角形的形心
+        const centroid1X = (vertices[3].x + vertices[1].x + vertices[0].x) / 3;
+        const centroid1Y = (vertices[3].y + vertices[1].y + vertices[0].y) / 3;
+
+        // 移动到第一个三角形的形心
+        ctx.translate(centroid1X, centroid1Y);
         this.drawFillPattern(ctx, i, j, false);
         ctx.restore();
 
@@ -305,7 +305,7 @@ export class CMImagePattern extends P1ImagePattern {
         ctx.save();
         ctx.translate(x, y);
 
-        // 创建第二个三角形的裁剪路径（从右上到左下的三角形）
+        // 创建第二个三角形的裁剪路径
         ctx.beginPath();
         ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
         ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
@@ -313,20 +313,21 @@ export class CMImagePattern extends P1ImagePattern {
         ctx.closePath();
         ctx.clip();
 
+        // 计算第二个三角形的形心
+        const centroid2X = (vertices[3].x + vertices[1].x + vertices[2].x) / 3;
+        const centroid2Y = (vertices[3].y + vertices[1].y + vertices[2].y) / 3;
+
         // 计算对角线方向并进行镜像变换
         const diagonalX = vertices[1].x - vertices[3].x;
         const diagonalY = vertices[1].y - vertices[3].y;
         const angle = Math.atan2(diagonalY, diagonalX);
 
-        // 应用镜像变换
-        ctx.translate(vertices[3].x, vertices[3].y);  // 移动到对角线起点
+        // 移动到第二个三角形的形心并应用镜像变换
+        ctx.translate(centroid2X, centroid2Y);
         ctx.rotate(angle);
         ctx.scale(1, -1);
         ctx.rotate(-angle);
-        ctx.translate(-vertices[3].x, -vertices[3].y);  // 移回原位
 
-        // 绘制镜像图案
-        ctx.translate(centroidX, centroidY);
         this.drawFillPattern(ctx, i, j, true);
         ctx.restore();
     }
@@ -710,11 +711,11 @@ export class P4MImagePattern extends CMImagePattern {
             const endAngle = ((k + 1) * Math.PI) / 4;
             const radius = sideLength / Math.sqrt(2);
 
-            const x1 = centerX + radius * Math.cos(startAngle);
-            const y1 = centerY + radius * Math.sin(startAngle);
-            const x2 = centerX + radius * Math.cos(endAngle);
-            const y2 = centerY + radius * Math.sin(endAngle);
-
+            // 确保所有点都在正方形内
+            const x1 = Math.min(Math.max(centerX + radius * Math.cos(startAngle), 0), sideLength);
+            const y1 = Math.min(Math.max(centerY + radius * Math.sin(startAngle), 0), sideLength);
+            const x2 = Math.min(Math.max(centerX + radius * Math.cos(endAngle), 0), sideLength);
+            const y2 = Math.min(Math.max(centerY + radius * Math.sin(endAngle), 0), sideLength);
             ctx.lineTo(x1, y1);
             ctx.lineTo(x2, y2);
             ctx.closePath();
@@ -725,16 +726,29 @@ export class P4MImagePattern extends CMImagePattern {
             const shouldMirror = k % 2 === 1;
 
             // 应用变换
-            ctx.translate(centerX, centerY);
-            ctx.rotate(rotation);
-            if (shouldMirror) {
+            ctx.translate((centerX + x1 + x2) / 3, (centerY + y1 + y2) / 3);
+            const baseRotation = Math.floor(k / 2) * (Math.PI / 2);
+            ctx.rotate(baseRotation);
+
+            // 对奇数索引的三角形进行镜像
+            if (k % 2 === 1) {
+                // 先抵消基本旋转
+                ctx.rotate(-baseRotation);
+
+                // 计算镜像线角度
+                const mirrorAngle = (k * Math.PI) / 4;
+
+                // 应用镜像变换
+                ctx.rotate(mirrorAngle);
                 ctx.scale(1, -1);
+                ctx.rotate(-mirrorAngle);
+
+                // 重新应用基本旋转
+                ctx.rotate(baseRotation);
             }
 
             // 绘制图案
-            if (this.fillImage && this.fillImageLoaded) {
-                this.drawFillImage(ctx);
-            }
+            this.drawFillPattern(ctx, i, j);
 
             ctx.restore();
         }
@@ -1025,32 +1039,6 @@ export class P3M1ImagePattern extends CMImagePattern {
         }
     }
 
-    drawFillPattern(ctx, x, y) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        // 计算单元格的位置索引
-        const i = Math.floor((x / basis1.x + 1000000));
-        const j = Math.floor((y / basis2.y + 1000000));
-
-        if (this.fillImage && this.fillImageLoaded) {
-            // 绘制原始图案
-            ctx.save();
-            this.drawFillImage(ctx);
-            ctx.restore();
-
-            // 绘制120度旋转的图案
-            ctx.save();
-            ctx.rotate(2 * Math.PI / 3);
-            this.drawFillImage(ctx);
-            ctx.restore();
-
-            // 绘制240度旋转的图案
-            ctx.save();
-            ctx.rotate(4 * Math.PI / 3);
-            this.drawFillImage(ctx);
-            ctx.restore();
-        }
-    }
 
     drawNodePattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
@@ -1179,30 +1167,40 @@ export class P3M1ImagePattern extends CMImagePattern {
             ctx.save();
             ctx.translate(centerX, centerY);
 
-            // 创建扇形裁剪区域
             ctx.beginPath();
             const startAngle = k * Math.PI / 3;
             const endAngle = (k + 1) * Math.PI / 3;
+            const theta = Math.PI / 3;  // 60度扇形的角度
+
+            // 计算两个半径端点的坐标
+            const x1 = hexRadius * Math.cos(startAngle);
+            const y1 = hexRadius * Math.sin(startAngle);
+            const x2 = hexRadius * Math.cos(endAngle);
+            const y2 = hexRadius * Math.sin(endAngle);
+
+            // 使用直线连接形成三角形边界
             ctx.moveTo(0, 0);
-            ctx.arc(0, 0, hexRadius, startAngle, endAngle);
+            ctx.lineTo(x1, y1);
+            ctx.lineTo(x2, y2);
             ctx.closePath();
             ctx.clip();
 
-            // 计算扇形区域重心
-            const centroidRadius = (2 * hexRadius) / 3;  // 扇形重心到中心的距离
-            const centroidAngle = startAngle + Math.PI / 6;  // 扇形重心的角度
+            // 计算扇形形心
+            const centroidRadius = (4 * hexRadius) / (3 * theta) * Math.sin(theta / 2);
+            const centroidAngle = startAngle + theta / 2;
             const centroidX = centroidRadius * Math.cos(centroidAngle);
             const centroidY = centroidRadius * Math.sin(centroidAngle);
 
-            // 移动到扇形重心并应用变换
+            // 移动到形心位置
             ctx.translate(centroidX, centroidY);
 
-            // 每个扇形旋转120度
-            const rotation = Math.floor(k / 2) * (2 * Math.PI / 3);
-            ctx.rotate(rotation);
-
-            // 根据k的奇偶性决定是否需要镜像
-            if (k % 2 === 1) {
+            if (k % 2 === 0) {
+                // 偶数扇区只需要旋转
+                ctx.rotate(k * Math.PI / 3);
+            } else {
+                // 奇数扇区需要镜像
+                const rotation = (k + 1) * Math.PI / 3;
+                ctx.rotate(rotation);
                 ctx.scale(1, -1);
             }
 
@@ -1243,32 +1241,7 @@ export class P3ImagePattern extends CMImagePattern {
         }
     }
 
-    drawFillPattern(ctx, x, y) {
-        const { basis1, basis2 } = this.config.lattice;
 
-        // 计算单元格的位置索引
-        const i = Math.floor((x / basis1.x + 1000000));
-        const j = Math.floor((y / basis2.y + 1000000));
-
-        if (this.fillImage && this.fillImageLoaded) {
-            // 绘制原始图案
-            ctx.save();
-            this.drawFillImage(ctx);
-            ctx.restore();
-
-            // 绘制120度旋转的图案
-            ctx.save();
-            ctx.rotate(2 * Math.PI / 3);
-            this.drawFillImage(ctx);
-            ctx.restore();
-
-            // 绘制240度旋转的图案
-            ctx.save();
-            ctx.rotate(4 * Math.PI / 3);
-            this.drawFillImage(ctx);
-            ctx.restore();
-        }
-    }
 
     drawNodePattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
@@ -1402,10 +1375,32 @@ export class P3ImagePattern extends CMImagePattern {
             const startAngle = k * (2 * Math.PI / 3);
             const endAngle = (k + 1) * (2 * Math.PI / 3);
             ctx.moveTo(0, 0);
-            ctx.arc(0, 0, hexRadius, startAngle, endAngle);
-            ctx.closePath();
-            ctx.clip();
+            // 1. 计算扇形的中心角
+            const centerAngle = (startAngle + endAngle) / 2;
 
+            // 2. 计算扇形角度的一半
+            const halfAngle = (endAngle - startAngle) / 2;
+
+            // 3. 计算棱形的四个顶点
+            // A点：在圆弧上，位于中心角位置
+            const ax = hexRadius * Math.cos(centerAngle);
+            const ay = hexRadius * Math.sin(centerAngle);
+
+            // B点和C点：在扇形边上
+            const bx = hexRadius * Math.cos(startAngle) * Math.cos(halfAngle);
+            const by = hexRadius * Math.sin(startAngle) * Math.cos(halfAngle);
+
+            const cx = hexRadius * Math.cos(endAngle) * Math.cos(halfAngle);
+            const cy = hexRadius * Math.sin(endAngle) * Math.cos(halfAngle);
+
+            // 绘制棱形
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);     // 移动到A点
+            ctx.lineTo(bx, by);     // 连接到B点
+            ctx.lineTo(0, 0);       // 连接到圆心
+            ctx.lineTo(cx, cy);     // 连接到C点
+            ctx.closePath();        // 闭合路径
+            ctx.clip();           // 描边
             // 修正120度扇形区域重心计算
             // 扇形形心到圆心的距离 = (4 * r) / (3 * θ) * sin(θ/2)
             // 其中 r 是半径, θ 是弧度(这里是 2π/3)
@@ -1493,36 +1488,43 @@ export class P6ImagePattern extends CMImagePattern {
         const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
         const hexRadius = basisLength / Math.sqrt(3);
 
-        // 将六边形分成6个60度的区域
-        for (let k = 0; k < 6; k++) {
-            ctx.save();
-            ctx.translate(centerX, centerY);
+      
+    // 将六边形分成6个正三角形
+    for (let k = 0; k < 6; k++) {
+        ctx.save();
+        ctx.translate(centerX, centerY);
 
-            // 创建60度的裁剪区域
-            ctx.beginPath();
-            const startAngle = k * (Math.PI / 3);
-            const endAngle = (k + 1) * (Math.PI / 3);
-            ctx.moveTo(0, 0);
-            ctx.arc(0, 0, hexRadius, startAngle, endAngle);
-            ctx.closePath();
-            ctx.clip();
+        // 计算当前三角形的三个顶点
+        const angle1 = k * Math.PI / 3;  // 第一个顶点角度
+        const angle2 = (k + 1) * Math.PI / 3;  // 第二个顶点角度
 
-            // 计算60度扇形区域重心
-            const theta = Math.PI / 3;  // 60度
-            const centroidRadius = (4 * hexRadius) / (3 * theta) * Math.sin(theta / 2);
-            const centroidAngle = startAngle + theta / 2;
-            const centroidX = centroidRadius * Math.cos(centroidAngle);
-            const centroidY = centroidRadius * Math.sin(centroidAngle);
+        // 创建三角形裁剪路径
+        ctx.beginPath();
+        ctx.moveTo(0, 0);  // 中心点
+        ctx.lineTo(
+            hexRadius * Math.cos(angle1),  // 第一个外顶点
+            hexRadius * Math.sin(angle1)
+        );
+        ctx.lineTo(
+            hexRadius * Math.cos(angle2),  // 第二个外顶点
+            hexRadius * Math.sin(angle2)
+        );
+        ctx.closePath();
+        ctx.clip();
 
-            // 移动到扇形重心并应用旋转
-            ctx.translate(centroidX, centroidY);
-            ctx.rotate(k * (Math.PI / 3));  // 旋转60度
+        // 计算三角形形心
+        const centroidX = (0 + hexRadius * Math.cos(angle1) + hexRadius * Math.cos(angle2)) / 3;
+        const centroidY = (0 + hexRadius * Math.sin(angle1) + hexRadius * Math.sin(angle2)) / 3;
 
-            // 绘制图案
-            this.drawFillPattern(ctx, i, j);
+        // 移动到三角形形心并应用旋转
+        ctx.translate(centroidX, centroidY);
+        ctx.rotate(k * Math.PI / 3);  // 旋转60度
 
-            ctx.restore();
-        }
+        // 绘制图案
+        this.drawFillPattern(ctx, i, j);
+
+        ctx.restore();
+    }
     }
 
     renderRhombusGrid(ctx, gridRange) {
@@ -1632,23 +1634,50 @@ export class P6MImagePattern extends P6ImagePattern {
         for (let k = 0; k < 12; k++) {
             ctx.save();
             ctx.translate(centerX, centerY);
-
-            // 创建30度的裁剪区域
+    
+            // 计算当前区域的边界点
+            const sectorIndex = Math.floor(k / 2);  // 确定在哪个60度扇区
+            const isSecondHalf = k % 2 === 1;       // 是否是扇区的第二半部分
+    
+            // 计算扇区的顶点坐标
+            const angle1 = sectorIndex * (Math.PI / 3);
+            const angle2 = ((sectorIndex + 1) % 6) * (Math.PI / 3);
+            
+            // 计算扇区边界上的点
+            const x1 = hexRadius * Math.cos(angle1);
+            const y1 = hexRadius * Math.sin(angle1);
+            const x2 = hexRadius * Math.cos(angle2);
+            const y2 = hexRadius * Math.sin(angle2);
+            
+            // 计算边的中点
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+    
+            // 创建裁剪路径
             ctx.beginPath();
-            const startAngle = k * (Math.PI / 6);
-            const endAngle = (k + 1) * (Math.PI / 6);
-            ctx.moveTo(0, 0);
-            ctx.arc(0, 0, hexRadius, startAngle, endAngle);
+            if (!isSecondHalf) {
+                // 第一个三角形：中心点-顶点-边中点
+                ctx.moveTo(0, 0);
+                ctx.lineTo(x1, y1);
+                ctx.lineTo(midX, midY);
+            } else {
+                // 第二个三角形：中心点-边中点-下一个顶点
+                ctx.moveTo(0, 0);
+                ctx.lineTo(midX, midY);
+                ctx.lineTo(x2, y2);
+            }
             ctx.closePath();
             ctx.clip();
-
-            // 计算扇形区域重心
-            const theta = Math.PI / 6;  // 30度
-            const centroidRadius = (4 * hexRadius) / (3 * theta) * Math.sin(theta / 2);
-            const centroidAngle = startAngle + theta / 2;
-            const centroidX = centroidRadius * Math.cos(centroidAngle);
-            const centroidY = centroidRadius * Math.sin(centroidAngle);
-
+    
+            // 计算三角形形心
+            let centroidX, centroidY;
+            if (!isSecondHalf) {
+                centroidX = (0 + x1 + midX) / 3;
+                centroidY = (0 + y1 + midY) / 3;
+            } else {
+                centroidX = (0 + midX + x2) / 3;
+                centroidY = (0 + midY + y2) / 3;
+            }
             // 移动到扇形重心
             ctx.translate(centroidX, centroidY);
 
@@ -1659,15 +1688,15 @@ export class P6MImagePattern extends P6ImagePattern {
             if (k % 2 !== 0) {
                 // 先抵消基本旋转
                 ctx.rotate(-baseRotation);
-                
+
                 // 计算镜像线角度 - 关键修改在这里
-                const mirrorAngle = ((k ) / 2) * (Math.PI / 3);
-                
+                const mirrorAngle = ((k) / 2) * (Math.PI / 3);
+
                 // 应用镜像变换
                 ctx.rotate(mirrorAngle);
                 ctx.scale(1, -1);
                 ctx.rotate(-mirrorAngle);
-                
+
                 // 重新应用基本旋转
                 ctx.rotate(baseRotation);
             }
@@ -1731,15 +1760,37 @@ export class P6MImagePattern extends P6ImagePattern {
                 ctx.strokeStyle = '#0000ff';
                 ctx.setLineDash([5, 5]);
 
-                // 绘制12条30度间隔的对称线
-                for (let k = 0; k < 12; k++) {
-                    const angle = k * (Math.PI / 6);
+                // 1. 绘制6条连接到顶点的线
+                for (let k = 0; k < 6; k++) {
+                    const angle = k * (Math.PI / 3);
                     ctx.moveTo(centerX, centerY);
                     ctx.lineTo(
                         centerX + hexRadius * Math.cos(angle),
                         centerY + hexRadius * Math.sin(angle)
                     );
                 }
+
+                // 2. 绘制6条连接到边中点的线
+                for (let k = 0; k < 6; k++) {
+                    // 计算相邻两个顶点
+                    const angle1 = k * (Math.PI / 3);
+                    const angle2 = ((k + 1) % 6) * (Math.PI / 3);
+
+                    // 计算这两个顶点的坐标
+                    const x1 = centerX + hexRadius * Math.cos(angle1);
+                    const y1 = centerY + hexRadius * Math.sin(angle1);
+                    const x2 = centerX + hexRadius * Math.cos(angle2);
+                    const y2 = centerY + hexRadius * Math.sin(angle2);
+
+                    // 计算边的中点
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2;
+
+                    // 连接中心到边的中点
+                    ctx.moveTo(centerX, centerY);
+                    ctx.lineTo(midX, midY);
+                }
+
                 ctx.stroke();
 
                 // 标记六重旋转中心
@@ -1786,32 +1837,6 @@ export class P31MImagePattern extends CMImagePattern {
         }
     }
 
-    drawFillPattern(ctx, x, y) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        // 计算单元格的位置索引
-        const i = Math.floor((x / basis1.x + 1000000));
-        const j = Math.floor((y / basis2.y + 1000000));
-
-        if (this.fillImage && this.fillImageLoaded) {
-            // 绘制原始图案
-            ctx.save();
-            this.drawFillImage(ctx);
-            ctx.restore();
-
-            // 绘制120度旋转的图案
-            ctx.save();
-            ctx.rotate(2 * Math.PI / 3);
-            this.drawFillImage(ctx);
-            ctx.restore();
-
-            // 绘制240度旋转的图案
-            ctx.save();
-            ctx.rotate(4 * Math.PI / 3);
-            this.drawFillImage(ctx);
-            ctx.restore();
-        }
-    }
 
     drawNodePattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
@@ -1965,26 +1990,17 @@ export class P31MImagePattern extends CMImagePattern {
             x: -basis2.y,
             y: basis2.x
         };
-        // 计算中心点和六边形参数
+
         const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
         const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
-        // 计算基向量长度
         const basisLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-
         const hexRadius = basisLength / Math.sqrt(3);
-        // 计算三角形形心的辅助函数
+
         const calculateTriangleCentroid = (p1, p2, p3) => {
             return {
                 x: (p1.x + p2.x + p3.x) / 3,
                 y: (p1.y + p2.y + p3.y) / 3
             };
-        };
-
-        // 判断是否需要镜像的辅助函数
-        const needsMirroring = (k, m) => {
-            // 根据位置判断是否需要镜像
-            // 这里的逻辑需要根据具体的对称要求调整
-            return (k % 2 === 1) || (m === 1);
         };
 
         // 首先将六边形分成6个主三角形
@@ -2003,7 +2019,7 @@ export class P31MImagePattern extends CMImagePattern {
                 y: centerY + hexRadius * Math.sin(angle2)
             };
 
-            // 计算主三角形的形心(第一个三重旋转中心)
+            // 计算主三角形的形心
             const mainCentroid = calculateTriangleCentroid(center, vertex1, vertex2);
 
             // 将主三角形分成3个小三角形
@@ -2038,17 +2054,20 @@ export class P31MImagePattern extends CMImagePattern {
                 // 应用变换
                 ctx.translate(smallCentroid.x, smallCentroid.y);
 
-                // 基本旋转(60度的整数倍)
-                ctx.rotate(k * Math.PI / 3);
+                if (k % 2 === 0) {
+                    // 偶数大三角形：正常旋转
+                    ctx.rotate(Math.floor(k / 2) * (2 * Math.PI / 3));  // 基本旋转
+                    ctx.rotate(m * (2 * Math.PI / 3));  // 小三角形旋转
+                } else {
+                    // 奇数大三角形：先镜像，再反向旋转
+                    ctx.rotate(Math.floor(k / 2) * (2 * Math.PI / 3));  // 基本旋转
+                    ctx.scale(1, -1);  // 镜像
+                    ctx.rotate(2 * Math.PI / 3);  // 额外旋转90度补偿镜像带来的方向变化
 
-                // 根据位置决定是否需要镜像
-                if (needsMirroring(k, m)) {
-                    ctx.scale(1, -1);
+                    ctx.rotate(-m * (2 * Math.PI / 3));  // 小三角形反向旋转
                 }
 
-                // 绘制基本图案
                 this.drawFillPattern(ctx, i, j);
-
                 ctx.restore();
             }
         }
