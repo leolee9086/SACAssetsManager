@@ -31,7 +31,7 @@
         </div>
       </div>
 
-      <!-- 节点���������������������置面板 -->
+      <!-- 节点�������������������������������置面板 -->
       <div class="control-section">
         <div class='fn__flex'>
           <h4>晶格点设置</h4>
@@ -163,6 +163,8 @@
             <option value="p3">P3 - 3次旋转</option>
             <option value="p3m1">P3M1 - 3次旋转+镜像</option>
             <option value="p6">P6 - 6次旋转</option>
+            <option value="p6m">P6M - 6次旋转+镜像</option>
+            <option value="p31m">P31M - 三重旋转+镜像</option>
           </select>
         </div>
       </div>
@@ -174,7 +176,7 @@
           <span class="constraint-desc">{{ symmetryConstraints[symmetryType].description }}</span>
         </div>
         
-        <!-- 正方形控制器 -->
+        <!-- 正方形制器 -->
         <div class="control-group" :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '正方形' }">
           <span>边长:</span>
           <input type="number" 
@@ -262,6 +264,8 @@ import {
   P3ImagePattern,
   P3M1ImagePattern,
   P6ImagePattern,
+  P6MImagePattern,
+  P31MImagePattern 
 } from '../../../utils/image/textures.js/pattern/pmm.js'
 
 import { validateAndNormalizeBasis } from './utils.js';
@@ -295,8 +299,8 @@ const { addBrushListeners, removeBrushListeners } = createGridBrushHandlers({
 
 const renderer = ref(null)
 const canvas = ref(null)
-const basis1 = ref({ x: 80, y: 0 })
-const basis2 = ref({ x: 0, y: 80 })
+const basis1 = ref({ x: 240, y: 0 })
+const basis2 = ref({ x: 0, y: 240 })
 
 const fileInput = ref(null)
 const selectedFileName = ref('')
@@ -331,7 +335,7 @@ const drawSeamlessUnitBox = () => {
   overlayCanvas.style.left = '50%';
   overlayCanvas.style.top = '50%';
   overlayCanvas.style.transform = 'translate(-50%, -50%)';
-  overlayCanvas.style.pointerEvents = 'none'; // 确保��影响下层交互
+  overlayCanvas.style.pointerEvents = 'none'; // 确保影响下层交互
 
   const ctx = overlayCanvas.getContext('2d');
 
@@ -497,7 +501,7 @@ const genGridStyle = (() => {
         y: height.value / 2,
       });
 
-      // 将缓冲区内容���制到显示画布
+      // 将缓冲区内容复制到显示画布
       if (!renderer.value) {
         renderer.value = {
           canvas: canvas.value,
@@ -525,7 +529,7 @@ const genGridStyle = (() => {
       console.log(`渲染耗时: ${renderTime.toFixed(2)}ms`);
       
       if(perfStats.totalCalls % 10 === 0) {
-        console.log('网格渲染���能统计:', {
+        console.log('网格渲染性能统计:', {
           调用次数: perfStats.totalCalls,
           平均渲染时间: `${(perfStats.totalTime / perfStats.totalCalls).toFixed(2)}ms`,
           最长渲染时间: `${perfStats.maxTime.toFixed(2)}ms`,
@@ -770,9 +774,9 @@ const applyPresetRatio = (preset) => {
 }
 
 
-// 修��统一的 handleBasisInput 函数
+// 修改统一的 handleBasisInput 函数
 const handleBasisInput = (vector, component, value) => {
-  // 如果传入了具体的向量组件
+  // 如果传入了具体的向组件
   if (component && value !== undefined) {
     const newValue = { ...vector };
     newValue[component] = value;
@@ -838,14 +842,16 @@ const getPatternClass = (type) => {
     cmm: CMMImagePattern,
     p3: P3ImagePattern,
     p3m1: P3M1ImagePattern,
+    p31m: P31MImagePattern,
     p6: P6ImagePattern,
+    p6m: P6MImagePattern
   }
   return patterns[type]
 }
 
 const updateSymmetryType = () => {
-  // 如果切换到 p3 或 p6 群,自动调整基向量
-  if (symmetryType.value === 'p3' || symmetryType.value === 'p6') {
+  // 添加p31m到需要自动调整的对称群列表中
+  if (['p3', 'p6', 'p6m', 'p31m'].includes(symmetryType.value)) {
     const size = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
     hexagonSize.value = size;
     updateHexagonBasis();
@@ -1088,6 +1094,62 @@ const symmetryConstraints = {
         basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
       };
     }
+  },
+  p6m: {
+    name: "P6M - 6次旋转+镜像",
+    description: "基向量等长且夹角120度",
+    constraints: "六角形",
+    validateBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      
+      // 计算夹角
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const cosAngle = dotProduct / (len1 * len2);
+      const expectedCos = -0.5; // cos(120°)
+      
+      // 允许一定的误差范围
+      const tolerance = 0.01;
+      return (
+        Math.abs(len1 - len2) < tolerance && 
+        Math.abs(cosAngle - expectedCos) < tolerance
+      );
+    },
+    normalizeBasis: (b1, b2) => {
+      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: size, y: 0 },
+        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
+      };
+    }
+  },
+  p31m: {
+    name: "P31M - 三重旋转+镜像",
+    description: "基向量等长且夹角120度",
+    constraints: "六角形",
+    validateBasis: (b1, b2) => {
+      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
+      
+      // 计算夹角
+      const dotProduct = b1.x * b2.x + b1.y * b2.y;
+      const cosAngle = dotProduct / (len1 * len2);
+      const expectedCos = -0.5; // cos(120°)
+      
+      // 允许一定的误差范围
+      const tolerance = 0.01;
+      return (
+        Math.abs(len1 - len2) < tolerance && 
+        Math.abs(cosAngle - expectedCos) < tolerance
+      );
+    },
+    normalizeBasis: (b1, b2) => {
+      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
+      return {
+        basis1: { x: size, y: 0 },
+        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
+      };
+    }
   }
 };
 
@@ -1136,17 +1198,17 @@ const hexagonSize = ref(40)
 const updateHexagonBasis = () => {
   const size = hexagonSize.value;
   
-  // 计算精确的 120 度角的三角函数值
+  // 计算精确的120度角的三角函数值
   const cos120 = -0.5;
   const sin120 = Math.sqrt(3) / 2;
   
-  // 设置第个基向量
+  // ���置基向量
   basis1.value = { 
     x: size, 
     y: 0 
   };
   
-  // 设置第二个基向量，确保与第一个基向量成 120 度角
+  // 设置第二个基向量,确保与第一个基向量成120度角
   basis2.value = {
     x: size * cos120,
     y: size * sin120
@@ -1156,7 +1218,7 @@ const updateHexagonBasis = () => {
 }
 
 watch(() => symmetryType.value, (newType) => {
-  if (newType === 'p3') {
+  if (['p3', 'p31m'].includes(newType)) {
     const size = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
     hexagonSize.value = size;
     updateHexagonBasis();
