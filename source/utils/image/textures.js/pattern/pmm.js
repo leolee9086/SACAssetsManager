@@ -1,618 +1,19 @@
 import { PGGImagePattern } from "./pggImage.js";
-import { P1ImagePattern } from "./p1Image.js";
+import { PMMImagePattern } from "./pmmImage.js";
 
-export class PMMImagePattern extends PGGImagePattern {
-    constructor(config) {
-        super(config);
-    }
-    drawFillPattern(ctx, x, y) {
-        const { basis1, basis2 } = this.config.lattice;
 
-        // 计算单元格的位置索引
-        const i = Math.floor((x / basis1.x + 1000000));
-        const j = Math.floor((y / basis2.y + 1000000));
 
-        if (this.fillImage && this.fillImageLoaded) {
-            // 1. 绘制原始图案
-            ctx.save();
-            this.drawFillImage(ctx);
-            ctx.restore();
+export {PMMImagePattern}
+import { PMGImagePattern } from "./pmgImage.js";
+export {PMGImagePattern}
 
-            // 2. 根据列号判断水平镜像
-            if (i % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, 1); // 水平镜像
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
+import { CMImagePattern } from "./cmImage.js";
+export {CMImagePattern}
 
-            // 3. 根据行号判断垂直镜像
-            if (j % 2 === 0) {
-                ctx.save();
-                ctx.scale(1, -1); // 垂直镜像
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
 
-            // 4. 如果同时满足行列条件,添加对角镜像
-            if (i % 2 === 0 && j % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, -1); // 同时水平和垂直镜像
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
-        }
-    }
+import { CMMImagePattern } from "./cmmImage.js";
+export {CMMImagePattern}
 
-    drawNodePattern(ctx, x, y) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        // 计算单元格的位置索引
-        const i = Math.floor((x / basis1.x + 1000000));
-        const j = Math.floor((y / basis2.y + 1000000));
-
-        if (this.nodeImage && this.nodeImageLoaded) {
-            // 1. 绘制原始图案
-            ctx.save();
-            this.drawNodeImage(ctx);
-            ctx.restore();
-
-            // 2. 根据列号判断水平镜像
-            if (i % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, 1); // 水平镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
-
-            // 3. 根据行号判断垂直镜像
-            if (j % 2 === 0) {
-                ctx.save();
-                ctx.scale(1, -1); // 垂直镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
-
-            // 4. 如果同时满足行列条件,添加对角镜像
-            if (i % 2 === 0 && j % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, -1); // 同时水平和垂直镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
-        }
-    }
-}
-
-
-
-export class PMGImagePattern extends PGGImagePattern {
-    constructor(config) {
-        super(config);
-    }
-
-    drawFillPattern(ctx, x, y) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        // 计算单元格的位置索引
-        const i = Math.floor((x / basis1.x + 1000000));
-        const j = Math.floor((y / basis2.y + 1000000));
-
-        if (this.fillImage && this.fillImageLoaded) {
-            // 1. 绘制原始图案
-            ctx.save();
-            this.drawFillImage(ctx);
-            ctx.restore();
-
-            // 2. 根据行列号判断镜像和旋转
-            if (i % 2 === 0) {
-                // 水平方向的变换
-                ctx.save();
-                ctx.rotate(Math.PI); // 180度旋转
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
-
-            if (j % 2 === 0) {
-                // 垂直方向的镜像
-                ctx.save();
-                ctx.scale(1, -1);
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
-
-            // 组合变换
-            if (i % 2 === 0 && j % 2 === 0) {
-                ctx.save();
-                ctx.scale(1, -1);
-                ctx.rotate(Math.PI);
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
-        }
-    }
-
-    drawNodePattern(ctx, x, y) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        // 计算单元格的位置索引
-        const i = Math.floor((x / basis1.x + 1000000));
-        const j = Math.floor((y / basis2.y + 1000000));
-
-        if (this.nodeImage && this.nodeImageLoaded) {
-            // 1. 绘制原始图案
-            ctx.save();
-            this.drawNodeImage(ctx);
-            ctx.restore();
-
-            // 2. 根据行号判断垂直镜像
-            if (j % 2 === 0) {
-                ctx.save();
-                ctx.scale(1, -1); // 垂直镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
-
-            // 3. 对每个单元格进行180度旋转
-            ctx.save();
-            ctx.rotate(Math.PI);
-            this.drawNodeImage(ctx);
-            ctx.restore();
-
-            // 4. 结合垂直镜像和180度旋转
-            if (j % 2 === 0) {
-                ctx.save();
-                ctx.scale(1, -1);
-                ctx.rotate(Math.PI);
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
-        }
-    }
-}
-
-
-export class CMImagePattern extends P1ImagePattern {
-    constructor(config) {
-        super(config);
-    }
-
-    validateConfig(config) {
-        super.validateConfig(config);
-
-        const { basis1, basis2 } = config.lattice;
-
-        // 验证两个基向量长度必须相等
-        const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-        const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-
-        if (Math.abs(length1 - length2) > 1e-6) {
-            throw new Error('cm群的两个基向量长度必须相等');
-        }
-    }
-
-    normalizeConfig(config) {
-        const baseConfig = super.normalizeConfig(config);
-
-        // 镜面线默认位置在棱形的中线上
-        const defaultMirrorLine = {
-            x: baseConfig.lattice.basis1.x / 2,
-            y: baseConfig.lattice.basis1.y / 2
-        };
-
-        return {
-            ...baseConfig,
-            symmetry: {
-                mirrorLine: config.symmetry?.mirrorLine || defaultMirrorLine
-            }
-        };
-    }
-
-    render(ctx, viewport) {
-        if (!this.patternReady) {
-            throw new Error('图案尚未准备就绪');
-        }
-
-        const { width, height } = viewport;
-        const { basis1, basis2 } = this.config.lattice;
-
-        ctx.fillStyle = this.config.render.backgroundColor;
-        ctx.fillRect(0, 0, width, height);
-
-        ctx.save();
-        ctx.translate(viewport.x || width / 2, viewport.y || height / 2);
-
-        const gridRange = viewport.gridRange || this.calculateGridRange(width, height);
-
-        // 绘制棱形单元及其内部镜像
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                this.drawRhombusUnit(ctx, i, j);
-            }
-        }
-
-        // 绘制网格
-        if (this.config.render.showGrid) {
-            this.renderRhombusGrid(ctx, gridRange);
-        }
-
-        // 绘制网格点
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                ctx.save();
-                ctx.translate(x, y);
-                this.drawNodePattern(ctx, i, j);
-                ctx.restore();
-            }
-        }
-
-        ctx.restore();
-    }
-
-    drawNodePattern(ctx, i, j) {
-        if (this.nodeImage && this.nodeImageLoaded) {
-            // 绘制原始节点图案
-            this.drawNodeImage(ctx);
-
-            // 绘制水平镜像的节点图案
-            ctx.save();
-            ctx.scale(-1, 1);
-            this.drawNodeImage(ctx);
-            ctx.restore();
-        }
-    }
-
-    drawRhombusUnit(ctx, i, j) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        // 计算棱形的四个顶点
-        const x = basis1.x * i + basis2.x * j;
-        const y = basis1.y * i + basis2.y * j;
-
-        // 计算棱形的四个顶点相对坐标
-        const vertices = [
-            { x: 0, y: 0 },  // 左下顶点
-            { x: basis1.x, y: basis1.y },  // 右下顶点
-            { x: basis1.x + basis2.x, y: basis1.y + basis2.y },  // 右上顶点
-            { x: basis2.x, y: basis2.y }   // 左上顶点
-        ];
-
-        // 绘制第一个三角形
-        ctx.save();
-        ctx.translate(x, y);
-
-        // 创建第一个三角形的裁剪路径
-        ctx.beginPath();
-        ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
-        ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
-        ctx.lineTo(vertices[0].x, vertices[0].y);  // 左下顶点
-        ctx.closePath();
-        ctx.clip();
-
-        // 计算第一个三角形的形心
-        const centroid1X = (vertices[3].x + vertices[1].x + vertices[0].x) / 3;
-        const centroid1Y = (vertices[3].y + vertices[1].y + vertices[0].y) / 3;
-
-        // 移动到第一个三角形的形心
-        ctx.translate(centroid1X, centroid1Y);
-        this.drawFillPattern(ctx, i, j, false);
-        ctx.restore();
-
-        // 绘制第二个三角形（镜像部分）
-        ctx.save();
-        ctx.translate(x, y);
-
-        // 创建第二个三角形的裁剪路径
-        ctx.beginPath();
-        ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
-        ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
-        ctx.lineTo(vertices[2].x, vertices[2].y);  // 右上顶点
-        ctx.closePath();
-        ctx.clip();
-
-        // 计算第二个三角形的形心
-        const centroid2X = (vertices[3].x + vertices[1].x + vertices[2].x) / 3;
-        const centroid2Y = (vertices[3].y + vertices[1].y + vertices[2].y) / 3;
-
-        // 计算对角线方向并进行镜像变换
-        const diagonalX = vertices[1].x - vertices[3].x;
-        const diagonalY = vertices[1].y - vertices[3].y;
-        const angle = Math.atan2(diagonalY, diagonalX);
-
-        // 移动到第二个三角形的形心并应用镜像变换
-        ctx.translate(centroid2X, centroid2Y);
-        ctx.rotate(angle);
-        ctx.scale(1, -1);
-        ctx.rotate(-angle);
-
-        this.drawFillPattern(ctx, i, j, true);
-        ctx.restore();
-    }
-
-    renderRhombusGrid(ctx, gridRange) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        ctx.beginPath();
-        ctx.strokeStyle = this.config.render.gridColor;
-        ctx.lineWidth = this.config.render.gridWidth;
-
-        // 绘制菱形边界
-        for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis2.x, y + basis2.y);
-            }
-        }
-
-        for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
-            for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis1.x, y + basis1.y);
-            }
-        }
-
-        ctx.stroke();
-
-        // 绘制对角线镜像线
-        ctx.beginPath();
-        ctx.strokeStyle = '#0000ff';
-        ctx.setLineDash([5, 5]);
-
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                // 计算棱形的四个顶点
-                const vertices = [
-                    { x, y },  // 左下顶点
-                    { x: x + basis1.x, y: y + basis1.y },  // 右下顶点
-                    { x: x + basis1.x + basis2.x, y: y + basis1.y + basis2.y },  // 右上顶点
-                    { x: x + basis2.x, y: y + basis2.y }   // 左上顶点
-                ];
-
-                // 绘制从左上到右下的对角线
-                ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
-                ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
-            }
-        }
-
-        ctx.stroke();
-    }
-
-    drawFillPattern(ctx, i, j, isMirrored) {
-        if (this.fillImage && this.fillImageLoaded) {
-            // 根据是否镜像调整绘制方式
-            if (isMirrored) {
-                ctx.save();
-                //   ctx.scale(1, -1);
-            }
-            this.drawFillImage(ctx);
-            if (isMirrored) {
-                ctx.restore();
-            }
-        }
-    }
-
-    renderSymmetryElements(ctx) {
-        super.renderSymmetryElements?.(ctx);
-
-        const { basis1, basis2 } = this.config.lattice;
-
-        ctx.save();
-
-        // 绘制镜面线
-        ctx.beginPath();
-        ctx.strokeStyle = '#0000ff';
-        ctx.setLineDash([5, 5]);
-        ctx.lineWidth = 2;
-
-        // 在每个棱形单元中绘制镜面线
-        for (let i = -2; i <= 2; i++) {
-            for (let j = -2; j <= 2; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                // 计算棱形的对角线端点
-                const x2 = x + basis1.x + basis2.x;
-                const y2 = y + basis1.y + basis2.y;
-
-                // 绘制从棱形一个顶点到对角顶点的镜面线
-                ctx.moveTo(x, y);
-                ctx.lineTo(x2, y2);
-            }
-        }
-
-        ctx.stroke();
-        ctx.restore();
-    }
-}
-
-
-
-export class CMMImagePattern extends CMImagePattern {
-    constructor(config) {
-        super(config);
-    }
-    renderRhombusGrid(ctx, gridRange) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        ctx.beginPath();
-        ctx.strokeStyle = this.config.render.gridColor;
-        ctx.lineWidth = this.config.render.gridWidth;
-
-        // 绘制菱形边界
-        for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis2.x, y + basis2.y);
-            }
-        }
-
-        for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
-            for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis1.x, y + basis1.y);
-            }
-        }
-
-        ctx.stroke();
-
-        // 绘制两组对角线对称轴
-        ctx.beginPath();
-        ctx.strokeStyle = '#0000ff';
-        ctx.setLineDash([5, 5]);
-
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                // 计算棱形的四个顶点
-                const vertices = [
-                    { x, y },  // 左下顶点
-                    { x: x + basis1.x, y: y + basis1.y },  // 右下顶点
-                    { x: x + basis1.x + basis2.x, y: y + basis1.y + basis2.y },  // 右上顶点
-                    { x: x + basis2.x, y: y + basis2.y }   // 左上顶点
-                ];
-
-                // 绘制第一条对角线（从左上到右下）
-                ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
-                ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
-
-                // 绘制第二条对角线（从左下到右上）
-                ctx.moveTo(vertices[0].x, vertices[0].y);  // 左下顶点
-                ctx.lineTo(vertices[2].x, vertices[2].y);  // 右上顶点
-            }
-        }
-
-        ctx.stroke();
-    }
-    drawRhombusUnit(ctx, i, j) {
-        const { basis1, basis2 } = this.config.lattice;
-
-        // 计算棱形的四个顶点
-        const x = basis1.x * i + basis2.x * j;
-        const y = basis1.y * i + basis2.y * j;
-
-        // 计算棱形的四个顶点相对坐标
-        const vertices = [
-            { x: 0, y: 0 },  // 左下顶点
-            { x: basis1.x, y: basis1.y },  // 右下顶点
-            { x: basis1.x + basis2.x, y: basis1.y + basis2.y },  // 右上顶点
-            { x: basis2.x, y: basis2.y }   // 左上顶点
-        ];
-
-        // 计算对角线交点
-        const centerX = (basis1.x + basis2.x) / 2;
-        const centerY = (basis1.y + basis2.y) / 2;
-
-        // 1. 绘制第一个三角形 (原始)
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(vertices[0].x, vertices[0].y);
-        ctx.lineTo(vertices[3].x, vertices[3].y);
-        ctx.closePath();
-        ctx.clip();
-
-        // 计算第一个三角形的形心
-        const centroid1X = (centerX + vertices[0].x + vertices[3].x) / 3;
-        const centroid1Y = (centerY + vertices[0].y + vertices[3].y) / 3;
-        ctx.translate(centroid1X, centroid1Y);
-        this.drawFillPattern(ctx, i, j, false);
-        ctx.restore();
-
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(vertices[3].x, vertices[3].y);
-        ctx.lineTo(vertices[2].x, vertices[2].y);
-        ctx.closePath();
-        ctx.clip();
-        // 计算第一条对角线的角度
-        const diagonal1Angle = Math.atan2(vertices[0].y - vertices[2].y, vertices[0].x - vertices[2].x);
-        // 计算第二条对角线的角度
-        const diagonal2Angle = Math.atan2(vertices[3].y - vertices[1].y, vertices[3].x - vertices[1].x);
-        // 2. 绘制第二个三角形 (沿第一条对角线镜像)
-
-        // 计算第二个三角形的形心
-        const centroid2X = (centerX + vertices[2].x + vertices[3].x) / 3;
-        const centroid2Y = (centerY + vertices[2].y + vertices[3].y) / 3;
-
-        // 应用沿对角线的镜像变换
-        ctx.translate(centroid2X, centroid2Y);
-        ctx.rotate(diagonal1Angle);
-        ctx.scale(-1, 1);
-        ctx.rotate(-diagonal1Angle);
-
-        this.drawFillPattern(ctx);
-        ctx.restore();
-
-
-
-        // 3. 绘制第三个三角形 (沿第二条对角线镜像)
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(vertices[2].x, vertices[2].y);
-        ctx.lineTo(vertices[1].x, vertices[1].y);
-        ctx.closePath();
-        ctx.clip();
-
-        // 计算第三个三角形的形心
-
-        const centroid3X = (centerX + vertices[2].x + vertices[1].x) / 3;
-        const centroid3Y = (centerY + vertices[2].y + vertices[1].y) / 3;
-        ctx.translate(centroid3X, centroid3Y);
-        ctx.rotate(diagonal2Angle);
-        ctx.scale(-1, -1);
-        ctx.rotate(-diagonal2Angle);
-
-        this.drawFillPattern(ctx, i, j, true);
-        ctx.restore();
-        // 4. 绘制第四个三角形 (双重镜像)
-
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(vertices[1].x, vertices[1].y);
-        ctx.lineTo(vertices[0].x, vertices[0].y);
-        ctx.closePath();
-        ctx.clip();
-
-
-        const centroid4X = (centerX + vertices[0].x + vertices[1].x) / 3;
-        const centroid4Y = (centerY + vertices[0].y + vertices[1].y) / 3;
-        ctx.translate(centroid4X, centroid4Y);
-        ctx.rotate(diagonal1Angle);
-        ctx.scale(1, -1);
-        ctx.rotate(-diagonal1Angle);
-
-        this.drawFillPattern(ctx, i, j, true);
-        ctx.restore();
-
-    }
-}
 
 
 
@@ -643,22 +44,25 @@ export class P4ImagePattern extends PGGImagePattern {
 
     drawFillPattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
-
+    
         // 计算单元格的位置索引
         const i = Math.floor((x / basis1.x + 1000000));
         const j = Math.floor((y / basis2.y + 1000000));
-
+    
         if (this.fillImage && this.fillImageLoaded) {
-            // 根据i,j的奇偶性确定旋转角度
-            const rotation = ((i + j) % 4) * Math.PI / 2;
-
+            // 分别根据 i 和 j 的奇偶性确定旋转角度
+            // i 为奇数时旋转 90 度，j 为奇数时旋转 90 度
+            // 两个旋转角度相加得到最终旋转角度
+            const rotationI = (i % 2) * Math.PI / 2;
+            const rotationJ = (j % 2) * Math.PI / 2;
+            const rotation = rotationI + rotationJ;
+    
             ctx.save();
             ctx.rotate(rotation);
             this.drawFillImage(ctx);
             ctx.restore();
         }
     }
-
     drawNodePattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
 
@@ -1042,28 +446,28 @@ export class P3M1ImagePattern extends CMImagePattern {
 
     drawNodePattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
-
+        const rotatedBasis1 = {
+            x: -basis1.y,
+            y: basis1.x
+        };
+        const rotatedBasis2 = {
+            x: -basis2.y,
+            y: basis2.x
+        };
         // 计算单元格的位置索引
         const i = Math.floor((x / basis1.x + 1000000));
         const j = Math.floor((y / basis2.y + 1000000));
+        const centerX = i * rotatedBasis1.x + j * rotatedBasis2.x;
+        const centerY = i * rotatedBasis1.y + j * rotatedBasis2.y;
+
 
         if (this.nodeImage && this.nodeImageLoaded) {
             // 绘制原始图案
-            ctx.save();
-            this.drawNodeImage(ctx);
-            ctx.restore();
+        //    ctx.save();
+          //  this.drawNodeImage(ctx);
+           // ctx.restore();
 
-            // 绘制120度旋转的图案
-            ctx.save();
-            ctx.rotate(2 * Math.PI / 3);
-            this.drawNodeImage(ctx);
-            ctx.restore();
 
-            // 绘制240度旋转的图案
-            ctx.save();
-            ctx.rotate(4 * Math.PI / 3);
-            this.drawNodeImage(ctx);
-            ctx.restore();
         }
     }
 
@@ -1132,12 +536,22 @@ export class P3M1ImagePattern extends CMImagePattern {
                     );
                 }
                 ctx.stroke();
-
                 // 标记三重旋转中心
                 ctx.fillStyle = '#ff0000';
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
                 ctx.fill();
+                if (this.nodeImage && this.nodeImageLoaded) {
+                    // 绘制原始图案
+                    ctx.save();
+                    ctx.translate(centerX, centerY);
+
+                    this.drawNodeImage(ctx);
+                    ctx.restore();
+        
+        
+                }
+        
             }
         }
     }
@@ -1387,11 +801,11 @@ export class P3ImagePattern extends CMImagePattern {
             const ay = hexRadius * Math.sin(centerAngle);
 
             // B点和C点：在扇形边上
-            const bx = hexRadius * Math.cos(startAngle) * Math.cos(halfAngle);
-            const by = hexRadius * Math.sin(startAngle) * Math.cos(halfAngle);
+            const bx = hexRadius * Math.cos(startAngle) * Math.cos(halfAngle)*2;
+            const by = hexRadius * Math.sin(startAngle) * Math.cos(halfAngle)*2;
 
-            const cx = hexRadius * Math.cos(endAngle) * Math.cos(halfAngle);
-            const cy = hexRadius * Math.sin(endAngle) * Math.cos(halfAngle);
+            const cx = hexRadius * Math.cos(endAngle) * Math.cos(halfAngle)*2;
+            const cy = hexRadius * Math.sin(endAngle) * Math.cos(halfAngle)*2;
 
             // 绘制棱形
             ctx.beginPath();

@@ -14,7 +14,7 @@
     <div class="controls">
       <div class="control-section">
         <h4>网格设置</h4>
-        
+
         <div class="control-group">
           <span>网格线宽:</span>
           <input type="range" :value="lineWidth" @input="updateLineWidth" min="1" max="5" step="0.5">
@@ -175,63 +175,56 @@
           <span class="constraint-type">{{ symmetryConstraints[symmetryType].constraints }}</span>
           <span class="constraint-desc">{{ symmetryConstraints[symmetryType].description }}</span>
         </div>
-        
+
+        <!-- 添加六边形控制器 -->
+        <div class="control-group" :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '六角形' }">
+          <span>边长:</span>
+          <input type="number" 
+                 v-model.number="hexagonSize" 
+                 @input="updateHexagonBasis"
+                 :disabled="symmetryConstraints[symmetryType].constraints !== '六角形'">
+        </div>
+
         <!-- 正方形制器 -->
         <div class="control-group" :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '正方形' }">
           <span>边长:</span>
-          <input type="number" 
-                 v-model.number="squareSize" 
-                 @input="updateSquareBasis"
-                 :disabled="symmetryConstraints[symmetryType].constraints !== '正方形'">
+          <input type="number" v-model.number="squareSize" @input="updateSquareBasis"
+            :disabled="symmetryConstraints[symmetryType].constraints !== '正方形'">
         </div>
-        
+
         <!-- 菱形控制器 -->
         <div :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '菱形' }">
           <div class="control-group">
             <span>边长:</span>
-            <input type="number" 
-                   v-model.number="rhombusSize" 
-                   @input="updateRhombusBasis"
-                   :disabled="symmetryConstraints[symmetryType].constraints !== '菱形'">
+            <input type="number" v-model.number="rhombusSize" @input="updateRhombusBasis"
+              :disabled="symmetryConstraints[symmetryType].constraints !== '菱形'">
           </div>
           <div class="control-group">
             <span>角度:</span>
-            <input type="range" 
-                   v-model.number="rhombusAngle" 
-                   min="30" 
-                   max="150" 
-                   @input="updateRhombusBasis"
-                   :disabled="symmetryConstraints[symmetryType].constraints !== '菱形'">
+            <input type="range" v-model.number="rhombusAngle" min="30" max="150" @input="updateRhombusBasis"
+              :disabled="symmetryConstraints[symmetryType].constraints !== '菱形'">
             <span>{{ rhombusAngle }}°</span>
           </div>
         </div>
-        
+
         <!-- 自由基向量控制 -->
         <div :class="{ 'disabled': symmetryConstraints[symmetryType].constraints !== '自由' }">
           <div class="control-group">
             <span>基向量1:</span>
             <div class="vector-inputs">
-              <input type="number" 
-                     v-model.number="basis1.x" 
-                     @input="handleBasisInput"
-                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
-              <input type="number" 
-                     v-model.number="basis1.y" 
-                     @input="handleBasisInput"
-                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+              <input type="number" v-model.number="basis1.x" @input="handleBasisInput"
+                :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+              <input type="number" v-model.number="basis1.y" @input="handleBasisInput"
+                :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
             </div>
           </div>
           <div class="control-group">
             <span>基向量2:</span>
             <div class="vector-inputs">
-              <input type="number" 
-                     v-model.number="basis2.x" 
-                     @input="handleBasisInput"
-                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
-              <input type="number" 
-                     v-model.number="basis2.y" 
-                     @input="handleBasisInput"
-                     :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+              <input type="number" v-model.number="basis2.x" @input="handleBasisInput"
+                :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
+              <input type="number" v-model.number="basis2.y" @input="handleBasisInput"
+                :disabled="symmetryConstraints[symmetryType].constraints !== '自由'">
             </div>
           </div>
         </div>
@@ -246,47 +239,29 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getStatu, setStatu, 状态注册表 } from '../../../globalStatus/index.js'
 import { createGridBrushHandlers } from './gridBrushUtils.js'
 import { Vector2 } from '../../../utils/image/textures.js/pattern/geometry-utils.js';
-import { PatternRenderer } from '../../../utils/image/textures.js/pattern/index.js'
-import {  calculateSeamlessTilingRange } from '../../../utils/image/textures.js/pattern/p1Image.js'
-import { P1ImagePattern } from '../../../utils/image/textures.js/pattern/p1Image.js';
-import { P2ImagePattern } from '../../../utils/image/textures.js/pattern/p2Image.js'
-import { PGImagePattern } from '../../../utils/image/textures.js/pattern/pgImage.js';
-import { PMImagePattern } from '../../../utils/image/textures.js/pattern/pmImage.js'
-import { PGGImagePattern } from '../../../utils/image/textures.js/pattern/pggImage.js'
-import { 
-  P4GImagePattern , 
-  PMMImagePattern,
-  PMGImagePattern,
-  CMImagePattern,
-  CMMImagePattern,
-  P4ImagePattern,
-  P4MImagePattern,
-  P3ImagePattern,
-  P3M1ImagePattern,
-  P6ImagePattern,
-  P6MImagePattern,
-  P31MImagePattern 
-} from '../../../utils/image/textures.js/pattern/pmm.js'
-
-import { validateAndNormalizeBasis } from './utils.js';
+import {
+  PatternRenderer,
+  getPatternClass,
+  symmetryConstraints
+} from './patterns.js'
+import { validateAndNormalizeBasis, 创建遮罩画布元素 } from './utils.js';
 import { createShapeMask } from '../../../utils/canvas/helpers/mask.js';
+import { hasRectangularUnit, getRectangularUnit } from '../../../utils/image/textures.js/pattern/recUnit.js';
+
 const gridSize = ref(20)
 const lineWidth = ref(1)
 const lineColor = ref('#cccccc')
 const opacity = ref(0.5)
 const width = ref(300)
 const height = ref(300)
-
 const isBrushMode = computed({
   get: () => getStatu(状态注册表.笔刷模式),
   set: (value) => setStatu(状态注册表.笔刷模式, value)
 })
-
 const currentHoverElement = computed({
   get: () => getStatu(状态注册表.笔刷悬停元素),
   set: (value) => setStatu(状态注册表.笔刷悬停元素, value)
 })
-
 const { addBrushListeners, removeBrushListeners } = createGridBrushHandlers({
   isBrushMode,
   currentHoverElement,
@@ -295,17 +270,11 @@ const { addBrushListeners, removeBrushListeners } = createGridBrushHandlers({
   lineColor,
   opacity
 })
-
-
 const renderer = ref(null)
 const canvas = ref(null)
 const basis1 = ref({ x: 240, y: 0 })
 const basis2 = ref({ x: 0, y: 240 })
-
-const fileInput = ref(null)
-const selectedFileName = ref('')
 const selectedImageUrl = ref('')
-
 const nodeImageUrl = ref('')
 const fillImageUrl = ref('')
 const nodeTransform = ref({
@@ -318,69 +287,53 @@ const fillTransform = ref({
   rotation: 0,
   translate: { x: 0, y: 0 }
 })
-
 const nodeFileInput = ref(null)
 const fillFileInput = ref(null)
-
-
-
 const drawSeamlessUnitBox = () => {
   if (!canvas.value) return;
-
-  // 创建一个覆盖层
-  const overlayCanvas = document.createElement('canvas');
-  overlayCanvas.width = width.value;
-  overlayCanvas.height = height.value;
-  overlayCanvas.style.position = 'absolute';
-  overlayCanvas.style.left = '50%';
-  overlayCanvas.style.top = '50%';
-  overlayCanvas.style.transform = 'translate(-50%, -50%)';
-  overlayCanvas.style.pointerEvents = 'none'; // 确保影响下层交互
-
-  const ctx = overlayCanvas.getContext('2d');
-
-  const b1 = new Vector2(basis1.value.x, basis1.value.y);
-  const b2 = new Vector2(basis2.value.x, basis2.value.y);
-
-  const tilingRange = calculateSeamlessTilingRange(
-    b1,
-    b2,
-    width.value,
-    height.value
-  );
-
-  ctx.translate(width.value / 2, height.value / 2);
-
-  ctx.setLineDash([5, 5]);
-  ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-  ctx.lineWidth = 1;
-
-  ctx.beginPath();
-  ctx.rect(
-    -tilingRange.actualWidth / 2,
-    -tilingRange.actualHeight / 2,
-    tilingRange.actualWidth,
-    tilingRange.actualHeight
-  );
-  ctx.stroke();
-
-  // 移除旧的覆盖层(如果存在)
+  // 移除旧的覆盖层
   const oldOverlay = canvas.value.parentElement.querySelector('.overlay-canvas');
   if (oldOverlay) {
     oldOverlay.remove();
   }
+  // 将对称群类型转换为小写
+  const wallpaperGroup = symmetryType.value.toLowerCase();
+  const hasRect = hasRectangularUnit(basis1.value, basis2.value, wallpaperGroup);
+  if (!hasRect) return;
 
+  // 获取矩形重复单元的尺寸和变换信息
+  const rectUnit = getRectangularUnit(basis1.value, basis2.value, wallpaperGroup);
+  if (!rectUnit) return;
+
+  // 创建覆盖层
+  const overlayCanvas = 创建遮罩画布元素(width.value,height.value)
+  
+  const ctx = overlayCanvas.getContext('2d');
+  ctx.translate(width.value / 2, height.value / 2);
+  // 应用变换并绘制矩形重复单元边界
+  ctx.save();
+  ctx.rotate(rectUnit.transform.rotation);
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+  ctx.lineWidth = 3;
+  // 绘制矩形边界
+  ctx.beginPath();
+  ctx.rect(
+    rectUnit.transform.origin.x,
+    rectUnit.transform.origin.y,
+    rectUnit.width,
+    rectUnit.height
+  );
+  ctx.stroke();
+  ctx.restore()
   // 添加新的覆盖层
-  overlayCanvas.classList.add('overlay-canvas');
   canvas.value.parentElement.appendChild(overlayCanvas);
 };
-
 const genGridStyle = (() => {
   let isRendering = false;
   let lastRenderTime = 0;
   const THROTTLE_INTERVAL = 15;
   let pendingRender = null;
-  
   // 添加性能统计对象
   const perfStats = {
     totalCalls: 0,
@@ -388,34 +341,27 @@ const genGridStyle = (() => {
     maxTime: 0,
     minTime: Infinity
   };
-  
   // 创建离屏缓冲画布
-  let backBuffer = null;
+  let backBufferCanvas = null;
   let backBufferCtx = null;
-  
   // 初始化缓冲区
   const initializeBuffers = () => {
-    if (!backBuffer) {
-      backBuffer = document.createElement('canvas');
-      backBufferCtx = backBuffer.getContext('2d');
+    if (!backBufferCanvas) {
+      backBufferCanvas = document.createElement('canvas');
+      backBufferCtx = backBufferCanvas.getContext('2d');
     }
-    
     // 确保缓冲区尺寸与显示画布一致
-    backBuffer.width = width.value;
-    backBuffer.height = height.value;
+    backBufferCanvas.width = width.value;
+    backBufferCanvas.height  =height.value;
   };
-
   const executeRender = async (imageUrl = null) => {
     const startTime = performance.now();
     perfStats.totalCalls++;
-
     try {
       // 初始化缓冲区
       initializeBuffers();
-      
       // 清空缓冲区
       backBufferCtx.clearRect(0, 0, width.value, height.value);
-
       let processedNodeImage = null;
       if (nodeImageUrl.value) {
         const img = new Image();
@@ -428,32 +374,27 @@ const genGridStyle = (() => {
             tempCanvas.width = size;
             tempCanvas.height = size;
             const ctx = tempCanvas.getContext('2d');
-
             ctx.drawImage(img,
               (size - img.width) / 2,
               (size - img.height) / 2,
               img.width,
               img.height
             );
-
             const shape = {
               type: 'polygon',
               sides: polygonSettings.value.sides
             }
-            const clipMask = createShapeMask(nodeShape.value=="polygon"?shape:nodeShape.value, size, true, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
+            const clipMask = createShapeMask(nodeShape.value == "polygon" ? shape : nodeShape.value, size, true, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
             ctx.globalCompositeOperation = 'destination-in';
             ctx.drawImage(clipMask, 0, 0);
-
             ctx.globalCompositeOperation = 'source-over';
-            const strokeMask = createShapeMask(nodeShape.value=="polygon"?shape:nodeShape.value, size, false, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
+            const strokeMask = createShapeMask(nodeShape.value == "polygon" ? shape : nodeShape.value, size, false, nodeStrokeWidth.value, nodeStrokeColor.value, nodeTransform.value);
             ctx.drawImage(strokeMask, 0, 0);
-
             processedNodeImage = tempCanvas.toDataURL();
             resolve();
           };
         });
       }
-
       const PatternClass = getPatternClass(symmetryType.value);
       const pattern = new PatternClass({
         lattice: {
@@ -466,7 +407,7 @@ const genGridStyle = (() => {
           imageUrl: processedNodeImage,
           transform: {
             ...nodeTransform.value,
-            rotation: (nodeTransform.value.rotation * Math.PI) / 180
+            rotation: nodeTransform.value.rotation
           },
           fitMode: 'contain'
         } : null,
@@ -474,7 +415,7 @@ const genGridStyle = (() => {
           imageUrl: fillImageUrl.value,
           transform: {
             ...fillTransform.value,
-            rotation: (fillTransform.value.rotation * Math.PI) / 180
+            rotation: fillTransform.value.rotation
           },
           fitMode: 'contain'
         } : null,
@@ -490,9 +431,7 @@ const genGridStyle = (() => {
           smoothing: true
         }
       });
-
       await pattern.loadImages();
-
       // 在缓冲区上渲染
       pattern.render(backBufferCtx, {
         width: width.value,
@@ -500,7 +439,6 @@ const genGridStyle = (() => {
         x: width.value / 2,
         y: height.value / 2,
       });
-
       // 将缓冲区内容复制到显示画布
       if (!renderer.value) {
         renderer.value = {
@@ -508,27 +446,21 @@ const genGridStyle = (() => {
           ctx: canvas.value.getContext('2d')
         };
       }
-
       renderer.value.canvas.width = width.value;
       renderer.value.canvas.height = height.value;
-      
       // 一次性将缓冲区内容复制到显示画布
       renderer.value.ctx.clearRect(0, 0, width.value, height.value);
-      renderer.value.ctx.drawImage(backBuffer, 0, 0);
-
+      renderer.value.ctx.drawImage(backBufferCanvas, 0, 0);
       drawSeamlessUnitBox();
 
     } finally {
       const endTime = performance.now();
       const renderTime = endTime - startTime;
-      
       perfStats.totalTime += renderTime;
       perfStats.maxTime = Math.max(perfStats.maxTime, renderTime);
       perfStats.minTime = Math.min(perfStats.minTime, renderTime);
-
       console.log(`渲染耗时: ${renderTime.toFixed(2)}ms`);
-      
-      if(perfStats.totalCalls % 10 === 0) {
+      if (perfStats.totalCalls % 10 === 0) {
         console.log('网格渲染性能统计:', {
           调用次数: perfStats.totalCalls,
           平均渲染时间: `${(perfStats.totalTime / perfStats.totalCalls).toFixed(2)}ms`,
@@ -620,14 +552,7 @@ const updateOpacity = (e) => {
 
 }
 
-const applyGrid = () => {
-  emit('update', {
-    gridSize: gridSize.value,
-    lineWidth: lineWidth.value,
-    lineColor: lineColor.value,
-    opacity: opacity.value
-  })
-}
+
 
 const emit = defineEmits(['update'])
 
@@ -720,7 +645,7 @@ onMounted(() => {
       renderer.value.canvas.style.transform = 'translate(-50%, -50%)'
       container.appendChild(renderer.value.canvas)
     }
-    
+
     resizeObserver.observe(container)
   }
 })
@@ -754,24 +679,7 @@ const updateNodeStroke = (e) => {
   genGridStyle()
 }
 
-const presetGridRatios = [
-  { name: '正方形', basis1: { x: 20, y: 0 }, basis2: { x: 0, y: 20 } },
-  { name: '菱形', basis1: { x: 20, y: 20 }, basis2: { x: -20, y: 20 } },
-  { name: '1:2矩形', basis1: { x: 20, y: 0 }, basis2: { x: 0, y: 40 } },
-  { name: '六角形', basis1: { x: 20, y: 0 }, basis2: { x: 10, y: 17.32 } }, // sqrt(3)/2 ≈ 0.866
-  { name: '2:1矩形', basis1: { x: 40, y: 0 }, basis2: { x: 0, y: 20 } },
-  { name: '六角形', basis1: { x: 50, y: 0 }, basis2: { x: 25, y: 43.3 } }, // 约等于 50 * cos(120°), 50 * sin(120°)
-]
 
-const applyPresetRatio = (preset) => {
-  const normalizedBasis1 = validateAndNormalizeBasis(preset.basis1);
-  const normalizedBasis2 = validateAndNormalizeBasis(preset.basis2);
-
-  basis1.value = normalizedBasis1;
-  basis2.value = normalizedBasis2;
-
-  genGridStyle();
-}
 
 
 // 修改统一的 handleBasisInput 函数
@@ -785,7 +693,7 @@ const handleBasisInput = (vector, component, value) => {
 
   // 获取当前对称群的约束
   const constraint = symmetryConstraints[symmetryType.value];
-  
+
   // 对于 p3 群，强制应用六角形约束
   if (symmetryType.value === 'p3') {
     const len = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
@@ -825,30 +733,6 @@ const updatePolygonShape = () => {
 }
 
 const symmetryType = ref('pmm')
-
-const getPatternClass = (type) => {
-  const patterns = {
-    p1: P1ImagePattern,
-    p2: P2ImagePattern,
-    pg: PGImagePattern,
-    pm: PMImagePattern,
-    pgg: PGGImagePattern,
-    pmm: PMMImagePattern,
-    pmg: PMGImagePattern,
-    p4: P4ImagePattern,
-    p4m: P4MImagePattern,
-    p4g: P4GImagePattern,
-    cm: CMImagePattern,
-    cmm: CMMImagePattern,
-    p3: P3ImagePattern,
-    p3m1: P3M1ImagePattern,
-    p31m: P31MImagePattern,
-    p6: P6ImagePattern,
-    p6m: P6MImagePattern
-  }
-  return patterns[type]
-}
-
 const updateSymmetryType = () => {
   // 添加p31m到需要自动调整的对称群列表中
   if (['p3', 'p6', 'p6m', 'p31m'].includes(symmetryType.value)) {
@@ -860,298 +744,7 @@ const updateSymmetryType = () => {
   }
 }
 
-// 添加基向量约束配置
-const symmetryConstraints = {
-  p1: {
-    name: "P1 - 基本平移",
-    description: "无特殊限制",
-    constraints: "自由",
-    validateBasis: (b1, b2) => true,
-    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
-  },
-  p2: {
-    name: "P2 - 2次旋转",
-    description: "无特殊限制",
-    constraints: "自由",
-    validateBasis: (b1, b2) => true,
-    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
-  },
-  pg: {
-    name: "PG - 滑移",
-    description: "无特殊限制",
-    constraints: "自由",
-    validateBasis: (b1, b2) => true,
-    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
-  },
-  pm: {
-    name: "PM - 镜像",
-    description: "建议基向量垂直于镜面",
-    constraints: "自由",
-    validateBasis: (b1, b2) => true,
-    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
-  },
-  pgg: {
-    name: "PGG - 双滑移",
-    description: "无特殊限制",
-    constraints: "自由",
-    validateBasis: (b1, b2) => true,
-    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
-  },
-  pmm: {
-    name: "PMM - 双向镜像",
-    description: "建议基向量相互垂直",
-    constraints: "矩形",
-    validateBasis: (b1, b2) => {
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      return Math.abs(dotProduct) < 0.001;
-    },
-    normalizeBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      return {
-        basis1: { x: len1, y: 0 },
-        basis2: { x: 0, y: len2 }
-      };
-    }
-  },
-  pmg: {
-    name: "PMG - 镜像+滑移",
-    description: "建议基向量垂直于镜面",
-    constraints: "自由",
-    validateBasis: (b1, b2) => true,
-    normalizeBasis: (b1, b2) => ({ basis1: b1, basis2: b2 })
-  },
-  p4: {
-    name: "P4 - 4次旋转",
-    description: "要求基向量正交且长度相等",
-    constraints: "正方形",
-    validateBasis: (b1, b2) => {
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      return Math.abs(dotProduct) < 0.001 && Math.abs(len1 - len2) < 0.001;
-    },
-    normalizeBasis: (b1, b2) => {
-      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: len, y: 0 },
-        basis2: { x: 0, y: len }
-      };
-    }
-  },
-  p4m: {
-    name: "P4M - 4次旋转+镜像",
-    description: "要求基向量正交且长度相等",
-    constraints: "正方形",
-    validateBasis: (b1, b2) => {
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      return Math.abs(dotProduct) < 0.001 && Math.abs(len1 - len2) < 0.001;
-    },
-    normalizeBasis: (b1, b2) => {
-      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: len, y: 0 },
-        basis2: { x: 0, y: len }
-      };
-    }
-  },
-  p4g: {
-    name: "P4G - 4次旋转+镜像(变体)",
-    description: "要求基向量正交且长度相等",
-    constraints: "正方形",
-    validateBasis: (b1, b2) => {
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      return Math.abs(dotProduct) < 0.001 && Math.abs(len1 - len2) < 0.001;
-    },
-    normalizeBasis: (b1, b2) => {
-      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: len, y: 0 },
-        basis2: { x: 0, y: len }
-      };
-    }
-  },
-  cm: {
-    name: "CM - 菱形中心镜像",
-    description: "要求基向量等长",
-    constraints: "菱形",
-    validateBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      return Math.abs(len1 - len2) < 0.001;
-    },
-    normalizeBasis: (b1, b2) => {
-      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const angle = Math.atan2(b2.y, b2.x);
-      return {
-        basis1: { x: len, y: 0 },
-        basis2: { x: len * Math.cos(angle), y: len * Math.sin(angle) }
-      };
-    }
-  },
-  cmm: {
-    name: "CMM - 菱形双向镜像",
-    description: "要求基向量等长",
-    constraints: "菱形",
-    validateBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      return Math.abs(len1 - len2) < 0.001;
-    },
-    normalizeBasis: (b1, b2) => {
-      const len = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const angle = Math.atan2(b2.y, b2.x);
-      return {
-        basis1: { x: len, y: 0 },
-        basis2: { x: len * Math.cos(angle), y: len * Math.sin(angle) }
-      };
-    }
-  },
-  p3: {
-    name: "P3 - 3次旋转",
-    description: "基向量等长且夹角120°",
-    constraints: "六角形",
-    validateBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      
-      // 计算夹角
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const cosAngle = dotProduct / (len1 * len2);
-      const expectedCos = -0.5; // cos(120°)
-      
-      // 允许一定的误差范围
-      const tolerance = 0.01;
-      return (
-        Math.abs(len1 - len2) < tolerance && 
-        Math.abs(cosAngle - expectedCos) < tolerance
-      );
-    },
-    normalizeBasis: (b1, b2) => {
-      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: size, y: 0 },
-        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
-      };
-    }
-  },
-  p3m1: {
-    name: "P3M1 - 3次旋转+镜像",
-    description: "基向量等长且夹角120°",
-    constraints: "六角形",
-    validateBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      
-      // 计算夹角
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const cosAngle = dotProduct / (len1 * len2);
-      const expectedCos = -0.5; // cos(120°)
-      
-      // 允许一定的误差范围
-      const tolerance = 0.01;
-      return (
-        Math.abs(len1 - len2) < tolerance && 
-        Math.abs(cosAngle - expectedCos) < tolerance
-      );
-    },
-    normalizeBasis: (b1, b2) => {
-      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: size, y: 0 },
-        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
-      };
-    }
-  },
-  p6: {
-    name: "P6 - 6次旋转",
-    description: "基向量等长且夹角120度",
-    constraints: "六角形",
-    validateBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      
-      // 计算夹角
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const cosAngle = dotProduct / (len1 * len2);
-      const expectedCos = -0.5; // cos(120°)
-      
-      // 允许一定的误差范围
-      const tolerance = 0.01;
-      return (
-        Math.abs(len1 - len2) < tolerance && 
-        Math.abs(cosAngle - expectedCos) < tolerance
-      );
-    },
-    normalizeBasis: (b1, b2) => {
-      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: size, y: 0 },
-        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
-      };
-    }
-  },
-  p6m: {
-    name: "P6M - 6次旋转+镜像",
-    description: "基向量等长且夹角120度",
-    constraints: "六角形",
-    validateBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      
-      // 计算夹角
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const cosAngle = dotProduct / (len1 * len2);
-      const expectedCos = -0.5; // cos(120°)
-      
-      // 允许一定的误差范围
-      const tolerance = 0.01;
-      return (
-        Math.abs(len1 - len2) < tolerance && 
-        Math.abs(cosAngle - expectedCos) < tolerance
-      );
-    },
-    normalizeBasis: (b1, b2) => {
-      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: size, y: 0 },
-        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
-      };
-    }
-  },
-  p31m: {
-    name: "P31M - 三重旋转+镜像",
-    description: "基向量等长且夹角120度",
-    constraints: "六角形",
-    validateBasis: (b1, b2) => {
-      const len1 = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      const len2 = Math.sqrt(b2.x * b2.x + b2.y * b2.y);
-      
-      // 计算夹角
-      const dotProduct = b1.x * b2.x + b1.y * b2.y;
-      const cosAngle = dotProduct / (len1 * len2);
-      const expectedCos = -0.5; // cos(120°)
-      
-      // 允许一定的误差范围
-      const tolerance = 0.01;
-      return (
-        Math.abs(len1 - len2) < tolerance && 
-        Math.abs(cosAngle - expectedCos) < tolerance
-      );
-    },
-    normalizeBasis: (b1, b2) => {
-      const size = Math.sqrt(b1.x * b1.x + b1.y * b1.y);
-      return {
-        basis1: { x: size, y: 0 },
-        basis2: { x: -size/2, y: size * Math.sqrt(3)/2 }
-      };
-    }
-  }
-};
+
 
 // 在 template 中添加约束提示
 
@@ -1177,50 +770,45 @@ const updateRhombusBasis = () => {
   genGridStyle()
 }
 
-// 面板折叠状态
-const panelStates = ref({
-  symmetry: true,
-  basis: true,
-  grid: true,
-  nodeImage: true,
-  fillImage: true
-})
 
-// 切换面板显示状态
-const togglePanel = (panel) => {
-  panelStates.value[panel] = !panelStates.value[panel]
-}
 
 // 添加六角形控制状态
 const hexagonSize = ref(40)
 
-// 添加六角形基向量更新函数
+// 修改 updateHexagonBasis 函数
 const updateHexagonBasis = () => {
+  // 确保 hexagonSize 为正数
+  if (hexagonSize.value <= 0) {
+    hexagonSize.value = 40; // 设置默认值
+  }
+
   const size = hexagonSize.value;
-  
+
   // 计算精确的120度角的三角函数值
   const cos120 = -0.5;
   const sin120 = Math.sqrt(3) / 2;
-  
+
   // ���置基向量
-  basis1.value = { 
-    x: size, 
-    y: 0 
+  basis1.value = {
+    x: size,
+    y: 0
   };
-  
+
   // 设置第二个基向量,确保与第一个基向量成120度角
   basis2.value = {
     x: size * cos120,
     y: size * sin120
   };
-  
-  genGridStyle();
-}
 
+  genGridStyle();
+};
+
+// 修改 watch 函数
 watch(() => symmetryType.value, (newType) => {
-  if (['p3', 'p31m'].includes(newType)) {
-    const size = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
-    hexagonSize.value = size;
+  if (['p3', 'p31m', 'p3m1', 'p6', 'p6m'].includes(newType)) {
+    // 保持当前大小或使用默认值
+    const currentSize = Math.sqrt(basis1.value.x * basis1.value.x + basis1.value.y * basis1.value.y);
+    hexagonSize.value = currentSize || 40;
     updateHexagonBasis();
   }
 });

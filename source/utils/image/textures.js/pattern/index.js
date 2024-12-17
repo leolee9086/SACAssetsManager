@@ -598,7 +598,7 @@ export class PatternDefinition {
     }
 
     isValidTransformedPolygon(vertices, existingPolygons, epsilon) {
-        // 检查多边��是否有效
+        // 检查多边形是否有效
         if (!vertices || vertices.length < 3) return false;
 
         // 检查顶点是否重合

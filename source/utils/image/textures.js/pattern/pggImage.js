@@ -103,26 +103,26 @@ export class PGGImagePattern extends P1ImagePattern {
         const i = Math.floor((x / basis1.x + 1000000));
         const j = Math.floor((y / basis2.y + 1000000));
         
-        // 根据位置决定旋转和反射
-        const shouldRotate = (i + j) % 2 === 1;
-        const shouldReflect = (i % 2 === 1);
+        // 修改变换逻辑以匹配PGG群的对称性
+        const shouldRotate = (i % 2 === 1);    // 横向交替旋转180度
+        const shouldReflectX = (j % 2 === 1);
     
         if (this.fillImage && this.fillImageLoaded) {
             ctx.save();
             
-            // 应用旋转和反射变换
+            // 应用变换
             if (shouldRotate) {
-                ctx.rotate(Math.PI); // 旋转180度
+                ctx.rotate(Math.PI); // 180度旋转
             }
-            if (shouldReflect) {
-                ctx.scale(-1, 1); // y轴反射
+            if (shouldReflectX) {
+                ctx.scale(-1, 1); // x轴反射
             }
+       
             
             this.drawFillImage(ctx);
             ctx.restore();
         }
     }
-    
     drawNodePattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
         

@@ -2,25 +2,19 @@ export class P1ImagePattern {
     constructor(config) {
         this.validateConfig(config);
         this.config = this.normalizeConfig(config);
-
-        // 初始化两个图片的状态
         this.nodeImageLoaded = false;
         this.fillImageLoaded = false;
         this.patternReady = false;
         this.nodeImage = null;
         this.fillImage = null;
-
-        // 加载两个图片
         this.loadImages();
     }
-
     validateConfig(config) {
         if (!config.lattice?.basis1 || !config.lattice?.basis2) {
             throw new Error('必须提供有效的晶格基向量');
         }
      
     }
-
     normalizeConfig(config) {
         return {
             lattice: {
@@ -62,32 +56,25 @@ export class P1ImagePattern {
             }
         };
     }
-
     async loadImages() {
         if (!this.config.nodeImage && !this.config.fillImage) {
             this.patternReady = true;
             return;
         }
-
-        const loadPromises = [];
-        
+        const loadPromises = [];   
         if (this.config.nodeImage) {
             loadPromises.push(this.loadImage('node').catch(() => null));
         }
-        
         if (this.config.fillImage) {
             loadPromises.push(this.loadImage('fill').catch(() => null));
         }
-
         await Promise.all(loadPromises);
         this.patternReady = true;
     }
-
     async loadImage(type) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.crossOrigin = 'anonymous';
-
             img.onload = () => {
                 if (type === 'node') {
                     this.nodeImage = img;
@@ -98,31 +85,24 @@ export class P1ImagePattern {
                 }
                 resolve(img);
             };
-
             img.onerror = (err) => {
                 reject(new Error(`${type}图片加载失败`));
             };
-
             img.src = this.config[`${type}Image`].imageUrl;
         });
     }
-
     createPatternCell() {
-        const { basis1, basis2 } = this.config.lattice;
-        
+        const { basis1, basis2 } = this.config.lattice;   
         // 计算单元格的实际尺寸 - 使用基向量的长度
         const width = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
         const height = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-        
         const canvas = document.createElement('canvas');
         // 确保画布足够大以容纳整个平行四边形
         canvas.width = Math.ceil(Math.abs(basis1.x) + Math.abs(basis2.x));
         canvas.height = Math.ceil(Math.abs(basis1.y) + Math.abs(basis2.y));
         const ctx = canvas.getContext('2d');
-
         // 移动到单元格中心
         ctx.translate(canvas.width/2, canvas.height/2);
-        
         // 先绘制填充图片
         if (this.fillImage && this.fillImageLoaded) {
             this.drawImage(ctx, 'fill', width, height);
@@ -140,14 +120,11 @@ export class P1ImagePattern {
     drawImage(ctx, type, cellWidth, cellHeight) {
         const config = this.config[`${type}Image`];
         const image = type === 'node' ? this.nodeImage : this.fillImage;
-
         ctx.save();
-
         // 应用裁剪
         if (this.config.lattice.clipMotif) {
             this.clipToLatticeShape(ctx, cellWidth, cellHeight);
         }
-
         // 计算实际缩放比例
         const fitScale = this.calculateFitScale(
             image.width,
@@ -169,21 +146,17 @@ export class P1ImagePattern {
         // 最后缩放
         const finalScale = scale * fitScale;
         ctx.scale(finalScale, finalScale);
-
         // 绘制图片，确保居中
         ctx.drawImage(
             image,
             -image.width / 2,
             -image.height / 2
         );
-
         ctx.restore();
     }
-
     clipToLatticeShape(ctx, width, height) {
         const { shape } = this.config.lattice;
         ctx.beginPath();
-
         switch (shape) {
             case 'parallelogram':
                 this.clipToParallelogram(ctx, width, height);
@@ -195,10 +168,8 @@ export class P1ImagePattern {
             default:
                 ctx.rect(0, 0, width, height);
         }
-
         ctx.clip();
     }
-
     calculateFitScale(imgWidth, imgHeight, cellWidth, cellHeight, fitMode) {
         const scaleX = cellWidth / imgWidth;
         const scaleY = cellHeight / imgHeight;
@@ -309,7 +280,6 @@ export class P1ImagePattern {
                 maxJ: range
             };
         }
-
         // 视口的四个角点（相对于中心点）
         const corners = [
             {x: -viewportWidth/2, y: -viewportHeight/2},
@@ -317,7 +287,6 @@ export class P1ImagePattern {
             {x: viewportWidth/2, y: viewportHeight/2},
             {x: -viewportWidth/2, y: viewportHeight/2}
         ];
-
         // 对每个角点求解晶格坐标
         const latticeCoords = corners.map(point => {
             // 解线性方程组：
@@ -329,13 +298,11 @@ export class P1ImagePattern {
             
             return { i, j };
         });
-
         // 计算覆盖所有角点的最小晶格范围
         const minI = Math.floor(Math.min(...latticeCoords.map(p => p.i)));
         const maxI = Math.ceil(Math.max(...latticeCoords.map(p => p.i)));
         const minJ = Math.floor(Math.min(...latticeCoords.map(p => p.j)));
         const maxJ = Math.ceil(Math.max(...latticeCoords.map(p => p.j)));
-
         return {
             minI,
             maxI,
@@ -378,32 +345,26 @@ export class P1ImagePattern {
             ctx.stroke();
         }
     }
-
     renderBoundary(ctx, gridRange) {
         const { color, width, dash } = this.config.render.boundaryStyle;
         const { basis1, basis2 } = this.config.lattice;
-
         ctx.strokeStyle = color;
         ctx.lineWidth = width;
         ctx.setLineDash(dash);
-
         // 绘制晶格单元的边界
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
             for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
                 const x = basis1.x * i + basis2.x * j;
                 const y = basis1.y * i + basis2.y * j;
-
                 ctx.beginPath();
                 this.drawUnitCellBoundary(ctx, x, y);
                 ctx.stroke();
             }
         }
     }
-
     drawUnitCellBoundary(ctx, x, y) {
         const { shape } = this.config.lattice;
         const { basis1, basis2 } = this.config.lattice;
-
         switch (shape) {
             case 'parallelogram':
                 ctx.moveTo(x, y);
@@ -420,12 +381,10 @@ export class P1ImagePattern {
                 ctx.rect(x - width / 2, y - height / 2, width, height);
         }
     }
-
     // 工具方法
     isReady() {
         return this.nodeImageLoaded && this.fillImageLoaded && this.patternReady;
     }
-
     // 导出当前视图为图片
     async exportImage(format = 'image/png') {
         if (!this.patternCell) {
@@ -433,10 +392,8 @@ export class P1ImagePattern {
         }
         return this.patternCell.toDataURL(format);
     }
-
     clipToParallelogram(ctx, width, height) {
-        const { basis1, basis2 } = this.config.lattice;
-        
+        const { basis1, basis2 } = this.config.lattice;   
         // 计算平行四边形的四个顶点
         // 使用基向量定义平行四边形
         const points = [
@@ -445,7 +402,6 @@ export class P1ImagePattern {
             { x: basis1.x/2 + basis2.x/2, y: basis1.y/2 + basis2.y/2 },   // 右下
             { x: -basis1.x/2 + basis2.x/2, y: -basis1.y/2 + basis2.y/2 }  // 左下
         ];
-
         // 绘制裁剪路径
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
