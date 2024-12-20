@@ -13,29 +13,18 @@ export class PMMImagePattern extends PGGImagePattern {
         if (this.fillImage && this.fillImageLoaded) {
             // 1. 绘制原始图案
             ctx.save();
+            // 根据行列索引决定使用哪种变换
+            if (i % 2 === 0 && j % 2 === 0) {
+                ctx.scale(-1, -1); // 对角镜像
+            } else if (i % 2 === 0) {
+                ctx.scale(-1, 1); // 水平镜像
+            } else if (j % 2 === 0) {
+                ctx.scale(1, -1); // 垂直镜像
+            }
+
+            // 只绘制一次
             this.drawFillImage(ctx);
             ctx.restore();
-            // 2. 根据列号判断水平镜像
-            if (i % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, 1); // 水平镜像
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
-            // 3. 根据行号判断垂直镜像
-            if (j % 2 === 0) {
-                ctx.save();
-                ctx.scale(1, -1); // 垂直镜像
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
-            // 4. 如果同时满足行列条件,添加对角镜像
-            if (i % 2 === 0 && j % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, -1); // 同时水平和垂直镜像
-                this.drawFillImage(ctx);
-                ctx.restore();
-            }
         }
     }
 
@@ -47,34 +36,19 @@ export class PMMImagePattern extends PGGImagePattern {
         const j = Math.floor((y / basis2.y + 1000000));
 
         if (this.nodeImage && this.nodeImageLoaded) {
-            // 1. 绘制原始图案
             ctx.save();
+            // 根据行列索引决定使用哪种变换
+            if (i % 2 === 0 && j % 2 === 0) {
+                ctx.scale(-1, -1); // 对角镜像
+            } else if (i % 2 === 0) {
+                ctx.scale(-1, 1); // 水平镜像
+            } else if (j % 2 === 0) {
+                ctx.scale(1, -1); // 垂直镜像
+            }
+
+            // 只绘制一次
             this.drawNodeImage(ctx);
             ctx.restore();
-
-            // 2. 根据列号判断水平镜像
-            if (i % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, 1); // 水平镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
-
-            // 3. 根据行号判断垂直镜像
-            if (j % 2 === 0) {
-                ctx.save();
-                ctx.scale(1, -1); // 垂直镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
-
-            // 4. 如果同时满足行列条件,添加对角镜像
-            if (i % 2 === 0 && j % 2 === 0) {
-                ctx.save();
-                ctx.scale(-1, -1); // 同时水平和垂直镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
-            }
         }
     }
 }

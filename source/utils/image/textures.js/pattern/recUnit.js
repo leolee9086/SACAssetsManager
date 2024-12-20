@@ -6,7 +6,7 @@
  * @returns {boolean} 是否存在矩形重复单元
  */
 export function hasRectangularUnit(basis1, basis2, wallpaperGroup) {
-    switch (wallpaperGroup.toLowerCase()) {
+    /*switch (wallpaperGroup.toLowerCase()) {
         // 必然存在矩形重复单元的群
         case 'pmm':
         case 'pmg':
@@ -36,7 +36,8 @@ export function hasRectangularUnit(basis1, basis2, wallpaperGroup) {
 
         default:
             return false;
-    }
+    }*/
+    return true
 }
 
 /**
@@ -73,16 +74,6 @@ export function getRectangularUnit(basis1, basis2, wallpaperGroup) {
         case 'p3':
         case 'p3m1':
         case 'p31m':
-            const triSize = len1;
-            return {
-                width: triSize * Math.sqrt(3),
-                height: triSize * 2,
-                transform: {
-                    rotation: rotation,
-                    origin: { x: 0, y: 0 }
-                }
-            };
-
         case 'p6':
         case 'p6m':
             const hexSize = len1;
@@ -91,10 +82,9 @@ export function getRectangularUnit(basis1, basis2, wallpaperGroup) {
                 height: hexSize * Math.sqrt(3),
                 transform: {
                     rotation: rotation,
-                    origin: { x: -len1/2, y: -hexSize * Math.sqrt(3)/2 }
+                    origin: { x: -len1 / 2, y: -hexSize * Math.sqrt(3) / 2 }
                 }
             };
-
         case 'p4':
         case 'p4g':
         case 'p4m':
@@ -109,6 +99,7 @@ export function getRectangularUnit(basis1, basis2, wallpaperGroup) {
             };
 
         case 'cmm':
+
         case 'p1':
             return {
                 width: Math.min(len1, len2),  // 宽度取较小值
@@ -142,11 +133,12 @@ export function getRectangularUnit(basis1, basis2, wallpaperGroup) {
                 }
             }
         case 'cm':
-            const angle = Math.acos(
+            const angle1 = Math.acos(
                 (basis1.x * basis2.x + basis1.y * basis2.y) / (len1 * len2)
             );
 
-            if (Math.abs(angle - Math.PI / 2) < 1e-6) {
+            // 如果基向量接近正交
+            if (Math.abs(angle1 - Math.PI / 2) < 1e-6) {
                 return {
                     width: len1,
                     height: len2,
@@ -156,11 +148,24 @@ export function getRectangularUnit(basis1, basis2, wallpaperGroup) {
                     }
                 };
             } else {
+                // 如果基向量不正交，需要考虑角度计算投影
+                const cosAngle = Math.cos(angle1);
+                const sinAngle = Math.sin(angle1);
+
+                // 计算第二个基向量在第一个基向量方向上的投影长度
+                const projectionLength = len2 * Math.abs(cosAngle);
+
+                // 宽度是第一个基向量长度的一半
+                const width = len1 / 2;
+
+                // 高度是第二个基向量的垂直分量
+                const height = len2 * Math.abs(sinAngle);
+
                 return {
-                    width: Math.abs(basis1.x) + Math.abs(basis2.x),
-                    height: Math.abs(basis1.y) + Math.abs(basis2.y),
+                    width: width,
+                    height: height,
                     transform: {
-                        rotation: 0,
+                        rotation: rotation,
                         origin: { x: 0, y: 0 }
                     }
                 };

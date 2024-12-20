@@ -330,3 +330,370 @@
     height: 100%;
     display: block;
 }
+
+
+.cc-control-section {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .cc-control-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.9em;
+    color: #ddd;
+  }
+  
+  .cc-control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .cc-control-group span {
+    font-size: 0.9em;
+    min-width: 80px;
+  }
+  
+  .cc-control-group input[type="range"] {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    height: 6px;
+    -webkit-appearance: none;
+  }
+  
+  .cc-control-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  
+  .cc-control-group input[type="color"] {
+    width: 40px;
+    height: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0;
+  }
+  
+  .cc-control-group span:last-child {
+    min-width: 45px;
+    text-align: right;
+    font-size: 0.85em;
+    color: #aaa;
+  }
+
+  .cc-grid-editor-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  
+  .cc-preview-container {
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    overflow: hidden;
+  }
+  
+  .cc-grid-preview {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .cc-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 4px;
+    color: white;
+    z-index: 5;
+  }
+  
+  .cc-apply-btn {
+    margin-top: auto;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 0.9em;
+  }
+  
+  .cc-apply-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .cc-control-btn {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 0.9em;
+    margin-bottom: 10px;
+  }
+  
+  .cc-control-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .cc-control-btn.active {
+    background: rgba(255, 255, 255, 0.4);
+  }
+  
+  .cc-control-section {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .cc-control-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.9em;
+    color: #ddd;
+  }
+  
+  .cc-vector-inputs {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+  }
+  
+  .cc-vector-inputs input {
+    width: 50%;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    color: white;
+  }
+  
+  select {
+    flex: 1;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    color: white;
+  }
+  
+  .cc-controls {
+    width: 320px;
+  }
+  
+  .cc-image-upload {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+  
+  .cc-upload-btn {
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background 0.2s;
+  }
+  
+  .cc-upload-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .cc-file-name {
+    font-size: 0.85em;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+  }
+  
+  .cc-image-preview {
+    margin-top: 8px;
+    width: 100%;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  
+  .cc-image-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  
+  .cc-control-group select {
+    flex: 1;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+  }
+  
+  .cc-control-group select option {
+    background: #333;
+  }
+  
+  .cc-preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .cc-preset-btn {
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+  }
+  
+  .cc-preset-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  
+  .cc-preset-btn:active {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(0.98);
+  }
+  
+  .cc-constraint-info {
+    margin-bottom: 12px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+  
+  .cc-constraint-type {
+    display: inline-block;
+    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    margin-right: 8px;
+    font-size: 0.9em;
+  }
+  
+  .cc-constraint-desc {
+    font-size: 0.9em;
+    color: #aaa;
+  }
+  
+  .disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .disabled input {
+    cursor: not-allowed;
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  .disabled span {
+    color: #666;
+  }
+  
+  .cc-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+  
+  .cc-section-header:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  
+  .cc-section-header h4 {
+    margin: 0;
+    font-size: 0.95em;
+    font-weight: normal;
+  }
+  
+  .cc-toggle-icon {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  
+  .cc-control-section {
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 12px;
+  }
+  
+  .cc-control-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  
+  .cc-download-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .cc-unit-download-options {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 8px;
+  }
+  
+  .cc-option-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .cc-option-group input {
+    width: 100px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    color: white;
+  }
+  
+  .fn_overflow_hidden {
+    overflow: hidden;
+  }
+  

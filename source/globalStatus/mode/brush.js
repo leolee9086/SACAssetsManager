@@ -1,4 +1,11 @@
 export const createBrushModeHandlers = (params) => {
+    // 接收配置参数:
+    // - isBrushMode: 画笔模式状态
+    // - currentHoverElement: 当前悬停的元素
+    // - onHover: 悬停回调
+    // - onClick: 点击回调
+    // - findTarget: 查找目标元素的方法
+    // - cursor: 自定义光标配置
     const {
         isBrushMode,
         currentHoverElement,
@@ -60,10 +67,23 @@ export const createBrushModeHandlers = (params) => {
         document.body.style.cursor = 'default';
     }
 
+    const debounce = (fn, delay) => {
+        let timer = null;
+        return function (...args) {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
     const handleMouseMove = (e) => {
         if (!isBrushMode.value) return;
         updateCursorPosition(e);
         
+        // 使用防抖处理悬停逻辑
+        debouncedHoverHandler(e);
+    }
+
+    const debouncedHoverHandler = debounce((e) => {
         if (currentHoverElement.value) {
             onHover?.cleanup?.(currentHoverElement.value);
         }
@@ -72,7 +92,7 @@ export const createBrushModeHandlers = (params) => {
             currentHoverElement.value = element;
             onHover?.apply?.(element);
         }
-    }
+    }, 16); // 约60fps的刷新率
 
     const handleMouseClick = (e) => {
         if (!isBrushMode.value || !currentHoverElement.value) return;

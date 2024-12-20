@@ -334,3 +334,43 @@ export const symmetryConstraints = {
     }
   };
   
+
+
+
+  import { 生成晶格设置, 生成图片绘制设置, 生成图案渲染配置 } from './patternState.js';
+
+/**
+ * 创建对称图案实例
+ * @param {Object} config 配置参数
+ * @param {string} config.symmetryType 对称类型
+ * @param {Object} config.basis1 基向量1
+ * @param {Object} config.basis2 基向量2
+ * @param {string} config.processedNodeImage 处理后的节点图片
+ * @param {Object} config.nodeTransform 节点变换参数
+ * @param {string} config.fillImageUrl 填充图片URL
+ * @param {Object} config.fillTransform 填充图片变换参数
+ * @param {string} config.lineColor 线条颜色
+ * @param {number} config.lineWidth 线条宽度
+ * @returns {Promise<Pattern>} 图案实例
+ */
+export const createPattern = async ({
+  symmetryType,
+  basis1,
+  basis2,
+  processedNodeImage,
+  nodeTransform,
+  fillImageUrl,
+  fillTransform,
+  lineColor,
+  lineWidth
+}) => {
+  const PatternClass = getPatternClass(symmetryType);
+  const pattern = new PatternClass({
+    lattice: 生成晶格设置(basis1, basis2),
+    nodeImage: 生成图片绘制设置(processedNodeImage, nodeTransform, 'contain'),
+    fillImage: 生成图片绘制设置(fillImageUrl, fillTransform, 'contain'),
+    render: 生成图案渲染配置(lineColor, lineWidth),
+  });
+  await pattern.loadImages();
+  return pattern;
+};

@@ -9,7 +9,7 @@ function 同步获取文件夹列表(路径) {
   xhr.open('POST', `/api/file/readDir`, false); // 使用 POST 方法
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.send(JSON.stringify({ path: 路径 }));
-  
+
   if (xhr.status === 200) {
     const response = JSON.parse(xhr.responseText);
     if (response.code === 0) {
@@ -23,15 +23,15 @@ function 构建TAB配置() {
   const TAB_CONFIGS = {};
   // 使用插件工作空间的完整路径
   const 基础路径 = `/data/plugins/SACAssetsManager/source/UI/pannels`;
-  
+
   try {
     const 文件列表 = 同步获取文件夹列表(基础路径);
-    
+
     文件列表.forEach(文件信息 => {
       if (文件信息.isDir) {
         const 文件夹名 = 文件信息.name;
         const tabName = `${文件夹名}Tab`;
-        
+
         TAB_CONFIGS[tabName] = {
           // 注意这里使用的是前端访问路径
           component: `/plugins/SACAssetsManager/source/UI/pannels/${文件夹名}/index.vue`,
@@ -39,15 +39,15 @@ function 构建TAB配置() {
         };
       }
     });
-    
+
   } catch (错误) {
     console.error('构建TAB配置时出错:', 错误);
   }
-  
+
   return TAB_CONFIGS;
 }
 
-console.log('测试',构建TAB配置())
+console.log('测试', 构建TAB配置())
 
 
 
@@ -71,21 +71,21 @@ const TAB_CONFIGS = {
 const DOCK_CONFIGS = {
   AssetsPanel: {
     icon: "iconInfo",
-    position: "LeftBottom", 
+    position: "LeftBottom",
     component: '/plugins/SACAssetsManager/source/UI/pannels/assetInfoPanel/assestInfoPanel.vue',
     title: "SACAssetsPanel"
   },
   CollectionPanel: {
     icon: "iconDatabase",
     position: "RightBottom",
-    component: '/plugins/SACAssetsManager/source/UI/components/collectionPanel.vue', 
+    component: '/plugins/SACAssetsManager/source/UI/components/collectionPanel.vue',
     title: "SACAssetsCollectionPanel"
   }
 }
 let pluginInstance = {}
 module.exports = class SACAssetsManager extends Plugin {
   onload() {
-    pluginInstance=this
+    pluginInstance = this
     eventBus = this.eventBus
     this.插件自身工作空间路径 = `/data/plugins/${this.name}`
     this.工作空间根路径 = window.siyuan.config.system.workspaceDir
@@ -102,10 +102,10 @@ module.exports = class SACAssetsManager extends Plugin {
     this.添加菜单()
     this.加载i18n工具()
   }
-  初始化插件同步状态(){
+  初始化插件同步状态() {
     this.最近打开本地文件夹列表 = new Set()
   }
-  初始化插件异步状态(){
+  初始化插件异步状态() {
     import(`${this.插件自身伺服地址}/source/UI/icons/addicon.js`)
     import(`${this.插件自身伺服地址}/source/globalStatus/index.js`)
   }
@@ -198,7 +198,7 @@ module.exports = class SACAssetsManager extends Plugin {
       this.eventBus.emit(eventName, detail)
     }
   }
-  createDock(dockType){
+  createDock(dockType) {
     const config = DOCK_CONFIGS[dockType];
     const dock = this.addDock({
       config: {
@@ -221,7 +221,7 @@ module.exports = class SACAssetsManager extends Plugin {
     });
     return dock;
   }
-  
+
   添加资源信息边栏() {
     this.assetsPanelDock = this.createDock('AssetsPanel');
     this.collectionPanelDock = this.createDock('CollectionPanel');
@@ -239,7 +239,7 @@ module.exports = class SACAssetsManager extends Plugin {
     import(`/plugins/${this.name}/source/UI/siyuanCommon/index.js`)
 
   }
-  创建资源Tab类型() {    
+  创建资源Tab类型() {
     // 统一的tab创建函数
     const createTab = (tabType) => {
       const config = TAB_CONFIGS[tabType];
@@ -263,6 +263,11 @@ module.exports = class SACAssetsManager extends Plugin {
     });
   }
 }
+
+
+
+
+
 function 插入UI面板容器(UI容器父元素) {
   UI容器父元素.innerHTML = `<div class="fn__flex-1 fn__flex-column cc_ui-container"></div>`
   return UI容器父元素.querySelector(".fn__flex-1.fn__flex-column")
