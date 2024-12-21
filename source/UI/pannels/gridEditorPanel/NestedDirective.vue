@@ -1,6 +1,6 @@
 <template>
   <div v-draggable="[modelValue, options]" class="cc-nested-list">
-    <template v-for="el in modelValue" :key="el.name">
+    <template v-for="el in list" :key="el.name">
       <div class="cc-nested-item" :class="{ 'is-folder': el.type === 'folder' }" :data-type="el.type">
         <div class="cc-nested-content">
           <slot name="item" :item="el" :is-collapsed="collapsed[el.name]" :on-toggle="() => toggleCollapse(el.name)">
@@ -32,6 +32,8 @@
 <script setup>
 import { vDraggable } from '../../../../static/vue-draggable-plus.js'
 import { computed, ref } from 'vue'
+defineOptions({name:'nested-directive'})
+
 
 const props = defineProps({
   modelValue: {
@@ -44,11 +46,14 @@ const emits = defineEmits(['update:modelValue'])
 
 const collapsed = ref({})
 const toggleCollapse = (name) => collapsed.value[name] = !collapsed.value[name]
-
+const list = computed({
+  get: () => props.modelValue,
+  set: value => {console.log(value);emits('update:modelValue', value)}
+})
 
 
 const options = {
-  group:"nested",
+  group:{name:'nested'},
   animation: 150,
   handle: '.cc-nested-content',
   ghostClass: 'sortable-ghost',
@@ -57,6 +62,11 @@ const options = {
   swapThreshold: 0.65,
   emptyInsertThreshold: 5,
   sort: true,
+  put:true,
+  immediate:true,
+  customUpdate:(evt)=>{
+    console.log(evt)
+  },
   onMove: function(evt, originalEvent) {
     const draggedEl = evt.dragged
     const relatedEl = evt.related

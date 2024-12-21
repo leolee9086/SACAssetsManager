@@ -1,0 +1,263 @@
+import Konva from '../../../../../static/konva.js'
+import { ARTBOARD } from './artboardPosition.js'
+
+// 创建画板图层
+export const createArtboardLayers = (stage, artboards, mainLayerRef, isArtboardMode) => {
+  if (!stage || !Array.isArray(artboards)) return
+  
+  // 清除现有层
+  stage.destroyChildren()
+  
+  // 创建三个主要层
+  const artboardBgLayer = new Konva.Layer()    
+  const mainLayer = new Konva.Layer()          
+  const artboardBorderLayer = new Konva.Layer() 
+  
+  // 记录最后一个创建的画板元素
+  let lastCreatedElements = null
+  
+  artboards.forEach((artboardData, index) => {
+    const elements = createArtboardElements(
+      artboardData,
+      index,
+      isArtboardMode,
+      stage
+    )
+    
+    artboardBgLayer.add(elements.artboardBg)
+    artboardBorderLayer.add(elements.border, elements.label, elements.tr)
+    
+    setupArtboardEvents(
+      elements.artboardBg, 
+      elements.border, 
+      elements.label, 
+      elements.tr, 
+      artboards, 
+      isArtboardMode, 
+      stage
+    )
+    
+    lastCreatedElements = elements
+  })
+  
+  // 按顺序添加层
+  stage.add(artboardBgLayer)    
+  stage.add(mainLayer)          
+  stage.add(artboardBorderLayer)
+  
+  // 保存主层引用
+  if (mainLayerRef && 'value' in mainLayerRef) {
+    mainLayerRef.value = mainLayer
+  }
+  
+  // 如果处于画板工具模式，激活最后一个画板
+  if (isArtboardMode && lastCreatedElements) {
+    lastCreatedElements.tr.visible(true)
+    stage.batchDraw()
+  }
+}
+
+// 创建画板元素
+const createArtboardElements = (artboardData, index, isArtboardMode, stage) => {
+  const artboardBg = new Konva.Rect({
+    x: artboardData.x,
+    y: artboardData.y,
+    width: artboardData.width,
+    height: artboardData.height,
+    fill: 'white',
+    stroke: '#ccc',
+    strokeWidth: 1,
+    name: `artboard-${artboardData.id}`,
+    draggable: Boolean(isArtboardMode),
+    id: artboardData.id
+  })
+  
+  const border = new Konva.Rect({
+    x: artboardData.x,
+    y: artboardData.y,
+    width: artboardData.width,
+    height: artboardData.height,
+    stroke: '#666',
+    strokeWidth: 1,
+    dash: [4, 4],
+    fill: null,
+    listening: false
+  })
+  
+  const label = createArtboardLabel(artboardData, index)
+  
+  const tr = new Konva.Transformer({
+    nodes: [artboardBg],
+    visible: Boolean(isArtboardMode),
+    rotateEnabled: false,
+    keepRatio: false,
+    boundBoxFunc: (oldBox, newBox) => {
+      return newBox.width < 100 || newBox.height < 100 ? oldBox : newBox
+    },
+    enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+  })
+  
+  return { artboardBg, border, label, tr }
+}
+
+// 创建画板标签
+const createArtboardLabel = (artboardData, index) => {
+  const label = new Konva.Label({
+    x: artboardData.x,
+    y: artboardData.y - 20
+  })
+  
+  label.add(new Konva.Tag({
+    fill: '#666',
+    cornerRadius: 2,
+    pointerDirection: 'down',
+    pointerWidth: 6,
+    pointerHeight: 4,
+    lineJoin: 'round'
+  }))
+  
+  label.add(new Konva.Text({
+    text: `画板 ${index + 1}`,
+    fontSize: 11,
+    fontFamily: 'Arial',
+    fill: 'white',
+    padding: 4
+  }))
+  
+  return label
+}
+
+// 设置画板事件
+const setupArtboardEvents = (artboardBg, border, label, tr, artboards, isArtboardMode, stage) => {
+  if (!artboardBg || !border || !label || !tr || !Array.isArray(artboards) || !stage) return
+  
+  // 拖动事件
+  artboardBg.on('dragmove', () => {
+    if (!isArtboardMode) return
+    
+    const newX = artboardBg.x()
+    const newY = artboardBg.y()
+    
+    updateArtboardPosition(border, label, newX, newY)
+    updateArtboardData(artboards, artboardBg.id(), { x: newX, y: newY })
+  })
+  
+  // 变换事件
+  artboardBg.on('transform', () => {
+    if (!isArtboardMode) return
+    handleArtboardTransform(artboardBg, border, label, artboards)
+  })
+  
+  // 点击事件
+  artboardBg.on('click', () => {
+    if (!isArtboardMode) return
+    
+    // 隐藏所有变换器
+    stage.find('Transformer').forEach(transformer => {
+      transformer.visible(false)
+    })
+    
+    // 只显示当前画板的变换器
+    tr.visible(true)
+    
+    // 将当前画板移到顶层
+    artboardBg.moveToTop()
+    border.moveToTop()
+    label.moveToTop()
+    tr.moveToTop()
+    
+    stage.batchDraw()
+  })
+  
+  // 初始状态下隐藏变换器
+  tr.visible(false)
+}
+
+// 导出画板
+export const exportArtboard = async (stage, artboard) => {
+  if (!stage || !artboard) return null
+  
+  const tempCanvas = document.createElement('canvas')
+  tempCanvas.width = artboard.width
+  tempCanvas.height = artboard.height
+  const ctx = tempCanvas.getContext('2d')
+  
+  if (!ctx) {
+    throw new Error('无法创建canvas上下文')
+  }
+
+  // 设置白色背景
+  ctx.fillStyle = 'white'
+  ctx.fillRect(0, 0, artboard.width, artboard.height)
+
+  // 渲染舞台内容
+  await stage.toCanvas({
+    x: artboard.x,
+    y: artboard.y,
+    width: artboard.width,
+    height: artboard.height,
+    pixelRatio: 2,
+    callback: (canvas) => {
+      ctx.drawImage(canvas, 0, 0)
+    }
+  })
+
+  return new Promise((resolve) => {
+    tempCanvas.toBlob(resolve, 'image/png')
+  })
+}
+
+// 添加更新画板位置的辅助函数
+const updateArtboardPosition = (border, label, x, y) => {
+  if (!border || !label) return
+  
+  border.position({ x, y })
+  label.position({ x, y: y - 20 })
+}
+
+// 修改更新画板数据的辅助函数
+const updateArtboardData = (artboards, id, updates) => {
+  if (!Array.isArray(artboards) || !id || !updates) return
+  
+  const artboard = artboards.find(a => a.id === id)
+  if (artboard) {
+    Object.assign(artboard, updates)
+  }
+}
+
+// 添加处理画板变换的辅助函数
+const handleArtboardTransform = (artboardBg, border, label, artboards) => {
+  if (!artboardBg || !border || !label || !Array.isArray(artboards)) return
+  
+  const newAttrs = {
+    x: artboardBg.x(),
+    y: artboardBg.y(),
+    width: artboardBg.width() * artboardBg.scaleX(),
+    height: artboardBg.height() * artboardBg.scaleY()
+  }
+  
+  artboardBg.setAttrs({
+    ...newAttrs,
+    scaleX: 1,
+    scaleY: 1
+  })
+  
+  border.setAttrs(newAttrs)
+  label.position({
+    x: newAttrs.x,
+    y: newAttrs.y - 20
+  })
+  
+  updateArtboardData(artboards, artboardBg.id(), newAttrs)
+}
+
+// 添加处理画板点击的辅助函数
+const handleArtboardClick = (tr, stage) => {
+  if (!tr || !stage) return
+  
+  stage.find('Transformer').forEach(t => {
+    if (t !== tr) t.hide()
+  })
+  tr.show()
+  stage.batchDraw()
+} 
