@@ -697,3 +697,54 @@
     overflow: hidden;
   }
   
+  /* 数字输入框组件样式 */
+  .number-input-wrapper {
+    display: flex;
+    align-items: center;
+    border: var(--cc-border-width) solid var(--cc-border-color);
+    border-radius: var(--cc-border-radius);
+    background: var(--cc-theme-surface-lighter);
+    overflow: hidden;
+  }
+
+  .property-input {
+    width: 60px;
+    padding: var(--cc-space-sm);
+    border: none;
+    background: transparent;
+    color: var(--cc-theme-on-background);
+    text-align: center;
+  }
+
+  .property-input:focus {
+    outline: none;
+  }
+
+  .number-controls {
+    display: flex;
+    flex-direction: column;
+    border-left: var(--cc-border-width) solid var(--cc-border-color);
+  }
+
+  .number-controls button {
+    border: none;
+    background: transparent;
+    color: var(--cc-theme-on-surface);
+    padding: var(--cc-space-xs) var(--cc-space-sm);
+    cursor: pointer;
+    transition: var(--cc-transition);
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .number-controls button:hover {
+    background: var(--cc-theme-surface-light);
+    color: var(--cc-theme-on-background);
+  }
+
+  .number-controls button:first-child {
+    border-bottom: var(--cc-border-width) solid var(--cc-border-color);
+  }
+  

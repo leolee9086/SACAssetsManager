@@ -29,90 +29,11 @@
 
 
       <!-- 属性面板 -->
-      <div class="properties-panel" v-if="selectedLayer">
-        <div class="panel-header">
-          <h3>{{ selectedLayer.name }} 属性</h3>
-        </div>
-
-        <div class="property-group">
-          <label>图层名称</label>
-          <input type="text" v-model="selectedLayer.name" class="property-input">
-        </div>
-
-        <template v-if="selectedLayer.layerType === 'text'">
-          <div class="property-group">
-            <label>文本内容</label>
-            <input type="text" v-model="selectedLayer.config.text" class="property-input">
-            <label>字体大小</label>
-            <input type="number" v-model="selectedLayer.config.size" class="property-input">
-            <label>颜色</label>
-            <input type="color" v-model="selectedLayer.config.color" class="property-input">
-          </div>
-        </template>
-
-        <template v-else-if="selectedLayer.layerType === 'rect'">
-          <div class="property-group">
-            <label>颜色</label>
-            <input type="color" v-model="selectedLayer.config.color" class="property-input">
-            <label>宽度</label>
-            <input type="number" v-model="selectedLayer.config.width" class="property-input">
-            <label>高度</label>
-            <input type="number" v-model="selectedLayer.config.height" class="property-input">
-          </div>
-        </template>
-
-        <template v-else-if="selectedLayer.layerType === 'grid'">
-          <div class="property-group">
-            <label>网格大小</label>
-            <input type="number" v-model="selectedLayer.config.size" class="property-input">
-            <label>网格颜色</label>
-            <input type="color" v-model="selectedLayer.config.color" class="property-input">
-          </div>
-        </template>
-
-        <template v-else-if="selectedLayer.layerType === 'image'">
-          <div class="property-group">
-            <label>宽度</label>
-            <input type="number" v-model="selectedLayer.config.width" class="property-input">
-            <label>高度</label>
-            <input type="number" v-model="selectedLayer.config.height" class="property-input">
-          </div>
-        </template>
-
-        <template v-else-if="selectedLayer.layerType === 'adjustment'">
-          <div class="property-group">
-            <label>亮度</label>
-            <input 
-              type="range" 
-              v-model="selectedLayer.config.brightness"
-              min="-1"
-              max="1"
-              step="0.1"
-              class="property-input"
-            >
-            
-            <label>对比度</label>
-            <input 
-              type="range" 
-              v-model="selectedLayer.config.contrast"
-              min="-100"
-              max="100"
-              step="1"
-              class="property-input"
-            >
-            
-            <label>饱和度</label>
-            <input 
-              type="range" 
-              v-model="selectedLayer.config.saturation"
-              min="-2"
-              max="2"
-              step="0.1"
-              class="property-input"
-            >
-          </div>
-        </template>
-      </div>
+      <PropertiesPanel 
+        v-if="selectedLayer"
+        :layer="selectedLayer"
+        @update:layer="handleLayerUpdate"
+      />
     </div>
 
     <!-- 画板工具栏 -->
@@ -134,8 +55,8 @@ import _Konva from '../../../../static/konva.js'
 import { ARTBOARD, getArtboardPosition, getArtboardWorldPosition } from './utils/artboardPosition.js'
 import { galleryPresets, defaultLayerNames, getDefaultConfig } from './constants/layerPresets.js'
 import { coordsHelper } from './utils/coordsHelper.js'
-import { layerPipes } from './utils/layerPipes.js'
 import { createArtboardLayers, exportArtboard } from './utils/artboardManager.js'
+import PropertiesPanel from './components/PropertiesPanel.vue'
 const Konva = _Konva.default
 
 // 舞台和图层的引用
@@ -218,7 +139,7 @@ const getFlatLayers = (layers) => {
   }, [])
 }
 
-// 修改渲染函数,确保背景图层始终在底部
+// 修改渲染函数,使用预设中的render函数
 const renderLayers = () => {
   if (!mainLayerRef.value) return
 
@@ -235,9 +156,9 @@ const renderLayers = () => {
   
   // 先渲染底色矩形
   if (bgLayer) {
-    const pipe = layerPipes[bgLayer.layerType]
-    if (pipe) {
-      const shapes = pipe(bgLayer.config, bgLayer.id, stageRef, handleShapeClick)
+    const preset = galleryPresets.find(p => p.type === bgLayer.layerType)
+    if (preset?.render) {
+      const shapes = preset.render(bgLayer.config, bgLayer.id, stageRef, handleShapeClick)
       if (Array.isArray(shapes)) {
         shapes.forEach(shape => mainLayerRef.value?.add(shape))
         layerRegistry.value.set(bgLayer.id, {
@@ -258,9 +179,9 @@ const renderLayers = () => {
 
   // 再渲染其他内容图层
   contentLayers.forEach(layer => {
-    const pipe = layerPipes[layer.layerType]
-    if (pipe) {
-      const shapes = pipe(layer.config, layer.id, stageRef, handleShapeClick)
+    const preset = galleryPresets.find(p => p.type === layer.layerType)
+    if (preset?.render) {
+      const shapes = preset.render(layer.config, layer.id, stageRef, handleShapeClick)
       if (Array.isArray(shapes)) {
         shapes.forEach(shape => mainLayerRef.value?.add(shape))
         layerRegistry.value.set(layer.id, {
@@ -311,7 +232,7 @@ onMounted(() => {
       draggable: true
     })
     
-    // 添加缩放处理
+    // 添加缩放处���
     const debouncedWheel = useDebounceFn((e) => {
       e.evt.preventDefault()
       
@@ -657,6 +578,28 @@ function useDebounceFn(fn, delay) {
       timeoutId = null
     }, delay)
   }
+}
+
+// 添加图层更新处理函数
+const handleLayerUpdate = (updatedLayer) => {
+  // 递归查找并更新图层
+  const updateLayer = (layers) => {
+    for (let i = 0; i < layers.length; i++) {
+      if (layers[i].id === updatedLayer.id) {
+        layers[i] = updatedLayer
+        return true
+      }
+      if (layers[i].children?.length) {
+        if (updateLayer(layers[i].children)) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  // 更新图层列表
+  updateLayer(list.value)
 }
 </script>
 
