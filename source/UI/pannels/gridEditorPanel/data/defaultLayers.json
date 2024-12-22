@@ -1,0 +1,52 @@
+{
+  "layers": [
+    {
+      "id": "bg-group",
+      "name": "底色图层组",
+      "type": "folder",
+      "visible": true,
+      "locked": true,
+      "children": [
+        {
+          "id": "bg-color",
+          "name": "底色矩形",
+          "type": "file",
+          "visible": true,
+          "locked": true,
+          "layerType": "rect",
+          "config": {
+            "x": 0,
+            "y": 0,
+            "width": 800,
+            "height": 600,
+            "color": "#ffffff"
+          }
+        }
+      ]
+    },
+    {
+      "id": "content-group",
+      "name": "内容图层组", 
+      "type": "folder",
+      "visible": true,
+      "locked": false,
+      "children": [
+        {
+          "id": "title-text",
+          "name": "欢迎文本",
+          "type": "file",
+          "visible": true,
+          "locked": false,
+          "layerType": "text",
+          "config": {
+            "text": "欢迎使用编辑器",
+            "x": 320,
+            "y": 288,
+            "size": 24,
+            "color": "#333333"
+          }
+        }
+      ]
+    }
+  ]
+} 

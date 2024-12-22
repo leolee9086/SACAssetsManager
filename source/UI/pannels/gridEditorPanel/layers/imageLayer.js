@@ -6,30 +6,33 @@ export const imageLayer = {
   defaultConfig: {
     width: 200,
     height: 100,
-    color: '#ff5722'
+    src: '/plugins/SACAssetsManager/assets/wechatDonate.jpg'
   },
-  render: (config) => {
-    const rect = new Konva.Rect({
-      x: config.x || 50,
-      y: config.y || 150,
+  render: (config, layerId, stage) => {
+    const imageObj = new Image()
+    imageObj.src = config.src || '/plugins/SACAssetsManager/assets/wechatDonate.jpg'
+
+    const imageNode = new Konva.Image({
+      x: (config.x || 0),
+      y: (config.y || 0),
       width: config.width || 200,
       height: config.height || 100,
-      fill: config.color || '#ff5722',
+      image: imageObj,
       draggable: !config.locked,
     })
 
-    rect.on('dragend', () => {
-      config.x = rect.x()
-      config.y = rect.y()
+    imageNode.on('dragend', () => {
+      config.x = imageNode.x()
+      config.y = imageNode.y()
     })
 
-    rect.on('transform', () => {
-      config.width = rect.width() * rect.scaleX()
-      config.height = rect.height() * rect.scaleY()
-      rect.scaleX(1)
-      rect.scaleY(1)
+    imageNode.on('transform', () => {
+      config.width = imageNode.width() * imageNode.scaleX()
+      config.height = imageNode.height() * imageNode.scaleY()
+      imageNode.scaleX(1)
+      imageNode.scaleY(1)
     })
 
-    return rect
+    return imageNode
   }
 } 

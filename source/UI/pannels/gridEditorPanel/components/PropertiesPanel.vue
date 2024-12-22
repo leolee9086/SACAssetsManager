@@ -14,170 +14,42 @@
         @change="emitUpdate"
       >
     </div>
+    <!-- 动态渲染图层声明的调整参数 -->
+    <div class="property-group" v-if="layerAdjustments.length">
+      
 
-    <!-- 文本图层属性 -->
-    <template v-if="layer.layerType === 'text'">
-      <div class="property-group">
-        <label>文本内容</label>
-        <input 
-          type="text" 
-          v-model="localLayer.config.text" 
-          class="property-input"
+      <template v-for="adj in layerAdjustments" :key="adj.key">
+        <label>{{ adj.label }}</label>
+        <!-- 修改组件渲染方式 -->
+        <component
+          :is="components[adj.component]"
+          v-model="localLayer.config[adj.key]"
+          v-bind="getAdjustmentProps(adj)"
           @change="emitUpdate"
-        >
-        <label>字体大小</label>
-        <NumberInput
-          v-model="localLayer.config.size"
-          :min="1"
-          :max="200"
-          @change="emitUpdate"
-          @adjust="adjustValue('size', $event)"
+          @adjust="val => adjustValue(adj.key, val)"
         />
-        <label>颜色</label>
-        <div class="color-input-wrapper">
-          <input 
-            type="color" 
-            v-model="localLayer.config.color" 
-            class="property-input color-input"
-            @change="emitUpdate"
-          >
-          <input 
-            type="text" 
-            v-model="localLayer.config.color" 
-            class="property-input color-text"
-            @change="emitUpdate"
-          >
-        </div>
-      </div>
-    </template>
-
-    <!-- 矩形图层属性 -->
-    <template v-else-if="layer.layerType === 'rect'">
-      <div class="property-group">
-        <label>颜色</label>
-        <div class="color-input-wrapper">
-          <input 
-            type="color" 
-            v-model="localLayer.config.color" 
-            class="property-input color-input"
-            @change="emitUpdate"
-          >
-          <input 
-            type="text" 
-            v-model="localLayer.config.color" 
-            class="property-input color-text"
-            @change="emitUpdate"
-          >
-        </div>
-        <label>宽度</label>
-        <NumberInput
-          v-model="localLayer.config.width"
-          :min="1"
-          @change="emitUpdate"
-          @adjust="adjustValue('width', $event)"
-        />
-        <label>高度</label>
-        <NumberInput
-          v-model="localLayer.config.height"
-          :min="1"
-          @change="emitUpdate"
-          @adjust="adjustValue('height', $event)"
-        />
-      </div>
-    </template>
-
-    <!-- 网格图层属性 -->
-    <template v-else-if="layer.layerType === 'grid'">
-      <div class="property-group">
-        <label>网格大小</label>
-        <NumberInput
-          v-model="localLayer.config.size"
-          :min="1"
-          :max="100"
-          @change="emitUpdate"
-          @adjust="adjustValue('size', $event)"
-        />
-        <label>网格颜色</label>
-        <div class="color-input-wrapper">
-          <input 
-            type="color" 
-            v-model="localLayer.config.color" 
-            class="property-input color-input"
-            @change="emitUpdate"
-          >
-          <input 
-            type="text" 
-            v-model="localLayer.config.color" 
-            class="property-input color-text"
-            @change="emitUpdate"
-          >
-        </div>
-      </div>
-    </template>
-
-    <!-- 图片图层属性 -->
-    <template v-else-if="layer.layerType === 'image'">
-      <div class="property-group">
-        <label>宽度</label>
-        <NumberInput
-          v-model="localLayer.config.width"
-          :min="1"
-          @change="emitUpdate"
-          @adjust="adjustValue('width', $event)"
-        />
-        <label>高度</label>
-        <NumberInput
-          v-model="localLayer.config.height"
-          :min="1"
-          @change="emitUpdate"
-          @adjust="adjustValue('height', $event)"
-        />
-      </div>
-    </template>
-
-    <!-- 调整图层属性 -->
-    <template v-else-if="layer.layerType === 'adjustment'">
-      <div class="property-group">
-        <label>亮度 {{ localLayer.config.brightness }}</label>
-        <input 
-          type="range" 
-          v-model.number="localLayer.config.brightness"
-          min="-1"
-          max="1"
-          step="0.1"
-          class="property-input range-input"
-          @change="emitUpdate"
-        >
-        
-        <label>对比度 {{ localLayer.config.contrast }}</label>
-        <input 
-          type="range" 
-          v-model.number="localLayer.config.contrast"
-          min="-100"
-          max="100"
-          step="1"
-          class="property-input range-input"
-          @change="emitUpdate"
-        >
-        
-        <label>饱和度 {{ localLayer.config.saturation }}</label>
-        <input 
-          type="range" 
-          v-model.number="localLayer.config.saturation"
-          min="-2"
-          max="2"
-          step="0.1"
-          class="property-input range-input"
-          @change="emitUpdate"
-        >
-      </div>
-    </template>
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import NumberInput from './NumberInput.vue'
+import ColorPicker from './ColorPicker.vue'
+import TextInput from './TextInput.vue'
+import Selecter from './Select.vue'
+import Slider from './Slider.vue'
+import { getLayerAdjustments } from '../core/LayerManager.js'
+
+// 将 components 改为响应式引用
+const components = {
+  NumberInput,
+  ColorPicker,
+  TextInput,
+  Selecter,
+  Slider
+}
 
 const props = defineProps({
   layer: {
@@ -190,6 +62,22 @@ const emit = defineEmits(['update:layer'])
 
 // 创建本地副本以避免直接修改 props
 const localLayer = ref(JSON.parse(JSON.stringify(props.layer)))
+
+// 确保 layerAdjustments 计算属性正确计算
+const layerAdjustments = computed(() => {
+  if (!props.layer || !props.layer.layerType) return []
+  console.log(props.layer)
+  return getLayerAdjustments(props.layer.layerType) || []
+})
+
+// 获取调整参数的属性
+const getAdjustmentProps = (adjustment) => {
+  const props = { ...adjustment }
+  delete props.key
+  delete props.label
+  delete props.component
+  return props
+}
 
 // 监听 props 变化更新本地数据
 watch(() => props.layer, (newLayer) => {

@@ -1,23 +1,89 @@
 <template>
   <div class="fn__flex-column editor-container">
     <div class="fn__flex fn__flex-1">
-      <div class="left-panel">
-        <div class="layer-list">
-          <LayerList v-model="list" :selected-layer="selectedLayer" @select="handleLayerSelect"
-            @delete="handleDeleteLayer" />
-        </div>
-        <div class="layer-gallery">
-          <div class="gallery-title">图层库</div>
-          <VueDraggable v-model="galleryItems" :group="{ name: 'nested', pull: 'clone', put: false }" :sort="false"
-            :clone="handleClone" ghostClass="sortable-ghost" chosenClass='sortable-chosen' dragClass='sortable-drag'
-            item-key="type" class="cc-nested-item">
-            <div v-for="layerPreset in galleryItems" :key="layerPreset.name + 'preset'">
-              <div class="gallery-item sortable-drag">
-                <div class="item-icon">{{ layerPreset.icon }}</div>
-                <div class="item-name">{{ layerPreset.name }}</div>
-              </div>
+      <!-- 修改工具条 -->
+      <div class="tools-bar">
+        <!-- 使用动态生成的工具组 -->
+        <template v-for="(group, groupId) in sortedToolGroups" :key="groupId">
+          <div class="tool-group">
+            <div 
+              class="tool-item" 
+              :class="{ active: currentTool === groupId }"
+              @click="handleToolClick(groupId)"
+            >
+              <i class="icon">{{ group.icon }}</i>
+              <span>{{ group.name }}</span>
             </div>
-          </VueDraggable>
+          </div>
+        </template>
+
+        <!-- 保留画板工具组 -->
+        <div class="tool-group">
+          <div class="tool-item" @click="handleToolClick('artboard')">
+            <i class="icon">📋</i>
+            <span>画板</span>
+          </div>
+        </div>
+      </div>
+      <div class="left-panel">
+        <!-- 图层列表部分 -->
+        <div class="layer-section">
+          <div class="section-title">图层</div>
+          <div class="layer-list">
+            <LayerList 
+              v-model="list" 
+              :selected-layer="selectedLayer" 
+              @select="handleLayerSelect"
+              @delete="handleDeleteLayer" 
+            />
+          </div>
+        </div>
+
+        <!-- 预设内容部分 -->
+        <div class="preset-section">
+          <div class="section-title">{{ getPanelTitle }}</div>
+          <div class="preset-content">
+            <template v-if="currentTool === 'artboard'">
+              <!-- 画板工具面板内容 -->
+              <div class="artboard-panel">
+                <div class="artboard-controls">
+                  <button class="btn" @click="toggleArtboardMode">
+                    {{ isArtboardMode ? '退出画板工具' : '画板工具' }}
+                  </button>
+                  <button class="btn" @click="addArtboard">添加画板</button>
+                  <button class="btn" @click="openGalleryView">预览画板</button>
+                  <button class="btn" @click="exportAllArtboards">导出所有画板</button>
+                </div>
+                <div class="artboard-list">
+                  <div v-for="(artboard, index) in artboards" :key="artboard.id" class="artboard-item">
+                    <span>{{ artboard.name }}</span>
+                    <div class="artboard-actions">
+                      <button class="btn-icon" @click="() => renameArtboard(index)">✏️</button>
+                      <button class="btn-icon" @click="() => deleteArtboard(index)">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+            
+            <template v-else>
+              <VueDraggable 
+                v-model="currentPresets" 
+                :group="{ name: 'nested', pull: 'clone', put: false }" 
+                :sort="false"
+                :clone="handleClone" 
+                item-key="type" 
+                class="preset-grid"
+              >
+                <template v-for="element in currentPresets">
+                  <div class="preset-item">
+                    <div class="item-icon">{{ element.icon }}</div>
+                    <div class="item-name">{{ element.name }}</div>
+                  </div>
+                </template>
+              </VueDraggable>
+            </template>
+          </div>
         </div>
       </div>
       <div class="fn__flex fn__flex-1 fn__flex-column canvas-wrapper">
@@ -30,33 +96,59 @@
 
       <!-- 属性面板 -->
       <PropertiesPanel 
-        v-if="selectedLayer"
-        :layer="selectedLayer"
-        @update:layer="handleLayerUpdate"
+        v-if="selectedLayer" 
+        :layer="selectedLayer" 
+        @update:layer="handleLayerUpdate" 
       />
     </div>
 
-    <!-- 画板工具栏 -->
-    <div class="artboard-toolbar">
-      <button @click="toggleArtboardMode">
-        {{ isArtboardMode ? '退出画板工具' : '画板工具' }}
+    <!-- 添加画廊视图 -->
+    <div v-if="showGalleryView" class="gallery-view-overlay">
+      <button class="gallery-nav-btn prev" @click="prevArtboard">
+        <i class="icon">←</i>
       </button>
-      <button @click="addArtboard">添加画板</button>
-      <button @click="exportAllArtboards">导出所有画板</button>
+
+      <div class="gallery-content">
+        <div class="gallery-artboard">
+          <h3>{{ currentArtboard.name }}</h3>
+          <div class="gallery-preview" ref="galleryPreviewRef"></div>
+        </div>
+
+        <div class="gallery-controls">
+          <span>{{ currentIndex + 1 }} / {{ artboards.length }}</span>
+          <button class="btn" @click="exportCurrentArtboard">导出当前画板</button>
+          <button class="btn" @click="exportAllArtboards">导出所有画板</button>
+          <button class="btn secondary" @click="closeGalleryView">关闭预览</button>
+        </div>
+      </div>
+
+      <button class="gallery-nav-btn next" @click="nextArtboard">
+        <i class="icon">→</i>
+      </button>
     </div>
   </div>
 </template>
 
-<script setup >
-import { ref, onMounted, watch, onUnmounted } from 'vue'
+<script setup>
+import { ref, onMounted, watch, onUnmounted, computed, nextTick } from 'vue'
 import { VueDraggable } from '../../../../static/vue-draggable-plus.js'
 import LayerList from './components/LayerList.vue'
 import _Konva from '../../../../static/konva.js'
 import { ARTBOARD, getArtboardPosition, getArtboardWorldPosition } from './utils/artboardPosition.js'
-import { galleryPresets, defaultLayerNames, getDefaultConfig } from './constants/layerPresets.js'
+import { galleryPresets, defaultLayerNames, getDefaultConfig, TOOL_GROUPS, getGroupPresets, getLayerTypeConfig } from './core/layerLoader.js'
 import { coordsHelper } from './utils/coordsHelper.js'
 import { createArtboardLayers, exportArtboard } from './utils/artboardManager.js'
 import PropertiesPanel from './components/PropertiesPanel.vue'
+import JSZip from '../../../../static/jszip.js'
+import { 
+  getFlatLayers,
+  renderLayers,
+  updateLayer,
+  removeLayer,
+  ensureLayerIds,
+  findLayer,
+  getLayerAdjustments
+} from './core/LayerManager.js'
 const Konva = _Konva.default
 
 // 舞台和图层的引用
@@ -112,8 +204,8 @@ const list = ref([
         layerType: 'text',
         config: {
           text: '欢迎使用编辑器',
-          x: ARTBOARD.WIDTH/2 - 80,  // 居中显示
-          y: ARTBOARD.HEIGHT/2 - 12,
+          x: ARTBOARD.WIDTH / 2 - 80,  // 居中显示
+          y: ARTBOARD.HEIGHT / 2 - 12,
           size: 24,
           color: '#333333'
         }
@@ -122,86 +214,18 @@ const list = ref([
   }
 ])
 
-// 扁平化图层列表，获取所有可见的图层
-const getFlatLayers = (layers) => {
-  return layers.reduce((acc, layer) => {
-    if (!layer.visible) return acc
-
-    if (layer.type === 'file') {
-      acc.push(layer)
-    }
-
-    if (layer.children?.length) {
-      acc.push(...getFlatLayers(layer.children))
-    }
-
-    return acc
-  }, [])
-}
-
-// 修改渲染函数,使用预设中的render函数
-const renderLayers = () => {
-  if (!mainLayerRef.value) return
-
-  // 清空现有内容和注册表
-  mainLayerRef.value.destroyChildren()
-  layerRegistry.value.clear()
-
-  // 获取扁平化的图层
-  const layers = getFlatLayers(list.value)
-  
-  // 确保底色矩形在内容图层最底部渲染
-  const bgLayer = layers.find(layer => layer.id === 'bg-color')
-  const contentLayers = layers.filter(layer => layer.id !== 'bg-color')
-  
-  // 先渲染底色矩形
-  if (bgLayer) {
-    const preset = galleryPresets.find(p => p.type === bgLayer.layerType)
-    if (preset?.render) {
-      const shapes = preset.render(bgLayer.config, bgLayer.id, stageRef, handleShapeClick)
-      if (Array.isArray(shapes)) {
-        shapes.forEach(shape => mainLayerRef.value?.add(shape))
-        layerRegistry.value.set(bgLayer.id, {
-          shapes,
-          config: bgLayer.config,
-          type: bgLayer.layerType
-        })
-      } else {
-        mainLayerRef.value?.add(shapes)
-        layerRegistry.value.set(bgLayer.id, {
-          shapes: [shapes],
-          config: bgLayer.config,
-          type: bgLayer.layerType
-        })
-      }
-    }
+// 修改渲染图层的调用
+watch(list, () => {
+  if (mainLayerRef.value && stageRef.value) {
+    renderLayers(
+      list.value,
+      mainLayerRef.value,
+      layerRegistry.value,
+      stageRef.value,
+      handleShapeClick
+    )
   }
-
-  // 再渲染其他内容图层
-  contentLayers.forEach(layer => {
-    const preset = galleryPresets.find(p => p.type === layer.layerType)
-    if (preset?.render) {
-      const shapes = preset.render(layer.config, layer.id, stageRef, handleShapeClick)
-      if (Array.isArray(shapes)) {
-        shapes.forEach(shape => mainLayerRef.value?.add(shape))
-        layerRegistry.value.set(layer.id, {
-          shapes,
-          config: layer.config,
-          type: layer.layerType
-        })
-      } else {
-        mainLayerRef.value?.add(shapes)
-        layerRegistry.value.set(layer.id, {
-          shapes: [shapes],
-          config: layer.config,
-          type: layer.layerType
-        })
-      }
-    }
-  })
-
-  mainLayerRef.value.batchDraw()
-}
+}, { deep: true, immediate: true })
 
 // 初始化 Konva 舞台
 onMounted(() => {
@@ -215,7 +239,7 @@ onMounted(() => {
   const initStage = () => {
     const containerWidth = container.clientWidth
     const containerHeight = container.clientHeight
-    
+
     // 如果舞台已存在，仅更新尺寸
     if (stageRef.value) {
       stageRef.value.width(containerWidth)
@@ -223,7 +247,7 @@ onMounted(() => {
       stageRef.value.batchDraw()
       return
     }
-    
+
     // 创建新舞台
     stageRef.value = new Konva.Stage({
       container,
@@ -231,11 +255,26 @@ onMounted(() => {
       height: containerHeight,
       draggable: true
     })
-    
-    // 添加缩放处���
+
+    // 创建主图层
+    mainLayerRef.value = new Konva.Layer()
+    stageRef.value.add(mainLayerRef.value)
+
+    // 初始渲染图层
+    nextTick(() => {
+      renderLayers(
+        list.value,
+        mainLayerRef.value,
+        layerRegistry.value,
+        stageRef.value,
+        handleShapeClick
+      )
+    })
+
+    // 添加缩放处
     const debouncedWheel = useDebounceFn((e) => {
       e.evt.preventDefault()
-      
+
       const stage = stageRef.value
       const oldScale = stage.scaleX()
 
@@ -261,9 +300,9 @@ onMounted(() => {
       stage.position(newPos)
       stage.batchDraw()
     }, 16)
-    
+
     stageRef.value.on('wheel', debouncedWheel)
-    
+
     // 初始化画板层
     createArtboardLayers(
       stageRef.value,
@@ -280,26 +319,21 @@ onMounted(() => {
   const debouncedResize = useDebounceFn(() => {
     initStage()
   }, 100)
-  
+
   const resizeObserver = new ResizeObserver(debouncedResize)
   resizeObserver.observe(container)
 
-  // 组件卸载时清理
+  // 组卸载时清理
   onUnmounted(() => {
     resizeObserver.disconnect()
   })
 })
 
-// 监听图层变化
-watch(list, () => {
-  renderLayers()
-}, { deep: true })
-
 // 修改图层选择处理
 const handleLayerSelect = (layer) => {
   if (layer.type === 'folder') return
 
-  // 隐之前选中图层的变换器
+  // 隐藏之前选中图层的变换器
   if (selectedLayer.value) {
     const registered = layerRegistry.value.get(selectedLayer.value.id)
     if (registered?.shapes) {
@@ -310,7 +344,7 @@ const handleLayerSelect = (layer) => {
 
   selectedLayer.value = layer
 
-  // 显示新选中图层的变换器
+  // 显���新选中图层的变换器
   const registered = layerRegistry.value.get(layer.id)
   if (registered?.shapes) {
     const tr = registered.shapes.find(obj => obj instanceof Konva.Transformer)
@@ -328,47 +362,17 @@ const getDefaultLayerName = (type) => {
 
 // 获取配置
 
-// 删除图层处理函
+// 修改删除图层处理函数
 const handleDeleteLayer = (layer) => {
-  // 递归查找并删除图层
-  const removeLayer = (layers) => {
-    const index = layers.findIndex(l => l.id === layer.id)
-    if (index !== -1) {
-      layers.splice(index, 1)
-      return true
-    }
-
-    for (const l of layers) {
-      if (l.children?.length) {
-        if (removeLayer(l.children)) {
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  // 如果要删除的是选中的图层，清除选中状态
+  // 如果要删除的是选中的图层,清除选中状态
   if (selectedLayer.value?.id === layer.id) {
     selectedLayer.value = null
   }
 
-  removeLayer(list.value)
+  removeLayer(list.value, layer.id)
 }
 
-// 确保每个图层都有唯一ID
-const ensureLayerIds = (layers) => {
-  layers.forEach(layer => {
-    if (!layer.id) {
-      layer.id = Math.random().toString(36).substr(2, 9)
-    }
-    if (layer.children?.length) {
-      ensureLayerIds(layer.children)
-    }
-  })
-}
-
-// 初始化时确保所有图层都有ID
+// 组件挂载时确保所有图层都有ID
 onMounted(() => {
   ensureLayerIds(list.value)
 })
@@ -379,52 +383,53 @@ const galleryItems = galleryPresets
 // 用于接收拖入的图层
 const contentLayers = ref([])
 
-// 处理克隆
+// 修改克隆处理函数
 const handleClone = (item) => {
+  const layerConfig = getLayerTypeConfig(item.layerType)
+  if (!layerConfig) return null
 
-  let data = {
+  return {
     id: generateId(),
-    name: getDefaultLayerName(item.type),
-    type: item.type === 'folder' ? 'folder' : 'file',
-    layerType: item.type,
+    name: getDefaultLayerName(item.layerType) || item.name,
+    type: 'file',
+    layerType: item.layerType,
     visible: true,
     locked: false,
-    config: getDefaultConfig(item.type),
-    ...(item.type === 'folder' ? { children: [] } : {})
+    config: {
+      ...layerConfig.defaultConfig,
+      ...item.config
+    }
   }
-  return data
 }
 
-// 修改拖入添加处理，使新图层出现在画板中心
+// 修改图层添加处理函数
 const handleLayerAdd = (evt) => {
   const newLayer = evt.clonedData
+  if (!newLayer) return
+
   const stage = stageRef.value
   if (!stage) return
 
-  const pointerPosition = stage.getPointerPosition()
+  // 获取图层配置
+  const layerConfig = getLayerTypeConfig(newLayer.layerType)
+  if (!layerConfig) return
+
+  // 获取图层的调整参数配置
+  const adjustments = layerConfig.adjustments || []
   
-  if (pointerPosition && newLayer.config) {
-    const artboardPos = coordsHelper.stageToArtboard(
-      stage,
-      pointerPosition.x,
-      pointerPosition.y
-    )
-    
-    if (artboardPos.x >= 0 && artboardPos.x <= ARTBOARD.WIDTH &&
-        artboardPos.y >= 0 && artboardPos.y <= ARTBOARD.HEIGHT) {
-      newLayer.config.x = artboardPos.x
-      newLayer.config.y = artboardPos.y
-    } else {
-      const defaultConfig = getDefaultConfig(newLayer.layerType)
-      newLayer.config.x = defaultConfig.x
-      newLayer.config.y = defaultConfig.y
-    }
+  // 确保配置对象包含所有声明的参数
+  if (adjustments.length && newLayer.config) {
+    adjustments.forEach(adj => {
+      if (newLayer.config[adj.key] === undefined) {
+        newLayer.config[adj.key] = adj.defaultValue
+      }
+    })
   }
 
-  // 找到内容组并添加到上层
+  // 使用数组方法保持响应式
   const contentGroup = list.value.find(layer => layer.id === 'content-group')
   if (contentGroup && contentGroup.children) {
-    contentGroup.children.unshift(newLayer)
+    contentGroup.children = [newLayer, ...contentGroup.children]
   }
 
   // 选中新添加的图层
@@ -434,25 +439,32 @@ const handleLayerAdd = (evt) => {
   contentLayers.value = []
 }
 
-// 加画布元素点击处理函数
+// 修改画布元素点击处理函数
 const handleShapeClick = (layerId) => {
-  // 递归查找图层
-  const findLayer = (layers) => {
-    for (const layer of layers) {
-      if (layer.id === layerId) {
-        return layer
-      }
-      if (layer.children?.length) {
-        const found = findLayer(layer.children)
-        if (found) return found
-      }
+  // 隐藏之前选中图层的变换器
+  if (selectedLayer.value) {
+    const prevRegistered = layerRegistry.value.get(selectedLayer.value.id)
+    if (prevRegistered?.shapes) {
+      const tr = prevRegistered.shapes.find(obj => obj instanceof Konva.Transformer)
+      if (tr) tr.hide()
     }
-    return null
   }
 
-  const layer = findLayer(list.value)
+  // 查找并选中新图层
+  const layer = findLayer(list.value, layerId)
   if (layer) {
-    handleLayerSelect(layer)
+    selectedLayer.value = layer
+    
+    // 显示新选中图层的变换器
+    const registered = layerRegistry.value.get(layerId)
+    if (registered?.shapes) {
+      const tr = registered.shapes.find(obj => obj instanceof Konva.Transformer)
+      if (tr) {
+        tr.show()
+        tr.moveToTop() // 确保变换器在最上层
+        mainLayerRef.value.batchDraw()
+      }
+    }
   }
 }
 
@@ -487,33 +499,59 @@ const toggleArtboardMode = () => {
 
 // 修改添加画板函数
 const addArtboard = () => {
-  const offset = artboards.value.length * 50
+  // 找到一个合适的新画板位置
+  const findAvailablePosition = () => {
+    let x = 100
+    let y = 100
+    let found = false
+
+    while (!found) {
+      let hasOverlap = false
+
+      // 检查当前位置是否与任何现有画板重叠
+      for (const artboard of artboards.value) {
+        const margin = 20 // 画板间的最小间距
+        if (
+          x < artboard.x + artboard.width + margin &&
+          x + ARTBOARD.WIDTH + margin > artboard.x &&
+          y < artboard.y + artboard.height + margin &&
+          y + ARTBOARD.HEIGHT + margin > artboard.y
+        ) {
+          hasOverlap = true
+          break
+        }
+      }
+
+      if (!hasOverlap) {
+        found = true
+      } else {
+        // 如果发生重叠，尝试向右移动
+        x += 50
+
+        // 如果右空间不足，换行
+        if (x > 1000) { // 设置一个合理的最大宽度
+          x = 100
+          y += 50
+        }
+      }
+    }
+
+    return { x, y }
+  }
+
+  const position = findAvailablePosition()
   const newArtboard = {
     id: `artboard-${Date.now()}`,
     name: `画板 ${artboards.value.length + 1}`,
-    x: 100 + offset,
-    y: 100 + offset,
+    x: position.x,
+    y: position.y,
     width: ARTBOARD.WIDTH,
     height: ARTBOARD.HEIGHT
   }
-  
-  // 使用响应式方式更新数组
+
   artboards.value = [...artboards.value, newArtboard]
 }
 
-// 添加更新画板位置的函数
-const updateArtboardPosition = (id, updates) => {
-  const index = artboards.value.findIndex(a => a.id === id)
-  if (index !== -1) {
-    // 创建新的画板对象以触发响应式更新
-    artboards.value[index] = {
-      ...artboards.value[index],
-      ...updates
-    }
-    // 强制更新整个数组以确保响应式
-    artboards.value = [...artboards.value]
-  }
-}
 
 // 修改 watch 监听器
 watch(
@@ -541,38 +579,72 @@ watch(
   { deep: true }
 )
 
-// 修改导出函数
+// 修改导出当前画板函数
+const exportCurrentArtboard = async () => {
+  const stage = stageRef.value
+  if (!stage) return
+
+  try {
+    const artboard = currentArtboard.value
+    if (!artboard) return
+
+    const blob = await exportArtboard(stage, artboard)
+    if (!blob) return
+
+    // 下载图片
+    const link = document.createElement('a')
+    link.download = `${artboard.name || `画板_${currentIndex.value + 1}`}.png`
+    link.href = URL.createObjectURL(blob)
+    link.click()
+
+    // 清理 URL 对象
+    setTimeout(() => URL.revokeObjectURL(link.href), 100)
+  } catch (error) {
+    console.error('导出画板时发生错误:', error)
+  }
+}
+
+// 修改导出所有画板函数
 const exportAllArtboards = async () => {
   const stage = stageRef.value
   if (!stage) return
 
   try {
-    const exportPromises = artboards.value.map(async (artboard, index) => {
+    // 创建 ZIP 文件
+    const zip = new JSZip()
+
+    // 导出所有画板
+    for (let i = 0; i < artboards.value.length; i++) {
+      const artboard = artboards.value[i]
       const blob = await exportArtboard(stage, artboard)
-      if (!blob) throw new Error('导出图片失败')
+      if (blob) {
+        zip.file(`${artboard.name || `画板_${i + 1}`}.png`, blob)
+      }
+    }
 
-      const link = document.createElement('a')
-      link.download = `${artboard.name || `画板_${index + 1}`}.png`
-      link.href = URL.createObjectURL(blob)
-      link.click()
-      URL.revokeObjectURL(link.href)
-    })
+    // 生成并下载 ZIP 文件
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    const link = document.createElement('a')
+    link.download = '所有画板.zip'
+    link.href = URL.createObjectURL(zipBlob)
+    link.click()
 
-    await Promise.all(exportPromises)
+    // 清理 URL 对象
+    setTimeout(() => URL.revokeObjectURL(link.href), 100)
   } catch (error) {
-    console.error('导出画板时发生错误:', error)
+    console.error('导出所有画板时发生错误:', error)
   }
 }
 
 // 添加防抖函数
 function useDebounceFn(fn, delay) {
   let timeoutId = null
-  
+
   return function (...args) {
     if (timeoutId) {
       clearTimeout(timeoutId)
     }
-    
+
     timeoutId = setTimeout(() => {
       fn.apply(this, args)
       timeoutId = null
@@ -580,27 +652,163 @@ function useDebounceFn(fn, delay) {
   }
 }
 
-// 添加图层更新处理函数
+// 修改图层更新处理函数
 const handleLayerUpdate = (updatedLayer) => {
-  // 递归查找并更新图层
-  const updateLayer = (layers) => {
-    for (let i = 0; i < layers.length; i++) {
-      if (layers[i].id === updatedLayer.id) {
-        layers[i] = updatedLayer
-        return true
-      }
-      if (layers[i].children?.length) {
-        if (updateLayer(layers[i].children)) {
-          return true
-        }
+  const layer = findLayer(list.value, updatedLayer.id)
+  if (layer) {
+    Object.assign(layer, updatedLayer)
+    
+    // 更新 Konva 形状
+    const registered = layerRegistry.value.get(layer.id)
+    if (registered?.shapes) {
+      const mainShape = registered.shapes.find(s => s.getClassName() !== 'Transformer')
+      if (mainShape) {
+        // 更新形状属性
+        Object.assign(mainShape.attrs, layer.config)
+        mainShape.getLayer()?.batchDraw()
       }
     }
-    return false
+  }
+}
+
+// 添加当前工具状态
+const currentTool = ref('layer') // 默认显示图层面板
+
+// 修改工具点击处理函数
+const handleToolClick = (tool) => {
+  currentTool.value = tool
+}
+
+// 添加面板标题计算属性
+const getPanelTitle = computed(() => {
+  const titles = {
+    template: '模板预设',
+    text: '文本预设',
+    image: '图片预设',
+    shape: '形状预设',
+    background: '背景预设',
+    custom: '自定义预设',
+    artboard: '画板设置'
+  }
+  return titles[currentTool.value] || ''
+})
+
+// 添加画廊视图相关的状态
+const showGalleryView = ref(false)
+const currentIndex = ref(0)
+const galleryPreviewRef = ref(null)
+
+// 计算当前画板
+const currentArtboard = computed(() => artboards.value[currentIndex.value])
+
+// 导航方法
+const nextArtboard = () => {
+  if (currentIndex.value < artboards.value.length - 1) {
+    currentIndex.value++
+    updateGalleryPreview()
+  }
+}
+
+const prevArtboard = () => {
+  if (currentIndex.value > 0) {
+    currentIndex.value--
+    updateGalleryPreview()
+  }
+}
+
+// 简化更新画廊预览函数
+const updateGalleryPreview = () => {
+  const stage = stageRef.value
+  if (!stage || !galleryPreviewRef.value) return
+
+  const artboard = currentArtboard.value
+  if (!artboard) return
+
+  // ���当前舞台生成预览图片
+  const dataURL = stage.toDataURL({
+    x: artboard.x,
+    y: artboard.y,
+    width: ARTBOARD.WIDTH,
+    height: ARTBOARD.HEIGHT,
+    pixelRatio: 1, // 使用较低分辨率以提高性能
+    mimeType: 'image/png'
+  })
+
+  // 清空预览容器
+  galleryPreviewRef.value.innerHTML = ''
+
+  // 创建并加预览图片
+  const img = document.createElement('img')
+  img.src = dataURL
+  img.style.width = '100%'
+  img.style.height = '100%'
+  img.style.objectFit = 'contain'
+  galleryPreviewRef.value.appendChild(img)
+}
+
+// 简化清理函数
+const closeGalleryView = () => {
+  showGalleryView.value = false
+}
+
+// 组件卸载时清理
+onUnmounted(() => {
+  if (galleryStageRef.value) {
+    galleryStageRef.value.destroy()
+  }
+})
+
+// 监听画板切换
+watch(currentIndex, () => {
+  nextTick(() => {
+    updateGalleryPreview()
+  })
+})
+
+// 添加画廊预览相关函数
+const openGalleryView = () => {
+  showGalleryView.value = true
+  currentIndex.value = 0
+  nextTick(() => {
+    updateGalleryPreview()
+  })
+}
+
+// 添加画板管理相关函数
+const renameArtboard = (index) => {
+  const artboard = artboards.value[index]
+  const newName = prompt('请输入新的画板名称:', artboard.name)
+  if (newName && newName.trim()) {
+    artboard.name = newName.trim()
+  }
+}
+
+const deleteArtboard = (index) => {
+  if (artboards.value.length <= 1) {
+    alert('至少需要保留一个画板')
+    return
   }
 
-  // 更新图层列表
-  updateLayer(list.value)
+  if (confirm('确定要删除这个画板吗?')) {
+    artboards.value.splice(index, 1)
+  }
 }
+
+// 添加排序后的工具组计算属性
+const sortedToolGroups = computed(() => {
+  return Object.entries(TOOL_GROUPS)
+    .sort(([,a], [,b]) => a.order - b.order)
+    .reduce((acc, [key, value]) => {
+      acc[key] = value
+      return acc
+    }, {})
+})
+
+// 修改当前预设计算属性
+const currentPresets = computed(() => {
+  if (currentTool.value === 'artboard') return []
+  return getGroupPresets(currentTool.value) || []
+})
 </script>
 
 <style scoped>
@@ -614,8 +822,10 @@ const handleLayerUpdate = (updatedLayer) => {
   width: 100%;
   height: 100%;
   min-height: 0;
-  overflow: hidden; /* 改为 hidden 以防止滚动条 */
-  background: #f0f0f0; /* 更改为浅灰色背景 */
+  overflow: hidden;
+  /* 改为 hidden 以防止滚动条 */
+  background: #f0f0f0;
+  /* 更改为浅灰色背景 */
 }
 
 .canvas-container {
@@ -693,40 +903,48 @@ const handleLayerUpdate = (updatedLayer) => {
   border-right: 1px solid var(--cc-border-color);
 }
 
-
-/* 层画廊样式 */
-.layer-gallery {
-  padding: var(--cc-space-sm);
-  background: var(--cc-theme-surface-lighter);
+.layer-section,
+.preset-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.gallery-title {
+.section-title {
+  padding: 12px 16px;
   font-size: 14px;
-  color: var(--cc-theme-on-background-muted);
-  margin-bottom: var(--cc-space-sm);
-  padding-left: var(--cc-space-xs);
+  font-weight: 500;
+  border-bottom: 1px solid var(--cc-border-color);
 }
 
-.gallery-grid {
+.layer-list,
+.preset-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.preset-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--cc-space-sm);
+  gap: 12px;
+  padding: 4px;
 }
 
-.gallery-item {
+.preset-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: var(--cc-space-sm);
-  background: var(--cc-theme-surface);
+  padding: 12px;
+  background: var(--cc-theme-surface-light);
   border: 1px solid var(--cc-border-color);
   border-radius: var(--cc-border-radius);
   cursor: move;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
 }
 
-.gallery-item:hover {
+.preset-item:hover {
   background: var(--cc-theme-surface-hover);
   transform: translateY(-2px);
 }
@@ -760,5 +978,339 @@ const handleLayerUpdate = (updatedLayer) => {
 
 .artboard-toolbar button:hover {
   background: var(--cc-theme-surface-hover);
+}
+
+/* 更新工具栏样式 */
+.tools-bar {
+  width: 80px;
+  min-width: 80px;
+  background: var(--cc-theme-surface);
+  border-right: 1px solid var(--cc-border-color);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.tool-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 更新左侧面板样式 */
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  min-width: 280px;
+  background: var(--cc-theme-surface);
+  border-right: 1px solid var(--cc-border-color);
+}
+
+.layer-section,
+.preset-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.section-title {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--cc-border-color);
+}
+
+.layer-list,
+.preset-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 4px;
+}
+
+.preset-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  background: var(--cc-theme-surface-light);
+  border: 1px solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  cursor: move;
+  transition: all 0.2s;
+}
+
+.preset-item:hover {
+  background: var(--cc-theme-surface-hover);
+  transform: translateY(-2px);
+}
+
+.item-icon {
+  font-size: 24px;
+  margin-bottom: var(--cc-space-xs);
+}
+
+.item-name {
+  font-size: 12px;
+  color: var(--cc-theme-on-background);
+}
+
+.artboard-toolbar {
+  padding: var(--cc-space-sm);
+  background: var(--cc-theme-surface);
+  border-bottom: 1px solid var(--cc-border-color);
+  display: flex;
+  gap: var(--cc-space-sm);
+}
+
+.artboard-toolbar button {
+  padding: var(--cc-space-xs) var(--cc-space-sm);
+  border: 1px solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  background: var(--cc-theme-surface-light);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.artboard-toolbar button:hover {
+  background: var(--cc-theme-surface-hover);
+}
+
+/* 添加工具条样式 */
+.tools-bar {
+  width: 80px;
+  min-width: 80px;
+  background: var(--cc-theme-surface);
+  border-right: 1px solid var(--cc-border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+}
+
+.tool-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.tool-item:hover {
+  background-color: var(--cc-theme-surface-hover);
+}
+
+.tool-item .icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.tool-item span {
+  font-size: 12px;
+  color: var(--cc-theme-on-background);
+}
+
+/* 添加新的样式 */
+.tool-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-title {
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--cc-border-color);
+}
+
+.panel-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* 更新工具条激活状态样式 */
+.tool-item.active {
+  background-color: var(--cc-theme-surface-hover);
+  position: relative;
+}
+
+.tool-item.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: var(--cc-theme-primary);
+}
+
+/* 添加新的画板板样式 */
+.artboard-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.artboard-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: 1px solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  background: var(--cc-theme-surface-light);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: var(--cc-theme-surface-hover);
+}
+
+.artboard-list {
+  border-top: 1px solid var(--cc-border-color);
+  padding-top: 16px;
+}
+
+/* 添加画廊视图样式 */
+.gallery-view-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.gallery-content {
+  background: var(--cc-theme-surface);
+  border-radius: var(--cc-border-radius);
+  padding: 24px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gallery-artboard {
+  text-align: center;
+}
+
+.gallery-artboard h3 {
+  margin-bottom: 16px;
+  color: var(--cc-theme-on-background);
+}
+
+.gallery-preview {
+  width: 800px;
+  height: 600px;
+  background: #f5f5f5;
+  border: 1px solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gallery-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  image-rendering: auto;
+  /* 或使用 pixelated 来保持像素清晰 */
+}
+
+.gallery-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.gallery-nav-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 24px;
+  padding: 16px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.gallery-nav-btn:hover {
+  opacity: 0.8;
+}
+
+.gallery-nav-btn.prev {
+  margin-right: 16px;
+}
+
+.gallery-nav-btn.next {
+  margin-left: 16px;
+}
+
+.btn.secondary {
+  background: var(--cc-theme-surface-light);
+  color: var(--cc-theme-on-background-muted);
+}
+
+/* 添加新的样式 */
+.artboard-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  margin-bottom: 8px;
+}
+
+.artboard-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--cc-border-radius);
+}
+
+.btn-icon:hover {
+  background: var(--cc-theme-surface-hover);
+}
+
+.gallery-preview {
+  width: 800px;
+  height: 600px;
+  background: #f0f0f0;
+  border: 1px solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

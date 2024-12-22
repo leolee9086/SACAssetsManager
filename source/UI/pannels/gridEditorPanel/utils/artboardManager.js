@@ -96,7 +96,6 @@ const createArtboardElements = (artboardData, index, isArtboardMode, stage) => {
     },
     enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
   })
-  
   return { artboardBg, border, label, tr }
 }
 
@@ -173,7 +172,7 @@ const setupArtboardEvents = (artboardBg, border, label, tr, artboards, isArtboar
   tr.visible(false)
 }
 
-// 导出画板
+// 修改导出画板函数
 export const exportArtboard = async (stage, artboard) => {
   if (!stage || !artboard) return null
   
@@ -190,21 +189,46 @@ export const exportArtboard = async (stage, artboard) => {
   ctx.fillStyle = 'white'
   ctx.fillRect(0, 0, artboard.width, artboard.height)
 
-  // 渲染舞台内容
-  await stage.toCanvas({
-    x: artboard.x,
-    y: artboard.y,
-    width: artboard.width,
-    height: artboard.height,
-    pixelRatio: 2,
-    callback: (canvas) => {
-      ctx.drawImage(canvas, 0, 0)
-    }
-  })
+  // 保存当前舞台状态
+  const oldScale = stage.scale()
+  const oldPosition = stage.position()
 
-  return new Promise((resolve) => {
-    tempCanvas.toBlob(resolve, 'image/png')
-  })
+  try {
+    // 临时重置舞台状态以确保正确导出
+    stage.scale({ x: 1, y: 1 })
+    stage.position({ x: 0, y: 0 })
+    stage.batchDraw()
+
+    // 使用正确的尺寸和位置渲染舞台内容
+    const dataUrl = stage.toDataURL({
+      x: artboard.x,
+      y: artboard.y,
+      width: artboard.width,  // 使用完整的画板宽度
+      height: artboard.height, // 使用完整的画板高度
+      pixelRatio: 2,  // 保持2倍分辨率以确保清晰度
+      mimeType: 'image/png'
+    })
+
+    // 创建临时图片并等待加载
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        // 将图片绘制到临时画布上
+        ctx.drawImage(
+          img,
+          0, 0,
+          artboard.width, artboard.height  // 确保绘制完整的画板内容
+        )
+        tempCanvas.toBlob(resolve, 'image/png')
+      }
+      img.src = dataUrl
+    })
+  } finally {
+    // 恢复舞台状态
+    stage.scale(oldScale)
+    stage.position(oldPosition)
+    stage.batchDraw()
+  }
 }
 
 // 添加更新画板位置的辅助函数
@@ -251,13 +275,3 @@ const handleArtboardTransform = (artboardBg, border, label, artboards) => {
   updateArtboardData(artboards, artboardBg.id(), newAttrs)
 }
 
-// 添加处理画板点击的辅助函数
-const handleArtboardClick = (tr, stage) => {
-  if (!tr || !stage) return
-  
-  stage.find('Transformer').forEach(t => {
-    if (t !== tr) t.hide()
-  })
-  tr.show()
-  stage.batchDraw()
-} 

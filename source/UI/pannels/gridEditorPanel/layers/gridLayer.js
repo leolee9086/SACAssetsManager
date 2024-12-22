@@ -4,6 +4,40 @@ import { ARTBOARD } from '../utils/artboardPosition.js'
 export const gridLayer = {
   name: '网格',
   icon: '⊞',
+  presets: [
+    {
+      name: '默认网格',
+      icon: '⊞',
+      config: {
+        size: 20,
+        color: '#cccccc'
+      }
+    },
+    {
+      name: '密集网格',
+      icon: '⊟',
+      config: {
+        size: 10,
+        color: '#dddddd'
+      }
+    },
+    {
+      name: '稀疏网格',
+      icon: '⊡',
+      config: {
+        size: 40,
+        color: '#bbbbbb'
+      }
+    },
+    {
+      name: '深色网格',
+      icon: '⊞',
+      config: {
+        size: 20,
+        color: '#999999'
+      }
+    }
+  ],
   defaultConfig: {
     size: 20,
     color: '#cccccc'
