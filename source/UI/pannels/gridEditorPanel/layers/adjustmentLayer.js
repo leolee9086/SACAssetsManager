@@ -6,7 +6,8 @@ import { applyAllEffects } from '../utils/adjustmentEffects.js'
 
 export const adjustmentLayer = {
   name: '调整图层',
-  icon: '🎨',
+  icon: '✨',
+  group: 'effect',
   defaultConfig: {
     effects: []
   },

@@ -1,5 +1,5 @@
 import Konva from '../../../../../static/konva.js'
-import { ARTBOARD } from './artboardPosition.js'
+import { ARTBOARD } from '../utils/artboardPosition.js'
 
 // 创建画板图层
 export const createArtboardLayers = (stage, artboards, mainLayerRef, isArtboardMode) => {
@@ -273,5 +273,73 @@ const handleArtboardTransform = (artboardBg, border, label, artboards) => {
   })
   
   updateArtboardData(artboards, artboardBg.id(), newAttrs)
+}
+
+// 新增纯函数用于画板数据操作
+export const createNewArtboard = (artboards, name) => {
+  const position = findAvailablePosition(artboards)
+  return {
+    id: `artboard-${Date.now()}`,
+    name: name || `画板 ${artboards.length + 1}`,
+    x: position.x,
+    y: position.y,
+    width: ARTBOARD.WIDTH,
+    height: ARTBOARD.HEIGHT
+  }
+}
+
+export const updateArtboardById = (artboards, id, updates) => {
+  const index = artboards.findIndex(a => a.id === id)
+  if (index === -1) return false
+  
+  artboards[index] = {
+    ...artboards[index],
+    ...updates
+  }
+  return true
+}
+
+export const removeArtboard = (artboards, id) => {
+  if (artboards.length <= 1) return false
+  const index = artboards.findIndex(a => a.id === id)
+  if (index === -1) return false
+  
+  artboards.splice(index, 1)
+  return true
+}
+
+// 添加位置计算辅助函数
+const findAvailablePosition = (artboards) => {
+  let x = 100
+  let y = 100
+  let found = false
+
+  while (!found) {
+    let hasOverlap = false
+    for (const artboard of artboards) {
+      const margin = 20
+      if (
+        x < artboard.x + artboard.width + margin &&
+        x + ARTBOARD.WIDTH + margin > artboard.x &&
+        y < artboard.y + artboard.height + margin &&
+        y + ARTBOARD.HEIGHT + margin > artboard.y
+      ) {
+        hasOverlap = true
+        break
+      }
+    }
+
+    if (!hasOverlap) {
+      found = true
+    } else {
+      x += 50
+      if (x > 1000) {
+        x = 100
+        y += 50
+      }
+    }
+  }
+
+  return { x, y }
 }
 

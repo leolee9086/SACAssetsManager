@@ -1,9 +1,10 @@
 import { ARTBOARD } from '../utils/artboardPosition.js'
-import { rectLayer } from '../layers/rectLayer.js'
+import { shapeLayer } from '../layers/shapeLayer.js'
 import { textLayer } from '../layers/textLayer.js'
 import { gridLayer } from '../layers/gridLayer.js'
 import { imageLayer } from '../layers/imageLayer.js'
 import { adjustmentLayer } from '../layers/adjustmentLayer.js'
+import { domTextLayer } from '../layers/domTextLayer.js'
 
 // 基础调整参数配置
 const BASE_ADJUSTMENTS = [
@@ -57,27 +58,25 @@ const BASE_ADJUSTMENTS = [
   }
 ]
 
-// 定义所有支持的图层类型及其配置
+// 定义所支持的图层类型及其配置
 export const LAYER_TYPES = {
-  rect: {
-    ...rectLayer,
-    group: 'shape' // 形状组
+  shape: {
+    ...shapeLayer
   },
   text: {
-    ...textLayer,
-    group: 'content' // 内容组
+    ...textLayer
   },
   grid: {
-    ...gridLayer,
-    group: 'background' // 背景组
+    ...gridLayer
   },
   image: {
-    ...imageLayer,
-    group: 'content' // 内容组
+    ...imageLayer
   },
   adjustment: {
-    ...adjustmentLayer,
-    group: 'effect' // 效果组
+    ...adjustmentLayer
+  },
+  domText: {
+    ...domTextLayer
   }
 }
 
@@ -97,38 +96,53 @@ export const defaultLayerNames = {
 
 // 定义工具组配置
 export const TOOL_GROUPS = {
-  content: {
-    name: '内容',
+  text: {
+    name: '文本',
     icon: '📝',
     order: 1
+  },
+  resource: {
+    name: '资源',
+    icon: '📦',
+    order: 2
   },
   shape: {
     name: '形状',
     icon: '⬡',
-    order: 2
+    order: 3
   },
   background: {
     name: '背景',
     icon: '🎨',
-    order: 3
+    order: 4
   },
   effect: {
     name: '效果',
     icon: '✨',
-    order: 4
+    order: 5
+  },
+  other: {
+    name: '其它',
+    icon: '🔧',
+    order: 6
   }
 }
 
 // 注册新的图层类型
-function registerLayerType(type, config) {
+function 注册图层类型(type, config) {
   if (localLayerTypes.has(type)) {
     console.warn(`图层类型 "${type}" 已存在，将被覆盖`)
   }
-  
+
+  // 验证分组是否有效，如果无效则使用 'other' 分组
+  const group = config.group && TOOL_GROUPS[config.group] 
+    ? config.group 
+    : 'other'
+
   // 合并基础调整参数和自定义调整参数
   const adjustments = [...BASE_ADJUSTMENTS]
-  
-  // 根据图层类型添加特定的调整参数
+
+  // 根据图层类型添加特定的调整���数
   if (config.adjustments?.length) {
     config.adjustments.forEach(adj => {
       // 检查是否已存在同名参数
@@ -142,7 +156,7 @@ function registerLayerType(type, config) {
       }
     })
   }
-  
+
   // 设置默认配置
   const defaultConfig = {
     x: ARTBOARD.WIDTH / 2,
@@ -153,17 +167,17 @@ function registerLayerType(type, config) {
     opacity: 100,
     ...config.defaultConfig
   }
-  
+
   const layerConfig = {
     name: config.name || '未命名图层',
     icon: config.icon || '❓',
-    group: config.group || 'content', // 添加分组属性
+    group, // 使用验证后的分组
     defaultConfig,
     adjustments,
     render: config.render || null,
     presets: config.presets || [] // 添加预设支持
   }
-  
+
   localLayerTypes.set(type, layerConfig)
 
   // 更新画廊预设
@@ -176,7 +190,7 @@ function registerLayerType(type, config) {
     adjustments: layerConfig.adjustments,
     defaultConfig: layerConfig.defaultConfig
   }
-  
+
   if (presetIndex >= 0) {
     galleryPresets[presetIndex] = preset
   } else {
@@ -189,7 +203,7 @@ function registerLayerType(type, config) {
 
 // 在文件开头初始化时加载默认图层类型
 Object.entries(LAYER_TYPES).forEach(([type, config]) => {
-  registerLayerType(type, config)
+  注册图层类型(type, config)
 })
 
 // 获取默认图层配置
@@ -208,7 +222,7 @@ export async function loadLayerTypesFromLoader(loader) {
   try {
     const customLayerTypes = await loader.getLayerTypes()
     customLayerTypes.forEach(({ type, config }) => {
-      registerLayerType(type, config)
+      注册图层类型(type, config)
     })
   } catch (error) {
     console.error('加载自定义图层类型时出错：', error)
@@ -224,7 +238,7 @@ export const createPresetFromPipe = (pipe) => {
 
   const layerType = localLayerTypes.get(pipe.type)
   const preset = galleryPresets.find(p => p.type === pipe.type)
-  
+
   return {
     type: pipe.type,
     name: defaultLayerNames[pipe.type] || '未命名图层',
@@ -275,4 +289,3 @@ export const getGroupPresets = (group) => {
 export const getLayerTypeConfig = (type) => {
   return localLayerTypes.get(type) || LAYER_TYPES[type]
 }
-  

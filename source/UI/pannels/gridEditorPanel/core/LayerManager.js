@@ -18,7 +18,7 @@ export const getFlatLayers = (layers) => {
 }
 
 // 渲染图层到舞台
-export const renderLayers = (layers, mainLayer, layerRegistry, stage, handleShapeClick) => {
+export const renderLayers = async (layers, mainLayer, layerRegistry, stage, handleShapeClick) => {
   if (!mainLayer) return
 
   // 清空现有内容和注册表
@@ -34,42 +34,47 @@ export const renderLayers = (layers, mainLayer, layerRegistry, stage, handleShap
 
   // 先渲染底色矩形
   if (bgLayer) {
-    renderSingleLayer(bgLayer, mainLayer, layerRegistry, stage, handleShapeClick)
+    await renderSingleLayer(bgLayer, mainLayer, layerRegistry, stage, handleShapeClick)
   }
 
   // 再渲染其他内容图层
-  contentLayers.forEach(layer => {
-    renderSingleLayer(layer, mainLayer, layerRegistry, stage, handleShapeClick)
-  })
+  for (const layer of contentLayers) {
+    await renderSingleLayer(layer, mainLayer, layerRegistry, stage, handleShapeClick)
+  }
 
   mainLayer.batchDraw()
 }
 
 // 渲染单个图层
-const renderSingleLayer = (layer, mainLayer, layerRegistry, stage, handleShapeClick) => {
+const renderSingleLayer = async (layer, mainLayer, layerRegistry, stage, handleShapeClick) => {
   const layerConfig = getLayerTypeConfig(layer.layerType)
   if (!layerConfig?.render) return
 
-  const shapes = layerConfig.render(layer.config, layer.id, stage, handleShapeClick)
-  
-  if (Array.isArray(shapes)) {
-    shapes.forEach(shape => {
-      mainLayer.add(shape)
-      addTransformListeners(shape, layer, shapes)
-    })
-    layerRegistry.set(layer.id, {
-      shapes,
-      config: layer.config,
-      type: layer.layerType
-    })
-  } else {
-    mainLayer.add(shapes)
-    addTransformListeners(shapes, layer, [shapes])
-    layerRegistry.set(layer.id, {
-      shapes: [shapes],
-      config: layer.config,
-      type: layer.layerType
-    })
+  try {
+    // 等待异步render完成
+    const shapes = await Promise.resolve(layerConfig.render(layer.config, layer.id, stage, handleShapeClick))
+    
+    if (Array.isArray(shapes)) {
+      shapes.forEach(shape => {
+        mainLayer.add(shape)
+        addTransformListeners(shape, layer, shapes)
+      })
+      layerRegistry.set(layer.id, {
+        shapes,
+        config: layer.config,
+        type: layer.layerType
+      })
+    } else if (shapes) {
+      mainLayer.add(shapes)
+      addTransformListeners(shapes, layer, [shapes])
+      layerRegistry.set(layer.id, {
+        shapes: [shapes],
+        config: layer.config,
+        type: layer.layerType
+      })
+    }
+  } catch (error) {
+    console.error('渲染图层失败:', error)
   }
 }
 
@@ -180,7 +185,7 @@ export const applyLayerAdjustment = (layers, layerId, adjustments) => {
   
   if (!layer) return false
 
-  // 更新图层配置
+  // 更新���层配置
   Object.assign(layer.config, adjustments)
   return true
 }

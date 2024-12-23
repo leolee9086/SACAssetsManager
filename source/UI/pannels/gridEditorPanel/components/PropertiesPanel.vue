@@ -18,7 +18,7 @@
     <div class="property-group" v-if="layerAdjustments.length">
       
 
-      <template v-for="adj in layerAdjustments" :key="adj.key">
+      <template v-for="adj in filteredAdjustments" :key="adj.key">
         <label>{{ adj.label }}</label>
         <!-- 修改组件渲染方式 -->
         <component
@@ -68,6 +68,24 @@ const layerAdjustments = computed(() => {
   if (!props.layer || !props.layer.layerType) return []
   console.log(props.layer)
   return getLayerAdjustments(props.layer.layerType) || []
+})
+
+// 添加 filteredAdjustments 计算属性
+const filteredAdjustments = computed(() => {
+  if (!layerAdjustments.value) return []
+  
+  return layerAdjustments.value.filter(adj => {
+    // 如果没有 showIf 条件，始终显示
+    if (!adj.showIf) return true
+    
+    // 如果有 showIf 条件，执行条件函数判断
+    try {
+      return adj.showIf(localLayer.value.config)
+    } catch (error) {
+      console.warn('执行 showIf 条件时出错:', error)
+      return false
+    }
+  })
 })
 
 // 获取调整参数的属性

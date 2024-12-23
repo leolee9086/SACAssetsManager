@@ -3,6 +3,7 @@ import Konva from '../../../../../static/konva.js'
 export const imageLayer = {
   name: '图片',
   icon: '🖼️',
+  group: 'resource',
   defaultConfig: {
     width: 200,
     height: 100,

@@ -3,7 +3,8 @@ import { ARTBOARD } from '../utils/artboardPosition.js'
 
 export const gridLayer = {
   name: '网格',
-  icon: '⊞',
+  icon: '🎨',
+  group: 'background',
   presets: [
     {
       name: '默认网格',

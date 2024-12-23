@@ -6,11 +6,7 @@
         <!-- 使用动态生成的工具组 -->
         <template v-for="(group, groupId) in sortedToolGroups" :key="groupId">
           <div class="tool-group">
-            <div 
-              class="tool-item" 
-              :class="{ active: currentTool === groupId }"
-              @click="handleToolClick(groupId)"
-            >
+            <div class="tool-item" :class="{ active: currentTool === groupId }" @click="handleToolClick(groupId)">
               <i class="icon">{{ group.icon }}</i>
               <span>{{ group.name }}</span>
             </div>
@@ -30,12 +26,8 @@
         <div class="layer-section">
           <div class="section-title">图层</div>
           <div class="layer-list">
-            <LayerList 
-              v-model="list" 
-              :selected-layer="selectedLayer" 
-              @select="handleLayerSelect"
-              @delete="handleDeleteLayer" 
-            />
+            <LayerList v-model="list" :selected-layer="selectedLayer" @select="handleLayerSelect"
+              @delete="handleDeleteLayer" />
           </div>
         </div>
 
@@ -65,16 +57,10 @@
                 </div>
               </div>
             </template>
-            
+
             <template v-else>
-              <VueDraggable 
-                v-model="currentPresets" 
-                :group="{ name: 'nested', pull: 'clone', put: false }" 
-                :sort="false"
-                :clone="handleClone" 
-                item-key="type" 
-                class="preset-grid"
-              >
+              <VueDraggable v-model="currentPresets" :group="{ name: 'nested', pull: 'clone', put: false }"
+                :sort="false" :clone="handleClone" item-key="type" class="preset-grid">
                 <template v-for="element in currentPresets">
                   <div class="preset-item">
                     <div class="item-icon">{{ element.icon }}</div>
@@ -95,11 +81,7 @@
 
 
       <!-- 属性面板 -->
-      <PropertiesPanel 
-        v-if="selectedLayer" 
-        :layer="selectedLayer" 
-        @update:layer="handleLayerUpdate" 
-      />
+      <PropertiesPanel v-if="selectedLayer" :layer="selectedLayer" @update:layer="handleLayerUpdate" />
     </div>
 
     <!-- 添加画廊视图 -->
@@ -134,21 +116,20 @@ import { ref, onMounted, watch, onUnmounted, computed, nextTick } from 'vue'
 import { VueDraggable } from '../../../../static/vue-draggable-plus.js'
 import LayerList from './components/LayerList.vue'
 import _Konva from '../../../../static/konva.js'
-import { ARTBOARD, getArtboardPosition, getArtboardWorldPosition } from './utils/artboardPosition.js'
-import { galleryPresets, defaultLayerNames, getDefaultConfig, TOOL_GROUPS, getGroupPresets, getLayerTypeConfig } from './core/layerLoader.js'
-import { coordsHelper } from './utils/coordsHelper.js'
-import { createArtboardLayers, exportArtboard } from './utils/artboardManager.js'
+import { ARTBOARD } from './utils/artboardPosition.js'
+import { defaultLayerNames, TOOL_GROUPS, getGroupPresets, getLayerTypeConfig } from './core/layerLoader.js'
+import { createArtboardLayers, exportArtboard, createNewArtboard, updateArtboardById, removeArtboard } from './core/artboardManager.js'
 import PropertiesPanel from './components/PropertiesPanel.vue'
 import JSZip from '../../../../static/jszip.js'
-import { 
-  getFlatLayers,
+import {
   renderLayers,
-  updateLayer,
   removeLayer,
   ensureLayerIds,
   findLayer,
-  getLayerAdjustments
+  getLayerAdjustments,
+  loadDefaultLayers
 } from './core/LayerManager.js'
+import { shallowRef } from '../../../../static/vue.esm-browser.js'
 const Konva = _Konva.default
 
 // 舞台和图层的引用
@@ -162,60 +143,12 @@ const selectedLayer = ref(null)
 const layerRegistry = ref(new Map())
 
 
-// 修改 list 的初始数据，使用画板中心坐标
-const list = ref([
-  {
-    id: 'bg-group',
-    name: '底色图层组',
-    type: 'folder',
-    visible: true,
-    locked: true,
-    children: [
-      {
-        id: 'bg-color',
-        name: '底色矩形',
-        type: 'file',
-        visible: true,
-        locked: true,
-        layerType: 'rect',
-        config: {
-          x: 0,          // 从画板左上角开
-          y: 0,
-          width: ARTBOARD.WIDTH,
-          height: ARTBOARD.HEIGHT,
-          color: '#ffffff'
-        }
-      }
-    ]
-  },
-  {
-    id: 'content-group',
-    name: '内容图层组',
-    type: 'folder',
-    visible: true,
-    locked: false,
-    children: [
-      {
-        id: 'title-text',
-        name: '欢迎文本',
-        type: 'file',
-        visible: true,
-        locked: false,
-        layerType: 'text',
-        config: {
-          text: '欢迎使用编辑器',
-          x: ARTBOARD.WIDTH / 2 - 80,  // 居中显示
-          y: ARTBOARD.HEIGHT / 2 - 12,
-          size: 24,
-          color: '#333333'
-        }
-      }
-    ]
-  }
-])
+// 修改 list 的定义
+const list = ref([])
+
 
 // 修改渲染图层的调用
-watch(list, () => {
+watch(() => list.value, () => {
   if (mainLayerRef.value && stageRef.value) {
     renderLayers(
       list.value,
@@ -228,7 +161,11 @@ watch(list, () => {
 }, { deep: true, immediate: true })
 
 // 初始化 Konva 舞台
-onMounted(() => {
+onMounted(async () => {
+  //使用vueDrag需要时刻注意保持数组是同一个否则就会出错
+
+  list.value.push(...await loadDefaultLayers())
+
   const container = document.querySelector('.canvas-container')
   if (!container) {
     console.error('Canvas container not found')
@@ -344,7 +281,7 @@ const handleLayerSelect = (layer) => {
 
   selectedLayer.value = layer
 
-  // 显���新选中图层的变换器
+  // 显示新选中图层的变换器
   const registered = layerRegistry.value.get(layer.id)
   if (registered?.shapes) {
     const tr = registered.shapes.find(obj => obj instanceof Konva.Transformer)
@@ -377,11 +314,9 @@ onMounted(() => {
   ensureLayerIds(list.value)
 })
 
-// 图层画廊项目
-const galleryItems = galleryPresets
 
 // 用于接收拖入的图层
-const contentLayers = ref([])
+const contentLayers = shallowRef([])
 
 // 修改克隆处理函数
 const handleClone = (item) => {
@@ -402,21 +337,15 @@ const handleClone = (item) => {
   }
 }
 
-// 修改图层添加处理函数
 const handleLayerAdd = (evt) => {
   const newLayer = evt.clonedData
-  if (!newLayer) return
-
+  console.error(evt, newLayer)
   const stage = stageRef.value
   if (!stage) return
 
-  // 获取图层配置
-  const layerConfig = getLayerTypeConfig(newLayer.layerType)
-  if (!layerConfig) return
-
   // 获取图层的调整参数配置
-  const adjustments = layerConfig.adjustments || []
-  
+  const adjustments = getLayerAdjustments(newLayer)
+
   // 确保配置对象包含所有声明的参数
   if (adjustments.length && newLayer.config) {
     adjustments.forEach(adj => {
@@ -424,6 +353,17 @@ const handleLayerAdd = (evt) => {
         newLayer.config[adj.key] = adj.defaultValue
       }
     })
+  }
+
+  const pointerPosition = stage.getPointerPosition()
+
+  if (pointerPosition && newLayer.config) {
+
+    // 创建新的配置对象而不是修改原对象
+    const newConfig = {
+      ...newLayer.config,
+    }
+    newLayer.config = newConfig
   }
 
   // 使用数组方法保持响应式
@@ -441,30 +381,9 @@ const handleLayerAdd = (evt) => {
 
 // 修改画布元素点击处理函数
 const handleShapeClick = (layerId) => {
-  // 隐藏之前选中图层的变换器
-  if (selectedLayer.value) {
-    const prevRegistered = layerRegistry.value.get(selectedLayer.value.id)
-    if (prevRegistered?.shapes) {
-      const tr = prevRegistered.shapes.find(obj => obj instanceof Konva.Transformer)
-      if (tr) tr.hide()
-    }
-  }
-
-  // 查找并选中新图层
   const layer = findLayer(list.value, layerId)
   if (layer) {
-    selectedLayer.value = layer
-    
-    // 显示新选中图层的变换器
-    const registered = layerRegistry.value.get(layerId)
-    if (registered?.shapes) {
-      const tr = registered.shapes.find(obj => obj instanceof Konva.Transformer)
-      if (tr) {
-        tr.show()
-        tr.moveToTop() // 确保变换器在最上层
-        mainLayerRef.value.batchDraw()
-      }
-    }
+    handleLayerSelect(layer)
   }
 }
 
@@ -499,85 +418,79 @@ const toggleArtboardMode = () => {
 
 // 修改添加画板函数
 const addArtboard = () => {
-  // 找到一个合适的新画板位置
-  const findAvailablePosition = () => {
-    let x = 100
-    let y = 100
-    let found = false
-
-    while (!found) {
-      let hasOverlap = false
-
-      // 检查当前位置是否与任何现有画板重叠
-      for (const artboard of artboards.value) {
-        const margin = 20 // 画板间的最小间距
-        if (
-          x < artboard.x + artboard.width + margin &&
-          x + ARTBOARD.WIDTH + margin > artboard.x &&
-          y < artboard.y + artboard.height + margin &&
-          y + ARTBOARD.HEIGHT + margin > artboard.y
-        ) {
-          hasOverlap = true
-          break
-        }
-      }
-
-      if (!hasOverlap) {
-        found = true
-      } else {
-        // 如果发生重叠，尝试向右移动
-        x += 50
-
-        // 如果右空间不足，换行
-        if (x > 1000) { // 设置一个合理的最大宽度
-          x = 100
-          y += 50
-        }
-      }
-    }
-
-    return { x, y }
-  }
-
-  const position = findAvailablePosition()
-  const newArtboard = {
-    id: `artboard-${Date.now()}`,
-    name: `画板 ${artboards.value.length + 1}`,
-    x: position.x,
-    y: position.y,
-    width: ARTBOARD.WIDTH,
-    height: ARTBOARD.HEIGHT
-  }
-
+  const newArtboard = createNewArtboard(artboards.value)
   artboards.value = [...artboards.value, newArtboard]
+  
+  // 重新创建画板图层
+  createArtboardLayers(
+    stageRef.value,
+    artboards.value,
+    mainLayerRef,
+    isArtboardMode.value
+  )
 }
 
+// 修改重命名画板函数
+const renameArtboard = (index) => {
+  const artboard = artboards.value[index]
+  const newName = prompt('请输入新的画板名称:', artboard.name)
+  if (!newName?.trim()) return
+  
+  if (updateArtboardById(artboards.value, artboard.id, { name: newName.trim() })) {
+    // 触发视图更新
+    artboards.value = [...artboards.value]
+  }
+}
 
-// 修改 watch 监听器
-watch(
-  () => ({
-    artboards: artboards.value,
-    isArtboardMode: isArtboardMode.value
-  }),
-  (newVal, oldVal) => {
-    const stage = stageRef.value
-    if (!stage) return
+// 修改删除画板函数
+const deleteArtboard = (index) => {
+  if (!confirm('确定要删除这个画板吗?')) return
+  
+  const artboard = artboards.value[index]
+  if (removeArtboard(artboards.value, artboard.id)) {
+    // 触发视图更新
+    artboards.value = [...artboards.value]
+    
+    // 重新创建画板图层
+    createArtboardLayers(
+      stageRef.value,
+      artboards.value,
+      mainLayerRef,
+      isArtboardMode.value
+    )
+  } else {
+    alert('至少需要保留一个画板')
+  }
+}
 
-    // 只有在真正需要更新时才重新创建图层
-    if (
-      JSON.stringify(newVal.artboards) !== JSON.stringify(oldVal?.artboards) ||
-      newVal.isArtboardMode !== oldVal?.isArtboardMode
-    ) {
-      createArtboardLayers(
-        stage,
-        newVal.artboards,
-        mainLayerRef,
-        newVal.isArtboardMode
-      )
-    }
-  },
-  { deep: true }
-)
+// 修改更新画板预览函数
+const 更新画板预览 = () => {
+  const stage = stageRef.value
+  if (!stage || !galleryPreviewRef.value) return
+
+  const artboard = currentArtboard.value
+  if (!artboard) return
+
+  // 直接使用 exportArtboard 函数
+  exportArtboard(stage, artboard).then(blob => {
+    if (!blob) return
+
+    // 创建预览图片的 URL
+    const url = URL.createObjectURL(blob)
+    
+    // 更新预览图片
+    galleryPreviewRef.value.innerHTML = ''
+    const img = document.createElement('img')
+    img.src = url
+    img.style.width = '100%'
+    img.style.height = '100%'
+    img.style.objectFit = 'contain'
+    galleryPreviewRef.value.appendChild(img)
+
+    // 清理 URL
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+  })
+}
 
 // 修改导出当前画板函数
 const exportCurrentArtboard = async () => {
@@ -654,20 +567,12 @@ function useDebounceFn(fn, delay) {
 
 // 修改图层更新处理函数
 const handleLayerUpdate = (updatedLayer) => {
+  // 使用 Vue 的响应式方法更新图层
   const layer = findLayer(list.value, updatedLayer.id)
   if (layer) {
+    // 使用 Object.assign 保持响应式
     Object.assign(layer, updatedLayer)
-    
-    // 更新 Konva 形状
-    const registered = layerRegistry.value.get(layer.id)
-    if (registered?.shapes) {
-      const mainShape = registered.shapes.find(s => s.getClassName() !== 'Transformer')
-      if (mainShape) {
-        // 更新形状属性
-        Object.assign(mainShape.attrs, layer.config)
-        mainShape.getLayer()?.batchDraw()
-      }
-    }
+
   }
 }
 
@@ -705,45 +610,15 @@ const currentArtboard = computed(() => artboards.value[currentIndex.value])
 const nextArtboard = () => {
   if (currentIndex.value < artboards.value.length - 1) {
     currentIndex.value++
-    updateGalleryPreview()
+    更新画板预览()
   }
 }
 
 const prevArtboard = () => {
   if (currentIndex.value > 0) {
     currentIndex.value--
-    updateGalleryPreview()
+    更新画板预览()
   }
-}
-
-// 简化更新画廊预览函数
-const updateGalleryPreview = () => {
-  const stage = stageRef.value
-  if (!stage || !galleryPreviewRef.value) return
-
-  const artboard = currentArtboard.value
-  if (!artboard) return
-
-  // ���当前舞台生成预览图片
-  const dataURL = stage.toDataURL({
-    x: artboard.x,
-    y: artboard.y,
-    width: ARTBOARD.WIDTH,
-    height: ARTBOARD.HEIGHT,
-    pixelRatio: 1, // 使用较低分辨率以提高性能
-    mimeType: 'image/png'
-  })
-
-  // 清空预览容器
-  galleryPreviewRef.value.innerHTML = ''
-
-  // 创建并加预览图片
-  const img = document.createElement('img')
-  img.src = dataURL
-  img.style.width = '100%'
-  img.style.height = '100%'
-  img.style.objectFit = 'contain'
-  galleryPreviewRef.value.appendChild(img)
 }
 
 // 简化清理函数
@@ -761,7 +636,7 @@ onUnmounted(() => {
 // 监听画板切换
 watch(currentIndex, () => {
   nextTick(() => {
-    updateGalleryPreview()
+    更新画板预览()
   })
 })
 
@@ -770,34 +645,17 @@ const openGalleryView = () => {
   showGalleryView.value = true
   currentIndex.value = 0
   nextTick(() => {
-    updateGalleryPreview()
+    更新画板预览()
   })
 }
 
 // 添加画板管理相关函数
-const renameArtboard = (index) => {
-  const artboard = artboards.value[index]
-  const newName = prompt('请输入新的画板名称:', artboard.name)
-  if (newName && newName.trim()) {
-    artboard.name = newName.trim()
-  }
-}
 
-const deleteArtboard = (index) => {
-  if (artboards.value.length <= 1) {
-    alert('至少需要保留一个画板')
-    return
-  }
-
-  if (confirm('确定要删除这个画板吗?')) {
-    artboards.value.splice(index, 1)
-  }
-}
 
 // 添加排序后的工具组计算属性
 const sortedToolGroups = computed(() => {
   return Object.entries(TOOL_GROUPS)
-    .sort(([,a], [,b]) => a.order - b.order)
+    .sort(([, a], [, b]) => a.order - b.order)
     .reduce((acc, [key, value]) => {
       acc[key] = value
       return acc
