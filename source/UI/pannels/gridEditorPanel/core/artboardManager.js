@@ -1,17 +1,26 @@
 import Konva from '../../../../../static/konva.js'
 import { ARTBOARD } from '../utils/artboardPosition.js'
 
-// 创建画板图层
+// 添加图层缓存
+let artboardBgLayer = null
+let artboardBorderLayer = null
+
+// 修改创建画板图层函数
 export const createArtboardLayers = (stage, artboards, mainLayerRef, isArtboardMode) => {
   if (!stage || !Array.isArray(artboards)) return
-  
-  // 清除现有层
-  stage.destroyChildren()
-  
-  // 创建三个主要层
-  const artboardBgLayer = new Konva.Layer()    
-  const mainLayer = new Konva.Layer()          
-  const artboardBorderLayer = new Konva.Layer() 
+
+  // 复用已存在的图层或创建新图层
+  if (!artboardBgLayer) {
+    artboardBgLayer = new Konva.Layer()
+    artboardBorderLayer = new Konva.Layer()
+    stage.add(artboardBgLayer)
+    stage.add(mainLayerRef.value)
+    stage.add(artboardBorderLayer)
+  }
+
+  // 清空现有内容
+  artboardBgLayer.destroyChildren()
+  artboardBorderLayer.destroyChildren()
   
   // 记录最后一个创建的画板元素
   let lastCreatedElements = null
@@ -40,21 +49,17 @@ export const createArtboardLayers = (stage, artboards, mainLayerRef, isArtboardM
     lastCreatedElements = elements
   })
   
-  // 按顺序添加层
-  stage.add(artboardBgLayer)    
-  stage.add(mainLayer)          
-  stage.add(artboardBorderLayer)
-  
-  // 保存主层引用
-  if (mainLayerRef && 'value' in mainLayerRef) {
-    mainLayerRef.value = mainLayer
-  }
-  
   // 如果处于画板工具模式，激活最后一个画板
   if (isArtboardMode && lastCreatedElements) {
     lastCreatedElements.tr.visible(true)
-    stage.batchDraw()
   }
+
+  // 确保正确的层级顺序
+  artboardBgLayer.setZIndex(0)
+  mainLayerRef.value.setZIndex(1)
+  artboardBorderLayer.setZIndex(2)
+  
+  stage.batchDraw()
 }
 
 // 创建画板元素
@@ -341,5 +346,12 @@ const findAvailablePosition = (artboards) => {
   }
 
   return { x, y }
+}
+
+export {
+  createArtboardElements,
+  setupArtboardEvents,
+  createArtboardLabel,
+  // ... 其他辅助函数保持不变
 }
 

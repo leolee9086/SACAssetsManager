@@ -5,6 +5,7 @@ import { gridLayer } from '../layers/gridLayer.js'
 import { imageLayer } from '../layers/imageLayer.js'
 import { adjustmentLayer } from '../layers/adjustmentLayer.js'
 import { domTextLayer } from '../layers/domTextLayer.js'
+import { linkedTextLayer } from '../layers/linkedTextLayer.js'
 
 // 基础调整参数配置
 const BASE_ADJUSTMENTS = [
@@ -77,6 +78,9 @@ export const LAYER_TYPES = {
   },
   domText: {
     ...domTextLayer
+  },
+  linkedText: {
+    ...linkedTextLayer
   }
 }
 
@@ -142,7 +146,7 @@ function 注册图层类型(type, config) {
   // 合并基础调整参数和自定义调整参数
   const adjustments = [...BASE_ADJUSTMENTS]
 
-  // 根据图层类型添加特定的调整���数
+  // 根据图层类型添加特定的调整参数
   if (config.adjustments?.length) {
     config.adjustments.forEach(adj => {
       // 检查是否已存在同名参数

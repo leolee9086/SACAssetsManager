@@ -1,5 +1,6 @@
 import { galleryPresets, getLayerTypeConfig } from './layerLoader.js'
-
+import { renderLayers } from './layerRenderer.js'
+export {renderLayers}
 // 扁平化图层列表,获取所有可见图层
 export const getFlatLayers = (layers) => {
   return layers.reduce((acc, layer) => {
@@ -15,98 +16,6 @@ export const getFlatLayers = (layers) => {
 
     return acc
   }, [])
-}
-
-// 渲染图层到舞台
-export const renderLayers = async (layers, mainLayer, layerRegistry, stage, handleShapeClick) => {
-  if (!mainLayer) return
-
-  // 清空现有内容和注册表
-  mainLayer.destroyChildren()
-  layerRegistry.clear()
-
-  // 获取扁平化的图层
-  const flatLayers = getFlatLayers(layers)
-
-  // 确保底色矩形在内容图层最底部渲染
-  const bgLayer = flatLayers.find(layer => layer.id === 'bg-color')
-  const contentLayers = flatLayers.filter(layer => layer.id !== 'bg-color')
-
-  // 先渲染底色矩形
-  if (bgLayer) {
-    await renderSingleLayer(bgLayer, mainLayer, layerRegistry, stage, handleShapeClick)
-  }
-
-  // 再渲染其他内容图层
-  for (const layer of contentLayers) {
-    await renderSingleLayer(layer, mainLayer, layerRegistry, stage, handleShapeClick)
-  }
-
-  mainLayer.batchDraw()
-}
-
-// 渲染单个图层
-const renderSingleLayer = async (layer, mainLayer, layerRegistry, stage, handleShapeClick) => {
-  const layerConfig = getLayerTypeConfig(layer.layerType)
-  if (!layerConfig?.render) return
-
-  try {
-    // 等待异步render完成
-    const shapes = await Promise.resolve(layerConfig.render(layer.config, layer.id, stage, handleShapeClick))
-    
-    if (Array.isArray(shapes)) {
-      shapes.forEach(shape => {
-        mainLayer.add(shape)
-        addTransformListeners(shape, layer, shapes)
-      })
-      layerRegistry.set(layer.id, {
-        shapes,
-        config: layer.config,
-        type: layer.layerType
-      })
-    } else if (shapes) {
-      mainLayer.add(shapes)
-      addTransformListeners(shapes, layer, [shapes])
-      layerRegistry.set(layer.id, {
-        shapes: [shapes],
-        config: layer.config,
-        type: layer.layerType
-      })
-    }
-  } catch (error) {
-    console.error('渲染图层失败:', error)
-  }
-}
-
-// 添加形状变换监听器
-const addTransformListeners = (shape, layer, shapes) => {
-  // 排除 Transformer 对象
-  if (shape.getClassName() === 'Transformer') return
-
-  // 监听拖拽和变换结束事件
-  shape.on('dragend transformend', () => {
-    // 获取形状的新属性
-    const newAttrs = shape.getAttrs()
-    
-    // 更新图层配置
-    Object.assign(layer.config, {
-      x: newAttrs.x,
-      y: newAttrs.y,
-      width: newAttrs.width,
-      height: newAttrs.height,
-      rotation: newAttrs.rotation,
-      scaleX: newAttrs.scaleX,
-      scaleY: newAttrs.scaleY
-    })
-
-    // 如果是文本图层,还需要同步文本内容
-    if (layer.layerType === 'text' && newAttrs.text) {
-      layer.config.text = newAttrs.text
-    }
-
-    // 通知 Konva 更新画布
-    shape.getStage()?.batchDraw()
-  })
 }
 
 // 递归查找并更新图层
@@ -185,7 +94,7 @@ export const applyLayerAdjustment = (layers, layerId, adjustments) => {
   
   if (!layer) return false
 
-  // 更新���层配置
+  // 更新层配置
   Object.assign(layer.config, adjustments)
   return true
 }

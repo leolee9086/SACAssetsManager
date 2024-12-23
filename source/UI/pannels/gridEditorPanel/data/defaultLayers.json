@@ -48,5 +48,15 @@
         }
       ]
     }
+  ],
+  "artboards": [
+    {
+      "id": "default-artboard",
+      "name": "默认画板",
+      "x": 100,
+      "y": 100,
+      "width": 600,
+      "height": 400
+    }
   ]
 } 

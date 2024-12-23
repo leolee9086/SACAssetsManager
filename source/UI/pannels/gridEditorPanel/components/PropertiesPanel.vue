@@ -40,6 +40,8 @@ import ColorPicker from './ColorPicker.vue'
 import TextInput from './TextInput.vue'
 import Selecter from './Select.vue'
 import Slider from './Slider.vue'
+import Switch from './Switch.vue'
+import TextArea from './TextArea.vue'
 import { getLayerAdjustments } from '../core/LayerManager.js'
 
 // 将 components 改为响应式引用
@@ -48,7 +50,9 @@ const components = {
   ColorPicker,
   TextInput,
   Selecter,
-  Slider
+  Slider,
+  Switch,
+  TextArea
 }
 
 const props = defineProps({

@@ -4,6 +4,7 @@
         v-if="Array.isArray(props.modelValue)"
         v-model="props.modelValue"
         class="w-full"
+        @update:modelValue="handleLayerUpdate"
       >
         <template #item="{ item, isCollapsed, onToggle }">
           <div 
@@ -95,6 +96,10 @@ const toggleLock = (item: any) => {
 
 const deleteLayer = (layer: any) => {
   emit('delete', layer)
+}
+
+const handleLayerUpdate = (newValue: any[]) => {
+  emit('update:modelValue', newValue)
 }
 
 

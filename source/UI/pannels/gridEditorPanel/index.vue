@@ -130,37 +130,26 @@ import {
   loadDefaultLayers
 } from './core/LayerManager.js'
 import { shallowRef } from '../../../../static/vue.esm-browser.js'
+import { renderStageContent } from './core/stageRender.js'
 const Konva = _Konva.default
-
-// 舞台和图层的引用
 const stageRef = ref(null)
 const mainLayerRef = ref(null)
-
-// 添加选中图层的引用
 const selectedLayer = ref(null)
-
-// 添加图层注册表
 const layerRegistry = ref(new Map())
-
-
-// 修改 list 的定义
 const list = ref([])
-
-
-// 修改渲染图层的调用
-watch(() => list.value, () => {
+watch(list, () => {
   if (mainLayerRef.value && stageRef.value) {
-    renderLayers(
-      list.value,
-      mainLayerRef.value,
-      layerRegistry.value,
+    renderStageContent(
       stageRef.value,
+      artboards.value,
+      mainLayerRef,
+      isArtboardMode.value,
+      list.value,
+      layerRegistry.value,
       handleShapeClick
     )
   }
 }, { deep: true, immediate: true })
-
-// 初始化 Konva 舞台
 onMounted(async () => {
   //使用vueDrag需要时刻注意保持数组是同一个否则就会出错
 
@@ -197,13 +186,15 @@ onMounted(async () => {
     mainLayerRef.value = new Konva.Layer()
     stageRef.value.add(mainLayerRef.value)
 
-    // 初始渲染图层
+    // 初始渲染所有图层
     nextTick(() => {
-      renderLayers(
-        list.value,
-        mainLayerRef.value,
-        layerRegistry.value,
+      renderStageContent(
         stageRef.value,
+        artboards.value,
+        mainLayerRef,
+        isArtboardMode.value,
+        list.value,
+        layerRegistry.value,
         handleShapeClick
       )
     })
@@ -309,7 +300,7 @@ const handleDeleteLayer = (layer) => {
   removeLayer(list.value, layer.id)
 }
 
-// 组件挂载时确保所有图层都有ID
+// ���件挂载时确保所有图层都有ID
 onMounted(() => {
   ensureLayerIds(list.value)
 })
@@ -404,15 +395,14 @@ const isArtboardMode = ref(false) // 画板工具模式开关
 // 修改画板工具模式切换
 const toggleArtboardMode = () => {
   isArtboardMode.value = !isArtboardMode.value
-  const stage = stageRef.value
-  if (!stage) return
-
-  // 强制更新画板状态
-  createArtboardLayers(
-    stage,
+  renderStageContent(
+    stageRef.value,
     artboards.value,
     mainLayerRef,
-    isArtboardMode.value
+    isArtboardMode.value,
+    list.value,
+    layerRegistry.value,
+    handleShapeClick
   )
 }
 
@@ -421,12 +411,14 @@ const addArtboard = () => {
   const newArtboard = createNewArtboard(artboards.value)
   artboards.value = [...artboards.value, newArtboard]
   
-  // 重新创建画板图层
-  createArtboardLayers(
+  renderStageContent(
     stageRef.value,
     artboards.value,
     mainLayerRef,
-    isArtboardMode.value
+    isArtboardMode.value,
+    list.value,
+    layerRegistry.value,
+    handleShapeClick
   )
 }
 
@@ -448,15 +440,16 @@ const deleteArtboard = (index) => {
   
   const artboard = artboards.value[index]
   if (removeArtboard(artboards.value, artboard.id)) {
-    // 触发视图更新
     artboards.value = [...artboards.value]
     
-    // 重新创建画板图层
-    createArtboardLayers(
+    renderStageContent(
       stageRef.value,
       artboards.value,
       mainLayerRef,
-      isArtboardMode.value
+      isArtboardMode.value,
+      list.value,
+      layerRegistry.value,
+      handleShapeClick
     )
   } else {
     alert('至少需要保留一个画板')

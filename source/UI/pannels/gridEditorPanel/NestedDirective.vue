@@ -64,9 +64,7 @@ const options = {
   sort: true,
   put:true,
   immediate:true,
-  customUpdate:(evt)=>{
-    console.log(evt)
-  },
+
   onMove: function(evt, originalEvent) {
     const draggedEl = evt.dragged
     const relatedEl = evt.related
@@ -91,6 +89,7 @@ const options = {
   },
   onChange: function(evt) {
     console.log('onChange:', evt)
+    
   },
   onAdd: function(evt) {
     console.log('onAdd:', evt)
