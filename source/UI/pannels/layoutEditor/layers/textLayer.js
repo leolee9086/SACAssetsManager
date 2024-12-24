@@ -121,8 +121,21 @@ const createTextLayer = async () => {
         lineHeight: config.lineHeight || 1.2,
         padding: config.padding || 0,
         opacity: config.opacity || 1,
-        letterSpacing: config.letterSpacing || 0
+        letterSpacing: config.letterSpacing || 0,
+        id: layerId
       })
+
+      textNode.on('click', () => {
+        handleShapeClick(layerId)
+        tr.show()
+      })
+
+      stage.on('click', (e) => {
+        if (e.target === stage) {
+          tr.hide()
+        }
+      })
+
       const tr = new Konva.Transformer({
         nodes: [textNode],
         enabledAnchors: [
@@ -146,6 +159,27 @@ const createTextLayer = async () => {
         anchorSize: 8,
         visible: false,
       })
+
+      textNode.on('transform', () => {
+        const newConfig = {
+          x: textNode.x(),
+          y: textNode.y(),
+          width: textNode.width() * textNode.scaleX(),
+          height: textNode.height() * textNode.scaleY(),
+          rotation: textNode.rotation()
+        }
+        
+        Object.assign(config, newConfig)
+
+        textNode.setAttrs({
+          width: newConfig.width,
+          height: newConfig.height,
+          scaleX: 1,
+          scaleY: 1
+        })
+
+      })
+
       return [textNode, tr]
     }
   }

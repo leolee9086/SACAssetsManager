@@ -8,8 +8,9 @@
                 <div class="fn__space fn__flex-1"></div>
                 <apiIcon v-if="() => appData.value.everythingApiLocation ? true : false" :apiEnabled="everthingEnabled">
                 </apiIcon>
-                <input v-model="size" style="box-sizing: border-box;width: 200px;" :value="200"
-                    class="b3-slider fn__block" :max="$max" min="32" step="1" type="range">
+                <div class="fn__flex">
+                    <slider v-model="size" :max="$max" />
+                </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex" style="margin:auto">
                     <button @click="refreshPanel" class="cc-panel-toolbar-button">
@@ -102,17 +103,16 @@ import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取�
 import { 柯里化 } from "../../utils/functions/currying.js";
 import { LAYOUT_COLUMN, LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
 import ColorPicker from './galleryPanel/colorPicker.vue'
+import Slider from './galleryPanel/toolbar/slider.vue'
+import { useAppData } from './galleryPanel/useAppData.js';
 //主要数据对象
-const appData = toRef(inject('appData'))
-/**
- * 监听相关事件刷新面板
- */
-plugin.eventBus.on('need-refresh-gallery-panel', (e) => {
-    const { type, data } = e.detail;
-    if (type === 'tag') {
-        appData.value.tagLabel ? refreshPanel() : null;
+
+const { appData, tagLabel } = useAppData({
+    data: inject('appData'), controller: {
+        refresh: () => refreshPanel()
     }
 })
+
 
 /**
  * 显示模式相关逻辑
@@ -296,7 +296,7 @@ const 创建回调并获取数据 = async () => {
         if (filListProvided.value) {
             数据缓存.value.data.push(...filListProvided.value);
         } else {
-            console.log( $realGlob.value)
+            console.log($realGlob.value)
             const dataModel = 解析数据模型(appData.value, 数据缓存.value, $realGlob.value, everthingEnabled);
             const fetcher = 根据数据配置获取数据到缓存(dataModel, signal, callBack);
             await fetcher()
@@ -318,7 +318,7 @@ const callBack = (...args) => {
     grid.value && grid.value.dataCallBack ? grid.value.dataCallBack(...args) : null;
 };
 const showPanel = ref(true)
-const refreshPanel = () => {
+function refreshPanel() {
     controller.abort()
     controller = new AbortController();
     signal = controller.signal
