@@ -1,3 +1,5 @@
+import { calculateImageFitScale } from "../../utils.js";
+
 export class P1ImagePattern {
     constructor(config) {
         this.validateConfig(config);
@@ -33,7 +35,7 @@ export class P1ImagePattern {
                 },
                 fitMode: config.nodeImage?.fitMode || 'contain'
             } : null,
-            // 填充图片配置
+            // 填���图片配置
             fillImage: config.fillImage ? {
                 imageUrl: config.fillImage.imageUrl,
                 transform: config.fillImage.transform || {
@@ -171,19 +173,7 @@ export class P1ImagePattern {
         ctx.clip();
     }
     calculateFitScale(imgWidth, imgHeight, cellWidth, cellHeight, fitMode) {
-        const scaleX = cellWidth / imgWidth;
-        const scaleY = cellHeight / imgHeight;
-        
-        switch (fitMode) {
-            case 'contain':
-                return Math.min(scaleX, scaleY);
-            case 'cover':
-                return Math.max(scaleX, scaleY);
-            case 'stretch':
-                return 1;
-            default:
-                return Math.min(scaleX, scaleY);
-        }
+        return calculateImageFitScale(imgWidth, imgHeight, cellWidth, cellHeight, fitMode);
     }
 
     render(ctx, viewport) {

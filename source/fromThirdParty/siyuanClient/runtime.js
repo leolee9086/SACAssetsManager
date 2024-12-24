@@ -72,5 +72,6 @@ const {
 
 
 export {
-    confirm
+    confirm,
+    Dialog
 }
