@@ -10,6 +10,9 @@
           选择填充图片
         </button>
       </div>
+      <div class="preview-container" v-if="previewUrl">
+        <img :src="previewUrl" alt="预览图" class="preview-image">
+      </div>
       <div class="transform-controls">
         <div class="control-group">
           <span>缩放:</span>
@@ -38,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   modelValue: {
@@ -51,6 +54,8 @@ const emit = defineEmits(['update:modelValue', 'imageUpload'])
 
 const fillFileInput = ref(null)
 
+const previewUrl = ref(null)
+
 const triggerFillFileInput = () => {
   fillFileInput.value.click()
 }
@@ -58,6 +63,7 @@ const triggerFillFileInput = () => {
 const handleFillImageUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
+    previewUrl.value = URL.createObjectURL(file)
     emit('imageUpload', file)
   }
 }
@@ -82,8 +88,27 @@ const updateTransform = (e) => {
   
   emit('update:modelValue', newTransform)
 }
+
+onBeforeUnmount(() => {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+  }
+})
 </script>
 
 <style scoped>
-/* 复制原有的相关样式 */
+.preview-container {
+  margin: 10px 0;
+  width: 100%;
+  height: 150px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 </style> 

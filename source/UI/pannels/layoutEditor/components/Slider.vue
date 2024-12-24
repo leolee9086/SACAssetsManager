@@ -1,5 +1,6 @@
 <template>
-  <div class="slider-container">
+  <div class="slider-container" :style="{ gap: gap + 'px' }">
+    <div v-if="label" class="slider-label">{{ label }}</div>
     <input
       type="range"
       :min="min"
@@ -9,12 +10,16 @@
       @input="updateValue"
       :class="{ 'invalid': !isValid }"
       class="range-input"
+      :style="{
+        height: `${trackHeight}px`,
+        '--thumb-size': `${thumbSize}px`,
+      }"
     />
     <div 
       class="slider-value"
       :class="{ 'invalid': !isValid }"
     >
-      {{ displayValue }}
+      {{ displayValue }}{{ unit }}
     </div>
   </div>
 </template>
@@ -38,6 +43,26 @@ const props = defineProps({
   step: {
     type: Number,
     default: 1
+  },
+  label: {
+    type: String,
+    default: ''
+  },
+  unit: {
+    type: String,
+    default: ''
+  },
+  gap: {
+    type: Number,
+    default: 8
+  },
+  trackHeight: {
+    type: Number,
+    default: 4
+  },
+  thumbSize: {
+    type: Number,
+    default: 16
   }
 })
 
@@ -120,5 +145,21 @@ const updateValue = (event) => {
 
 .range-input.invalid::-moz-range-thumb {
   background: var(--cc-theme-error, #ff4444);
+}
+
+.slider-label {
+  font-size: 12px;
+  color: var(--cc-theme-on-background-muted, #666666);
+  white-space: nowrap;
+}
+
+.range-input::-webkit-slider-thumb {
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+}
+
+.range-input::-moz-range-thumb {
+  width: var(--thumb-size);
+  height: var(--thumb-size);
 }
 </style> 
