@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      transition: zoom 0.3s ease;
+    }
+    .editor-component {
+      box-sizing: border-box;
+      min-width: 50px;
+      min-height: 30px;
+      transition: all 0.2s ease;
+    }
+    #app {
+      width: 100%;
+      min-height: 100vh;
+      padding: 24px;
+      box-sizing: border-box;
+      max-width: 1200px;  /* 限制最大宽度 */
+      margin: 0 auto;     /* 水平居中 */
+      transition: max-width 0.3s ease;
+    }
+    
+    /* 组件容器样式 */
+    .component-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;         /* 组件之间的间距 */
+    }
+    
+    /* 组件交互样式 */
+    .editor-component:hover {
+      outline: 2px solid #1890ff;
+    }
+    .editor-component.selected {
+      outline: 2px solid #1890ff;
+      box-shadow: 0 0 8px rgba(24, 144, 255, 0.2);
+    }
+
+    /* 拖拽样式 */
+    #app.drag-over {
+      background-color: rgba(24, 144, 255, 0.1);
+    }
+
+    /* 添加组件高亮样式 */
+    .editor-component.highlight {
+        outline: 2px solid #1890ff;
+        box-shadow: 0 0 8px rgba(24, 144, 255, 0.2);
+    }
+
+    /* 添加设备响应式样式 */
+    #app {
+        transition: max-width 0.3s ease;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    /* 添加缩放过渡效果 */
+    body {
+        transition: zoom 0.3s ease;
+    }
+
+    /* 添加布局容器样式 */
+    .editor-component[data-component-type="container"] {
+      min-height: 100px;
+      padding: 16px;
+      border: 1px dashed #ddd;
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .editor-component[data-component-type="container"].drag-over {
+      background: rgba(24, 144, 255, 0.1);
+      border-color: #1890ff;
+    }
+
+    /* 添加拖拽目标位置的高亮样式 */
+    .drop-target-before {
+      border-top: 2px solid #1890ff !important;
+    }
+    
+    .drop-target-after {
+      border-bottom: 2px solid #1890ff !important;
+    }
+    
+    .drop-target-inside {
+      background: rgba(24, 144, 255, 0.1) !important;
+      border: 2px solid #1890ff !important;
+    }
+
+    /* 添加拖拽预览元素样式 */
+    .drag-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.6;
+      transform: translate(-50%, -50%);
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-radius: 4px;
+      padding: 8px;
+    }
+
+    /* 添加悬浮菜单样式 */
+    .hover-menu {
+      position: absolute;
+      background: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      padding: 4px;
+      display: flex;
+      gap: 4px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+
+    .hover-menu.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .hover-menu-item {
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #333;
+    }
+
+    .hover-menu-item:hover {
+      background: #f5f5f5;
+    }
+
+    /* 编辑模式下显示在组件上方 */
+    .editor-mode .hover-menu {
+      top: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    /* 预览模式下显示在右侧 */
+    .preview-mode .hover-menu {
+      top: 50%;
+      right: -8px;
+      transform: translate(100%, -50%);
+    }
+
+    /* 添加导出按钮样式 */
+    .export-button {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1890ff;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      border: none;
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+
+    .export-button:hover {
+      background: #40a9ff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .export-button:active {
+      transform: translateY(0);
+    }
+
+    /* 添加拖拽指示器样式 */
+    .drop-indicator {
+      position: absolute;
+      pointer-events: none;
+      z-index: 1000;
+      transition: all 0.2s ease;
+    }
+
+    .drop-indicator.horizontal {
+      height: 2px;
+      background: #1890ff;
+      left: 0;
+      right: 0;
+    }
+
+    .drop-indicator.vertical {
+      width: 2px;
+      background: #1890ff;
+      top: 0;
+      bottom: 0;
+    }
+
+    /* 修改容器拖拽样式 */
+    .editor-component[data-component-type="container"].drag-over {
+      background: rgba(24, 144, 255, 0.05);
+      border: 2px dashed #1890ff;
+    }
+  </style>
+  <script src="https://unpkg.com/petite-vue"></script>
+</head>
+<body>
+  <div id="app" v-scope>
+    <!-- 组件将被动态渲染到这里 -->
+  </div>
+  
+  <button class="export-button" onclick="handleExport()">
+    📤 导出页��
+  </button>
+
+  <script type="module">
+    import { componentConfigs } from './componentConfig.js';
+    import { behaviors } from './componentConfig.js';
+    
+    const { createApp } = window.PetiteVue;
+    
+    // 添加悬浮菜单配置
+    const hoverMenuConfig = {
+      // 通用组件配置
+      default: {
+        editMode: [
+          {
+            icon: '✏️',
+            label: '编辑',
+            action: 'edit'
+          },
+          {
+            icon: '🗑️',
+            label: '删除',
+            action: 'delete'
+          }
+        ],
+        previewMode: [
+          {
+            icon: '👁️',
+            label: '查看',
+            action: 'view'
+          }
+        ]
+      },
+      // 容器组件特殊配置
+      container: {
+        editMode: [
+          {
+            icon: '✏️',
+            label: '编辑',
+            action: 'edit'
+          },
+          {
+            icon: '➕',
+            label: '添加',
+            action: 'add'
+          },
+          {
+            icon: '🗑️',
+            label: '删除',
+            action: 'delete'
+          }
+        ],
+        previewMode: [
+          {
+            icon: '👁️',
+            label: '查看',
+            action: 'view'
+          }
+        ]
+      }
+    };
+
+    // 添加全局状态变���
+    let selectedComponentId = null;
+
+    // 添加拖拽预览元素处理
+    let dragGhost = null;
+
+    // 添加编辑模式状态
+    window.isPreviewMode = false;
+
+    // 添加拖拽指示器
+    let dropIndicator = null;
+
+    function createDropIndicator() {
+      if (!dropIndicator) {
+        dropIndicator = document.createElement('div');
+        dropIndicator.className = 'drop-indicator';
+        document.body.appendChild(dropIndicator);
+      }
+      return dropIndicator;
+    }
+
+    function isValidDropTarget(element) {
+      if (!element) return false;
+      if (!element.classList.contains('editor-component')) return false;
+      return true;
+    }
+
+    function getDropPosition(mouseY, target) {
+      const rect = target.getBoundingClientRect();
+      const relativeY = (mouseY - rect.top) / rect.height;
+      const isContainer = target.getAttribute('data-component-type') === 'container';
+      
+      // 容器组件的特殊处理 - 扩大内部放置区域
+      if (isContainer) {
+        if (relativeY > 0.2 && relativeY < 0.8) { // 扩大内部放置区域
+          return 'inside';
+        }
+      }
+      
+      return relativeY < 0.5 ? 'before' : 'after';
+    }
+
+    function updateDropIndicator(target, mouseY) {
+      if (!isValidDropTarget(target)) {
+        removeDropIndicator();
+        return null;
+      }
+
+      const indicator = createDropIndicator();
+      const rect = target.getBoundingClientRect();
+      const position = getDropPosition(mouseY, target);
+      const isContainer = target.getAttribute('data-component-type') === 'container';
+      
+      // 设置指示器样式和位置
+      switch (position) {
+        case 'before':
+          indicator.className = 'drop-indicator horizontal';
+          indicator.style.top = `${rect.top}px`;
+          indicator.style.left = `${rect.left}px`;
+          indicator.style.width = `${rect.width}px`;
+          target.classList.remove('drag-over');
+          break;
+          
+        case 'after':
+          indicator.className = 'drop-indicator horizontal';
+          indicator.style.top = `${rect.bottom}px`;
+          indicator.style.left = `${rect.left}px`;
+          indicator.style.width = `${rect.width}px`;
+          target.classList.remove('drag-over');
+          break;
+          
+        case 'inside':
+          if (isContainer) {
+            indicator.className = 'drop-indicator container';
+            indicator.style.top = `${rect.top}px`;
+            indicator.style.left = `${rect.left}px`;
+            indicator.style.width = `${rect.width}px`;
+            indicator.style.height = `${rect.height}px`;
+            target.classList.add('drag-over');
+          } else {
+            // 如果不是容器，默认放在后面
+            indicator.className = 'drop-indicator horizontal';
+            indicator.style.top = `${rect.bottom}px`;
+            indicator.style.left = `${rect.left}px`;
+            indicator.style.width = `${rect.width}px`;
+            target.classList.remove('drag-over');
+          }
+          break;
+      }
+      
+      return position;
+    }
+
+    function removeDropIndicator() {
+      if (dropIndicator) {
+        dropIndicator.remove();
+        dropIndicator = null;
+      }
+    }
+
+    // 修改渲染函数
+    function renderComponents(components) {
+      const app = document.getElementById('app');
+      
+      // 生成组件 HTML
+      function generateComponentHtml(component) {
+        const config = componentConfigs[component.type];
+        if (!config) return '';
+        
+        // 处理子组件
+        if (component.children && component.children.length > 0) {
+            component.childrenContent = component.children
+                .map(child => generateComponentHtml(child))
+                .join('');
+        }
+        
+        const componentHtml = config.render(component);
+        
+        // 获取正确的菜单配置
+        const menuConfig = hoverMenuConfig[component.type] || hoverMenuConfig.default;
+        const menuItems = window.isPreviewMode ? menuConfig.previewMode : menuConfig.editMode;
+        
+        // 生成菜单 HTML
+        const menuHtml = `
+          <div class="hover-menu" data-menu-for="${component.id}">
+            ${menuItems.map(item => `
+              <div class="hover-menu-item" onclick="handleMenuAction('${item.action}', '${component.id}')">
+                <span class="menu-icon">${item.icon}</span>
+                <span class="menu-label">${item.label}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        
+        return `
+          <div class="editor-component" 
+               data-component-id="${component.id}"
+               data-component-type="${component.type}"
+               style="${styleObjectToString(component.style)}"
+               onmouseenter="showHoverMenu('${component.id}')"
+               onmouseleave="hideHoverMenu('${component.id}')">
+            ${componentHtml}
+            ${menuHtml}
+          </div>
+        `;
+      }
+      
+      // 渲染所有组件
+      const componentsHtml = components.map(generateComponentHtml).join('');
+      app.innerHTML = `
+        <div class="component-container">
+          ${componentsHtml}
+        </div>
+      `;
+      
+      // 初始化 petite-vue
+      createApp({
+        // 可添加全局状态和方法
+        selectComponent(id, event) {
+          event.stopPropagation();
+          window.parent.postMessage({
+            type: 'componentSelected',
+            componentId: id
+          }, '*');
+        }
+      }).mount();
+
+      // 在渲染完成后初始化容器监听器
+      initContainerListeners();
+    }
+
+    // 与父窗口通信
+    window.addEventListener('message', (event) => {
+        console.log(event)
+      if (event.data.type === 'updateComponents') {
+        renderComponents(event.data.components);
+        initContainerListeners(); // 确保在更新后重新绑定事件
+      }
+    });
+
+    // 渲染不类型组件的内容
+    function renderComponentContent(component) {
+      const config = componentConfigs[component.type];
+      return config ? config.render(component) : '';
+    }
+
+    // 选中组件
+    window.selectComponent = function(event, id) {
+      if (isPreviewMode) return; // 预览模式下不允许选择
+      
+      event.stopPropagation();
+      selectedComponentId = id;
+      
+      // 移除所有已��中的类
+      document.querySelectorAll('.editor-component').forEach(el => {
+        el.classList.remove('selected');
+      });
+      
+      // 添加选中类
+      const selectedElement = document.querySelector(`[data-component-id="${id}"]`);
+      if (selectedElement) {
+        selectedElement.classList.add('selected');
+      }
+
+      // 通知父窗口
+      window.parent.postMessage({
+        type: 'componentSelected',
+        componentId: id
+      }, '*');
+    }
+
+    // 工具函数：样式对象转字符串
+    function styleObjectToString(styleObj) {
+      return Object.entries(styleObj)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('; ');
+    }
+
+    // 添加拖拽事件处理
+    window.addEventListener('DOMContentLoaded', () => {
+      const app = document.getElementById('app');
+      
+      // 定义拖拽的函数
+      function handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        app.classList.add('drag-over');
+        
+        // 更新拖拽预览元素位置
+        if (dragGhost) {
+          dragGhost.style.left = `${e.clientX}px`;
+          dragGhost.style.top = `${e.clientY}px`;
+        }
+        
+        // 通知父窗口
+        window.parent.postMessage({
+          type: 'iframe-dragover',
+          clientX: e.clientX,
+          clientY: e.clientY
+        }, '*');
+      }
+
+      function handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        app.classList.remove('drag-over');
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        app.classList.remove('drag-over');
+        
+        // 通知父窗口
+        window.parent.postMessage({
+          type: 'iframe-drop',
+          clientX: e.clientX,
+          clientY: e.clientY
+        }, '*');
+      }
+      
+      // 绑定事件监听器
+      app.addEventListener('dragover', handleDragOver);
+      app.addEventListener('dragleave', handleDragLeave);
+      app.addEventListener('drop', handleDrop);
+    });
+
+    // 确保 app 元素点击事件在 DOMContentLoaded 之后绑定
+    window.addEventListener('DOMContentLoaded', () => {
+      const app = document.getElementById('app');
+      app.addEventListener('click', (event) => {
+        if (event.target === event.currentTarget) {
+          selectedComponentId = null;
+          document.querySelectorAll('.editor-component').forEach(el => {
+            el.classList.remove('selected');
+          });
+          window.parent.postMessage({
+            type: 'componentSelected',
+            componentId: null
+          }, '*');
+        }
+      });
+    });
+
+    // 修改容器拖拽处理数
+    function handleContainerDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const target = e.target.closest('.editor-component');
+      if (!target) {
+        removeDropIndicator();
+        return;
+      }
+      
+      // 清除所有现有的拖拽样式
+      clearDropTargetStyles();
+      
+      // 获取放置位置
+      const position = getDropPosition(e.clientY, target);
+      
+      // 更新指示器
+      updateDropIndicator(target, e.clientY);
+      
+      // 通知父窗口
+      window.parent.postMessage({
+        type: 'iframe-dragover',
+        targetId: target.getAttribute('data-component-id'),
+        position: position,
+        clientX: e.clientX,
+        clientY: e.clientY
+      }, '*');
+    }
+
+    function handleContainerDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const container = e.target.closest('.editor-component');
+      if (container) {
+        container.classList.remove('drag-over');
+      }
+      
+      removeDropIndicator();
+    }
+
+    function handleContainerDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const target = e.target.closest('.editor-component');
+      if (!target) {
+        removeDropIndicator();
+        return;
+      }
+      
+      // 获取放置位置
+      const position = getDropPosition(e.clientY, target);
+      
+      // 清除所有拖拽样式和指示器
+      clearDropTargetStyles();
+      removeDropIndicator();
+      
+      // 通知父窗口,添加 containerId 参数
+      window.parent.postMessage({
+        type: 'iframe-drop',
+        containerId: target.getAttribute('data-component-id'), // 添加容器ID
+        position: position,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        isContainer: target.getAttribute('data-component-type') === 'container'
+      }, '*');
+    }
+
+    // 确保清理函数正确执行
+    function clearDropTargetStyles() {
+      document.querySelectorAll('.editor-component').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+    }
+
+    // 修改初始化容器监听器函数
+    function initContainerListeners() {
+      // 为所有组件添加拖拽监听器，不仅仅是容器
+      document.querySelectorAll('.editor-component').forEach(component => {
+        component.addEventListener('dragover', handleContainerDragOver);
+        component.addEventListener('dragleave', handleContainerDragLeave);
+        component.addEventListener('drop', handleContainerDrop);
+      });
+    }
+
+    // 修改样式
+    document.head.querySelector('style').textContent += `
+      .editor-component[data-component-type="container"] {
+        min-height: 50px;
+        padding: 16px;
+        border: 1px dashed #ddd;
+        transition: all 0.2s ease;
+      }
+
+      .editor-component[data-component-type="container"].drag-over {
+        border: 2px dashed #1890ff;
+        background: rgba(24, 144, 255, 0.05);
+        box-shadow: inset 0 0 8px rgba(24, 144, 255, 0.1);
+      }
+
+      .drop-indicator {
+        position: absolute;
+        pointer-events: none;
+        z-index: 1000;
+        transition: all 0.2s ease;
+      }
+
+      .drop-indicator.horizontal {
+        height: 2px;
+        background: #1890ff;
+        box-shadow: 0 0 4px rgba(24, 144, 255, 0.5);
+      }
+
+      .drop-indicator.container {
+        position: absolute;
+        border: 2px dashed #1890ff;
+        background: rgba(24, 144, 255, 0.05);
+        pointer-events: none;
+      }
+    `;
+
+    // 确保在组件更新后重新绑定事件
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'updateComponents') {
+        // 等待 DOM 更新完成后再绑定事件
+        setTimeout(() => {
+          initContainerListeners();
+        }, 0);
+      }
+    });
+
+    // 添加拖拽预览元素处理
+
+    function createDragGhost(componentType) {
+      const config = componentConfigs[componentType];
+      if (!config) return;
+
+      // 创建预览元素
+      dragGhost = document.createElement('div');
+      dragGhost.className = 'drag-ghost';
+      
+      // 使用组件配置的默认样式
+      const defaultStyle = config.defaultStyle;
+      Object.assign(dragGhost.style, defaultStyle);
+      
+      // 渲染组件预览内容
+      const previewComponent = {
+        type: componentType,
+        props: config.defaultProps,
+        style: config.defaultStyle
+      };
+      dragGhost.innerHTML = config.render(previewComponent);
+      
+      document.body.appendChild(dragGhost);
+    }
+
+    // 监听来自父窗口的拖拽开始消息
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'dragStart') {
+        createDragGhost(event.data.componentType);
+      } else if (event.data.type === 'dragEnd') {
+        if (dragGhost) {
+          dragGhost.remove();
+          dragGhost = null;
+        }
+      }
+    });
+
+    // 添加行为处理函数
+    window.handleBehavior = function(type, event, domEvent, behaviorData) {
+      const behavior = behaviors[type];
+      if (behavior?.events[event]?.handler) {
+        let params = {};
+        if (typeof behaviorData === 'string') {
+          try {
+            params = JSON.parse(behaviorData);
+          } catch (error) {
+            console.error('Error parsing behavior data:', error);
+          }
+        }
+        behavior.events[event].handler(params, domEvent.target, domEvent);
+      }
+    };
+
+    // 监听消息处理
+    window.addEventListener('message', (event) => {
+        switch(event.data.type) {
+            case 'updateMode':
+                window.isPreviewMode = event.data.isPreviewMode;
+                // 更新所有组件的交互状态
+                document.querySelectorAll('.editor-component').forEach(el => {
+                    if (isPreviewMode) {
+                        el.classList.remove('selected');
+                        el.classList.remove('editor-component');
+                    } else {
+                        el.classList.add('editor-component');
+                    }
+                });
+                // 更新body类
+                document.body.classList.toggle('preview-mode', isPreviewMode);
+                break;
+                
+        }
+    });
+
+    // 修改样式 (删除重复的style声明)
+    const previewModeStyle = `
+        /* 编辑模式样式 */
+        .editor-component {
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .editor-component:not(.preview-mode):hover {
+            outline: 2px solid #1890ff;
+        }
+        
+        /* 预览模式样式 */
+        body.preview-mode .editor-component {
+            cursor: default;
+            outline: none !important;
+        }
+        
+        body.preview-mode .editor-component:hover {
+            outline: none !important;
+        }
+    `;
+
+    // 添加预览模式样式
+    const styleElement = document.createElement('style');
+    styleElement.textContent = previewModeStyle;
+    document.head.appendChild(styleElement);
+
+    // 添加悬浮菜单处理逻辑
+    function createHoverMenu(component) {
+      const menu = document.createElement('div');
+      menu.className = 'hover-menu';
+      
+      const menuItems = window.isPreviewMode ? 
+        hoverMenuConfig[component.type]?.previewMode : 
+        hoverMenuConfig[component.type]?.editMode;
+
+      if (!menuItems) return null;
+
+      menuItems.forEach(item => {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'hover-menu-item';
+        menuItem.innerHTML = `
+          <span class="menu-icon">${item.icon}</span>
+          <span class="menu-label">${item.label}</span>
+        `;
+        
+        menuItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleMenuAction(item.action, component.id);
+        });
+        
+        menu.appendChild(menuItem);
+      });
+
+      return menu;
+    }
+
+    // 修改菜单操作处理函数，添加确认对话框
+    window.handleMenuAction = function(action, componentId) {
+      // 阻止事件冒泡
+      event?.stopPropagation();
+      
+      // 对删除操作添加确认
+      if (action === 'delete') {
+        if (confirm('确定要删除此组件吗？')) {
+          // 向父窗口发送菜单操作消息
+          window.parent.postMessage({
+            type: 'menuAction',
+            action,
+            componentId
+          }, '*');
+        }
+      } else {
+        // 其他操作直接发送消息
+        window.parent.postMessage({
+          type: 'menuAction',
+          action,
+          componentId
+        }, '*');
+      }
+    }
+
+    // 添加显示/隐藏悬浮菜单的函数
+    window.showHoverMenu = function(componentId) {
+      const component = document.querySelector(`[data-component-id="${componentId}"]`);
+      const menu = component?.querySelector('.hover-menu');
+      if (menu) {
+        menu.classList.add('visible');
+      }
+    }
+
+    window.hideHoverMenu = function(componentId) {
+      const component = document.querySelector(`[data-component-id="${componentId}"]`);
+      const menu = component?.querySelector('.hover-menu');
+      if (menu) {
+        menu.classList.remove('visible');
+      }
+    }
+
+    // 添加导出页面内容的函数
+    window.exportPageContent = function() {
+      const app = document.getElementById('app');
+      
+      // 创建一个深拷贝的DOM元素
+      const exportContent = app.cloneNode(true);
+      
+      // 移除所有编辑相关的属性和元素
+      const elementsToClean = exportContent.getElementsByClassName('editor-component');
+      Array.from(elementsToClean).forEach(element => {
+        // 移除所有编辑相关类
+        element.classList.remove('editor-component', 'selected', 'highlight');
+        
+        // 移除所有编辑相关的事件监听器性
+        element.removeAttribute('onmouseenter');
+        element.removeAttribute('onmouseleave');
+        element.removeAttribute('onclick');
+        
+        // 移除所有编辑相关的数据属性，但保留组件类型
+        const componentType = element.getAttribute('data-component-type');
+        element.removeAttribute('data-component-id');
+        if (componentType) {
+          element.setAttribute('data-type', componentType);
+        }
+        element.removeAttribute('data-component-type');
+        
+        // 移除悬浮菜单
+        const menu = element.querySelector('.hover-menu');
+        if (menu) {
+          menu.remove();
+        }
+      });
+      
+      // 生成完整的HTML文档
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+    }
+    #app {
+      width: 100%;
+      min-height: 100vh;
+      padding: 24px;
+      box-sizing: border-box;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .component-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+  ${exportContent.outerHTML}
+</body>
+</html>`;
+
+      return htmlContent;
+    };
+
+    // 添加导出处理函数
+    window.handleExport = function() {
+      const htmlContent = window.exportPageContent();
+      
+      // 通知父窗口
+      window.parent.postMessage({
+        type: 'exportPage',
+        content: htmlContent
+      }, '*');
+    }
+
+    // 添加防抖函数来优化性能
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // 删除重复的样式声明，改为添加新的样式规则
+    document.head.querySelector('style').textContent += `
+      .drop-indicator {
+        position: absolute;
+        pointer-events: none;
+        z-index: 1000;
+        transition: all 0.1s ease;
+      }
+      
+      .drop-indicator.horizontal {
+        height: 2px;
+        background: #1890ff;
+        box-shadow: 0 0 4px rgba(24, 144, 255, 0.5);
+      }
+      
+      .drop-indicator.container {
+        border: 2px dashed #1890ff;
+        background: rgba(24, 144, 255, 0.05);
+        box-shadow: 0 0 8px rgba(24, 144, 255, 0.1);
+        pointer-events: none;
+      }
+      
+      .editor-component.drag-over {
+        background: rgba(24, 144, 255, 0.05);
+      }
+    `;
+  </script>
+</body>
+</html>

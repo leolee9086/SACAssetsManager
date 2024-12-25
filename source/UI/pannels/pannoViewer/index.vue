@@ -554,12 +554,7 @@ const onMouseWheel = (event) => {
 const viewpoints = ref([]);
 const showAddDialog = ref(false);
 const newViewpointName = ref('');
-let currentAnimation = null;
 
-// 修改添加视点方法
-const addViewpoint = () => {
-  showAddDialog.value = true;
-};
 
 const handleConfirmAdd = () => {
   if (newViewpointName.value) {
@@ -574,38 +569,7 @@ const handleConfirmAdd = () => {
   }
 };
 
-// 删除视点
-const deleteViewpoint = (index) => {
-  viewpoints.value.splice(index, 1);
-};
 
-// 平滑过渡到视点
-const goToViewpoint = (point) => {
-  if (currentAnimation) {
-    cancelAnimationFrame(currentAnimation);
-  }
-
-  currentAnimation = createSmoothAnimation({
-    duration: 1000,
-    from: {
-      lon: lon.value,
-      lat: lat.value,
-      fov: cameraFov.value
-    },
-    to: {
-      lon: point.lon,
-      lat: point.lat,
-      fov: point.fov
-    },
-    onUpdate: (current) => {
-      lon.value = current.lon;
-      lat.value = current.lat;
-      camera.value.fov = current.fov;
-      camera.value.updateProjectionMatrix();
-      cameraFov.value = camera.value.fov;
-    }
-  });
-};
 
 // 添加全屏相关的状态
 const isFullscreen = ref(false);
