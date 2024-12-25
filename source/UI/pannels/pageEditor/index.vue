@@ -27,21 +27,14 @@
                 <div class="section-title">组件库</div>
                 <div class="panel-content">
                     <div class="component-categories">
-                        <div v-for="category in componentCategories" 
-                             :key="category.id"
-                             class="category-section">
-                            <div class="category-header" 
-                                 @click="toggleCategory(category.id)">
+                        <div v-for="category in componentCategories" :key="category.id" class="category-section">
+                            <div class="category-header" @click="toggleCategory(category.id)">
                                 <span class="category-icon">{{ category.expanded ? '▼' : '▶' }}</span>
                                 <span class="category-title">{{ category.name }}</span>
                             </div>
-                            <div class="component-grid" 
-                                 v-show="category.expanded">
-                                <div v-for="comp in category.components"
-                                     :key="comp.id"
-                                     class="component-item"
-                                     draggable="true"
-                                     @dragstart="handleDragStart($event, comp)">
+                            <div class="component-grid" v-show="category.expanded">
+                                <div v-for="comp in category.components" :key="comp.id" class="component-item"
+                                    draggable="true" @dragstart="handleDragStart($event, comp)">
                                     <span class="component-icon">{{ comp.icon }}</span>
                                     <span class="component-name">{{ comp.name }}</span>
                                 </div>
@@ -57,12 +50,17 @@
                 <div class="panel-content">
                     <div class="component-tree">
                         <template v-for="node in getComponentTree" :key="node.id">
-                            <div class="component-tree-node"
-                                 :style="{ paddingLeft: `${node.level * 20}px` }"
-                                 :class="{ 'selected': selectedComponent?.id === node.id }"
-                                 @click="selectComponent(node.id)">
+                            <div class="component-tree-node" :style="{ paddingLeft: `${node.level * 20}px` }"
+                                :class="{ 'selected': selectedComponent?.id === node.id }"
+                                @click="selectComponent(node.id)">
                                 <span class="component-icon">{{ getComponentIcon(node.type) }}</span>
                                 <span class="component-name">{{ node.name }}</span>
+                                <div class="node-actions">
+                                    <button class="action-btn delete-btn" @click.stop="deleteComponent(node.id)"
+                                        title="删除组件">
+                                        <i class="icon">🗑️</i>
+                                    </button>
+                                </div>
                             </div>
                         </template>
                     </div>
@@ -81,10 +79,8 @@
                             <i class="icon">↪️</i>
                         </button>
                         <div class="toolbar-separator"></div>
-                        <button class="toolbar-btn" 
-                                :class="{ active: isPreviewMode }" 
-                                title="预览模式"
-                                @click="togglePreviewMode">
+                        <button class="toolbar-btn" :class="{ active: isPreviewMode }" title="预览模式"
+                            @click="togglePreviewMode">
                             <i class="icon">👁️</i>
                         </button>
                         <div class="toolbar-separator"></div>
@@ -118,14 +114,9 @@
                 </div>
 
                 <!-- 画布容器 -->
-                <div class="editor-workspace" 
-                    @dragover.prevent
-                    @dragenter.prevent
-                    @drop.prevent="handleDrop">
+                <div class="editor-workspace" @dragover.prevent @dragenter.prevent @drop.prevent="handleDrop">
                     <div class="editor-content">
-                        <iframe :ref="el => previewFrame = el" 
-                            class="preview-frame" 
-                            @load="handleIframeLoad">
+                        <iframe :ref="el => previewFrame = el" class="preview-frame" @load="handleIframeLoad">
                         </iframe>
                     </div>
                 </div>
@@ -165,49 +156,31 @@
                                 <div class="behavior-header">
                                     <span>{{ behaviors[behaviorType].name }}</span>
                                     <div class="switch-toggle">
-                                        <input
-                                            type="checkbox"
-                                            :id="'behavior-' + behaviorType"
+                                        <input type="checkbox" :id="'behavior-' + behaviorType"
                                             v-model="selectedComponent.behaviors[behaviorType].enabled"
-                                            @change="updatePreview"
-                                        />
+                                            @change="updatePreview" />
                                         <label :for="'behavior-' + behaviorType"></label>
                                     </div>
                                 </div>
                                 <template v-if="selectedComponent.behaviors[behaviorType].enabled">
-                                    <div v-for="(event, eventName) in behaviors[behaviorType].events" 
-                                         :key="eventName" 
-                                         class="behavior-event">
+                                    <div v-for="(event, eventName) in behaviors[behaviorType].events" :key="eventName"
+                                        class="behavior-event">
                                         <div class="event-header">{{ event.name }}</div>
                                         <div class="event-params">
                                             <template v-for="(param, paramName) in event.params" :key="paramName">
                                                 <div class="param-item">
                                                     <label>{{ param.name }}</label>
-                                                    <input 
-                                                        v-if="param.type === 'string'"
-                                                        type="text"
+                                                    <input v-if="param.type === 'string'" type="text"
                                                         v-model="selectedComponent.behaviors[behaviorType][eventName][paramName]"
-                                                        @change="updatePreview"
-                                                        class="input-control"
-                                                    />
-                                                    <input 
-                                                        v-else-if="param.type === 'number'"
-                                                        type="number"
+                                                        @change="updatePreview" class="input-control" />
+                                                    <input v-else-if="param.type === 'number'" type="number"
                                                         v-model.number="selectedComponent.behaviors[behaviorType][eventName][paramName]"
-                                                        @change="updatePreview"
-                                                        class="input-control"
-                                                    />
-                                                    <select
-                                                        v-else-if="param.type === 'select'"
+                                                        @change="updatePreview" class="input-control" />
+                                                    <select v-else-if="param.type === 'select'"
                                                         v-model="selectedComponent.behaviors[behaviorType][eventName][paramName]"
-                                                        @change="updatePreview"
-                                                        class="select-control"
-                                                    >
-                                                        <option 
-                                                            v-for="option in param.options"
-                                                            :key="option.value"
-                                                            :value="option.value"
-                                                        >
+                                                        @change="updatePreview" class="select-control">
+                                                        <option v-for="option in param.options" :key="option.value"
+                                                            :value="option.value">
                                                             {{ option.label }}
                                                         </option>
                                                     </select>
@@ -230,7 +203,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { componentManager, componentTreeManager,componentConfigs } from './componentConfig.js';
+import { componentManager, componentTreeManager, componentConfigs } from './componentConfig.js';
 import DefaultPropertyEditor from './DefaultPropertyEditor.vue';
 import { behaviors } from './componentConfig.js';
 import { dragDropManager } from './dragDropManager.js';
@@ -347,7 +320,7 @@ onMounted(() => {
         (component) => selectedComponent.value = component
     );
     console.log('Component mounted');
-    
+
     // 设置预览页面的URL
     nextTick(() => {
         if (previewFrame.value) {
@@ -359,16 +332,6 @@ onMounted(() => {
         }
     });
 
-    // 监听来自预览页面的消息
-    window.addEventListener('message', (event) => {
-        console.log('Received message:', event.data);
-        if (event.data.type === 'componentSelected') {
-            const selectedId = event.data.componentId;
-            selectedComponent.value = pageComponents.value.find(
-                comp => comp.id === selectedId
-            );
-        }
-    });
 
     // 修改拖拽相关的事件监听
     const editorWorkspace = document.querySelector('.editor-workspace');
@@ -450,8 +413,8 @@ const togglePreviewMode = () => {
 };
 
 // 添加页面结构展示相关代码
-const getComponentTree = computed(() => 
-  componentTreeManager.buildComponentTree(pageComponents.value)
+const getComponentTree = computed(() =>
+    componentTreeManager.buildComponentTree(pageComponents.value)
 );
 
 // 获取组件显示名称
@@ -488,35 +451,74 @@ const handleDragStart = (event, component) => {
 // 修改 handleMessage 函数，添加日志输出以便调试
 const handleMessage = (event) => {
     console.log('Received message:', event.data); // 调试日志
-    
+
     if (event.data.type === 'exportPage') {
         console.log('Export content length:', event.data.content?.length); // 检查内容是否存在
         handleExport(event.data.content);
         return; // 确保导出消息被优先处理
     }
-    
-    switch(event.data.type) {
+
+    switch (event.data.type) {
         case 'iframe-dragover':
             dragDropManager.handleIframeDragOver(event.data);
             break;
-            
+
         case 'iframe-drop':
             dragDropManager.handleIframeDrop(event.data, pageComponents.value);
             break;
-            
+
         case 'componentSelected':
             const selectedId = event.data.componentId;
             selectedComponent.value = pageComponents.value.find(
                 comp => comp.id === selectedId
             );
             break;
-            
+
         case 'componentHover':
             handleComponentHover(event.data.componentId);
             break;
+        case 'menuAction':
+            handleMenuAction(event.data);
+            break;
+
     }
 };
-
+const handleMenuAction = (data) => {
+    const { action, componentId } = data;
+    
+    switch(action) {
+        case 'delete':
+            // 递归删除组件及其子组件
+            const deleteComponent = (components) => {
+                return components.filter(comp => {
+                    if (comp.id === componentId) {
+                        return false;
+                    }
+                    if (comp.children) {
+                        comp.children = deleteComponent(comp.children);
+                    }
+                    return true;
+                });
+            };
+            
+            pageComponents.value = deleteComponent(pageComponents.value);
+            
+            // 如果被删除的组件是当前选中的组件，清除选中状态
+            if (selectedComponent.value?.id === componentId) {
+                selectedComponent.value = null;
+            }
+            break;
+            
+        // 可以在这里添加其他菜单操作的处理
+        case 'edit':
+            // 处理编辑操作
+            break;
+            
+        case 'add':
+            // 处理添加操作
+            break;
+    }
+};
 // 添加属性编辑器映射
 const getPropertyEditor = (componentType) => {
     const editors = {
@@ -537,7 +539,7 @@ const updatePreview = () => {
     if (previewFrame.value?.contentWindow) {
         // 创建一个可序列化的组件数据副本
         const serializableComponents = JSON.parse(JSON.stringify(pageComponents.value));
-        
+
         previewFrame.value.contentWindow.postMessage({
             type: 'updateComponents',
             components: serializableComponents,
@@ -559,43 +561,43 @@ watch(selectedComponent, () => {
 // 修改导出处理函数
 const handleExport = (htmlContent) => {
     console.log('Starting export process...', htmlContent.length);
-    
+
     if (!htmlContent) {
         console.error('No content to export');
         window.$message?.error('导出失败：没有可导出的内容');
         return;
     }
-    
+
     try {
         // 创建 Blob 对象
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
         console.log('Blob created:', blob.size);
-        
+
         // 创建下载链接
         const url = URL.createObjectURL(blob);
         const fileName = `page-${new Date().getTime()}.html`;
-        
+
         // 创建并配置下载链接
         const link = document.createElement('a');
         link.href = url;
         link.download = fileName;
-        
+
         // 创建并触发点击事件
         const clickEvent = new MouseEvent('click', {
             view: window,
             bubbles: true,
             cancelable: false
         });
-        
+
         console.log('Triggering download with dispatchEvent...');
         link.dispatchEvent(clickEvent);
-        
+
         // 清理
         setTimeout(() => {
             URL.revokeObjectURL(url);
             console.log('Cleanup completed');
         }, 100);
-        
+
         window.$message?.success('页面导出成功！');
     } catch (error) {
         console.error('Export failed:', error);
@@ -1161,11 +1163,11 @@ body {
     border-radius: 50%;
 }
 
-.switch-toggle input:checked + label {
+.switch-toggle input:checked+label {
     background-color: var(--cc-theme-primary);
 }
 
-.switch-toggle input:checked + label:before {
+.switch-toggle input:checked+label:before {
     transform: translateX(20px);
 }
 
