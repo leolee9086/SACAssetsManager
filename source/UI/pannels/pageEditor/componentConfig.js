@@ -122,6 +122,71 @@ export const componentConfigs = {
       height: '20px',
       padding: '8px'
     }
+  },
+  carousel: {
+    type: 'carousel',
+    defaultProps: {
+      images: [],
+      autoplay: true,
+      interval: 3000,
+      showDots: true,
+      showArrows: true,
+      height: '200px'
+    },
+    defaultStyle: {
+      width: '100%',
+      borderRadius: '4px',
+      overflow: 'hidden'
+    },
+    render: (component) => {
+      const images = component.props.images || [];
+      const showDots = component.props.showDots ?? true;
+      const showArrows = component.props.showArrows ?? true;
+      const height = component.props.height || '200px';
+      
+      const slides = images.map((image, index) => `
+        <div class="carousel-slide" data-index="${index}">
+          <img src="${image.url}" alt="${image.alt || ''}" style="width: 100%; height: 100%; object-fit: cover;">
+        </div>
+      `).join('');
+
+      const dots = showDots ? `
+        <div class="carousel-dots">
+          ${images.map((_, index) => `
+            <span class="carousel-dot${index === 0 ? ' active' : ''}" data-index="${index}"></span>
+          `).join('')}
+        </div>
+      ` : '';
+
+      const arrows = showArrows ? `
+        <button class="carousel-arrow prev">❮</button>
+        <button class="carousel-arrow next">❯</button>
+      ` : '';
+
+      const style = `
+        width: ${component.style.width || '100%'};
+        height: ${height};
+        border-radius: ${component.style.borderRadius || '4px'};
+        position: relative;
+      `;
+
+      return `
+        <div class="editor-carousel" style="${style}" 
+          data-autoplay="${component.props.autoplay}" 
+          data-interval="${component.props.interval}">
+          <div class="carousel-container">
+            ${slides}
+          </div>
+          ${dots}
+          ${arrows}
+        </div>
+      `;
+    },
+    previewStyle: {
+      width: '200px',
+      height: '120px',
+      padding: '8px'
+    }
   }
 };
 
@@ -273,6 +338,7 @@ export const componentManager = {
       button: '按钮',
       image: '图片',
       container: '容器',
+      carousel: '轮播图',
       // ... 其他组件类型
     };
     
@@ -296,6 +362,7 @@ export const componentManager = {
       button: '🔘',
       image: '🖼️',
       container: '📦',
+      carousel: '🎠',
       // ... 其他组件图标
     };
     return icons[type] || '📄';

@@ -220,7 +220,7 @@
   </div>
   
   <button class="export-button" onclick="handleExport()">
-    📤 导出页��
+    📤 导出页面
   </button>
 
   <script type="module">
@@ -229,11 +229,16 @@
     
     const { createApp } = window.PetiteVue;
     
-    // 添加悬浮菜单配置
+    // 修改悬浮菜单配置
     const hoverMenuConfig = {
       // 通用组件配置
       default: {
         editMode: [
+          {
+            icon: '⬆️',
+            label: '在前面添加',
+            action: 'addBefore'
+          },
           {
             icon: '✏️',
             label: '编辑',
@@ -243,6 +248,11 @@
             icon: '🗑️',
             label: '删除',
             action: 'delete'
+          },
+          {
+            icon: '⬇️',
+            label: '在后面添加',
+            action: 'addAfter'
           }
         ],
         previewMode: [
@@ -257,19 +267,29 @@
       container: {
         editMode: [
           {
+            icon: '⬆️',
+            label: '在前面添加',
+            action: 'addBefore'
+          },
+          {
             icon: '✏️',
             label: '编辑',
             action: 'edit'
           },
           {
             icon: '➕',
-            label: '添加',
-            action: 'add'
+            label: '添加内部',
+            action: 'addInside'
           },
           {
             icon: '🗑️',
             label: '删除',
             action: 'delete'
+          },
+          {
+            icon: '⬇️',
+            label: '在后面添加',
+            action: 'addAfter'
           }
         ],
         previewMode: [
@@ -282,7 +302,7 @@
       }
     };
 
-    // 添加全局状态变���
+    // 添加全局状态变量
     let selectedComponentId = null;
 
     // 添加拖拽预览元素处理
@@ -416,11 +436,16 @@
           </div>
         `;
         
+        // 保存原始样式用于hover效果还原
+        const originalStyle = JSON.stringify(component.style || {});
+        
         return `
           <div class="editor-component" 
                data-component-id="${component.id}"
                data-component-type="${component.type}"
+               data-original-style='${originalStyle}'
                style="${styleObjectToString(component.style)}"
+               onclick="selectComponent(event, '${component.id}')"
                onmouseenter="showHoverMenu('${component.id}')"
                onmouseleave="hideHoverMenu('${component.id}')">
             ${componentHtml}
@@ -470,12 +495,12 @@
 
     // 选中组件
     window.selectComponent = function(event, id) {
-      if (isPreviewMode) return; // 预览模式下不允许选择
+      if (window.isPreviewMode) return; // 预览模式下不允许选择
       
       event.stopPropagation();
       selectedComponentId = id;
       
-      // 移除所有已��中的类
+      // 移除所有已选中的类
       document.querySelectorAll('.editor-component').forEach(el => {
         el.classList.remove('selected');
       });
@@ -504,7 +529,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       const app = document.getElementById('app');
       
-      // 定义拖拽的函数
+      // 定义拖拽���函数
       function handleDragOver(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -736,20 +761,71 @@
       }
     });
 
-    // 添加行为处理函数
-    window.handleBehavior = function(type, event, domEvent, behaviorData) {
-      const behavior = behaviors[type];
-      if (behavior?.events[event]?.handler) {
-        let params = {};
-        if (typeof behaviorData === 'string') {
-          try {
-            params = JSON.parse(behaviorData);
-          } catch (error) {
-            console.error('Error parsing behavior data:', error);
-          }
+    // 修改行为处理函数
+    window.handleBehavior = function(type, event, domEvent) {
+        // 获取组件的行为数据
+        const behaviorData = JSON.parse(domEvent.target.closest('[data-component-behaviors]').dataset.componentBehaviors || '{}');
+        const behaviorConfig = behaviorData[type];
+        
+        if (!behaviorConfig || !behaviorConfig.enabled) {
+            return;
         }
-        behavior.events[event].handler(params, domEvent.target, domEvent);
-      }
+
+        // 获取行为定义
+        const behavior = behaviors[type];
+        if (!behavior?.events[event]?.handler) {
+            return;
+        }
+
+        // 获取事件参数
+        const eventParams = behaviorConfig[event] || {};
+        
+        // 执行行为处理函数
+        behavior.events[event].handler(eventParams, domEvent.target, domEvent);
+    };
+
+    // 添加基础行为定义
+    window.behaviors = {
+        clickable: {
+            name: '点击行为',
+            events: {
+                click: {
+                    name: '点击',
+                    handler: (params, element, event) => {
+                        if (params.action === 'link' && params.url) {
+                            window.open(params.url, params.target || '_blank');
+                        } else if (params.action === 'alert' && params.message) {
+                            alert(params.message);
+                        }
+                        // 可以添加更多点击行为处理
+                    }
+                }
+            }
+        },
+        hoverable: {
+            name: '悬浮行为',
+            events: {
+                mouseenter: {
+                    name: '鼠标进入',
+                    handler: (params, element) => {
+                        if (params.style) {
+                            Object.assign(element.style, params.style);
+                        }
+                    }
+                },
+                mouseleave: {
+                    name: '鼠标离开',
+                    handler: (params, element) => {
+                        // 恢复原始样式
+                        const component = element.closest('[data-component-behaviors]');
+                        if (component) {
+                            const originalStyle = JSON.parse(component.dataset.originalStyle || '{}');
+                            Object.assign(element.style, originalStyle);
+                        }
+                    }
+                }
+            }
+        }
     };
 
     // 监听消息处理
@@ -877,7 +953,7 @@
     window.exportPageContent = function() {
       const app = document.getElementById('app');
       
-      // 创建一个深拷贝的DOM元素
+      // 创建一个深���贝的DOM元素
       const exportContent = app.cloneNode(true);
       
       // 移除所有编辑相关的属性和元素

@@ -14,13 +14,15 @@ export default {
     },
     behaviors: ['clickable', 'hoverable'],
     render: (component) => {
+      const behaviors = component.behaviors || {};
+      const behaviorData = JSON.stringify(behaviors);
+      
       return `
         <button v-scope
-                data-behavior-type="clickable,hoverable"
-                data-component-behaviors='${JSON.stringify(component.behaviors || {})}'
-                @click="handleBehavior('clickable', 'click', $event, $el.dataset.componentBehaviors)"
-                @mouseenter="handleBehavior('hoverable', 'mouseenter', $event, $el.dataset.componentBehaviors)"
-                @mouseleave="handleBehavior('hoverable', 'mouseleave', $event, $el.dataset.componentBehaviors)"
+                data-component-behaviors='${behaviorData}'
+                @click="handleBehavior('clickable', 'click', $event)"
+                @mouseenter="handleBehavior('hoverable', 'mouseenter', $event)"
+                @mouseleave="handleBehavior('hoverable', 'mouseleave', $event)"
                 style="
                   padding: ${component.props.padding || '8px 16px'};
                   background: ${component.props.background || '#1890ff'};

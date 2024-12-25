@@ -336,79 +336,79 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 12px;
     margin-bottom: 12px;
-  }
-  
-  .cc-control-section h4 {
+}
+
+.cc-control-section h4 {
     margin: 0 0 10px 0;
     font-size: 0.9em;
     color: #ddd;
-  }
-  
-  .cc-control-group {
+}
+
+.cc-control-group {
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-  
-  .cc-control-group span {
+}
+
+.cc-control-group span {
     font-size: 0.9em;
     min-width: 80px;
-  }
-  
-  .cc-control-group input[type="range"] {
+}
+
+.cc-control-group input[type="range"] {
     flex: 1;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 3px;
     height: 6px;
     -webkit-appearance: none;
-  }
-  
-  .cc-control-group input[type="range"]::-webkit-slider-thumb {
+}
+
+.cc-control-group input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 12px;
     height: 12px;
     border-radius: 50%;
     cursor: pointer;
-  }
-  
-  .cc-control-group input[type="color"] {
+}
+
+.cc-control-group input[type="color"] {
     width: 40px;
     height: 24px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.1);
     padding: 0;
-  }
-  
-  .cc-control-group span:last-child {
+}
+
+.cc-control-group span:last-child {
     min-width: 45px;
     text-align: right;
     font-size: 0.85em;
     color: #aaa;
-  }
+}
 
-  .cc-grid-editor-wrapper {
+.cc-grid-editor-wrapper {
     position: relative;
     width: 100%;
     height: 100%;
-  }
-  
-  .cc-preview-container {
+}
+
+.cc-preview-container {
     width: 100%;
     height: 100%;
     background: #fff;
     overflow: hidden;
-  }
-  
-  .cc-grid-preview {
+}
+
+.cc-grid-preview {
     width: 100%;
     height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
-  }
-  
-  .cc-controls {
+}
+
+.cc-controls {
     position: absolute;
     bottom: 20px;
     right: 20px;
@@ -420,9 +420,9 @@
     padding: 15px;
     border-radius: 4px;
     z-index: 5;
-  }
-  
-  .cc-apply-btn {
+}
+
+.cc-apply-btn {
     margin-top: auto;
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.2);
@@ -431,13 +431,13 @@
     cursor: pointer;
     transition: background 0.2s;
     font-size: 0.9em;
-  }
-  
-  .cc-apply-btn:hover {
+}
+
+.cc-apply-btn:hover {
     background: rgba(255, 255, 255, 0.3);
-  }
-  
-  .cc-control-btn {
+}
+
+.cc-control-btn {
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.2);
     border: none;
@@ -446,62 +446,50 @@
     transition: background 0.2s;
     font-size: 0.9em;
     margin-bottom: 10px;
-  }
-  
-  .cc-control-btn:hover {
+}
+
+.cc-control-btn:hover {
     background: rgba(255, 255, 255, 0.3);
-  }
-  
-  .cc-control-btn.active {
+}
+
+.cc-control-btn.active {
     background: rgba(255, 255, 255, 0.4);
-  }
-  
-  .cc-control-section {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 12px;
-    margin-bottom: 12px;
-  }
-  
-  .cc-control-section h4 {
-    margin: 0 0 10px 0;
-    font-size: 0.9em;
-    color: #ddd;
-  }
-  
-  .cc-vector-inputs {
+}
+
+.cc-vector-inputs {
     display: flex;
     gap: 8px;
     flex: 1;
-  }
-  
-  .cc-vector-inputs input {
+}
+
+.cc-vector-inputs input {
     width: 50%;
     padding: 4px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 3px;
-  }
-  
-  select {
+}
+
+select {
     flex: 1;
     padding: 4px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 3px;
-  }
-  
-  .cc-controls {
+}
+
+.cc-controls {
     width: 320px;
-  }
-  
-  .cc-image-upload {
+}
+
+.cc-image-upload {
     display: flex;
     align-items: center;
     gap: 8px;
     flex: 1;
-  }
-  
-  .cc-upload-btn {
+}
+
+.cc-upload-btn {
     padding: 4px 12px;
     background: rgba(255, 255, 255, 0.2);
     border: none;
@@ -509,22 +497,22 @@
     cursor: pointer;
     font-size: 0.9em;
     transition: background 0.2s;
-  }
-  
-  .cc-upload-btn:hover {
+}
+
+.cc-upload-btn:hover {
     background: rgba(255, 255, 255, 0.3);
-  }
-  
-  .cc-file-name {
+}
+
+.cc-file-name {
     font-size: 0.85em;
     color: #aaa;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 150px;
-  }
-  
-  .cc-image-preview {
+}
+
+.cc-image-preview {
     margin-top: 8px;
     width: 100%;
     height: 100px;
@@ -534,35 +522,35 @@
     background: rgba(0, 0, 0, 0.2);
     border-radius: 3px;
     overflow: hidden;
-  }
-  
-  .cc-image-preview img {
+}
+
+.cc-image-preview img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-  }
-  
-  .cc-control-group select {
+}
+
+.cc-control-group select {
     flex: 1;
     padding: 4px 8px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 3px;
     cursor: pointer;
-  }
-  
-  .cc-control-group select option {
+}
+
+.cc-control-group select option {
     background: #333;
-  }
-  
-  .cc-preset-buttons {
+}
+
+.cc-preset-buttons {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 12px;
-  }
-  
-  .cc-preset-btn {
+}
+
+.cc-preset-btn {
     padding: 4px 8px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -570,53 +558,53 @@
     cursor: pointer;
     font-size: 0.9em;
     transition: all 0.2s;
-  }
-  
-  .cc-preset-btn:hover {
+}
+
+.cc-preset-btn:hover {
     background: rgba(255, 255, 255, 0.2);
-  }
-  
-  .cc-preset-btn:active {
+}
+
+.cc-preset-btn:active {
     background: rgba(255, 255, 255, 0.3);
     transform: scale(0.98);
-  }
-  
-  .cc-constraint-info {
+}
+
+.cc-constraint-info {
     margin-bottom: 12px;
     padding: 8px;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
-  }
-  
-  .cc-constraint-type {
+}
+
+.cc-constraint-type {
     display: inline-block;
     padding: 2px 6px;
     background: rgba(255, 255, 255, 0.2);
     border-radius: 3px;
     margin-right: 8px;
     font-size: 0.9em;
-  }
-  
-  .cc-constraint-desc {
+}
+
+.cc-constraint-desc {
     font-size: 0.9em;
     color: #aaa;
-  }
-  
-  .disabled {
+}
+
+.disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-  
-  .disabled input {
+}
+
+.disabled input {
     cursor: not-allowed;
     background-color: rgba(0, 0, 0, 0.1);
-  }
-  
-  .disabled span {
+}
+
+.disabled span {
     color: #666;
-  }
-  
-  .cc-section-header {
+}
+
+.cc-section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -626,98 +614,92 @@
     background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     margin-bottom: 8px;
-  }
-  
-  .cc-section-header:hover {
+}
+
+.cc-section-header:hover {
     background: rgba(255, 255, 255, 0.15);
-  }
-  
-  .cc-section-header h4 {
+}
+
+.cc-section-header h4 {
     margin: 0;
     font-size: 0.95em;
     font-weight: normal;
-  }
-  
-  .cc-toggle-icon {
+}
+
+.cc-toggle-icon {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.7);
-  }
-  
-  .cc-control-section {
-    margin-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 12px;
-  }
-  
-  .cc-control-section:last-child {
+}
+
+.cc-control-section:last-child {
     border-bottom: none;
     margin-bottom: 0;
     padding-bottom: 0;
-  }
-  
-  .cc-download-controls {
+}
+
+.cc-download-controls {
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-  
-  .cc-unit-download-options {
+}
+
+.cc-unit-download-options {
     background: rgba(0, 0, 0, 0.3);
     padding: 10px;
     border-radius: 4px;
     margin-top: 8px;
-  }
-  
-  .cc-option-group {
+}
+
+.cc-option-group {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
-  }
-  
-  .cc-option-group input {
+}
+
+.cc-option-group input {
     width: 100px;
     padding: 4px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 3px;
     color: white;
-  }
-  
-  .fn_overflow_hidden {
+}
+
+.fn_overflow_hidden {
     overflow: hidden;
-  }
-  
-  /* 数字输入框组件样式 */
-  .number-input-wrapper {
+}
+
+/* 数字输入框组件样式 */
+.number-input-wrapper {
     display: flex;
     align-items: center;
     border: var(--cc-border-width) solid var(--cc-border-color);
     border-radius: var(--cc-border-radius);
     background: var(--cc-theme-surface-lighter);
     overflow: hidden;
-  }
+}
 
-  .property-input {
+.property-input {
     width: 60px;
     padding: var(--cc-space-sm);
     border: none;
     background: transparent;
     color: var(--cc-theme-on-background);
     text-align: center;
-  }
+}
 
-  .property-input:focus {
+.property-input:focus {
     outline: none;
-  }
+}
 
-  .number-controls {
+.number-controls {
     display: flex;
     flex-direction: column;
     border-left: var(--cc-border-width) solid var(--cc-border-color);
-  }
+}
 
-  .number-controls button {
+.number-controls button {
     border: none;
     background: transparent;
     color: var(--cc-theme-on-surface);
@@ -728,14 +710,281 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
+}
 
-  .number-controls button:hover {
+.number-controls button:hover {
     background: var(--cc-theme-surface-light);
     color: var(--cc-theme-on-background);
-  }
+}
 
-  .number-controls button:first-child {
+.number-controls button:first-child {
     border-bottom: var(--cc-border-width) solid var(--cc-border-color);
-  }
-  
+}
+
+/* 编辑器容器基础样式 */
+.editor-container {
+    height: 100%;
+    width: 100%;
+}
+
+/* 工具栏样式统一 */
+.tools-bar {
+    width: 80px;
+    min-width: 80px;
+    background: var(--cc-theme-surface);
+    border-right: 1px solid var(--cc-border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 12px 0;
+}
+
+.tool-group {
+    margin-bottom: var(--cc-space-md);
+}
+
+.tool-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    cursor: pointer;
+    transition: var(--cc-transition);
+}
+
+.tool-item:hover {
+    background: var(--cc-theme-surface-hover);
+}
+
+.tool-item.active {
+    background: var(--cc-theme-primary-light);
+    color: var(--cc-theme-primary);
+}
+
+.tool-item .icon {
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.tool-item span {
+    font-size: 12px;
+    color: var(--cc-theme-on-background);
+}
+
+/* 左侧面板统一样式 */
+.left-panel {
+    width: 280px;
+    min-width: 280px;
+    background: var(--cc-theme-surface);
+    border-right: 1px solid var(--cc-border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.section-title {
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--cc-border-color);
+}
+
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+/* 画布区域统一样式 */
+.canvas-wrapper {
+    position: relative;
+    background: #f0f0f0;
+    overflow: hidden;
+}
+
+.canvas-container {
+    flex: 1;
+    position: relative;
+}
+
+/* 预览容器统一样式 */
+.preview-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+/* 属性面板统一样式 */
+.properties-panel {
+    width: 280px;
+    min-width: 280px;
+    padding: var(--cc-space-md);
+    background: var(--cc-theme-surface);
+    border-left: 1px solid var(--cc-border-color);
+    overflow-y: auto;
+}
+
+/* 组件网格统一样式 */
+.component-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 4px;
+}
+
+.component-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px;
+    background: var(--cc-theme-surface-light);
+    border: 1px solid var(--cc-border-color);
+    border-radius: var(--cc-border-radius);
+    cursor: move;
+    transition: var(--cc-transition);
+}
+
+.component-item:hover {
+    background: var(--cc-theme-surface-hover);
+    transform: translateY(-2px);
+}
+
+/* 右侧属性面板交互条目样式 */
+.behavior-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--cc-space-sm) var(--cc-space-md);
+    background: var(--cc-theme-surface-lighter);
+    border-radius: var(--cc-border-radius);
+    margin-bottom: var(--cc-space-sm);
+}
+
+.behavior-event {
+    margin-left: var(--cc-space-lg);
+    margin-bottom: var(--cc-space-md);
+    padding: var(--cc-space-sm);
+    border-left: 2px solid var(--cc-theme-primary-lighter);
+}
+
+.event-header {
+    font-size: 0.9em;
+    color: var(--cc-theme-on-background);
+    margin-bottom: var(--cc-space-sm);
+}
+
+.event-params {
+    padding-left: var(--cc-space-md);
+}
+
+.param-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--cc-space-sm);
+}
+
+.param-item label {
+    min-width: 80px;
+    font-size: 0.85em;
+    color: var(--cc-theme-on-surface);
+}
+
+.param-item .input-control,
+.param-item .select-control {
+    flex: 1;
+    padding: var(--cc-space-xs) var(--cc-space-sm);
+    background: var(--cc-theme-surface-lighter);
+    border: var(--cc-border-width) solid var(--cc-border-color);
+    border-radius: var(--cc-border-radius);
+    color: var(--cc-theme-on-background);
+    font-size: 0.9em;
+}
+
+.param-item .input-control:focus,
+.param-item .select-control:focus {
+    border-color: var(--cc-theme-primary);
+    outline: none;
+}
+
+/* 开关切换样式 */
+.switch-toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+}
+
+.switch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch-toggle label {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--cc-theme-surface-light);
+    border-radius: 20px;
+    transition: var(--cc-transition);
+}
+
+.switch-toggle label:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--cc-theme-on-surface);
+    border-radius: 50%;
+    transition: var(--cc-transition);
+}
+
+.switch-toggle input:checked + label {
+    background-color: var(--cc-theme-primary-lighter);
+}
+
+.switch-toggle input:checked + label:before {
+    transform: translateX(16px);
+    background-color: var(--cc-theme-primary);
+}
+
+/* 分组标题样式 */
+.property-section {
+    margin-bottom: var(--cc-space-lg);
+}
+
+.property-section h3 {
+    font-size: 1em;
+    font-weight: 500;
+    color: var(--cc-theme-on-background);
+    margin-bottom: var(--cc-space-md);
+    padding-bottom: var(--cc-space-xs);
+    border-bottom: var(--cc-border-width) solid var(--cc-border-color);
+}
+
+.property-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cc-space-sm);
+}
+
+.property-item {
+    display: flex;
+    align-items: center;
+    gap: var(--cc-space-md);
+}
+
+.property-item label {
+    min-width: 60px;
+    font-size: 0.9em;
+    color: var(--cc-theme-on-surface);
+}
+
+.empty-tip {
+    text-align: center;
+    padding: var(--cc-space-xl);
+    color: var(--cc-theme-on-surface);
+    font-size: 0.9em;
+}

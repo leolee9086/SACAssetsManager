@@ -107,15 +107,21 @@
 
                     <!-- 缩放控制 -->
                     <div class="zoom-control">
-                        <button class="toolbar-btn" @click="zoomOut">-</button>
-                        <span class="zoom-value">{{ (zoom * 100).toFixed(0) }}%</span>
-                        <button class="toolbar-btn" @click="zoomIn">+</button>
+                        <NumberInput
+                            v-model="zoom"
+                            :min="0.2"
+                            :max="2"
+                            :step="0.1"
+                            unit="%"
+                            :precision="0"
+                            @update:modelValue="updatePreviewZoom"
+                        />
                     </div>
                 </div>
 
                 <!-- 画布容器 -->
                 <div class="editor-workspace" @dragover.prevent @dragenter.prevent @drop.prevent="handleDrop">
-                    <div class="editor-content">
+                    <div class="editor-content-full">
                         <iframe :ref="el => previewFrame = el" class="preview-frame" @load="handleIframeLoad">
                         </iframe>
                     </div>
@@ -136,7 +142,7 @@
                                     <input type="text" v-model="selectedComponent.style.width">
                                 </div>
                                 <div class="property-item">
-                                    <label>高度</label>
+                                    <label>��度</label>
                                     <input type="text" v-model="selectedComponent.style.height">
                                 </div>
                             </div>
@@ -207,6 +213,8 @@ import { componentManager, componentTreeManager, componentConfigs } from './comp
 import DefaultPropertyEditor from './DefaultPropertyEditor.vue';
 import { behaviors } from './componentConfig.js';
 import { dragDropManager } from './dragDropManager.js';
+import { buildExportContent } from './exportContentFrame.js';
+import NumberInput from '../../components/NumberInput.vue';
 
 
 // 状态定义
@@ -214,12 +222,8 @@ const currentTool = ref('components');
 const currentDevice = ref('desktop');
 const zoom = ref(1);
 const selectedComponent = ref(null);
-const currentPageId = ref(null);
 const pageComponents = ref([]); // 存储页面中的组件
-let componentIdCounter = 0; // 用于生成组件唯一ID
 const isPreviewMode = ref(false);
-
-// 添加 previewFrame ref
 const previewFrame = ref(null);
 
 // 模拟数据
@@ -251,7 +255,7 @@ const componentCategories = ref([
         components: [
             { id: 'input', name: '输入框', icon: '✏️' },
             { id: 'select', name: '下拉选择', icon: '▼' },
-            { id: 'checkbox', name: '复选框', icon: '☑️' },
+            { id: 'checkbox', name: '复选框', icon: '��️' },
             { id: 'radio', name: '单选框', icon: '⭕' },
             { id: 'form', name: '表单', icon: '📋' }
         ]
@@ -277,21 +281,7 @@ const componentCategories = ref([
     }
 ]);
 
-const pages = ref([
-    { id: 'page1', name: '首页' },
-    { id: 'page2', name: '关于我们' }
-]);
 
-// 计算属性
-const getPanelTitle = computed(() => {
-    const titles = {
-        components: '组件库',
-        layers: '图层',
-        pages: '页面',
-        assets: '资源库'
-    };
-    return titles[currentTool.value] || '';
-});
 
 // 方法定义
 const handleToolClick = (tool) => {
@@ -301,16 +291,6 @@ const handleToolClick = (tool) => {
 const switchDevice = (device) => {
     currentDevice.value = device;
     updatePreviewDevice(device);
-};
-
-const zoomIn = () => {
-    zoom.value = Math.min(zoom.value + 0.1, 2);
-    updatePreviewZoom(zoom.value);
-};
-
-const zoomOut = () => {
-    zoom.value = Math.max(zoom.value - 0.1, 0.2);
-    updatePreviewZoom(zoom.value);
 };
 
 // 初始化拖拽管理器
@@ -346,6 +326,14 @@ onMounted(() => {
     // 添加 iframe 消息监听
     window.addEventListener('message', handleMessage);
     console.log('Message listener added');
+
+    // 添加消息监听器
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'componentSelected') {
+            handleComponentSelect(event.data.componentId);
+        }
+        // ... 其他消息处理 ...
+    });
 });
 
 // 添加组件卸载时的清理
@@ -395,11 +383,6 @@ const getComponentBehaviors = computed(() => {
     return config?.behaviors || [];
 });
 
-// 初始化组件行为
-const initComponentBehaviors = (component) => {
-    component.behaviors = componentManager.initComponentBehaviors(component.type);
-};
-
 // 切换预览模式
 const togglePreviewMode = () => {
     isPreviewMode.value = !isPreviewMode.value;
@@ -416,9 +399,6 @@ const togglePreviewMode = () => {
 const getComponentTree = computed(() =>
     componentTreeManager.buildComponentTree(pageComponents.value)
 );
-
-// 获取组件显示名称
-const getComponentName = (component) => componentManager.getComponentName(component);
 const getComponentIcon = (type) => componentManager.getComponentIcon(type);
 
 // 添加组件树渲染模板
@@ -529,10 +509,7 @@ const getPropertyEditor = (componentType) => {
     return editors[componentType] || 'DefaultPropertyEditor';
 };
 
-// 注册组件
-const components = {
-    DefaultPropertyEditor
-};
+
 
 // 添加 updatePreview 方法
 const updatePreview = () => {
@@ -560,7 +537,7 @@ watch(selectedComponent, () => {
 
 // 修改导出处理函数
 const handleExport = (htmlContent) => {
-    console.log('Starting export process...', htmlContent.length);
+    console.log('Starting export process...');
 
     if (!htmlContent) {
         console.error('No content to export');
@@ -569,35 +546,20 @@ const handleExport = (htmlContent) => {
     }
 
     try {
-        // 创建 Blob 对象
-        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-        console.log('Blob created:', blob.size);
+        // 添加必要的依赖和样式
+        const exportContent = buildExportContent(getComponentStyles,handleBehavior,htmlContent)
 
-        // 创建下载链接
+        // 创建并下载文件
+        const blob = new Blob([exportContent], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const fileName = `page-${new Date().getTime()}.html`;
-
-        // 创建并配置下载链接
+        
         const link = document.createElement('a');
         link.href = url;
         link.download = fileName;
-
-        // 创建并触发点击事件
-        const clickEvent = new MouseEvent('click', {
-            view: window,
-            bubbles: true,
-            cancelable: false
-        });
-
-        console.log('Triggering download with dispatchEvent...');
-        link.dispatchEvent(clickEvent);
-
-        // 清理
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-            console.log('Cleanup completed');
-        }, 100);
-
+        link.click();
+        
+        setTimeout(() => URL.revokeObjectURL(url), 100);
         window.$message?.success('页面导出成功！');
     } catch (error) {
         console.error('Export failed:', error);
@@ -605,266 +567,35 @@ const handleExport = (htmlContent) => {
     }
 };
 
+// 获取组件样式
+const getComponentStyles = () => {
+    // 从 componentConfigs 中提取所有组件的基础样式
+    return Object.values(componentConfigs)
+        .map(config => config.defaultStyle)
+        .filter(Boolean)
+        .map(style => styleObjectToCss(style))
+        .join('\n');
+};
+
+// 样式对象转CSS
+const styleObjectToCss = (styleObj) => {
+    return Object.entries(styleObj)
+        .map(([key, value]) => `${key}: ${value};`)
+        .join('\n');
+};
+
+// 添加组件选择处理函数
+const handleComponentSelect = (componentId) => {
+    // 从 pageComponents 中找到对应的组件
+    selectedComponent.value = pageComponents.value.find(
+        comp => comp.id === componentId
+    );
+};
+
 </script>
 
 <style scoped>
-/* 基础布局样式 */
-.editor-container {
-    height: 100%;
-    width: 100%;
-}
-
-/* 合并所有组件相关的基础样式 */
-.component-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 12px;
-    background: var(--cc-theme-surface);
-    border: 1px solid var(--cc-border-color);
-    border-radius: var(--cc-border-radius);
-    cursor: move;
-    transition: all 0.2s;
-}
-
-.component-item:hover {
-    background: var(--cc-theme-surface-hover);
-    border-color: var(--cc-theme-primary);
-    transform: translateY(-2px);
-}
-
-.component-icon {
-    font-size: 24px;
-    margin-bottom: 8px;
-}
-
-.component-name {
-    font-size: 12px;
-    color: var(--cc-text-color);
-}
-
-/* 合并网格相关样式 */
-.component-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    padding: 12px;
-    background: #fff;
-    transition: all 0.3s ease;
-    max-height: 1000px;
-    opacity: 1;
-}
-
-.component-grid[v-show="false"] {
-    max-height: 0;
-    opacity: 0;
-    padding: 0;
-    margin: 0;
-}
-
-/* 删除重复的面板样式,保留一个统一的版本 */
-.panel-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-}
-
-/* 删除重复的工具栏按钮样式 */
-.toolbar-btn {
-    height: 32px;
-    min-width: 32px;
-    padding: 0 8px;
-    border: 1px solid var(--cc-border-color);
-    border-radius: 4px;
-    background: transparent;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    color: var(--cc-theme-text-secondary);
-}
-
-/* 左侧工具栏样式优化 */
-.tools-bar {
-    width: 80px;
-    /* 调整为更宽的工具栏 */
-    min-width: 80px;
-    background: var(--cc-theme-surface);
-    border-right: 1px solid var(--cc-border-color);
-    padding: 12px 0;
-}
-
-.tool-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.tool-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 12px 0;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    position: relative;
-    /* 为激活状态的边框做准备 */
-}
-
-.tool-item:hover {
-    background-color: var(--cc-theme-surface-hover);
-}
-
-.tool-item.active {
-    background-color: var(--cc-theme-surface-hover);
-}
-
-.tool-item.active::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background-color: var(--cc-theme-primary);
-}
-
-.tool-item .icon {
-    font-size: 20px;
-    margin-bottom: 4px;
-}
-
-.tool-item span {
-    font-size: 12px;
-}
-
-/* 左侧面板样式 */
-.left-panel {
-    width: 280px;
-    min-width: 280px;
-    background: var(--cc-theme-surface);
-    border-right: 1px solid var(--cc-border-color);
-    display: flex;
-    flex-direction: column;
-}
-
-.section-title {
-    padding: 12px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    border-bottom: 1px solid var(--cc-border-color);
-}
-
-.panel-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px;
-}
-
-/* 组件面板样式 */
-.components-panel {
-    padding: 16px;
-}
-
-.component-category {
-    margin-bottom: 24px;
-}
-
-.category-title {
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 12px;
-    color: var(--cc-theme-text-secondary, #666);
-}
-
-.component-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    padding: 4px;
-}
-
-.component-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 12px;
-    background: var(--cc-theme-surface-light);
-    border: 1px solid var(--cc-border-color);
-    border-radius: var(--cc-border-radius);
-    cursor: move;
-    transition: all 0.2s;
-}
-
-.component-item:hover {
-    background: var(--cc-theme-surface-hover);
-    transform: translateY(-2px);
-}
-
-/* 画布区域样式 */
-.editor-main {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    background: #f0f0f0;
-}
-
-.editor-toolbar {
-    height: 48px;
-    padding: 0 16px;
-    background: var(--cc-theme-surface);
-    border-bottom: 1px solid var(--cc-border-color);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.toolbar-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.toolbar-separator {
-    width: 1px;
-    height: 24px;
-    background: var(--cc-border-color);
-    margin: 0 8px;
-}
-
-.toolbar-btn {
-    height: 32px;
-    min-width: 32px;
-    padding: 0 8px;
-    border: 1px solid var(--cc-border-color);
-    border-radius: 4px;
-    background: transparent;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    color: var(--cc-theme-text-secondary);
-}
-
-.toolbar-btn:hover {
-    background: var(--cc-theme-surface-hover);
-    color: var(--cc-theme-primary);
-    border-color: var(--cc-theme-primary);
-}
-
-.toolbar-btn.active {
-    background: var(--cc-theme-primary-light);
-    border-color: var(--cc-theme-primary);
-    color: var(--cc-theme-primary);
-}
-
-/* 画布容器样式 */
+/* 只保留特定的编辑器布局样式 */
 .editor-workspace {
     position: relative;
     flex: 1;
@@ -883,69 +614,8 @@ const handleExport = (htmlContent) => {
     cursor: default;
 }
 
-.editor-content {
-    position: relative;
-    background: white;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    border-radius: 4px;
-    margin: auto;
-    width: 100%;
-    height: 100%;
-}
-
-/* 右侧属性面板样式 */
-.right-panel {
-    width: 300px;
-    min-width: 300px;
-    background: var(--cc-theme-surface);
-    border-left: 1px solid var(--cc-border-color);
-    display: flex;
-    flex-direction: column;
-}
-
-.panel-content {
-    padding: 16px;
-    overflow-y: auto;
-}
-
-.property-section {
-    margin-bottom: 24px;
-    background: var(--cc-theme-surface);
-    border-radius: var(--cc-border-radius);
-    padding: 16px;
-}
-
-.property-section h3 {
-    margin: 0 0 16px 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--cc-theme-text, #333);
-}
-
-.property-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.property-item label {
-    width: 80px;
-    font-size: 13px;
-    color: var(--cc-theme-text-secondary, #666);
-}
-
-.property-item input {
-    flex: 1;
-    padding: var(--cc-space-xs);
-    border: 1px solid var(--cc-border-color);
-    border-radius: var(--cc-border-radius);
-    background: var(--cc-theme-surface-light);
-}
-
-/* 预览框架样式 */
+/* 预览框架特定样式 */
 .preview-frame {
-    display: block;
     width: 100%;
     height: 100%;
     border: none;
@@ -953,312 +623,69 @@ const handleExport = (htmlContent) => {
     border-radius: 4px;
 }
 
-/* 空状态提示 */
-.empty-tip {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--cc-theme-text-secondary, #666);
-    font-size: 14px;
+/* 工具栏分隔符 */
+.toolbar-separator {
+    width: 1px;
+    height: 24px;
+    background: var(--cc-border-color);
+    margin: 0 8px;
 }
 
-/* 按钮和操作样式 */
-.btn {
-    padding: 8px 16px;
-    border: 1px solid var(--cc-border-color);
-    border-radius: var(--cc-border-radius);
-    background: var(--cc-theme-surface-light);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn:hover {
-    background: var(--cc-theme-surface-hover);
-}
-
-.action-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: var(--cc-border-radius);
-}
-
-.action-btn:hover {
-    background: var(--cc-theme-surface-hover);
-}
-
-/* 缩放控制样式优化 */
-.zoom-control {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--cc-theme-surface-light);
-    padding: 2px;
-    border-radius: 4px;
-    border: 1px solid var(--cc-border-color);
-}
-
+/* 缩放控制特定样式 */
 .zoom-value {
     padding: 0 8px;
     font-size: 13px;
-    color: var(--cc-theme-text-secondary);
     min-width: 60px;
     text-align: center;
 }
 
-/* 设备选择器样式 */
-.device-selector {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--cc-theme-surface-light);
-    padding: 2px;
-    border-radius: 4px;
-    border: 1px solid var(--cc-border-color);
-}
-
-.device-selector .toolbar-btn {
-    border: none;
-    height: 28px;
-    min-width: 28px;
-    border-radius: 2px;
-}
-
-.device-selector .toolbar-btn:hover {
-    background: var(--cc-theme-surface-hover);
-}
-
-.device-selector .toolbar-btn.active {
-    background: var(--cc-theme-primary-light);
-}
-
-.canvas-container {
-    background: #f5f5f5;
-    min-height: 100%;
-    padding: 20px;
-}
-
-.layout-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-width: 1200px;
-    margin: 0 auto;
-    min-height: 100%;
-}
-
-.editor-component {
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-.editor-component:hover {
-    outline: 2px solid var(--cc-theme-primary, #1890ff);
-}
-
-/* 文本组件特定样式 */
-.editor-component.text {
-    background: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-/* 响应布局 */
-@media (max-width: 768px) {
-    .layout-grid {
-        max-width: 100%;
-        padding: 12px;
-    }
-}
-
-/* 添加组件高亮样式 */
-.editor-component.highlight {
-    outline: 2px solid #1890ff;
-    box-shadow: 0 0 8px rgba(24, 144, 255, 0.2);
-}
-
-/* 添加设备响应式样式 */
-#app {
-    transition: max-width 0.3s ease;
-    margin: 0 auto;
-    width: 100%;
-}
-
-/* 添加缩放过渡效果 */
-body {
-    transition: zoom 0.3s ease;
-}
-
-/* 添加行为编辑器样式 */
-.behavior-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.behavior-event {
-    margin-bottom: 16px;
-    padding: 12px;
-    background: var(--cc-theme-surface-light);
-    border-radius: 4px;
-}
-
-.event-header {
-    font-weight: 500;
-    margin-bottom: 8px;
-}
-
-.event-params {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.param-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.param-item label {
-    width: 80px;
-    flex-shrink: 0;
-}
-
-/* 添加自定义开关样式 */
-.switch-toggle {
-    position: relative;
-    width: 40px;
-    height: 20px;
-}
-
-.switch-toggle input {
+/* 节点操作按钮 */
+.node-actions {
     opacity: 0;
-    width: 0;
-    height: 0;
+    transition: opacity 0.2s;
 }
 
-.switch-toggle label {
-    position: absolute;
+.component-tree-node:hover .node-actions {
+    opacity: 1;
+}
+
+/* 删除按钮特定样式 */
+.delete-btn {
+    padding: 2px;
+    background: none;
+    border: none;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
-    border-radius: 20px;
+    color: var(--cc-theme-error);
 }
 
-.switch-toggle label:before {
-    position: absolute;
-    content: "";
-    height: 16px;
-    width: 16px;
-    left: 2px;
-    bottom: 2px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
+.delete-btn:hover {
+    background: rgba(255, 0, 0, 0.1);
 }
 
-.switch-toggle input:checked+label {
-    background-color: var(--cc-theme-primary);
-}
-
-.switch-toggle input:checked+label:before {
-    transform: translateX(20px);
-}
-
-/* 添加自定义输入框和选择框样式 */
-.input-control,
-.select-control {
-    width: 100%;
-    padding: 6px 12px;
-    border: 1px solid var(--cc-border-color);
-    border-radius: var(--cc-border-radius);
-    background: var(--cc-theme-surface-light);
-    font-size: 14px;
-}
-
-.input-control:focus,
-.select-control:focus {
-    outline: none;
-    border-color: var(--cc-theme-primary);
-}
-
-.select-control {
-    appearance: none;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23666' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    padding-right: 24px;
-}
-
-/* 添加组件树样式 */
-.component-tree {
-    padding: 12px;
-}
-
-.component-tree-node {
-    display: flex;
-    align-items: center;
-    padding: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.component-tree-node:hover {
-    background: var(--cc-theme-surface-hover);
-}
-
-.component-tree-node.selected {
-    background: var(--cc-theme-surface-selected);
-}
-
-.component-tree-node .component-icon {
-    font-size: 16px;
-    margin-right: 8px;
-}
-
-.component-tree-node .component-name {
-    font-size: 14px;
-}
-
-.component-categories {
+/* 编辑器主区域特定布局 */
+.editor-main {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
 }
 
-.category-section {
-    border: 1px solid var(--cc-border-color);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.category-header {
+/* 编辑器工具栏特定布局 */
+.editor-toolbar {
+    height: 48px;
+    padding: 0 16px;
     display: flex;
     align-items: center;
-    padding: 12px 16px;
-    background: var(--cc-theme-surface);
-    cursor: pointer;
-    user-select: none;
+    justify-content: space-between;
+    gap: 16px;
 }
 
-.category-header:hover {
-    background: var(--cc-theme-surface-hover);
-}
-
-.category-icon {
-    margin-right: 8px;
-    font-size: 12px;
-    transition: transform 0.2s;
-}
-
-.category-title {
-    font-size: 14px;
-    font-weight: 500;
+/* 编辑器内容区域样式 */
+.editor-content-full {
+    width: 100%;
+    height: 100%;
+    position: relative;
 }
 </style>
