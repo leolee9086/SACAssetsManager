@@ -50,7 +50,7 @@
                 :cardDisplayMode="卡片显示模式" @palletAdded="palletAdded" :globSetting="$realGlob"
                 v-if="showPanel && globSetting" @layoutCountTotal="(e) => { layoutCountTotal = e }"
                 @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
-                @layoutCount="(e) => { layoutCount.found = e }" :filterColor="filterColor"
+                @layoutCount="(e) => { layoutCount.found = e }" 
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
                 :size="$size">
             </assetsGridRbush>

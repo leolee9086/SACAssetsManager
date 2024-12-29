@@ -55,7 +55,6 @@ const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
 const sorter = toRef(props, 'sorter')
-const filterColor = toRef(props, 'filterColor')
 const cardDisplayMode = toRef(props, 'cardDisplayMode')
 const root = ref(null)
 const scrollContainer = ref(null)
@@ -63,10 +62,7 @@ let 布局对象 = shallowRef(null)
 const columnCount = ref(1)
 const paddingLR = ref(100)
 const containerHeight = ref(102400)
-
-
 const emit = defineEmits()
-
 const palletAdded = (data) => {
     emit('palletAdded', data)
 }
@@ -319,7 +315,6 @@ onMounted(async () => {
     nextTick(
         () => {
             emit('ready')
-
         }
     )
 })
