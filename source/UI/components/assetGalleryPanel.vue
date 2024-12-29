@@ -2,8 +2,7 @@
     <div @wheel.ctrl.stop.prevent="(event) => { size = 从滚轮事件计算(size, event, 1024, 32) }" class=" fn__flex-column"
         style="max-height: 100%;" ref="root">
         <div class=" fn__flex " style="min-height:36px;align-items: center;">
-            <div class="fn__space fn__flex-1">
-            </div>
+            <div class="fn__space fn__flex-1"></div>
             <div class=" fn__flex ">
                 <div class="fn__space fn__flex-1"></div>
                 <apiIcon v-if="() => appData.value.everythingApiLocation ? true : false" :apiEnabled="everthingEnabled">
@@ -15,15 +14,9 @@
                 <div class="fn__flex" style="margin:auto">
                     <galleryToolbarButton icon-id="#iconRefresh" @click="refreshPanel" />
                 </div>
-
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex" style="margin:auto">
                     <colorPicker v-model="filterColor" :pallet="pallet" @update:modelValue="handleColorChange" />
-      
-                </div>
-
-                <div class="fn__flex">
-                    <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
                 </div>
 
                 <div class="fn__space fn__flex-1"></div>
@@ -50,10 +43,6 @@
             <div class="fn__space fn__flex-1 "></div>
         </div>
         <commonBreadCrumb @globChange="(e) => globSetting = e"></commonBreadCrumb>
-        <div class=" fn__flex " style="align-items: center;">
-            <div class="fn__space fn__flex-1"></div>
-        </div>
-        <div class="fn__space"></div>
         <div class="fn__flex-column fn__flex-1" @dragstart.stop="(e) => onDragStart(e, currentLayout)"
             style="width:100%;overflow: hidden;" @mousedown.left="startSelection" @click.left="endSelection"
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
@@ -100,8 +89,6 @@ const { appData, tagLabel } = useAppData({
         refresh: () => refreshPanel()
     }
 })
-
-
 /**
  * 显示模式相关逻辑
  */
@@ -160,24 +147,10 @@ onMounted(() => {
 /**
  * 获取数据相关
  */
-const 扩展名map = new Map();
+import { updateExtensionsMiddleware } from './galleryPanel/middlewares/extensions.js';
 
-const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
-    return (数据) => {
-        if (!获取配置().localPath) {
-            let extensions = extractFileExtensions(数据)
-            extensions.forEach(
-                item => {
-                    if (!扩展名map.get(item)) {
-                        获取扩展名缓存().push(item)
-                        扩展名map.set(item, true)
-                    }
-                }
-            )
-        }
-        return 数据;
-    }
-};
+
+
 
 const filterArgsMiddleware = (filterFunc) => {
     return (args) => {
@@ -353,7 +326,6 @@ watch(rawSearch, (data) => {
 
 const pallet = ref([])
 const filterColor = ref(appData.value.color || [])
-const eaglePath = ref('')
 watch(
     filterColor, (data) => {
         plugin.eventBus.emit(
@@ -413,19 +385,7 @@ const handlerLayoutChange = (data) => {
 const handlerScrollTopChange = (scrollTop) => {
     currentLayoutOffsetTop = scrollTop
 }
-const 获取eagle标签列表 = () => {
-    fetch(`http://localhost:${plugin.http服务端口号}/eagle-tags?path=${eaglePath.value}`).then(res => res.json()).then(json => {
-        console.log(json)
-    })
-}
-const 获取ealge素材库路径 = () => {
-    fetch(`http://localhost:${plugin.http服务端口号}/eagle-path?path=${appData.value.localPath}`).then(res => res.json()).then(json => {
-        eaglePath.value = json.finded
-    })
-}
-onMounted(() => {
-    获取ealge素材库路径()
-})
+
 /**
  * 键盘相关逻辑
  */
