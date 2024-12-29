@@ -38,7 +38,7 @@ import { findTagsByFilePath } from '../../../data/tags.js';
 import tagsCell from './assetCard/tagsCell.vue';
 import colorPalletCell from './assetCard/paletteCell.vue'
 import mainPreviewCell from './assetCard/mainPreviewCell.vue';
-const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes', 'displayMode'])
+const props = defineProps(['cardData', 'size',  'tableViewAttributes', 'displayMode'])
 const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const displayMode = toRef(props, 'displayMode')
 const { cardData } = props

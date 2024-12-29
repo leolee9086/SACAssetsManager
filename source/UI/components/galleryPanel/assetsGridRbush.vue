@@ -8,9 +8,9 @@
                         :class="['thumbnail-card', 卡片数据.selected ? 'asset-selected' : '']" :style="计算卡片样式(卡片数据)"
                         v-if="卡片数据 && 卡片数据.data" :data-indexInColumn="卡片数据 && 卡片数据.indexInColumn"
                         :data-index="卡片数据.index" :data-id="卡片数据.data.id">
-                        <assetsThumbnailCard :displayMode="cardDisplayMode" :selected="卡片数据.selected" :size="size"
+                        <assetsThumbnailCard :displayMode="cardDisplayMode"  :size="size"
                             :tableViewAttributes="tableViewAttributes" @updateSize="(data) => 更新图片尺寸(data, 可见卡片组[i])"
-                            :cardData="卡片数据" @palletAdded="palletAdded" :filterColor="filterColor">
+                            :cardData="卡片数据" @palletAdded="palletAdded" >
                         </assetsThumbnailCard>
                     </div>
                 </template>
@@ -48,10 +48,9 @@ const 计算卡片样式 = (卡片数据) => {
         position: absolute;
     `
 }
-//let 附件数据源数组 =shallowRef([])
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting',  'filterColor', 'assetsSource', 'tableViewAttributes', 'cardDisplayMode'])
+const props = defineProps(['size', 'sorter', 'globSetting', 'filterColor', 'assetsSource', 'tableViewAttributes', 'cardDisplayMode'])
 const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
