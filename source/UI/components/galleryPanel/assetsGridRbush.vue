@@ -1,5 +1,14 @@
 <template>
     <div class="fn__flex-column fn__flex-1" style="max-height:100%;height: 100%;" ref="root">
+        <div v-if="showHeader" class="grid-header fn__flex" :style="headerStyle">
+            <slot name="header">
+                <template v-for="attribute in tableViewAttributes" :key="attribute">
+                    <div class="header-cell" :style="计算表头单元格样式">
+                        {{ attribute }}
+                    </div>
+                </template>
+            </slot>
+        </div>
         <div class="fn__flex-1 fn__flex gallery_container" ref="scrollContainer" @scroll="更新可见区域"
             style="position: relative;">
             <div class="fn__flex-column fn__flex-1" :style="`height:${containerHeight}px`">
@@ -31,7 +40,8 @@ import {
     defineEmits,
     shallowRef,
     onUnmounted,
-    defineExpose
+    defineExpose,
+    computed
 } from 'vue'
 import { 从数据源定量加载数据, 创建瀑布流布局, getColumnNextSiblingByIndex } from "../../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "../common/assetsThumbnailCard.vue";
@@ -50,7 +60,40 @@ const 计算卡片样式 = (卡片数据) => {
 }
 
 /*监听尺寸变化重新布局*/
-const props = defineProps(['size', 'sorter', 'globSetting', 'filterColor', 'assetsSource', 'tableViewAttributes', 'cardDisplayMode'])
+const props = defineProps({
+    size: {
+        type: Number,
+        required: true
+    },
+    sorter: {
+        type: Object,
+        required: true
+    },
+    globSetting: {
+        type: Boolean,
+        required: true
+    },
+    filterColor: {
+        type: String,
+        required: true
+    },
+    assetsSource: {
+        type: Array,
+        required: true
+    },
+    tableViewAttributes: {
+        type: Array,
+        required: true
+    },
+    cardDisplayMode: {
+        type: String,
+        required: true
+    },
+    showHeader: {
+        type: Boolean,
+        default: () => false
+    }
+})
 const tableViewAttributes = toRef(props, 'tableViewAttributes')
 const 附件数据源数组 = props.assetsSource
 const size = toRef(props, 'size')
@@ -329,11 +372,56 @@ const 计算列数和边距 = (width) => {
     emit('paddingChange', paddingLR.value);
     emit('columnCountChange', columnCount.value);
 }
+
+// 计算表头样式
+const headerStyle = computed(() => {
+    return `
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--b3-theme-background);
+        height: 36px;
+        padding-left: ${paddingLR.value}px;
+        padding-right: ${paddingLR.value}px;
+    `
+})
+
+// 计算表头单元格样式
+const 计算表头单元格样式 = computed(() => {
+    return `
+        flex: 1;
+        padding: 8px;
+        border: 1px solid var(--b3-theme-background-light);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        background: var(--b3-theme-background);
+    `
+})
+
+// 根据显示模式决定是否显示表头
+const showHeader = computed(() => {
+    return size.value <= 表格视图阈值
+})
 </script>
 <style scoped>
 .thumbnail-card:focus {
     border-color: var(--b3-theme-primary) !important;
     border-width: 1px;
     border-style: solid;
+}
+
+.grid-header {
+    border-bottom: 1px solid var(--b3-theme-background-light);
+}
+
+.header-cell {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.header-cell:hover {
+    background: var(--b3-theme-background-light);
 }
 </style>

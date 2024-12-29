@@ -47,12 +47,30 @@
             @click.right.stop="openMenu" @mousedup="endSelection" @mousemove="updateSelection" @drop="handlerDrop"
             @dragover.prevent>
             <assetsGridRbush @ready="创建回调并获取数据" ref="grid" :tableViewAttributes="displayAttributes" :assetsSource="数据缓存"
-                :cardDisplayMode="卡片显示模式" @palletAdded="palletAdded" :globSetting="$realGlob"
+                :cardDisplayMode="卡片显示模式" :showHeader="size >= 表格视图阈值" @palletAdded="palletAdded" :globSetting="$realGlob"
                 v-if="showPanel && globSetting" @layoutCountTotal="(e) => { layoutCountTotal = e }"
                 @layoutChange="handlerLayoutChange" @scrollTopChange="handlerScrollTopChange" :sorter="sorter"
                 @layoutCount="(e) => { layoutCount.found = e }" 
                 @paddingChange="(e) => paddingLR = e" @layoutLoadedCount="(e) => { layoutCount.loaded = e }"
                 :size="$size">
+                <template #header>
+                    <div class="header-cell preview-cell" :style="{width:$size+'px',textAlign:'center'}">预览</div>
+                    <div class="header-cell tags-cell" :style="{textAlign:'center',width:100/(displayAttributes.length+2)+'%'}">标签</div>
+                    <div class="header-cell palette-cell" :style="{textAlign:'center',width:100/(displayAttributes.length+2)+'%'}">调色板</div>
+                    <template v-for="attribute in displayAttributes" :key="attribute">
+                        <div class="header-cell" 
+                             @click="handleSort(attribute)"
+                             :class="{ 'sorted': sorter.field === attribute }"
+                             :style="{textAlign:'center',width:100/(displayAttributes.length+2)+'%'}"
+                        >
+                        {{ attribute }}
+
+                            <span v-if="sorter.field === attribute" class="sort-indicator">
+                                {{ sorter.order === 'asc' ? '↑' : '↓' }}
+                            </span>
+                        </div>
+                    </template>
+                </template>
             </assetsGridRbush>
             <div class="assetsStatusBar" style="min-height: 18px;">{{
                 (layoutCountTotal + '个文件已遍历') + (layoutCount.found + layoutCount.loaded) + '个文件发现,' + layoutCount.loaded
@@ -469,11 +487,53 @@ const handleColorChange = (newColor) => {
     plugin.eventBus.emit('click-galleryColor', newColor)
     refreshPanel()
 }
+
+// 添加排序处理
+const handleSort = (field) => {
+    if (sorter.value.field === field) {
+        // 切换排序顺序
+        sorter.value.order = sorter.value.order === 'asc' ? 'desc' : 'asc'
+    } else {
+        // 设置新的排序字段
+        sorter.value = {
+            field,
+            order: 'asc',
+            fn: (a, b) => {
+                const aValue = a.data[field]
+                const bValue = b.data[field]
+                return sorter.value.order === 'asc' 
+                    ? aValue > bValue ? 1 : -1
+                    : aValue < bValue ? 1 : -1
+            }
+        }
+    }
+}
 </script>
 <style scoped>
 .grid__container {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
     gap: 0px 0px;
+}
+
+.header-cell {
+    position: relative;
+    user-select: none;
+}
+
+.sort-indicator {
+    margin-left: 4px;
+}
+
+.sorted {
+    background: var(--b3-theme-background-light);
+}
+
+.preview-cell {
+    width: 120px;
+}
+
+.tags-cell, .palette-cell {
+    width: 100px;
 }
 </style>
