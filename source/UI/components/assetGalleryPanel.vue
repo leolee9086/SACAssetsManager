@@ -13,35 +13,22 @@
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex" style="margin:auto">
-                    <button @click="refreshPanel" class="cc-panel-toolbar-button">
-                        <svg class="panel-toolbar-button-icon">
-                            <use xlink:href="#iconRefresh"></use>
-                        </svg>
-                    </button>
+                    <galleryToolbarButton icon-id="#iconRefresh" @click="refreshPanel" />
                 </div>
 
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex" style="margin:auto">
                     <colorPicker v-model="filterColor" :pallet="pallet" @update:modelValue="handleColorChange" />
+      
                 </div>
+
                 <div class="fn__flex">
                     <button v-if="eaglePath" @click="获取eagle标签列表">导入eagle中的tag</button>
                 </div>
-                <div class="grid__container" v-if="showPallet"
-                    :style="`position:absolute;top:${palletButton.offsetTop + palletButton.offsetHeight + 10}px;left:${palletButton.offsetLeft - 100}px;width:200px;max-height:300px;background:var(--b3-menu-background);height:300px;overflow:auto;z-index:10;`">
-                    <template v-for="item in pallet">
-                        <div @click.left="() => { filterColor = item; showPallet = false; refreshPanel() }"
-                            :style="{ backgroundColor: `rgb(${item[0]},${item[1]},${item[2]})`, height: 36 + 'px', width: 36 + 'px', display: 'inline-block', margin: '0 2px' }">
-                        </div>
-                    </template>
-                </div>
+
                 <div class="fn__space fn__flex-1"></div>
                 <div>
-                    <button class="cc-panel-toolbar-button">
-                        <svg class="panel-toolbar-button-icon">
-                            <use xlink:href="#iconFilter"></use>
-                        </svg>
-                    </button>
+                    <galleryToolbarButton icon-id="#iconFilter" />
                 </div>
                 <div class="fn__space fn__flex-1"></div>
                 <div class="fn__flex">
@@ -105,6 +92,7 @@ import { LAYOUT_COLUMN, LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图
 import ColorPicker from './galleryPanel/colorPicker.vue'
 import Slider from './galleryPanel/toolbar/slider.vue'
 import { useAppData } from './galleryPanel/useAppData.js';
+import GalleryToolbarButton from './galleryPanel/toolbar/galleryToolbarButton.vue'
 //主要数据对象
 
 const { appData, tagLabel } = useAppData({
@@ -363,8 +351,6 @@ watch(rawSearch, (data) => {
     }, 500); // 500 毫秒后执行搜索
 });
 
-const palletButton = ref(null)
-const showPallet = ref(false)
 const pallet = ref([])
 const filterColor = ref(appData.value.color || [])
 const eaglePath = ref('')

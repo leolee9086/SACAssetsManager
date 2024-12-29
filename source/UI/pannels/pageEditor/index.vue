@@ -4,11 +4,37 @@
             <!-- 左侧工具栏 -->
             <div class="tools-bar">
                 <div class="tool-group">
-                    <div class="tool-item" :class="{ active: currentTool === 'components' }"
-                        @click="handleToolClick('components')">
-                        <i class="icon">🧩</i>
-                        <span>组件</span>
+                    <!-- 基础组件 -->
+                    <div class="tool-item" :class="{ active: currentTool === 'basic' }" 
+                        @click="handleToolClick('basic')">
+                        <i class="icon">📝</i>
+                        <span>基础</span>
                     </div>
+                    <!-- 布局组件 -->
+                    <div class="tool-item" :class="{ active: currentTool === 'layout' }"
+                        @click="handleToolClick('layout')">
+                        <i class="icon">📦</i>
+                        <span>布局</span>
+                    </div>
+                    <!-- 表单组件 -->
+                    <div class="tool-item" :class="{ active: currentTool === 'form' }"
+                        @click="handleToolClick('form')">
+                        <i class="icon">📋</i>
+                        <span>表单</span>
+                    </div>
+                    <!-- 内容组件 -->
+                    <div class="tool-item" :class="{ active: currentTool === 'content' }"
+                        @click="handleToolClick('content')">
+                        <i class="icon">📑</i>
+                        <span>内容</span>
+                    </div>
+                    <!-- 导航组件 -->
+                    <div class="tool-item" :class="{ active: currentTool === 'navigation' }"
+                        @click="handleToolClick('navigation')">
+                        <i class="icon">🧭</i>
+                        <span>导航</span>
+                    </div>
+                    <!-- 原有的页面和资源按钮 -->
                     <div class="tool-item" :class="{ active: currentTool === 'pages' }"
                         @click="handleToolClick('pages')">
                         <i class="icon">📄</i>
@@ -23,22 +49,16 @@
             </div>
 
             <!-- 左侧面板 -->
-            <div class="left-panel" v-if="currentTool === 'components'">
-                <div class="section-title">组件库</div>
+            <div class="left-panel" v-if="['basic', 'layout', 'form', 'content', 'navigation'].includes(currentTool)">
+                <div class="section-title">{{ getPanelTitle }}</div>
                 <div class="panel-content">
-                    <div class="component-categories">
-                        <div v-for="category in componentCategories" :key="category.id" class="category-section">
-                            <div class="category-header" @click="toggleCategory(category.id)">
-                                <span class="category-icon">{{ category.expanded ? '▼' : '▶' }}</span>
-                                <span class="category-title">{{ category.name }}</span>
-                            </div>
-                            <div class="component-grid" v-show="category.expanded">
-                                <div v-for="comp in category.components" :key="comp.id" class="component-item"
-                                    draggable="true" @dragstart="handleDragStart($event, comp)">
-                                    <span class="component-icon">{{ comp.icon }}</span>
-                                    <span class="component-name">{{ comp.name }}</span>
-                                </div>
-                            </div>
+                    <div class="component-grid">
+                        <div v-for="comp in getCurrentComponents" :key="comp.id" 
+                            class="component-item"
+                            draggable="true" 
+                            @dragstart="handleDragStart($event, comp)">
+                            <span class="component-icon">{{ comp.icon }}</span>
+                            <span class="component-name">{{ comp.name }}</span>
                         </div>
                     </div>
                 </div>
@@ -71,7 +91,7 @@
             <div class="fn__flex fn__flex-1 fn__flex-column editor-main">
                 <!-- 顶部工具栏 -->
                 <div class="editor-toolbar">
-                    <div class="toolbar-group">
+                    <div class="toolbar-group fn__flex">
                         <button class="toolbar-btn" title="撤销" @click="undo">
                             <i class="icon">↩️</i>
                         </button>
@@ -142,7 +162,7 @@
                                     <input type="text" v-model="selectedComponent.style.width">
                                 </div>
                                 <div class="property-item">
-                                    <label>��度</label>
+                                    <label>高度</label>
                                     <input type="text" v-model="selectedComponent.style.height">
                                 </div>
                             </div>
@@ -211,11 +231,11 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { componentManager, componentTreeManager, componentConfigs } from './componentConfig.js';
 import DefaultPropertyEditor from './DefaultPropertyEditor.vue';
+
 import { behaviors } from './componentConfig.js';
 import { dragDropManager } from './dragDropManager.js';
 import { buildExportContent } from './exportContentFrame.js';
 import NumberInput from '../../components/NumberInput.vue';
-
 
 // 状态定义
 const currentTool = ref('components');
@@ -566,6 +586,7 @@ const handleExport = (htmlContent) => {
         window.$message?.error(`导出失败：${error.message}`);
     }
 };
+import { 对象转键值对字符串 } from './utils.js';
 
 // 获取组件样式
 const getComponentStyles = () => {
@@ -573,14 +594,7 @@ const getComponentStyles = () => {
     return Object.values(componentConfigs)
         .map(config => config.defaultStyle)
         .filter(Boolean)
-        .map(style => styleObjectToCss(style))
-        .join('\n');
-};
-
-// 样式对象转CSS
-const styleObjectToCss = (styleObj) => {
-    return Object.entries(styleObj)
-        .map(([key, value]) => `${key}: ${value};`)
+        .map(style => 对象转键值对字符串(style))
         .join('\n');
 };
 
@@ -591,6 +605,24 @@ const handleComponentSelect = (componentId) => {
         comp => comp.id === componentId
     );
 };
+
+// 获取当前面板标题
+const getPanelTitle = computed(() => {
+    const titles = {
+        basic: '基础组件',
+        layout: '布局组件',
+        form: '表单组件',
+        content: '内容组件',
+        navigation: '导航组件'
+    };
+    return titles[currentTool.value] || '';
+});
+
+// 获取当前面板的组件列表
+const getCurrentComponents = computed(() => {
+    const category = componentCategories.value.find(c => c.id === currentTool.value);
+    return category ? category.components : [];
+});
 
 </script>
 

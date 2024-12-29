@@ -24,8 +24,6 @@ export function CIE76(color1,color2){
 import { RGBA2LAB } from "./colorSpace.js";
 const cache = new Map();
 export function CIEDE2000RGBA(pix1, pix2) {
-    //转换为整数
-    let 时间 =Math.random()
 
     pix1 = pix1.map(item=>Math.floor(item))
     pix2 = pix2.map(item=>Math.floor(item))
@@ -40,7 +38,9 @@ export function CIEDE2000RGBA(pix1, pix2) {
     const result = CIEDE2000(lab1, lab2);
     cache.set(cacheKey, result);
     return result;
-}/**
+}
+
+/**
  * 
  * @param {*} lab1 
  * @param {*} lab2 
@@ -118,63 +118,4 @@ export function CIEDE2000(Lab_1, Lab_2) {
 
     const dE_00 = Math.sqrt(f_L ** 2 + f_C ** 2 + f_H ** 2 + R_T * f_C * f_H);
     return dE_00;
-}
-export  function $CIEDE2000(lab1, lab2) {
-    const kL = 1, kC = 1, kH = 1;
-
-    const L1 = lab1.L, a1 = lab1.a, b1 = lab1.b;
-    const L2 = lab2.L, a2 = lab2.a, b2 = lab2.b;
-
-    const C1 = Math.sqrt(a1 * a1 + b1 * b1);
-    const C2 = Math.sqrt(a2 * a2 + b2 * b2);
-    const Cb = (C1 + C2) / 2;
-
-    const G = 0.5 * (1 - Math.sqrt(Math.pow(Cb, 7) / (Math.pow(Cb, 7) + Math.pow(25, 7))));
-    const a1p = (1 + G) * a1;
-    const a2p = (1 + G) * a2;
-
-    const C1p = Math.sqrt(a1p * a1p + b1 * b1);
-    const C2p = Math.sqrt(a2p * a2p + b2 * b2);
-
-    const h1p = Math.atan2(b1, a1p) * (180 / Math.PI);
-    const h2p = Math.atan2(b2, a2p) * (180 / Math.PI);
-
-    const dLp = L2 - L1;
-    const dCp = C2p - C1p;
-    
-    let dhp = h2p - h1p;
-    if (Math.abs(dhp) > 180) {
-        dhp = dhp > 0 ? dhp - 360 : dhp + 360;
-    }
-    
-    const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin(dhp * Math.PI / 360);
-
-    const Lp = (L1 + L2) / 2;
-    const Cp = (C1p + C2p) / 2;
-
-    let hp = (h1p + h2p) / 2;
-    if (Math.abs(h1p - h2p) > 180) {
-        hp = hp > 180 ? hp - 180 : hp + 180;
-    }
-
-    const T = 1 - 0.17 * Math.cos((hp - 30) * Math.PI / 180)
-              + 0.24 * Math.cos(2 * hp * Math.PI / 180)
-              + 0.32 * Math.cos((3 * hp + 6) * Math.PI / 180)
-              - 0.20 * Math.cos((4 * hp - 63) * Math.PI / 180);
-
-    const SL = 1 + (0.015 * Math.pow(Lp - 50, 2)) / Math.sqrt(20 + Math.pow(Lp - 50, 2));
-    const SC = 1 + 0.045 * Cp;
-    const SH = 1 + 0.015 * Cp * T;
-
-    const RT = -2 * Math.sqrt(Math.pow(Cp, 7) / (Math.pow(Cp, 7) + Math.pow(25, 7)))
-               * Math.sin(60 * Math.exp(-Math.pow((hp - 275) / 25, 2)) * Math.PI / 180);
-
-    const deltaE = Math.sqrt(
-        Math.pow(dLp / (kL * SL), 2) +
-        Math.pow(dCp / (kC * SC), 2) +
-        Math.pow(dHp / (kH * SH), 2) +
-        RT * (dCp / (kC * SC)) * (dHp / (kH * SH))
-    );
-
-    return deltaE;
 }

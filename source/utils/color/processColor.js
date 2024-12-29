@@ -1,4 +1,3 @@
-// ... existing code ...
 
 // 计算颜色的亮度
 function 计算hex颜色亮度(hex) {

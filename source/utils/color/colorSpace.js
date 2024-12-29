@@ -42,7 +42,13 @@ export function hslToRgba(hslPixel) {
     return [r, g, b, 1]
 }
 
-// 辅助函数：计算色相对应的RGB值
+/**
+ * 辅助函数：将色相转换为RGB分量
+ * @param {number} p - 色相计算中的p值
+ * @param {number} q - 色相计算中的q值
+ * @param {number} t - 色相值（0-1范围内）
+ * @returns {number} RGB分量值（0-1范围内）
+ */
 export const hue2rgb = (p, q, t) => {
     if (t < 0) t += 1
     if (t > 1) t -= 1
@@ -71,6 +77,11 @@ export function rgbaToHex(rgbaPixel) {
     }
     return hex
 }
+/**
+ * 将 RGBA 数组转换为十六进制颜色字符串（带#前缀）
+ * @param {number[]} colorArray - RGBA颜色值数组 [r, g, b, a]，每个分量范围0-255
+ * @returns {string} 十六进制颜色代码（包含#前缀）
+ */
 export const rgbaArrayToHexString = (colorArray) => {
     return `#${colorArray.map(c => c.toString(16).padStart(2, '0')).join('')}`;
 }
@@ -102,6 +113,11 @@ export function RGBA2LAB(r, g, b, a=1) {
     return { L, a: _a, b: _b };
 }
 
+/**
+ * 将十六进制颜色代码转换为RGB对象
+ * @param {string} hex - 十六进制颜色代码（可以带#也可以不带）
+ * @returns {{r: number, g: number, b: number}} RGB颜色值对象，每个分量范围0-255
+ */
 export function hexToRgb(hex) {
     // 确保颜色值以#开头
     const validHex = hex.startsWith('#') ? hex : `#${hex}`;
@@ -121,7 +137,11 @@ export function hexToRgb(hex) {
         b: parseInt(result[3], 16)
     };
 }
-// 新增：RGB转十六进制的辅助函数
+/**
+ * 将RGB对象转换为十六进制颜色代码
+ * @param {{r: number, g: number, b: number}} rgb - RGB颜色值对象，每个分量范围0-255
+ * @returns {string} 十六进制颜色代码（包含#前缀）
+ */
 export function rgbToHex(rgb) {
     const toHex = (n) => {
         const hex = Math.round(n).toString(16)
@@ -130,7 +150,16 @@ export function rgbToHex(rgb) {
     return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`
 }
 
-
+/**
+ * 将RGB颜色值转换为HSL颜色空间
+ * @param {number} r - 红色分量，范围0-255
+ * @param {number} g - 绿色分量，范围0-255
+ * @param {number} b - 蓝色分量，范围0-255
+ * @returns {{h: number, s: number, l: number}} HSL颜色值对象
+ * h: 色相(0-1)
+ * s: 饱和度(0-1)
+ * l: 亮度(0-1)
+ */
 export function rgbToHsl(r, g, b) {
     r /= 255;
     g /= 255;
@@ -153,7 +182,13 @@ export function rgbToHsl(r, g, b) {
     }
     return { h, s, l };
 }
-// HSL 转 RGB 颜色空间转换
+/**
+ * 将HSL颜色值转换为RGB颜色空间
+ * @param {number} h - 色相，范围0-1
+ * @param {number} s - 饱和度，范围0-1
+ * @param {number} l - 亮度，范围0-1
+ * @returns {{r: number, g: number, b: number}} RGB颜色值对象，每个分量范围0-255
+ */
 export function hslToRgb(h, s, l) {
     let r, g, b;
     if (s === 0) {
@@ -180,8 +215,13 @@ export function hslToRgb(h, s, l) {
     };
 }
 
-
-// RGB 转 RYB
+/**
+ * 将RGB颜色值转换为RYB颜色空间
+ * @param {number} r - 红色分量，范围0-255
+ * @param {number} g - 绿色分量，范围0-255
+ * @param {number} b - 蓝色分量，范围0-255
+ * @returns {{r: number, y: number, b: number}} RYB颜色值对象
+ */
 export function rgbToRyb(r, g, b) {
     // 移除RGB中的白色
     let w = Math.min(r, g, b)
@@ -218,7 +258,13 @@ export function rgbToRyb(r, g, b) {
     return { r, y, b }
 }
 
-// RYB 转 RGB
+/**
+ * 将RYB颜色值转换为RGB颜色空间
+ * @param {number} r - 红色分量
+ * @param {number} y - 黄色分量
+ * @param {number} b - 蓝色分量
+ * @returns {{r: number, g: number, b: number}} RGB颜色值对象，每个分量范围0-255
+ */
 export function rybToRgb(r, y, b) {
     // 获取绿色
     let g = y
@@ -241,8 +287,12 @@ export function rybToRgb(r, y, b) {
     }
 }
 
-  // 将 RGB 转换为 CMY (青色、品红、黄色)
-export function  rgbToCmy(rgb) {
+/**
+ * 将RGB颜色值转换为CMY颜色空间
+ * @param {{r: number, g: number, b: number}} rgb - RGB颜色值对象，每个分量范围0-255
+ * @returns {{c: number, m: number, y: number}} CMY颜色值对象，每个分量范围0-1
+ */
+export function rgbToCmy(rgb) {
     return {
         c: 1 - (rgb.r / 255),
         m: 1 - (rgb.g / 255),
@@ -250,11 +300,90 @@ export function  rgbToCmy(rgb) {
     }
 }
 
-// 将 CMY 转换回 RGB 
+/**
+ * 将CMY颜色值转换为RGB颜色空间
+ * @param {{c: number, m: number, y: number}} cmy - CMY颜色值对象，每个分量范围0-1
+ * @returns {{r: number, g: number, b: number}} RGB颜色值对象，每个分量范围0-255
+ */
 export function cmyToRgb(cmy) {
     return {
         r: Math.round((1 - cmy.c) * 255),
         g: Math.round((1 - cmy.m) * 255),
         b: Math.round((1 - cmy.y) * 255)
     }
+}
+
+/**
+ * RGB转CMYK
+ * @param {{r: number, g: number, b: number}} rgb - RGB颜色值对象
+ * @returns {{c: number, m: number, y: number, k: number}} CMYK颜色值对象 (0-1)
+ */
+export function rgbToCmyk(rgb) {
+    const c = 1 - (rgb.r / 255);
+    const m = 1 - (rgb.g / 255);
+    const y = 1 - (rgb.b / 255);
+    const k = Math.min(c, m, y);
+    
+    return {
+        c: (c - k) / (1 - k) || 0,
+        m: (m - k) / (1 - k) || 0,
+        y: (y - k) / (1 - k) || 0,
+        k: k
+    };
+}
+
+/**
+ * RGB转HSV
+ * @param {{r: number, g: number, b: number}} rgb - RGB颜色值对象
+ * @returns {{h: number, s: number, v: number}} HSV颜色值对象
+ * h: 色相 (0-360)
+ * s: 饱和度 (0-1)
+ * v: 明度 (0-1)
+ */
+export function rgbToHsv(rgb) {
+    const r = rgb.r / 255;
+    const g = rgb.g / 255;
+    const b = rgb.b / 255;
+    
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    
+    let h;
+    const s = max === 0 ? 0 : d / max;
+    const v = max;
+
+    if (max === min) {
+        h = 0;
+    } else {
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h *= 60;
+    }
+    
+    return { h, s, v };
+}
+
+/**
+ * RGB转XYZ
+ * @param {{r: number, g: number, b: number}} rgb - RGB颜色值对象
+ * @returns {{x: number, y: number, z: number}} XYZ颜色值对象
+ */
+export function rgbToXyz(rgb) {
+    let r = rgb.r / 255;
+    let g = rgb.g / 255;
+    let b = rgb.b / 255;
+
+    r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+    return {
+        x: r * 0.4124564 + g * 0.3575761 + b * 0.1804375,
+        y: r * 0.2126729 + g * 0.7151522 + b * 0.0721750,
+        z: r * 0.0193339 + g * 0.1191920 + b * 0.9503041
+    };
 }
