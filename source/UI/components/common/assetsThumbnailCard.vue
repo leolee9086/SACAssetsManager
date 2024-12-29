@@ -37,8 +37,6 @@ import { 获取素材属性值, UNDEFINED_MARKER, 解析文件内部属性显示
 import { findTagsByFilePath } from '../../../data/tags.js';
 import tagsCell from './assetCard/tagsCell.vue';
 import colorPalletCell from './assetCard/paletteCell.vue'
-import imageCell from './assetCard/imageCell.vue';
-import protyleCell from './assetCard/protyleCell.vue'
 import mainPreviewCell from './assetCard/mainPreviewCell.vue';
 const props = defineProps(['cardData', 'size', 'filterColor', 'selected', 'tableViewAttributes', 'displayMode'])
 const tableViewAttributes = toRef(props, 'tableViewAttributes')
@@ -52,12 +50,6 @@ const firstColorString = ref('var(--b3-theme-background-light)')
 
 const cardRoot = ref(null)
 
-/**
- * 计算显示模式，当小于表格视图阈值时，切换为表格显示
- */
-function handleImageLoad(e, cardData) {
-
-}
 
 // 计算需要获取值的属性
 const resolvedValues = ref({});
@@ -104,19 +96,14 @@ const observer = new ResizeObserver(entries => {
         let interval = 15; // 初始间隔时间
         const updateSize = () => {
             if (cardData.height !== newHeight && Math.abs(cardData.height - newHeight) >= 1) {
-               // requestIdleCallback(() => {
-                //    if (cardData.height !== newHeight && Math.abs(cardData.height - newHeight) >= 1) {
 
                         emit('updateSize', {
                             width: size.value, height: newHeight
                         })
                     }
-               // });
                 interval *= 2; // 指数级增长间隔时间
                 sizeidleCallbackId = requestIdleCallback(updateSize, { timeout: interval });
-           // }
         };
-        //sizeidleCallbackId = requestIdleCallback(updateSize, { timeout: interval });    }
         updateSize()}
     });
 

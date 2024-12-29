@@ -18,7 +18,6 @@
                 <div class="fn__flex" style="margin:auto">
                     <colorPicker v-model="filterColor" :pallet="pallet" @update:modelValue="handleColorChange" />
                 </div>
-
                 <div class="fn__space fn__flex-1"></div>
                 <div>
                     <galleryToolbarButton icon-id="#iconFilter" />
@@ -73,7 +72,9 @@ import _path from '../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
-import { extractFileExtensions } from "../../utils/fs/extension.js";
+import { 更新扩展名中间件 } from './galleryPanel/middlewares/extensions.js';
+import { 提取缩略图路径中间件, 提取NoteID中间件, 提取tags中间件 } from '../../data/attributies/attributeParsers.js';
+import { 过滤器中间件 } from './galleryPanel/middlewares/extensions.js';
 import { 创建带中间件的Push方法 } from "../../utils/array/push.js";
 import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存, 构建遍历参数, useGlob, useExtensions } from "./galleryPanelData.js";
 import { 柯里化 } from "../../utils/functions/currying.js";
@@ -82,7 +83,6 @@ import ColorPicker from './galleryPanel/colorPicker.vue'
 import Slider from './galleryPanel/toolbar/slider.vue'
 import { useAppData } from './galleryPanel/useAppData.js';
 import GalleryToolbarButton from './galleryPanel/toolbar/galleryToolbarButton.vue'
-//主要数据对象
 
 const { appData, tagLabel } = useAppData({
     data: inject('appData'), controller: {
@@ -114,24 +114,18 @@ onMounted(() => {
     }
 })
 watch(selectedExtensions, (newValue, oldValue) => {
-    // 更新过滤函数以支持扩展名过滤
     filterFunc = (item) => {
-        // 如果没有选择任何扩展名，则不过滤
         if (newValue.length === 0) {
             return true;
         }
-        // 获取文件的扩展名
         if (item.type !== 'note') {
             const fileExtension = item.name.split('.').pop().toLowerCase();
-
-            // 检查文件的扩展名是否在选中的扩展名列表中
             return newValue.includes(fileExtension)
         } else {
             return newValue.includes('note')
         }
     };
     refreshPanel();
-    // 在这里可以添加其他逻辑，比如更新界面或触发其他操作
 });
 
 
@@ -144,21 +138,6 @@ onMounted(() => {
         () => searchInputter.value.focus()
     )
 })
-/**
- * 获取数据相关
- */
-import { updateExtensionsMiddleware } from './galleryPanel/middlewares/extensions.js';
-
-
-
-
-const filterArgsMiddleware = (filterFunc) => {
-    return (args) => {
-        let result = args.filter(arg => filterFunc(arg));
-        return result
-    };
-}
-
 let filterFunc = (item) => {
     if (!selectedExtensions.value) {
         return true
@@ -173,7 +152,6 @@ const selectedMosanicAttributes = ref([])
 const displayAttributes = computed(
     () => 卡片显示模式.value === LAYOUT_COLUMN ? selectedMosanicAttributes.value : selectedAttributes.value
 )
-// ... existing code ...
 const 提取属性名中间件 = (布局控制器, 数据缓存) => {
     for (let i = 0; i < 数据缓存.length; i++) {
         const item = 数据缓存[i];
@@ -185,16 +163,12 @@ const 提取属性名中间件 = (布局控制器, 数据缓存) => {
     }
     return 数据缓存;
 };
-
-
-import { 提取缩略图路径中间件, 提取NoteID中间件, 提取tags中间件 } from '../../data/attributies/attributeParsers.js';
 const 初始化数据缓存 = () => {
     const 数据缓存 = { data: [] }
     数据缓存.clear = () => {
         数据缓存.data.length = 0
     }
     const processedAttributes = new Set();
-
     const 布局控制器 = {
         getCardSize: () => {
             return size.value
@@ -205,7 +179,6 @@ const 初始化数据缓存 = () => {
                 return; // 跳过已经处理过的组合
             }
             processedAttributes.add(attributeKey);
-
             if (!属性Map.has(type)) {
                 属性Map.set(type, [name]);
             } else {
@@ -227,8 +200,8 @@ const 初始化数据缓存 = () => {
         提取tags中间件,
         提取NoteID中间件,
         柯里化(提取属性名中间件)(布局控制器),
-        updateExtensionsMiddleware(() => appData.value, () => extensions.value),
-        filterArgsMiddleware(filterFunc),
+        更新扩展名中间件(() => appData.value, () => extensions.value),
+        过滤器中间件(filterFunc),
     );
     return 数据缓存
 };
@@ -287,7 +260,6 @@ function refreshPanel() {
     layoutCount.found = 0
     layoutCount.loaded = 0
     layoutCountTotal.value = 0
-
     nextTick(() => {
         showPanel.value = true
     })

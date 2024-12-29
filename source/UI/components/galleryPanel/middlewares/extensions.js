@@ -1,7 +1,7 @@
 import { extractFileExtensions } from "../../../../utils/fs/extension.js";
 const 扩展名map = new Map();
 
-export const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) => {
+export const 更新扩展名中间件 = (获取配置, 获取扩展名缓存) => {
     return (数据) => {
         if (!获取配置().localPath) {
             let extensions = extractFileExtensions(数据)
@@ -17,3 +17,13 @@ export const updateExtensionsMiddleware = (获取配置, 获取扩展名缓存) 
         return 数据;
     }
 };
+
+
+export const 过滤器中间件 = (filterFunc) => {
+    return (args) => {
+        let result = args.filter(arg => filterFunc(arg));
+        return result
+    };
+}
+
+
