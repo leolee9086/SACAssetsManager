@@ -1,4 +1,4 @@
-import { requirePluginBased } from '../modules/createRequire.js';
+import { requirePluginBased } from '../module/createRequire.js';
 const JSZip = requirePluginBased('jszip')
 const fs = require('fs').promises
 export  {JSZip}

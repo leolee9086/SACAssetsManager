@@ -81,7 +81,6 @@ export const fullscreenUtils = {
       await element.msRequestFullscreen();
     }
   },
-  
   exit: async () => {
     if (document.exitFullscreen) {
       await document.exitFullscreen();
@@ -91,7 +90,6 @@ export const fullscreenUtils = {
       await document.msExitFullscreen();
     }
   },
-  
   isFullscreen: () => !!(
     document.fullscreenElement ||
     document.webkitFullscreenElement ||

@@ -1,4 +1,5 @@
 import MagicString from '../../../static/magic-string.mjs'
+import { isBuiltinFunction } from './wgsl/isBuiltinFunction.js';
 import * as wglsRegs from './wgsl/regex.js'
 
 // 纯函数：解析导入列表
@@ -50,8 +51,44 @@ function extractFunction(source, functionName) {
     if (!match) {
         throw new Error(`Function ${functionName} not found in imported content`);
     }
-    return match[0].replace(/(?:\/\/\s*)?@export\s+/, '').trim();
+
+    // 新增：分析函数依赖
+    const extractedFn = match[0].replace(/(?:\/\/\s*)?@export\s+/, '').trim();
+    const dependencies = extractFunctionDependencies(source, extractedFn);
+    
+    // 返回所有依赖的函数定义和主函数
+    return dependencies.join('\n') + '\n' + extractedFn;
 }
+
+// 新增：提取函数依赖
+function extractFunctionDependencies(source, fnContent) {
+    const dependencies = new Set();
+    // 匹配函数调用: 查找 "fn 标识符("
+    const fnCallRegex = /\b(\w+)\s*\(/g;
+    let match;
+    
+    while ((match = fnCallRegex.exec(fnContent)) !== null) {
+        const calledFn = match[1];
+        // 跳过内置函数
+        if (isBuiltinFunction(calledFn)) continue;
+        
+        // 查找被调用函数的定义
+        const fnDefRegex = new RegExp(`fn\\s+${calledFn}\\s*\\([^)]*\\)[^{]*{[^}]*}`, 'g');
+        const defMatch = source.match(fnDefRegex);
+        
+        if (defMatch) {
+            dependencies.add(defMatch[0]);
+            // 递归查找这个函数的依赖
+            const subDeps = extractFunctionDependencies(source, defMatch[0]);
+            subDeps.forEach(dep => dependencies.add(dep));
+        }
+    }
+    
+    return Array.from(dependencies);
+}
+
+
+
 function extractConstant(source, constantName) {
     const constRegex = wglsRegs.buildConstRegex(constantName)
     const match = source.match(constRegex);
@@ -69,12 +106,7 @@ function processImportItem(type, name, content) {
     }
     return extractedContent;
 }
-function processExports(source) {
-    return source.replace(
-        /(@export\s+)(fn\s+\w+\s*\([^{]*\{[^}]*\})/g,
-        '// @export\n$2'
-    );
-}
+
 async function fetchContent(path) {
     if (path.startsWith('http://') || path.startsWith('https://')) {
         const response = await fetch(path);
@@ -86,20 +118,9 @@ async function fetchContent(path) {
     return fs.readFile(path, 'utf-8');
 }
 
-function 解析基路径(path) {
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-        const url = new URL(path);
-        const pathParts = url.pathname.split('/');
-        pathParts.pop();
-        url.pathname = pathParts.join('/');
-        return url.toString();
-    }
-    return path.dirname(path);
-}
 
 // 宏定义正则表达式
 const MACRO_DEF_REGEX = /#define\s+(\w+)(?:\(([\w\s,]*)\))?\s+([^\n]+)/g;
-const MACRO_USE_REGEX = /(\w+)(?:\(([\w\s,]*)\))?/g;
 
 // 宏处理器
 function processMacros(source) {
@@ -252,12 +273,45 @@ function evaluateCondition(condition, defines) {
     }
 }
 
-// 主入口函数
+/**
+ * 加载并预处理 WGSL 代码文件
+ * 
+ * @param {string} path - WGSL 文件的路径，支持本地文件路径或 HTTP(S) URL
+ * @param {Object} [options] - 预处理选项
+ * @param {boolean} [options.cache=true] - 是否启用导入缓存
+ * @param {Object.<string, boolean|number|string>} [options.defines={}] - 条件编译的定义
+ *        例如: { DEBUG: true, VERSION: 2 }
+ * @param {Map<string, string>} [options.importCache=new Map()] - 导入缓存映射
+ * @param {Object.<string, string>} [options.macros={}] - 要预定义的宏
+ *        例如: { PI: "3.14159", MAX_ITEMS: "100" }
+ * 
+ * @returns {Promise<string>} 处理后的 WGSL 代码
+ * 
+ * @throws {Error} 当文件加载失败或处理过程中出错时抛出异常
+ * 
+ * @example
+ * // 基础用法
+ * const code = await requireWGSLCode('./shaders/main.wgsl');
+ * 
+ * @example
+ * // 使用完整选项
+ * const code = await requireWGSLCode('./shaders/main.wgsl', {
+ *   cache: true,
+ *   defines: { 
+ *     DEBUG: true,
+ *     PLATFORM: "mobile"
+ *   },
+ *   macros: {
+ *     PI: "3.14159",
+ *     TEXTURE_SIZE: "512"
+ *   }
+ * });
+ */
 export async function requireWGSLCode(path, options = { 
     cache: true, 
     defines: {},
     importCache: new Map(),
-    macros: {} // 新增宏定义选项
+    macros: {}
 }) {
     try {
         const basePath = path.startsWith('http')

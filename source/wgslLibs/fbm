@@ -1,0 +1,46 @@
+@export
+fn fbm(p: vec2f) -> f32 {
+            // 主要纹理
+    var freq = params.frequency;
+    var amp = params.amplitude;
+    var sum = 0.0;
+    var maxSum = 0.0;
+
+    let offsetP = p + vec2f(params.offset_x, params.offset_y);
+    let baseP = offsetP * params.master_scale;
+
+    let maxOctaves = min(params.octaves, 4);
+
+    for (var i = 0; i < maxOctaves; i++) {
+        sum += amp * simpleNoise2D(baseP * freq);
+        maxSum += amp;
+        freq *= params.lacunarity;
+        amp *= params.persistence;
+    }
+
+    var mainNoise = sum / maxSum;
+
+            // 细节纹理
+    freq = params.frequency * 2.0;
+    amp = params.amplitude * 0.5;
+    sum = 0.0;
+    maxSum = 0.0;
+
+    let detailP = offsetP * params.detail_scale;
+
+    for (var i = 0; i < maxOctaves; i++) {
+        sum += amp * simpleNoise2D(detailP * freq);
+        maxSum += amp;
+        freq *= params.lacunarity;
+        amp *= params.persistence;
+    }
+
+    let detailNoise = sum / maxSum;
+
+            // 混合主要纹理和细节
+    var result = mix(mainNoise, detailNoise, params.detail_weight);
+            
+            // 应用对比度和亮度
+    result = (result - 0.5) * params.contrast + 0.5 + params.brightness;
+    return clamp(result, 0.0, 1.0);
+}

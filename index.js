@@ -64,7 +64,7 @@ const TAB_CONFIGS = {
     containerId: 'assetsColumn'
   },
   ImagePreviewerTab: {
-    component: '/plugins/SACAssetsManager/source/UI/pannels/pageEditor/index.vue',
+    component: '/plugins/SACAssetsManager/source/UI/pannels/proceduralTextureGenerator/index.vue',
     containerId: 'imagePreviewerPanel'
   }
 }

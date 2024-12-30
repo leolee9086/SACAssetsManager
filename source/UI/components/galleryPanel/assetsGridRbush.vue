@@ -69,14 +69,8 @@ const props = defineProps({
         type: Object,
         required: true
     },
-    globSetting: {
-        type: Boolean,
-        required: true
-    },
-    filterColor: {
-        type: String,
-        required: true
-    },
+
+
     assetsSource: {
         type: Array,
         required: true

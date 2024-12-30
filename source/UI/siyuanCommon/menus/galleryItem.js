@@ -124,7 +124,6 @@ export const 打开附件组菜单 = (event, assets, options) => {
     const menu = new clientApi.Menu('sac-galleryitem-menu')
     添加附件选中信息(menu, assets)
     menu.addSeparator()
-
     menu.addItem(模式切换菜单项(event, assets, options))
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
         添加批处理菜单组(menu, options)
@@ -153,7 +152,6 @@ export const 打开附件组菜单 = (event, assets, options) => {
             menu.addItem(元数据编辑菜单组.d5a内置缩略图(assets))
             menu.addItem(元数据编辑菜单组.d5a内置缩略图单次确认(assets))
         }
-
         if (assets.find(item => item && isImage(item.path))) {
             menu.addItem(元数据编辑菜单组.打开图片编辑器对话框(assets))
             menu.addItem(元数据编辑菜单组.打开简版图片编辑器(assets))

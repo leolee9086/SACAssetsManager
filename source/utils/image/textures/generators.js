@@ -242,9 +242,15 @@ class TextureGenerator {
         });
         
         for (const [name, type] of Object.entries(uniformLayout)) {
-            if (name === '_padding') {
-                // 添加填充数据
-                bufferData.push(0.0, 0.0);
+            // 处理填充字段
+            if (name.startsWith('_pad')) {
+                if (type === 'vec4f') {
+                    bufferData.push(0.0, 0.0, 0.0, 0.0); // 16字节填充
+                } else if (type === 'vec2f') {
+                    bufferData.push(0.0, 0.0); // 8字节填充
+                } else if (type === 'f32') {
+                    bufferData.push(0.0); // 4字节填充
+                }
                 continue;
             }
 
@@ -255,18 +261,27 @@ class TextureGenerator {
                 if (color.length < 4) {
                     color.push(1);
                 }
-                console.log(`处理颜色 ${name}:`, color);
                 bufferData.push(...color);
+            } else if (type === 'vec3f') {
+                const vec = Array.isArray(value) ? value : [0, 0, 0];
+                bufferData.push(...vec);
+                // vec3f 后必须添加填充以保持 16 字节对齐
+                bufferData.push(0.0);
             } else if (type === 'vec2f') {
                 const vec = Array.isArray(value) ? value : [0, 0];
                 bufferData.push(...vec);
             } else {
-                console.log(`处理标量 ${name}:`, value);
                 bufferData.push(value);
             }
         }
 
         console.log('最终 uniform buffer 数据:', bufferData);
+        console.log('Buffer 大小(字节):', bufferData.length * 4);
+        
+        // 确保缓冲区大小是 16 的倍数
+        while (bufferData.length % 4 !== 0) {
+            bufferData.push(0.0);
+        }
         
         return new Float32Array(bufferData);
     }
@@ -276,6 +291,8 @@ class TextureGenerator {
             case 'f32': return 0.0;
             case 'i32': return 0;
             case 'vec4f': return [1, 1, 1, 1];
+            case 'vec3f': return [0, 0, 0];
+            case 'vec2f': return [0, 0];
             default: return 0;
         }
     }
@@ -346,194 +363,47 @@ class TextureGenerator {
 }
 
 
-// 使用示例:
 async function testTextureGenerator() {
-    const generator = await TextureGenerator.create(512, 512);
+    const generator = await TextureGenerator.create(1024, 1024);
     
     try {
-        // 测试噪声纹理
-        const noiseTests = [
-            {
-                name: '标准噪声',
-                params: {
-                    scale: 8.0,
-                    seed: Math.random() * 1000,
-                    octaves: 6,
-                    persistence: 0.5,
-                    lacunarity: 2.0,
-                    frequency: 1.0,
-                    amplitude: 1.0,
-                    offset_x: 0.0,
-                    offset_y: 0.0,
-                    contrast: 1.0,
-                    brightness: 0.0,
-                    detail_scale: 2.0,
-                    master_scale: 1.0,
-                    detail_weight: 0.3
-                }
-            },
-            {
-                name: '细致噪声',
-                params: {
-                    scale: 16.0,
-                    seed: Math.random() * 1000,
-                    octaves: 8,
-                    persistence: 0.7,
-                    lacunarity: 2.5,
-                    frequency: 2.0,
-                    amplitude: 1.0,
-                    offset_x: 0.0,
-                    offset_y: 0.0,
-                    contrast: 1.2,
-                    brightness: 0.0,
-                    detail_scale: 4.0,
-                    master_scale: 1.0,
-                    detail_weight: 0.5
+        const results = {};
+        
+        // 遍历所有着色器及其预设
+        for (const [shaderType, shader] of Object.entries(shaders)) {
+            if (!shader.presets) {
+                console.log(`跳过 ${shaderType}: 没有预设配置`);
+                continue;
+            }
+
+            console.log(`开始生成 ${shaderType} 纹理...`);
+            results[shaderType] = {};
+            
+            for (const [presetName, params] of Object.entries(shader.presets)) {
+                console.log(`生成 ${shaderType} - ${presetName} 纹理...`);
+                
+                // 如果着色器需要随机种子，则添加随机种子
+                const finalParams = {
+                    ...params,
+                    ...(shader.uniforms.seed ? { seed: Math.random() * 1000 } : {})
+                };
+                
+                try {
+                    results[shaderType][presetName] = await generator.generate({
+                        type: shaderType,
+                        params: finalParams
+                    });
+                    
+                    console.log(`${shaderType} - ${presetName} 纹理生成完成`);
+                } catch (error) {
+                    console.error(`生成 ${shaderType} - ${presetName} 纹理失败:`, error);
+                    results[shaderType][presetName] = null;
                 }
             }
-        ];
-
-        // 测试渐变纹理
-        const gradientTests = [
-            {
-                name: '红蓝渐变',
-                params: {
-                    color1: [1.0, 0.0, 0.0, 1.0],
-                    color2: [0.0, 0.0, 1.0, 1.0],
-                    angle: 0.0,
-                    offset: 0.0
-                }
-            },
-            {
-                name: '彩虹渐变',
-                params: {
-                    color1: [1.0, 0.0, 1.0, 1.0],
-                    color2: [0.0, 1.0, 0.0, 1.0],
-                    angle: Math.PI / 2,
-                    offset: 0.0
-                }
-            }
-        ];
-
-        // 测试棋盘格纹理
-        const checkerboardTests = [
-            {
-                name: '标准棋盘',
-                params: {
-                    color1: [1, 1, 1, 1],
-                    color2: [0, 0, 0, 1],
-                    size: 8.0,
-                    rotation: 0.0,
-                    offset_x: 0.0,
-                    offset_y: 0.0
-                }
-            },
-            {
-                name: '旋转棋盘',
-                params: {
-                    color1: [0.9, 0.1, 0.1, 1],
-                    color2: [0.1, 0.1, 0.9, 1],
-                    size: 16.0,
-                    rotation: Math.PI / 4,
-                    offset_x: 0.5,
-                    offset_y: 0.5
-                }
-            }
-        ];
-
-        // 测试点阵纹理
-        const dotsTests = [
-            {
-                name: '标准点阵',
-                params: {
-                    background: [0, 0, 0, 1],
-                    dot_color: [1, 1, 1, 1],
-                    size: 10.0,
-                    dot_radius: 0.3,
-                    softness: 0.1,
-                    rotation: 0.0
-                }
-            },
-            {
-                name: '柔和点阵',
-                params: {
-                    background: [0.1, 0.1, 0.1, 1],
-                    dot_color: [1, 0.8, 0.2, 1],
-                    size: 15.0,
-                    dot_radius: 0.4,
-                    softness: 0.3,
-                    rotation: Math.PI / 6
-                }
-            }
-        ];
-
-        // 测试细胞噪声
-        const cellularTests = [
-            {
-                name: '标准细胞',
-                params: {
-                    scale: 5.0,
-                    seed: Math.random() * 1000,
-                    intensity: 1.0,
-                    jitter: 1.0,
-                    falloff: 1.0
-                }
-            },
-            {
-                name: '有机细胞',
-                params: {
-                    scale: 8.0,
-                    seed: Math.random() * 1000,
-                    intensity: 1.5,
-                    jitter: 0.8,
-                    falloff: 2.0
-                }
-            }
-        ];
-
-        const results = {
-            noise: {},
-            gradient: {},
-            checkerboard: {},
-            dots: {},
-            cellular: {}
-        };
-
-        // 执行所有测试
-        for (const test of noiseTests) {
-            results.noise[test.name] = await generator.generate({
-                type: 'noise',
-                params: test.params
-            });
+            
+            console.log(`${shaderType} 纹理全部生成完成`);
         }
-
-        for (const test of gradientTests) {
-            results.gradient[test.name] = await generator.generate({
-                type: 'gradient',
-                params: test.params
-            });
-        }
-
-        for (const test of checkerboardTests) {
-            results.checkerboard[test.name] = await generator.generate({
-                type: 'checkerboard',
-                params: test.params
-            });
-        }
-
-        for (const test of dotsTests) {
-            results.dots[test.name] = await generator.generate({
-                type: 'dots',
-                params: test.params
-            });
-        }
-
-        for (const test of cellularTests) {
-            results.cellular[test.name] = await generator.generate({
-                type: 'cellular',
-                params: test.params
-            });
-        }
+        
         return results;
 
     } catch (error) {
@@ -544,6 +414,5 @@ async function testTextureGenerator() {
     }
 }
 
-// 
+
 export { TextureGenerator, testTextureGenerator };
-import './pattern.js'
