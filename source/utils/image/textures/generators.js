@@ -1,4 +1,5 @@
 import { shaders } from "./shaders.js";
+import { makeTileable as  Tileable } from "./makeTileable/HistogramPreservingBlendMakeTileable.js";
 // 定义标准化的输入输出接口
 /**
  * @typedef {Object} TextureGeneratorInput
@@ -101,12 +102,12 @@ class TextureGenerator {
     }
 
     /**
-     * 生成纹理
-     * @param {TextureGeneratorInput} input
+     * 生成纹理并应用无缝化处理
+     * @param {TextureGeneratorInput & { makeTileable?: boolean, borderSize?: number }} input
      * @returns {Promise<TextureGeneratorOutput>}
      */
     async generate(input) {
-        const { type, params = {}, width, height } = input;
+        const { type, params = {}, width, height, makeTileable = true, borderSize = 30 } = input;
 
         // 如果提供了新的尺寸，临时更新
         const originalWidth = this.width;
@@ -115,7 +116,21 @@ class TextureGenerator {
         if (height) this.height = height;
 
         try {
-            const result = await this.generateTexture(type, params);
+            let result = await this.generateTexture(type, params);
+
+            // 如果需要无缝化处理
+            if (makeTileable) {
+                const ctx = result.canvas.getContext('2d');
+                const imageData = ctx.getImageData(0, 0, result.canvas.width, result.canvas.height);
+                
+                // 应用无缝化处理
+                const tileableImageData = await Tileable(imageData, borderSize);
+                console.log(tileableImageData)
+                // 更新 canvas 和 buffer
+                ctx.putImageData(tileableImageData, 0, 0);
+                result.buffer = await this._canvasToBuffer(result.canvas);
+            }
+
             return {
                 ...result,
                 width: this.width,
@@ -364,7 +379,7 @@ class TextureGenerator {
 
 
 async function testTextureGenerator() {
-    const generator = await TextureGenerator.create(1024, 1024);
+    const generator = await TextureGenerator.create(512, 512);
     
     try {
         const results = {};

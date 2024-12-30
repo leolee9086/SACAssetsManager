@@ -18,8 +18,7 @@ struct Params {
 
         // 改进的哈希函数
 fn hash31(p3: vec3f) -> f32 {
-    // 使用正弦函数来提供更好的周期性
-    var p = sin(p3 * 0.1031);
+    var p = fract(p3 * 0.1031);
     p += dot(p, p.yzx + 333.3456);
     return fract((p.x + p.y) * p.z);
 }
@@ -160,9 +159,9 @@ fn woodPattern(p: vec3f) -> vec3f {
     
     // 增强木纹纹理的细节
     let grain = 1.0 - smoothstep(0.2, 0.8,
-        musgraveFbm(p_directed * vec3f(params.grain_scale * 2.0, params.grain_scale * 0.3, 1.0), 4.0, 1.8, 2.2) +
-        musgraveFbm(p_directed * vec3f(params.grain_scale * 1.5, params.grain_scale * 0.2, 1.0), 3.0, 1.8, 2.2) * 0.5 +
-        musgraveFbm(p_directed * vec3f(params.grain_scale * 3.0, params.grain_scale * 0.4, 1.0), 2.0, 1.8, 2.2) * 0.3
+        musgraveFbm(p * vec3f(params.grain_scale * 2.0, params.grain_scale * 0.3, 1.0), 4.0, 1.8, 2.2) +
+        musgraveFbm(p * vec3f(params.grain_scale * 1.5, params.grain_scale * 0.2, 1.0), 3.0, 1.8, 2.2) * 0.5 +
+        musgraveFbm(p * vec3f(params.grain_scale * 3.0, params.grain_scale * 0.4, 1.0), 2.0, 1.8, 2.2) * 0.3 // 新增的细节层
     ) * 0.18;
 
     // 增加更细腻的色彩过渡
@@ -302,17 +301,33 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
     }      
 
     let uv = vec2f(f32(global_id.x), f32(global_id.y)) / vec2f(f32(dims.x), f32(dims.y));
-    let scale_factor = params.scale ;
+    let scale_factor = params.scale * 0.95;
     
-    // 修改坐标计算方式，确保 x 轴方向的连续性
-    let tiled_uv = vec2f(
-        fract(uv.x * scale_factor), // 保持周期性
-        uv.y * scale_factor         // 保持原有的缩放
-    );
+    // 使用分形叠加来创造连续的变化
+    var x_coord = uv.x;
+    let octaves = 4;
+    var amplitude = 1.0;
+    var frequency = 1.0;
+    var total_amplitude = 0.0;
+    var fbm_value = 0.0;
+    
+    // 使用 fbm 来调制 x 坐标
+    for (var i = 0; i < octaves; i++) {
+        fbm_value += noise3D(vec3f(x_coord * frequency, 0.5, params.time)) * amplitude;
+        total_amplitude += amplitude;
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    
+    // 归一化 fbm
+    fbm_value = fbm_value / total_amplitude;
+    
+    // 使用 fbm 来轻微调制原始坐标
+    x_coord = mix(x_coord, fbm_value, 0.3);  // 只使用 30% 的 fbm 影响
     
     let p = vec3f(
-        uv.x * scale_factor, // 直接使用缩放后的uv.x，保持连续性
-        tiled_uv.y,
+        x_coord * scale_factor,
+        (fract(uv.y * 0.5) * 2.0) * scale_factor,
         params.time
     );
 
