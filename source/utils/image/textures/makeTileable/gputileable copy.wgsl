@@ -6,7 +6,6 @@ const borderWidth: f32 = 0.3;  // 进一步增加边界宽度
 @group(0) @binding(3) var t_inv: texture_2d<f32>;    // Inverse histogram transformation T^{-1}
 @group(0) @binding(4) var t_sampler: sampler;        // Sampler for both textures
 @group(0) @binding(5) var output_texture: texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(6) var<uniform> borderWidthPercent: f32;
 
 struct MirrorUV {
     uv_left: vec2<f32>,
@@ -27,9 +26,8 @@ fn remapValue(value: f32, low1: f32, high1: f32, low2: f32, high2: f32) -> f32 {
     return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
 }
 
-fn getEdgeWeight(dist: f32) -> f32 {
-    // 使用传入的百分比参数
-    let edgeWidth = borderWidthPercent;
+fn getEdgeWeight(dist: f32, edgeWidth: f32) -> f32 {
+    // 使用双重平滑步进确保边缘更柔和
     let t = clamp(dist / edgeWidth, 0.0, 1.0);
     return smoothBlend(smoothBlend(t));
 }
@@ -126,18 +124,20 @@ fn hash(p: vec2<i32>) -> vec2<f32> {
 
 fn GaussianTransform(uv: vec2<f32>, w1: f32, w2: f32, w3: f32,
     uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>) -> vec3<f32> {
+    // 首先从原始输入纹理采样
     let I1 = textureSample(input_texture, input_sampler, uv1).rgb;
     let I2 = textureSample(input_texture, input_sampler, uv2).rgb;
     let I3 = textureSample(input_texture, input_sampler, uv3).rgb;
 
+    // 在原始空间中进行混合
     let color = w1 * I1 + w2 * I2 + w3 * I3;
 
     // 根据边缘距离动态调整高斯变换参数
     let edgeDist = min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y));
     let mu = 0.5;
-    // 减小边缘处的模糊程度，保持中心区域的细节
-    let sigma = mix(0.15, 0.05,  // 缩小sigma范围
-        smoothstep(0.0, borderWidth * 2.0, edgeDist));
+    // 显著增加sigma范围并使用更大的过渡区域
+    let sigma = mix(0.35, 0.12,  // 增加对比度
+        smoothBlend(smoothstep(0.0, borderWidth * 3.0, edgeDist)));
 
     // 对混合结果应用高斯变换
     var G: vec3<f32>;
@@ -504,18 +504,18 @@ fn getRandomOffset(seed: vec2<f32>) -> vec2<f32> {
 }
 
 fn calculateWeight(pos: vec2<f32>, tileSize: vec2<f32>, tileCenter: vec2<f32>) -> f32 {
-    // 增加权重计算的锐度
+    // 计算相对于瓦片中心的位置
     let relPos = abs(pos - 0.5 * (tileSize - vec2<f32>(1.0)));
     
     var w: f32;
     if (pos.x >= tileSize.x / 2.0 && pos.x < tileSize.x / 2.0 + tileCenter.x) {
-        // 垂直边界 - 使用更陡峭的过渡
-        let w0 = pow(1.0 - relPos.y / (tileSize.y / 2.0 - 1.0), 1.5); // 增加指数
+        // 垂直边界
+        let w0 = 1.0 - relPos.y / (tileSize.y / 2.0 - 1.0);
         let w1 = 1.0 - w0;
         w = w0 / sqrt(w0 * w0 + w1 * w1);
     } else if (pos.y >= tileSize.y / 2.0 && pos.y < tileSize.y / 2.0 + tileCenter.y) {
-        // 水平边界 - 使用更陡峭的过渡
-        let w0 = pow(1.0 - relPos.x / (tileSize.x / 2.0 - 1.0), 1.5); // 增加指数
+        // 水平边界
+        let w0 = 1.0 - relPos.x / (tileSize.x / 2.0 - 1.0);
         let w1 = 1.0 - w0;
         w = w0 / sqrt(w0 * w0 + w1 * w1);
     } else {
@@ -584,6 +584,18 @@ fn customModulo(x: f32, n: f32) -> f32 {
     return r;
 }
 
+fn applyContrastEnhancement(color: vec3<f32>, strength: f32) -> vec3<f32> {
+    // 计算亮度
+    let luminance = dot(color, vec3<f32>(0.299, 0.587, 0.114));
+    
+    // 应用 S 型曲线增强对比度
+    let enhanced = 0.5 + (1.0 + strength) * (luminance - 0.5);
+    let contrast = smoothstep(0.0, 1.0, enhanced);
+    
+    // 保持色相不变，只调整亮度
+    return mix(color, color * (contrast / luminance), strength);
+}
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let dims = vec2<f32>(textureDimensions(input_texture));
@@ -598,7 +610,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     
     // 添加边界混合的贡献
     let borderWeight = applyBorderBlending(input.uv, vec3<f32>(1.0), borderSize).x;
-    outputColor += gaussianColor * borderWeight; // 移除额外的权重倍增
+    outputColor += gaussianColor * borderWeight;
     totalWeight += borderWeight;
     
     // 计算瓦片参数
@@ -652,32 +664,26 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             customModulo(pixelPos.y + offset.y + tileOffset.y * dims.y, dims.y) / dims.y
         );
         
-        let offsetColor = gaussianTransform(
-            textureSample(input_texture, input_sampler, offsetUV).rgb
-        );
+        let offsetColor = textureSample(input_texture, input_sampler, offsetUV).rgb;
+        
+        // 根据权重动态调整对比度增强
+        let contrastStrength = mix(0.2, 0.5, w); // 权重越大，对比度越强
+        let enhancedColor = applyContrastEnhancement(offsetColor, contrastStrength);
+        
+        // 应用高斯变换
+        let gaussianColor = gaussianTransform(enhancedColor);
         
         // 使用 select 替代 if 语句
         let validWeight = select(0.0, w, isInTile && w > 0.0);
-        outputColor += offsetColor * validWeight;
+        outputColor += gaussianColor * validWeight;
         totalWeight += validWeight;
     }
     
-    // 使用 select 替代 if 语句进行归一化
+    // 最终的对比度增强
     outputColor = select(gaussianColor, outputColor / totalWeight, totalWeight > 0.0);
+    let finalColor = invGaussianTransform(outputColor);
+    let enhancedFinal = applyContrastEnhancement(finalColor, 0.3);
     
-    // 在高斯变换之前保留高频细节
-    let originalColor = textureSample(input_texture, input_sampler, input.uv).rgb;
-    let detail = originalColor - gaussianColor;
-    
-    // 根据边缘距离动态调整细节保留程度
-    let edgeDist = min(min(input.uv.x, input.uv.y), min(1.0 - input.uv.x, 1.0 - input.uv.y));
-    let detailWeight = mix(0.05, 0.15,  // 在边缘处减少细节保留
-        smoothstep(0.0, borderWidth * 2.0, edgeDist));
-    
-    // 应用细节并进行最终变换
-    let finalColor = invGaussianTransform(outputColor + detail * detailWeight);
-    
-    // 不再额外混合原始颜色，保持变换后的效果
-    return vec4<f32>(finalColor, 1.0);
+    return vec4<f32>(enhancedFinal, 1.0);
 }
 
