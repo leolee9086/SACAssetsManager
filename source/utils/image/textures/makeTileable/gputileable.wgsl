@@ -578,6 +578,13 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let tileSize = vec2<f32>(tileParams.x * dims.x, tileParams.y * dims.y);
     let tileCount = vec2<f32>(tileParams.z, tileParams.w);
     
+    // 添加随机扰动到 UV 坐标
+    let disturbance = getTriangleGridDisturbance(input.uv);
+    var samplingUV = input.uv + disturbance;
+    
+    // 确保 UV 保持在 [0,1] 范围内
+    samplingUV = fract(samplingUV);
+    
     // 遍历瓦片进行混合
     for (var c = -1; c < i32(tileCount.x - 1.0 + tileCount.y - 1.0); c = c + 1) {
         let i_tile = f32(select(c, -1, c >= i32(tileCount.x - 1.0)));
@@ -608,10 +615,14 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         let isInTile = (pixelPos.x < tileSize.x + tileCenterWidth && 
                        pixelPos.y < tileSize.y + tileCenterHeight);
         
-        // 采样偏移位置
+        // 为每个瓦片添加独特的随机扰动
+        let tileNoise = hash2D(vec2<f32>(f32(c) * 0.1, f32(c) * 0.7));
+        let tileOffset = (tileNoise * 2.0 - 1.0) * 0.02; // 调整扰动范围
+        
+        // 在计算偏移采样时使用随机扰动
         let offsetUV = vec2<f32>(
-            customModulo(pixelPos.x + offset.x, dims.x) / dims.x,
-            customModulo(pixelPos.y + offset.y, dims.y) / dims.y
+            customModulo(pixelPos.x + offset.x + tileOffset.x * dims.x, dims.x) / dims.x,
+            customModulo(pixelPos.y + offset.y + tileOffset.y * dims.y, dims.y) / dims.y
         );
         
         let offsetColor = gaussianTransform(
