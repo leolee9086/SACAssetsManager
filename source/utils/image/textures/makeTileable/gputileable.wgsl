@@ -356,7 +356,7 @@ fn computeEigenVectors(covarMatrix: mat3x3<f32>) -> mat3x3<f32> {
 // 更新瓦片参数计算
 fn calculateTileParameters(uv: vec2<f32>) -> vec4<f32> {
     let dims = vec2<f32>(textureDimensions(input_texture));
-    let borderSize = 128.0;  // 基础边界大小
+    let borderSize = 256.0;  // 基础边界大小
     
     let tileCountWidth = floor(dims.x / borderSize);
     let tileRadiusWidth = borderSize;

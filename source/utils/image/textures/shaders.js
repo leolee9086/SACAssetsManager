@@ -5,7 +5,7 @@ import { parseWGSLBindings } from "./utils/wgslBindingParser.js";
 addScriptSync(import.meta.resolve('../../../../static/tf.min.js'))
 console.log(parseWGSLBindings(await requireWGSLCode(import.meta.resolve('./generatorShaders/noise.wgsl'))))
 export const shaders = {
-    /*noise: {
+    noise: {
         code:await requireWGSLCode(import.meta.resolve('./generatorShaders/noise.wgsl')),
         uniforms: {
             scale: 'f32',
@@ -640,7 +640,7 @@ export const shaders = {
                 brightness: 0.15
             }
         }
-    },*/
+    },
 
     marble_royal_brown: {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_royal_brown.wgsl')),
