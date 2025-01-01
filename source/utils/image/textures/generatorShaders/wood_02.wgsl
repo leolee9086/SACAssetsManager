@@ -1,14 +1,15 @@
 @group(0) @binding(0) var output: texture_storage_2d<rgba8unorm, write>;
         
 struct Params {
-            time: f32,
-            scale: f32,
-            color1: vec3f,
+                color1: vec3f,
             _pad1: f32,
             color2: vec3f,
             _pad2: f32,
             color3: vec3f,
             _pad3: f32,
+
+            time: f32,
+            scale: f32,
             grain_scale: f32,
             ring_scale: f32,
             contrast: f32,

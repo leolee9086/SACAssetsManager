@@ -1,14 +1,15 @@
 @group(0) @binding(0) var output: texture_storage_2d<rgba8unorm, write>;
 
 struct Params {
-    time: f32,
-    scale: f32,
     color1: vec3f,
     _pad1: f32,
     color2: vec3f,
     _pad2: f32,
     color3: vec3f,
     _pad3: f32,
+        time: f32,
+    scale: f32,
+
     vein_scale: f32,
     jitter: f32,
     vein_contrast: f32,
@@ -37,21 +38,21 @@ fn turbulence(p: vec3f, octaves: i32, roughness: f32) -> f32 {
 fn marblePattern(p: vec3f) -> vec3f {
     var pos = p;
     
-    // 修改纤维扭曲，使其更均匀分布
-    let fiber_angle_x = 0.6;
-    let fiber_angle_y = 0.5;
+    // 增加纤维角度的差异，使条纹更明显
+    let fiber_angle_x = 0.8;
+    let fiber_angle_y = 0.3;
     let fiber_noise = vec3f(
-        turbulence(p * 0.8 + vec3f(p.y * fiber_angle_x, p.x * fiber_angle_y, 0.0), 6, 0.65),
-        turbulence(p * 0.7 + vec3f(p.x * fiber_angle_y, p.y * fiber_angle_x, 0.0), 6, 0.65),
-        turbulence(p * 0.6 + vec3f(p.y * 0.3, p.x * 0.3, 0.0), 6, 0.65)
+        turbulence(p * 0.9 + vec3f(p.y * fiber_angle_x, p.x * fiber_angle_y, 0.0), 6, 0.7),
+        turbulence(p * 0.8 + vec3f(p.x * fiber_angle_y, p.y * fiber_angle_x, 0.0), 6, 0.7),
+        turbulence(p * 0.7 + vec3f(p.y * 0.4, p.x * 0.2, 0.0), 6, 0.7)
     );
     
-    pos += fiber_noise * params.jitter;
+    pos += fiber_noise * (params.jitter * 1.2);
 
-    // 修改基础纹理以避免Y轴方向的偏好
+    // 修改基础纹理以增强方向性
     let base_pattern1 = sin(
-        pos.x * params.vein_scale + pos.y * params.vein_scale * 0.8 + 
-        turbulence(pos * 0.4 + vec3f(pos.y * 0.2, pos.x * 0.2, 0.0), 7, 0.7) * params.vein_contrast
+        pos.x * params.vein_scale * 1.2 + pos.y * params.vein_scale * 0.6 +
+        turbulence(pos * 0.4 + vec3f(pos.y * 0.3, pos.x * 0.15, 0.0), 7, 0.7) * params.vein_contrast
     );
     
     let base_pattern2 = sin(
@@ -78,11 +79,11 @@ fn marblePattern(p: vec3f) -> vec3f {
         3, 0.4
     ) * 0.3;
     
-    // 双向纤维细节
+    // 增强双向纤维细节的方向性
     let fiber_detail = (
-        sin(pos.x * 8.0 + pos.y * 3.0 + turbulence(pos * 0.8, 5, 0.6) * 2.0) * 0.5 +
-        sin(pos.y * 7.0 + pos.x * 3.5 + turbulence(pos * 0.7, 5, 0.6) * 2.0) * 0.5
-    ) * 0.15;
+        sin(pos.x * 10.0 + pos.y * 2.5 + turbulence(pos * 0.8, 5, 0.6) * 2.0) * 0.6 +
+        sin(pos.y * 6.0 + pos.x * 3.0 + turbulence(pos * 0.7, 5, 0.6) * 2.0) * 0.4
+    ) * 0.18;
 
     // 组合基础纹理
     let base_combined = mix(base_pattern1, base_pattern2, 0.3) + fiber_detail;

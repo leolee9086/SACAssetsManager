@@ -178,14 +178,15 @@ export const shaders = {
         //thanks :https://www.shadertoy.com/view/mdy3R1
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood.wgsl')),
         uniforms: {
-            time: 'f32',
-            scale: 'f32',
             color1: 'vec3f',
             _pad1: 'f32',
             color2: 'vec3f',
             _pad2: 'f32',
             color3: 'vec3f',
             _pad3: 'f32',
+            time: 'f32',
+            scale: 'f32',
+
             grain_scale: 'f32',
             ring_scale: 'f32',
             contrast: 'f32',
@@ -276,14 +277,15 @@ export const shaders = {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_01.wgsl')),
 
         uniforms: {
-            time: 'f32',
-            scale: 'f32',
             color1: 'vec3f',
             _pad1: 'f32',
             color2: 'vec3f',
             _pad2: 'f32',
             color3: 'vec3f',
             _pad3: 'f32',
+            time: 'f32',
+            scale: 'f32',
+
             ring_scale: 'f32',
             ring_width: 'f32',
             fiber_scale: 'f32',
@@ -340,6 +342,13 @@ export const shaders = {
     wood_procedural: {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_procedural.wgsl')),
         uniforms: {
+            color1: 'vec3f',
+            _pad1: 'f32',
+            color2: 'vec3f',
+            _pad2: 'f32',
+            color3: 'vec3f',
+            _pad3: 'f32',
+
             time: 'f32',
             scale: 'f32',
             wood_type: 'i32',
@@ -348,12 +357,6 @@ export const shaders = {
             ring_scale: 'f32',
             ring_contrast: 'f32',
             grain_scale: 'f32',
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32'
         },
         presets: {
             oak: {
@@ -401,14 +404,15 @@ export const shaders = {
     quarter_sawn_wood: {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/quarterSawnWood.wgsl')),
         uniforms: {
-            time: 'f32',
-            scale: 'f32',
             color1: 'vec3f',
             _pad1: 'f32',
             color2: 'vec3f',
             _pad2: 'f32',
             color3: 'vec3f',
             _pad3: 'f32',
+
+            time: 'f32',
+            scale: 'f32',
             grain_scale: 'f32',
             ring_scale: 'f32',
             contrast: 'f32',
@@ -475,14 +479,15 @@ export const shaders = {
     knottyWood: {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/knottyWood.wgsl')),
         uniforms: {
-            time: 'f32',
-            scale: 'f32',
             color1: 'vec3f',
             _pad1: 'f32',
             color2: 'vec3f',
             _pad2: 'f32',
             color3: 'vec3f',
             _pad3: 'f32',
+
+            time: 'f32',
+            scale: 'f32',
             grain_scale: 'f32',
             ring_scale: 'f32',
             contrast: 'f32',
@@ -528,14 +533,15 @@ export const shaders = {
     wood_fine: {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_fine.wgsl')),
         uniforms: {
-            time: 'f32',
-            scale: 'f32',
             color1: 'vec3f',
             _pad1: 'f32',
             color2: 'vec3f',
             _pad2: 'f32',
             color3: 'vec3f',
             _pad3: 'f32',
+
+            time: 'f32',
+            scale: 'f32',
             grain_scale: 'f32',
             ring_scale: 'f32',
             contrast: 'f32',
@@ -592,14 +598,14 @@ export const shaders = {
     wood_02: {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_02.wgsl')),
         uniforms: {
-            time: 'f32',
-            scale: 'f32',
             color1: 'vec3f',
             _pad1: 'f32',
             color2: 'vec3f',
             _pad2: 'f32',
             color3: 'vec3f',
             _pad3: 'f32',
+            time: 'f32',
+            scale: 'f32',
             grain_scale: 'f32',
             ring_scale: 'f32',
             contrast: 'f32',
@@ -645,26 +651,26 @@ export const shaders = {
     marble_royal_brown: {
         code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_royal_brown.wgsl')),
         uniforms: {
+            color1: 'vec3f',
+            _pad1: 'f32',
+            color2: 'vec3f',
+            _pad2: 'f32',
+            color3: 'vec3f',
+            _pad3: 'f32',
             time: 'f32',
             scale: 'f32',
-            color1: 'vec3f',    // 主色调
-            _pad1: 'f32',
-            color2: 'vec3f',    // 次要色调
-            _pad2: 'f32',
-            color3: 'vec3f',    // 纹理色
-            _pad3: 'f32',
-            vein_scale: 'f32',  // 纹理尺度
-            vein_contrast: 'f32', // 纹理对比度
-            turbulence: 'f32',   // 湍流强度
-            brightness: 'f32'    // 整体亮度
+            vein_scale: 'f32',
+            vein_contrast: 'f32',
+            turbulence: 'f32',
+            brightness: 'f32'
         },
         presets: {
             royalBrown: {
                 time: Math.random(),
                 scale: 4.0,
-                color1: [0.35, 0.20, 0.12],  // 深褐色
-                color2: [0.55, 0.35, 0.25],  // 浅褐色
-                color3: [0.85, 0.80, 0.75],  // 米白色
+                color1: [0.35, 0.20, 0.12],
+                color2: [0.55, 0.35, 0.25],
+                color3: [0.85, 0.80, 0.75],
                 vein_scale: 2.0,
                 vein_contrast: 1.2,
                 turbulence: 1.0,
@@ -673,9 +679,9 @@ export const shaders = {
             emperadorDark: {
                 time: Math.random(),
                 scale: 3.5,
-                color1: [0.25, 0.15, 0.10],  // 深巧克力色
-                color2: [0.45, 0.30, 0.20],  // 中褐色
-                color3: [0.75, 0.65, 0.55],  // 浅褐色
+                color1: [0.25, 0.15, 0.10],
+                color2: [0.45, 0.30, 0.20],
+                color3: [0.75, 0.65, 0.55],
                 vein_scale: 1.8,
                 vein_contrast: 1.4,
                 turbulence: 1.2,
@@ -684,14 +690,208 @@ export const shaders = {
             goldenBeige: {
                 time: Math.random(),
                 scale: 4.2,
-                color1: [0.40, 0.30, 0.20],  // 金褐色
-                color2: [0.60, 0.45, 0.30],  // 浅金色
-                color3: [0.90, 0.85, 0.80],  // 米白色
+                color1: [0.40, 0.30, 0.20],
+                color2: [0.60, 0.45, 0.30],
+                color3: [0.90, 0.85, 0.80],
                 vein_scale: 2.2,
                 vein_contrast: 1.1,
                 turbulence: 0.8,
                 brightness: 1.1
             }
         }
-    }
+    },
+
+    marble_directional_brown: {
+        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_striated.wgsl')),
+        uniforms: {
+            color1: 'vec3f',
+            _pad1: 'f32',
+            color2: 'vec3f',
+            _pad2: 'f32',
+            color3: 'vec3f',
+            _pad3: 'f32',
+            time: 'f32',
+            scale: 'f32',
+            vein_scale: 'f32',
+            jitter: 'f32',
+            vein_contrast: 'f32',
+            brightness: 'f32'
+        },
+        presets: {
+            classic: {
+                time: Math.random(),
+                scale: 4.0,
+                color1: [0.35, 0.20, 0.12],
+                color2: [0.55, 0.35, 0.25],
+                color3: [0.85, 0.80, 0.75],
+                vein_scale: 2.0,
+                jitter: 1.0,
+                vein_contrast: 1.2,
+                brightness: 1.0
+            },
+            golden: {
+                time: Math.random(),
+                scale: 3.8,
+                color1: [0.42, 0.28, 0.15],
+                color2: [0.62, 0.42, 0.25],
+                color3: [0.88, 0.82, 0.70],
+                vein_scale: 2.2,
+                jitter: 0.8,
+                vein_contrast: 1.3,
+                brightness: 1.1
+            },
+            coffee: {
+                time: Math.random(),
+                scale: 4.2,
+                color1: [0.25, 0.15, 0.10],
+                color2: [0.45, 0.30, 0.20],
+                color3: [0.75, 0.65, 0.55],
+                vein_scale: 1.8,
+                jitter: 1.2,
+                vein_contrast: 1.4,
+                brightness: 0.9
+            }
+        }
+    },
+
+    marble_veined: {
+        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_veined.wgsl')),
+        uniforms: {
+            color1: 'vec3f',
+            _pad1: 'f32',
+            color2: 'vec3f',
+            _pad2: 'f32',
+            color3: 'vec3f',
+            _pad3: 'f32',
+            time: 'f32',
+            scale: 'f32',
+            vein_scale: 'f32',
+            jitter: 'f32',
+            vein_contrast: 'f32',
+            brightness: 'f32'
+        },
+        presets: {
+            calacatta: {
+                time: Math.random(),
+                scale: 4.0,
+                color1: [0.85, 0.82, 0.78],
+                color2: [0.92, 0.90, 0.85],
+                color3: [0.98, 0.96, 0.92],
+                vein_scale: 2.5,
+                jitter: 0.8,
+                vein_contrast: 1.1,
+                brightness: 1.1
+            },
+            carrara: {
+                time: Math.random(),
+                scale: 3.5,
+                color1: [0.80, 0.80, 0.82],
+                color2: [0.88, 0.88, 0.90],
+                color3: [0.95, 0.95, 0.97],
+                vein_scale: 2.2,
+                jitter: 0.9,
+                vein_contrast: 1.2,
+                brightness: 1.0
+            },
+            emperador: {
+                time: Math.random(),
+                scale: 4.2,
+                color1: [0.28, 0.18, 0.12],
+                color2: [0.45, 0.32, 0.22],
+                color3: [0.65, 0.52, 0.42],
+                vein_scale: 2.8,
+                jitter: 1.1,
+                vein_contrast: 1.3,
+                brightness: 0.9
+            },
+            nero_marquina: {
+                time: Math.random(),
+                scale: 4.0,
+                color1: [0.12, 0.12, 0.12],
+                color2: [0.20, 0.20, 0.20],
+                color3: [0.85, 0.85, 0.80],
+                vein_scale: 3.0,
+                jitter: 1.0,
+                vein_contrast: 1.4,
+                brightness: 0.95
+            },
+            nero_marquina1: {
+                time: Math.random(),
+                scale: 4.0,
+                color3: [0.12, 0.12, 0.12],
+                color2: [0.20, 0.20, 0.20],
+                color2: [0.45, 0.32, 0.22],
+                vein_scale: 3.0,
+                jitter: 1.0,
+                vein_contrast: 1.4,
+                brightness: 0.95
+            }
+        }
+    },
+
+    granite: {
+        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/granite.wgsl')),
+        uniforms: {
+            color1: 'vec3f',
+            _pad1: 'f32',
+            color2: 'vec3f',
+            _pad2: 'f32',
+            color3: 'vec3f',
+            _pad3: 'f32',
+            time: 'f32',
+            scale: 'f32',
+            grid_scale: 'f32',
+            line_width: 'f32',
+            noise_scale: 'f32',
+            roughness: 'f32',
+            _pad4: 'vec2f'
+        },
+        presets: {
+            grayGranite: {
+                color1: [0, 0, 0],
+                color2: [0.4, 0.4, 0.42],
+                color3: [0, 0, 0],
+                time: Math.random(),
+                scale: 1.0,
+                grid_scale: 8.0,
+                line_width: 0.05,
+                noise_scale: 90,
+                roughness: 0.8
+            },
+            blackGranite: {
+                color1: [0.2, 0.2, 0.22],
+                color2: [0.1, 0.1, 0.12],
+                color3: [0.5, 0.5, 0.52],
+                time: Math.random(),
+                scale: 10.0,
+                grid_scale: 1,
+                line_width: 0.01,
+                noise_scale: 1.2,
+                roughness: 10
+            },
+            pinkGranite: {
+                time: Math.random(),
+                scale: 1.0,
+                grid_scale: 7.0,
+                line_width: 0.06,
+                color1: [0.8, 0.65, 0.62],
+                color2: [0.6, 0.45, 0.42],
+                color3: [0.9, 0.75, 0.72],
+                noise_scale: 0.9,
+                roughness: 0.7
+            },
+            brownGranite: {
+                time: Math.random(),
+                scale: 1.0,
+                grid_scale: 9.0,
+                line_width: 0.05,
+                color1: [0.55, 0.42, 0.35],
+                color2: [0.35, 0.25, 0.20],
+                color3: [0.65, 0.52, 0.45],
+                noise_scale: 1.1,
+                roughness: 0.85
+            }
+        }
+    },
+
 };

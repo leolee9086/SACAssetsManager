@@ -111,7 +111,7 @@ class TextureGenerator {
         const { type, params = {}, width, height, makeTileable = true, borderSize = 60} = input;
 
         // 定义需要无缝化的材质类型
-       const tileableTypes = ['noise', 'wood', 'wood_01', 'wood_procedural', 'quarter_sawn_wood', 'knottyWood','wood_fine','marble_royal_brown'];
+       const tileableTypes = ['noise', 'wood', 'wood_02','wood_01', 'wood_procedural', 'quarter_sawn_wood', 'knottyWood','wood_fine','marble_royal_brown'];
       //  const tileableTypes = [];
 
         // 记录开始时间
@@ -135,7 +135,7 @@ class TextureGenerator {
                 const imageData = ctx.getImageData(0, 0, result.canvas.width, result.canvas.height);
                 
                 // 应用无缝化处理
-                const tileableImageData = await Tileable(imageData, borderSize);
+                const tileableImageData = await Tileable(imageData, {borderWidthPercent:borderSize});
                 
                 // 更新 canvas 和 buffer
                 ctx.putImageData(tileableImageData, 0, 0);
@@ -200,12 +200,12 @@ class TextureGenerator {
         const outputTexture = this.device.createTexture(textureDesc);
 
         // 创建并设置 uniform buffer
-        const uniformData = this._prepareUniformData(shader.uniforms, params);
+        const bufferSize = this._calculateUniformBufferSize(shader.uniforms);
         const uniformBuffer = this.device.createBuffer({
-            size: uniformData.byteLength,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            size: bufferSize,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
-        this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+        this.device.queue.writeBuffer(uniformBuffer, 0, this._prepareUniformData(shader.uniforms, params));
 
         // 创建绑定组布局
         const bindGroupLayout = this.device.createBindGroupLayout({
@@ -277,52 +277,91 @@ class TextureGenerator {
     _prepareUniformData(uniformLayout, params) {
         const bufferData = [];
         
-        console.log('准备 uniform 数据:', {
-            layout: uniformLayout,
-            params: params
-        });
+        console.log('\n=== GPU Uniform 参数传递分析 ===');
+        console.log('原始参数:', params);
+        
+        let reconstructedParams = {};
+        let currentOffset = 0;
         
         for (const [name, type] of Object.entries(uniformLayout)) {
-            // 处理填充字段
+            const value = params[name] ?? this._getDefaultValue(type);
+            
+            console.log(`\n字段: ${name}`);
+            console.log(`类型: ${type}`);
+            console.log(`偏移: ${currentOffset}字节`);
+            console.log(`原始值:`, value);
+            
+            // 处理显式填充字段
             if (name.startsWith('_pad')) {
                 if (type === 'vec4f') {
-                    bufferData.push(0.0, 0.0, 0.0, 0.0); // 16字节填充
+                    bufferData.push(0.0, 0.0, 0.0, 0.0);
+                    currentOffset += 16;
                 } else if (type === 'vec2f') {
-                    bufferData.push(0.0, 0.0); // 8字节填充
+                    bufferData.push(0.0, 0.0);
+                    currentOffset += 8;
                 } else if (type === 'f32') {
-                    bufferData.push(0.0); // 4字节填充
+                    bufferData.push(0.0);
+                    currentOffset += 4;
                 }
+                console.log(`填充字段: ${name}, 大小: ${currentOffset - (bufferData.length - 1) * 4}字节`);
                 continue;
             }
 
-            const value = params[name] ?? this._getDefaultValue(type);
-            
-            if (type === 'vec4f') {
-                const color = Array.isArray(value) ? value : [0, 0, 0, 1];
-                if (color.length < 4) {
-                    color.push(1);
+            // 处理实际数据字段
+            switch (type) {
+                case 'vec4f': {
+                    const color = Array.isArray(value) ? value : [0, 0, 0, 1];
+                    if (color.length < 4) color.push(1);
+                    bufferData.push(...color);
+                    reconstructedParams[name] = [...color];
+                    currentOffset += 16;
+                    break;
                 }
-                bufferData.push(...color);
-            } else if (type === 'vec3f') {
-                const vec = Array.isArray(value) ? value : [0, 0, 0];
-                bufferData.push(...vec);
-                // vec3f 后必须添加填充以保持 16 字节对齐
-                bufferData.push(0.0);
-            } else if (type === 'vec2f') {
-                const vec = Array.isArray(value) ? value : [0, 0];
-                bufferData.push(...vec);
-            } else {
-                bufferData.push(value);
+                case 'vec3f': {
+                    const vec = Array.isArray(value) ? value : [0, 0, 0];
+                    bufferData.push(...vec);  // 只推送3个值，不自动填充
+                    reconstructedParams[name] = [...vec];
+                    currentOffset += 12;  // vec3f 实际只占用12字节
+                    break;
+                }
+                case 'vec2f': {
+                    const vec = Array.isArray(value) ? value : [0, 0];
+                    bufferData.push(...vec);
+                    reconstructedParams[name] = [...vec];
+                    currentOffset += 8;
+                    break;
+                }
+                case 'f32': {
+                    bufferData.push(value);
+                    reconstructedParams[name] = value;
+                    currentOffset += 4;
+                    break;
+                }
+                case 'i32': {
+                    bufferData.push(value);
+                    reconstructedParams[name] = value;
+                    currentOffset += 4;
+                    break;
+                }
             }
+            
+            console.log(`写入值:`, reconstructedParams[name]);
+            console.log(`当前偏移: ${currentOffset}`);
         }
-
-        console.log('最终 uniform buffer 数据:', bufferData);
-        console.log('Buffer 大小(字节):', bufferData.length * 4);
         
-        // 确保缓冲区大小是 16 的倍数
-        while (bufferData.length % 4 !== 0) {
-            bufferData.push(0.0);
+        // 确保最终大小是16的倍数
+        const finalSize = Math.ceil(currentOffset / 16) * 16;
+        if (finalSize > currentOffset) {
+            const paddingSize = (finalSize - currentOffset) / 4;
+            for (let i = 0; i < paddingSize; i++) {
+                bufferData.push(0.0);
+            }
+            console.log(`添加末尾填充: ${finalSize - currentOffset}字节`);
         }
+        
+        console.log('\n=== 最终数据 ===');
+        console.log('Buffer 大小:', finalSize, '字节');
+        console.log('数据项数:', bufferData.length);
         
         return new Float32Array(bufferData);
     }
@@ -401,11 +440,34 @@ class TextureGenerator {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         return imageData.data.buffer.slice(0);
     }
+
+    _calculateUniformBufferSize(uniformLayout) {
+        let size = 0;
+        for (const [_, type] of Object.entries(uniformLayout)) {
+            switch (type) {
+                case 'f32':
+                case 'i32':
+                    size += 4;
+                    break;
+                case 'vec2f':
+                    size += 8;
+                    break;
+                case 'vec3f':
+                    size += 16; // vec3 需要 16 字节对齐
+                    break;
+                case 'vec4f':
+                    size += 16;
+                    break;
+            }
+        }
+        // 确保总大小是 16 的倍数
+        return Math.ceil(size / 16) * 16;
+    }
 }
 
 
 async function testTextureGenerator() {
-    const generator = await TextureGenerator.create(2048,2048 );
+    const generator = await TextureGenerator.create(512,512 );
     
     try {
         const results = {};
@@ -457,3 +519,4 @@ async function testTextureGenerator() {
 
 
 export { TextureGenerator, testTextureGenerator };
+
