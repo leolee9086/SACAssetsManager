@@ -15,15 +15,15 @@ struct MirrorUV {
 }
 
 fn smoothBlend(x: f32) -> f32 {
-    // 使用更复杂的平滑函数，提供更渐进的过渡
+    // 使用更平滑的过渡函数
     let x2 = x * x;
     let x4 = x2 * x2;
-    let x8 = x4 * x4;
-    return x8 * (x * (x * (-2.0 * x + 30.0) - 60.0) + 32.0);
+    let x6 = x4 * x2;
+    return x6 * (x * (x * (-3.0 * x + 35.0) - 70.0) + 35.0);
 }
 
-fn remapValue(value: f32, fromMin: f32, fromMax: f32) -> f32 {
-    return clamp((value - fromMin) / (fromMax - fromMin), 0.0, 1.0);
+fn remapValue(value: f32, low1: f32, high1: f32, low2: f32, high2: f32) -> f32 {
+    return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
 }
 
 fn getEdgeWeight(dist: f32, edgeWidth: f32) -> f32 {
@@ -308,18 +308,16 @@ fn layeredBlend(dist: f32, color1: vec3<f32>, color2: vec3<f32>, color3: vec3<f3
 }
 
 fn calculateTileWeight(pos: vec2<f32>, tileSize: vec2<f32>, tileCenter: vec2<f32>) -> f32 {
-    // 计算相对于瓦片中心的位置
-    let relPos = abs(pos - 0.5 * (tileSize - vec2<f32>(1.0)));
+    var w = 0.0;
     
-    var w: f32;
     if (pos.x >= tileSize.x / 2.0 && pos.x < tileSize.x / 2.0 + tileCenter.x) {
         // 垂直边界
-        let w0 = 1.0 - relPos.y / (tileSize.y / 2.0 - 1.0);
+        let w0 = 1.0 - floor(abs(pos.y - 0.5 * (tileSize.y - 1.0))) / (tileSize.y / 2.0 - 1.0);
         let w1 = 1.0 - w0;
         w = w0 / sqrt(w0 * w0 + w1 * w1);
     } else if (pos.y >= tileSize.y / 2.0 && pos.y < tileSize.y / 2.0 + tileCenter.y) {
         // 水平边界
-        let w0 = 1.0 - relPos.x / (tileSize.x / 2.0 - 1.0);
+        let w0 = 1.0 - floor(abs(pos.x - 0.5 * (tileSize.x - 1.0))) / (tileSize.x / 2.0 - 1.0);
         let w1 = 1.0 - w0;
         w = w0 / sqrt(w0 * w0 + w1 * w1);
     } else {
@@ -330,8 +328,8 @@ fn calculateTileWeight(pos: vec2<f32>, tileSize: vec2<f32>, tileCenter: vec2<f32
         );
         
         let lambda = vec2<f32>(
-            1.0 - abs(temp_pos.x - 0.5 * (tileSize.x - 1.0)) / (tileSize.x / 2.0 - 1.0),
-            1.0 - abs(temp_pos.y - 0.5 * (tileSize.y - 1.0)) / (tileSize.y / 2.0 - 1.0)
+            1.0 - floor(abs(temp_pos.x - 0.5 * (tileSize.x - 1.0))) / (tileSize.x / 2.0 - 1.0),
+            1.0 - floor(abs(temp_pos.y - 0.5 * (tileSize.y - 1.0))) / (tileSize.y / 2.0 - 1.0)
         );
         
         let w00 = (1.0 - lambda.x) * (1.0 - lambda.y);
@@ -356,19 +354,26 @@ fn computeEigenVectors(covarMatrix: mat3x3<f32>) -> mat3x3<f32> {
 }
 
 // 更新瓦片参数计算
-fn calculateTileParameters(targetSize: vec2<f32>, borderSize: f32) -> vec4<f32> {
-    let tileCountWidth = floor(targetSize.x / borderSize);
+fn calculateTileParameters(uv: vec2<f32>) -> vec4<f32> {
+    let dims = vec2<f32>(textureDimensions(input_texture));
+    let borderSize = 128.0;  // 基础边界大小
+    
+    let tileCountWidth = floor(dims.x / borderSize);
     let tileRadiusWidth = borderSize;
-    let restWidth = targetSize.x - tileRadiusWidth * tileCountWidth;
+    let restWidth = dims.x - tileRadiusWidth * tileCountWidth;
     let adjustedTileRadiusWidth = tileRadiusWidth + floor(restWidth / tileCountWidth);
     
-    let tileCountHeight = floor(targetSize.y / borderSize);
+    let tileCountHeight = floor(dims.y / borderSize);
     let tileRadiusHeight = borderSize;
-    let restHeight = targetSize.y - tileRadiusHeight * tileCountHeight;
+    let restHeight = dims.y - tileRadiusHeight * tileCountHeight;
     let adjustedTileRadiusHeight = tileRadiusHeight + floor(restHeight / tileCountHeight);
     
-    return vec4<f32>(adjustedTileRadiusWidth * 2.0, adjustedTileRadiusHeight * 2.0, 
-                     tileCountWidth, tileCountHeight);
+    return vec4<f32>(
+        adjustedTileRadiusWidth * 2.0 / dims.x,  // tileWidth
+        adjustedTileRadiusHeight * 2.0 / dims.y,  // tileHeight
+        tileCountWidth,
+        tileCountHeight
+    );
 }
 
 // 更新混合权重计算
@@ -411,36 +416,54 @@ fn hash2D(p: vec2<f32>) -> vec2<f32> {
 }
 
 fn getTriangleGridDisturbance(uv: vec2<f32>) -> vec2<f32> {
-    let gridSize = 32.0;
+    // 使用更大的网格尺寸来创建更大块的扰动
+    let gridSize = vec2<f32>(8.0, 6.0); // 减少网格数量，增加每个三角形的大小
     let cellSize = 1.0 / gridSize;
     
-    // 计算网格坐标
-    let cell = floor(uv * gridSize);
-    let cellUV = fract(uv * gridSize);
+    // 减小时间变化的扰动强度，使其更加柔和
+    let timeOffset = vec2<f32>(sin(uv.x * 3.141) * 0.05, cos(uv.y * 3.141) * 0.05);
+    let distortedUV = uv + timeOffset;
     
-    // 生成三角形网格的顶点
+    let cell = floor(distortedUV * gridSize);
+    let cellUV = fract(distortedUV * gridSize);
+    
     let isUpperTriangle = cellUV.x + cellUV.y > 1.0;
     
-    // 计算三个顶点的位置
     var v1 = cell;
     var v2 = cell + select(vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0), isUpperTriangle);
     var v3 = cell + select(vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0), isUpperTriangle);
     
-    // 生成随机偏移
-    let offset1 = hash2D(v1) * 2.0 - 1.0;
-    let offset2 = hash2D(v2) * 2.0 - 1.0;
-    let offset3 = hash2D(v3) * 2.0 - 1.0;
+    // 减小随机偏移的强度
+    let noise1 = hash2D(v1 + timeOffset);
+    let noise2 = hash2D(v2 - timeOffset);
+    let noise3 = hash2D(v3 * 1.5);
     
-    // 计算重心坐标
+    // 调整偏移的方向和强度
+    let offset1 = (noise1 * 2.0 - 1.0) * vec2<f32>(0.8, 0.6);
+    let offset2 = (noise2 * 2.0 - 1.0) * vec2<f32>(0.6, 0.8);
+    let offset3 = (noise3 * 2.0 - 1.0) * vec2<f32>(0.7, 0.7);
+    
+    // 使用更平滑的重心坐标计算
     var barycentric: vec3<f32>;
     if (isUpperTriangle) {
         let p = vec2<f32>(1.0) - cellUV;
-        barycentric = vec3<f32>(p.x * p.y, (1.0 - p.x) * p.y, 1.0 - p.y);
+        barycentric = vec3<f32>(
+            pow(smoothstep(0.0, 1.0, p.x * p.y), 3.0),
+            pow(smoothstep(0.0, 1.0, (1.0 - p.x) * p.y), 3.0),
+            pow(smoothstep(0.0, 1.0, 1.0 - p.y), 3.0)
+        );
     } else {
-        barycentric = vec3<f32>(1.0 - cellUV.x - cellUV.y, cellUV.x, cellUV.y);
+        barycentric = vec3<f32>(
+            pow(smoothstep(0.0, 1.0, 1.0 - cellUV.x - cellUV.y), 3.0),
+            pow(smoothstep(0.0, 1.0, cellUV.x), 3.0),
+            pow(smoothstep(0.0, 1.0, cellUV.y), 3.0)
+        );
     }
     
-    // 使用重心坐标混合偏移
+    // 归一化重心坐标
+    let sum = barycentric.x + barycentric.y + barycentric.z;
+    barycentric = barycentric / sum;
+    
     let finalOffset = offset1 * barycentric.x + 
                      offset2 * barycentric.y + 
                      offset3 * barycentric.z;
@@ -448,98 +471,163 @@ fn getTriangleGridDisturbance(uv: vec2<f32>) -> vec2<f32> {
     return finalOffset * cellSize;
 }
 
+fn getRandomOffset(seed: vec2<f32>) -> vec2<f32> {
+    let noise = hash2D(seed);
+    return (noise * 2.0 - 1.0) * 0.02; // 增加随机偏移强度
+}
+
+fn calculateWeight(pos: vec2<f32>, tileSize: vec2<f32>, tileCenter: vec2<f32>) -> f32 {
+    // 计算相对于瓦片中心的位置
+    let relPos = abs(pos - 0.5 * (tileSize - vec2<f32>(1.0)));
+    
+    var w: f32;
+    if (pos.x >= tileSize.x / 2.0 && pos.x < tileSize.x / 2.0 + tileCenter.x) {
+        // 垂直边界
+        let w0 = 1.0 - relPos.y / (tileSize.y / 2.0 - 1.0);
+        let w1 = 1.0 - w0;
+        w = w0 / sqrt(w0 * w0 + w1 * w1);
+    } else if (pos.y >= tileSize.y / 2.0 && pos.y < tileSize.y / 2.0 + tileCenter.y) {
+        // 水平边界
+        let w0 = 1.0 - relPos.x / (tileSize.x / 2.0 - 1.0);
+        let w1 = 1.0 - w0;
+        w = w0 / sqrt(w0 * w0 + w1 * w1);
+    } else {
+        // 角落区域
+        let temp_pos = vec2<f32>(
+            select(pos.x, pos.x - tileCenter.x, pos.x >= tileSize.x / 2.0 + tileCenter.x),
+            select(pos.y, pos.y - tileCenter.y, pos.y >= tileSize.y / 2.0 + tileCenter.y)
+        );
+        
+        let lambda = vec2<f32>(
+            1.0 - abs(temp_pos.x - 0.5 * (tileSize.x - 1.0)) / (tileSize.x / 2.0 - 1.0),
+            1.0 - abs(temp_pos.y - 0.5 * (tileSize.y - 1.0)) / (tileSize.y / 2.0 - 1.0)
+        );
+        
+        let w00 = (1.0 - lambda.x) * (1.0 - lambda.y);
+        let w10 = lambda.x * (1.0 - lambda.y);
+        let w01 = (1.0 - lambda.x) * lambda.y;
+        let w11 = lambda.x * lambda.y;
+        
+        w = lambda.x * lambda.y / sqrt(w00 * w00 + w10 * w10 + w01 * w01 + w11 * w11);
+    }
+    
+    return w;
+}
+
+fn applyBorderBlending(uv: vec2<f32>, color: vec3<f32>, borderSize: f32) -> vec3<f32> {
+    let dims = vec2<f32>(textureDimensions(input_texture));
+    
+    // 计算边界权重，与 JS 版本的 applyBorderBlending 保持一致
+    var w = min(remapValue(uv.x * dims.x, 0.0, borderSize, 0.0, 1.0), 1.0); // 左边界
+    w *= min(remapValue(uv.x * dims.x, dims.x - 1.0, dims.x - 1.0 - borderSize, 0.0, 1.0), 1.0); // 右边界
+    w *= min(remapValue(uv.y * dims.y, 0.0, borderSize, 0.0, 1.0), 1.0); // 上边界
+    w *= min(remapValue(uv.y * dims.y, dims.y - 1.0, dims.y - 1.0 - borderSize, 0.0, 1.0), 1.0); // 下边界
+    
+    let w_inv = 1.0 - w;
+    w = w / sqrt(w * w + w_inv * w_inv);
+    
+    return color * w;
+}
+
+fn calculateTileCenterAndOffset(i_tile: f32, j_tile: f32, tileParams: vec4<f32>) -> vec4<f32> {
+    let tileCountWidth = tileParams.z;
+    let tileCountHeight = tileParams.w;
+    
+    var tileCenterWidth = 0.0;
+    var tileCenterHeight = 0.0;
+    var cumulativeOffsetWidth = 0.0;
+    var cumulativeOffsetHeight = 0.0;
+    
+    if (i_tile > tileCountWidth - 2.0) {
+        tileCenterWidth = 1.0;
+        cumulativeOffsetWidth = (i_tile - 1.0) - (tileCountWidth - 2.0);
+    } else if (j_tile > tileCountHeight - 2.0) {
+        tileCenterHeight = 1.0;
+        cumulativeOffsetHeight = (j_tile - 1.0) - (tileCountHeight - 2.0);
+    }
+    
+    return vec4<f32>(tileCenterWidth, tileCenterHeight, cumulativeOffsetWidth, cumulativeOffsetHeight);
+}
+
+fn customModulo(x: f32, n: f32) -> f32 {
+    var r = x % n;
+    if (r < 0.0) {
+        r += n;
+    }
+    return r;
+}
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = input.uv;
     let dims = vec2<f32>(textureDimensions(input_texture));
-    let edgeWidth = 96.0 / dims.x;
+    let borderSize = 128.0;
+    let tileParams = calculateTileParameters(input.uv);
     
-    // 计算到各边缘的距离
-    let distToLeft = uv.x;
-    let distToRight = 1.0 - uv.x;
-    let distToTop = uv.y;
-    let distToBottom = 1.0 - uv.y;
+    // 首先应用边界混合
+    let color = textureSample(input_texture, input_sampler, input.uv).rgb;
+    let gaussianColor = gaussianTransform(color);
+    var outputColor = vec3<f32>(0.0);
+    var totalWeight = 0.0;
     
-    // 获取镜像坐标
-    let mirrorResult = getMirroredUV(uv, edgeWidth);
+    // 添加边界混合的贡献
+    let borderWeight = applyBorderBlending(input.uv, vec3<f32>(1.0), borderSize).x;
+    outputColor += gaussianColor * borderWeight;
+    totalWeight += borderWeight;
     
-    // 预先采样并转换到潜空间
-    let centerLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, uv).rgb
-    );
-    let leftLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, mirrorResult.uv_left).rgb
-    );
-    let rightLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, mirrorResult.uv_right).rgb
-    );
-    let topLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, mirrorResult.uv_top).rgb
-    );
-    let bottomLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, mirrorResult.uv_bottom).rgb
-    );
+    // 计算瓦片参数
+    let tileSize = vec2<f32>(tileParams.x * dims.x, tileParams.y * dims.y);
+    let tileCount = vec2<f32>(tileParams.z, tileParams.w);
     
-    // 预先采样角落位置并转换到潜空间
-    let leftTopLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, 
-            vec2<f32>(mirrorResult.uv_left.x, mirrorResult.uv_top.y)).rgb
-    );
-    let rightTopLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, 
-            vec2<f32>(mirrorResult.uv_right.x, mirrorResult.uv_top.y)).rgb
-    );
-    let leftBottomLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, 
-            vec2<f32>(mirrorResult.uv_left.x, mirrorResult.uv_bottom.y)).rgb
-    );
-    let rightBottomLatent = gaussianTransform(
-        textureSample(input_texture, input_sampler, 
-            vec2<f32>(mirrorResult.uv_right.x, mirrorResult.uv_bottom.y)).rgb
-    );
+    // 遍历瓦片进行混合
+    for (var c = -1; c < i32(tileCount.x - 1.0 + tileCount.y - 1.0); c = c + 1) {
+        let i_tile = f32(select(c, -1, c >= i32(tileCount.x - 1.0)));
+        let j_tile = f32(select(-1, c - i32(tileCount.x - 1.0), c >= i32(tileCount.x - 1.0)));
+        
+        let tileInfo = calculateTileCenterAndOffset(i_tile, j_tile, tileParams);
+        let tileCenterWidth = tileInfo.x;
+        let tileCenterHeight = tileInfo.y;
+        let cumulativeOffsetWidth = tileInfo.z;
+        let cumulativeOffsetHeight = tileInfo.w;
+        
+        // 生成随机偏移
+        let seed = vec2<f32>(f32(c), f32(c * 31 + 17));
+        let randOffset = hash2D(seed);
+        let offset = vec2<f32>(
+            floor((dims.x - (tileSize.x + tileCenterWidth)) * randOffset.x),
+            floor((dims.y - (tileSize.y + tileCenterHeight)) * randOffset.y)
+        );
+        
+        // 计算当前像素在瓦片中的位置
+        let pixelPos = vec2<f32>(
+            customModulo(input.uv.x * dims.x - i_tile * tileSize.x / 2.0 - cumulativeOffsetWidth, dims.x),
+            customModulo(input.uv.y * dims.y - j_tile * tileSize.y / 2.0 - cumulativeOffsetHeight, dims.y)
+        );
+        
+        // 计算权重和偏移采样
+        let w = calculateTileWeight(pixelPos, tileSize, vec2<f32>(tileCenterWidth, tileCenterHeight));
+        let isInTile = (pixelPos.x < tileSize.x + tileCenterWidth && 
+                       pixelPos.y < tileSize.y + tileCenterHeight);
+        
+        // 采样偏移位置
+        let offsetUV = vec2<f32>(
+            customModulo(pixelPos.x + offset.x, dims.x) / dims.x,
+            customModulo(pixelPos.y + offset.y, dims.y) / dims.y
+        );
+        
+        let offsetColor = gaussianTransform(
+            textureSample(input_texture, input_sampler, offsetUV).rgb
+        );
+        
+        // 使用 select 替代 if 语句
+        let validWeight = select(0.0, w, isInTile && w > 0.0);
+        outputColor += offsetColor * validWeight;
+        totalWeight += validWeight;
+    }
     
-    // 计算平滑的边缘权重
-    let leftWeight = smoothstep(0.0, edgeWidth, distToLeft);
-    let rightWeight = smoothstep(0.0, edgeWidth, distToRight);
-    let topWeight = smoothstep(0.0, edgeWidth, distToTop);
-    let bottomWeight = smoothstep(0.0, edgeWidth, distToBottom);
+    // 使用 select 替代 if 语句进行归一化
+    outputColor = select(gaussianColor, outputColor / totalWeight, totalWeight > 0.0);
     
-    // 边缘混合权重
-    let wLeft = select(0.0, 1.0 - leftWeight, distToLeft < edgeWidth);
-    let wRight = select(0.0, 1.0 - rightWeight, distToRight < edgeWidth);
-    let wTop = select(0.0, 1.0 - topWeight, distToTop < edgeWidth);
-    let wBottom = select(0.0, 1.0 - bottomWeight, distToBottom < edgeWidth);
-    
-    // 角落混合权重
-    let wLeftTop = wLeft * wTop;
-    let wRightTop = wRight * wTop;
-    let wLeftBottom = wLeft * wBottom;
-    let wRightBottom = wRight * wBottom;
-    
-    // 计算中心权重
-    let wCenter = 1.0;
-    
-    // 计算总权重
-    let totalWeight = wCenter + wLeft + wRight + wTop + wBottom + 
-                     wLeftTop + wRightTop + wLeftBottom + wRightBottom;
-    
-    // 在潜空间中使用加权和进行混合
-    var blendedLatent = centerLatent * wCenter +
-                       leftLatent * wLeft +
-                       rightLatent * wRight +
-                       topLatent * wTop +
-                       bottomLatent * wBottom +
-                       leftTopLatent * wLeftTop +
-                       rightTopLatent * wRightTop +
-                       leftBottomLatent * wLeftBottom +
-                       rightBottomLatent * wRightBottom;
-    
-    // 归一化潜空间的混合结果
-    blendedLatent = blendedLatent / totalWeight;
-    
-    // 从潜空间转换回原始空间
-    let finalColor = invGaussianTransform(blendedLatent);
-    
-    return vec4<f32>(finalColor, 1.0);
+    // 转换回原始颜色空间
+    return vec4<f32>(invGaussianTransform(outputColor), 1.0);
 }
 
