@@ -26,23 +26,33 @@ fn remapValue(value: f32, fromMin: f32, fromMax: f32) -> f32 {
     return clamp((value - fromMin) / (fromMax - fromMin), 0.0, 1.0);
 }
 
-fn getEdgeWeight(pos: f32, borderWidth: f32) -> f32 {
-    // 使用更平滑的过渡函数
-    let w1 = smoothBlend(remapValue(pos, 0.0, borderWidth));
-    let w2 = smoothBlend(remapValue(pos, 1.0 - borderWidth, 1.0));
-    return w1 * w2;
+fn getEdgeWeight(dist: f32, edgeWidth: f32) -> f32 {
+    // 使用双重平滑步进确保边缘更柔和
+    let t = clamp(dist / edgeWidth, 0.0, 1.0);
+    return smoothBlend(smoothBlend(t));
 }
 
-fn getMirroredUV(uv: vec2<f32>, borderWidth: f32) -> MirrorUV {
+fn getMirroredUV(uv: vec2<f32>, edgeWidth: f32) -> MirrorUV {
     var result: MirrorUV;
     
-    // 左右镜像
-    result.uv_left = vec2<f32>(2.0 - uv.x, uv.y);  // 右边的镜像到左边
-    result.uv_right = vec2<f32>(-uv.x, uv.y);      // 左边的镜像到右边
+    // 正确的镜像计算
+    // 对于左边界：将 x 坐标关于 x=0 进行镜像
+    result.uv_left = vec2<f32>(-uv.x, uv.y);
     
-    // 上下镜像
-    result.uv_top = vec2<f32>(uv.x, 2.0 - uv.y);   // 下边的镜像到上边
-    result.uv_bottom = vec2<f32>(uv.x, -uv.y);     // 上边的镜像到下边
+    // 对于右边界：将 x 坐标关于 x=1 进行镜像
+    result.uv_right = vec2<f32>(2.0 - uv.x, uv.y);
+    
+    // 对于上边界：将 y 坐标关于 y=0 进行镜像
+    result.uv_top = vec2<f32>(uv.x, -uv.y);
+    
+    // 对于下边界：将 y 坐标关于 y=1 进行镜像
+    result.uv_bottom = vec2<f32>(uv.x, 2.0 - uv.y);
+    
+    // 确保所有坐标都在[0,1]范围内
+    result.uv_left = fract(result.uv_left);
+    result.uv_right = fract(result.uv_right);
+    result.uv_top = fract(result.uv_top);
+    result.uv_bottom = fract(result.uv_bottom);
     
     return result;
 }
@@ -440,96 +450,94 @@ fn getTriangleGridDisturbance(uv: vec2<f32>) -> vec2<f32> {
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = vec2<f32>(fract(input.uv.x), fract(input.uv.y));
+    let uv = input.uv;
     let dims = vec2<f32>(textureDimensions(input_texture));
-    let edgeWidth = borderWidth / dims.x;
+    let edgeWidth = 96.0 / dims.x;
     
-    // 1. 预先采样所有需要的纹素
+    // 计算到各边缘的距离
+    let distToLeft = uv.x;
+    let distToRight = 1.0 - uv.x;
+    let distToTop = uv.y;
+    let distToBottom = 1.0 - uv.y;
+    
+    // 获取镜像坐标
     let mirrorResult = getMirroredUV(uv, edgeWidth);
     
-    // 中心和边缘采样
-    let centerSample = textureSample(input_texture, input_sampler, uv).rgb;
-    let leftSample = textureSample(input_texture, input_sampler, mirrorResult.uv_left).rgb;
-    let rightSample = textureSample(input_texture, input_sampler, mirrorResult.uv_right).rgb;
-    let topSample = textureSample(input_texture, input_sampler, mirrorResult.uv_top).rgb;
-    let bottomSample = textureSample(input_texture, input_sampler, mirrorResult.uv_bottom).rgb;
-    
-    // 角落采样
-    let topLeftSample = textureSample(input_texture, input_sampler, 
-        vec2<f32>(mirrorResult.uv_left.x, mirrorResult.uv_top.y)).rgb;
-    let topRightSample = textureSample(input_texture, input_sampler, 
-        vec2<f32>(mirrorResult.uv_right.x, mirrorResult.uv_top.y)).rgb;
-    let bottomLeftSample = textureSample(input_texture, input_sampler, 
-        vec2<f32>(mirrorResult.uv_left.x, mirrorResult.uv_bottom.y)).rgb;
-    let bottomRightSample = textureSample(input_texture, input_sampler, 
-        vec2<f32>(mirrorResult.uv_right.x, mirrorResult.uv_bottom.y)).rgb;
-    
-    // 2. 转换到潜空间
-    let centerColor = gaussianTransform(centerSample);
-    let leftColor = gaussianTransform(leftSample);
-    let rightColor = gaussianTransform(rightSample);
-    let topColor = gaussianTransform(topSample);
-    let bottomColor = gaussianTransform(bottomSample);
-    let topLeftColor = gaussianTransform(topLeftSample);
-    let topRightColor = gaussianTransform(topRightSample);
-    let bottomLeftColor = gaussianTransform(bottomLeftSample);
-    let bottomRightColor = gaussianTransform(bottomRightSample);
-    
-    // 3. 计算混合权重
-    let isLeftEdge = uv.x < edgeWidth;
-    let isRightEdge = uv.x > 1.0 - edgeWidth;
-    let isTopEdge = uv.y < edgeWidth;
-    let isBottomEdge = uv.y > 1.0 - edgeWidth;
-    
-    let leftWeight = select(0.0, smoothstep(0.0, edgeWidth, uv.x), isLeftEdge);
-    let rightWeight = select(0.0, smoothstep(0.0, edgeWidth, 1.0 - uv.x), isRightEdge);
-    let topWeight = select(0.0, smoothstep(0.0, edgeWidth, uv.y), isTopEdge);
-    let bottomWeight = select(0.0, smoothstep(0.0, edgeWidth, 1.0 - uv.y), isBottomEdge);
-    
-    // 4. 混合计算
-    var blendedLatent = centerColor;
-    
-    // 边缘混合
-    blendedLatent = select(
-        blendedLatent,
-        mix(leftColor, centerColor, leftWeight),
-        isLeftEdge
+    // 预先采样并转换到潜空间
+    let centerLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, uv).rgb
     );
-    blendedLatent = select(
-        blendedLatent,
-        mix(rightColor, centerColor, rightWeight),
-        isRightEdge
+    let leftLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, mirrorResult.uv_left).rgb
     );
-    blendedLatent = select(
-        blendedLatent,
-        mix(topColor, blendedLatent, topWeight),
-        isTopEdge
+    let rightLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, mirrorResult.uv_right).rgb
     );
-    blendedLatent = select(
-        blendedLatent,
-        mix(bottomColor, blendedLatent, bottomWeight),
-        isBottomEdge
+    let topLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, mirrorResult.uv_top).rgb
+    );
+    let bottomLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, mirrorResult.uv_bottom).rgb
     );
     
-    // 角落混合
-    let cornerWeight = vec4<f32>(
-        select(0.0, min(leftWeight, topWeight), isLeftEdge && isTopEdge),
-        select(0.0, min(rightWeight, topWeight), isRightEdge && isTopEdge),
-        select(0.0, min(leftWeight, bottomWeight), isLeftEdge && isBottomEdge),
-        select(0.0, min(rightWeight, bottomWeight), isRightEdge && isBottomEdge)
+    // 预先采样角落位置并转换到潜空间
+    let leftTopLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, 
+            vec2<f32>(mirrorResult.uv_left.x, mirrorResult.uv_top.y)).rgb
+    );
+    let rightTopLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, 
+            vec2<f32>(mirrorResult.uv_right.x, mirrorResult.uv_top.y)).rgb
+    );
+    let leftBottomLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, 
+            vec2<f32>(mirrorResult.uv_left.x, mirrorResult.uv_bottom.y)).rgb
+    );
+    let rightBottomLatent = gaussianTransform(
+        textureSample(input_texture, input_sampler, 
+            vec2<f32>(mirrorResult.uv_right.x, mirrorResult.uv_bottom.y)).rgb
     );
     
-    blendedLatent = select(blendedLatent, mix(topLeftColor, blendedLatent, cornerWeight.x), cornerWeight.x > 0.0);
-    blendedLatent = select(blendedLatent, mix(topRightColor, blendedLatent, cornerWeight.y), cornerWeight.y > 0.0);
-    blendedLatent = select(blendedLatent, mix(bottomLeftColor, blendedLatent, cornerWeight.z), cornerWeight.z > 0.0);
-    blendedLatent = select(blendedLatent, mix(bottomRightColor, blendedLatent, cornerWeight.w), cornerWeight.w > 0.0);
+    // 计算平滑的边缘权重
+    let leftWeight = smoothstep(0.0, edgeWidth, distToLeft);
+    let rightWeight = smoothstep(0.0, edgeWidth, distToRight);
+    let topWeight = smoothstep(0.0, edgeWidth, distToTop);
+    let bottomWeight = smoothstep(0.0, edgeWidth, distToBottom);
     
-    // 5. 应用扰动
-    let edgeInfluence = 1.0 - max(max(leftWeight, rightWeight), max(topWeight, bottomWeight));
-    let disturbance = getTriangleGridDisturbance(uv) * edgeInfluence;
-    blendedLatent += vec3<f32>(disturbance.x, disturbance.y, 0.0) * 0.1;
+    // 边缘混合权重
+    let wLeft = select(0.0, 1.0 - leftWeight, distToLeft < edgeWidth);
+    let wRight = select(0.0, 1.0 - rightWeight, distToRight < edgeWidth);
+    let wTop = select(0.0, 1.0 - topWeight, distToTop < edgeWidth);
+    let wBottom = select(0.0, 1.0 - bottomWeight, distToBottom < edgeWidth);
     
-    // 6. 转换回原始空间
+    // 角落混合权重
+    let wLeftTop = wLeft * wTop;
+    let wRightTop = wRight * wTop;
+    let wLeftBottom = wLeft * wBottom;
+    let wRightBottom = wRight * wBottom;
+    
+    // 计算中心权重
+    let wCenter = 1.0;
+    
+    // 计算总权重
+    let totalWeight = wCenter + wLeft + wRight + wTop + wBottom + 
+                     wLeftTop + wRightTop + wLeftBottom + wRightBottom;
+    
+    // 在潜空间中使用加权和进行混合
+    var blendedLatent = centerLatent * wCenter +
+                       leftLatent * wLeft +
+                       rightLatent * wRight +
+                       topLatent * wTop +
+                       bottomLatent * wBottom +
+                       leftTopLatent * wLeftTop +
+                       rightTopLatent * wRightTop +
+                       leftBottomLatent * wLeftBottom +
+                       rightBottomLatent * wRightBottom;
+    
+    // 归一化潜空间的混合结果
+    blendedLatent = blendedLatent / totalWeight;
+    
+    // 从潜空间转换回原始空间
     let finalColor = invGaussianTransform(blendedLatent);
     
     return vec4<f32>(finalColor, 1.0);

@@ -143,23 +143,25 @@ export const tileableTexture = {
         const gaussianTexture = this.createGaussianTexture(device, width, height);
         const inverseTexture = this.createInverseTexture(device, width, height);
 
-        // 创建输出纹理
+        // 创建输出纹理，添加 COPY_SRC 使用权限
         const outputTexture = device.createTexture({
             size: [width, height],
             format: 'rgba8unorm',
             usage: GPUTextureUsage.RENDER_ATTACHMENT | 
-                   GPUTextureUsage.COPY_SRC
+                   GPUTextureUsage.COPY_SRC |
+                   GPUTextureUsage.TEXTURE_BINDING  // 添加这个权限
         });
 
-        // 创建一个单独的存储纹理用于计算结果
-        const storageTexture = device.createTexture({
+        // 创建中间存储纹理
+        const intermediateTexture = device.createTexture({
             size: [width, height],
             format: 'rgba8unorm',
             usage: GPUTextureUsage.STORAGE_BINDING | 
-                   GPUTextureUsage.TEXTURE_BINDING
+                   GPUTextureUsage.TEXTURE_BINDING |
+                   GPUTextureUsage.COPY_SRC
         });
 
-        // 使用对应的布局创建绑定组
+        // 创建绑定组
         const computeBindGroup = device.createBindGroup({
             layout: computeBindGroupLayout,
             entries: [
@@ -168,14 +170,14 @@ export const tileableTexture = {
                 { binding: 2, resource: gaussianTexture.createView() },
                 { binding: 3, resource: inverseTexture.createView() },
                 { binding: 4, resource: sampler },
-                { binding: 5, resource: storageTexture.createView() }
+                { binding: 5, resource: intermediateTexture.createView() }
             ]
         });
 
         const renderBindGroup = device.createBindGroup({
             layout: renderBindGroupLayout,
             entries: [
-                { binding: 0, resource: storageTexture.createView() },
+                { binding: 0, resource: intermediateTexture.createView() },
                 { binding: 1, resource: sampler },
                 { binding: 2, resource: gaussianTexture.createView() },
                 { binding: 3, resource: inverseTexture.createView() },
@@ -183,39 +185,53 @@ export const tileableTexture = {
             ]
         });
 
+        // 创建最终输出纹理
+        const finalOutputTexture = device.createTexture({
+            size: [width, height],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | 
+                   GPUTextureUsage.COPY_SRC |
+                   GPUTextureUsage.TEXTURE_BINDING
+        });
+
         // 执行命令
         const commandEncoder = device.createCommandEncoder();
 
-        // 首先执行计算通道
+        // 计算通道
         const computePass = commandEncoder.beginComputePass();
         computePass.setPipeline(computePipeline);
         computePass.setBindGroup(0, computeBindGroup);
-        const workgroupsX = Math.ceil(width / 8);
-        const workgroupsY = Math.ceil(height / 8);
-        computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
+        computePass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
         computePass.end();
 
-        // 然后执行渲染通道，直接渲染到 outputTexture
-        const passEncoder = commandEncoder.beginRenderPass({
+        // 渲染通道 - 确保渲染到最终输出纹理
+        const renderPass = commandEncoder.beginRenderPass({
             colorAttachments: [{
-                view: outputTexture.createView(),
+                view: finalOutputTexture.createView(),  // 使用最终输出纹理
                 clearValue: { r: 0, g: 0, b: 0, a: 1 },
                 loadOp: 'clear',
                 storeOp: 'store'
             }]
         });
 
-        passEncoder.setPipeline(renderPipeline);
-        passEncoder.setBindGroup(0, renderBindGroup);
-        passEncoder.draw(6, 1, 0, 0);
-        passEncoder.end();
+        renderPass.setPipeline(renderPipeline);
+        renderPass.setBindGroup(0, renderBindGroup);
+        renderPass.draw(6, 1, 0, 0);
+        renderPass.end();
 
+        // 提交命令
         device.queue.submit([commandEncoder.finish()]);
 
-        // 清理临时纹理
-        storageTexture.destroy();
+        // 等待 GPU 完成
+        await device.queue.onSubmittedWorkDone();
 
-        return outputTexture;
+        // 清理临时纹理
+        intermediateTexture.destroy();
+        gaussianTexture.destroy();
+        inverseTexture.destroy();
+
+        // 返回最终处理后的纹理
+        return finalOutputTexture;
     },
 
     // 创建高斯变换纹理
@@ -391,13 +407,15 @@ export async function makeTileable(inputData, options = {}) {
     const imageBitmap = await createImageBitmap(sourceCanvas);
     const { width, height } = imageBitmap;
     
+    // 创建输入纹理，添加 COPY_SRC 使用权限
     const inputTexture = device.createTexture({
         size: [width, height],
         format: 'rgba8unorm',
         usage: GPUTextureUsage.TEXTURE_BINDING | 
                GPUTextureUsage.COPY_DST | 
                GPUTextureUsage.RENDER_ATTACHMENT |
-               GPUTextureUsage.STORAGE_BINDING
+               GPUTextureUsage.STORAGE_BINDING |
+               GPUTextureUsage.COPY_SRC  // 添加这个权限
     });
 
     device.queue.copyExternalImageToTexture(
@@ -406,39 +424,92 @@ export async function makeTileable(inputData, options = {}) {
         [width, height]
     );
 
-    // 处理纹理
-    const { pipeline, bindGroupLayout } = await tileableTexture.createPipeline(device, 'rgba8unorm');
-    tileableTexture.pipeline = pipeline;
-    tileableTexture.bindGroupLayout = bindGroupLayout;
-    
-    const outputTexture = await tileableTexture.process(device, inputTexture, width, height);
-
-    // 从GPU读取结果
-    const resultBuffer = device.createBuffer({
+    // 从输入纹理读取一些像素数据进行比较
+    const inputBuffer = device.createBuffer({
         size: width * height * 4,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
 
-    const commandEncoder = device.createCommandEncoder();
+    // 复制输入纹理数据
+    let commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToBuffer(
-        { texture: outputTexture },
-        { buffer: resultBuffer, bytesPerRow: width * 4 },
+        { texture: inputTexture },
+        { buffer: inputBuffer, bytesPerRow: width * 4 },
         [width, height]
     );
     device.queue.submit([commandEncoder.finish()]);
 
-    // 等待并获取结果
-    await resultBuffer.mapAsync(GPUMapMode.READ);
-    const mappedRange = resultBuffer.getMappedRange();
-    // 创建数据的副本
-    const resultArray = new Uint8ClampedArray(mappedRange.slice(0));
+    // 等待并读取输入数据
+    await inputBuffer.mapAsync(GPUMapMode.READ);
+    const inputArray = new Uint8Array(inputBuffer.getMappedRange());
     
-    // 在创建 ImageData 之前先 unmap
-    resultBuffer.unmap();
+    // 记录一些示例位置的值
+    const samplePositions = [
+        0,              // 左上角
+        width * 4 - 4, // 右上角
+        (height - 1) * width * 4, // 左下角
+        (height * width * 4) - 4  // 右下角
+    ];
+    
+    console.log("输入纹理采样点值：");
+    samplePositions.forEach((pos, i) => {
+        console.log(`位置 ${i}: RGBA(${
+            inputArray[pos]}, ${
+            inputArray[pos + 1]}, ${
+            inputArray[pos + 2]}, ${
+            inputArray[pos + 3]})`);
+    });
+    
+    inputBuffer.unmap();
+
+    // 处理纹理
+    const outputTexture = await tileableTexture.process(device, inputTexture, width, height);
+
+    // 从输出纹理读取相同位置的数据
+    const outputBuffer = device.createBuffer({
+        size: width * height * 4,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+    });
+
+    // 复制输出纹理数据
+    commandEncoder = device.createCommandEncoder();
+    commandEncoder.copyTextureToBuffer(
+        { texture: outputTexture },
+        { buffer: outputBuffer, bytesPerRow: width * 4 },
+        [width, height]
+    );
+    device.queue.submit([commandEncoder.finish()]);
+
+    // 等待并读取输出数据
+    await outputBuffer.mapAsync(GPUMapMode.READ);
+    const outputArray = new Uint8Array(outputBuffer.getMappedRange());
+
+    // 创建一个新的 Uint8ClampedArray 来存储数据
+    const finalArray = new Uint8ClampedArray(outputArray.length);
+    finalArray.set(outputArray); // 复制数据
+
+    // 打印调试信息
+    console.log("\n输出纹理采样点值：");
+    samplePositions.forEach((pos, i) => {
+        console.log(`位置 ${i}: RGBA(${
+            outputArray[pos]}, ${
+            outputArray[pos + 1]}, ${
+            outputArray[pos + 2]}, ${
+            outputArray[pos + 3]})`);
+    });
+
+    // 解除映射
+    outputBuffer.unmap();
+
+    // 清理资源
     inputTexture.destroy();
     outputTexture.destroy();
     device.destroy();
 
-    // 使用数据副本创建 ImageData
-    return new ImageData(resultArray, width, height);
+    // 使用 Uint8ClampedArray 创建 ImageData
+    return new ImageData(
+        finalArray,  // 使用 Uint8ClampedArray
+        width,
+        height       // 不需要 ImageDataSettings
+    );
 }
