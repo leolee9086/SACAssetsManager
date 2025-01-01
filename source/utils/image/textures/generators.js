@@ -1,5 +1,6 @@
 import { shaders } from "./shaders.js";
-import { makeTileable as  Tileable } from "./makeTileable/HistogramPreservingBlendMakeTileable.js";
+import { makeTileable as  $Tileable } from "./makeTileable/HistogramPreservingBlendMakeTileable.js";
+import { makeTileable as Tileable} from "./makeTileable/gputileable.js";
 // 定义标准化的输入输出接口
 /**
  * @typedef {Object} TextureGeneratorInput
@@ -56,7 +57,7 @@ class TextureGenerator {
         const canvas = document.createElement('canvas');
         canvas.width = this.width;
         canvas.height = this.height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const imageData = ctx.createImageData(this.width, this.height);
         const data = imageData.data;
 
@@ -107,8 +108,15 @@ class TextureGenerator {
      * @returns {Promise<TextureGeneratorOutput>}
      */
     async generate(input) {
-        const { type, params = {}, width, height, makeTileable = true, borderSize = 30 } = input;
+        const { type, params = {}, width, height, makeTileable = true, borderSize = 60} = input;
 
+        // 定义需要无缝化的材质类型
+       const tileableTypes = ['noise', 'wood', 'wood_01', 'wood_procedural', 'quarter_sawn_wood', 'knottyWood','wood_fine','marble_royal_brown'];
+      //  const tileableTypes = [];
+
+        // 记录开始时间
+        const startTime = performance.now();
+        
         // 如果提供了新的尺寸，临时更新
         const originalWidth = this.width;
         const originalHeight = this.height;
@@ -117,18 +125,36 @@ class TextureGenerator {
 
         try {
             let result = await this.generateTexture(type, params);
+            const generateTime = performance.now() - startTime;
 
-            // 如果需要无缝化处理
-            if (makeTileable) {
+            // 只对特定类型的材质进行无缝化处理
+            if (makeTileable && tileableTypes.includes(type)) {
+                const tileableStartTime = performance.now();
+                
                 const ctx = result.canvas.getContext('2d');
                 const imageData = ctx.getImageData(0, 0, result.canvas.width, result.canvas.height);
                 
                 // 应用无缝化处理
                 const tileableImageData = await Tileable(imageData, borderSize);
-                console.log(tileableImageData)
+                
                 // 更新 canvas 和 buffer
                 ctx.putImageData(tileableImageData, 0, 0);
                 result.buffer = await this._canvasToBuffer(result.canvas);
+                
+                const tileableTime = performance.now() - tileableStartTime;
+                
+                // 记录性能数据
+                console.log(`纹理生成性能报告 - ${type}:`, {
+                    生成时间: `${generateTime.toFixed(2)}ms`,
+                    无缝化时间: `${tileableTime.toFixed(2)}ms`,
+                    总时间: `${(generateTime + tileableTime).toFixed(2)}ms`
+                });
+            } else {
+                // 对于不需要无缝化的材质，只记录生成时间
+                console.log(`纹理生成性能报告 - ${type}:`, {
+                    生成时间: `${generateTime.toFixed(2)}ms`,
+                    无缝化: '不适用'
+                });
             }
 
             return {
@@ -349,7 +375,7 @@ class TextureGenerator {
         const canvas = document.createElement('canvas');
         canvas.width = this.width;
         canvas.height = this.height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const imageData = new ImageData(
             new Uint8ClampedArray(data),
             this.width,
@@ -371,7 +397,7 @@ class TextureGenerator {
      * @private
      */
     async _canvasToBuffer(canvas) {
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         return imageData.data.buffer.slice(0);
     }
@@ -379,7 +405,7 @@ class TextureGenerator {
 
 
 async function testTextureGenerator() {
-    const generator = await TextureGenerator.create(512, 512);
+    const generator = await TextureGenerator.create(2048,2048 );
     
     try {
         const results = {};

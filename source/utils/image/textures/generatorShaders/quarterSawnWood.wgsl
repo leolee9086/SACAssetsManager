@@ -73,8 +73,8 @@ fn linearFbm(p: vec3f, octaves: i32) -> f32 {
 
 // 木射线图案
 fn rayPattern(p: vec2f) -> f32 {
-    let ray = sin(p.x * params.ray_frequency) * 0.5 + 0.5;
-    return ray * params.ray_intensity;
+    let ray = sin(p.x * params.ray_frequency * 2.0) * 0.5 + 0.5;
+    return ray * params.ray_intensity * 0.8;
 }
 
 // 改进的方向性条纹函数
@@ -137,12 +137,12 @@ fn fiberPattern(p: vec2f) -> f32 {
 // 改进的木针纹理，增加更细微的细节
 fn needlePattern(p: vec2f) -> f32 {
     // 增加频率，减少平滑度
-    let micro_needles = linearFbm(vec3f(p.x * 12.0, p.y * 120.0, 0.0), 2);
-    let ultra_fine_needles = linearFbm(vec3f(p.x * 8.0, p.y * 100.0, 0.0), 2);
+    let micro_needles = linearFbm(vec3f(p.x * 24.0, p.y * 180.0, 0.0), 2);
+    let ultra_fine_needles = linearFbm(vec3f(p.x * 16.0, p.y * 150.0, 0.0), 2);
     
     // 增加基础纹理的频率
-    let vertical_noise = linearFbm(vec3f(p.x * 6.0, p.y * 50.0, 0.0), 2);
-    let fine_noise = linearFbm(vec3f(p.x * 8.0, p.y * 60.0, 0.0), 2);
+    let vertical_noise = linearFbm(vec3f(p.x * 12.0, p.y * 75.0, 0.0), 2);
+    let fine_noise = linearFbm(vec3f(p.x * 16.0, p.y * 90.0, 0.0), 2);
     
     // 方向性变化
     let direction = linearFbm(vec3f(p.x * 0.8, p.y * 0.2, 0.0), 2);

@@ -1,9 +1,11 @@
 // 重构着色器定义,使用更结构化的方式
+import { addScriptSync } from "../../DOM/addScript.js";
 import { requireWGSLCode } from "../../module/wgslModule.js";
 import { parseWGSLBindings } from "./utils/wgslBindingParser.js";
+addScriptSync(import.meta.resolve('../../../../static/tf.min.js'))
 console.log(parseWGSLBindings(await requireWGSLCode(import.meta.resolve('./generatorShaders/noise.wgsl'))))
 export const shaders = {
-    noise: {
+    /*noise: {
         code:await requireWGSLCode(import.meta.resolve('./generatorShaders/noise.wgsl')),
         uniforms: {
             scale: 'f32',
@@ -519,6 +521,176 @@ export const shaders = {
                 ring_scale: 2.5,
                 contrast: 1.2,
                 brightness: 0.15
+            }
+        }
+    },
+
+    wood_fine: {
+        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_fine.wgsl')),
+        uniforms: {
+            time: 'f32',
+            scale: 'f32',
+            color1: 'vec3f',
+            _pad1: 'f32',
+            color2: 'vec3f',
+            _pad2: 'f32',
+            color3: 'vec3f',
+            _pad3: 'f32',
+            grain_scale: 'f32',
+            ring_scale: 'f32',
+            contrast: 'f32',
+            brightness: 'f32'
+        },
+        presets: {
+            standard: {
+                time: Math.random(),
+                scale: 4.0,
+                color1: [0.03, 0.012, 0.003],
+                color2: [0.25, 0.11, 0.04],
+                color3: [0.52, 0.32, 0.19],
+                grain_scale: 20.0,
+                ring_scale: 3.0,
+                contrast: 1.2,
+                brightness: 0.0
+            },
+            lightOak: {
+                time: Math.random(),
+                scale: 3.5,
+                color1: [0.42, 0.28, 0.18],
+                color2: [0.58, 0.38, 0.25],
+                color3: [0.72, 0.52, 0.35],
+                grain_scale: 25.0,
+                ring_scale: 2.8,
+                contrast: 0.9,
+                brightness: 0.1
+            },
+            darkWalnut: {
+                time: Math.random(),
+                scale: 4.5,
+                color1: [0.12, 0.06, 0.03],
+                color2: [0.28, 0.15, 0.08],
+                color3: [0.42, 0.25, 0.15],
+                grain_scale: 22.0,
+                ring_scale: 3.2,
+                contrast: 1.4,
+                brightness: -0.1
+            },
+            mahogany: {
+                time: Math.random(),
+                scale: 4.2,
+                color1: [0.15, 0.05, 0.03],
+                color2: [0.35, 0.12, 0.08],
+                color3: [0.55, 0.25, 0.18],
+                grain_scale: 18.0,
+                ring_scale: 3.5,
+                contrast: 1.3,
+                brightness: -0.05
+            }
+        }
+    },
+
+    wood_02: {
+        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_02.wgsl')),
+        uniforms: {
+            time: 'f32',
+            scale: 'f32',
+            color1: 'vec3f',
+            _pad1: 'f32',
+            color2: 'vec3f',
+            _pad2: 'f32',
+            color3: 'vec3f',
+            _pad3: 'f32',
+            grain_scale: 'f32',
+            ring_scale: 'f32',
+            contrast: 'f32',
+            brightness: 'f32'
+        },
+        presets: {
+            fineOak: {
+                time: Math.random(),
+                scale: 4.0,
+                color1: [0.35, 0.20, 0.10],
+                color2: [0.50, 0.30, 0.15],
+                color3: [0.70, 0.45, 0.25],
+                grain_scale: 15.0,
+                ring_scale: 2.5,
+                contrast: 1.2,
+                brightness: 0.1
+            },
+            richWalnut: {
+                time: Math.random(),
+                scale: 5.0,
+                color1: [0.15, 0.08, 0.05],
+                color2: [0.30, 0.18, 0.12],
+                color3: [0.45, 0.28, 0.20],
+                grain_scale: 18.0,
+                ring_scale: 3.0,
+                contrast: 1.4,
+                brightness: -0.05
+            },
+            goldenTeak: {
+                time: Math.random(),
+                scale: 4.5,
+                color1: [0.40, 0.25, 0.15],
+                color2: [0.55, 0.35, 0.20],
+                color3: [0.75, 0.50, 0.30],
+                grain_scale: 20.0,
+                ring_scale: 2.8,
+                contrast: 1.3,
+                brightness: 0.15
+            }
+        }
+    },*/
+
+    marble_royal_brown: {
+        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_royal_brown.wgsl')),
+        uniforms: {
+            time: 'f32',
+            scale: 'f32',
+            color1: 'vec3f',    // 主色调
+            _pad1: 'f32',
+            color2: 'vec3f',    // 次要色调
+            _pad2: 'f32',
+            color3: 'vec3f',    // 纹理色
+            _pad3: 'f32',
+            vein_scale: 'f32',  // 纹理尺度
+            vein_contrast: 'f32', // 纹理对比度
+            turbulence: 'f32',   // 湍流强度
+            brightness: 'f32'    // 整体亮度
+        },
+        presets: {
+            royalBrown: {
+                time: Math.random(),
+                scale: 4.0,
+                color1: [0.35, 0.20, 0.12],  // 深褐色
+                color2: [0.55, 0.35, 0.25],  // 浅褐色
+                color3: [0.85, 0.80, 0.75],  // 米白色
+                vein_scale: 2.0,
+                vein_contrast: 1.2,
+                turbulence: 1.0,
+                brightness: 1.0
+            },
+            emperadorDark: {
+                time: Math.random(),
+                scale: 3.5,
+                color1: [0.25, 0.15, 0.10],  // 深巧克力色
+                color2: [0.45, 0.30, 0.20],  // 中褐色
+                color3: [0.75, 0.65, 0.55],  // 浅褐色
+                vein_scale: 1.8,
+                vein_contrast: 1.4,
+                turbulence: 1.2,
+                brightness: 0.9
+            },
+            goldenBeige: {
+                time: Math.random(),
+                scale: 4.2,
+                color1: [0.40, 0.30, 0.20],  // 金褐色
+                color2: [0.60, 0.45, 0.30],  // 浅金色
+                color3: [0.90, 0.85, 0.80],  // 米白色
+                vein_scale: 2.2,
+                vein_contrast: 1.1,
+                turbulence: 0.8,
+                brightness: 1.1
             }
         }
     }
