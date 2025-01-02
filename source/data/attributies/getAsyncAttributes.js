@@ -23,7 +23,6 @@ export const getAssetItemColor = async (assetData) => {
     } catch (error) {
         console.warn(error)
         assetData.colorPllet=[]
-
         return []
     }
 

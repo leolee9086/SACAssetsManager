@@ -93,7 +93,6 @@ module.exports = class SACAssetsManager extends Plugin {
     this.selfURL = this.插件自身伺服地址
     this.初始化插件同步状态()
     this.初始化插件异步状态()
-    this.加载工具webview()
     this.添加全局事件监听()
     this.stayAlive = true
     this.创建web服务()
@@ -106,8 +105,7 @@ module.exports = class SACAssetsManager extends Plugin {
     this.最近打开本地文件夹列表 = new Set()
   }
   初始化插件异步状态() {
-    import(`${this.插件自身伺服地址}/source/UI/icons/addicon.js`)
-    import(`${this.插件自身伺服地址}/source/globalStatus/index.js`)
+    import(`${this.插件自身伺服地址}/source/index.js`)
   }
 
   async 写入i18n(lang, content) {
@@ -177,10 +175,7 @@ module.exports = class SACAssetsManager extends Plugin {
       打开附件所在路径: 'open-asset-folder'
     }
   }
-  加载工具webview() {
-    //用于触发原生拖拽事件
-    import(`${this.插件自身伺服地址}/source/utilWebviews/drag.js`)
-  }
+
   添加全局事件监听() {
     import(`${this.插件自身伺服地址}/source/events/globalEvents.js`)
   }
