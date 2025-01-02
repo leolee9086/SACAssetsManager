@@ -1,28 +1,29 @@
-// 重构着色器定义,使用更结构化的方式
 import { addScriptSync } from "../../DOM/addScript.js";
-import { requireWGSLCode } from "../../module/wgslModule.js";
-import { parseWGSLBindings } from "./utils/wgslBindingParser.js";
+import { _load_ } from "../../module/wgslModule.js";
 addScriptSync(import.meta.resolve('../../../../static/tf.min.js'))
-console.log(parseWGSLBindings(await requireWGSLCode(import.meta.resolve('./generatorShaders/noise.wgsl'))))
+
+// 统一使用 _load_ 加载所有着色器模块
+const noiseModule = await _load_(import.meta.resolve('./generatorShaders/noise.wgsl'));
+const gradientModule = await _load_(import.meta.resolve('./generatorShaders/gradient.wgsl'));
+const checkerboardModule = await _load_(import.meta.resolve('./generatorShaders/checkboard.wgsl'));
+const dotsModule = await _load_(import.meta.resolve('./generatorShaders/dots.wgsl'));
+const cellularModule = await _load_(import.meta.resolve('./generatorShaders/cellular.wgsl'));
+const woodModule = await _load_(import.meta.resolve('./generatorShaders/wood.wgsl'));
+const wood01Module = await _load_(import.meta.resolve('./generatorShaders/wood_01.wgsl'));
+const woodProceduralModule = await _load_(import.meta.resolve('./generatorShaders/wood_procedural.wgsl'));
+const quarterSawnWoodModule = await _load_(import.meta.resolve('./generatorShaders/quarterSawnWood.wgsl'));
+const knottyWoodModule = await _load_(import.meta.resolve('./generatorShaders/knottyWood.wgsl'));
+const woodFineModule = await _load_(import.meta.resolve('./generatorShaders/wood_fine.wgsl'));
+const wood02Module = await _load_(import.meta.resolve('./generatorShaders/wood_02.wgsl'));
+const marbleRoyalBrownModule = await _load_(import.meta.resolve('./generatorShaders/marble_royal_brown.wgsl'));
+const marbleDirectionalBrownModule = await _load_(import.meta.resolve('./generatorShaders/marble_striated.wgsl'));
+const marbleVeinedModule = await _load_(import.meta.resolve('./generatorShaders/marble_veined.wgsl'));
+const graniteModule = await _load_(import.meta.resolve('./generatorShaders/granite.wgsl'));
+
 export const shaders = {
     noise: {
-        code:await requireWGSLCode(import.meta.resolve('./generatorShaders/noise.wgsl')),
-        uniforms: {
-            scale: 'f32',
-            seed: 'f32',
-            octaves: 'i32',
-            persistence: 'f32',
-            lacunarity: 'f32',
-            frequency: 'f32',
-            amplitude: 'f32',
-            offset_x: 'f32',
-            offset_y: 'f32',
-            contrast: 'f32',
-            brightness: 'f32',
-            detail_scale: 'f32',
-            master_scale: 'f32',
-            detail_weight: 'f32'
-        },
+        code: noiseModule.code,
+        uniforms: noiseModule.uniforms.params.fields,
         presets: {
             default: {
                 scale: 8.0,
@@ -60,14 +61,8 @@ export const shaders = {
     },
     
     gradient: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/gradient.wgsl')),
-        uniforms: {
-            color1: 'vec4f',
-            color2: 'vec4f',
-            angle: 'f32',
-            offset: 'f32',
-            _padding: 'vec2f'
-        },
+        code: gradientModule.code,
+        uniforms: gradientModule.uniforms.params.fields,
         presets: {
             redBlue: {
                 color1: [1.0, 0.0, 0.0, 1.0],
@@ -84,17 +79,9 @@ export const shaders = {
         }
     },
     
-    // 添加棋盘格着色器
     checkerboard: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/checkboard.wgsl')),
-        uniforms: {
-            color1: 'vec4f',
-            color2: 'vec4f',
-            size: 'f32',
-            rotation: 'f32',
-            offset_x: 'f32',
-            offset_y: 'f32'
-        },
+        code: checkerboardModule.code,
+        uniforms: checkerboardModule.uniforms.params.fields,
         presets: {
             standard: {
                 color1: [1, 1, 1, 1],
@@ -115,17 +102,9 @@ export const shaders = {
         }
     },
 
-    // 添加点阵纹理
     dots: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/dots.wgsl')),
-        uniforms: {
-            background: 'vec4f',
-            dot_color: 'vec4f',
-            size: 'f32',
-            dot_radius: 'f32',
-            softness: 'f32',
-            rotation: 'f32'
-        },
+        code: dotsModule.code,
+        uniforms: dotsModule.uniforms.params.fields,
         presets: {
             standard: {
                 background: [0, 0, 0, 1],
@@ -146,16 +125,9 @@ export const shaders = {
         }
     },
 
-    // 添加细胞噪声(Worley噪声)
     cellular: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/cellular.wgsl')),
-        uniforms: {
-            scale: 'f32',
-            seed: 'f32',
-            intensity: 'f32',
-            jitter: 'f32',
-            falloff: 'f32'
-        },
+        code: cellularModule.code,
+        uniforms: cellularModule.uniforms.params.fields,
         presets: {
             standard: {
                 scale: 5.0,
@@ -175,23 +147,8 @@ export const shaders = {
     },
 
     wood: {
-        //thanks :https://www.shadertoy.com/view/mdy3R1
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-            time: 'f32',
-            scale: 'f32',
-
-            grain_scale: 'f32',
-            ring_scale: 'f32',
-            contrast: 'f32',
-            brightness: 'f32'
-        },
+        code: woodModule.code,
+        uniforms: woodModule.uniforms.params.fields,
         presets: {
             standard: {
                 time: Math.random(),
@@ -274,23 +231,8 @@ export const shaders = {
     },
 
     wood_01: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_01.wgsl')),
-
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-            time: 'f32',
-            scale: 'f32',
-
-            ring_scale: 'f32',
-            ring_width: 'f32',
-            fiber_scale: 'f32',
-            fiber_strength: 'f32'
-        },
+        code: wood01Module.code,
+        uniforms: wood01Module.uniforms.params.fields,
         presets: {
             lightOak: {
                 time: Math.random(),
@@ -340,24 +282,8 @@ export const shaders = {
     },
 
     wood_procedural: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_procedural.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-
-            time: 'f32',
-            scale: 'f32',
-            wood_type: 'i32',
-            panel_width: 'f32',
-            panel_height: 'f32',
-            ring_scale: 'f32',
-            ring_contrast: 'f32',
-            grain_scale: 'f32',
-        },
+        code: woodProceduralModule.code,
+        uniforms: woodProceduralModule.uniforms.params.fields,
         presets: {
             oak: {
                 time: Math.random(),
@@ -402,24 +328,8 @@ export const shaders = {
     },
 
     quarter_sawn_wood: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/quarterSawnWood.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-
-            time: 'f32',
-            scale: 'f32',
-            grain_scale: 'f32',
-            ring_scale: 'f32',
-            contrast: 'f32',
-            brightness: 'f32',
-            ray_intensity: 'f32',
-            ray_frequency: 'f32'
-        },
+        code: quarterSawnWoodModule.code,
+        uniforms: quarterSawnWoodModule.uniforms.params.fields,
         presets: {
             standardOak: {
                 time: Math.random(),
@@ -477,22 +387,8 @@ export const shaders = {
     },
 
     knottyWood: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/knottyWood.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-
-            time: 'f32',
-            scale: 'f32',
-            grain_scale: 'f32',
-            ring_scale: 'f32',
-            contrast: 'f32',
-            brightness: 'f32'
-        },
+        code: knottyWoodModule.code,
+        uniforms: knottyWoodModule.uniforms.params.fields,
         presets: {
             knottyPine: {
                 time: Math.random(),
@@ -531,22 +427,8 @@ export const shaders = {
     },
 
     wood_fine: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_fine.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-
-            time: 'f32',
-            scale: 'f32',
-            grain_scale: 'f32',
-            ring_scale: 'f32',
-            contrast: 'f32',
-            brightness: 'f32'
-        },
+        code: woodFineModule.code,
+        uniforms: woodFineModule.uniforms.params.fields,
         presets: {
             standard: {
                 time: Math.random(),
@@ -596,21 +478,8 @@ export const shaders = {
     },
 
     wood_02: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/wood_02.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-            time: 'f32',
-            scale: 'f32',
-            grain_scale: 'f32',
-            ring_scale: 'f32',
-            contrast: 'f32',
-            brightness: 'f32'
-        },
+        code: wood02Module.code,
+        uniforms: wood02Module.uniforms.params.fields,
         presets: {
             fineOak: {
                 time: Math.random(),
@@ -649,21 +518,8 @@ export const shaders = {
     },
 
     marble_royal_brown: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_royal_brown.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-            time: 'f32',
-            scale: 'f32',
-            vein_scale: 'f32',
-            vein_contrast: 'f32',
-            turbulence: 'f32',
-            brightness: 'f32'
-        },
+        code: marbleRoyalBrownModule.code,
+        uniforms: marbleRoyalBrownModule.uniforms.params.fields,
         presets: {
             royalBrown: {
                 time: Math.random(),
@@ -702,21 +558,8 @@ export const shaders = {
     },
 
     marble_directional_brown: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_striated.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-            time: 'f32',
-            scale: 'f32',
-            vein_scale: 'f32',
-            jitter: 'f32',
-            vein_contrast: 'f32',
-            brightness: 'f32'
-        },
+        code: marbleDirectionalBrownModule.code,
+        uniforms: marbleDirectionalBrownModule.uniforms.params.fields,
         presets: {
             classic: {
                 time: Math.random(),
@@ -755,21 +598,8 @@ export const shaders = {
     },
 
     marble_veined: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/marble_veined.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-            time: 'f32',
-            scale: 'f32',
-            vein_scale: 'f32',
-            jitter: 'f32',
-            vein_contrast: 'f32',
-            brightness: 'f32'
-        },
+        code: marbleVeinedModule.code,
+        uniforms: marbleVeinedModule.uniforms.params.fields,
         presets: {
             calacatta: {
                 time: Math.random(),
@@ -830,22 +660,8 @@ export const shaders = {
     },
 
     granite: {
-        code: await requireWGSLCode(import.meta.resolve('./generatorShaders/granite.wgsl')),
-        uniforms: {
-            color1: 'vec3f',
-            _pad1: 'f32',
-            color2: 'vec3f',
-            _pad2: 'f32',
-            color3: 'vec3f',
-            _pad3: 'f32',
-            time: 'f32',
-            scale: 'f32',
-            grid_scale: 'f32',
-            line_width: 'f32',
-            noise_scale: 'f32',
-            roughness: 'f32',
-            _pad4: 'vec2f'
-        },
+        code: graniteModule.code,
+        uniforms: graniteModule.uniforms.params.fields,
         presets: {
             grayGranite: {
                 color1: [0, 0, 0],

@@ -25,81 +25,16 @@ class TextureGenerator {
         this.width = width;
         this.height = height;
         this.device = null;
-        this.useFallback = false;
     }
 
     async init() {
-        try {
-            if (!navigator.gpu) {
-                throw new Error('WebGPU 不支持');
-            }
-
-            const adapter = await navigator.gpu.requestAdapter();
-            this.device = await adapter.requestDevice();
-            return true;
-        } catch (error) {
-            console.warn('WebGPU 初始化失败，切换到 Canvas 2D 降级方案:', error);
-            this.useFallback = true;
-            return false;
-        }
-    }
-
-    // 添加降级方案的噪声生成函数
-    generateNoiseCanvas(params = {}) {
-        const {
-            scale = 4.0,
-            seed = Math.random() * 1000,
-            octaves = 6,
-            persistence = 0.5,
-            lacunarity = 2.0
-        } = params;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = this.width;
-        canvas.height = this.height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const imageData = ctx.createImageData(this.width, this.height);
-        const data = imageData.data;
-
-        // 简单的伪随机函数
-        const noise2D = (x, y) => {
-            const X = Math.floor(x) & 255;
-            const Y = Math.floor(y) & 255;
-            const value = Math.sin(X * 12.9898 + Y * 78.233 + seed) * 43758.5453123;
-            return value - Math.floor(value);
-        };
-
-        // 生成噪声
-        for (let y = 0; y < this.height; y++) {
-            for (let x = 0; x < this.width; x++) {
-                let amplitude = 1.0;
-                let frequency = 1.0;
-                let noiseValue = 0;
-                let amplitudeSum = 0;
-
-                // 分形叠加
-                for (let o = 0; o < octaves; o++) {
-                    const sampleX = (x * frequency * scale) / this.width;
-                    const sampleY = (y * frequency * scale) / this.height;
-                    noiseValue += noise2D(sampleX, sampleY) * amplitude;
-                    amplitudeSum += amplitude;
-                    amplitude *= persistence;
-                    frequency *= lacunarity;
-                }
-
-                // 归一化
-                noiseValue = (noiseValue / amplitudeSum) * 255;
-
-                const i = (y * this.width + x) * 4;
-                data[i] = noiseValue;     // R
-                data[i + 1] = noiseValue; // G
-                data[i + 2] = noiseValue; // B
-                data[i + 3] = 255;        // A
-            }
+        if (!navigator.gpu) {
+            throw new Error('WebGPU 不支持');
         }
 
-        ctx.putImageData(imageData, 0, 0);
-        return canvas;
+        const adapter = await navigator.gpu.requestAdapter();
+        this.device = await adapter.requestDevice();
+        return true;
     }
 
     /**
@@ -175,17 +110,6 @@ class TextureGenerator {
      * @private
      */
     async generateTexture(shaderType, params = {}) {
-        if (this.useFallback) {
-            if (shaderType === 'noise') {
-                const canvas = this.generateNoiseCanvas(params);
-                return {
-                    canvas,
-                    buffer: await this._canvasToBuffer(canvas)
-                };
-            }
-            throw new Error(`${shaderType} 生成在降级模式下不支持`);
-        }
-
         const shader = shaders[shaderType];
         if (!shader) {
             throw new Error(`未知的着色器类型: ${shaderType}`);
@@ -467,7 +391,7 @@ class TextureGenerator {
 
 
 async function testTextureGenerator() {
-    const generator = await TextureGenerator.create(512,512 );
+    const generator = await TextureGenerator.create(1024,512 );
     
     try {
         const results = {};

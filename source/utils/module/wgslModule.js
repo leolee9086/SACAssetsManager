@@ -1,6 +1,7 @@
 import MagicString from '../../../static/magic-string.mjs'
 import { isBuiltinFunction } from './wgsl/isBuiltinFunction.js';
 import * as wglsRegs from './wgsl/regex.js'
+import { parseWGSLUniformBindings } from './wgsl/uniformParser.js';
 
 // 纯函数：解析导入列表
 function parseImportList(importList) {
@@ -336,4 +337,75 @@ export async function requireWGSLCode(path, options = {
         console.error('WGSL preprocessing error:', error);
         throw new Error(`Failed to load WGSL code from ${path}: ${error.message}`);
     }
+}
+
+/**
+ * 加载并解析 WGSL 代码，包括绑定信息
+ * 
+ * @param {string} path - WGSL 文件的路径
+ * @param {Object} [options] - 预处理选项
+ * @returns {Promise<{
+ *   code: string,
+ *   uniforms: Object,
+ *   require: Function,
+ *   export: Function,
+ *   compile: Function,
+ *   link: Function
+ * }>} 处理后的代码、绑定信息和模块方法
+ */
+export async function _load_(path, options = {}) {
+    // 设置默认选项
+    const defaultOptions = {
+        cache: true,
+        defines: {},
+        importCache: new Map(),
+        macros: {}
+    };
+
+    // 合并用户选项和默认选项
+    const finalOptions = { ...defaultOptions, ...options };
+    
+    const code = await requireWGSLCode(path, finalOptions);
+    const uniforms = parseWGSLUniformBindings(code);
+    
+    return {
+        code,
+        uniforms,
+        
+        /**
+         * 从模块中导入其他 WGSL 模块
+         * @param {string} modulePath - 要导入的模块路径
+         * @throws {Error} 尚未实现
+         */
+        require(modulePath) {
+            throw new Error('WGSL module require() method not implemented');
+        },
+        
+        /**
+         * 导出模块中的函数或变量
+         * @param {string} name - 要导出的项目名称
+         * @throws {Error} 尚未实现
+         */
+        export(name) {
+            throw new Error('WGSL module export() method not implemented');
+        },
+        
+        /**
+         * 编译 WGSL 代码
+         * @returns {Promise<any>} 编译后的着色器模块
+         * @throws {Error} 尚未实现
+         */
+        async compile() {
+            throw new Error('WGSL module compile() method not implemented');
+        },
+        
+        /**
+         * 链接多个 WGSL 模块
+         * @param {...any} modules - 要链接的模块
+         * @throws {Error} 尚未实现
+         */
+        link(...modules) {
+            throw new Error('WGSL module link() method not implemented');
+        }
+    };
 }

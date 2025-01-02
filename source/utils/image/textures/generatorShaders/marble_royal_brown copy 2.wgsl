@@ -38,99 +38,82 @@ fn turbulence(p: vec3f, octaves: i32, roughness: f32) -> f32 {
 fn marblePattern(p: vec3f) -> vec3f {
     var pos = p;
     
-    // 大幅增强主裂纹的强度和清晰度
+    // 主导方向的大裂纹控制
     let main_crack = vec3f(
-        turbulence(p * 0.12 + vec3f(p.x * 2.0 - p.y * 2.2, p.y * 0.1, 0.0), 1, 0.9999) * 2.2 +
-        turbulence(p * 0.25 + vec3f(p.x * 1.6 - p.y * 2.0, p.x * 0.08, 0.0), 1, 0.9995) * 1.8,
+        turbulence(p * 0.8 + vec3f(p.y * 0.4, p.x * 0.2, 0.0), 4, 0.7) +
+        turbulence(p * 1.6 + vec3f(p.x * 0.3, p.y * 0.5, 0.0), 3, 0.8) * 0.5,
         
-        turbulence(p * 0.1 + vec3f(p.x * 2.1 - p.y * 2.1, p.x * 0.1, 0.0), 1, 0.9999) * 2.2 +
-        turbulence(p * 0.23 + vec3f(p.x * 1.7 - p.y * 1.9, p.y * 0.08, 0.0), 1, 0.9995) * 1.8,
+        turbulence(p * 0.7 + vec3f(p.x * 0.5, p.y * 0.3, 0.0), 4, 0.7) +
+        turbulence(p * 1.5 + vec3f(p.y * 0.2, p.x * 0.4, 0.0), 3, 0.8) * 0.5,
         
-        turbulence(p * 0.14 + vec3f(p.x * 1.9 - p.y * 2.3, p.y * 0.1, 0.0), 1, 0.9999) * 2.2 +
-        turbulence(p * 0.27 + vec3f(p.x * 1.5 - p.y * 2.1, p.x * 0.08, 0.0), 1, 0.9995) * 1.8
+        turbulence(p * 0.9 + vec3f(p.y * 0.3, p.x * 0.4, 0.0), 4, 0.7) +
+        turbulence(p * 1.7 + vec3f(p.x * 0.4, p.y * 0.3, 0.0), 3, 0.8) * 0.5
     );
     
-    // 减弱但增加细节的分岔纹理
-    let fine_branches1 = vec3f(
-        turbulence(p * 5.0 + main_crack.yzx * 0.15, 3, 0.15) * 0.08,
-        turbulence(p * 4.8 + main_crack.zxy * 0.15, 3, 0.15) * 0.08,
-        turbulence(p * 4.6 + main_crack.xyz * 0.15, 3, 0.15) * 0.08
+    // 裂纹分叉控制
+    let crack_branch = vec3f(
+        turbulence(p * 2.2 + main_crack.yzx * 0.6, 6, 0.5) * 0.4,
+        turbulence(p * 2.0 + main_crack.zxy * 0.6, 6, 0.5) * 0.4,
+        turbulence(p * 1.8 + main_crack.xyz * 0.6, 6, 0.5) * 0.4
     );
     
-    let fine_branches2 = vec3f(
-        turbulence(p * 7.0 + fine_branches1.yzx * 0.3, 2, 0.12) * 0.05,
-        turbulence(p * 6.8 + fine_branches1.zxy * 0.3, 2, 0.12) * 0.05,
-        turbulence(p * 6.6 + fine_branches1.xyz * 0.3, 2, 0.12) * 0.05
-    );
-    
-    let fine_branches3 = vec3f(
-        turbulence(p * 9.0 + fine_branches2.yzx * 0.2, 2, 0.1) * 0.03,
-        turbulence(p * 8.8 + fine_branches2.zxy * 0.2, 2, 0.1) * 0.03,
-        turbulence(p * 8.6 + fine_branches2.xyz * 0.2, 2, 0.1) * 0.03
-    );
-    
-    pos += (main_crack * 3.0 + fine_branches1 * 0.4 + fine_branches2 * 0.25 + fine_branches3 * 0.15) * params.jitter;
+    pos += (main_crack + crack_branch) * params.jitter;
 
-    // 增强主纹理的显著性
+    // 主裂纹纹理
     let base_pattern1 = sin(
-        (pos.x - pos.y) * params.vein_scale * 0.8 +
-        main_crack.x * params.vein_contrast * 12.0
-    );
+        pos.x * params.vein_scale * 0.7 + pos.y * params.vein_scale * 0.5 +
+        main_crack.x * params.vein_contrast * 2.5
+    ) * 0.7 + crack_branch.x * 0.3;
     
     let base_pattern2 = sin(
-        (pos.x - pos.y * 1.2) * params.vein_scale * 0.7 +
-        main_crack.y * params.vein_contrast * 12.0
+        pos.y * params.vein_scale * 0.6 + pos.x * params.vein_scale * 0.4 +
+        main_crack.y * params.vein_contrast * 2.5
+    ) * 0.7 + crack_branch.y * 0.3;
+
+    // 边缘渐变细节
+    let edge_detail = (
+        turbulence(pos * 3.5 + main_crack * 0.4, 7, 0.4) * 0.3 +
+        turbulence(pos * 2.8 + crack_branch * 0.3, 6, 0.4) * 0.2
     );
 
-    // 更强的主纹理边缘锐化
-    let sharp_pattern1 = smoothstep(-0.08, 0.08, base_pattern1);
-    let sharp_pattern2 = smoothstep(-0.08, 0.08, base_pattern2);
+    let base_combined = mix(base_pattern1, base_pattern2, 0.4) + edge_detail + 0.5;
     
-    // 主次分明的边缘渐变
-    let edge_detail = (
-        turbulence(pos * 2.8 + main_crack * 1.4, 3, 0.3) * 0.85 +
-        turbulence(pos * 2.2 + fine_branches1 * 0.3, 2, 0.2) * 0.15 +
-        turbulence(pos * 3.4 + fine_branches2 * 0.2, 2, 0.15) * 0.08
-    ) * smoothstep(0.01, 0.99, abs(base_pattern1) + abs(base_pattern2));
+    // 细微纹理细节
+    let detail1 = turbulence(pos * vec3f(4.0) + main_crack * 0.2, 6, 0.3) * 0.15;
+    let detail2 = turbulence(pos * vec3f(5.0) + crack_branch * 0.2, 5, 0.3) * 0.1;
+    let detail3 = turbulence(pos * vec3f(6.0) + main_crack.zxy * 0.2, 4, 0.3) * 0.08;
+    let detail4 = turbulence(pos * vec3f(7.0) + crack_branch.yzx * 0.2, 4, 0.3) * 0.07;
 
-    let base_combined = mix(sharp_pattern1, sharp_pattern2, 0.12) + edge_detail + 0.65;
-
-    // 更细微的背景纹理
-    let detail1 = turbulence(pos * vec3f(14.0) + main_crack * 0.04, 2, 0.06) * 0.01;
-    let detail2 = turbulence(pos * vec3f(15.0) + fine_branches1 * 0.04, 2, 0.06) * 0.007;
-    let detail3 = turbulence(pos * vec3f(16.0) + fine_branches2 * 0.04, 2, 0.06) * 0.005;
-    let detail4 = turbulence(pos * vec3f(17.0) + fine_branches3 * 0.04, 2, 0.06) * 0.003;
-
-    // 增强主纹理的暗部对比
+    // 暗部控制（主要沿裂纹分布）
     let darkness1 = turbulence(
-        pos * vec3f(0.4) + main_crack * 1.6, 
-        2, 0.98
-    ) * 0.8 * smoothstep(0.08, 0.92, abs(base_pattern1));
+        pos * vec3f(1.5) + main_crack * 0.5, 
+        4, 0.5
+    ) * 0.3;
     
     let darkness2 = turbulence(
-        pos * vec3f(0.6) + fine_branches1 * 0.8, 
-        2, 0.95
-    ) * 0.4 * smoothstep(0.06, 0.94, abs(base_pattern2));
+        pos * vec3f(2.0) + crack_branch * 0.4, 
+        3, 0.4
+    ) * 0.2;
 
     let combined = clamp(
         base_combined + 
         detail1 + detail2 + detail3 + detail4 - 
-        (darkness1 * 1.0 + darkness2 * 0.5),
-        0.42,
+        (darkness1 * 0.4 + darkness2 * 0.3),
+        0.3,
         1.0
     );
     
     // 调整色彩过渡以匹配图片特征
-    if combined < 0.48 {
-        let dark_mix = smoothstep(0.3, 0.48, combined);
+    if combined < 0.45 {
+        let dark_mix = smoothstep(0.3, 0.45, combined);
         return mix(params.color1 * 0.95, params.color2 * 1.05, dark_mix) * 
                (1.0 - darkness2 * 0.15 + edge_detail * 0.1);
-    } else if combined < 0.68 {
-        let mid_mix = smoothstep(0.48, 0.68, combined);
+    } else if combined < 0.65 {
+        let mid_mix = smoothstep(0.45, 0.65, combined);
         let mid_color = mix(params.color2 * 1.05, params.color3 * 0.9, mid_mix);
         return mid_color * (1.0 - darkness1 * 0.1 + edge_detail * 0.15);
     } else {
-        let bright_mix = smoothstep(0.68, 1.0, combined);
+        let bright_mix = smoothstep(0.65, 1.0, combined);
         let bright_color = mix(params.color3 * 0.9, params.color3 * 1.1, bright_mix);
         return bright_color * (1.0 + edge_detail * 0.1);
     }
