@@ -120,6 +120,90 @@
               </div>
             </div>
           </div>
+
+          <!-- 添加处理器和变体部分 -->
+          <div class="control-group">
+            <div class="group-header">
+              <h3>处理器与变体</h3>
+            </div>
+            <div class="processor-list">
+              <div v-for="(processor, processorIndex) in processorStack" 
+                   :key="processorIndex" 
+                   class="processor-item">
+                <div class="processor-header">
+                  <div class="processor-title">
+                    <input type="checkbox" v-model="processor.enabled">
+                    <span>{{ processor.name }}</span>
+                  </div>
+                </div>
+                
+                <!-- 主步骤预览和变体预览区域 -->
+                <div class="step-preview-area">
+                  <!-- 主步骤预览 -->
+                  <div class="step-preview main-step">
+                    <canvas :ref="el => setStepPreviewRef(el, processorIndex)" 
+                           class="preview-canvas"></canvas>
+                    <span class="preview-label">主效果</span>
+                  </div>
+                  
+                  <!-- 变体预览列表 -->
+                  <div v-if="processor.variants && processor.variants.length" 
+                       class="variants-list">
+                    <div v-for="(variant, variantIndex) in processor.variants" 
+                         :key="variantIndex"
+                         class="variant-preview-item"
+                         :class="{ active: variant === selectedVariant }"
+                         @click="selectVariant(processorIndex, variantIndex)">
+                      <canvas :ref="el => setVariantPreviewRef(el, processorIndex, variantIndex)" 
+                             class="preview-canvas"></canvas>
+                      <span class="preview-label">{{ variant.name }}</span>
+                    </div>
+                    
+                    <!-- 添加变体按钮 -->
+                    <div class="add-variant-preview" @click="showAddVariantDialog(processorIndex)">
+                      <div class="add-icon">+</div>
+                      <span>添加变体</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 选中变体的参数控制 -->
+                <div v-if="selectedVariant && 
+                           selectedProcessorIndex === processorIndex" 
+                     class="variant-params">
+                  <div class="variant-header">
+                    <span class="variant-name">{{ selectedVariant.name }}</span>
+                    <div class="variant-controls">
+                      <button class="variant-btn" 
+                              :class="{ active: selectedVariant.enabled }"
+                              @click="toggleSelectedVariant">
+                        {{ selectedVariant.enabled ? '禁用' : '启用' }}
+                      </button>
+                      <button class="variant-btn delete" 
+                              @click="removeSelectedVariant">删除</button>
+                    </div>
+                  </div>
+                  
+                  <div v-if="selectedVariant.enabled" class="param-list">
+                    <div v-for="param in selectedVariant.params" 
+                         :key="param.key" 
+                         class="param-item">
+                      <label>{{ param.label }}</label>
+                      <input v-if="param.type === 'range'"
+                             type="range"
+                             v-model.number="selectedVariant.values[param.key]"
+                             :min="param.min"
+                             :max="param.max"
+                             :step="param.step">
+                      <span v-if="param.type === 'range'">
+                        {{ selectedVariant.values[param.key] }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -127,7 +211,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed, nextTick } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { AdvancedTileSeamBaker } from './TileSeamBaker.js'
 import { 砖块法线生成器配置 } from '../../electronUI/windows/imageAdjuster/pipelineBuilder.js'
 
@@ -736,175 +820,186 @@ const previewStep = async (index) => {
   mainCtx.putImageData(new ImageData(pixels, mainPreviewCanvas.value.width), 0, 0)
 }
 
-// 预览变体
-const previewVariant = async (stepIndex, variantIndex) => {
-  const step = processorStack.value[stepIndex]
-  const variant = step.variants[variantIndex]
-  
-  // 1. 获取当前步骤的主处理结果
-  const mainStepResult = await processUpToStep(stepIndex)
-  
-  // 2. 基于主处理结果生成变体
-  const variantPixels = variant.process(mainStepResult, variant.values)
-  
-  // 3. 更新主预览
-  const mainCtx = mainPreviewCanvas.value.getContext('2d')
-  mainCtx.putImageData(new ImageData(variantPixels, mainPreviewCanvas.value.width), 0, 0)
+// 修改 Canvas 引用管理
+const stepPreviewRefs = ref(new Map())
+const variantPreviewRefs = ref(new Map())
+
+// 修改引用设置函数
+const setStepPreviewRef = (el, processorIndex) => {
+  if (el) {
+    // 初始化 canvas 尺寸
+    el.width = 100
+    el.height = 100
+    stepPreviewRefs.value.set(processorIndex, el)
+    updateStepPreview(processorIndex)
+  }
 }
 
-// 更新步骤预览
-const updateStepPreview = async (index) => {
-  const step = processorStack.value[index]
-  const canvas = this.$refs[`stepCanvas_${index}`]
+const setVariantPreviewRef = (el, processorIndex, variantIndex) => {
+  if (el) {
+    // 初始化 canvas 尺寸
+    el.width = 100
+    el.height = 100
+    const key = `${processorIndex}-${variantIndex}`
+    variantPreviewRefs.value.set(key, el)
+    updateVariantPreview(processorIndex, variantIndex)
+  }
+}
+
+// 修改预览更新函数
+const updateStepPreview = async (processorIndex) => {
+  const canvas = stepPreviewRefs.value.get(processorIndex)
   if (!canvas) return
-  
-  // 获取主处理结果
-  const mainStepResult = await processUpToStep(index)
-  
-  // 更新主预览缩略图
-  const ctx = canvas.getContext('2d')
-  ctx.putImageData(new ImageData(mainStepResult, canvas.width), 0, 0)
-  
-  // 更新所有启用的变体预览
-  step.variants.forEach((variant, variantIndex) => {
-    if (variant.enabled) {
-      const variantCanvas = this.$refs[`variantCanvas_${index}_${variantIndex}`]
-      if (variantCanvas) {
-        const variantCtx = variantCanvas.getContext('2d')
-        const variantPixels = variant.process(mainStepResult, variant.values)
-        variantCtx.putImageData(new ImageData(variantPixels, variantCanvas.width), 0, 0)
-      }
-    }
-  })
+
+  try {
+    // 获取主处理结果
+    const pixels = await processUpToStep(processorIndex)
+    if (!pixels) return
+    
+    // 更新预览
+    const ctx = canvas.getContext('2d')
+    const imageData = new ImageData(
+      pixels,
+      canvas.width,
+      canvas.height
+    )
+    ctx.putImageData(imageData, 0, 0)
+  } catch (error) {
+    console.error('更新步骤预览失败:', error)
+  }
 }
 
-// 处理到指定步骤 - 只处理主处理链
+const updateVariantPreview = async (processorIndex, variantIndex) => {
+  const key = `${processorIndex}-${variantIndex}`
+  const canvas = variantPreviewRefs.value.get(key)
+  if (!canvas) return
+
+  try {
+    const step = processorStack.value[processorIndex]
+    const variant = step.variants[variantIndex]
+    if (!variant) return
+    
+    // 获取主处理结果
+    const pixels = await processUpToStep(processorIndex)
+    if (!pixels) return
+    
+    // 应用变体处理
+    let variantPixels = pixels
+    if (variant.process && typeof variant.process === 'function') {
+      variantPixels = variant.process(pixels, variant.values)
+    }
+    
+    // 更新预览
+    const ctx = canvas.getContext('2d')
+    const imageData = new ImageData(
+      variantPixels,
+      canvas.width,
+      canvas.height
+    )
+    ctx.putImageData(imageData, 0, 0)
+  } catch (error) {
+    console.error('更新变体预览失败:', error)
+  }
+}
+
+// 修改处理链函数
 const processUpToStep = async (targetIndex) => {
-  let pixels = new Uint8ClampedArray(mainPreviewCanvas.value.width * mainPreviewCanvas.value.height * 4)
-  
-  // 只执行每个步骤的主处理函数
-  for (let i = 0; i <= targetIndex; i++) {
-    const step = processorStack.value[i]
-    if (step.enabled) {
-      pixels = step.process(pixels, params.value)
+  try {
+    // 检查主预览画布是否已初始化
+    if (!mainPreviewCanvas.value) {
+      console.warn('主预览画布未初始化')
+      return new Uint8ClampedArray(100 * 100 * 4) // 返回一个默认大小的空数组
     }
+
+    // 使用预览缩略图的固定尺寸
+    const width = 100
+    const height = 100
+    let pixels = new Uint8ClampedArray(width * height * 4)
+    
+    // 获取原始图像数据并缩放到预览尺寸
+    const mainCtx = mainPreviewCanvas.value.getContext('2d')
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = width
+    tempCanvas.height = height
+    const tempCtx = tempCanvas.getContext('2d')
+    
+    // 将主画布内容缩放绘制到临时画布
+    tempCtx.drawImage(mainPreviewCanvas.value, 0, 0, width, height)
+    const imageData = tempCtx.getImageData(0, 0, width, height)
+    pixels.set(imageData.data)
+    
+    // 执行处理链
+    for (let i = 0; i <= targetIndex; i++) {
+      const step = processorStack.value[i]
+      if (step && step.enabled && typeof step.process === 'function') {
+        pixels = step.process(pixels, params.value)
+      }
+    }
+    
+    return pixels
+  } catch (error) {
+    console.error('处理链执行失败:', error)
+    // 返回一个空的像素数组，避免完全失败
+    return new Uint8ClampedArray(100 * 100 * 4)
   }
-  
-  return pixels
 }
 
-// 可用的变体类型定义
-const availableVariantTypes = [
-  {
-    id: 'brightness-contrast',
-    name: '亮度/对比度',
-    createConfig: () => ({
-      name: '亮度/对比度',
-      enabled: true,
-      values: {
-        brightness: 0,
-        contrast: 1
-      },
-      params: [
-        {
-          key: 'brightness',
-          label: '亮度',
-          type: 'range',
-          min: -1,
-          max: 1,
-          step: 0.1
-        },
-        {
-          key: 'contrast',
-          label: '对比度',
-          type: 'range',
-          min: 0,
-          max: 2,
-          step: 0.1
-        }
-      ],
-      process: (mainStepResult, values) => {
-        const pixels = mainStepResult.slice()
-        for (let i = 0; i < pixels.length; i += 4) {
-          let value = pixels[i] / 255
-          value = (value - 0.5) * values.contrast + 0.5 + values.brightness
-          value = Math.max(0, Math.min(1, value)) * 255
-          pixels[i] = pixels[i + 1] = pixels[i + 2] = value
-        }
-        return pixels
-      }
-    })
-  },
-  {
-    id: 'sharpen',
-    name: '锐化',
-    createConfig: () => ({
-      name: '锐化',
-      enabled: true,
-      values: {
-        amount: 0.5
-      },
-      params: [
-        {
-          key: 'amount',
-          label: '强度',
-          type: 'range',
-          min: 0,
-          max: 1,
-          step: 0.1
-        }
-      ],
-      process: (mainStepResult, values) => {
-        // 锐化处理逻辑
-        return mainStepResult
-      }
-    })
-  }
-  // 可以继续添加更多变体类型
-]
-
-// 新变体类型选择
+// 添加新的响应式状态
+const selectedProcessorIndex = ref(null)
+const selectedVariant = ref(null)
+const showVariantDialog = ref(false)
 const newVariantType = ref('')
+const tempProcessorIndex = ref(null)
 
-// 添加变体
-const addVariant = (stepIndex) => {
-  if (!newVariantType.value) return
+// 选择变体
+const selectVariant = (processorIndex, variantIndex) => {
+  const variant = processorStack.value[processorIndex].variants[variantIndex]
+  selectedProcessorIndex.value = processorIndex
+  selectedVariant.value = variant
+}
+
+// 切换选中变体的启用状态
+const toggleSelectedVariant = async () => {
+  if (selectedVariant.value) {
+    selectedVariant.value.enabled = !selectedVariant.value.enabled
+    await updateVariantPreview(selectedProcessorIndex.value, 
+      processorStack.value[selectedProcessorIndex.value].variants.indexOf(selectedVariant.value))
+  }
+}
+
+// 删除选中的变体
+const removeSelectedVariant = () => {
+  if (selectedVariant.value && selectedProcessorIndex.value !== null) {
+    const variantIndex = processorStack.value[selectedProcessorIndex.value].variants
+      .indexOf(selectedVariant.value)
+    processorStack.value[selectedProcessorIndex.value].variants.splice(variantIndex, 1)
+    selectedVariant.value = null
+  }
+}
+
+// 显示添加变体对话框
+const showAddVariantDialog = (processorIndex) => {
+  tempProcessorIndex.value = processorIndex
+  showVariantDialog.value = true
+}
+
+// 添加新变体
+const addNewVariant = () => {
+  if (!newVariantType.value || tempProcessorIndex.value === null) return
   
   const variantType = availableVariantTypes.find(t => t.id === newVariantType.value)
   if (!variantType) return
   
-  // 创建新变体配置
   const newVariant = variantType.createConfig()
+  processorStack.value[tempProcessorIndex.value].variants.push(newVariant)
   
-  // 添加到步骤的变体列表
-  processorStack.value[stepIndex].variants.push(newVariant)
-  
-  // 重置选择器
+  showVariantDialog.value = false
   newVariantType.value = ''
+  tempProcessorIndex.value = null
   
-  // 更新预览
-  nextTick(() => {
-    updateStepPreview(stepIndex)
-  })
-}
-
-// 删除变体
-const removeVariant = (stepIndex, variantIndex) => {
-  processorStack.value[stepIndex].variants.splice(variantIndex, 1)
-  
-  // 更新预览
-  nextTick(() => {
-    updateStepPreview(stepIndex)
-  })
-}
-
-// 切换变体启用状态
-const toggleVariant = (stepIndex, variantIndex) => {
-  const variant = processorStack.value[stepIndex].variants[variantIndex]
-  variant.enabled = !variant.enabled
-  
-  // 更新预览
-  updateVariantPreview(stepIndex, variantIndex)
+  // 自动选择新添加的变体
+  selectVariant(tempProcessorIndex.value, 
+    processorStack.value[tempProcessorIndex.value].variants.length - 1)
 }
 </script>
 
@@ -1303,5 +1398,19 @@ label.toolbar-btn {
   background: var(--background-color);
   color: var(--text-color);
   cursor: pointer;
+}
+
+.step-preview-area {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.step-preview,
+.variant-preview-item {
+  position: relative;
+  min-width: 100px;
+  width: 100px
 }
 </style>
