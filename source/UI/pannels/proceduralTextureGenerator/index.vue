@@ -45,11 +45,7 @@ const visible = ref(false)
 const textureResults = ref({})
 const isFullscreen = ref(false)
 const currentFullscreenImage = ref('')
-const tileStyle = ref({
-  width: '256px',
-  height: '256px',
-  objectFit: 'none',
-})
+
 
 const getImageDataUrlFromCanvas = (canvas, type = 'image/png', quality = 0.92) => {
   try {

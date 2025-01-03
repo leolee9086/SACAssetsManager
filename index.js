@@ -64,7 +64,7 @@ const TAB_CONFIGS = {
     containerId: 'assetsColumn'
   },
   ImagePreviewerTab: {
-    component: '/plugins/SACAssetsManager/source/UI/pannels/proceduralTextureGenerator/index.vue',
+    component: '/plugins/SACAssetsManager/source/UI/pannels/tileBaker/index.vue',
     containerId: 'imagePreviewerPanel'
   }
 }
@@ -83,26 +83,62 @@ const DOCK_CONFIGS = {
   }
 }
 let pluginInstance = {}
+
+/**
+ * 创建停靠面板
+ * @param {Plugin} plugin 插件实例
+ * @param {string} dockType 面板类型
+ * @returns {Object} dock实例
+ */
+function createDock(plugin, dockType) {
+  const config = DOCK_CONFIGS[dockType];
+  const dock = plugin.addDock({
+    config: {
+      icon: config.icon,
+      position: config.position,
+      size: { width: 200, height: 0 },
+      title: config.title
+    },
+    data: { text: "" },
+    type: dockType,
+    init() {
+      const container = 插入UI面板容器(this.element);
+      import('/plugins/SACAssetsManager/source/UI/tab.js').then(
+        module => {
+          const app = module.initVueApp(config.component)
+          app.mount(container)
+        }
+      )
+    }
+  });
+  return dock;
+}
+
 module.exports = class SACAssetsManager extends Plugin {
   onload() {
-    pluginInstance = this
-    eventBus = this.eventBus
-    this.插件自身工作空间路径 = `/data/plugins/${this.name}`
-    this.工作空间根路径 = window.siyuan.config.system.workspaceDir
-    this.插件自身伺服地址 = `/plugins/${this.name}`
-    this.selfURL = this.插件自身伺服地址
     this.初始化插件同步状态()
     this.初始化插件异步状态()
-    this.添加全局事件监听()
-    this.stayAlive = true
     this.创建web服务()
-    this.添加资源信息边栏()
     this.创建资源Tab类型()
     this.添加菜单()
     this.加载i18n工具()
   }
   初始化插件同步状态() {
+    pluginInstance = this
+    eventBus = this.eventBus
+    this.stayAlive = true
+
+    this.插件自身工作空间路径 = `/data/plugins/${this.name}`
+    this.工作空间根路径 = window.siyuan.config.system.workspaceDir
+    this.插件自身伺服地址 = `/plugins/${this.name}`
+    this.selfURL = this.插件自身伺服地址
+
     this.最近打开本地文件夹列表 = new Set()
+    this.assetsPanelDock = createDock(this, 'AssetsPanel');
+    this.collectionPanelDock = createDock(this, 'CollectionPanel');
+
+
+
   }
   初始化插件异步状态() {
     import(`${this.插件自身伺服地址}/source/index.js`)
@@ -176,9 +212,7 @@ module.exports = class SACAssetsManager extends Plugin {
     }
   }
 
-  添加全局事件监听() {
-    import(`${this.插件自身伺服地址}/source/events/globalEvents.js`)
-  }
+
   emitEvent(eventName, detail, options) {
     if (!Object.values(this.events).includes(eventName)) {
       throw new Error(`事件名不存在: ${eventName}`);
@@ -193,34 +227,7 @@ module.exports = class SACAssetsManager extends Plugin {
       this.eventBus.emit(eventName, detail)
     }
   }
-  createDock(dockType) {
-    const config = DOCK_CONFIGS[dockType];
-    const dock = this.addDock({
-      config: {
-        icon: config.icon,
-        position: config.position,
-        size: { width: 200, height: 0 },
-        title: config.title
-      },
-      data: { text: "" },
-      type: dockType,
-      init() {
-        const container = 插入UI面板容器(this.element);
-        import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-          module => {
-            const app = module.initVueApp(config.component)
-            app.mount(container)
-          }
-        )
-      }
-    });
-    return dock;
-  }
 
-  添加资源信息边栏() {
-    this.assetsPanelDock = this.createDock('AssetsPanel');
-    this.collectionPanelDock = this.createDock('CollectionPanel');
-  }
   async 创建web服务() {
     const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
     this.http服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_http", 6992)

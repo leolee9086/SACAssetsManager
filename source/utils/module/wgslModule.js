@@ -13,17 +13,199 @@ function parseImportList(importList) {
 
 // 纯函数：处理单个导入声明
 function processImportDeclaration(content, importItems, declarations) {
-    let prependContent = '';
+    const functionMap = new Map();
+    const structMap = new Map();
+    const dependencyGraph = new Map();
+    
+    // 提取结构体定义
+    function extractStruct(structName) {
+        const structRegex = new RegExp(`struct\\s+${structName}\\s*{[^}]*}`, 'g');
+        const match = content.match(structRegex);
+        if (!match) {
+            throw new Error(`Struct ${structName} not found in imported content`);
+        }
+        return match[0];
+    }
+    
+    // 递归查找函数及其所有依赖
+    function findFunctionAndDependencies(fnName, visited = new Set()) {
+        if (functionMap.has(fnName)) return;
+        if (visited.has(fnName)) return;
+        visited.add(fnName);
+        
+        try {
+            const fnContent = extractFunction(content, fnName);
+            functionMap.set(fnName, fnContent);
+            
+            // 查找所有函数调用和结构体使用
+            const fnCallRegex = /\b(\w+)\s*\(/g;
+            const structUseRegex = /\b(struct\s+\w+|[A-Z]\w*)\b/g;
+            const directDeps = new Set();
+            let match;
+            
+            // 查找函数调用
+            while ((match = fnCallRegex.exec(fnContent)) !== null) {
+                const calledFn = match[1];
+                if (!isBuiltinFunction(calledFn) && calledFn !== fnName) {
+                    directDeps.add(calledFn);
+                    findFunctionAndDependencies(calledFn, visited);
+                }
+            }
+            
+            // 查找结构体使用
+            while ((match = structUseRegex.exec(fnContent)) !== null) {
+                const structName = match[1].replace('struct ', '');
+                if (!structMap.has(structName)) {
+                    try {
+                        const structDef = extractStruct(structName);
+                        structMap.set(structName, structDef);
+                    } catch (e) {
+                        // 忽略内置类型或找不到的结构体
+                    }
+                }
+            }
+            
+            dependencyGraph.set(fnName, directDeps);
+        } catch (e) {
+            dependencyGraph.set(fnName, new Set());
+        }
+    }
+    
+    // 处理所有导入项
     for (const { type, name, key } of importItems) {
         if (!declarations.has(key)) {
-            const extractedContent = processImportItem(type, name, content);
-            if (extractedContent) {
-                declarations.add(key);
-                prependContent += extractedContent + '\n';
+            switch (type) {
+                case 'fn':
+                    findFunctionAndDependencies(name);
+                    break;
+                case 'struct':
+                    try {
+                        const structDef = extractStruct(name);
+                        structMap.set(name, structDef);
+                        declarations.add(key);
+                    } catch (e) {
+                        console.warn(`Failed to extract struct ${name}: ${e.message}`);
+                    }
+                    break;
+                case 'f32':
+                case 'i32':
+                case 'u32':
+                    try {
+                        const constDef = extractConstant(content, name);
+                        if (constDef) {
+                            declarations.add(key);
+                            functionMap.set(name, constDef);
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to extract constant ${name}: ${e.message}`);
+                    }
+                    break;
             }
         }
     }
-    return prependContent;
+    
+    // 拓扑排序
+    const orderedFunctions = [];
+    const visited = new Set();
+    const processing = new Set();
+    
+    function visit(fnName) {
+        if (processing.has(fnName)) return;
+        if (visited.has(fnName)) return;
+        
+        processing.add(fnName);
+        
+        const deps = dependencyGraph.get(fnName) || new Set();
+        for (const dep of deps) {
+            visit(dep);
+        }
+        
+        processing.delete(fnName);
+        visited.add(fnName);
+        
+        if (functionMap.has(fnName)) {
+            orderedFunctions.push(fnName);
+        }
+    }
+    
+    // 从每个导入函数开始排序
+    for (const { type, name } of importItems) {
+        if (type === 'fn') {
+            visit(name);
+        }
+    }
+    
+    // 生成最终代码
+    const processedContent = [];
+    
+    // 首先添加所有结构体定义
+    for (const structDef of structMap.values()) {
+        processedContent.push(structDef);
+    }
+    
+    // 然后添加函数定义
+    for (const fnName of orderedFunctions) {
+        const fnContent = functionMap.get(fnName);
+        if (fnContent) {
+            processedContent.push(fnContent);
+            declarations.add(`fn_${fnName}`);
+        }
+    }
+    
+    return processedContent.join('\n\n');
+}
+
+// 拓扑排序实现
+function topologicalSort(graph) {
+    const result = [];
+    const visited = new Set();
+    const temp = new Set();
+    
+    function visit(node) {
+        if (temp.has(node)) {
+            // 检测到循环依赖，但继续处理
+            return;
+        }
+        if (visited.has(node)) {
+            return;
+        }
+        
+        temp.add(node);
+        
+        // 访问所有依赖
+        const deps = graph.get(node) || new Set();
+        for (const dep of deps) {
+            visit(dep);
+        }
+        
+        temp.delete(node);
+        visited.add(node);
+        result.push(node);
+    }
+    
+    // 处理所有节点
+    for (const node of graph.keys()) {
+        if (!visited.has(node)) {
+            visit(node);
+        }
+    }
+    
+    return result;
+}
+
+// 简化版的函数提取
+function extractFunction(source, functionName) {
+    const fnDefStart = findFunctionStart(source, functionName);
+    if (fnDefStart === -1) {
+        throw new Error(`Function ${functionName} not found in imported content`);
+    }
+    
+    const fnDefEnd = findFunctionEnd(source, fnDefStart);
+    if (fnDefEnd === -1) {
+        throw new Error(`Incomplete function definition for ${functionName}`);
+    }
+    
+    return source.substring(fnDefStart, fnDefEnd).trim();
 }
 
 // 纯函数：处理导入内容的缓存
@@ -46,46 +228,33 @@ function resolveImportPath(basePath, importPath) {
 }
 
 
-function extractFunction(source, functionName) {
-    const fnRegex = wglsRegs.buildFnRegex(functionName)
-    const match = source.match(fnRegex);
-    if (!match) {
-        throw new Error(`Function ${functionName} not found in imported content`);
-    }
-
-    // 新增：分析函数依赖
-    const extractedFn = match[0].replace(/(?:\/\/\s*)?@export\s+/, '').trim();
-    const dependencies = extractFunctionDependencies(source, extractedFn);
-    
-    // 返回所有依赖的函数定义和主函数
-    return dependencies.join('\n') + '\n' + extractedFn;
+function findFunctionStart(source, fnName) {
+    const fnStartRegex = new RegExp(`\\bfn\\s+${fnName}\\s*\\(`);
+    const match = source.match(fnStartRegex);
+    return match ? match.index : -1;
 }
 
-// 新增：提取函数依赖
-function extractFunctionDependencies(source, fnContent) {
-    const dependencies = new Set();
-    // 匹配函数调用: 查找 "fn 标识符("
-    const fnCallRegex = /\b(\w+)\s*\(/g;
-    let match;
+function findFunctionEnd(source, startPos) {
+    let bracketCount = 0;
+    let foundFirstBracket = false;
     
-    while ((match = fnCallRegex.exec(fnContent)) !== null) {
-        const calledFn = match[1];
-        // 跳过内置函数
-        if (isBuiltinFunction(calledFn)) continue;
+    for (let i = startPos; i < source.length; i++) {
+        const char = source[i];
         
-        // 查找被调用函数的定义
-        const fnDefRegex = new RegExp(`fn\\s+${calledFn}\\s*\\([^)]*\\)[^{]*{[^}]*}`, 'g');
-        const defMatch = source.match(fnDefRegex);
-        
-        if (defMatch) {
-            dependencies.add(defMatch[0]);
-            // 递归查找这个函数的依赖
-            const subDeps = extractFunctionDependencies(source, defMatch[0]);
-            subDeps.forEach(dep => dependencies.add(dep));
+        if (char === '{') {
+            foundFirstBracket = true;
+            bracketCount++;
+        } else if (char === '}') {
+            bracketCount--;
+            
+            if (foundFirstBracket && bracketCount === 0) {
+                // 确保包含完整的右括号
+                return i + 1;
+            }
         }
     }
     
-    return Array.from(dependencies);
+    return -1;
 }
 
 
@@ -97,15 +266,6 @@ function extractConstant(source, constantName) {
         throw new Error(`Constant ${constantName} not found in imported content`);
     }
     return match[0].replace(/(?:\/\/\s*)?@export\s+/, '').trim();
-}
-function processImportItem(type, name, content) {
-    let extractedContent = '';
-    if (type === 'fn') {
-        extractedContent = extractFunction(content, name);
-    } else if (type === 'f32') {
-        extractedContent = extractConstant(content, name);
-    }
-    return extractedContent;
 }
 
 async function fetchContent(path) {

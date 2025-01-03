@@ -9,4 +9,5 @@ import './UI/icons/addIcon.js'
 import './globalStatus/index.js'
 //用于拖拽的webview
 import './utilWebviews/drag.js'
-
+//开始监听事件
+import './events/globalEvents.js'
