@@ -1,45 +1,31 @@
 <template>
   <div class="fn__flex-column editor-container">
     <div class="fn__flex fn__flex-1">
-      <!-- 左侧控制面板 -->
+      <!-- 左侧预览面板 (原右侧内容) -->
       <div class="left-panel">
-        <div class="section-title">参数设置</div>
+        <div class="section-title">预览</div>
         <div class="panel-content">
-          <!-- 参数组,添加折叠功能 -->
-          <div v-for="(group, index) in parameterGroups" 
-               :key="index" 
-               class="control-group">
-            <div class="group-header" @click="toggleGroup(index)">
-              <h3>{{ group.title }}</h3>
-              <span class="toggle-icon">{{ group.expanded ? '−' : '+' }}</span>
+          <div class="preview-list">
+            <!-- 原始图预览 -->
+            <div class="preview-item" 
+                 :class="{ active: currentPreview === 'original' }"
+                 @click="switchPreview('original')">
+              <h4>原始图</h4>
+              <canvas ref="originalDistanceCanvas" class="preview-thumbnail"></canvas>
             </div>
-            <div v-show="group.expanded" class="group-content">
-              <div v-for="param in group.params" 
-                   :key="param.key" 
-                   class="control-item">
-                <label>{{ param.label }}</label>
-                <template v-if="param.type === 'range'">
-                  <input type="range"
-                         v-model.number="params[param.key]"
-                         :min="param.min"
-                         :max="param.max"
-                         :step="param.step">
-                  <span>{{ params[param.key] }}{{ param.unit || '' }}</span>
-                </template>
-                <template v-else-if="param.type === 'checkbox'">
-                  <input type="checkbox"
-                         v-model="params[param.key]">
-                </template>
-                <select v-else-if="param.type === 'select'"
-                  v-model="params[param.key]">
-                  <option v-for="opt in param.options" 
-                         :key="opt.value" 
-                         :value="opt.value">
-                    {{ opt.label }}
-                  </option>
-                </select>
-                <span>{{ params[param.key] }}{{ param.unit || '' }}</span>
-              </div>
+            <!-- 处理后图预览 -->
+            <div class="preview-item" 
+                 :class="{ active: currentPreview === 'processed' }"
+                 @click="switchPreview('processed')">
+              <h4>处理后</h4>
+              <canvas ref="distanceCanvas" class="preview-thumbnail"></canvas>
+            </div>
+            <!-- 法线图预览 -->
+            <div class="preview-item" 
+                 :class="{ active: currentPreview === 'normal' }"
+                 @click="switchPreview('normal')">
+              <h4>法线图</h4>
+              <canvas ref="normalMapCanvas" class="preview-thumbnail"></canvas>
             </div>
           </div>
         </div>
@@ -89,31 +75,49 @@
         </div>
       </div>
 
-      <!-- 右侧预览面板 -->
+      <!-- 右侧控制面板 (原左侧内容) -->
       <div class="right-panel">
-        <div class="section-title">预览</div>
+        <div class="section-title fn__flex fn__flex-sb">
+          <span>参数设置</span>
+          <label class="show-all-toggle">
+            <input type="checkbox" v-model="showAllParams">
+            <span>显示全部参数</span>
+          </label>
+        </div>
         <div class="panel-content">
-          <div class="preview-list">
-            <!-- 原始图预览 -->
-            <div class="preview-item" 
-                 :class="{ active: currentPreview === 'original' }"
-                 @click="switchPreview('original')">
-              <h4>原始图</h4>
-              <canvas ref="originalDistanceCanvas" class="preview-thumbnail"></canvas>
+          <div v-for="(group, index) in showAllParams ? parameterGroups : filteredParameterGroups" 
+               :key="index" 
+               class="control-group">
+            <div class="group-header" @click="toggleGroup(index)">
+              <h3>{{ group.title }}</h3>
+              <span class="toggle-icon">{{ group.expanded ? '−' : '+' }}</span>
             </div>
-            <!-- 处理后图预览 -->
-            <div class="preview-item" 
-                 :class="{ active: currentPreview === 'processed' }"
-                 @click="switchPreview('processed')">
-              <h4>处理后</h4>
-              <canvas ref="distanceCanvas" class="preview-thumbnail"></canvas>
-            </div>
-            <!-- 法线图预览 -->
-            <div class="preview-item" 
-                 :class="{ active: currentPreview === 'normal' }"
-                 @click="switchPreview('normal')">
-              <h4>法线图</h4>
-              <canvas ref="normalMapCanvas" class="preview-thumbnail"></canvas>
+            <div v-show="group.expanded" class="group-content">
+              <div v-for="param in group.params" 
+                   :key="param.key" 
+                   class="control-item">
+                <label>{{ param.label }}</label>
+                <input v-if="param.type === 'range'"
+                  type="range"
+                  v-model.number="params[param.key]"
+                  :min="param.min"
+                  :max="param.max"
+                  :step="param.step"
+                >
+                <input v-else-if="param.type === 'checkbox'"
+                  type="checkbox"
+                  v-model="params[param.key]"
+                >
+                <select v-else-if="param.type === 'select'"
+                  v-model="params[param.key]">
+                  <option v-for="opt in param.options" 
+                         :key="opt.value" 
+                         :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                </select>
+                <span v-if="param.type === 'range'">{{ params[param.key] }}{{ param.unit || '' }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -123,7 +127,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { AdvancedTileSeamBaker } from './TileSeamBaker.js'
 import { 砖块法线生成器配置 } from '../../electronUI/windows/imageAdjuster/pipelineBuilder.js'
 
@@ -212,30 +216,115 @@ const parameterGroups = ref([
     title: '法线图设置',
     expanded: false,
     params: [
-      { key: 'normalStrength', label: '法线强度', type: 'range', min: 0.1, max: 5, step: 0.1 },
-      { key: 'normalBlur', label: '预模糊', type: 'range', min: 0, max: 5, step: 0.1 },
-      { key: 'seamNormalStrength', label: '砖缝强度', type: 'range', min: 0.1, max: 3.0, step: 0.1 },
-      { key: 'normalFlipX', label: 'X轴反转', type: 'checkbox' },
-      { key: 'normalFlipY', label: 'Y轴反转', type: 'checkbox' },
-      { key: 'normalScale', label: '法线缩放', type: 'range', min: 0.1, max: 2.0, step: 0.1 },
-      { key: 'normalBias', label: '法线偏移', type: 'range', min: 0, max: 1, step: 0.1 }
+      {
+        key: 'normalStrength',
+        label: '强度',
+        type: 'range',
+        defaultValue: 1.0,
+        min: 0.1,
+        max: 5,
+        step: 0.1
+      },
+      {
+        key: 'normalBlur',
+        label: '预模糊',
+        type: 'range',
+        defaultValue: 0,
+        min: 0,
+        max: 5,
+        step: 0.1
+      },
+      {
+        key: 'seamNormalStrength',
+        label: '砖缝强度',
+        type: 'range',
+        defaultValue: 1.0,
+        min: 0.1,
+        max: 3.0,
+        step: 0.1
+      },
+      {
+        key: 'normalFlipX',
+        label: 'X轴反转',
+        type: 'checkbox',
+        defaultValue: false
+      },
+      {
+        key: 'normalFlipY',
+        label: 'Y轴反转',
+        type: 'checkbox',
+        defaultValue: false
+      },
+      {
+        key: 'normalScale',
+        label: '法线缩放',
+        type: 'range',
+        defaultValue: 1.0,
+        min: 0.1,
+        max: 2.0,
+        step: 0.1
+      },
+      {
+        key: 'normalBias',
+        label: '法线偏移',
+        type: 'range',
+        defaultValue: 0.5,
+        min: 0,
+        max: 1,
+        step: 0.1
+      }
     ]
   },
   {
     title: '法线预处理',
     expanded: false,
     params: [
-      { key: 'normalPreprocessInvert', label: '反转高度', type: 'checkbox' },
-      { key: 'normalPreprocessContrast', label: '对比度', type: 'range', min: -1, max: 1, step: 0.1 },
-      { key: 'normalPreprocessBrightness', label: '亮度', type: 'range', min: -1, max: 1, step: 0.1 },
-      { key: 'normalPreprocessSmooth', label: '平滑', type: 'range', min: 0, max: 2, step: 0.1 }
+      {
+        key: 'normalPreprocessInvert',
+        label: '反转高度',
+        type: 'checkbox',
+        defaultValue: false
+      },
+      {
+        key: 'normalPreprocessContrast',
+        label: '对比度',
+        type: 'range',
+        defaultValue: 0,
+        min: -1,
+        max: 1,
+        step: 0.1
+      },
+      {
+        key: 'normalPreprocessBrightness',
+        label: '亮度',
+        type: 'range',
+        defaultValue: 0,
+        min: -1,
+        max: 1,
+        step: 0.1
+      },
+      {
+        key: 'normalPreprocessSmooth',
+        label: '平滑',
+        type: 'range',
+        defaultValue: 0,
+        min: 0,
+        max: 2,
+        step: 0.1
+      }
     ]
   }
 ])
 
-// 折叠切换函数
+// 修改折叠切换函数
 const toggleGroup = (index) => {
-  parameterGroups.value[index].expanded = !parameterGroups.value[index].expanded
+  // 获取当前显示的参数组标题
+  const groupTitle = filteredParameterGroups.value[index].title
+  // 在原始参数组中找到对应的组并切换其展开状态
+  const originalIndex = parameterGroups.value.findIndex(group => group.title === groupTitle)
+  if (originalIndex !== -1) {
+    parameterGroups.value[originalIndex].expanded = !parameterGroups.value[originalIndex].expanded
+  }
 }
 
 // 定义处理器接口
@@ -244,17 +333,76 @@ const processors = {
     name: '基础处理',
     enabled: true,
     expanded: false,
+    // 主处理函数 - 结果会传递给下一步
     process: (pixels, params) => {
-      // 修正深度映射：确保砖面为白色(1.0)，砖缝为深色
-      for (let i = 0; i < pixels.length; i += 4) {
-        const depth = pixels[i] / 255
-        // 不再反转深度值
-        pixels[i] = depth * 255
-        pixels[i + 1] = depth * 255
-        pixels[i + 2] = depth * 255
-      }
+      // 原有的处理逻辑
       return pixels
-    }
+    },
+    // 变体调整 - 结果不会传递给下一步
+    variants: [
+      {
+        name: '亮度/对比度变体',
+        enabled: false,
+        values: {
+          brightness: 0,
+          contrast: 1
+        },
+        params: [
+          {
+            key: 'brightness',
+            label: '亮度',
+            type: 'range',
+            min: -1,
+            max: 1,
+            step: 0.1
+          },
+          {
+            key: 'contrast',
+            label: '对比度',
+            type: 'range',
+            min: 0,
+            max: 2,
+            step: 0.1
+          }
+        ],
+        // 变体处理函数 - 基于主处理结果生成变体
+        process: (mainStepResult, values) => {
+          const pixels = mainStepResult.slice() // 复制主处理结果
+          // 应用变体特定的处理
+          for (let i = 0; i < pixels.length; i += 4) {
+            // 应用亮度和对比度调整
+            let value = pixels[i] / 255
+            value = (value - 0.5) * values.contrast + 0.5 + values.brightness
+            value = Math.max(0, Math.min(1, value)) * 255
+            pixels[i] = pixels[i + 1] = pixels[i + 2] = value
+          }
+          return pixels
+        }
+      },
+      {
+        name: '锐化变体',
+        enabled: false,
+        values: {
+          amount: 0.5
+        },
+        params: [
+          {
+            key: 'amount',
+            label: '强度',
+            type: 'range',
+            min: 0,
+            max: 1,
+            step: 0.1
+          }
+        ],
+        process: (mainStepResult, values) => {
+          const pixels = mainStepResult.slice()
+          // 应用锐化效果
+          // ... 锐化处理逻辑
+          return pixels
+        }
+      }
+    ]
   },
   contrast: {
     name: '对比度调整',
@@ -333,6 +481,7 @@ const params = ref({
   normalFlipY: false,
   normalScale: 1.0,
   normalBias: 0.5,
+  // 法线预处理参数
   normalPreprocessInvert: false,
   normalPreprocessContrast: 0,
   normalPreprocessBrightness: 0,
@@ -362,15 +511,25 @@ const switchPreview = (type) => {
   }
   
   if (sourceCanvas) {
-    mainCtx.drawImage(
-      sourceCanvas,
-      0, 0,
-      sourceCanvas.width,
-      sourceCanvas.height,
-      0, 0,
-      mainPreviewCanvas.value.width,
-      mainPreviewCanvas.value.height
+    // 保持原始比例
+    const scale = Math.min(
+      mainPreviewCanvas.value.width / sourceCanvas.width,
+      mainPreviewCanvas.value.height / sourceCanvas.height
     )
+    
+    // 计算居中位置
+    const x = (mainPreviewCanvas.value.width - sourceCanvas.width * scale) / 2
+    const y = (mainPreviewCanvas.value.height - sourceCanvas.height * scale) / 2
+    
+    // 清除之前的内容
+    mainCtx.clearRect(0, 0, mainPreviewCanvas.value.width, mainPreviewCanvas.value.height)
+    
+    // 绘制新内容，保持比例并居中
+    mainCtx.save()
+    mainCtx.translate(x, y)
+    mainCtx.scale(scale, scale)
+    mainCtx.drawImage(sourceCanvas, 0, 0)
+    mainCtx.restore()
   }
 }
 
@@ -444,11 +603,6 @@ const updateBake = async () => {
     previewCtx.clearRect(0, 0, distanceCanvas.value.width, distanceCanvas.value.height)
     previewCtx.drawImage(mainPreviewCanvas.value, 0, 0, distanceCanvas.value.width, distanceCanvas.value.height)
     
-    // 处理完成后切换到处理后预览
-    switchPreview('processed')
-    
-    console.log('烘焙完成')
-
     // 生成并更新法线图
     const normalParams = {
       strength: params.value.normalStrength,
@@ -482,6 +636,11 @@ const updateBake = async () => {
     const normalCtx = normalMapCanvas.value.getContext('2d')
     normalCtx.clearRect(0, 0, normalMapCanvas.value.width, normalMapCanvas.value.height)
     normalCtx.drawImage(normalMap, 0, 0, normalMapCanvas.value.width, normalMapCanvas.value.height)
+
+    // 重要：在所有更新完成后，重新调用 switchPreview 来确保主预览与当前选中的预览类型同步
+    switchPreview(currentPreview.value)
+    
+    console.log('烘焙完成')
 
   } catch (error) {
     console.error('烘焙更新失败:', error)
@@ -552,6 +711,201 @@ const exportMaps = () => {
   link.href = distanceCanvas.value.toDataURL('image/png')
   link.click()
 }
+
+// 添加参数组类型配置
+const parameterGroupTypes = {
+  original: ['基础设置'],
+  processed: ['基础设置', '砖缝基础', '深度调整', '砖缝细节', '边缘开裂', '角点损坏'],
+  normal: ['法线图设置', '法线预处理']
+}
+
+// 计算当前应显示的参数组
+const filteredParameterGroups = computed(() => {
+  const allowedGroups = parameterGroupTypes[currentPreview.value] || []
+  return parameterGroups.value.filter(group => allowedGroups.includes(group.title))
+})
+
+// 添加显示全部参数的开关状态
+const showAllParams = ref(false)
+
+// 预览特定步骤
+const previewStep = async (index) => {
+  const mainCtx = mainPreviewCanvas.value.getContext('2d')
+  // 获取主处理链上到当前步骤的结果
+  const pixels = await processUpToStep(index)
+  mainCtx.putImageData(new ImageData(pixels, mainPreviewCanvas.value.width), 0, 0)
+}
+
+// 预览变体
+const previewVariant = async (stepIndex, variantIndex) => {
+  const step = processorStack.value[stepIndex]
+  const variant = step.variants[variantIndex]
+  
+  // 1. 获取当前步骤的主处理结果
+  const mainStepResult = await processUpToStep(stepIndex)
+  
+  // 2. 基于主处理结果生成变体
+  const variantPixels = variant.process(mainStepResult, variant.values)
+  
+  // 3. 更新主预览
+  const mainCtx = mainPreviewCanvas.value.getContext('2d')
+  mainCtx.putImageData(new ImageData(variantPixels, mainPreviewCanvas.value.width), 0, 0)
+}
+
+// 更新步骤预览
+const updateStepPreview = async (index) => {
+  const step = processorStack.value[index]
+  const canvas = this.$refs[`stepCanvas_${index}`]
+  if (!canvas) return
+  
+  // 获取主处理结果
+  const mainStepResult = await processUpToStep(index)
+  
+  // 更新主预览缩略图
+  const ctx = canvas.getContext('2d')
+  ctx.putImageData(new ImageData(mainStepResult, canvas.width), 0, 0)
+  
+  // 更新所有启用的变体预览
+  step.variants.forEach((variant, variantIndex) => {
+    if (variant.enabled) {
+      const variantCanvas = this.$refs[`variantCanvas_${index}_${variantIndex}`]
+      if (variantCanvas) {
+        const variantCtx = variantCanvas.getContext('2d')
+        const variantPixels = variant.process(mainStepResult, variant.values)
+        variantCtx.putImageData(new ImageData(variantPixels, variantCanvas.width), 0, 0)
+      }
+    }
+  })
+}
+
+// 处理到指定步骤 - 只处理主处理链
+const processUpToStep = async (targetIndex) => {
+  let pixels = new Uint8ClampedArray(mainPreviewCanvas.value.width * mainPreviewCanvas.value.height * 4)
+  
+  // 只执行每个步骤的主处理函数
+  for (let i = 0; i <= targetIndex; i++) {
+    const step = processorStack.value[i]
+    if (step.enabled) {
+      pixels = step.process(pixels, params.value)
+    }
+  }
+  
+  return pixels
+}
+
+// 可用的变体类型定义
+const availableVariantTypes = [
+  {
+    id: 'brightness-contrast',
+    name: '亮度/对比度',
+    createConfig: () => ({
+      name: '亮度/对比度',
+      enabled: true,
+      values: {
+        brightness: 0,
+        contrast: 1
+      },
+      params: [
+        {
+          key: 'brightness',
+          label: '亮度',
+          type: 'range',
+          min: -1,
+          max: 1,
+          step: 0.1
+        },
+        {
+          key: 'contrast',
+          label: '对比度',
+          type: 'range',
+          min: 0,
+          max: 2,
+          step: 0.1
+        }
+      ],
+      process: (mainStepResult, values) => {
+        const pixels = mainStepResult.slice()
+        for (let i = 0; i < pixels.length; i += 4) {
+          let value = pixels[i] / 255
+          value = (value - 0.5) * values.contrast + 0.5 + values.brightness
+          value = Math.max(0, Math.min(1, value)) * 255
+          pixels[i] = pixels[i + 1] = pixels[i + 2] = value
+        }
+        return pixels
+      }
+    })
+  },
+  {
+    id: 'sharpen',
+    name: '锐化',
+    createConfig: () => ({
+      name: '锐化',
+      enabled: true,
+      values: {
+        amount: 0.5
+      },
+      params: [
+        {
+          key: 'amount',
+          label: '强度',
+          type: 'range',
+          min: 0,
+          max: 1,
+          step: 0.1
+        }
+      ],
+      process: (mainStepResult, values) => {
+        // 锐化处理逻辑
+        return mainStepResult
+      }
+    })
+  }
+  // 可以继续添加更多变体类型
+]
+
+// 新变体类型选择
+const newVariantType = ref('')
+
+// 添加变体
+const addVariant = (stepIndex) => {
+  if (!newVariantType.value) return
+  
+  const variantType = availableVariantTypes.find(t => t.id === newVariantType.value)
+  if (!variantType) return
+  
+  // 创建新变体配置
+  const newVariant = variantType.createConfig()
+  
+  // 添加到步骤的变体列表
+  processorStack.value[stepIndex].variants.push(newVariant)
+  
+  // 重置选择器
+  newVariantType.value = ''
+  
+  // 更新预览
+  nextTick(() => {
+    updateStepPreview(stepIndex)
+  })
+}
+
+// 删除变体
+const removeVariant = (stepIndex, variantIndex) => {
+  processorStack.value[stepIndex].variants.splice(variantIndex, 1)
+  
+  // 更新预览
+  nextTick(() => {
+    updateStepPreview(stepIndex)
+  })
+}
+
+// 切换变体启用状态
+const toggleVariant = (stepIndex, variantIndex) => {
+  const variant = processorStack.value[stepIndex].variants[variantIndex]
+  variant.enabled = !variant.enabled
+  
+  // 更新预览
+  updateVariantPreview(stepIndex, variantIndex)
+}
 </script>
 
 <style scoped>
@@ -560,8 +914,7 @@ const exportMaps = () => {
   background: var(--background-color);
 }
 
-.left-panel,
-.right-panel {
+.left-panel {
   width: 300px;
   min-width: 300px;
   background: var(--background-color-2);
@@ -570,8 +923,11 @@ const exportMaps = () => {
 }
 
 .right-panel {
-  border-right: none;
+  width: 300px;
+  min-width: 300px;
+  background: var(--background-color-2);
   border-left: 1px solid var(--border-color);
+  overflow-y: auto;
 }
 
 .section-title {
@@ -684,21 +1040,22 @@ label.toolbar-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin: 8px 0;
 }
 
 .control-item label {
-  flex: 1;
-  min-width: 100px;
+  width: 80px;
+  font-size: 13px;
 }
 
 .control-item input[type="range"] {
-  flex: 2;
+  flex: 1;
 }
 
 .control-item span {
   min-width: 40px;
   text-align: right;
+  font-size: 12px;
 }
 
 .zoom-control {
@@ -801,42 +1158,150 @@ label.toolbar-btn {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* 确保右侧面板有合适的宽度和滚动 */
-.right-panel {
-  width: 300px;
-  min-width: 300px;
-  background: var(--b3-theme-background);
-  border-left: 1px solid var(--b3-border-color);
-  overflow-y: auto;
+.show-all-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
 }
 
-/* 添加复选框样式 */
-.control-item input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
+.show-all-toggle input[type="checkbox"] {
   margin: 0;
+}
+
+.fn__flex-sb {
+  justify-content: space-between;
+}
+
+.step-preview-area {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--background-color);
+}
+
+.step-preview {
+  width: 200px;
+  height: 200px;
+  border-radius: 4px;
+  background: white;
+}
+
+.variants-list {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.variant-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
   cursor: pointer;
 }
 
-/* 调整控制项布局 */
-.control-item {
+.variant-item:hover {
+  opacity: 0.9;
+}
+
+.variant-item.active {
+  opacity: 1;
+}
+
+.variant-preview {
+  width: 100px;
+  height: 100px;
+  border-radius: 4px;
+  background: white;
+  border: 2px solid transparent;
+}
+
+.variant-item.active .variant-preview {
+  border-color: var(--b3-theme-primary);
+}
+
+.variant-name {
+  font-size: 12px;
+  color: var(--text-color-3);
+}
+
+.variants-params {
+  padding: 12px;
+  background: var(--background-color-2);
+  border-top: 1px solid var(--border-color);
+}
+
+.variant-params {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.param-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  font-size: 12px;
 }
 
-.control-item label {
+.param-item label {
+  width: 60px;
+}
+
+.param-item input[type="range"] {
   flex: 1;
-  min-width: 100px;
 }
 
-.control-item input[type="range"] {
-  flex: 2;
-}
-
-.control-item span {
-  min-width: 40px;
+.param-item span {
+  width: 40px;
   text-align: right;
+}
+
+.variants-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.variant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.variant-delete {
+  background: none;
+  border: none;
+  color: var(--text-color-3);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 16px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.variant-delete:hover {
+  opacity: 1;
+  color: var(--b3-theme-error);
+}
+
+.add-variant {
+  margin-top: 8px;
+}
+
+.add-variant select {
+  width: 100%;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-color);
+  color: var(--text-color);
+  cursor: pointer;
 }
 </style>
