@@ -1,3 +1,7 @@
+/**
+ * 插件的异步主模块,凡是能够异步定义的都在此进行
+ */
+
 import { plugin } from "./pluginSymbolRegistry.js";
 //添加图标
 import './UI/icons/addIcon.js'
@@ -5,7 +9,4 @@ import './UI/icons/addIcon.js'
 import './globalStatus/index.js'
 //用于拖拽的webview
 import './utilWebviews/drag.js'
-/**
- * 插件的异步主模块,凡是能够异步定义的都在此进行
- */
 
