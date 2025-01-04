@@ -20,6 +20,10 @@
             <i class="icon">🖼️</i>
             <span>场景</span>
           </div>
+          <div class="tool-item" :class="{ active: currentTool === 'mirror' }" @click="handleToolClick('mirror')">
+            <i class="icon">🪞</i>
+            <span>镜像</span>
+          </div>
         </div>
       </div>
 
@@ -120,6 +124,48 @@
           <template v-if="currentTool === 'settings'">
             <div class="settings-panel">
               <!-- 其他设置选项 -->
+            </div>
+          </template>
+
+          <!-- 镜像控制面板 -->
+          <template v-if="currentTool === 'mirror'">
+            <div class="mirror-panel">
+              <h3>镜像变换</h3>
+              <div class="mirror-controls">
+                <button 
+                  class="mirror-btn" 
+                  :class="{ processing: isMirroring }"
+                  @click="handleMirror('x')"
+                  :disabled="isMirroring"
+                >
+                  前后镜像 (X轴)
+                </button>
+                <button 
+                  class="mirror-btn"
+                  :class="{ processing: isMirroring }"
+                  @click="handleMirror('y')"
+                  :disabled="isMirroring"
+                >
+                  左右镜像 (Y轴)
+                </button>
+                <button 
+                  class="mirror-btn"
+                  :class="{ processing: isMirroring }"
+                  @click="handleMirror('z')"
+                  :disabled="isMirroring"
+                >
+                  上下镜像 (Z轴)
+                </button>
+                
+                <!-- 添加保存按钮 -->
+                <button 
+                  class="mirror-btn save-btn"
+                  @click="handleSaveMirrored"
+                  :disabled="!hasMirroredImage"
+                >
+                  保存镜像图片
+                </button>
+              </div>
             </div>
           </template>
         </div>
@@ -260,6 +306,7 @@ import * as THREE from '../../../../static/three/three.mjs';
 import { ref, onMounted, onBeforeUnmount, shallowRef, computed, watch, nextTick } from 'vue';
 import CCDialog from '../../components/CCDialog.vue';
 import { worldToScreen, createSmoothAnimation, fullscreenUtils } from './utils.js';
+import { mirrorPanorama, saveImageData } from './panoramaMirror.js';
 
 
 
@@ -425,7 +472,7 @@ const init = () => {
   // 创建场景
   scene.value = new THREE.Scene();
   
-  // 创建��机
+  // 创建机
   camera.value = new THREE.PerspectiveCamera(75, 1, 1, 1000); // 初始宽高比设为1，稍后会更新
   
   // 创建渲染器
@@ -840,6 +887,75 @@ const handleHotspotClick = async (hotspot) => {
       requestAnimationFrame(animate);
     }
   }
+};
+
+// 添加镜像相关状态
+const isMirroring = ref(false);
+
+// 添加状态跟踪是否有镜像后的图片
+const hasMirroredImage = ref(false);
+const lastMirroredImageData = ref(null);
+
+// 修改镜像处理函数
+const handleMirror = async (axis) => {
+  if (!scene.value?.children[0]?.material?.map) {
+    return;
+  }
+  
+  try {
+    isMirroring.value = true;
+    
+    // 获取当前纹理
+    const currentTexture = scene.value.children[0].material.map;
+    
+    // 创建临时canvas获取ImageData
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = currentTexture.image.width;
+    canvas.height = currentTexture.image.height;
+    ctx.drawImage(currentTexture.image, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // 执行镜像变换
+    const mirroredData = await mirrorPanorama(imageData, axis);
+    
+    // 保存镜像后的图片数据以供后续保存
+    lastMirroredImageData.value = mirroredData;
+    hasMirroredImage.value = true;
+    
+    // 将结果绘制回canvas
+    ctx.putImageData(mirroredData, 0, 0);
+    
+    // 创建新纹理
+    const newTexture = new THREE.Texture(canvas);
+    newTexture.needsUpdate = true;
+    newTexture.colorSpace = THREE.SRGBColorSpace;
+    
+    // 更新材质
+    const mesh = scene.value.children[0];
+    if (mesh.material) {
+      mesh.material.map.dispose();
+      mesh.material.map = newTexture;
+      mesh.material.needsUpdate = true;
+    }
+    
+  } catch (error) {
+    console.error('镜像处理失败:', error);
+  } finally {
+    isMirroring.value = false;
+  }
+};
+
+// 添加保存镜像图片的处理函数
+const handleSaveMirrored = () => {
+  if (!lastMirroredImageData.value) return;
+  
+  // 生成文件名
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const fileName = `mirrored_panorama_${timestamp}.jpg`;
+  
+  // 保存图片
+  saveImageData(lastMirroredImageData.value, fileName);
 };
 
 // 生命周期钩子
@@ -1370,5 +1486,75 @@ canvas {
   color: var(--cc-theme-on-surface-variant);
   font-style: italic;
   background-color: var(--cc-theme-surface-light);
+}
+
+/* 添加镜像面板样式 */
+.mirror-panel {
+  padding: 16px;
+}
+
+.mirror-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.mirror-btn {
+  padding: 8px 16px;
+  background: var(--cc-theme-surface-light);
+  border: 1px solid var(--cc-border-color);
+  border-radius: var(--cc-border-radius);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mirror-btn:hover:not(:disabled) {
+  background: var(--cc-theme-surface-hover);
+}
+
+.mirror-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mirror-btn.processing {
+  position: relative;
+  pointer-events: none;
+}
+
+.mirror-btn.processing::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid transparent;
+  border-top-color: var(--cc-theme-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 添加保存按钮样式 */
+.save-btn {
+  margin-top: 16px;
+  background-color: var(--cc-theme-primary);
+  color: white;
+}
+
+.save-btn:hover:not(:disabled) {
+  background-color: var(--cc-theme-primary-hover);
+}
+
+.save-btn:disabled {
+  background-color: var(--cc-theme-surface-light);
+  color: var(--cc-theme-on-surface-variant);
 }
 </style>

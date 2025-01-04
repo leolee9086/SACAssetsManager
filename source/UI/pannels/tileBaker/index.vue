@@ -28,6 +28,13 @@
             应用处理
           </button>
         </div>
+        <button 
+          @click="downloadAllImages" 
+          :disabled="!hasResult"
+          class="download-all-button"
+        >
+          下载所有步骤图片
+        </button>
       </div>
 
       <!-- 处理步骤列表 -->
@@ -38,7 +45,17 @@
           :processed="hasImage"
           :source-ctx="currentCTX"
           :thumbnail-size="THUMBNAIL_SIZE"
-        />
+        >
+          <template #controls>
+            <button 
+              v-if="hasImage"
+              class="download-button"
+              @click="downloadStepImage(currentCTX, '原始图像')"
+            >
+              下载图片
+            </button>
+          </template>
+        </image-step-previewer>
         
         <!-- 处理步骤 -->
         <image-step-previewer
@@ -49,7 +66,17 @@
           :duration="step.duration"
           :source-ctx="step.ctx"
           :thumbnail-size="THUMBNAIL_SIZE"
-        />
+        >
+          <template #controls>
+            <button 
+              v-if="step.processed"
+              class="download-button"
+              @click="downloadStepImage(step.ctx, step.name)"
+            >
+              下载图片
+            </button>
+          </template>
+        </image-step-previewer>
 
         <!-- 最终结果步骤 -->
         <image-step-previewer
@@ -57,7 +84,17 @@
           :processed="hasResult"
           :source-ctx="resultCTX"
           :thumbnail-size="THUMBNAIL_SIZE"
-        />
+        >
+          <template #controls>
+            <button 
+              v-if="hasResult"
+              class="download-button"
+              @click="downloadStepImage(resultCTX, '最终结果')"
+            >
+              下载图片
+            </button>
+          </template>
+        </image-step-previewer>
       </div>
     </div>
 
@@ -82,7 +119,7 @@ import { createImageCTXFromFile } from './ImageCTX.js'
 import ImageStepPreviewer from './components/imageStepPreviewer.vue'
 import { useImagePipeline } from './composable/useImagePipeline.js'
 import ImagePreview from './components/ImagePreview.vue'
-
+import { useImageDownloader } from './composable/useImageDownloader.js'
 // 使用 useImagePipeline composable
 const {
   currentCTX,
@@ -93,6 +130,8 @@ const {
   initializePipeline,
   executePipeline
 } = useImagePipeline()
+
+const { downloadImages, downloadSingleImage } = useImageDownloader()
 
 const fileInput = ref(null)
 const canvasWidth = ref(300)
@@ -133,12 +172,23 @@ const handleFileUpload = async (event) => {
 
 const applyProcessing = async () => {
   try {
-    await executePipeline()
-    console.log(resultCTX.value)
+    for (const step of processingSteps.value) {
+      const result = await executeProcessor(step.name, step.paramValues)
+      step.ctx = result
+      step.processed = true
+    }
   } catch (error) {
     console.error('处理失败:', error)
-    alert('图像处理失败')
   }
+}
+
+const downloadAllImages = async () => {
+  if (!hasResult.value) return
+  await downloadImages(currentCTX.value, processingSteps.value, resultCTX.value)
+}
+
+const downloadStepImage = (ctx, name) => {
+  downloadSingleImage(ctx, name)
 }
 </script>
 
@@ -382,5 +432,42 @@ button:hover:not(:disabled) {
   gap: 5px;
   font-size: 14px;
   color: #666;
+}
+
+.download-all-button {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px 16px;
+  background-color: #673AB7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.download-all-button:hover:not(:disabled) {
+  background-color: #5E35B1;
+}
+
+.download-all-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.download-button {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.3s;
+}
+
+.download-button:hover {
+  background-color: #1976D2;
 }
 </style>

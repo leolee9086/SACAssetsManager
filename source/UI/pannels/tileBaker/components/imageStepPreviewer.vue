@@ -19,17 +19,16 @@
             </span>
           </div>
           <slot name="controls"></slot>
-          <button 
-            v-if="processed && sourceCtx" 
-            class="download-button"
-            @click="downloadImage"
-          >
-            下载图片
-          </button>
         </div>
         <div class="step-preview" v-show="processed">
           <canvas ref="thumbnailCanvas" class="thumbnail"></canvas>
         </div>
+        <processor-params
+          v-if="processorParams.length"
+          :params="processorParams"
+          :initial-values="initialParamValues"
+          @update:params="params => emit('update:params', params)"
+        />
       </div>
     </div>
   </template>
@@ -50,8 +49,18 @@
     thumbnailSize: {
       type: Number,
       default: 100
+    },
+    processorParams: {
+      type: Array,
+      default: () => []
+    },
+    initialParamValues: {
+      type: Object,
+      default: () => ({})
     }
   })
+
+  const emit = defineEmits(['update:params'])
 
   // 执行时间警告阈值（毫秒）
   const SLOW_EXECUTION_THRESHOLD = 15
@@ -116,27 +125,6 @@
       await createThumbnail()
     }
   })
-
-  // 添加下载功能
-  const downloadImage = () => {
-    if (!props.sourceCtx) return
-    
-    const link = document.createElement('a')
-    const canvas = document.createElement('canvas')
-    canvas.width = props.sourceCtx.width
-    canvas.height = props.sourceCtx.height
-    
-    props.sourceCtx.updatePreview(canvas, {
-      width: props.sourceCtx.width,
-      height: props.sourceCtx.height,
-      smoothing: true,
-      quality: 'high'
-    })
-    
-    link.download = `${props.name || '图片'}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
-  }
   </script>
 
   <style scoped>

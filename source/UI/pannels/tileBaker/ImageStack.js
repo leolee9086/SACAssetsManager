@@ -16,14 +16,17 @@ const isValidImageContext = (ctx) => {
  * 创建图像处理器
  */
 const createImageProcessor = (fn, name, metadata = {}) => {
-  const processor = async (ctx) => {
+  const processor = async (ctx, params = {}) => {
     try {
       const newCTX = ctx.clone()
-      await fn(newCTX)
+      await fn(newCTX, params)
       newCTX.state.addHistoryStep({
         name,
         timestamp: Date.now(),
-        metadata
+        metadata: {
+          ...metadata,
+          params
+        }
       })
       return newCTX
     } catch (error) {
@@ -36,7 +39,8 @@ const createImageProcessor = (fn, name, metadata = {}) => {
     processor,
     metadata: {
       ...metadata,
-      name
+      name,
+      params: metadata.params || []
     }
   }
 }
