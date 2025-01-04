@@ -988,3 +988,17 @@ select {
     color: var(--cc-theme-on-surface);
     font-size: 0.9em;
 }
+
+
+/*很多TABK可以在子app模式中打开*/
+body[data-subapp]  {
+    .block__icon.block__icon--show.ariaLabel{
+        display: none;
+    }
+    .layout-tab-bar .item__close {
+        display: none;
+    }
+    .fn__flex.layout-tab-bar{
+        pointer-events: none;
+    }
+}

@@ -67,6 +67,37 @@
           :source-ctx="step.ctx"
           :thumbnail-size="THUMBNAIL_SIZE"
         >
+          <template #params v-if="step.params.length">
+            <div class="step-params">
+              <div v-for="param in step.params" :key="param.name" class="param-control">
+                <label :for="param.name">{{ param.label }}</label>
+                
+                <!-- 范围滑块 -->
+                <input v-if="param.type === 'range'"
+                  :id="param.name"
+                  type="range"
+                  v-model="step.paramValues[param.name]"
+                  :min="param.min"
+                  :max="param.max"
+                  :step="param.step"
+                  @change="handleParamChange(step)"
+                >
+                
+                <!-- 颜色选择器 -->
+                <input v-if="param.type === 'color'"
+                  :id="param.name"
+                  type="color"
+                  v-model="step.paramValues[param.name]"
+                  @change="handleParamChange(step)"
+                >
+                
+                <span v-if="param.type === 'range'" class="param-value">
+                  {{ step.paramValues[param.name] }}
+                </span>
+              </div>
+            </div>
+          </template>
+          
           <template #controls>
             <button 
               v-if="step.processed"
@@ -170,13 +201,15 @@ const handleFileUpload = async (event) => {
   }
 }
 
+const handleParamChange = async (step) => {
+  if (autoProcess.value) {
+    await applyProcessing()
+  }
+}
+
 const applyProcessing = async () => {
   try {
-    for (const step of processingSteps.value) {
-      const result = await executeProcessor(step.name, step.paramValues)
-      step.ctx = result
-      step.processed = true
-    }
+    await executePipeline()
   } catch (error) {
     console.error('处理失败:', error)
   }
@@ -469,5 +502,36 @@ button:hover:not(:disabled) {
 
 .download-button:hover {
   background-color: #1976D2;
+}
+
+.step-params {
+  margin-top: 10px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.param-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.param-control label {
+  min-width: 80px;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.param-control input[type="range"] {
+  flex: 1;
+}
+
+.param-value {
+  min-width: 40px;
+  text-align: right;
+  font-size: 0.9em;
+  color: #666;
 }
 </style>

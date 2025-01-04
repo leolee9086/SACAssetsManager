@@ -18,6 +18,7 @@
               处理时间过长
             </span>
           </div>
+          <slot name="params"></slot>
           <slot name="controls"></slot>
         </div>
         <div class="step-preview" v-show="processed">

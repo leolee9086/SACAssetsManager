@@ -1,49 +1,28 @@
-export async function mirrorPanorama(imageData, axis = 'x') {
-  const { width: cols, height: rows, data } = imageData;
-  const result = new Uint8ClampedArray(data.length);
+export function mirrorPanorama(imageData, axis = 'x') {
+  const canvas = document.createElement('canvas');
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+  const ctx = canvas.getContext('2d');
   
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      // 转换到球面坐标
-      const theta = (j / cols) * 2 * Math.PI - Math.PI;  // 经度 (-π to π)
-      const phi = (i / rows) * Math.PI;                  // 纬度 (0 to π)
-      
-      // 计算3D笛卡尔坐标
-      let x = Math.sin(phi) * Math.cos(theta);
-      let y = Math.sin(phi) * Math.sin(theta);
-      let z = Math.cos(phi);
-      
-      // 执行镜像变换
-      switch (axis) {
-        case 'x': x = -x; break;
-        case 'y': y = -y; break;
-        case 'z': z = -z; break;
-      }
-      
-      // 转回球面坐标
-      const thetaNew = Math.atan2(y, x);
-      const phiNew = Math.acos(z / Math.sqrt(x*x + y*y + z*z));
-      
-      // 计算目标像素坐标
-      let sampleX = Math.round(((thetaNew + Math.PI) / (2 * Math.PI)) * cols);
-      let sampleY = Math.round((phiNew / Math.PI) * rows);
-      
-      // 处理边界情况
-      sampleX = (sampleX + cols) % cols;
-      sampleY = Math.min(Math.max(sampleY, 0), rows - 1);
-      
-      // 复制像素数据
-      const currentPixel = (i * cols + j) * 4;
-      const sourcePixel = (sampleY * cols + sampleX) * 4;
-      
-      result[currentPixel] = data[sourcePixel];         // R
-      result[currentPixel + 1] = data[sourcePixel + 1]; // G
-      result[currentPixel + 2] = data[sourcePixel + 2]; // B
-      result[currentPixel + 3] = data[sourcePixel + 3]; // A
-    }
+  // 先把 ImageData 画到 canvas 上
+  ctx.putImageData(imageData, 0, 0);
+  
+  // 创建新的 canvas 进行镜像
+  const resultCanvas = document.createElement('canvas');
+  resultCanvas.width = imageData.width;
+  resultCanvas.height = imageData.height;
+  const resultCtx = resultCanvas.getContext('2d');
+  
+  // 使用 scale 进行镜像变换
+  if (axis === 'x') {
+    resultCtx.scale(-1, 1);
+    resultCtx.drawImage(canvas, -canvas.width, 0);
+  } else if (axis === 'y') {
+    resultCtx.scale(1, -1);
+    resultCtx.drawImage(canvas, 0, -canvas.height);
   }
   
-  return new ImageData(result, cols, rows);
+  return resultCtx.getImageData(0, 0, imageData.width, imageData.height);
 }
 
 // 添加保存图片的辅助函数

@@ -123,7 +123,31 @@
           <!-- 设置面板 -->
           <template v-if="currentTool === 'settings'">
             <div class="settings-panel">
-              <!-- 其他设置选项 -->
+              <div class="section">
+                <h3>视频设置</h3>
+                <div class="option-item">
+                  <label>视频方向</label>
+                  <select v-model="videoSettings.isLandscape">
+                    <option :value="true">横屏 (2560*1440)</option>
+                    <option :value="false">竖屏 (1440*2560)</option>
+                  </select>
+                </div>
+                <div class="option-item">
+                  <label>视频时长</label>
+                  <select v-model="videoSettings.duration">
+                    <option :value="24">24秒</option>
+                    <option :value="30">30秒</option>
+                    <option :value="40">40秒</option>
+                  </select>
+                </div>
+                <button 
+                  class="generate-btn"
+                  @click="generateVideo"
+                  :disabled="isGeneratingVideo"
+                >
+                  {{ isGeneratingVideo ? '生成中...' : '生成视频' }}
+                </button>
+              </div>
             </div>
           </template>
 
@@ -307,6 +331,7 @@ import { ref, onMounted, onBeforeUnmount, shallowRef, computed, watch, nextTick 
 import CCDialog from '../../components/CCDialog.vue';
 import { worldToScreen, createSmoothAnimation, fullscreenUtils } from './utils.js';
 import { mirrorPanorama, saveImageData } from './panoramaMirror.js';
+import { PanoramaVideoGenerator, saveVideoBlob } from './panoramaToVideo.js';
 
 
 
@@ -958,6 +983,59 @@ const handleSaveMirrored = () => {
   saveImageData(lastMirroredImageData.value, fileName);
 };
 
+// 添加视频相关状态
+const isGeneratingVideo = ref(false);
+const videoSettings = ref({
+  duration: 12,
+  fps: 30,
+  width: 2560,    // 修改为2K分辨率
+  height: 1440,   // 修改为2K分辨率
+  isLandscape: true
+});
+
+// 修改生成视频的方法
+const generateVideo = async () => {
+  if (!texture.value || isGeneratingVideo.value) return;
+  
+  try {
+    isGeneratingVideo.value = true;
+    
+    // 根据方向设置尺寸
+    const width = videoSettings.value.isLandscape ? 2560 : 1440;   // 修改为2K分辨率
+    const height = videoSettings.value.isLandscape ? 1440 : 2560;  // 修改为2K分辨率
+    
+    // 创建视频生成器
+    const generator = new PanoramaVideoGenerator(width, height);
+    await generator.setupScene(texture.value);
+    
+    // 开始录制，传入完整的参数
+    const videoBlob = await generator.startRecording({
+      duration: videoSettings.value.duration,
+      fps: videoSettings.value.fps,
+      startLon: 0,
+      endLon: 360,
+      startLat: 0,
+      endLat: 0,
+      width: width,     // 添加宽度参数
+      height: height,   // 添加高度参数
+      smoothness: 0.8,
+      rotations: 1
+    });
+    
+    // 保存视频时使用正确的文件扩展名
+    const orientation = videoSettings.value.isLandscape ? 'landscape' : 'portrait';
+    saveVideoBlob(videoBlob, `panorama_${orientation}_${Date.now()}.webm`);
+    
+    // 清理资源
+    generator.dispose();
+    
+  } catch (error) {
+    console.error('生成视频失败:', error);
+  } finally {
+    isGeneratingVideo.value = false;
+  }
+};
+
 // 生命周期钩子
 onMounted(() => {
   init();
@@ -1556,5 +1634,34 @@ canvas {
 .save-btn:disabled {
   background-color: var(--cc-theme-surface-light);
   color: var(--cc-theme-on-surface-variant);
+}
+
+.generate-btn {
+  width: 100%;
+  padding: 8px 16px;
+  background-color: var(--cc-theme-primary);
+  color: white;
+  border: none;
+  border-radius: var(--cc-border-radius);
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+.generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.section {
+  background: var(--cc-theme-surface-light);
+  padding: 16px;
+  border-radius: var(--cc-border-radius);
+  margin-bottom: 16px;
+}
+
+.section h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 500;
 }
 </style>
