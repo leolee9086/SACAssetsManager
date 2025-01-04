@@ -10,7 +10,7 @@ export class DarkChannelDehaze {
             this.params.darkEnhance = {
                 brightness: 30,         // 亮度百分比
                 contrast: 120,          // 对比度百分比
-                opacity: 0.1          // 叠加透明度
+                opacity: 0.3           // 叠加透明度
             };
         }
     }
@@ -482,10 +482,7 @@ export class DarkChannelDehaze {
                     );
                     
                     // 更平滑的gamma校正
-                    const gamma = 0.92 + 
-                        0.06 * textureWeight +  // 进一步降低纹理影响
-                        0.05 * darkProtection +
-                        0.03 * (1 - cdfValue);
+                    const gamma = 0.85;  // 降低gamma值以提高暗部细节
                     
                     // 大幅增强边缘保护
                     const edgeAdjustedWeight = adaptiveWeight * (1 - edgeProtection * 0.5);

@@ -10,7 +10,7 @@ export class DarkChannelDehaze {
             this.params.darkEnhance = {
                 brightness: 30,         // 亮度百分比
                 contrast: 120,          // 对比度百分比
-                opacity: 0.1          // 叠加透明度
+                opacity: 0.3           // 叠加透明度
             };
         }
     }
@@ -45,31 +45,17 @@ export class DarkChannelDehaze {
         const paddedDark = new Float32Array(width * height);
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
-                let minVal = darkChannel[y * width + x];
-                let weightSum = 1.0;
-                let valueSum = minVal;
-    
+                let minVal = 1.0;
                 for (let dy = -radius; dy <= radius; dy++) {
                     for (let dx = -radius; dx <= radius; dx++) {
-                        if (dx === 0 && dy === 0) continue;
-                        
                         const ny = Math.min(Math.max(y + dy, 0), height - 1);
                         const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                        
-                        // 添加距离权重
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        const weight = 1.0 / (1.0 + dist);
-                        
-                        weightSum += weight;
-                        valueSum += darkChannel[ny * width + nx] * weight;
+                        minVal = Math.min(minVal, darkChannel[ny * width + nx]);
                     }
                 }
-                
-                paddedDark[y * width + x] = valueSum / weightSum;
+                paddedDark[y * width + x] = minVal;
             }
         }
-    
-    
 
         return paddedDark;
     }
@@ -111,24 +97,24 @@ export class DarkChannelDehaze {
 
     // 计算透射率
     getTransmission(darkChannel) {
-        const omega = 0.92;  // 增加基础omega以加强去雾效果
-        const minTransmission = 0.15;  // 降低最小透射率以增强去雾
-        const maxTransmission = 0.98;  // 提高最大透射率
+        const omega = 0.88;  // 保持基础omega不变
+        const minTransmission = 0.18;  // 略微降低最小透射率
+        const maxTransmission = 0.96;
         
         const smoothedTransmission = darkChannel.map(dc => {
-            // 使用更激进的非线性omega调整
-            const adaptiveOmega = omega * (1 + 0.25 * Math.pow(dc, 1.8));
+            // 使用非线性omega调整，强雾区获得更强的去雾效果
+            const adaptiveOmega = omega * (1 + 0.15 * Math.pow(dc, 2));
             const rawTransmission = 1.0 - adaptiveOmega * dc;
             
-            // 改进的深度因子计算，加强深度感知
-            const depthFactor = Math.pow(dc, 0.65);
-            const enhancedDepth = depthFactor * (1 + 0.18 * Math.pow(1 - depthFactor, 1.3));
+            // 改进的深度因子计算
+            const depthFactor = Math.pow(dc, 0.75);
+            const enhancedDepth = depthFactor * (1 + 0.12 * Math.pow(1 - depthFactor, 1.5));
             
-            // 更激进的透射率混合
+            // 更复杂的透射率混合
             const adjustedTransmission = 
-                rawTransmission * 0.60 + 
-                enhancedDepth * 0.30 + 
-                Math.pow(1 - dc, 1.1) * 0.10;
+                rawTransmission * 0.65 + 
+                enhancedDepth * 0.25 + 
+                Math.pow(1 - dc, 1.2) * 0.10;  // 添加非线性补偿项
             
             return Math.max(minTransmission, Math.min(maxTransmission, adjustedTransmission));
         });
@@ -166,7 +152,7 @@ export class DarkChannelDehaze {
                 const t = Math.max(transmission[i], 0.001);
                 
                 // 改进的散射系数，减小差异以降低色彩偏差
-                const scatteringFactors = [0.92, 0.96, 1.0];  // 更大的散射系数差异
+                const scatteringFactors = [0.95, 0.975, 1.0];  // 更温和的散射系数差异
                 
                 for (let c = 0; c < 3; c++) {
                     const original = imageData.data[i * 4 + c] / 255;
@@ -174,13 +160,13 @@ export class DarkChannelDehaze {
                     
                     // 添加边缘感知的透射率调整
                     const channelT = t * (
-                        1.0 - (1.0 - scatteringFactors[c]) * Math.pow(1.0 - t, 0.6)
+                        1.0 - (1.0 - scatteringFactors[c]) * Math.pow(1.0 - t, 0.5)
                     );
                     
                     const invT = 1.0 / Math.max(channelT, 0.001);
                     
                     // 统一的gamma校正
-                    const gamma = 0.85;  // 降低gamma值以提高暗部细节
+                    const gamma = 0.9;  // 使用统一的gamma值避免通道间的突变
                     
                     let result = Math.pow(
                         (original * invT - A * invT + A),
@@ -452,21 +438,21 @@ export class DarkChannelDehaze {
                     
                     // 更平滑的暗部保护计算
                     const darkProtection = isDarkArea ? 
-                        (0.35 + 0.40 * darknessFactor) *  // 增加暗部保护强度
-                        (1 + textureWeight * 0.8) * 
-                        (1 + 0.15 * (1 - normalizedValue)) * 
-                        (1 + edge.strength * 0.3) : 0;
+                        (0.28 + 0.32 * darknessFactor) * 
+                        (1 + textureWeight * 0.7) *  // 进一步降低纹理影响
+                        (1 + 0.1 * (1 - normalizedValue)) * 
+                        (1 + edge.strength * 0.25) : 0;  // 在边缘处增加保护
                     
                     // 优化自适应混合权重
                     let adaptiveWeight = Math.max(
-                        0.32,  // 提高最小保护
-                        Math.min(0.85,
-                            0.45 + 
-                            0.25 * textureWeight +   
-                            0.20 * darkProtection + // 增加暗部保护影响
-                            0.12 * (1 - cdfValue) +
-                            0.10 * (1 - normalizedValue) -
-                            0.12 * edge.strength    
+                        0.28,  // 进一步提高最小保护
+                        Math.min(0.8,
+                            0.4 + 
+                            0.2 * textureWeight +   // 降低纹理权重
+                            0.15 * darkProtection + // 降低暗部保护影响
+                            0.1 * (1 - cdfValue) +
+                            0.08 * (1 - normalizedValue) -
+                            0.15 * edge.strength    // 在强边缘处降低去雾强度
                         )
                     );
                     
