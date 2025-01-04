@@ -78,21 +78,40 @@ export class DarkChannelDehaze {
     estimateAtmosphericLight(darkChannel, imageData) {
         const { width, height, data } = imageData;
         const numPixels = width * height;
-        const threshold = 0.95;
         
-        // 找到暗通道值最高的像素
-        const pixelInfo = [];
+        // 计算亮度和饱和度
+        const luminanceInfo = [];
         for (let i = 0; i < numPixels; i++) {
-            pixelInfo.push({
+            const r = data[i * 4] / 255;
+            const g = data[i * 4 + 1] / 255;
+            const b = data[i * 4 + 2] / 255;
+            
+            // 计算亮度
+            const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+            
+            // 计算饱和度
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            const saturation = max === 0 ? 0 : (max - min) / max;
+            
+            luminanceInfo.push({
                 dark: darkChannel[i],
+                luminance,
+                saturation,
                 idx: i
             });
         }
         
-        pixelInfo.sort((a, b) => b.dark - a.dark);
+        // 根据暗通道值和饱和度排序
+        luminanceInfo.sort((a, b) => {
+            // 优先考虑高亮度低饱和度的像素
+            const scoreA = a.luminance * (1 - a.saturation * 0.5);
+            const scoreB = b.luminance * (1 - b.saturation * 0.5);
+            return scoreB - scoreA;
+        });
         
         // 取前 0.1% 的像素
-        const topPixels = pixelInfo.slice(0, Math.max(Math.floor(numPixels * 0.001), 1));
+        const topPixels = luminanceInfo.slice(0, Math.max(Math.floor(numPixels * 0.001), 1));
         
         let sumR = 0, sumG = 0, sumB = 0;
         topPixels.forEach(({ idx }) => {
@@ -111,26 +130,32 @@ export class DarkChannelDehaze {
 
     // 计算透射率
     getTransmission(darkChannel) {
-        const omega = 0.92;  // 增加基础omega以加强去雾效果
-        const minTransmission = 0.15;  // 降低最小透射率以增强去雾
-        const maxTransmission = 0.98;  // 提高最大透射率
+        const omega = 0.95;
+        const minTransmission = 0.08; // 降低最小透射率以增强去雾效果
+        const maxTransmission = 0.99;
+        
+        // 计算全局雾浓度指标
+        const avgDark = darkChannel.reduce((sum, val) => sum + val, 0) / darkChannel.length;
+        const fogDensity = Math.pow(avgDark, 1.2); // 使用非线性映射增强对薄雾的敏感度
         
         const smoothedTransmission = darkChannel.map(dc => {
-            // 使用更激进的非线性omega调整
-            const adaptiveOmega = omega * (1 + 0.25 * Math.pow(dc, 1.8));
+            // 自适应omega调整
+            const adaptiveOmega = omega * (1 + 0.4 * Math.pow(dc, 1.4)) * (1 + 0.2 * fogDensity);
+            
+            // 改进的透射率计算
             const rawTransmission = 1.0 - adaptiveOmega * dc;
             
-            // 改进的深度因子计算，加强深度感知
-            const depthFactor = Math.pow(dc, 0.65);
-            const enhancedDepth = depthFactor * (1 + 0.18 * Math.pow(1 - depthFactor, 1.3));
+            // 增强的深度因子计算
+            const depthFactor = Math.pow(dc, 0.5);
+            const enhancedDepth = depthFactor * (1 + 0.3 * Math.pow(1 - depthFactor, 1.3));
             
-            // 更激进的透射率混合
-            const adjustedTransmission = 
-                rawTransmission * 0.60 + 
-                enhancedDepth * 0.30 + 
-                Math.pow(1 - dc, 1.1) * 0.10;
+            // 考虑全局雾浓度的透射率混合
+            const fogAwareTransmission = 
+                rawTransmission * (0.6 - 0.2 * fogDensity) + 
+                enhancedDepth * (0.3 + 0.1 * fogDensity) + 
+                Math.pow(1 - dc, 1.2) * (0.1 + 0.1 * fogDensity);
             
-            return Math.max(minTransmission, Math.min(maxTransmission, adjustedTransmission));
+            return Math.max(minTransmission, Math.min(maxTransmission, fogAwareTransmission));
         });
 
         return smoothedTransmission;
@@ -162,32 +187,69 @@ export class DarkChannelDehaze {
             // 恢复图像
             const outputImageData = outputCtx.createImageData(width, height);
             for (let i = 0; i < width * height; i++) {
-                // 使用空间平滑的透射率
                 const t = Math.max(transmission[i], 0.001);
                 
-                // 改进的散射系数，减小差异以降低色彩偏差
-                const scatteringFactors = [0.92, 0.96, 1.0];  // 更大的散射系数差异
+                // 改进的色彩平衡和亮度控制
+                const pixelR = imageData.data[i * 4] / 255;
+                const pixelG = imageData.data[i * 4 + 1] / 255;
+                const pixelB = imageData.data[i * 4 + 2] / 255;
+                
+                // 计算像素亮度和色度
+                const luminance = 0.299 * pixelR + 0.587 * pixelG + 0.114 * pixelB;
+                const colorfulness = Math.max(pixelR, pixelG, pixelB) - Math.min(pixelR, pixelG, pixelB);
+                
+                // 自适应散射系数
+                const baseFactor = 0.95;
+                const colorfulnessFactor = Math.pow(1 - colorfulness, 0.5);
+                const luminanceFactor = Math.pow(luminance, 0.3);
+                
+                const scatteringFactors = [
+                    baseFactor * (1 + 0.02 * colorfulnessFactor),  // R
+                    baseFactor * (1 + 0.01 * colorfulnessFactor),  // G
+                    baseFactor                                      // B
+                ];
+                
+                // 色彩平衡权重
+                const colorBalanceWeights = [1.0, 1.02, 1.04];
                 
                 for (let c = 0; c < 3; c++) {
                     const original = imageData.data[i * 4 + c] / 255;
                     const A = atmosphere[c];
                     
-                    // 添加边缘感知的透射率调整
+                    // 自适应透射率调整
                     const channelT = t * (
-                        1.0 - (1.0 - scatteringFactors[c]) * Math.pow(1.0 - t, 0.6)
+                        1.0 - (1.0 - scatteringFactors[c]) * 
+                        Math.pow(1.0 - t, 0.6) * 
+                        (1 - 0.2 * colorfulnessFactor)
                     );
                     
                     const invT = 1.0 / Math.max(channelT, 0.001);
                     
-                    // 统一的gamma校正
-                    const gamma = 0.85;  // 降低gamma值以提高暗部细节
-                    
-                    let result = Math.pow(
-                        (original * invT - A * invT + A),
-                        gamma
+                    // 自适应gamma校正
+                    const baseGamma = 0.9;
+                    const adaptiveGamma = baseGamma * (
+                        1 + 0.1 * Math.pow(luminance, 0.5) +
+                        0.05 * colorfulnessFactor
                     );
                     
+                    // 改进的去雾计算
+                    let result = (original * invT - A * invT + A);
+                    
+                    // 色彩平衡调整
+                    result *= colorBalanceWeights[c];
+                    
+                    // 亮度溢出控制
+                    if (result > 1.0) {
+                        const overflow = result - 1.0;
+                        result = 1.0 - overflow * Math.pow(0.5, overflow * 10);
+                    }
+                    
+                    // gamma校正
+                    result = Math.pow(result, adaptiveGamma);
+                    
+                    // 确保结果在有效范围内
                     result = Math.max(0, Math.min(1, result));
+                    
                     outputImageData.data[i * 4 + c] = result * 255;
                 }
                 outputImageData.data[i * 4 + 3] = 255;
@@ -425,10 +487,10 @@ export class DarkChannelDehaze {
                 const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                 
                 // 改进的暗部判定
-                const darkThreshold = 0.35;
+                const darkThreshold = 0.40;
                 const isDarkArea = luminance < darkThreshold;
                 const darknessFactor = isDarkArea ? 
-                    Math.pow((darkThreshold - luminance) / darkThreshold, 1.2) : 0;
+                    Math.pow((darkThreshold - luminance) / darkThreshold, 1.1) : 0;
                 
                 // 获取增强的边缘信息
                 const edge = detectEdgeStrength(imageData, x, y, width, height);
@@ -452,21 +514,21 @@ export class DarkChannelDehaze {
                     
                     // 更平滑的暗部保护计算
                     const darkProtection = isDarkArea ? 
-                        (0.35 + 0.40 * darknessFactor) *  // 增加暗部保护强度
-                        (1 + textureWeight * 0.8) * 
-                        (1 + 0.15 * (1 - normalizedValue)) * 
-                        (1 + edge.strength * 0.3) : 0;
+                        (0.45 + 0.45 * darknessFactor) *  // 增加暗部保护强度
+                        (1 + textureWeight * 0.9) * 
+                        (1 + 0.20 * (1 - normalizedValue)) * 
+                        (1 + edge.strength * 0.35) : 0;
                     
                     // 优化自适应混合权重
                     let adaptiveWeight = Math.max(
-                        0.32,  // 提高最小保护
-                        Math.min(0.85,
-                            0.45 + 
-                            0.25 * textureWeight +   
-                            0.20 * darkProtection + // 增加暗部保护影响
-                            0.12 * (1 - cdfValue) +
-                            0.10 * (1 - normalizedValue) -
-                            0.12 * edge.strength    
+                        0.35,  // 提高最小保护
+                        Math.min(0.88,
+                            0.48 + 
+                            0.28 * textureWeight +   
+                            0.25 * darkProtection + // 增加暗部保护影响
+                            0.15 * (1 - cdfValue) +
+                            0.12 * (1 - normalizedValue) -
+                            0.10 * edge.strength    
                         )
                     );
                     
