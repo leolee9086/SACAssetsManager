@@ -136,6 +136,94 @@ export class DarkChannelDehaze {
         return smoothedTransmission;
     }
 
+    // 添加导向滤波方法
+    guidedFilter(guide, src, radius, eps) {
+        const width = guide.width;
+        const height = guide.height;
+        const size = width * height;
+        
+        // 获取导向图像数据
+        const guideCtx = this.createContext(width, height);
+        guideCtx.drawImage(guide, 0, 0);
+        const I = guideCtx.getImageData(0, 0, width, height).data;
+        
+        // 计算均值
+        const meanI = new Float32Array(size);
+        const meanP = new Float32Array(size);
+        const corrI = new Float32Array(size);
+        const corrIP = new Float32Array(size);
+        
+        // 使用盒式滤波计算局部均值
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let sumI = 0, sumP = 0, sumII = 0, sumIP = 0;
+                let count = 0;
+                
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        const nx = Math.min(Math.max(x + dx, 0), width - 1);
+                        const ny = Math.min(Math.max(y + dy, 0), height - 1);
+                        const idx = (ny * width + nx);
+                        
+                        const i = (I[idx * 4] + I[idx * 4 + 1] + I[idx * 4 + 2]) / (3 * 255);
+                        const p = src[idx];
+                        
+                        sumI += i;
+                        sumP += p;
+                        sumII += i * i;
+                        sumIP += i * p;
+                        count++;
+                    }
+                }
+                
+                const idx = y * width + x;
+                meanI[idx] = sumI / count;
+                meanP[idx] = sumP / count;
+                corrI[idx] = sumII / count;
+                corrIP[idx] = sumIP / count;
+            }
+        }
+        
+        // 计算协方差和方差
+        const a = new Float32Array(size);
+        const b = new Float32Array(size);
+        
+        for (let i = 0; i < size; i++) {
+            const varI = corrI[i] - meanI[i] * meanI[i];
+            const covIP = corrIP[i] - meanI[i] * meanP[i];
+            
+            a[i] = covIP / (varI + eps);
+            b[i] = meanP[i] - a[i] * meanI[i];
+        }
+        
+        // 应用滤波
+        const output = new Float32Array(size);
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let sumA = 0, sumB = 0;
+                let count = 0;
+                
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        const nx = Math.min(Math.max(x + dx, 0), width - 1);
+                        const ny = Math.min(Math.max(y + dy, 0), height - 1);
+                        const idx = ny * width + nx;
+                        
+                        sumA += a[idx];
+                        sumB += b[idx];
+                        count++;
+                    }
+                }
+                
+                const idx = y * width + x;
+                const i = (I[idx * 4] + I[idx * 4 + 1] + I[idx * 4 + 2]) / (3 * 255);
+                output[idx] = (sumA / count) * i + (sumB / count);
+            }
+        }
+        
+        return output;
+    }
+
     // 主处理函数
     process(inputImage) {
         return new Promise((resolve) => {
@@ -158,12 +246,14 @@ export class DarkChannelDehaze {
 
             // 计算透射率
             const transmission = this.getTransmission(darkChannel);
+            // 应用导向滤波优化透射率
+            const refinedTransmission = this.guidedFilter(inputImage, transmission, 8, 0.0001);
 
             // 恢复图像
             const outputImageData = outputCtx.createImageData(width, height);
             for (let i = 0; i < width * height; i++) {
                 // 使用空间平滑的透射率
-                const t = Math.max(transmission[i], 0.001);
+                const t = Math.max(refinedTransmission[i], 0.001);
                 
                 // 改进的散射系数，减小差异以降低色彩偏差
                 const scatteringFactors = [0.92, 0.96, 1.0];  // 更大的散射系数差异
@@ -470,7 +560,7 @@ export class DarkChannelDehaze {
                         )
                     );
                     
-                    const t = transmission[i];
+                    const t = refinedTransmission[i];
                     
                     // 更平滑的散射因子计算
                     const scatteringFactor = Math.pow(1 - t, 
