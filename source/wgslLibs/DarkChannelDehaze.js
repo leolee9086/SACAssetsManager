@@ -187,69 +187,32 @@ export class DarkChannelDehaze {
             // 恢复图像
             const outputImageData = outputCtx.createImageData(width, height);
             for (let i = 0; i < width * height; i++) {
+                // 使用空间平滑的透射率
                 const t = Math.max(transmission[i], 0.001);
                 
-                // 改进的色彩平衡和亮度控制
-                const pixelR = imageData.data[i * 4] / 255;
-                const pixelG = imageData.data[i * 4 + 1] / 255;
-                const pixelB = imageData.data[i * 4 + 2] / 255;
-                
-                // 计算像素亮度和色度
-                const luminance = 0.299 * pixelR + 0.587 * pixelG + 0.114 * pixelB;
-                const colorfulness = Math.max(pixelR, pixelG, pixelB) - Math.min(pixelR, pixelG, pixelB);
-                
-                // 自适应散射系数
-                const baseFactor = 0.95;
-                const colorfulnessFactor = Math.pow(1 - colorfulness, 0.5);
-                const luminanceFactor = Math.pow(luminance, 0.3);
-                
-                const scatteringFactors = [
-                    baseFactor * (1 + 0.02 * colorfulnessFactor),  // R
-                    baseFactor * (1 + 0.01 * colorfulnessFactor),  // G
-                    baseFactor                                      // B
-                ];
-                
-                // 色彩平衡权重
-                const colorBalanceWeights = [1.0, 1.02, 1.04];
+                // 改进的散射系数，减小差异以降低色彩偏差
+                const scatteringFactors = [0.92, 0.96, 1.0];  // 更大的散射系数差异
                 
                 for (let c = 0; c < 3; c++) {
                     const original = imageData.data[i * 4 + c] / 255;
                     const A = atmosphere[c];
                     
-                    // 自适应透射率调整
+                    // 添加边缘感知的透射率调整
                     const channelT = t * (
-                        1.0 - (1.0 - scatteringFactors[c]) * 
-                        Math.pow(1.0 - t, 0.6) * 
-                        (1 - 0.2 * colorfulnessFactor)
+                        1.0 - (1.0 - scatteringFactors[c]) * Math.pow(1.0 - t, 0.6)
                     );
                     
                     const invT = 1.0 / Math.max(channelT, 0.001);
                     
-                    // 自适应gamma校正
-                    const baseGamma = 0.9;
-                    const adaptiveGamma = baseGamma * (
-                        1 + 0.1 * Math.pow(luminance, 0.5) +
-                        0.05 * colorfulnessFactor
+                    // 统一的gamma校正
+                    const gamma = 0.85;  // 降低gamma值以提高暗部细节
+                    
+                    let result = Math.pow(
+                        (original * invT - A * invT + A),
+                        gamma
                     );
                     
-                    // 改进的去雾计算
-                    let result = (original * invT - A * invT + A);
-                    
-                    // 色彩平衡调整
-                    result *= colorBalanceWeights[c];
-                    
-                    // 亮度溢出控制
-                    if (result > 1.0) {
-                        const overflow = result - 1.0;
-                        result = 1.0 - overflow * Math.pow(0.5, overflow * 10);
-                    }
-                    
-                    // gamma校正
-                    result = Math.pow(result, adaptiveGamma);
-                    
-                    // 确保结果在有效范围内
                     result = Math.max(0, Math.min(1, result));
-                    
                     outputImageData.data[i * 4 + c] = result * 255;
                 }
                 outputImageData.data[i * 4 + 3] = 255;
