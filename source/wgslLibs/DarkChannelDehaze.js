@@ -78,40 +78,21 @@ export class DarkChannelDehaze {
     estimateAtmosphericLight(darkChannel, imageData) {
         const { width, height, data } = imageData;
         const numPixels = width * height;
+        const threshold = 0.95;
         
-        // 计算亮度和饱和度
-        const luminanceInfo = [];
+        // 找到暗通道值最高的像素
+        const pixelInfo = [];
         for (let i = 0; i < numPixels; i++) {
-            const r = data[i * 4] / 255;
-            const g = data[i * 4 + 1] / 255;
-            const b = data[i * 4 + 2] / 255;
-            
-            // 计算亮度
-            const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-            
-            // 计算饱和度
-            const max = Math.max(r, g, b);
-            const min = Math.min(r, g, b);
-            const saturation = max === 0 ? 0 : (max - min) / max;
-            
-            luminanceInfo.push({
+            pixelInfo.push({
                 dark: darkChannel[i],
-                luminance,
-                saturation,
                 idx: i
             });
         }
         
-        // 根据暗通道值和饱和度排序
-        luminanceInfo.sort((a, b) => {
-            // 优先考虑高亮度低饱和度的像素
-            const scoreA = a.luminance * (1 - a.saturation * 0.5);
-            const scoreB = b.luminance * (1 - b.saturation * 0.5);
-            return scoreB - scoreA;
-        });
+        pixelInfo.sort((a, b) => b.dark - a.dark);
         
         // 取前 0.1% 的像素
-        const topPixels = luminanceInfo.slice(0, Math.max(Math.floor(numPixels * 0.001), 1));
+        const topPixels = pixelInfo.slice(0, Math.max(Math.floor(numPixels * 0.001), 1));
         
         let sumR = 0, sumG = 0, sumB = 0;
         topPixels.forEach(({ idx }) => {
@@ -130,32 +111,26 @@ export class DarkChannelDehaze {
 
     // 计算透射率
     getTransmission(darkChannel) {
-        const omega = 0.95;
-        const minTransmission = 0.08; // 降低最小透射率以增强去雾效果
-        const maxTransmission = 0.99;
-        
-        // 计算全局雾浓度指标
-        const avgDark = darkChannel.reduce((sum, val) => sum + val, 0) / darkChannel.length;
-        const fogDensity = Math.pow(avgDark, 1.2); // 使用非线性映射增强对薄雾的敏感度
+        const omega = 0.95;  // 增加基础omega以加强去雾效果
+        const minTransmission = 0.12;  // 降低最小透射率以增强去雾
+        const maxTransmission = 0.99;  // 提高最大透射率
         
         const smoothedTransmission = darkChannel.map(dc => {
-            // 自适应omega调整
-            const adaptiveOmega = omega * (1 + 0.4 * Math.pow(dc, 1.4)) * (1 + 0.2 * fogDensity);
-            
-            // 改进的透射率计算
+            // 使用更激进的非线性omega调整
+            const adaptiveOmega = omega * (1 + 0.35 * Math.pow(dc, 1.6));
             const rawTransmission = 1.0 - adaptiveOmega * dc;
             
-            // 增强的深度因子计算
-            const depthFactor = Math.pow(dc, 0.5);
-            const enhancedDepth = depthFactor * (1 + 0.3 * Math.pow(1 - depthFactor, 1.3));
+            // 改进的深度因子计算，加强深度感知
+            const depthFactor = Math.pow(dc, 0.55);
+            const enhancedDepth = depthFactor * (1 + 0.25 * Math.pow(1 - depthFactor, 1.2));
             
-            // 考虑全局雾浓度的透射率混合
-            const fogAwareTransmission = 
-                rawTransmission * (0.6 - 0.2 * fogDensity) + 
-                enhancedDepth * (0.3 + 0.1 * fogDensity) + 
-                Math.pow(1 - dc, 1.2) * (0.1 + 0.1 * fogDensity);
+            // 更激进的透射率混合
+            const adjustedTransmission = 
+                rawTransmission * 0.55 + 
+                enhancedDepth * 0.35 + 
+                Math.pow(1 - dc, 1.0) * 0.10;
             
-            return Math.max(minTransmission, Math.min(maxTransmission, fogAwareTransmission));
+            return Math.max(minTransmission, Math.min(maxTransmission, adjustedTransmission));
         });
 
         return smoothedTransmission;
