@@ -4,6 +4,7 @@
 
 
 import { FeatureExtractor } from "./feautureExtractor.js";
+import { MinHeap } from '../utils/array/minHeap.js';
 // 特征系统
 
 class LUTGenerator {
@@ -181,15 +182,11 @@ class LUTGenerator {
     }
 
     findBrightestPixels(darkChannel, percentile) {
-        // 添加数据验证
+        // 数据验证
         if (!darkChannel || !darkChannel.width || !darkChannel.height) {
             console.warn('Invalid dark channel data:', darkChannel);
             return [];
         }
-
-        // 获取暗通道的像素数据
-        const width = darkChannel.width;
-        const height = darkChannel.height;
 
         // 检查是否为 GPUTexture
         if (darkChannel instanceof GPUTexture) {
@@ -204,7 +201,7 @@ class LUTGenerator {
         // 如果是 Canvas
         if (darkChannel.getContext) {
             const ctx = darkChannel.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, width, height);
+            const imageData = ctx.getImageData(0, 0, darkChannel.width, darkChannel.height);
             return this.findBrightestPixelsFromImageData(imageData, percentile);
         }
 
@@ -216,22 +213,35 @@ class LUTGenerator {
         const pixels = imageData.data;
         const width = imageData.width;
         const height = imageData.height;
-        const pixelInfo = [];
+        
+        // 使用最小堆优化
+        const minHeap = new MinHeap((a, b) => a.brightness - b.brightness);
+        const targetPixelCount = Math.max(1, Math.floor(pixels.length / 4 * percentile));
 
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const i = (y * width + x) * 4;
-                pixelInfo.push({
-                    brightness: pixels[i],
-                    x: x,
-                    y: y
-                });
+                const brightness = pixels[i];  // 使用红色通道作为亮度
+
+                if (minHeap.size() < targetPixelCount) {
+                    minHeap.push({
+                        brightness,
+                        x: x,
+                        y: y
+                    });
+                } else if (brightness > minHeap.peek().brightness) {
+                    minHeap.pop();
+                    minHeap.push({
+                        brightness,
+                        x: x,
+                        y: y
+                    });
+                }
             }
         }
 
-        pixelInfo.sort((a, b) => b.brightness - a.brightness);
-        const numPixels = Math.max(1, Math.floor(pixelInfo.length * percentile));
-        return pixelInfo.slice(0, numPixels);
+        // 转换为降序排列
+        return minHeap.toArray().sort((a, b) => b.brightness - a.brightness);
     }
 
     async findBrightestPixelsFromTexture(texture, percentile) {
@@ -252,20 +262,33 @@ class LUTGenerator {
         await buffer.mapAsync(GPUMapMode.READ);
         const data = new Uint8Array(buffer.getMappedRange());
 
-        const pixelInfo = [];
+        // 使用最小堆优化
+        const minHeap = new MinHeap((a, b) => a.brightness - b.brightness);
+        const targetPixelCount = Math.max(1, Math.floor(data.length / 4 * percentile));
+
         for (let i = 0; i < data.length; i += 4) {
-            pixelInfo.push({
-                brightness: data[i],
-                x: (i / 4) % texture.width,
-                y: Math.floor((i / 4) / texture.width)
-            });
+            const brightness = data[i];  // 使用红色通道作为亮度
+
+            if (minHeap.size() < targetPixelCount) {
+                minHeap.push({
+                    brightness,
+                    x: (i / 4) % texture.width,
+                    y: Math.floor((i / 4) / texture.width)
+                });
+            } else if (brightness > minHeap.peek().brightness) {
+                minHeap.pop();
+                minHeap.push({
+                    brightness,
+                    x: (i / 4) % texture.width,
+                    y: Math.floor((i / 4) / texture.width)
+                });
+            }
         }
 
         buffer.unmap();
 
-        pixelInfo.sort((a, b) => b.brightness - a.brightness);
-        const numPixels = Math.max(1, Math.floor(pixelInfo.length * percentile));
-        return pixelInfo.slice(0, numPixels);
+        // 转换为降序排列
+        return minHeap.toArray().sort((a, b) => b.brightness - a.brightness);
     }
 
     selectBrightestFromOriginal(originalImage, brightestPixels) {
@@ -669,7 +692,7 @@ class DehazeLUTSystem {
                         );
                         
                         // 计算 LUT 采样坐标
-                        let lutSize = 64.0;
+                        let lutSize = 128.0;
                         let scale = (lutSize - 1.0) / lutSize;
                         let offset = 0.5 / lutSize;
                         
