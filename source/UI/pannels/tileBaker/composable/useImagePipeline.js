@@ -64,12 +64,15 @@ export function useImagePipeline() {
         const tempCtx = tempCanvas.getContext('2d');
         
         // 创建 ImageData 并填充像素数据
+        console.time('数据拷贝1');
+
         const imageData = new ImageData(
           new Uint8ClampedArray(ctx.pixels),
           ctx.width,
           ctx.height
         );
         tempCtx.putImageData(imageData, 0, 0);
+        console.timeEnd('数据拷贝1');
 
         // 处理图像并获取调试信息
         const result = await dehazer.process(tempCanvas);
@@ -87,12 +90,16 @@ export function useImagePipeline() {
         }
         
         // 获取处理后的图像数据
+        console.time('数据拷贝');
+
         const resultCtx = result.getContext('2d');
         const resultData = resultCtx.getImageData(0, 0, ctx.width, ctx.height);
         
         // 更新原始 ImageCTX 的像素数据
+
         ctx.pixels.set(resultData.data);
-        
+        console.timeEnd('数据拷贝');
+
         return ctx;
       }, [
         { 
@@ -112,7 +119,7 @@ export function useImagePipeline() {
         }
       ]),
 
-    /*  createProcessingStep('灰度处理', async (ctx) => {
+     /*createProcessingStep('灰度处理', async (ctx) => {
         const { pixels } = ctx
         for (let i = 0; i < pixels.length; i += 4) {
           const avg = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3

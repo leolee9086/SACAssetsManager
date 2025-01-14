@@ -387,3 +387,87 @@ export function rgbToXyz(rgb) {
         z: r * 0.0193339 + g * 0.1191920 + b * 0.9503041
     };
 }
+
+/**
+ * 将sRGB颜色值转换为线性空间
+ * @param {number} value - sRGB颜色值（0-1）
+ * @returns {number} 线性空间颜色值
+ */
+export function sRGBToLinear(value) {
+    return value <= 0.04045 
+        ? value / 12.92 
+        : Math.pow((value + 0.055) / 1.055, 2.4);
+}
+
+/**
+ * 将线性空间颜色值转换为sRGB
+ * @param {number} value - 线性空间颜色值
+ * @returns {number} sRGB颜色值（0-1）
+ */
+export function linearToSRGB(value) {
+    return value <= 0.0031308 
+        ? value * 12.92 
+        : 1.055 * Math.pow(value, 1/2.4) - 0.055;
+}
+
+/**
+ * 人眼感知亮度计算工具
+ */
+export const PerceivedBrightness = {
+    /**
+     * Rec. 709 标准亮度计算
+     * @param {number} r - 红色分量
+     * @param {number} g - 绿色分量
+     * @param {number} b - 蓝色分量
+     * @returns {number} 亮度值
+     */
+    rec709Luminance(r, g, b) {
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    },
+
+    /**
+     * Rec. 2020 标准亮度计算
+     * @param {number} r - 红色分量
+     * @param {number} g - 绿色分量
+     * @param {number} b - 蓝色分量
+     * @returns {number} 亮度值
+     */
+    rec2020Luminance(r, g, b) {
+        return 0.2627 * r + 0.6780 * g + 0.0593 * b;
+    },
+
+    /**
+     * CIE 标准亮度计算
+     * @param {number} r - 红色分量
+     * @param {number} g - 绿色分量
+     * @param {number} b - 蓝色分量
+     * @returns {number} 亮度值
+     */
+    cieLuminance(r, g, b) {
+        return 0.299 * r + 0.587 * g + 0.114 * b;
+    },
+
+    /**
+     * HSP 亮度计算
+     * @param {number} r - 红色分量
+     * @param {number} g - 绿色分量
+     * @param {number} b - 蓝色分量
+     * @returns {number} 亮度值
+     */
+    hspLuminance(r, g, b) {
+        return Math.sqrt(
+            0.299 * (r * r) + 
+            0.587 * (g * g) + 
+            0.114 * (b * b)
+        );
+    },
+
+    /**
+     * 标准化亮度值
+     * @param {number} value - 亮度值
+     * @returns {number} 标准化后的亮度值
+     */
+    normalize(value) {
+        return Math.min(1, Math.max(0, value));
+    }
+};

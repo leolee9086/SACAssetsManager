@@ -421,35 +421,43 @@ class DehazeLUTSystem {
                     0.95  // 提高最大透射率以保持亮部细节
                 );
 
-                // 修改：分别处理每个颜色通道的去雾
-                let avgAtmLight = (params.atmosphericLight.r + params.atmosphericLight.g + params.atmosphericLight.b) / 3.0;
+                // 增强雾浓度检测和修正逻辑
+                let fogIntensityFactor = 1.5;  // 新增：雾浓度调整因子
+                let transmissionCurve = pow(transmission, fogIntensityFactor);
+
+                // 使用 params.atmosphericLight 作为平均大气光照
+                let avgAtmLight = dot(params.atmosphericLight, vec3<f32>(1.0/3.0));
+
+                // 更复杂的去雾算法，增加对暗部的保护
                 var dehazeColor = vec3<f32>(
-                    (normalizedCoords.r - avgAtmLight) / max(transmission, 0.1) + avgAtmLight,
-                    (normalizedCoords.g - avgAtmLight) / max(transmission, 0.1) + avgAtmLight,
-                    (normalizedCoords.b - avgAtmLight) / max(transmission, 0.1) + avgAtmLight
+                    (normalizedCoords.r - avgAtmLight) / max(transmissionCurve, 0.05) + avgAtmLight,
+                    (normalizedCoords.g - avgAtmLight) / max(transmissionCurve, 0.05) + avgAtmLight,
+                    (normalizedCoords.b - avgAtmLight) / max(transmissionCurve, 0.05) + avgAtmLight
                 );
 
-                // 增强对比度和饱和度
+                // 对暗部进行更温和的处理
+                let darknessMask = smoothstep(0.0, 0.2, darkChannel);
+                dehazeColor = mix(
+                    normalizedCoords,  // 保留原始颜色
+                    dehazeColor, 
+                    darknessMask * (1.0 - transmission) * 0.7  // 降低修改强度
+                );
+
+                // 对比度和饱和度自适应调整，降低对暗部的影响
+                let contrastAdaptive = mix(1.1, 1.3, darknessMask);
+                let saturationAdaptive = mix(1.2, 1.5, darknessMask);
+
                 let luminance = dot(dehazeColor, vec3<f32>(0.299, 0.587, 0.114));
-                let saturation = 1.5;  // 增加饱和度
-                let contrast = 1.3;    // 增加对比度
-                
-                dehazeColor = mix(vec3<f32>(luminance), dehazeColor, saturation);
-                dehazeColor = (dehazeColor - 0.5) * contrast + 0.5;
+                dehazeColor = mix(
+                    vec3<f32>(luminance), 
+                    dehazeColor, 
+                    saturationAdaptive
+                );
+                dehazeColor = (dehazeColor - 0.5) * contrastAdaptive + 0.5;
 
-                // 修改混合逻辑，增加对有雾区域的影响
-                var finalColor = dehazeColor;
-                if (darkChannel < 0.382*transmission) {  // 提高阈值，增加对有雾区域的影响
-                    finalColor = mix(
-                        normalizedCoords,
-                        dehazeColor,
-                        smoothstep(0.0, 0.1, darkChannel/transmission)  // 调整 smoothstep 范围
-                    );
-                }
+                // 最终颜色处理，保留更多细节
+                let finalColor = clamp(dehazeColor, vec3<f32>(0.0), vec3<f32>(1.0));
 
-                // 确保颜色在有效范围内
-                finalColor = clamp(finalColor, vec3<f32>(0.0), vec3<f32>(1.0));
-                
                 textureStore(
                     outputLUT, 
                     coords, 
