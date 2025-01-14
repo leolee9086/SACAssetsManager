@@ -25,15 +25,15 @@ class LUTGenerator {
         // 估计大气光照
         const atmosphericLight = await this.estimateAtmosphericLight(featureData);
         const lutSize = this.lutSize;
-        
+
         // 使用 WebGPU 计算 LUT
         const lutTexture = this.device.createTexture({
             size: [lutSize, lutSize, lutSize],
             format: 'rgba8unorm',
             dimension: '3d',
-            usage: GPUTextureUsage.STORAGE_BINDING | 
-                   GPUTextureUsage.TEXTURE_BINDING | 
-                   GPUTextureUsage.COPY_DST
+            usage: GPUTextureUsage.STORAGE_BINDING |
+                GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST
         });
 
         // 创建参数缓冲区
@@ -148,14 +148,14 @@ class LUTGenerator {
         const passEncoder = commandEncoder.beginComputePass();
         passEncoder.setPipeline(computePipeline);
         passEncoder.setBindGroup(0, bindGroup);
-        
+
         // 使用更高效的工作组分配
         passEncoder.dispatchWorkgroups(
-            Math.ceil(lutSize / 4), 
-            Math.ceil(lutSize / 4), 
+            Math.ceil(lutSize / 4),
+            Math.ceil(lutSize / 4),
             Math.ceil(lutSize / 4)
         );
-        
+
         passEncoder.end();
         this.device.queue.submit([commandEncoder.finish()]);
 
@@ -167,10 +167,10 @@ class LUTGenerator {
         if (featureData.analysis && featureData.analysis.darkChannelStats) {
             const darkChannelMean = featureData.analysis.darkChannelStats.mean;
             const variance = featureData.analysis.darkChannelStats.variance;
-            
+
             // 使用更复杂的估计方法
             const baseLight = Math.min(0.9, Math.max(0.4, darkChannelMean - variance * 0.5));
-            
+
             return [
                 baseLight * 0.95,
                 baseLight,
@@ -190,7 +190,7 @@ class LUTGenerator {
         // 获取暗通道的像素数据
         const width = darkChannel.width;
         const height = darkChannel.height;
-        
+
         // 检查是否为 GPUTexture
         if (darkChannel instanceof GPUTexture) {
             return this.findBrightestPixelsFromTexture(darkChannel, percentile);
@@ -284,10 +284,10 @@ class LUTGenerator {
             const r = pixels[i];
             const g = pixels[i + 1];
             const b = pixels[i + 2];
-            
+
             // 计算亮度
             const brightness = (r + g + b) / 3;
-            
+
             // 更新最亮的颜色
             if (brightness > maxBrightness) {
                 maxBrightness = brightness;
@@ -305,15 +305,15 @@ class LUTGenerator {
 
     // 添加 sRGB 和线性空间转换函数
     sRGBToLinear(value) {
-        return value <= 0.04045 
-            ? value / 12.92 
+        return value <= 0.04045
+            ? value / 12.92
             : Math.pow((value + 0.055) / 1.055, 2.4);
     }
 
     linearToSRGB(value) {
-        return value <= 0.0031308 
-            ? value * 12.92 
-            : 1.055 * Math.pow(value, 1/2.4) - 0.055;
+        return value <= 0.0031308
+            ? value * 12.92
+            : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
     }
 }
 
@@ -356,7 +356,7 @@ class DehazeLUTSystem {
         // 更新参数计算
         const { darkChannelStats } = features.analysis;
         const atmosphericLight = await this.generator.estimateAtmosphericLight(features);
-        
+
         const paramsBuffer = this.device.createBuffer({
             size: 64,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -444,16 +444,23 @@ class DehazeLUTSystem {
                 );
 
                 // 对比度和饱和度自适应调整，降低对暗部的影响
-                let contrastAdaptive = mix(1.1, 1.3, darknessMask);
-                let saturationAdaptive = mix(1.2, 1.5, darknessMask);
-
-                let luminance = dot(dehazeColor, vec3<f32>(0.299, 0.587, 0.114));
-                dehazeColor = mix(
-                    vec3<f32>(luminance), 
-                    dehazeColor, 
-                    saturationAdaptive
-                );
+                let contrastAdaptive = mix(1.111, 1.3, darknessMask);
                 dehazeColor = (dehazeColor - 0.5) * contrastAdaptive + 0.5;
+                let saturationAdaptive = mix(1.2, 1.5, darknessMask);
+                let luminance = dot(dehazeColor, vec3<f32>(0.299, 0.587, 0.114));
+                let originalLuminance = dot(normalizedCoords, vec3<f32>(0.299, 0.587, 0.114));
+                // 平滑亮度过渡，避免极端变化
+                let luminanceBlend = smoothstep(
+                    originalLuminance * 0.7, 
+                    originalLuminance * 1.3, 
+                    luminance
+                );
+
+                dehazeColor = mix(
+                    vec3<f32>(originalLuminance),  // 使用原始图像的亮度作为基准
+                    dehazeColor, 
+                    mix(saturationAdaptive * 0.8, saturationAdaptive, luminanceBlend)
+                );
 
                 // 最终颜色处理，保留更多细节
                 let finalColor = clamp(dehazeColor, vec3<f32>(0.0), vec3<f32>(1.0));
@@ -512,9 +519,9 @@ class DehazeLUTSystem {
         const inputTexture = this.device.createTexture({
             size: [input.width, input.height],
             format: 'rgba8unorm',
-            usage: GPUTextureUsage.TEXTURE_BINDING | 
-                   GPUTextureUsage.COPY_DST |
-                   GPUTextureUsage.STORAGE_BINDING
+            usage: GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.STORAGE_BINDING
         });
 
         const imageData = input.getContext('2d').getImageData(0, 0, input.width, input.height);
@@ -596,9 +603,9 @@ class DehazeLUTSystem {
             size: [inputTexture.width, inputTexture.height],
             format: 'rgba8unorm',
             usage: GPUTextureUsage.RENDER_ATTACHMENT |
-                   GPUTextureUsage.COPY_SRC |
-                   GPUTextureUsage.STORAGE_BINDING |
-                   GPUTextureUsage.TEXTURE_BINDING
+                GPUTextureUsage.COPY_SRC |
+                GPUTextureUsage.STORAGE_BINDING |
+                GPUTextureUsage.TEXTURE_BINDING
         });
 
         // 修改渲染管线配置
@@ -875,9 +882,9 @@ class DarkChannelDehaze {
             const inputTexture = this.device.createTexture({
                 size: [input.width, input.height],
                 format: 'rgba8unorm',
-                usage: GPUTextureUsage.TEXTURE_BINDING | 
-                       GPUTextureUsage.COPY_DST |
-                       GPUTextureUsage.STORAGE_BINDING
+                usage: GPUTextureUsage.TEXTURE_BINDING |
+                    GPUTextureUsage.COPY_DST |
+                    GPUTextureUsage.STORAGE_BINDING
             });
 
             const imageData = input.getContext('2d').getImageData(0, 0, input.width, input.height);
