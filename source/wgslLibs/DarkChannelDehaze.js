@@ -500,36 +500,49 @@ class DehazeLUTSystem {
         return warpedLUT;
     }
 
+    async preprocessImage(input) {
+        const inputTexture = this.device.createTexture({
+            size: [input.width, input.height],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | 
+                   GPUTextureUsage.COPY_DST |
+                   GPUTextureUsage.STORAGE_BINDING
+        });
+
+        const imageData = input.getContext('2d').getImageData(0, 0, input.width, input.height);
+        this.device.queue.writeTexture(
+            { texture: inputTexture },
+            imageData.data,
+            { bytesPerRow: input.width * 4, rowsPerImage: input.height },
+            { width: input.width, height: input.height }
+        );
+
+        return inputTexture;
+    }
+
     async process(inputTexture) {
         if (!this.initialized) {
             await this.init();
         }
 
-        // 添加预处理步骤
-        const preprocessedTexture = await this.preprocessImage(inputTexture);
-        
         // 提取特征
-        const features = await this.featureExtractor.extract(preprocessedTexture);
+        const features = await this.featureExtractor.extract(inputTexture);
 
         // 生成或更新基础 LUT
         if (!this.baseLUT || this.shouldUpdateBaseLUT(features)) {
-            console.log('Generating new base LUT...');
             this.baseLUT = await this.generator.createBaseLUT(features);
             this.lastFeatures = features;
         }
 
         // 变形 LUT
         const warpedLUT = await this.warpLUT(this.baseLUT, features);
-        console.log('Warped LUT generated');
 
         // 应用 LUT
-        const outputTexture = await this.applyLUT(preprocessedTexture, warpedLUT, features);
-        console.log('LUT applied');
+        const outputTexture = await this.applyLUT(inputTexture, warpedLUT, features);
 
         // 转换为图像
         const result = await this.textureToImage(outputTexture);
 
-        // 返回结果和调试信息
         return {
             result,
             debug: {
@@ -812,100 +825,6 @@ class DehazeLUTSystem {
 
         return canvas;
     }
-
-    // 添加预处理方法
-    async preprocessImage(input) {
-        // 创建输入纹理
-        const inputTexture = this.device.createTexture({
-            size: [input.width, input.height],
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.TEXTURE_BINDING | 
-                   GPUTextureUsage.COPY_DST |
-                   GPUTextureUsage.STORAGE_BINDING  // 添加存储绑定使用权限
-        });
-
-        // 将输入图像数据复制到纹理
-        const imageData = input.getContext('2d').getImageData(0, 0, input.width, input.height);
-        this.device.queue.writeTexture(
-            { texture: inputTexture },
-            imageData.data,
-            { bytesPerRow: input.width * 4, rowsPerImage: input.height },
-            { width: input.width, height: input.height }
-        );
-
-        // 创建输出纹理
-        const outputTexture = this.device.createTexture({
-            size: [input.width, input.height],
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.STORAGE_BINDING | 
-                   GPUTextureUsage.TEXTURE_BINDING | 
-                   GPUTextureUsage.COPY_SRC
-        });
-
-        // 创建预处理管线
-        const preprocessPipeline = await this.device.createComputePipeline({
-            layout: 'auto',
-            compute: {
-                module: this.device.createShaderModule({
-                    code: /* wgsl */`
-                        @group(0) @binding(0) var inputTex: texture_2d<f32>;
-                        @group(0) @binding(1) var outputTex: texture_storage_2d<rgba8unorm, write>;
-
-                        @compute @workgroup_size(8, 8)
-                        fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-                            let dims = textureDimensions(inputTex);
-                            if(any(global_id.xy >= dims)) {
-                                return;
-                            }
-
-                            // 直接使用 textureLoad 而不是 textureSample
-                            let color = textureLoad(inputTex, vec2<i32>(global_id.xy), 0);
-                            
-                            // 增强对比度和亮度
-                            let enhanced = pow(color.rgb, vec3<f32>(0.9));
-                            let contrast = mix(enhanced, vec3<f32>(0.5), 0.2);
-                            
-                            textureStore(outputTex, vec2<i32>(global_id.xy), vec4<f32>(contrast, color.a));
-                        }
-                    `
-                }),
-                entryPoint: 'main'
-            }
-        });
-
-        // 创建绑定组 (移除了采样器，因为不再需要)
-        const bindGroup = this.device.createBindGroup({
-            layout: preprocessPipeline.getBindGroupLayout(0),
-            entries: [
-                {
-                    binding: 0,
-                    resource: inputTexture.createView()
-                },
-                {
-                    binding: 1,
-                    resource: outputTexture.createView()
-                }
-            ]
-        });
-
-        // 执行预处理
-        const commandEncoder = this.device.createCommandEncoder();
-        const passEncoder = commandEncoder.beginComputePass();
-        passEncoder.setPipeline(preprocessPipeline);
-        passEncoder.setBindGroup(0, bindGroup);
-
-        const workgroupsX = Math.ceil(input.width / 8);
-        const workgroupsY = Math.ceil(input.height / 8);
-        passEncoder.dispatchWorkgroups(workgroupsX, workgroupsY);
-        passEncoder.end();
-
-        this.device.queue.submit([commandEncoder.finish()]);
-
-        // 清理输入纹理
-        inputTexture.destroy();
-
-        return outputTexture;
-    }
 }
 
 // 主类
@@ -925,7 +844,6 @@ class DarkChannelDehaze {
                 const adapter = await navigator.gpu.requestAdapter();
                 if (!adapter) throw new Error('No GPU adapter found');
                 this.device = await adapter.requestDevice();
-                if (!this.device) throw new Error('Failed to create GPU device');
             }
 
             // 初始化 LUT 系统
@@ -945,38 +863,25 @@ class DarkChannelDehaze {
         }
 
         try {
-            const { result, debug } = await this.lutSystem.process(input);
+            // 创建输入纹理
+            const inputTexture = this.device.createTexture({
+                size: [input.width, input.height],
+                format: 'rgba8unorm',
+                usage: GPUTextureUsage.TEXTURE_BINDING | 
+                       GPUTextureUsage.COPY_DST |
+                       GPUTextureUsage.STORAGE_BINDING
+            });
 
-            // 获取输入和输出的像素数据进行比较
-            const inputCtx = input.getContext('2d');
-            const inputData = inputCtx.getImageData(0, 0, input.width, input.height).data;
+            const imageData = input.getContext('2d').getImageData(0, 0, input.width, input.height);
+            this.device.queue.writeTexture(
+                { texture: inputTexture },
+                imageData.data,
+                { bytesPerRow: input.width * 4, rowsPerImage: input.height },
+                { width: input.width, height: input.height }
+            );
 
-            const resultCtx = result.getContext('2d');
-            const resultData = resultCtx.getImageData(0, 0, result.width, result.height).data;
-
-            // 比较前几个像素的值
-            console.log('Comparing first 5 pixels:');
-            for (let i = 0; i < 20; i += 4) {
-                console.log(`Pixel ${i / 4}:`);
-                console.log(`Input: R=${inputData[i]}, G=${inputData[i + 1]}, B=${inputData[i + 2]}, A=${inputData[i + 3]}`);
-                console.log(`Result: R=${resultData[i]}, G=${resultData[i + 1]}, B=${resultData[i + 2]}, A=${resultData[i + 3]}`);
-            }
-
-            // 检查是否所有像素都相同
-            let identical = true;
-            let differences = 0;
-            for (let i = 0; i < inputData.length; i++) {
-                if (inputData[i] !== resultData[i]) {
-                    identical = false;
-                    differences++;
-                }
-            }
-
-            console.log('Images are identical:', identical);
-            if (!identical) {
-                console.log(`Number of different pixels: ${differences / 4}`);
-                console.log(`Percentage different: ${(differences / inputData.length * 100).toFixed(2)}%`);
-            }
+            // 直接传递输入纹理
+            const { result, debug } = await this.lutSystem.process(inputTexture);
 
             this.debugInfo = debug;
             return result;
@@ -986,7 +891,7 @@ class DarkChannelDehaze {
         }
     }
 
-    // 添加获取调试信息的方法
+    // 保留获取调试信息的方法
     getDebugInfo() {
         return this.debugInfo;
     }
