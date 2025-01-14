@@ -914,9 +914,6 @@ class DarkChannelDehaze {
         this.device = device;
         this.initialized = false;
         this.lutSystem = null;
-        this.pipelineCache = new Map();
-        this.texturePool = new TexturePool(device);
-        this.bufferPool = new BufferPool(device);
     }
 
     async init() {
@@ -942,110 +939,56 @@ class DarkChannelDehaze {
         }
     }
 
-    async getCachedPipeline(key, createPipelineFn) {
-        if (!this.pipelineCache.has(key)) {
-            const pipeline = await createPipelineFn();
-            this.pipelineCache.set(key, pipeline);
-        }
-        return this.pipelineCache.get(key);
-    }
-
     async process(input) {
         if (!this.initialized) {
             await this.init();
         }
 
         try {
-            const inputTexture = this.texturePool.acquire(input.width, input.height);
-            const outputTexture = this.texturePool.acquire(input.width, input.height);
+            const { result, debug } = await this.lutSystem.process(input);
 
-            const result = await this.lutSystem.process(inputTexture);
+            // 获取输入和输出的像素数据进行比较
+            const inputCtx = input.getContext('2d');
+            const inputData = inputCtx.getImageData(0, 0, input.width, input.height).data;
 
-            this.texturePool.release(inputTexture);
-            this.texturePool.release(outputTexture);
+            const resultCtx = result.getContext('2d');
+            const resultData = resultCtx.getImageData(0, 0, result.width, result.height).data;
 
+            // 比较前几个像素的值
+            console.log('Comparing first 5 pixels:');
+            for (let i = 0; i < 20; i += 4) {
+                console.log(`Pixel ${i / 4}:`);
+                console.log(`Input: R=${inputData[i]}, G=${inputData[i + 1]}, B=${inputData[i + 2]}, A=${inputData[i + 3]}`);
+                console.log(`Result: R=${resultData[i]}, G=${resultData[i + 1]}, B=${resultData[i + 2]}, A=${resultData[i + 3]}`);
+            }
+
+            // 检查是否所有像素都相同
+            let identical = true;
+            let differences = 0;
+            for (let i = 0; i < inputData.length; i++) {
+                if (inputData[i] !== resultData[i]) {
+                    identical = false;
+                    differences++;
+                }
+            }
+
+            console.log('Images are identical:', identical);
+            if (!identical) {
+                console.log(`Number of different pixels: ${differences / 4}`);
+                console.log(`Percentage different: ${(differences / inputData.length * 100).toFixed(2)}%`);
+            }
+
+            this.debugInfo = debug;
             return result;
         } catch (error) {
-            console.error('Processing error', error);
+            console.error('Error processing image:', error);
+            throw error;
         }
     }
 
     // 添加获取调试信息的方法
     getDebugInfo() {
         return this.debugInfo;
-    }
-}
-
-// 新增：纹理对象池
-class TexturePool {
-    constructor(device, maxPoolSize = 10) {
-        this.device = device;
-        this.pool = [];
-        this.maxPoolSize = maxPoolSize;
-    }
-
-    acquire(width, height) {
-        const existingTexture = this.pool.find(t => 
-            t.width === width && t.height === height
-        );
-
-        if (existingTexture) {
-            return existingTexture;
-        }
-
-        const newTexture = this.device.createTexture({
-            size: [width, height],
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | 
-                   GPUTextureUsage.TEXTURE_BINDING | 
-                   GPUTextureUsage.COPY_SRC | 
-                   GPUTextureUsage.COPY_DST
-        });
-
-        if (this.pool.length < this.maxPoolSize) {
-            this.pool.push(newTexture);
-        }
-
-        return newTexture;
-    }
-
-    release(texture) {
-        // 可以实现更复杂的释放逻辑
-        texture.destroy();
-    }
-}
-
-// 新增：缓冲区对象池
-class BufferPool {
-    constructor(device, maxPoolSize = 20) {
-        this.device = device;
-        this.pool = new Map();
-        this.maxPoolSize = maxPoolSize;
-    }
-
-    acquire(size, usage) {
-        const key = `${size}-${usage}`;
-        if (!this.pool.has(key)) {
-            this.pool.set(key, []);
-        }
-
-        const pooledBuffers = this.pool.get(key);
-        const existingBuffer = pooledBuffers.pop();
-
-        if (existingBuffer) {
-            return existingBuffer;
-        }
-
-        const newBuffer = this.device.createBuffer({
-            size,
-            usage
-        });
-
-        return newBuffer;
-    }
-
-    release(buffer) {
-        buffer.destroy();
     }
 }
 
