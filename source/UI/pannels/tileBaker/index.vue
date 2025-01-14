@@ -98,6 +98,31 @@
             </div>
           </template>
           
+          <template #debug v-if="step.debugInfo">
+            <div class="debug-previews">
+              <div v-if="step.debugInfo.darkChannel" class="debug-preview">
+                <h4>暗通道图</h4>
+                <img :src="step.debugInfo.darkChannel.toDataURL()" />
+              </div>
+              <div v-if="step.debugInfo.transmission" class="debug-preview">
+                <h4>透射率图</h4>
+                <img :src="step.debugInfo.transmission.toDataURL()" />
+              </div>
+              <div v-if="step.debugInfo.edges" class="debug-preview">
+                <h4>边缘图</h4>
+                <img :src="step.debugInfo.edges.toDataURL()" />
+              </div>
+              <div v-if="step.debugInfo.features" class="debug-info">
+                <h4>特征信息</h4>
+                <pre>{{ JSON.stringify(step.debugInfo.features, null, 2) }}</pre>
+              </div>
+              <div v-if="step.debugInfo.atmosphericLight" class="debug-info">
+                <h4>大气光值</h4>
+                <pre>{{ JSON.stringify(step.debugInfo.atmosphericLight, null, 2) }}</pre>
+              </div>
+            </div>
+          </template>
+          
           <template #controls>
             <button 
               v-if="step.processed"
@@ -533,5 +558,49 @@ button:hover:not(:disabled) {
   text-align: right;
   font-size: 0.9em;
   color: #666;
+}
+
+.debug-previews {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.debug-preview {
+  margin-bottom: 15px;
+}
+
+.debug-preview h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.debug-preview img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.debug-info {
+  margin-bottom: 15px;
+}
+
+.debug-info h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.debug-info pre {
+  margin: 0;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  overflow-x: auto;
 }
 </style>

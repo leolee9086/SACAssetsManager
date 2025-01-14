@@ -20,6 +20,8 @@
           </div>
           <slot name="params"></slot>
           <slot name="controls"></slot>
+          <slot name="debug"></slot>
+
         </div>
         <div class="step-preview" v-show="processed">
           <canvas ref="thumbnailCanvas" class="thumbnail"></canvas>

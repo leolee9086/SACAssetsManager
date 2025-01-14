@@ -1,6 +1,15 @@
-// LUT构建器类
-class LUTBuilder {
-    constructor() {
+/**
+ * 基于LAMP架构的暗通道去雾算法实现
+ */
+
+
+import { FeatureExtractor } from "./feautureExtractor.js";
+// 特征系统
+
+class LUTGenerator {
+    constructor(device) {
+        this.device = device;
+        this.lutSize = 64;
         this.params = {
             atmosphere: [1.0, 1.0, 1.0],
             beta: 1.0,
@@ -12,706 +21,1036 @@ class LUTBuilder {
         };
     }
 
-    createContext(width, height) {
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        return canvas.getContext('2d');
-    }
-
-    // 移动原始类中的暗通道、大气光、透射率等计算方法
-    getDarkChannel(imageData, radius) {
-        const { width, height, data } = imageData;
-        const darkChannel = new Float32Array(width * height);
-
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const idx = (y * width + x) * 4;
-                // 计算当前像素的暗通道值
-                const darkValue = Math.min(
-                    data[idx] / 255,     // R
-                    data[idx + 1] / 255, // G
-                    data[idx + 2] / 255  // B
-                );
-                darkChannel[y * width + x] = darkValue;
-            }
-        }
-
-        // 添加边缘感知的权重计算
-        const edgeWeights = this.calculateEdgeWeights(imageData);
+    async createBaseLUT(featureData) {
+        // 估计大气光照
+        const atmosphericLight = await this.estimateAtmosphericLight(featureData);
+        const lutSize = this.lutSize;
         
-        // 进行最小值滤波
-        const paddedDark = new Float32Array(width * height);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                let minVal = darkChannel[y * width + x];
-                let weightSum = 1.0;
-                let valueSum = minVal;
-    
-                for (let dy = -radius; dy <= radius; dy++) {
-                    for (let dx = -radius; dx <= radius; dx++) {
-                        if (dx === 0 && dy === 0) continue;
-                        
-                        const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                        const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                        
-                        // 添加距离权重
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        const weight = 1.0 / (1.0 + dist);
-                        
-                        weightSum += weight;
-                        valueSum += darkChannel[ny * width + nx] * weight;
-                    }
+        // 使用 WebGPU 计算 LUT
+        const lutTexture = this.device.createTexture({
+            size: [lutSize, lutSize, lutSize],
+            format: 'rgba8unorm',
+            dimension: '3d',
+            usage: GPUTextureUsage.STORAGE_BINDING | 
+                   GPUTextureUsage.TEXTURE_BINDING | 
+                   GPUTextureUsage.COPY_DST
+        });
+
+        // 创建参数缓冲区
+        const paramsBuffer = this.device.createBuffer({
+            size: 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true
+        });
+
+        // 写入大气光照参数
+        new Float32Array(paramsBuffer.getMappedRange()).set([
+            ...atmosphericLight,
+            1.0  // 额外的参数，可用于调整
+        ]);
+        paramsBuffer.unmap();
+
+        // 创建 LUT 计算着色器
+        const computeShader = /* wgsl */`
+            struct Params {
+                atmosphericLight: vec3<f32>,
+                reserved: f32
+            }
+
+            @group(0) @binding(0) var outputLUT: texture_storage_3d<rgba8unorm, write>;
+            @group(0) @binding(1) var<uniform> params: Params;
+
+            @compute @workgroup_size(4, 4, 4)
+            fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                let dims = textureDimensions(outputLUT);
+                if (any(global_id >= dims)) {
+                    return;
                 }
-                
-                const edgeWeight = edgeWeights[y * width + x];
-                paddedDark[y * width + x] = valueSum / weightSum * (1 + edgeWeight * 0.2);
-            }
-        }
-    
-    
 
-        return paddedDark;
+                // 归一化坐标
+                let normalizedCoords = vec3<f32>(global_id) / vec3<f32>(dims - 1u);
+                
+                // 转换到线性空间
+                let linearR = srgbToLinear(normalizedCoords.r);
+                let linearG = srgbToLinear(normalizedCoords.g);
+                let linearB = srgbToLinear(normalizedCoords.b);
+
+                // 计算暗通道
+                let darkChannel = min(linearR, min(linearG, linearB));
+                
+                // 估算透射率
+                let transmission = max(0.05, min(0.95, 1.0 - 0.95 * darkChannel));
+
+                // 去雾计算
+                let A = params.atmosphericLight;
+                let dehazeR = (linearR - A.r) / transmission + A.r;
+                let dehazeG = (linearG - A.g) / transmission + A.g;
+                let dehazeB = (linearB - A.b) / transmission + A.b;
+
+                // 转换回 sRGB
+                let outputColor = vec4<f32>(
+                    linearToSRGB(dehazeR),
+                    linearToSRGB(dehazeG),
+                    linearToSRGB(dehazeB),
+                    1.0
+                );
+
+                textureStore(outputLUT, vec3<i32>(global_id), outputColor);
+            }
+
+            // sRGB 转线性空间
+            fn srgbToLinear(srgb: f32) -> f32 {
+                return select(
+                    srgb / 12.92, 
+                    pow((srgb + 0.055) / 1.055, 2.4), 
+                    srgb > 0.04045
+                );
+            }
+
+            // 线性空间转 sRGB
+            fn linearToSRGB(linear: f32) -> f32 {
+                return select(
+                    linear * 12.92, 
+                    1.055 * pow(linear, 1.0/2.4) - 0.055, 
+                    linear > 0.0031308
+                );
+            }
+        `;
+
+        // 创建计算管线
+        const computePipeline = await this.device.createComputePipeline({
+            layout: 'auto',
+            compute: {
+                module: this.device.createShaderModule({
+                    code: computeShader
+                }),
+                entryPoint: 'main'
+            }
+        });
+
+        // 创建绑定组
+        const bindGroup = this.device.createBindGroup({
+            layout: computePipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: lutTexture.createView()
+                },
+                {
+                    binding: 1,
+                    resource: { buffer: paramsBuffer }
+                }
+            ]
+        });
+
+        // 执行计算
+        const commandEncoder = this.device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginComputePass();
+        passEncoder.setPipeline(computePipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        
+        // 使用更高效的工作组分配
+        passEncoder.dispatchWorkgroups(
+            Math.ceil(lutSize / 4), 
+            Math.ceil(lutSize / 4), 
+            Math.ceil(lutSize / 4)
+        );
+        
+        passEncoder.end();
+        this.device.queue.submit([commandEncoder.finish()]);
+
+        return lutTexture;
     }
 
-    // 添加新方法：计算边缘权重
-    calculateEdgeWeights(imageData) {
-        const { width, height, data } = imageData;
-        const weights = new Float32Array(width * height);
+    async estimateAtmosphericLight(featureData) {
+        // 检查是否有 analysis 数据
+        if (featureData.analysis && featureData.analysis.darkChannelStats) {
+            const darkChannelMean = featureData.analysis.darkChannelStats.mean;
+            const variance = featureData.analysis.darkChannelStats.variance;
+            
+            // 使用更复杂的估计方法
+            const baseLight = Math.min(0.9, Math.max(0.4, darkChannelMean - variance * 0.5));
+            
+            return [
+                baseLight * 0.95,
+                baseLight,
+                baseLight * 0.97
+            ];
+        }
+        return [0.8, 0.8, 0.8];
+    }
+
+    findBrightestPixels(darkChannel, percentile) {
+        // 添加数据验证
+        if (!darkChannel || !darkChannel.width || !darkChannel.height) {
+            console.warn('Invalid dark channel data:', darkChannel);
+            return [];
+        }
+
+        // 获取暗通道的像素数据
+        const width = darkChannel.width;
+        const height = darkChannel.height;
+        
+        // 检查是否为 GPUTexture
+        if (darkChannel instanceof GPUTexture) {
+            return this.findBrightestPixelsFromTexture(darkChannel, percentile);
+        }
+
+        // 检查是否为 ImageData 或类似结构
+        if (darkChannel.data) {
+            return this.findBrightestPixelsFromImageData(darkChannel, percentile);
+        }
+
+        // 如果是 Canvas
+        if (darkChannel.getContext) {
+            const ctx = darkChannel.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, width, height);
+            return this.findBrightestPixelsFromImageData(imageData, percentile);
+        }
+
+        console.warn('Unsupported dark channel format');
+        return [];
+    }
+
+    findBrightestPixelsFromImageData(imageData, percentile) {
+        const pixels = imageData.data;
+        const width = imageData.width;
+        const height = imageData.height;
+        const pixelInfo = [];
 
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
-                const edge = this.detectEdgeStrength(imageData, x, y, width, height);
-                weights[y * width + x] = edge.strength;
+                const i = (y * width + x) * 4;
+                pixelInfo.push({
+                    brightness: pixels[i],
+                    x: x,
+                    y: y
+                });
             }
         }
 
-        return weights;
+        pixelInfo.sort((a, b) => b.brightness - a.brightness);
+        const numPixels = Math.max(1, Math.floor(pixelInfo.length * percentile));
+        return pixelInfo.slice(0, numPixels);
     }
 
-    estimateAtmosphericLight(darkChannel, imageData) {
-        const { width, height, data } = imageData;
-        const numPixels = width * height;
-        const threshold = 0.95;
-        
-        // 找到暗通道值最高的像素
+    async findBrightestPixelsFromTexture(texture, percentile) {
+        // 创建读取缓冲区
+        const buffer = this.device.createBuffer({
+            size: texture.width * texture.height * 4,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        });
+
+        const commandEncoder = this.device.createCommandEncoder();
+        commandEncoder.copyTextureToBuffer(
+            { texture },
+            { buffer, bytesPerRow: texture.width * 4 },
+            { width: texture.width, height: texture.height, depthOrArrayLayers: 1 }
+        );
+
+        this.device.queue.submit([commandEncoder.finish()]);
+        await buffer.mapAsync(GPUMapMode.READ);
+        const data = new Uint8Array(buffer.getMappedRange());
+
         const pixelInfo = [];
-        for (let i = 0; i < numPixels; i++) {
+        for (let i = 0; i < data.length; i += 4) {
             pixelInfo.push({
-                dark: darkChannel[i],
-                idx: i
+                brightness: data[i],
+                x: (i / 4) % texture.width,
+                y: Math.floor((i / 4) / texture.width)
             });
         }
-        
-        pixelInfo.sort((a, b) => b.dark - a.dark);
-        
-        // 取前 0.1% 的像素
-        const topPixels = pixelInfo.slice(0, Math.max(Math.floor(numPixels * 0.001), 1));
-        
-        let sumR = 0, sumG = 0, sumB = 0;
-        topPixels.forEach(({ idx }) => {
-            const i = idx * 4;
-            sumR += data[i];
-            sumG += data[i + 1];
-            sumB += data[i + 2];
+
+        buffer.unmap();
+
+        pixelInfo.sort((a, b) => b.brightness - a.brightness);
+        const numPixels = Math.max(1, Math.floor(pixelInfo.length * percentile));
+        return pixelInfo.slice(0, numPixels);
+    }
+
+    selectBrightestFromOriginal(originalImage, brightestPixels) {
+        const width = originalImage.width;
+        const ctx = originalImage.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, originalImage.width, originalImage.height);
+        const pixels = imageData.data;
+
+        // 计算这些位置在原始图像中的平均RGB值
+        let totalR = 0, totalG = 0, totalB = 0;
+        let maxBrightness = 0;
+        let brightestColor = [0, 0, 0];
+
+        brightestPixels.forEach(pixel => {
+            const i = (pixel.y * width + pixel.x) * 4;
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            
+            // 计算亮度
+            const brightness = (r + g + b) / 3;
+            
+            // 更新最亮的颜色
+            if (brightness > maxBrightness) {
+                maxBrightness = brightness;
+                brightestColor = [r / 255, g / 255, b / 255];
+            }
+
+            totalR += r;
+            totalG += g;
+            totalB += b;
         });
-        
-        return [
-            sumR / topPixels.length / 255,
-            sumG / topPixels.length / 255,
-            sumB / topPixels.length / 255
-        ];
+
+        // 返回最亮的颜色值（归一化到0-1范围）
+        return brightestColor;
     }
 
-    getTransmission(darkChannel) {
-        const omega = 0.95;
-        const minTransmission = 0.12;
-        const maxTransmission = 0.99;
-        
-        return darkChannel.map(dc => {
-            // 使用更激进的非线性omega调整
-            const adaptiveOmega = omega * (1 + 0.35 * Math.pow(dc, 1.6));
-            const rawTransmission = 1.0 - adaptiveOmega * dc;
-            
-            // 改进的深度因子计算
-            const depthFactor = Math.pow(dc, 0.55);
-            const enhancedDepth = depthFactor * (1 + 0.25 * Math.pow(1 - depthFactor, 1.2));
-            
-            // 更激进的透射率混合
-            const adjustedTransmission = 
-                rawTransmission * 0.55 + 
-                enhancedDepth * 0.35 + 
-                Math.pow(1 - dc, 1.0) * 0.10;
-            
-            return Math.max(minTransmission, Math.min(maxTransmission, adjustedTransmission));
-        });
+    // 添加 sRGB 和线性空间转换函数
+    sRGBToLinear(value) {
+        return value <= 0.04045 
+            ? value / 12.92 
+            : Math.pow((value + 0.055) / 1.055, 2.4);
     }
 
-    guidedFilter(imageData, src, radius, eps) {
-        const width = imageData.width;
-        const height = imageData.height;
-        const size = width * height;
-        
-        // 直接使用输入的 ImageData
-        const I = imageData.data;
-        
-        // 计算均值
-        const meanI = new Float32Array(size);
-        const meanP = new Float32Array(size);
-        const corrI = new Float32Array(size);
-        const corrIP = new Float32Array(size);
-        
-        // 使用盒式滤波计算局部均值
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                let sumI = 0, sumP = 0, sumII = 0, sumIP = 0;
-                let count = 0;
-                
-                for (let dy = -radius; dy <= radius; dy++) {
-                    for (let dx = -radius; dx <= radius; dx++) {
-                        const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                        const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                        const idx = (ny * width + nx);
-                        
-                        const i = (I[idx * 4] + I[idx * 4 + 1] + I[idx * 4 + 2]) / (3 * 255);
-                        const p = src[idx];
-                        
-                        sumI += i;
-                        sumP += p;
-                        sumII += i * i;
-                        sumIP += i * p;
-                        count++;
-                    }
-                }
-                
-                const idx = y * width + x;
-                meanI[idx] = sumI / count;
-                meanP[idx] = sumP / count;
-                corrI[idx] = sumII / count;
-                corrIP[idx] = sumIP / count;
-            }
-        }
-        
-        // 计算协方差和方差
-        const a = new Float32Array(size);
-        const b = new Float32Array(size);
-        
-        for (let i = 0; i < size; i++) {
-            const varI = corrI[i] - meanI[i] * meanI[i];
-            const covIP = corrIP[i] - meanI[i] * meanP[i];
-            
-            a[i] = covIP / (varI + eps);
-            b[i] = meanP[i] - a[i] * meanI[i];
-        }
-        
-        // 应用滤波
-        const output = new Float32Array(size);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                let sumA = 0, sumB = 0;
-                let count = 0;
-                
-                for (let dy = -radius; dy <= radius; dy++) {
-                    for (let dx = -radius; dx <= radius; dx++) {
-                        const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                        const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                        const idx = ny * width + nx;
-                        
-                        sumA += a[idx];
-                        sumB += b[idx];
-                        count++;
-                    }
-                }
-                
-                const idx = y * width + x;
-                const i = (I[idx * 4] + I[idx * 4 + 1] + I[idx * 4 + 2]) / (3 * 255);
-                output[idx] = (sumA / count) * i + (sumB / count);
-            }
-        }
-        
-        return output;
-    }
-
-    // 添加完整的边缘检测方法
-    detectEdgeStrength(imageData, x, y, width, height) {
-        const patchSize = 5;  // 增加检测范围
-        const halfPatch = Math.floor(patchSize / 2);
-        
-        let maxGradient = 0;
-        let avgLuminance = 0;
-        let luminanceVariance = 0;
-        let sampleCount = 0;
-        
-        // 首先计算局部平均亮度
-        for (let dy = -halfPatch; dy <= halfPatch; dy++) {
-            for (let dx = -halfPatch; dx <= halfPatch; dx++) {
-                const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                const idx = (ny * width + nx) * 4;
-                
-                const luminance = (
-                    imageData.data[idx] + 
-                    imageData.data[idx + 1] + 
-                    imageData.data[idx + 2]
-                ) / 3;
-                
-                avgLuminance += luminance;
-                sampleCount++;
-            }
-        }
-        avgLuminance /= sampleCount;
-        
-        // 计算方差和最大梯度
-        for (let dy = -halfPatch; dy <= halfPatch; dy++) {
-            for (let dx = -halfPatch; dx <= halfPatch; dx++) {
-                const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                const idx = (ny * width + nx) * 4;
-                
-                const luminance = (
-                    imageData.data[idx] + 
-                    imageData.data[idx + 1] + 
-                    imageData.data[idx + 2]
-                ) / 3;
-                
-                luminanceVariance += Math.pow(luminance - avgLuminance, 2);
-                
-                if (dx !== 0 || dy !== 0) {
-                    const gradient = Math.abs(luminance - avgLuminance);
-                    maxGradient = Math.max(maxGradient, gradient);
-                }
-            }
-        }
-        
-        luminanceVariance = Math.sqrt(luminanceVariance / sampleCount) / 255;
-        maxGradient = maxGradient / 255;
-        
-        // 综合边缘强度
-        const edgeStrength = Math.pow(
-            Math.max(maxGradient, luminanceVariance),
-            0.8  // 使用更敏感的指数
-        );
-        
-        return {
-            strength: Math.min(1, edgeStrength),
-            variance: luminanceVariance,
-            gradient: maxGradient
-        };
-    }
-
-    // 构建LUT数据
-    buildLUT(imageData) {
-        const width = imageData.width;
-        const height = imageData.height;
-
-        // 计算必要的中间数据
-        const darkChannel = this.getDarkChannel(imageData, 4);
-        const atmosphere = this.estimateAtmosphericLight(darkChannel, imageData);
-        const transmission = this.getTransmission(darkChannel);
-        const refinedTransmission = this.guidedFilter(imageData, transmission, 8, 0.0001);
-
-        // 返回LUT所需的所有数据
-        return {
-            darkChannel,
-            atmosphere,
-            transmission: refinedTransmission,
-            dimensions: { width, height }
-        };
+    linearToSRGB(value) {
+        return value <= 0.0031308 
+            ? value * 12.92 
+            : 1.055 * Math.pow(value, 1/2.4) - 0.055;
     }
 }
 
-// LUT应用器类
-class LUTApplier {
-    constructor() {
-        this.params = {
-            atmosphere: [1.0, 1.0, 1.0],
-            beta: 1.0
-        };
+class DehazeLUTSystem {
+    constructor(device) {
+        this.device = device;
+        this.initialized = false;
+        this.generator = new LUTGenerator(device);
+        this.featureExtractor = new FeatureExtractor(device);
+        this.baseLUT = null;
+        this.lastFeatures = null;
+        this.pipelines = {};
+
+        // 创建采样器
+        this.sampler = device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+            mipmapFilter: 'linear',
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+            addressModeW: 'clamp-to-edge'
+        });
     }
 
-    createContext(width, height) {
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        return canvas.getContext('2d');
+    async init() {
+        if (this.initialized) return;
+        // 初始化特征提取器
+        await this.featureExtractor.init();
+        this.initialized = true;
     }
 
-    // 移动原始类中的图像增强和混合相关方法
-    analyzeLocalFeatures(imageData, x, y, width, height) {
-        const patchSize = 3;
-        const halfPatch = Math.floor(patchSize / 2);
-        let contrast = 0;
-        let structureness = 0;
-        let darkness = 1.0;
-                
-        // 分析局部patch
-        for (let dy = -halfPatch; dy <= halfPatch; dy++) {
-            for (let dx = -halfPatch; dx <= halfPatch; dx++) {
-                const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                const idx = (ny * width + nx) * 4;
-                
-                // 计算局部暗度
-                const pixelDark = Math.min(
-                    imageData.data[idx] / 255,
-                    imageData.data[idx + 1] / 255,
-                    imageData.data[idx + 2] / 255
-                );
-                darkness = Math.min(darkness, pixelDark);
-                
-                // 计算结构性（梯度）
-                if (dx === 0 && dy === 0) continue;
-                const gradient = Math.abs(
-                    (imageData.data[idx] + imageData.data[idx + 1] + imageData.data[idx + 2]) / 3 -
-                    (imageData.data[(y * width + x) * 4] + 
-                     imageData.data[(y * width + x) * 4 + 1] + 
-                     imageData.data[(y * width + x) * 4 + 2]) / 3
-                ) / 255;
-                
-                contrast = Math.max(contrast, gradient);
-                structureness += gradient;
-            }
-        }
-                
-        structureness /= (patchSize * patchSize - 1);
-                
-        return {
-            contrast,
-            structureness,
-            darkness
-        };
-    }
+    async warpLUT(baseLUT, features) {
+        const warpedLUT = this.device.createTexture({
+            size: [64, 64, 64],
+            format: 'rgba8unorm',
+            dimension: '3d',
+            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
+        });
 
-    analyzeFrequencyFeatures(imageData, x, y, width, height) {
-        const patchSize = 5;  // 增加patch大小以获取更好的频率特征
-        const halfPatch = Math.floor(patchSize / 2);
-        let highFreqEnergy = 0;
-        let totalEnergy = 0;
-                
-        // Sobel算子
-        const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
-        const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
-                
-        // 计算中心像素的梯度能量
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                const idx = (ny * width + nx) * 4;
-                
-                const pos = (dy + 1) * 3 + (dx + 1);
-                const luminance = (
-                    imageData.data[idx] + 
-                    imageData.data[idx + 1] + 
-                    imageData.data[idx + 2]
-                ) / 3;
-                
-                highFreqEnergy += Math.abs(luminance * sobelX[pos]) + Math.abs(luminance * sobelY[pos]);
-                totalEnergy += luminance;
-            }
-        }
-                
-        // 归一化频率特征
-        const freqRatio = highFreqEnergy / (totalEnergy + 1e-6);
-        return Math.min(1, freqRatio * 2);  // 将频率特征映射到[0,1]
-    }
-
-    detectEdgeStrength(imageData, x, y, width, height) {
-        const patchSize = 5;  // 增加检测范围
-        const halfPatch = Math.floor(patchSize / 2);
-                
-        let maxGradient = 0;
-        let avgLuminance = 0;
-        let luminanceVariance = 0;
-        let sampleCount = 0;
-                
-        // 首先计算局部平均亮度
-        for (let dy = -halfPatch; dy <= halfPatch; dy++) {
-            for (let dx = -halfPatch; dx <= halfPatch; dx++) {
-                const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                const idx = (ny * width + nx) * 4;
-                
-                const luminance = (
-                    imageData.data[idx] + 
-                    imageData.data[idx + 1] + 
-                    imageData.data[idx + 2]
-                ) / 3;
-                
-                avgLuminance += luminance;
-                sampleCount++;
-            }
-        }
-        avgLuminance /= sampleCount;
-                
-        // 计算方差和最大梯度
-        for (let dy = -halfPatch; dy <= halfPatch; dy++) {
-            for (let dx = -halfPatch; dx <= halfPatch; dx++) {
-                const nx = Math.min(Math.max(x + dx, 0), width - 1);
-                const ny = Math.min(Math.max(y + dy, 0), height - 1);
-                const idx = (ny * width + nx) * 4;
-                
-                const luminance = (
-                    imageData.data[idx] + 
-                    imageData.data[idx + 1] + 
-                    imageData.data[idx + 2]
-                ) / 3;
-                
-                luminanceVariance += Math.pow(luminance - avgLuminance, 2);
-                
-                if (dx !== 0 || dy !== 0) {
-                    const gradient = Math.abs(luminance - avgLuminance);
-                    maxGradient = Math.max(maxGradient, gradient);
-                }
-            }
-        }
-                
-        luminanceVariance = Math.sqrt(luminanceVariance / sampleCount) / 255;
-        maxGradient = maxGradient / 255;
-                
-        // 综合边缘强度
-        const edgeStrength = Math.pow(
-            Math.max(maxGradient, luminanceVariance),
-            0.8  // 使用更敏感的指数
-        );
-                
-        return {
-            strength: Math.min(1, edgeStrength),
-            variance: luminanceVariance,
-            gradient: maxGradient
-        };
-    }
-
-    // 应用LUT并处理图像
-    applyLUT(imageData, lutData) {
-        const { width, height } = imageData;
-        const { darkChannel, atmosphere, transmission } = lutData;
-        const outputData = new Uint8ClampedArray(width * height * 4);
-
-        // 计算直方图
-        const histogramBins = new Float32Array(256).fill(0);
-        for (let i = 0; i < width * height; i++) {
-            const r = imageData.data[i * 4];
-            const g = imageData.data[i * 4 + 1];
-            const b = imageData.data[i * 4 + 2];
-            const luminance = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-            histogramBins[luminance]++;
-        }
-
-        // 计算CDF
-        const cdf = new Float32Array(256);
-        cdf[0] = histogramBins[0];
-        for (let i = 1; i < 256; i++) {
-            cdf[i] = cdf[i-1] + histogramBins[i];
-        }
-        // 归一化CDF
-        const cdfMin = cdf[0];
-        const cdfMax = cdf[255];
-        for (let i = 0; i < 256; i++) {
-            cdf[i] = (cdf[i] - cdfMin) / (cdfMax - cdfMin);
-        }
-
-        // 计算每个通道的直方图和CDF
-        const channelHistograms = [
-            this.calculateChannelHistogram(imageData.data, 0, width, height),
-            this.calculateChannelHistogram(imageData.data, 1, width, height),
-            this.calculateChannelHistogram(imageData.data, 2, width, height)
-        ];
-        const channelCDFs = channelHistograms.map(this.calculateAdaptiveCDF);
-
-        for (let i = 0; i < width * height; i++) {
-            const x = i % width;
-            const y = Math.floor(i / width);
-            
-            // 获取特征
-            const features = this.analyzeLocalFeatures(imageData, x, y, width, height);
-            const freqFeature = this.analyzeFrequencyFeatures(imageData, x, y, width, height);
-            const edge = this.detectEdgeStrength(imageData, x, y, width, height);
-
-            // 计算基础颜色值
-            const r = imageData.data[i * 4] / 255;
-            const g = imageData.data[i * 4 + 1] / 255;
-            const b = imageData.data[i * 4 + 2] / 255;
-            const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-
-            // 改进的暗部判定
-            const darkThreshold = 0.40;
-            const isDarkArea = luminance < darkThreshold;
-            const darknessFactor = isDarkArea ? 
-                Math.pow((darkThreshold - luminance) / darkThreshold, 1.1) : 0;
-
-            // 计算边缘保护因子
-            const edgeProtection = Math.pow(edge.strength, 1.2);
-            const varianceProtection = Math.pow(edge.variance, 0.8);
-
-            const t = transmission[i];
-            const finalColor = [0, 0, 0];
-
-            for (let c = 0; c < 3; c++) {
-                const originalVal = imageData.data[i * 4 + c];
-                const normalizedValue = originalVal / 255;
-                const cdfValue = channelCDFs[c][Math.round(originalVal)];
-
-                // 改进的纹理权重计算
-                const textureWeight = Math.pow(features.structureness, 0.85) * 
-                    (1 + freqFeature * 0.45) * 
-                    (1 + 0.12 * (1 - normalizedValue)) * 
-                    (1 - edge.strength * 0.3);
-
-                // 更平滑的暗部保护计算
-                const darkProtection = isDarkArea ? 
-                    (0.45 + 0.45 * darknessFactor) * 
-                    (1 + textureWeight * 0.9) * 
-                    (1 + 0.20 * (1 - normalizedValue)) * 
-                    (1 + edge.strength * 0.35) : 0;
-
-                // 优化自适应混合权重
-                let adaptiveWeight = Math.max(
-                    0.35,
-                    Math.min(0.88,
-                        0.48 + 
-                        0.28 * textureWeight +   
-                        0.25 * darkProtection + 
-                        0.15 * (1 - cdfValue) +
-                        0.12 * (1 - normalizedValue) -
-                        0.10 * edge.strength    
-                    )
-                );
-
-                // 更平滑的散射因子计算
-                const scatteringFactor = Math.pow(1 - t, 
-                    0.94 + 
-                    0.12 * freqFeature +    
-                    0.1 * darknessFactor +  
-                    0.06 * (1 - normalizedValue) -
-                    0.15 * edge.strength    
-                );
-
-                // 更平滑的gamma校正
-                const gamma = 0.92 + 
-                    0.06 * textureWeight +  
-                    0.05 * darkProtection +
-                    0.03 * (1 - cdfValue);
-
-                // 大幅增强边缘保护
-                const edgeAdjustedWeight = adaptiveWeight * (1 - edgeProtection * 0.5);
-                const edgeAdjustedScattering = scatteringFactor * (1 - edgeProtection * 0.6);
-
-                // 计算基础混合因子
-                const blendFactor = Math.min(1,
-                    edgeAdjustedWeight * (1 - t) * (1 - edgeAdjustedScattering)
-                );
-
-                // 在边缘处使用更平滑的gamma
-                const edgeAdjustedGamma = gamma * (1 + edgeProtection * 0.2);
-
-                // 改进的三段式过渡函数
-                const x = Math.pow(blendFactor, edgeAdjustedGamma);
-                let weight;
-                if (x < 0.4) {
-                    weight = 0.85 * Math.pow(x / 0.4, 1.5);
-                } else if (x < 0.8) {
-                    const normalized = (x - 0.4) / 0.4;
-                    weight = 0.85 + (1 / (1 + Math.exp(-7 * (normalized - 0.5)))) * 0.1;
-                } else {
-                    weight = 0.95 + (x - 0.8) * 0.05 / 0.2;
-                }
-
-                // 边缘感知的最终权重
-                const finalWeight = weight * (
-                    0.97 + 
-                    0.03 * darkProtection -
-                    0.15 * edgeProtection -
-                    0.1 * varianceProtection
-                );
-
-                // 计算去雾结果
-                const dehazeVal = (normalizedValue - atmosphere[c]) / Math.max(t, 0.1) + atmosphere[c];
-
-                // 在边缘处使用更保守的混合
-                const edgeBlend = Math.max(0.5, 1 - edgeProtection);
-                finalColor[c] = dehazeVal * (1 - finalWeight) * edgeBlend +
-                               normalizedValue * (1 - (1 - finalWeight) * edgeBlend);
-            }
-
-            // 应用最终的混合结果
-            for (let c = 0; c < 3; c++) {
-                outputData[i * 4 + c] = Math.round(finalColor[c] * 255);
-            }
-            outputData[i * 4 + 3] = 255;
-        }
-
-        return outputData;
-    }
-
-    // 辅助方法：计算通道直方图
-    calculateChannelHistogram(data, channel, width, height) {
-        const histogram = new Float32Array(256).fill(0);
-        for (let i = 0; i < width * height; i++) {
-            const value = Math.round(data[i * 4 + channel]);
-            histogram[value]++;
-        }
-        return histogram;
-    }
-
-    // 辅助方法：计算自适应CDF
-    calculateAdaptiveCDF(histogram) {
-        const total = histogram.reduce((a, b) => a + b, 0);
-        const cdf = new Float32Array(256);
-        let sum = 0;
+        // 更新参数计算
+        const { darkChannelStats } = features.analysis;
+        const atmosphericLight = await this.generator.estimateAtmosphericLight(features);
         
-        for (let i = 0; i < 256; i++) {
-            sum += histogram[i];
-            const x = sum / total;
-            const sigmoid = 1 / (1 + Math.exp(-12 * (x - 0.5)));
-            cdf[i] = sigmoid;
+        const paramsBuffer = this.device.createBuffer({
+            size: 64,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true
+        });
+
+        const paramsArray = new Float32Array([
+            darkChannelStats.mean || 0,
+            0.0,  // padding
+            0.2,  // 最小透射率
+            0.8,  // 最大透射率
+            0.5,  // 边缘强度
+            0.8,  // 自适应强度
+            atmosphericLight[0],
+            atmosphericLight[1],
+            atmosphericLight[2],
+            1.2,  // beta
+            0.0,
+            0.0
+        ]);
+
+        new Float32Array(paramsBuffer.getMappedRange()).set(paramsArray);
+        paramsBuffer.unmap();
+
+        // 定义计算着色器
+        const computeShader = /* wgsl */`
+            struct WarpParams {
+                darkChannelMean: f32,
+                padding: f32,
+                transmissionRange: vec2<f32>,
+                edgeStrength: f32,
+                adaptiveStrength: f32,
+                atmosphericLight: vec3<f32>,
+                beta: f32,
+                reserved: vec2<f32>,
+            }
+
+            @group(0) @binding(0) var baseLUT: texture_3d<f32>;
+            @group(0) @binding(1) var outputLUT: texture_storage_3d<rgba8unorm, write>;
+            @group(0) @binding(2) var<uniform> params: WarpParams;
+
+            @compute @workgroup_size(4, 4, 4)
+            fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                let dims = textureDimensions(baseLUT);
+                if (any(global_id.xy >= dims.xy) || global_id.z >= dims.z) {
+                    return;
+                }
+
+                let coords = vec3<i32>(global_id);
+                let normalizedCoords = vec3<f32>(coords) / vec3<f32>(dims - 1);
+                
+                // 计算暗通道值
+                let darkChannel = min(
+                    min(normalizedCoords.r, normalizedCoords.g),
+                    normalizedCoords.b
+                );
+                
+                // 增强透射率估计的对比度
+                let transmission = clamp(
+                    1 - 1* darkChannel,  // 增加 beta 参数来控制去雾强度
+                    0.1,  // 降低最小透射率以增强去雾效果
+                    0.95  // 提高最大透射率以保持亮部细节
+                );
+
+                // 修改：分别处理每个颜色通道的去雾
+                let avgAtmLight = (params.atmosphericLight.r + params.atmosphericLight.g + params.atmosphericLight.b) / 3.0;
+                var dehazeColor = vec3<f32>(
+                    (normalizedCoords.r - avgAtmLight) / max(transmission, 0.1) + avgAtmLight,
+                    (normalizedCoords.g - avgAtmLight) / max(transmission, 0.1) + avgAtmLight,
+                    (normalizedCoords.b - avgAtmLight) / max(transmission, 0.1) + avgAtmLight
+                );
+
+                // 增强对比度和饱和度
+                let luminance = dot(dehazeColor, vec3<f32>(0.299, 0.587, 0.114));
+                let saturation = 1.5;  // 增加饱和度
+                let contrast = 1.3;    // 增加对比度
+                
+                dehazeColor = mix(vec3<f32>(luminance), dehazeColor, saturation);
+                dehazeColor = (dehazeColor - 0.5) * contrast + 0.5;
+
+                // 修改混合逻辑，增加对有雾区域的影响
+                var finalColor = dehazeColor;
+                if (darkChannel < 0.382*transmission) {  // 提高阈值，增加对有雾区域的影响
+                    finalColor = mix(
+                        normalizedCoords,
+                        dehazeColor,
+                        smoothstep(0.0, 0.1, darkChannel/transmission)  // 调整 smoothstep 范围
+                    );
+                }
+
+                // 确保颜色在有效范围内
+                finalColor = clamp(finalColor, vec3<f32>(0.0), vec3<f32>(1.0));
+                
+                textureStore(
+                    outputLUT, 
+                    coords, 
+                    vec4<f32>(finalColor, 1.0)
+                );
+            }
+        `;
+
+        // 创建计算管线
+        const computePipeline = await this.device.createComputePipeline({
+            layout: 'auto',
+            compute: {
+                module: this.device.createShaderModule({
+                    code: computeShader
+                }),
+                entryPoint: 'main'
+            }
+        });
+
+        // 创建绑定组
+        const bindGroup = this.device.createBindGroup({
+            layout: computePipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: baseLUT.createView()
+                },
+                {
+                    binding: 1,
+                    resource: warpedLUT.createView()
+                },
+                {
+                    binding: 2,
+                    resource: { buffer: paramsBuffer }
+                }
+            ]
+        });
+
+        // 执行计算
+        const commandEncoder = this.device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginComputePass();
+        passEncoder.setPipeline(computePipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        passEncoder.dispatchWorkgroups(16, 16, 16);  // 64/4 = 16 workgroups in each dimension
+        passEncoder.end();
+        this.device.queue.submit([commandEncoder.finish()]);
+
+        return warpedLUT;
+    }
+
+    async process(inputTexture) {
+        if (!this.initialized) {
+            await this.init();
         }
-        return cdf;
-    }
-}
 
-// 保持原始类作为外观类
-export class DarkChannelDehaze {
-    constructor() {
-        this.lutBuilder = new LUTBuilder();
-        this.lutApplier = new LUTApplier();
+        // 添加预处理步骤
+        const preprocessedTexture = await this.preprocessImage(inputTexture);
+        
+        // 提取特征
+        const features = await this.featureExtractor.extract(preprocessedTexture);
+
+        // 生成或更新基础 LUT
+        if (!this.baseLUT || this.shouldUpdateBaseLUT(features)) {
+            console.log('Generating new base LUT...');
+            this.baseLUT = await this.generator.createBaseLUT(features);
+            this.lastFeatures = features;
+        }
+
+        // 变形 LUT
+        const warpedLUT = await this.warpLUT(this.baseLUT, features);
+        console.log('Warped LUT generated');
+
+        // 应用 LUT
+        const outputTexture = await this.applyLUT(preprocessedTexture, warpedLUT, features);
+        console.log('LUT applied');
+
+        // 转换为图像
+        const result = await this.textureToImage(outputTexture);
+
+        // 返回结果和调试信息
+        return {
+            result,
+            debug: {
+                darkChannel: await this.textureToImage(features.dehaze.darkChannel),
+                transmission: await this.textureToImage(features.dehaze.transmission),
+                edges: await this.textureToImage(features.local.edges),
+                features: features.analysis
+            }
+        };
     }
 
-    // 创建 Canvas 上下文
-    createContext(width, height) {
+    shouldUpdateBaseLUT(features) {
+        if (!this.lastFeatures) return true;
+
+        // 比较特征差异
+        const { darkChannelStats: current } = features.analysis;
+        const { darkChannelStats: last } = this.lastFeatures.analysis;
+
+        // 如果特征差异超过阈值，更新基础 LUT
+        const meanDiff = Math.abs(current.mean - last.mean);
+        const varianceDiff = Math.abs(current.variance - last.variance);
+
+        return meanDiff > 0.1 || varianceDiff > 0.1;
+    }
+
+    async applyLUT(inputTexture, lut, features) {
+        // 创建参数缓冲区
+        const dehazeParamsBuffer = this.device.createBuffer({
+            size: 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+            label: "Dehaze Params Buffer"
+        });
+
+        // 写入参数数据
+        new Float32Array(dehazeParamsBuffer.getMappedRange()).set([
+            1.0, 1.0, 1.0,  // atmosphericLight
+            features.analysis.darkChannelStats.mean  // adaptiveStrength
+        ]);
+        dehazeParamsBuffer.unmap();
+
+        const outputTexture = this.device.createTexture({
+            size: [inputTexture.width, inputTexture.height],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT |
+                   GPUTextureUsage.COPY_SRC |
+                   GPUTextureUsage.STORAGE_BINDING |
+                   GPUTextureUsage.TEXTURE_BINDING
+        });
+
+        // 修改渲染管线配置
+        const renderPipeline = await this.device.createRenderPipeline({
+            label: "Apply LUT Pipeline",
+            layout: 'auto',
+            vertex: {
+                module: this.device.createShaderModule({
+                    label: "LUT Vertex Shader",
+                    code: /* wgsl */`
+                        struct VertexOutput {
+                            @builtin(position) position: vec4<f32>,
+                            @location(0) texCoord: vec2<f32>,
+                        }
+
+                        @vertex
+                        fn main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+                            var pos = array<vec2<f32>, 6>(
+                                vec2<f32>(-1.0, -1.0),
+                                vec2<f32>( 1.0, -1.0),
+                                vec2<f32>(-1.0,  1.0),
+                                vec2<f32>(-1.0,  1.0),
+                                vec2<f32>( 1.0, -1.0),
+                                vec2<f32>( 1.0,  1.0)
+                            );
+                            var texCoords = array<vec2<f32>, 6>(
+                                vec2<f32>(0.0, 1.0),
+                                vec2<f32>(1.0, 1.0),
+                                vec2<f32>(0.0, 0.0),
+                                vec2<f32>(0.0, 0.0),
+                                vec2<f32>(1.0, 1.0),
+                                vec2<f32>(1.0, 0.0)
+                            );
+                            
+                            var output: VertexOutput;
+                            output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+                            output.texCoord = texCoords[vertexIndex];
+                            return output;
+                        }
+                    `
+                }),
+                entryPoint: 'main'
+            },
+            fragment: {
+                module: this.device.createShaderModule({
+                    label: "LUT Fragment Shader",
+                    code: /* wgsl */`
+                    @group(0) @binding(0) var inputTex: texture_2d<f32>;
+                    @group(0) @binding(1) var lutTex: texture_3d<f32>;
+                    @group(0) @binding(2) var texSampler: sampler;
+
+                    @fragment
+                    fn main(@location(0) texCoord: vec2<f32>) -> @location(0) vec4<f32> {
+                        // 获取原始颜色并转换到线性空间
+                        let srgbColor = textureSample(inputTex, texSampler, texCoord);
+                        let color = vec4<f32>(
+                            srgbToLinear(srgbColor.r),
+                            srgbToLinear(srgbColor.g),
+                            srgbToLinear(srgbColor.b),
+                            srgbColor.a
+                        );
+                        
+                        // 计算 LUT 采样坐标
+                        let lutSize = 64.0;
+                        let scale = (lutSize - 1.0) / lutSize;
+                        let offset = 0.5 / lutSize;
+                        
+                        // 确保采样坐标在正确范围内
+                        let lutCoord = color.rgb * scale + vec3<f32>(offset);
+                        
+                        // 采样 LUT
+                        let lutColor = textureSample(lutTex, texSampler, lutCoord);
+                        
+                        // 将结果转换回 sRGB 空间
+                        return vec4<f32>(
+                            linearToSRGB(lutColor.r),
+                            linearToSRGB(lutColor.g),
+                            linearToSRGB(lutColor.b),
+                            color.a
+                        );
+                    }
+
+                    // sRGB 到线性空间的转换
+                    fn srgbToLinear(srgb: f32) -> f32 {
+                        if (srgb <= 0.04045) {
+                            return srgb / 12.92;
+                        } else {
+                            return pow((srgb + 0.055) / 1.055, 2.4);
+                        }
+                    }
+
+                    // 线性到 sRGB 空间的转换
+                    fn linearToSRGB(linear: f32) -> f32 {
+                        if (linear <= 0.0031308) {
+                            return linear * 12.92;
+                        } else {
+                            return 1.055 * pow(linear, 1.0/2.4) - 0.055;
+                        }
+                    }
+                    `
+                }),
+                entryPoint: 'main',
+                targets: [{
+                    format: 'rgba8unorm',
+                    blend: {
+                        color: {
+                            srcFactor: 'one',
+                            dstFactor: 'zero',
+                            operation: 'add',
+                        },
+                        alpha: {
+                            srcFactor: 'one',
+                            dstFactor: 'zero',
+                            operation: 'add',
+                        },
+                    },
+                }]
+            },
+            primitive: {
+                topology: 'triangle-list',
+                cullMode: 'none',
+            },
+        });
+
+        // 创建绑定组
+        const bindGroup = this.device.createBindGroup({
+            layout: renderPipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: inputTexture.createView({
+                        label: "Input Texture View"
+                    })
+                },
+                {
+                    binding: 1,
+                    resource: lut.createView({
+                        label: "LUT Texture View",
+                        dimension: '3d'
+                    })
+                },
+                {
+                    binding: 2,
+                    resource: this.sampler
+                }
+            ]
+        });
+
+        // 执行渲染
+        const commandEncoder = this.device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginRenderPass({
+            colorAttachments: [{
+                view: outputTexture.createView(),
+                clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+                loadOp: 'clear',
+                storeOp: 'store'
+            }]
+        });
+
+        passEncoder.setPipeline(renderPipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        passEncoder.draw(6, 1, 0, 0);
+        passEncoder.end();
+
+        this.device.queue.submit([commandEncoder.finish()]);
+
+        return outputTexture;
+    }
+
+    async textureToImage(texture) {
+        // 创建 canvas
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        return canvas.getContext('2d');
-    }
+        canvas.width = texture.width;
+        canvas.height = texture.height;
 
-    // 修改 process 方法
-    process(inputImage) {
-        return new Promise((resolve) => {
-            // 创建输入输出 context
-            const inputCtx = this.createContext(inputImage.width, inputImage.height);
-            const outputCtx = this.createContext(inputImage.width, inputImage.height);
+        // 计算对齐的字节数每行
+        const bytesPerRow = Math.ceil(texture.width * 4 / 256) * 256;
+        const bufferSize = bytesPerRow * texture.height;
 
-            // 绘制输入图像
-            inputCtx.drawImage(inputImage, 0, 0);
-            const imageData = inputCtx.getImageData(0, 0, inputImage.width, inputImage.height);
+        // 创建临时缓冲区
+        const outputBuffer = this.device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        });
 
-            // 构建LUT数据
-            const lutData = this.lutBuilder.buildLUT(imageData);
+        // 创建命令编码器
+        const commandEncoder = this.device.createCommandEncoder();
 
-            // 应用LUT并获取结果
-            const processedData = this.lutApplier.applyLUT(imageData, lutData);
+        // 复制纹理到缓冲区
+        commandEncoder.copyTextureToBuffer(
+            {
+                texture: texture
+            },
+            {
+                buffer: outputBuffer,
+                bytesPerRow: bytesPerRow,
+                rowsPerImage: texture.height
+            },
+            {
+                width: texture.width,
+                height: texture.height,
+                depthOrArrayLayers: 1
+            }
+        );
 
-            // 创建新的 ImageData 并绘制到输出 canvas
-            const outputImageData = new ImageData(
-                processedData,
-                inputImage.width,
-                inputImage.height
+        // 提交命令
+        this.device.queue.submit([commandEncoder.finish()]);
+
+        // 等待缓冲区映射
+        await outputBuffer.mapAsync(GPUMapMode.READ);
+        const mappedRange = new Uint8Array(outputBuffer.getMappedRange());
+
+        // 创建最终的像素数据数组
+        const data = new Uint8ClampedArray(texture.width * texture.height * 4);
+
+        // 复制数据，处理对齐问题
+        for (let y = 0; y < texture.height; y++) {
+            const srcOffset = y * bytesPerRow;
+            const dstOffset = y * texture.width * 4;
+            data.set(
+                mappedRange.subarray(srcOffset, srcOffset + texture.width * 4),
+                dstOffset
             );
-            outputCtx.putImageData(outputImageData, 0, 0);
+        }
 
-            // 返回处理后的 canvas
-            resolve(outputCtx.canvas);
+        outputBuffer.unmap();
+
+        // 将数据绘制到 canvas
+        const ctx = canvas.getContext('2d');
+        const imageData = new ImageData(data, texture.width, texture.height);
+        ctx.putImageData(imageData, 0, 0);
+
+        return canvas;
+    }
+
+    // 添加预处理方法
+    async preprocessImage(input) {
+        // 创建输入纹理
+        const inputTexture = this.device.createTexture({
+            size: [input.width, input.height],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | 
+                   GPUTextureUsage.COPY_DST |
+                   GPUTextureUsage.STORAGE_BINDING  // 添加存储绑定使用权限
         });
+
+        // 将输入图像数据复制到纹理
+        const imageData = input.getContext('2d').getImageData(0, 0, input.width, input.height);
+        this.device.queue.writeTexture(
+            { texture: inputTexture },
+            imageData.data,
+            { bytesPerRow: input.width * 4, rowsPerImage: input.height },
+            { width: input.width, height: input.height }
+        );
+
+        // 创建输出纹理
+        const outputTexture = this.device.createTexture({
+            size: [input.width, input.height],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.STORAGE_BINDING | 
+                   GPUTextureUsage.TEXTURE_BINDING | 
+                   GPUTextureUsage.COPY_SRC
+        });
+
+        // 创建预处理管线
+        const preprocessPipeline = await this.device.createComputePipeline({
+            layout: 'auto',
+            compute: {
+                module: this.device.createShaderModule({
+                    code: /* wgsl */`
+                        @group(0) @binding(0) var inputTex: texture_2d<f32>;
+                        @group(0) @binding(1) var outputTex: texture_storage_2d<rgba8unorm, write>;
+
+                        @compute @workgroup_size(8, 8)
+                        fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                            let dims = textureDimensions(inputTex);
+                            if(any(global_id.xy >= dims)) {
+                                return;
+                            }
+
+                            // 直接使用 textureLoad 而不是 textureSample
+                            let color = textureLoad(inputTex, vec2<i32>(global_id.xy), 0);
+                            
+                            // 增强对比度和亮度
+                            let enhanced = pow(color.rgb, vec3<f32>(0.9));
+                            let contrast = mix(enhanced, vec3<f32>(0.5), 0.2);
+                            
+                            textureStore(outputTex, vec2<i32>(global_id.xy), vec4<f32>(contrast, color.a));
+                        }
+                    `
+                }),
+                entryPoint: 'main'
+            }
+        });
+
+        // 创建绑定组 (移除了采样器，因为不再需要)
+        const bindGroup = this.device.createBindGroup({
+            layout: preprocessPipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: inputTexture.createView()
+                },
+                {
+                    binding: 1,
+                    resource: outputTexture.createView()
+                }
+            ]
+        });
+
+        // 执行预处理
+        const commandEncoder = this.device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginComputePass();
+        passEncoder.setPipeline(preprocessPipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+
+        const workgroupsX = Math.ceil(input.width / 8);
+        const workgroupsY = Math.ceil(input.height / 8);
+        passEncoder.dispatchWorkgroups(workgroupsX, workgroupsY);
+        passEncoder.end();
+
+        this.device.queue.submit([commandEncoder.finish()]);
+
+        // 清理输入纹理
+        inputTexture.destroy();
+
+        return outputTexture;
     }
 }
+
+// 主类
+class DarkChannelDehaze {
+    constructor(device = null) {
+        this.device = device;
+        this.initialized = false;
+        this.lutSystem = null;
+        this.pipelineCache = new Map();
+        this.texturePool = new TexturePool(device);
+        this.bufferPool = new BufferPool(device);
+    }
+
+    async init() {
+        if (this.initialized) return;
+
+        try {
+            // 初始化设备
+            if (!this.device) {
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) throw new Error('No GPU adapter found');
+                this.device = await adapter.requestDevice();
+                if (!this.device) throw new Error('Failed to create GPU device');
+            }
+
+            // 初始化 LUT 系统
+            this.lutSystem = new DehazeLUTSystem(this.device);
+            await this.lutSystem.init();
+
+            this.initialized = true;
+        } catch (error) {
+            console.error('Failed to initialize DarkChannelDehaze:', error);
+            throw error;
+        }
+    }
+
+    async getCachedPipeline(key, createPipelineFn) {
+        if (!this.pipelineCache.has(key)) {
+            const pipeline = await createPipelineFn();
+            this.pipelineCache.set(key, pipeline);
+        }
+        return this.pipelineCache.get(key);
+    }
+
+    async process(input) {
+        if (!this.initialized) {
+            await this.init();
+        }
+
+        try {
+            const inputTexture = this.texturePool.acquire(input.width, input.height);
+            const outputTexture = this.texturePool.acquire(input.width, input.height);
+
+            const result = await this.lutSystem.process(inputTexture);
+
+            this.texturePool.release(inputTexture);
+            this.texturePool.release(outputTexture);
+
+            return result;
+        } catch (error) {
+            console.error('Processing error', error);
+        }
+    }
+
+    // 添加获取调试信息的方法
+    getDebugInfo() {
+        return this.debugInfo;
+    }
+}
+
+// 新增：纹理对象池
+class TexturePool {
+    constructor(device, maxPoolSize = 10) {
+        this.device = device;
+        this.pool = [];
+        this.maxPoolSize = maxPoolSize;
+    }
+
+    acquire(width, height) {
+        const existingTexture = this.pool.find(t => 
+            t.width === width && t.height === height
+        );
+
+        if (existingTexture) {
+            return existingTexture;
+        }
+
+        const newTexture = this.device.createTexture({
+            size: [width, height],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | 
+                   GPUTextureUsage.TEXTURE_BINDING | 
+                   GPUTextureUsage.COPY_SRC | 
+                   GPUTextureUsage.COPY_DST
+        });
+
+        if (this.pool.length < this.maxPoolSize) {
+            this.pool.push(newTexture);
+        }
+
+        return newTexture;
+    }
+
+    release(texture) {
+        // 可以实现更复杂的释放逻辑
+        texture.destroy();
+    }
+}
+
+// 新增：缓冲区对象池
+class BufferPool {
+    constructor(device, maxPoolSize = 20) {
+        this.device = device;
+        this.pool = new Map();
+        this.maxPoolSize = maxPoolSize;
+    }
+
+    acquire(size, usage) {
+        const key = `${size}-${usage}`;
+        if (!this.pool.has(key)) {
+            this.pool.set(key, []);
+        }
+
+        const pooledBuffers = this.pool.get(key);
+        const existingBuffer = pooledBuffers.pop();
+
+        if (existingBuffer) {
+            return existingBuffer;
+        }
+
+        const newBuffer = this.device.createBuffer({
+            size,
+            usage
+        });
+
+        return newBuffer;
+    }
+
+    release(buffer) {
+        buffer.destroy();
+    }
+}
+
+// 导出所有需要的类
+export {
+    DarkChannelDehaze,
+};
+

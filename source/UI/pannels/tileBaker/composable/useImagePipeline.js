@@ -36,7 +36,7 @@ export function useImagePipeline() {
 
     // 注册处理器并创建预览步骤
     const steps = [
-      createProcessingStep('暗通道去雾', async (ctx, params) => {
+      createProcessingStep('暗通道去雾', async (ctx, params, step) => {
         const dehazer = new DarkChannelDehaze();
         
         // 从参数中获取设置
@@ -71,8 +71,20 @@ export function useImagePipeline() {
         );
         tempCtx.putImageData(imageData, 0, 0);
 
-        // 处理图像
+        // 处理图像并获取调试信息
         const result = await dehazer.process(tempCanvas);
+        if(dehazer.getDebugInfo){
+          const debugInfo = dehazer.getDebugInfo();
+          // 存储调试信息到步骤中
+          step.debugInfo = {
+            darkChannel: debugInfo.darkChannel,
+            transmission: debugInfo.transmission,
+            edges: debugInfo.edges,
+            features: debugInfo.features,
+            atmosphericLight: debugInfo.atmosphericLight
+          };
+  
+        }
         
         // 获取处理后的图像数据
         const resultCtx = result.getContext('2d');
@@ -143,14 +155,15 @@ export function useImagePipeline() {
         step.processed = false
         step.duration = 0
         step.ctx = null
+        step.debugInfo = null
       })
 
       // 逐步处理
       for await (const step of processingSteps.value) {
         const startTime = Date.now()
         
-        // 传入参数到处理器
-        await step.processor(currentContext, step.paramValues)
+        // 传入参数到处理器，同时传入 step 对象
+        await step.processor(currentContext, step.paramValues, step)
         step.ctx = currentContext.clone()
         step.duration = Date.now() - startTime
         step.processed = true
