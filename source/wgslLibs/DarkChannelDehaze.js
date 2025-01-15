@@ -445,18 +445,31 @@ class DehazeLUTSystem {
                 );
 
                 // 增强雾浓度检测和修正逻辑
-                let fogIntensityFactor = 1.5;  // 新增：雾浓度调整因子
+                let fogIntensityFactor = 1.0;  // 调整为1.0，减少过度增强
                 let transmissionCurve = pow(transmission, fogIntensityFactor);
 
                 // 使用 params.atmosphericLight 作为平均大气光照
                 let avgAtmLight = dot(params.atmosphericLight, vec3<f32>(1.0/3.0));
 
-                // 更复杂的去雾算法，增加对暗部的保护
+                // 更复杂的去雾算法，保持原始亮度
                 var dehazeColor = vec3<f32>(
                     (normalizedCoords.r - avgAtmLight) / max(transmissionCurve, 0.05) + avgAtmLight,
                     (normalizedCoords.g - avgAtmLight) / max(transmissionCurve, 0.05) + avgAtmLight,
                     (normalizedCoords.b - avgAtmLight) / max(transmissionCurve, 0.05) + avgAtmLight
                 );
+
+                // 亮度保持机制
+                let originalLuminance = dot(normalizedCoords, vec3<f32>(0.299, 0.587, 0.114));
+                let processedLuminance = dot(dehazeColor, vec3<f32>(0.299, 0.587, 0.114));
+
+                // 亮度匹配
+                let luminanceScale = select(
+                    originalLuminance / max(processedLuminance, 0.001),  // 防止除零
+                    1.0,  // 如果处理后亮度很低，保持原始亮度
+                    processedLuminance > 0.01  // 仅在处理后亮度显著时调整
+                );
+
+                dehazeColor *= luminanceScale;
 
                 // 对暗部进行更温和的处理
                 let darknessMask = smoothstep(0.0, 0.2, darkChannel);
@@ -471,7 +484,7 @@ class DehazeLUTSystem {
                 dehazeColor = (dehazeColor - 0.5) * contrastAdaptive + 0.5;
                 let saturationAdaptive = mix(1.2, 1.5, darknessMask);
                 let luminance = dot(dehazeColor, vec3<f32>(0.299, 0.587, 0.114));
-                let originalLuminance = dot(normalizedCoords, vec3<f32>(0.299, 0.587, 0.114));
+              //  let originalLuminance = dot(normalizedCoords, vec3<f32>(0.299, 0.587, 0.114));
                 // 平滑亮度过渡，避免极端变化
                 let luminanceBlend = smoothstep(
                     originalLuminance * 0.7, 
