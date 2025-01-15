@@ -3,7 +3,7 @@
  */
 
 
-import { FeatureExtractor } from "./feautureExtractor.js";
+import { FeatureExtractor,estimateAtmosphericLight } from "./feautureExtractor.js";
 import { MinHeap } from '../utils/array/minHeap.js';
 // 特征系统
 
@@ -24,7 +24,7 @@ class LUTGenerator {
 
     async createBaseLUT(featureData) {
         // 估计大气光照
-        const atmosphericLight = await this.estimateAtmosphericLight(featureData);
+        const atmosphericLight = await estimateAtmosphericLight(featureData);
         const lutSize = this.lutSize;
 
         // 使用 WebGPU 计算 LUT
@@ -163,23 +163,7 @@ class LUTGenerator {
         return lutTexture;
     }
 
-    async estimateAtmosphericLight(featureData) {
-        // 检查是否有 analysis 数据
-        if (featureData.analysis && featureData.analysis.darkChannelStats) {
-            const darkChannelMean = featureData.analysis.darkChannelStats.mean;
-            const variance = featureData.analysis.darkChannelStats.variance;
 
-            // 使用更复杂的估计方法
-            const baseLight = Math.min(0.9, Math.max(0.4, darkChannelMean - variance * 0.5));
-
-            return [
-                baseLight * 0.95,
-                baseLight,
-                baseLight * 0.97
-            ];
-        }
-        return [0.8, 0.8, 0.8];
-    }
 
     findBrightestPixels(darkChannel, percentile) {
         // 数据验证
@@ -325,19 +309,6 @@ class LUTGenerator {
         // 返回最亮的颜色值（归一化到0-1范围）
         return brightestColor;
     }
-
-    // 添加 sRGB 和线性空间转换函数
-    sRGBToLinear(value) {
-        return value <= 0.04045
-            ? value / 12.92
-            : Math.pow((value + 0.055) / 1.055, 2.4);
-    }
-
-    linearToSRGB(value) {
-        return value <= 0.0031308
-            ? value * 12.92
-            : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
-    }
 }
 
 class DehazeLUTSystem {
@@ -378,7 +349,7 @@ class DehazeLUTSystem {
 
         // 更新参数计算
         const { darkChannelStats } = features.analysis;
-        const atmosphericLight = await this.generator.estimateAtmosphericLight(features);
+        const atmosphericLight = await estimateAtmosphericLight(features);
 
         const paramsBuffer = this.device.createBuffer({
             size: 64,

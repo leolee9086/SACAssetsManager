@@ -1054,3 +1054,22 @@ export class FeatureExtractor {
         return result; // 返回新的数组，而不是从已分离的ArrayBuffer中切片
     }
 }
+
+
+export const estimateAtmosphericLight=async (featureData) =>{
+    // 检查是否有 analysis 数据
+    if (featureData.analysis && featureData.analysis.darkChannelStats) {
+        const darkChannelMean = featureData.analysis.darkChannelStats.mean;
+        const variance = featureData.analysis.darkChannelStats.variance;
+
+        // 使用更复杂的估计方法
+        const baseLight = Math.min(0.9, Math.max(0.4, darkChannelMean - variance * 0.5));
+
+        return [
+            baseLight * 0.95,
+            baseLight,
+            baseLight * 0.97
+        ];
+    }
+    return [0.8, 0.8, 0.8];
+}
