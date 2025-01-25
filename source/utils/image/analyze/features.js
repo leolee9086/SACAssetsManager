@@ -1,5 +1,6 @@
+import { webGpuDevice as device } from "../../browser/gpu.js";
 export class FeatureExtractor {
-    constructor(device) {
+    constructor() {
         this.device = device;
         this.initialized = false;
         this.pipelines = {};

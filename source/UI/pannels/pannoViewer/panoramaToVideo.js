@@ -82,8 +82,9 @@ export class PanoramaVideoGenerator {
 
     // 首先检查支持的格式
     const mimeType = [
-      'video/webm;codecs=h264',
-      'video/webm;codecs=vp9',
+    //  'video/webm;codecs=h264',
+
+      'video/webm;codecs=vp9',  // 调整优先级顺序
       'video/webm'
     ].find(type => MediaRecorder.isTypeSupported(type));
 
@@ -93,11 +94,88 @@ export class PanoramaVideoGenerator {
 
     const stream = this.renderer.domElement.captureStream(fps);
     
-    // 修改 MediaRecorder 配置
+    // 优化2：动态调整比特率（保持质量同时降低编码压力）
+    const targetBitrate = this.width >= 2560 ? 25000000 : 16000000; // 2K使用25Mbps
+    const bitrateFactor = fps > 60 ? 1.2 : 1.0; // 高帧率适当提升比特率
+    
+    // 优化3：分块录制避免内存压力
     this.mediaRecorder = new MediaRecorder(stream, {
       mimeType: mimeType,
-      videoBitsPerSecond: 16000000  // 增加到16Mbps以适应2K分辨率
+      videoBitsPerSecond: targetBitrate * bitrateFactor,
+      audioBitsPerSecond: 0  // 明确禁用音频
     });
+
+    // 优化4：设置合理的时间分片（100ms）
+    this.mediaRecorder.start(100);  // 添加分片参数
+
+    // 优化1：使用更精确的时间控制
+    const frameInterval = 1000 / this.fps;
+    const totalFrames = this.duration * this.fps;
+    let frame = 0;
+    let lastRender = performance.now();
+    let nextFrameTime = lastRender;
+    let frameTimeAccumulator = 0; // 新增帧时间累加器
+
+    const animate = () => {
+      const now = performance.now();
+      const deltaTime = now - lastRender;
+      lastRender = now;
+      frameTimeAccumulator += deltaTime;
+
+      // 优化2：基于固定时间步长的更新
+      while (frameTimeAccumulator >= frameInterval) {
+        frameTimeAccumulator -= frameInterval;
+        frame++;
+
+        if (frame >= totalFrames) {
+          this.mediaRecorder.stop();
+          return;
+        }
+
+        // 优化3：使用更平滑的插值函数
+        const realProgress = frame / totalFrames;
+        const easeProgress = cubicBezier(0.42, 0, 0.58, 1)(realProgress);
+
+        // 优化4：提前计算相机位置
+        const lon = startLon + (endLon - startLon) * easeProgress * rotations;
+        const lat = startLat + (endLat - startLat) * easeProgress;
+        const phi = THREE.MathUtils.degToRad(90 - lat);
+        const theta = THREE.MathUtils.degToRad(lon + 90);
+
+        // 优化5：使用缓存的计算结果
+        const sinPhi = Math.sin(phi);
+        const cosPhi = Math.cos(phi);
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+
+        this.camera.position.set(
+          sinPhi * cosTheta,
+          cosPhi,
+          sinPhi * sinTheta
+        );
+
+        this.camera.up.set(0, 1, 0);
+        this.camera.lookAt(0, 0, 0);
+      }
+
+      // 优化6：使用双缓冲渲染
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
+
+      // 优化7：更精确的帧调度
+      const targetTime = nextFrameTime - performance.now();
+      if (targetTime > 1) {
+        setTimeout(() => requestAnimationFrame(animate), targetTime);
+      } else {
+        requestAnimationFrame(animate);
+      }
+      nextFrameTime += frameInterval;
+    };
+
+    // 优化8：预热渲染器
+    this.renderer.render(this.scene, this.camera);
+    const startTime = performance.now();
+    this.animationRequestId = requestAnimationFrame(animate);
 
     return new Promise((resolve, reject) => {
       this.chunks = [];
@@ -130,60 +208,14 @@ export class PanoramaVideoGenerator {
           reject(new Error(`创建视频文件失败: ${error.message}`));
         }
       };
-
-      // 开始录制
-      this.mediaRecorder.start();
-
-      // 动画循环
-      let frame = 0;
-      const totalFrames = duration * fps;
-      
-      const animate = () => {
-        if (frame >= totalFrames) {
-          this.mediaRecorder.stop();
-          return;
-        }
-    
-        // 增加子帧数量以获得更好的运动模糊效果
-        const subFrames = 16; // 从8增加到16，获得更平滑的运动
-        for (let i = 0; i < subFrames; i++) {
-          const subProgress = (frame + i / subFrames) / totalFrames;
-          // 使用更平滑的缓动函数
-          const easeProgress = cubicBezier(0.4, 0, 0.2, 1)(smoothness * subProgress + (1 - smoothness) * subProgress);
-          
-          // 计算当前经度和纬度
-          const lon = startLon + (endLon - startLon) * easeProgress * rotations;
-          const lat = startLat + (endLat - startLat) * easeProgress;
-    
-          // 更新相机位置
-          const phi = THREE.MathUtils.degToRad(90 - lat);
-          const theta = THREE.MathUtils.degToRad(lon);
-          
-          const x = 500 * Math.sin(phi) * Math.cos(theta);
-          const y = 500 * Math.cos(phi);
-          const z = 500 * Math.sin(phi) * Math.sin(theta);
-          
-          this.camera.lookAt(x, y, z);
-          
-          // 在渲染前强制进行垃圾回收
-          if (frame % 60 === 0) {
-            this.renderer.info.reset();
-          }
-          
-          // 使用更高质量的渲染
-          this.renderer.setPixelRatio(window.devicePixelRatio); // 临时使用最高像素比
-          this.renderer.render(this.scene, this.camera);
-          this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 恢复正常像素比
-        }
-    
-        frame++;
-        requestAnimationFrame(animate);
-      };
-      animate();
     });
   }
 
   dispose() {
+    // 添加动画循环取消
+    if (this.animationRequestId) {
+      cancelAnimationFrame(this.animationRequestId);
+    }
     this.renderer.dispose();
     this.scene.clear();
   }

@@ -128,8 +128,8 @@
                 <div class="option-item">
                   <label>视频方向</label>
                   <select v-model="videoSettings.isLandscape">
-                    <option :value="true">横屏 (2560*1440)</option>
-                    <option :value="false">竖屏 (1440*2560)</option>
+                    <option :value="true">横屏 (1920*1080)</option>
+                    <option :value="false">竖屏 (1080*1920)</option>
                   </select>
                 </div>
                 <div class="option-item">
@@ -988,8 +988,8 @@ const isGeneratingVideo = ref(false);
 const videoSettings = ref({
   duration: 12,
   fps: 30,
-  width: 2560,    // 修改为2K分辨率
-  height: 1440,   // 修改为2K分辨率
+  width:1920,    // 修改为2K分辨率
+  height: 1080,   // 修改为2K分辨率
   isLandscape: true
 });
 

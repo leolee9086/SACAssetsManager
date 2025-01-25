@@ -11,3 +11,5 @@ import './globalStatus/index.js'
 import './utilWebviews/drag.js'
 //开始监听事件
 import './events/globalEvents.js'
+// 引入 HalfHeightDecorator 模块以激活浮动按钮
+import './UI/dynamicCss/HalfHeightDecorator.js';

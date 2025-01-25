@@ -3,12 +3,13 @@
  */
 
 
-import { FeatureExtractor,estimateAtmosphericLight } from "./feautureExtractor.js";
+import { FeatureExtractor,estimateAtmosphericLight } from "../utils/image/analyze/features.js";
 import { MinHeap } from '../utils/array/minHeap.js';
+import { webGpuDevice as device } from "../utils/browser/gpu.js";
 // 特征系统
 
 class LUTGenerator {
-    constructor(device) {
+    constructor() {
         this.device = device;
         this.lutSize = 64;
         this.params = {
@@ -312,7 +313,7 @@ class LUTGenerator {
 }
 
 class DehazeLUTSystem {
-    constructor(device) {
+    constructor() {
         this.device = device;
         this.initialized = false;
         this.generator = new LUTGenerator(device);
@@ -851,7 +852,7 @@ class DehazeLUTSystem {
 
 // 主类
 class DarkChannelDehaze {
-    constructor(device = null) {
+    constructor() {
         this.device = device;
         this.initialized = false;
         this.lutSystem = null;

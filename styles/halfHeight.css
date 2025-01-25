@@ -1,0 +1,126 @@
+
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background1'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background1) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background1) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background1), var(--b3-font-background1)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background2'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background2) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background2) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background2), var(--b3-font-background2)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+/* 重复上述代码，将 --b3-font-background2 替换为 --b3-font-background3 到 --b3-font-background13 */
+
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background3'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background3) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background3) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background3), var(--b3-font-background3)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+/* 重复上述代码，将 --b3-font-background3 替换为 --b3-font-background4 到 --b3-font-background13 */
+
+/* ... 重复上述代码，直到 background13 */
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background4'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background4) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background4) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background4), var(--b3-font-background4)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background5'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background5) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background5) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background5), var(--b3-font-background5)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background6'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background6) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background6) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background6), var(--b3-font-background6)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background7'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background7) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background7) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background7), var(--b3-font-background7)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background8'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background8) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background8) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background8), var(--b3-font-background8)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background9'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background9) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background9) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background9), var(--b3-font-background9)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background10'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background10) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background10) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background10), var(--b3-font-background10)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background11'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background11) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background11) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background11), var(--b3-font-background11)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background12'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background12) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background12) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background12), var(--b3-font-background12)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+.protyle-wysiwyg [data-node-id] [spellcheck] span[style*='background13'] {
+    background-color: transparent !important;
+    background: 
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background13) 50%, transparent 51%) left bottom / 0.5rem 0.5rem no-repeat,
+        radial-gradient(circle at 0.25rem 50%, var(--b3-font-background13) 50%, transparent 51%) right bottom / 0.5rem 0.5rem no-repeat,
+        linear-gradient(var(--b3-font-background13), var(--b3-font-background13)) center bottom / calc(100% - 0.5rem) 0.5rem no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
