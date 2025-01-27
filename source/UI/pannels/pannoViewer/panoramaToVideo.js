@@ -1,14 +1,15 @@
 import * as THREE from '../../../../static/three/three.mjs';
+import { Muxer,ArrayBufferTarget } from '../../../../static/webm-muxer.mjs';
 
 export class PanoramaVideoGenerator {
   constructor(width = 2560, height = 1440) {
     this.width = width;
     this.height = height;
-    this.fps = 120;
-    this.duration = 12; // 默认12秒
-    
+    this.fps = 120; // 降低帧率以提高质量
+    this.duration = 1; // 默认12秒
+
     // 优化渲染器设置
-    this.renderer = new THREE.WebGLRenderer({ 
+    this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       preserveDrawingBuffer: true,
       powerPreference: "high-performance",
@@ -16,14 +17,22 @@ export class PanoramaVideoGenerator {
       precision: "highp",
       stencil: false,  // 禁用模板缓冲区以提高性能
       depth: true,     // 启用深度测试
-      logarithmicDepthBuffer: true  // 添加对数深度缓冲
+      logarithmicDepthBuffer: true,  // 添加对数深度缓冲
+      antialias: true, // 启用多重采样抗锯齿
+      samples: 8 // 提高多重采样
     });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 限制最大像素比
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;  // 添加电影级色调映射
-    this.renderer.toneMappingExposure = 1.0;
-    this.renderer.outputEncoding = THREE.sRGBEncoding;  // 使用sRGB颜色空间
-    
+    this.renderer.setPixelRatio(1); // 固定像素比
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.5; // 增加曝光值
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace; // 使用sRGB颜色空间
+
+    // 添加Y轴翻转
+    this.renderer.setScissorTest(true);
+    this.renderer.setScissor(0, 0, width, height);
+    this.renderer.setViewport(0, 0, width, height);
+    this.renderer.setScissorTest(false);
+
     // 初始化场景和相机
     this.scene = new THREE.Scene();
     const aspect = width / height;
@@ -31,22 +40,30 @@ export class PanoramaVideoGenerator {
     // 竖屏模式下使用更大的 FOV 以显示更多内容
     const fov = isPortrait ? 90 : 75;
     this.camera = new THREE.PerspectiveCamera(fov, aspect, 1, 1000);
-    
+
     // 创建MediaRecorder
     this.mediaRecorder = null;
     this.chunks = [];
   }
 
   async setupScene(texture) {
-    // 创建球体几何体
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
-    geometry.scale(-1, 1, 1);
-    
+    // 修复颜色空间设置
+    texture.colorSpace = THREE.SRGBColorSpace;
     const material = new THREE.MeshBasicMaterial({
       map: texture,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      toneMapped: true, // 启用色调映射
+      transparent: true,  // 添加透明支持
+      opacity: 1,        // 确保完全不透明
+      depthWrite: true,  // 确保正确的深度写入
+      depthTest: true,   // 确保正确的深度测试
+      precision: 'highp' // 提高材质精度
     });
-    
+
+    // 创建球体几何体
+    const geometry = new THREE.SphereGeometry(500, 120, 80); // 增加细分
+    geometry.scale(-1, 1, 1);
+
     const mesh = new THREE.Mesh(geometry, material);
     this.scene.add(mesh);
   }
@@ -54,7 +71,7 @@ export class PanoramaVideoGenerator {
   async startRecording(options = {}) {
     const {
       duration = 12,
-      fps = 120,
+      fps = 60, // 降低帧率以提高质量
       startLon = 0,
       endLon = 360,
       startLat = 0,
@@ -65,11 +82,26 @@ export class PanoramaVideoGenerator {
       height = this.height
     } = options;
 
+    // 提高视频质量参数
+    const bitrate = 30_000_000; // 提高到20 Mbps
+    const keyFrameInterval = fps * 2; // 每2秒一个关键帧
+    const quality = 1.0; // 最高质量
+
+    // 修复时间戳计算
+    const frameDuration = 1000000 / fps; // 每帧持续时间（微秒）
+    const totalFrames = Math.ceil(fps * duration); // 总帧数
+    let currentTimestamp = 0; // 从0开始的时间戳
+
+    // 新增相机动画参数计算
+    const totalRotation = (endLon - startLon) * rotations;
+    const latDelta = endLat - startLat;
+    const smoothFactor = Math.max(0.1, Math.min(smoothness, 0.9)); // 限制平滑系数范围
+
     // 更新渲染器和相机尺寸
     this.width = width;
     this.height = height;
     this.renderer.setSize(width, height);
-    
+
     // 根据新的宽高比更新相机参数
     const aspect = width / height;
     const isPortrait = height > width;
@@ -80,189 +112,252 @@ export class PanoramaVideoGenerator {
     this.duration = duration;
     this.fps = fps;
 
-    // 首先检查支持的格式
-    const mimeType = [
-    //  'video/webm;codecs=h264',
-
-      'video/webm;codecs=vp9',  // 调整优先级顺序
-      'video/webm'
-    ].find(type => MediaRecorder.isTypeSupported(type));
-
-    if (!mimeType) {
-      throw new Error('浏览器不支持任何可用的视频录制格式');
-    }
-
-    const stream = this.renderer.domElement.captureStream(fps);
-    
-    // 优化2：动态调整比特率（保持质量同时降低编码压力）
-    const targetBitrate = this.width >= 2560 ? 25000000 : 16000000; // 2K使用25Mbps
-    const bitrateFactor = fps > 60 ? 1.2 : 1.0; // 高帧率适当提升比特率
-    
-    // 优化3：分块录制避免内存压力
-    this.mediaRecorder = new MediaRecorder(stream, {
-      mimeType: mimeType,
-      videoBitsPerSecond: targetBitrate * bitrateFactor,
-      audioBitsPerSecond: 0  // 明确禁用音频
+    // 初始化webm-muxer
+    this.muxer = new Muxer({
+      target: new ArrayBufferTarget(),
+      video: {
+        codec: 'V_VP9',
+        width: this.width,
+        height: this.height,
+        frameRate: this.fps,
+        bitrate: bitrate, // 添加比特率设置
+        quality: quality // 添加质量设置
+      }
     });
 
-    // 优化4：设置合理的时间分片（100ms）
-    this.mediaRecorder.start(100);  // 添加分片参数
+    const videoEncoder = new VideoEncoder({
+      output: (chunk, meta) => this.muxer.addVideoChunk(chunk, meta),
+      error: (e) => console.error('VideoEncoder error:', e)
+    });
 
-    // 优化1：使用更精确的时间控制
-    const frameInterval = 1000 / this.fps;
-    const totalFrames = this.duration * this.fps;
-    let frame = 0;
-    let lastRender = performance.now();
-    let nextFrameTime = lastRender;
-    let frameTimeAccumulator = 0; // 新增帧时间累加器
+    videoEncoder.configure({
+      codec: 'vp09.00.10.08',
+      width: this.width,
+      height: this.height,
+      bitrate: bitrate,
+      framerate: this.fps,
+      quality: quality,
+      latencyMode: 'quality'
+    });
 
-    const animate = () => {
-      const now = performance.now();
-      const deltaTime = now - lastRender;
-      lastRender = now;
-      frameTimeAccumulator += deltaTime;
+    let frameCounter = 0;
+    const startTime = performance.now();
 
-      // 优化2：基于固定时间步长的更新
-      while (frameTimeAccumulator >= frameInterval) {
-        frameTimeAccumulator -= frameInterval;
-        frame++;
+    // 添加动画循环取消句柄
+    this.animationFrameId = null;
 
-        if (frame >= totalFrames) {
-          this.mediaRecorder.stop();
+    // 新增录制完成Promise
+    const recordingPromise = new Promise((resolve, reject) => {
+      const animate = async () => {
+        if (frameCounter >= totalFrames) {
+          videoEncoder.flush().then(() => {
+            this.muxer.finalize();
+            const buffer = this.muxer.target.buffer;
+            const blob = new Blob([buffer], { type: 'video/webm' });
+            resolve(blob);
+          });
           return;
         }
 
-        // 优化3：使用更平滑的插值函数
-        const realProgress = frame / totalFrames;
-        const easeProgress = cubicBezier(0.42, 0, 0.58, 1)(realProgress);
+        // 修复时间戳计算（使用累积时间戳）
+        currentTimestamp += frameDuration;
 
-        // 优化4：提前计算相机位置
-        const lon = startLon + (endLon - startLon) * easeProgress * rotations;
-        const lat = startLat + (endLat - startLat) * easeProgress;
-        const phi = THREE.MathUtils.degToRad(90 - lat);
-        const theta = THREE.MathUtils.degToRad(lon + 90);
+        // 新增相机旋转逻辑（使用缓动函数实现平滑移动）
+        const progress = Math.pow(frameCounter / totalFrames, 1 / (2 - smoothFactor));
+        const currentLon = startLon + progress * totalRotation;
+        const currentLat = startLat + progress * latDelta;
 
-        // 优化5：使用缓存的计算结果
-        const sinPhi = Math.sin(phi);
-        const cosPhi = Math.cos(phi);
-        const sinTheta = Math.sin(theta);
-        const cosTheta = Math.cos(theta);
+        // 将球面坐标转换为三维向量
+        const phi = THREE.MathUtils.degToRad(90 - currentLat);
+        const theta = THREE.MathUtils.degToRad(currentLon);
+        this.camera.position.setFromSphericalCoords(1, phi, theta);
+        this.camera.lookAt(0, 0, 0);
 
-        this.camera.position.set(
-          sinPhi * cosTheta,
-          cosPhi,
-          sinPhi * sinTheta
+        // 创建新的渲染目标
+        const renderTarget = new THREE.WebGLRenderTarget(this.width, this.height, {
+          format: THREE.RGBAFormat,
+          type: THREE.UnsignedByteType,
+          stencilBuffer: false,
+          colorSpace: THREE.SRGBColorSpace // 确保渲染目标使用 sRGB 颜色空间
+        });
+
+        // 修改渲染到纹理的逻辑，添加Y轴翻转
+        this.renderer.setRenderTarget(renderTarget);
+        this.renderer.clear();
+        this.renderer.render(this.scene, this.camera);
+        this.renderer.setRenderTarget(null);
+
+        // 修改读取像素数据的逻辑，添加Y轴翻转
+        const pixels = new Uint8Array(this.width * this.height * 4);
+        this.renderer.readRenderTargetPixels(
+          renderTarget,
+          0,
+          0,
+          this.width,
+          this.height,
+          pixels
         );
 
-        this.camera.up.set(0, 1, 0);
-        this.camera.lookAt(0, 0, 0);
-      }
+        // 创建ImageData时直接翻转Y轴
+        const flippedPixels = new Uint8ClampedArray(this.width * this.height * 4);
+        for (let y = 0; y < this.height; y++) {
+          const srcOffset = y * this.width * 4;
+          const dstOffset = (this.height - y - 1) * this.width * 4;
+          flippedPixels.set(pixels.subarray(srcOffset, srcOffset + this.width * 4), dstOffset);
+        }
 
-      // 优化6：使用双缓冲渲染
-      this.renderer.clear();
+        const imageData = new ImageData(
+          flippedPixels,
+          this.width,
+          this.height
+        );
+
+        // 创建离屏Canvas
+        const canvas = new OffscreenCanvas(this.width, this.height);
+        const ctx = canvas.getContext('2d');
+        ctx.putImageData(imageData, 0, 0);
+
+        // 计算时间戳（第一帧为0）
+        const timestamp = frameCounter * frameDuration;
+
+        // 创建VideoFrame
+        const frame = new VideoFrame(canvas, {
+          timestamp: timestamp,
+          duration: frameDuration,
+          colorSpace: 'srgb' // 确保 VideoFrame 使用 sRGB 颜色空间
+        });
+
+        // 配置VideoEncoder以允许非零时间戳
+        if (frameCounter === 0) {
+            videoEncoder.configure({
+                codec: 'vp09.00.10.08',
+                width: this.width,
+                height: this.height,
+                bitrate: bitrate, // 使用更高的比特率
+                framerate: this.fps,
+                quality: quality, // 添加质量参数
+                latencyMode: 'quality' // 优先考虑质量
+            });
+        }
+
+        // 编码帧时使用更高质量设置
+        videoEncoder.encode(frame, {
+            keyFrame: frameCounter % keyFrameInterval === 0,
+            quality: quality
+        });
+        frame.close();
+
+        // 释放渲染目标
+        renderTarget.dispose();
+
+        frameCounter++;
+
+        this.animationFrameId = requestAnimationFrame(animate);
+      };
+
+      // 启动动画循环
+      animate();
+    });
+
+    // 启动前重置相机位置
+    this.camera.position.set(0, 0, 0);
+    this.camera.lookAt(0, 0, -1);
+
+    // 等待录制完成
+    await recordingPromise;
+
+    // 返回生成的视频Blob
+    const finalBlob = await recordingPromise;
+    console.log(finalBlob);
+    return finalBlob;
+  }
+
+  // 生成帧的异步迭代器（带调试日志）
+  async *generateFrames(totalFrames) {
+    console.log('开始生成帧...');
+    const gl = this.renderer.getContext();
+
+    for (let i = 0; i < totalFrames; i++) {
+      // 渲染场景
       this.renderer.render(this.scene, this.camera);
 
-      // 优化7：更精确的帧调度
-      const targetTime = nextFrameTime - performance.now();
-      if (targetTime > 1) {
-        setTimeout(() => requestAnimationFrame(animate), targetTime);
-      } else {
-        requestAnimationFrame(animate);
+      // 确保渲染完成
+      await new Promise(resolve => {
+        gl.finish(); // 使用WebGL原生方法
+        requestAnimationFrame(resolve);
+      });
+
+      // 读取像素数据（修复参数顺序）
+      const width = gl.drawingBufferWidth;
+      const height = gl.drawingBufferHeight;
+      const pixels = new Uint8Array(width * height * 4);
+
+      // 正确读取RGBA数据
+      gl.readPixels(
+        0, 0,
+        width, height,
+        gl.RGBA,         // 格式
+        gl.UNSIGNED_BYTE, // 类型
+        pixels           // 目标数组
+      );
+
+      // 验证像素数据
+      if (pixels[0] === undefined) {
+        throw new Error('读取像素数据失败');
       }
-      nextFrameTime += frameInterval;
-    };
+      console.log(`像素数据大小: ${pixels.length} bytes`);
 
-    // 优化8：预热渲染器
-    this.renderer.render(this.scene, this.camera);
-    const startTime = performance.now();
-    this.animationRequestId = requestAnimationFrame(animate);
+      // 创建离屏Canvas（修复翻转逻辑）
+      const canvas = new OffscreenCanvas(width, height);
+      const ctx = canvas.getContext('2d');
 
-    return new Promise((resolve, reject) => {
-      this.chunks = [];
-      
-      // 添加错误处理
-      this.mediaRecorder.onerror = (error) => {
-        reject(new Error(`视频录制失败: ${error.message}`));
-      };
-      
-      this.mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {  // 确保数据有效
-          this.chunks.push(e.data);
-        }
-      };
-      
-      this.mediaRecorder.onstop = async () => {
-        if (this.chunks.length === 0) {
-          reject(new Error('没有收到任何视频数据'));
-          return;
-        }
-        
-        try {
-          const blob = new Blob(this.chunks, { type: mimeType });
-          if (blob.size === 0) {
-            reject(new Error('生成的视频文件大小为0'));
-            return;
-          }
-          resolve(blob);
-        } catch (error) {
-          reject(new Error(`创建视频文件失败: ${error.message}`));
-        }
-      };
-    });
+      // 直接写入翻转后的图像
+      const imageData = new ImageData(
+        new Uint8ClampedArray(pixels),
+        width,
+        height
+      );
+
+      // 垂直翻转
+      ctx.translate(0, height);
+      ctx.scale(1, -1);
+      ctx.putImageData(imageData, 0, 0);
+
+      // 生成ImageBitmap（添加选项）
+      const imageBitmap = await createImageBitmap(canvas, {
+        premultiplyAlpha: 'none',
+        colorSpaceConversion: 'none'
+      });
+
+      // 验证图像尺寸
+      if (imageBitmap.width !== width || imageBitmap.height !== height) {
+        throw new Error(`图像尺寸不符 ${imageBitmap.width}x${imageBitmap.height}`);
+      }
+
+      console.log(`生成第${i + 1}帧成功，尺寸: ${imageBitmap.width}x${imageBitmap.height}`);
+      yield imageBitmap;
+    }
   }
 
   dispose() {
-    // 添加动画循环取消
-    if (this.animationRequestId) {
-      cancelAnimationFrame(this.animationRequestId);
+    // 增强资源清理
+    if (this.muxer) {
+      this.muxer.dispose();
     }
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+    this.renderer.forceContextLoss();  // 强制释放WebGL资源
     this.renderer.dispose();
     this.scene.clear();
   }
 }
 
-// 辅助函数：保存视频文件
-export function saveVideoBlob(blob, fileName = 'panorama_video.mp4') {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+// 新增视频保存方法
+export async function saveVideoBlob(blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `panorama-video-${Date.now()}.webm`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
-
-
-function cubicBezier(x1, y1, x2, y2) {
-  return function(t) {
-    const cx = 3 * x1;
-    const bx = 3 * (x2 - x1) - cx;
-    const ax = 1 - cx - bx;
-    const cy = 3 * y1;
-    const by = 3 * (y2 - y1) - cy;
-    const ay = 1 - cy - by;
-    
-    function sampleCurveX(t) {
-      return ((ax * t + bx) * t + cx) * t;
-    }
-    
-    function sampleCurveY(t) {
-      return ((ay * t + by) * t + cy) * t;
-    }
-    
-    function solveCurveX(x) {
-      let t2 = x;
-      for (let i = 0; i < 8; i++) {
-        const x2 = sampleCurveX(t2) - x;
-        if (Math.abs(x2) < 1e-6) return t2;
-        const d2 = (3 * ax * t2 + 2 * bx) * t2 + cx;
-        if (Math.abs(d2) < 1e-6) break;
-        t2 = t2 - x2 / d2;
-      }
-      return t2;
-    }
-    
-    return sampleCurveY(solveCurveX(t));
-  };
-} 

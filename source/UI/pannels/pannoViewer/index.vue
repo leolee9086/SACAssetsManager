@@ -990,7 +990,13 @@ const videoSettings = ref({
   fps: 30,
   width:1920,    // 修改为2K分辨率
   height: 1080,   // 修改为2K分辨率
-  isLandscape: true
+  isLandscape: true,
+  onProgress: ({ progress, currentFrame, totalFrames }) => {
+    console.log(`生成进度: ${(progress * 100).toFixed(1)}%`);
+  },
+  onPerformance: ({ renderTime, encodeTime, fps }) => {
+    console.log(`渲染时间: ${renderTime.toFixed(1)}ms, 编码时间: ${encodeTime.toFixed(1)}ms, FPS: ${fps.toFixed(1)}`);
+  }
 });
 
 // 修改生成视频的方法
