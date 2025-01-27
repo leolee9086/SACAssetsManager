@@ -207,6 +207,30 @@ export class PanoramaVideoGenerator {
           return;
         }
 
+        // 渲染当前帧
+        this.renderer.render(this.scene, this.camera);
+
+        // 获取当前帧图像
+        const currentCanvas = this.renderer.domElement;
+        const frameImage = currentCanvas.toDataURL('image/jpeg', 0.8);
+
+        // 更新阶段信息
+        let stage = '渲染中...';
+        if (frameCounter === 0) stage = '初始化中...';
+        if (frameCounter >= totalFrames - 1) stage = '编码中...';
+
+        // 调用进度回调
+        if (this.progressCallback) {
+          const progress = calculateProgress();
+          this.progressCallback({
+            progress,
+            currentFrame: frameCounter,
+            totalFrames,
+            stage,
+            frameImage
+          });
+        }
+
         // 修复时间戳计算（使用累积时间戳）
         currentTimestamp += frameDuration;
 
@@ -299,22 +323,6 @@ export class PanoramaVideoGenerator {
         renderTarget.dispose();
 
         frameCounter++;
-
-        // 更新阶段信息
-        let stage = '渲染中...';
-        if (frameCounter === 0) stage = '初始化中...';
-        if (frameCounter >= totalFrames - 1) stage = '编码中...';
-
-        // 调用进度回调
-        if (this.progressCallback) {
-          const progress = calculateProgress();
-          this.progressCallback({
-            progress,
-            currentFrame: frameCounter,
-            totalFrames,
-            stage
-          });
-        }
 
         // 使用setTimeout以最快速度继续下一帧
         setTimeout(animate, 0);

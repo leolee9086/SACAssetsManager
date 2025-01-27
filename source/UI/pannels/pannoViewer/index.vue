@@ -323,18 +323,33 @@
       </template>
     </CCDialog>
 
-    <!-- 在生成视频按钮下方添加进度条 -->
-    <div v-if="isGeneratingVideo" class="video-progress">
-      <div class="progress-bar" :style="{ width: `${videoProgress.progress * 100}%` }"></div>
-      <div class="progress-info">
-        <div class="progress-text">
-          生成进度: {{ Math.round(videoProgress.progress * 100) }}%
+    <!-- 在生成视频按钮下方添加进度条和时间轴 -->
+    <div v-if="isGeneratingVideo" class="video-progress-container">
+      <div class="video-progress">
+        <div class="progress-bar" :style="{ width: `${videoProgress.progress * 100}%` }"></div>
+        <div class="progress-info">
+          <div class="progress-text">
+            生成进度: {{ Math.round(videoProgress.progress * 100) }}%
+          </div>
+          <div class="frame-info">
+            帧数: {{ videoProgress.currentFrame }}/{{ videoProgress.totalFrames }}
+          </div>
+          <div class="stage-info">
+            当前阶段: {{ videoProgress.stage }}
+          </div>
         </div>
-        <div class="frame-info">
-          帧数: {{ videoProgress.currentFrame }}/{{ videoProgress.totalFrames }}
-        </div>
-        <div class="stage-info">
-          当前阶段: {{ videoProgress.stage }}
+      </div>
+
+      <!-- 关键帧时间轴 -->
+      <div class="timeline">
+        <div 
+          v-for="(frame, index) in keyFrames" 
+          :key="index" 
+          class="keyframe"
+          :style="{ left: `${(frame.time / (videoSettings?.duration || 12)) * 100}%` }"
+        >
+          <img :src="frame.image" alt="关键帧" class="thumbnail" />
+          <div class="time">{{ frame.time }}s</div>
         </div>
       </div>
     </div>
@@ -1009,20 +1024,15 @@ const videoProgress = ref({
 
 const isGeneratingVideo = ref(false); // 是否正在生成视频
 const videoSettings = ref({
-  duration: 12,
-  fps: 30,
-  width:1920,    // 修改为2K分辨率
-  height: 1080,   // 修改为2K分辨率
   isLandscape: true,
-  onProgress: ({ progress, currentFrame, totalFrames }) => {
-    console.log(`生成进度: ${(progress * 100).toFixed(1)}%`);
-  },
-  onPerformance: ({ renderTime, encodeTime, fps }) => {
-    console.log(`渲染时间: ${renderTime.toFixed(1)}ms, 编码时间: ${encodeTime.toFixed(1)}ms, FPS: ${fps.toFixed(1)}`);
-  }
+  duration: 12, // 默认时长
+  fps: 30
 });
 
-// 修改生成视频的方法
+// 添加关键帧状态
+const keyFrames = ref([]); // 存储关键帧缩略图
+
+// 修改 generateVideo 方法
 const generateVideo = async () => {
   if (!texture.value || isGeneratingVideo.value) return;
   
@@ -1034,6 +1044,7 @@ const generateVideo = async () => {
       totalFrames: 0,
       stage: '初始化中...'
     };
+    keyFrames.value = []; // 清空关键帧
 
     // 根据方向设置尺寸
     const width = videoSettings.value.isLandscape ? 2560 : 1440;   // 修改为2K分辨率
@@ -1044,13 +1055,21 @@ const generateVideo = async () => {
     await generator.setupScene(texture.value);
 
     // 设置进度回调
-    generator.setProgressCallback(({ progress, currentFrame, totalFrames, stage }) => {
+    generator.setProgressCallback(({ progress, currentFrame, totalFrames, stage, frameImage }) => {
       videoProgress.value = {
         progress,
         currentFrame,
         totalFrames,
         stage
       };
+
+      // 每10帧保存一个关键帧
+      if (currentFrame % 10 === 0 && frameImage) {
+        keyFrames.value.push({
+          time: (currentFrame / totalFrames * videoSettings.value.duration).toFixed(1),
+          image: frameImage
+        });
+      }
     });
 
     // 开始录制
@@ -1706,8 +1725,11 @@ canvas {
   font-weight: 500;
 }
 
+.video-progress-container {
+  margin-top: 16px;
+}
+
 .video-progress {
-  margin-top: 12px;
   background: var(--cc-theme-surface-light);
   border-radius: var(--cc-border-radius);
   overflow: hidden;
@@ -1739,5 +1761,35 @@ canvas {
 .stage-info {
   font-style: italic;
   color: var(--cc-theme-on-surface-variant);
+}
+
+.timeline {
+  position: relative;
+  height: 80px;
+  margin-top: 12px;
+  background: var(--cc-theme-surface-light);
+  border-radius: var(--cc-border-radius);
+  overflow: hidden;
+}
+
+.keyframe {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.thumbnail {
+  width: 60px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 2px solid var(--cc-theme-primary);
+  margin-bottom: 4px;
+}
+
+.time {
+  font-size: 10px;
+  color: var(--cc-theme-on-surface);
 }
 </style>
