@@ -1,12 +1,13 @@
 import * as THREE from '../../../../static/three/three.mjs';
 import { Muxer,ArrayBufferTarget } from '../../../../static/webm-muxer.mjs';
-
+import { Muxer as MP4Muxer, ArrayBufferTarget as MP4ArrayBufferTarget } from '../../../../static/mp4-muxer.mjs';
 export class PanoramaVideoGenerator {
   constructor(width = 2560, height = 1440) {
     this.width = width;
     this.height = height;
     this.fps = 120; // 降低帧率以提高质量
     this.duration = 1; // 默认12秒
+    this.videoFormat = 'webm'; // 新增视频格式选项
 
     // 优化渲染器设置
     this.renderer = new THREE.WebGLRenderer({
@@ -71,7 +72,7 @@ export class PanoramaVideoGenerator {
   async startRecording(options = {}) {
     const {
       duration = 12,
-      fps = 60, // 降低帧率以提高质量
+      fps = 60,
       startLon = 0,
       endLon = 360,
       startLat = 0,
@@ -79,11 +80,14 @@ export class PanoramaVideoGenerator {
       rotations = 1,
       smoothness = 0.8,
       width = this.width,
-      height = this.height
+      height = this.height,
+      format = 'mp4' // 新增格式参数
     } = options;
 
+    this.videoFormat = format;
+
     // 提高视频质量参数
-    const bitrate = 30_000_000; // 提高到20 Mbps
+    const bitrate = 30_000_000; 
     const keyFrameInterval = fps * 2; // 每2秒一个关键帧
     const quality = 1.0; // 最高质量
 
@@ -112,32 +116,55 @@ export class PanoramaVideoGenerator {
     this.duration = duration;
     this.fps = fps;
 
-    // 初始化webm-muxer
-    this.muxer = new Muxer({
-      target: new ArrayBufferTarget(),
-      video: {
-        codec: 'V_VP9',
-        width: this.width,
-        height: this.height,
-        frameRate: this.fps,
-        bitrate: bitrate, // 添加比特率设置
-        quality: quality // 添加质量设置
-      }
-    });
+    // 初始化视频编码器
+    if (this.videoFormat === 'mp4') {
+      this.muxer = new MP4Muxer({
+        target: new MP4ArrayBufferTarget(),
+        fastStart: 'in-memory',
+
+        video: {
+          codec: 'avc', // 使用更通用的H.264编码器
+          width: this.width,
+          height: this.height,
+          frameRate: this.fps,
+          bitrate: bitrate,
+          quality: quality
+        }
+      });
+    } else {
+      // 保持原有的webm初始化逻辑
+      this.muxer = new Muxer({
+        target: new ArrayBufferTarget(),
+        video: {
+          codec: 'V_VP9',
+          width: this.width,
+          height: this.height,
+          frameRate: this.fps,
+          bitrate: bitrate,
+          quality: quality
+        }
+      });
+    }
 
     const videoEncoder = new VideoEncoder({
       output: (chunk, meta) => this.muxer.addVideoChunk(chunk, meta),
       error: (e) => console.error('VideoEncoder error:', e)
     });
 
+    // 配置视频编码器
+    const codec = this.videoFormat === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08'; // 使用支持更高分辨率的H.264 profile
     videoEncoder.configure({
-      codec: 'vp09.00.10.08',
+      codec: codec,
       width: this.width,
       height: this.height,
       bitrate: bitrate,
       framerate: this.fps,
       quality: quality,
-      latencyMode: 'quality'
+      latencyMode: 'quality',
+      avc: {
+        format: 'annexb',
+        level: '5.2' // 使用最高级别的AVC Level 5.2
+      }
     });
 
     let frameCounter = 0;
@@ -153,7 +180,8 @@ export class PanoramaVideoGenerator {
           videoEncoder.flush().then(() => {
             this.muxer.finalize();
             const buffer = this.muxer.target.buffer;
-            const blob = new Blob([buffer], { type: 'video/webm' });
+            const mimeType = this.videoFormat === 'mp4' ? 'video/mp4' : 'video/webm';
+            const blob = new Blob([buffer], { type: mimeType });
             resolve(blob);
           });
           return;
@@ -230,7 +258,7 @@ export class PanoramaVideoGenerator {
         // 配置VideoEncoder以允许非零时间戳
         if (frameCounter === 0) {
             videoEncoder.configure({
-                codec: 'vp09.00.10.08',
+                codec: codec,
                 width: this.width,
                 height: this.height,
                 bitrate: bitrate, // 使用更高的比特率
@@ -353,11 +381,12 @@ export class PanoramaVideoGenerator {
   }
 }
 
-// 新增视频保存方法
-export async function saveVideoBlob(blob) {
+// 修改视频保存方法以支持MP4
+export async function saveVideoBlob(blob, format = 'mp4') {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `panorama-video-${Date.now()}.webm`;
+  const extension = format === 'mp4' ? 'mp4' : 'webm';
+  a.download = `panorama-video-${Date.now()}.${extension}`;
   a.click();
   URL.revokeObjectURL(a.href);
 }

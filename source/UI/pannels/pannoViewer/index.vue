@@ -1030,7 +1030,7 @@ const generateVideo = async () => {
     
     // 保存视频时使用正确的文件扩展名
     const orientation = videoSettings.value.isLandscape ? 'landscape' : 'portrait';
-    saveVideoBlob(videoBlob, `panorama_${orientation}_${Date.now()}.webm`);
+    saveVideoBlob(videoBlob,  'mp4');
     
     // 清理资源
     generator.dispose();
