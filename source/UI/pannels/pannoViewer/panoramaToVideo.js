@@ -8,6 +8,7 @@ export class PanoramaVideoGenerator {
     this.fps = 120; // 降低帧率以提高质量
     this.duration = 1; // 默认12秒
     this.videoFormat = 'webm'; // 新增视频格式选项
+    this.progressCallback = null; // 新增进度回调函数
 
     // 优化渲染器设置
     this.renderer = new THREE.WebGLRenderer({
@@ -69,10 +70,15 @@ export class PanoramaVideoGenerator {
     this.scene.add(mesh);
   }
 
+  // 新增设置进度回调的方法
+  setProgressCallback(callback) {
+    this.progressCallback = callback;
+  }
+
   async startRecording(options = {}) {
     const {
       duration = 12,
-      fps = 60,
+      fps = 120,
       startLon = 0,
       endLon = 360,
       startLat = 0,
@@ -81,15 +87,15 @@ export class PanoramaVideoGenerator {
       smoothness = 0.8,
       width = this.width,
       height = this.height,
-      format = 'mp4' // 新增格式参数
+      format = 'mp4'
     } = options;
 
     this.videoFormat = format;
 
-    // 提高视频质量参数
-    const bitrate = 30_000_000; 
-    const keyFrameInterval = fps * 2; // 每2秒一个关键帧
-    const quality = 1.0; // 最高质量
+    // 优化MP4编码参数
+    const bitrate = this.videoFormat === 'mp4' ? 50_000_000 : 30_000_000; // MP4使用更高比特率
+    const keyFrameInterval = this.videoFormat === 'mp4' ? fps : fps * 2; // MP4每1秒一个关键帧
+    const quality = 1.0;
 
     // 修复时间戳计算
     const frameDuration = 1000000 / fps; // 每帧持续时间（微秒）
@@ -121,14 +127,18 @@ export class PanoramaVideoGenerator {
       this.muxer = new MP4Muxer({
         target: new MP4ArrayBufferTarget(),
         fastStart: 'in-memory',
-
         video: {
-          codec: 'avc', // 使用更通用的H.264编码器
+          codec: 'avc',
           width: this.width,
           height: this.height,
           frameRate: this.fps,
           bitrate: bitrate,
-          quality: quality
+          quality: quality,
+          // 添加优化参数
+          gopSize: keyFrameInterval, // 关键帧间隔
+          temporalLayerCount: 1,    // 不使用时间分层
+          bitrateMode: 'vbr',       // 使用可变比特率
+          hardwareAcceleration: 'prefer-software' // 避免硬件加速导致的卡顿
         }
       });
     } else {
@@ -151,8 +161,8 @@ export class PanoramaVideoGenerator {
       error: (e) => console.error('VideoEncoder error:', e)
     });
 
-    // 配置视频编码器
-    const codec = this.videoFormat === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08'; // 使用支持更高分辨率的H.264 profile
+    // 优化视频编码器配置
+    const codec = this.videoFormat === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08';
     videoEncoder.configure({
       codec: codec,
       width: this.width,
@@ -163,12 +173,22 @@ export class PanoramaVideoGenerator {
       latencyMode: 'quality',
       avc: {
         format: 'annexb',
-        level: '5.2' // 使用最高级别的AVC Level 5.2
+        level: '5.2',
+        // 添加优化参数
+        profile: 'high',           // 使用High Profile
+        chromaFormat: '420',       // 使用4:2:0色度采样
+        bitDepth: 8,               // 8位色深
+        entropyCoding: 'cabac'     // 使用CABAC熵编码
       }
     });
 
     let frameCounter = 0;
     const startTime = performance.now();
+
+    // 新增进度计算
+    const calculateProgress = () => {
+      return Math.min(1, frameCounter / totalFrames);
+    };
 
     // 添加动画循环取消句柄
     this.animationFrameId = null;
@@ -280,10 +300,27 @@ export class PanoramaVideoGenerator {
 
         frameCounter++;
 
-        this.animationFrameId = requestAnimationFrame(animate);
+        // 更新阶段信息
+        let stage = '渲染中...';
+        if (frameCounter === 0) stage = '初始化中...';
+        if (frameCounter >= totalFrames - 1) stage = '编码中...';
+
+        // 调用进度回调
+        if (this.progressCallback) {
+          const progress = calculateProgress();
+          this.progressCallback({
+            progress,
+            currentFrame: frameCounter,
+            totalFrames,
+            stage
+          });
+        }
+
+        // 使用setTimeout以最快速度继续下一帧
+        setTimeout(animate, 0);
       };
 
-      // 启动动画循环
+      // 立即开始动画循环
       animate();
     });
 
@@ -311,8 +348,8 @@ export class PanoramaVideoGenerator {
 
       // 确保渲染完成
       await new Promise(resolve => {
-        gl.finish(); // 使用WebGL原生方法
-        requestAnimationFrame(resolve);
+        gl.finish();
+        setTimeout(resolve, 0);  // 使用setTimeout替代requestAnimationFrame
       });
 
       // 读取像素数据（修复参数顺序）
@@ -369,9 +406,7 @@ export class PanoramaVideoGenerator {
 
   dispose() {
     // 增强资源清理
-    if (this.muxer) {
-      this.muxer.dispose();
-    }
+ 
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
     }

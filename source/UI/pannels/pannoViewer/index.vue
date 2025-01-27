@@ -322,6 +322,22 @@
         </div>
       </template>
     </CCDialog>
+
+    <!-- 在生成视频按钮下方添加进度条 -->
+    <div v-if="isGeneratingVideo" class="video-progress">
+      <div class="progress-bar" :style="{ width: `${videoProgress.progress * 100}%` }"></div>
+      <div class="progress-info">
+        <div class="progress-text">
+          生成进度: {{ Math.round(videoProgress.progress * 100) }}%
+        </div>
+        <div class="frame-info">
+          帧数: {{ videoProgress.currentFrame }}/{{ videoProgress.totalFrames }}
+        </div>
+        <div class="stage-info">
+          当前阶段: {{ videoProgress.stage }}
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -984,7 +1000,14 @@ const handleSaveMirrored = () => {
 };
 
 // 添加视频相关状态
-const isGeneratingVideo = ref(false);
+const videoProgress = ref({
+  progress: 0, // 总体进度
+  currentFrame: 0, // 当前帧
+  totalFrames: 0, // 总帧数
+  stage: '准备中...' // 当前阶段
+});
+
+const isGeneratingVideo = ref(false); // 是否正在生成视频
 const videoSettings = ref({
   duration: 12,
   fps: 30,
@@ -1005,7 +1028,13 @@ const generateVideo = async () => {
   
   try {
     isGeneratingVideo.value = true;
-    
+    videoProgress.value = {
+      progress: 0,
+      currentFrame: 0,
+      totalFrames: 0,
+      stage: '初始化中...'
+    };
+
     // 根据方向设置尺寸
     const width = videoSettings.value.isLandscape ? 2560 : 1440;   // 修改为2K分辨率
     const height = videoSettings.value.isLandscape ? 1440 : 2560;  // 修改为2K分辨率
@@ -1013,8 +1042,18 @@ const generateVideo = async () => {
     // 创建视频生成器
     const generator = new PanoramaVideoGenerator(width, height);
     await generator.setupScene(texture.value);
-    
-    // 开始录制，传入完整的参数
+
+    // 设置进度回调
+    generator.setProgressCallback(({ progress, currentFrame, totalFrames, stage }) => {
+      videoProgress.value = {
+        progress,
+        currentFrame,
+        totalFrames,
+        stage
+      };
+    });
+
+    // 开始录制
     const videoBlob = await generator.startRecording({
       duration: videoSettings.value.duration,
       fps: videoSettings.value.fps,
@@ -1022,18 +1061,14 @@ const generateVideo = async () => {
       endLon: 360,
       startLat: 0,
       endLat: 0,
-      width: width,     // 添加宽度参数
-      height: height,   // 添加高度参数
+      width: width,
+      height: height,
       smoothness: 0.8,
       rotations: 1
     });
-    
-    // 保存视频时使用正确的文件扩展名
-    const orientation = videoSettings.value.isLandscape ? 'landscape' : 'portrait';
-    saveVideoBlob(videoBlob,  'mp4');
-    
-    // 清理资源
-    generator.dispose();
+
+    // 保存视频
+    saveVideoBlob(videoBlob, 'mp4');
     
   } catch (error) {
     console.error('生成视频失败:', error);
@@ -1669,5 +1704,40 @@ canvas {
   margin: 0 0 16px 0;
   font-size: 14px;
   font-weight: 500;
+}
+
+.video-progress {
+  margin-top: 12px;
+  background: var(--cc-theme-surface-light);
+  border-radius: var(--cc-border-radius);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar {
+  height: 4px;
+  background: var(--cc-theme-primary);
+  transition: width 0.1s linear;
+}
+
+.progress-info {
+  padding: 8px;
+}
+
+.progress-text,
+.frame-info,
+.stage-info {
+  font-size: 12px;
+  color: var(--cc-theme-on-surface);
+  margin: 2px 0;
+}
+
+.frame-info {
+  color: var(--cc-theme-on-surface-variant);
+}
+
+.stage-info {
+  font-style: italic;
+  color: var(--cc-theme-on-surface-variant);
 }
 </style>
