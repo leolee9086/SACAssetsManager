@@ -2,6 +2,7 @@ import * as THREE from '../../../../static/three/three.mjs';
 import { Muxer,ArrayBufferTarget } from '../../../../static/webm-muxer.mjs';
 import { Muxer as MP4Muxer, ArrayBufferTarget as MP4ArrayBufferTarget } from '../../../../static/mp4-muxer.mjs';
 import { flipPixelsYAxis } from './utils/pixels.js';
+import { calculateCameraPosition, updateCamera } from './useThree.js';
 // 在类定义前添加常量配置对象
 const Constants = {
     DEFAULT_VALUES: {
@@ -142,12 +143,6 @@ export class PanoramaVideoGenerator {
     const frameDuration = 1000000 / fps; // 每帧持续时间（微秒）
     const totalFrames = Math.ceil(fps * duration); // 总帧数
     let currentTimestamp = 0; // 从0开始的时间戳
-
-    // 新增相机动画参数计算
-    const totalRotation = (endLon - startLon) * rotations;
-    const latDelta = endLat - startLat;
-    const smoothFactor = Math.max(0.1, Math.min(smoothness, 0.9)); // 限制平滑系数范围
-
     this.duration = duration;
     this.fps = fps;
 
@@ -228,16 +223,20 @@ export class PanoramaVideoGenerator {
         // 修复时间戳计算（使用累积时间戳）
         currentTimestamp += frameDuration;
 
-        // 新增相机旋转逻辑（使用缓动函数实现平滑移动）
-        const progress = Math.pow(frameCounter / totalFrames, 1 / (2 - smoothFactor));
-        const currentLon = startLon + progress * totalRotation;
-        const currentLat = startLat + progress * latDelta;
+        // 使用纯函数计算相机位置
+        const { currentLon, currentLat } = calculateCameraPosition({
+            frameCounter,
+            totalFrames,
+            startLon,
+            endLon,
+            startLat,
+            endLat,
+            rotations,
+            smoothness
+        });
 
-        // 将球面坐标转换为三维向量
-        const phi = THREE.MathUtils.degToRad(90 - currentLat);
-        const theta = THREE.MathUtils.degToRad(currentLon);
-        this.camera.position.setFromSphericalCoords(1, phi, theta);
-        this.camera.lookAt(0, 0, 0);
+        // 使用纯函数更新相机
+        updateCamera(this.camera, { currentLon, currentLat });
 
         // 创建新的渲染目标
         const renderTarget = new THREE.WebGLRenderTarget(this.width, this.height, {
