@@ -94,6 +94,9 @@ export class PanoramaVideoGenerator {
     } = options;
 
     this.videoFormat = format;
+    
+    // 将编码器初始化逻辑提取到新方法
+    await this.initVideoEncoder(fps);
 
     // 优化MP4编码参数
     const bitrate = this.videoFormat === 'mp4' ? 50_000_000 : 30_000_000; // MP4使用更高比特率
@@ -124,40 +127,6 @@ export class PanoramaVideoGenerator {
 
     this.duration = duration;
     this.fps = fps;
-
-    // 初始化视频编码器
-    if (this.videoFormat === 'mp4') {
-      this.muxer = new MP4Muxer({
-        target: new MP4ArrayBufferTarget(),
-        fastStart: 'in-memory',
-        video: {
-          codec: 'avc',
-          width: this.width,
-          height: this.height,
-          frameRate: this.fps,
-          bitrate: bitrate,
-          quality: quality,
-          // 添加优化参数
-          gopSize: keyFrameInterval, // 关键帧间隔
-          temporalLayerCount: 1,    // 不使用时间分层
-          bitrateMode: 'vbr',       // 使用可变比特率
-          hardwareAcceleration: 'prefer-software' // 避免硬件加速导致的卡顿
-        }
-      });
-    } else {
-      // 保持原有的webm初始化逻辑
-      this.muxer = new Muxer({
-        target: new ArrayBufferTarget(),
-        video: {
-          codec: 'V_VP9',
-          width: this.width,
-          height: this.height,
-          frameRate: this.fps,
-          bitrate: bitrate,
-          quality: quality
-        }
-      });
-    }
 
     const videoEncoder = new VideoEncoder({
       output: (chunk, meta) => this.muxer.addVideoChunk(chunk, meta),
@@ -347,6 +316,43 @@ export class PanoramaVideoGenerator {
     return finalBlob;
   }
 
+  // 新增方法：初始化视频编码器
+  async initVideoEncoder(fps) {
+    const bitrate = this.videoFormat === 'mp4' ? 50_000_000 : 30_000_000;
+    const keyFrameInterval = this.videoFormat === 'mp4' ? fps : fps * 2;
+    const quality = 1.0;
+
+    if (this.videoFormat === 'mp4') {
+      this.muxer = new MP4Muxer({
+        target: new MP4ArrayBufferTarget(),
+        fastStart: 'in-memory',
+        video: {
+          codec: 'avc',
+          width: this.width,
+          height: this.height,
+          frameRate: this.fps,
+          bitrate: bitrate,
+          quality: quality,
+          gopSize: keyFrameInterval,
+          temporalLayerCount: 1,
+          bitrateMode: 'vbr',
+          hardwareAcceleration: 'prefer-software'
+        }
+      });
+    } else {
+      this.muxer = new Muxer({
+        target: new ArrayBufferTarget(),
+        video: {
+          codec: 'V_VP9',
+          width: this.width,
+          height: this.height,
+          frameRate: this.fps,
+          bitrate: bitrate,
+          quality: quality
+        }
+      });
+    }
+  }
 
   dispose() {
     // 增强资源清理
