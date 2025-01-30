@@ -1,5 +1,4 @@
 import * as THREE from '../../../../static/three/three.mjs';
-import { flipPixelsYAxis } from './utils/pixels.js';
 import { 
     updateCamera,
     预计算球面轨迹,
@@ -10,8 +9,8 @@ import { createMuxer, ENCODER_CONFIG } from './videoMuxer.js';
 // 在类定义前添加常量配置对象
 const Constants = {
     DEFAULT_VALUES: {
-        WIDTH: 2560,
-        HEIGHT: 1440,
+        WIDTH: 3840,
+        HEIGHT: 2160,
         FPS: 120,
         DURATION: 12,
         FORMAT: 'mp4'
@@ -37,6 +36,123 @@ const Constants = {
         HEIGHT_SEGMENTS: 80
     }
 };
+
+// 新增工具函数
+function updateProgress({
+  frameCounter,
+  totalFrames,
+  thumbnailDataURL,
+  progressCallback
+}) {
+  const progress = Math.min(1, frameCounter / totalFrames);
+  let stage = '渲染中...';
+  if (frameCounter === 0) stage = '初始化中...';
+  if (frameCounter >= totalFrames - 1) stage = '编码中...';
+
+  if (progressCallback) {
+    progressCallback({
+      progress,
+      currentFrame: frameCounter,
+      totalFrames,
+      stage,
+      frameImage: thumbnailDataURL
+    });
+  }
+}
+
+// 添加队列类
+class FrameQueue {
+  constructor(maxSize = 10) {
+    this.queue = [];
+    this.maxSize = maxSize;
+  }
+
+  async enqueue(frame) {
+    while (this.queue.length >= this.maxSize) {
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }
+    this.queue.push(frame);
+  }
+
+  dequeue() {
+    return this.queue.shift();
+  }
+
+  get length() {
+    return this.queue.length;
+  }
+}
+
+// 新增编码器工具函数
+async function encodeFramesToVideo({
+  frameQueue,
+  totalFrames,
+  frameDuration,
+  videoEncoder,
+  keyFrameInterval,
+  quality
+}) {
+  let frameCounter = 0;
+  while (frameCounter < totalFrames) {
+    if (frameQueue.length > 0) {
+      const frameData = frameQueue.dequeue();
+      const frame = new VideoFrame(frameData.imageData, {
+        timestamp: frameCounter * frameDuration,
+        duration: frameDuration,
+        colorSpace: 'srgb'
+      });
+
+      await videoEncoder.encode(frame, {
+        keyFrame: frameCounter % keyFrameInterval === 0,
+        quality: quality
+      });
+
+      frame.close();
+      frameCounter++;
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }
+  }
+}
+
+// 新增纯函数
+async function renderFrames({
+  totalFrames,
+  cameraPositions,
+  renderer,
+  scene,
+  camera,
+  width,
+  height,
+  frameQueue,
+  progressCallback
+}) {
+  for (let frame = 0; frame < totalFrames; frame++) {
+    const { currentLon, currentLat } = 获取当前帧位置(cameraPositions, frame);
+    updateCamera(camera, { currentLon, currentLat });
+    
+    const { imageData, thumbnailDataURL } = await captureFrame(
+      renderer,
+      scene,
+      camera,
+      width,
+      height
+    );
+
+    await frameQueue.enqueue({
+      imageData,
+      thumbnailDataURL,
+      frameIndex: frame
+    });
+
+    updateProgress({
+      frameCounter: frame,
+      totalFrames,
+      thumbnailDataURL,
+      progressCallback
+    });
+  }
+}
 
 export class PanoramaVideoGenerator {
   constructor(width = Constants.DEFAULT_VALUES.WIDTH, height = Constants.DEFAULT_VALUES.HEIGHT) {
@@ -145,7 +261,6 @@ export class PanoramaVideoGenerator {
     // 修复时间戳计算
     const frameDuration = 1000000 / fps; // 每帧持续时间（微秒）
     const totalFrames = Math.ceil(fps * duration); // 总帧数
-    let currentTimestamp = 0; // 从0开始的时间戳
     this.duration = duration;
     this.fps = fps;
 
@@ -166,16 +281,6 @@ export class PanoramaVideoGenerator {
       latencyMode: 'quality',
     });
 
-    let frameCounter = 0;
-
-    // 新增进度计算
-    const calculateProgress = () => {
-      return Math.min(1, frameCounter / totalFrames);
-    };
-
-    // 添加动画循环取消句柄
-    this.animationFrameId = null;
-
     // 在动画初始化阶段预计算
     const cameraPositions = 预计算球面轨迹({
         totalFrames,
@@ -187,75 +292,41 @@ export class PanoramaVideoGenerator {
         smoothness
     });
 
-    // 新增录制完成Promise
-    const recordingPromise = new Promise((resolve, reject) => {
-      const animate = async () => {
-        if (frameCounter >= totalFrames) {
-          videoEncoder.flush().then(() => {
-            this.muxer.finalize();
-            const buffer = this.muxer.target.buffer;
-            const mimeType = this.videoFormat === 'mp4' ? 'video/mp4' : 'video/webm';
-            const blob = new Blob([buffer], { type: mimeType });
-            resolve(blob);
-          });
-          return;
-        }
-        // 直接获取预计算的位置
-        const { currentLon, currentLat } = 获取当前帧位置(cameraPositions, frameCounter);
-        updateCamera(this.camera, { currentLon, currentLat });
-        // 渲染当前帧
-        this.renderer.render(this.scene, this.camera);
-        // 使用从useThree导入的captureFrame函数
-        const { imageData, thumbnailDataURL } = await captureFrame(
-          this.renderer,
-          this.scene,
-          this.camera,
-          this.width,
-          this.height
-        );
-        // 更新阶段信息
-        let stage = '渲染中...';
-        if (frameCounter === 0) stage = '初始化中...';
-        if (frameCounter >= totalFrames - 1) stage = '编码中...';
-        // 调用进度回调
-        if (this.progressCallback) {
-          const progress = calculateProgress();
-          this.progressCallback({
-            progress,
-            currentFrame: frameCounter,
-            totalFrames,
-            stage,
-            frameImage: thumbnailDataURL
-          });
-        }
-        // 修复时间戳计算（使用累积时间戳）
-        currentTimestamp += frameDuration;
-        // 创建VideoFrame
-        const frame = new VideoFrame(imageData, {
-          timestamp: frameCounter * frameDuration,
-          duration: frameDuration,
-          colorSpace: 'srgb'
-        });
-        // 编码帧时使用更高质量设置
-        videoEncoder.encode(frame, {
-            keyFrame: frameCounter % keyFrameInterval === 0,
-            quality: quality
-        });
-        frame.close();
-        frameCounter++;
-        // 使用setTimeout以最快速度继续下一帧
-        setTimeout(animate, 0);
-      };
-      // 立即开始动画循环
-      animate();
-    });
+    const frameQueue = new FrameQueue(5); // 创建帧队列
+    let isRendering = true;
 
-    // 启动前重置相机位置
-    this.camera.position.set(0, 0, 0);
-    this.camera.lookAt(0, 0, -1);
+    // 使用新的纯函数替换原来的内联函数
+    try {
+      await Promise.all([
+        renderFrames({
+          totalFrames,
+          cameraPositions,
+          renderer: this.renderer,
+          scene: this.scene,
+          camera: this.camera,
+          width: this.width,
+          height: this.height,
+          frameQueue,
+          progressCallback: this.progressCallback
+        }),
+        encodeFramesToVideo({
+          frameQueue,
+          totalFrames,
+          frameDuration,
+          videoEncoder,
+          keyFrameInterval,
+          quality
+        })
+      ]);
 
-    const finalBlob = await recordingPromise;
-    return finalBlob;
+      await videoEncoder.flush();
+      this.muxer.finalize();
+      const buffer = this.muxer.target.buffer;
+      const mimeType = this.videoFormat === 'mp4' ? 'video/mp4' : 'video/webm';
+      return new Blob([buffer], { type: mimeType });
+    } finally {
+      isRendering = false;
+    }
   }
 
   // 新增方法：更新相机和渲染器设置
