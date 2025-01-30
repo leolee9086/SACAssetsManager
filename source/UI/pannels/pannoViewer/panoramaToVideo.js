@@ -60,97 +60,236 @@ function updateProgress({
   }
 }
 
-// 添加队列类
-class FrameQueue {
-  constructor(maxSize = 10) {
+// 添加自适应队列类
+class AdaptiveFrameQueue {
+  constructor(initialSize = 10, minSize = 5, maxSize = 60) {
     this.queue = [];
+    this.minSize = minSize;
     this.maxSize = maxSize;
+    this.currentMaxSize = initialSize;
+    this.lastProcessTime = Date.now();
+    this.processingTimes = [];
   }
 
   async enqueue(frame) {
-    while (this.queue.length >= this.maxSize) {
-      await new Promise(resolve => setTimeout(resolve, 1));
+    // 自适应等待策略
+    while (this.queue.length >= this.currentMaxSize) {
+      const waitTime = this.calculateWaitTime();
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      this.adjustQueueSize();
     }
     this.queue.push(frame);
   }
 
   dequeue() {
-    return this.queue.shift();
+    if (this.queue.length === 0) return null;
+    const startTime = Date.now();
+    const frame = this.queue.shift();
+    const processTime = Date.now() - startTime;
+    
+    this.processingTimes.push(processTime);
+    if (this.processingTimes.length > 10) {
+      this.processingTimes.shift();
+    }
+    
+    this.lastProcessTime = Date.now();
+    return frame;
+  }
+
+  calculateWaitTime() {
+    const avgProcessTime = this.getAverageProcessingTime();
+    return Math.max(1, Math.min(avgProcessTime / 2, 100));
+  }
+
+  getAverageProcessingTime() {
+    if (this.processingTimes.length === 0) return 10;
+    return this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length;
+  }
+
+  adjustQueueSize() {
+    const avgProcessTime = this.getAverageProcessingTime();
+    const queueUtilization = this.queue.length / this.currentMaxSize;
+    
+    if (queueUtilization > 0.8 && avgProcessTime < 50) {
+      // 队列接近满且处理速度快，增加容量
+      this.currentMaxSize = Math.min(this.maxSize, this.currentMaxSize + 5);
+    } else if (queueUtilization < 0.3 && avgProcessTime > 100) {
+      // 队列较空且处理速度慢，减少容量
+      this.currentMaxSize = Math.max(this.minSize, this.currentMaxSize - 2);
+    }
   }
 
   get length() {
     return this.queue.length;
   }
-}
 
-// 新增编码器工具函数
-async function encodeFramesToVideo({
-  frameQueue,
-  totalFrames,
-  frameDuration,
-  videoEncoder,
-  keyFrameInterval,
-  quality
-}) {
-  let frameCounter = 0;
-  while (frameCounter < totalFrames) {
-    if (frameQueue.length > 0) {
-      const frameData = frameQueue.dequeue();
-      const frame = new VideoFrame(frameData.imageData, {
-        timestamp: frameCounter * frameDuration,
-        duration: frameDuration,
-        colorSpace: 'srgb'
-      });
-
-      await videoEncoder.encode(frame, {
-        keyFrame: frameCounter % keyFrameInterval === 0,
-        quality: quality
-      });
-
-      frame.close();
-      frameCounter++;
-    } else {
-      await new Promise(resolve => setTimeout(resolve, 1));
-    }
+  get capacity() {
+    return this.currentMaxSize;
   }
 }
 
-// 新增纯函数
-async function renderFrames({
-  totalFrames,
-  cameraPositions,
-  renderer,
-  scene,
-  camera,
-  width,
-  height,
-  frameQueue,
-  progressCallback
-}) {
-  for (let frame = 0; frame < totalFrames; frame++) {
-    const { currentLon, currentLat } = 获取当前帧位置(cameraPositions, frame);
-    updateCamera(camera, { currentLon, currentLat });
-    
-    const { imageData, thumbnailDataURL } = await captureFrame(
-      renderer,
-      scene,
-      camera,
-      width,
-      height
-    );
 
-    await frameQueue.enqueue({
+
+// 新增 VideoEncoderManager 类
+class VideoEncoderManager {
+  constructor(options) {
+    const {
+      width,
+      height,
+      fps,
+      format = 'mp4',
+      bitrate = format === 'mp4' ? ENCODER_CONFIG.MP4_BITRATE : ENCODER_CONFIG.WEBM_BITRATE,
+      keyFrameInterval = ENCODER_CONFIG.KEYFRAME_INTERVAL[format](fps),
+      quality = ENCODER_CONFIG.QUALITY
+    } = options;
+
+    this.width = width;
+    this.height = height;
+    this.fps = fps;
+    this.format = format;
+    this.frameDuration = 1000000 / fps; // 微秒
+    this.frameQueue = new AdaptiveFrameQueue(10, 5, 60);
+    this.isEncoding = false;
+    this.encodingStats = {
+      totalFramesProcessed: 0,
+      startTime: 0,
+      lastProgressUpdate: 0,
+      averageEncodingTime: 0
+    };
+    
+    this.initializeMuxer({
+      format,
+      width,
+      height,
+      fps,
+      bitrate,
+      keyFrameInterval,
+      quality
+    });
+    
+    this.initializeEncoder(bitrate, keyFrameInterval, quality);
+  }
+
+  initializeMuxer(config) {
+    this.muxer = createMuxer(config);
+  }
+
+  initializeEncoder(bitrate, keyFrameInterval, quality) {
+    const codec = this.format === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08';
+    
+    this.videoEncoder = new VideoEncoder({
+      output: (chunk, meta) => this.muxer.addVideoChunk(chunk, meta),
+      error: (e) => console.error('VideoEncoder error:', e)
+    });
+
+    this.videoEncoder.configure({
+      codec,
+      width: this.width,
+      height: this.height,
+      bitrate,
+      framerate: this.fps,
+      quality,
+      latencyMode: 'quality',
+    });
+  }
+
+  async addFrame(imageData, thumbnailDataURL, frameIndex) {
+    await this.frameQueue.enqueue({
       imageData,
       thumbnailDataURL,
-      frameIndex: frame
+      frameIndex
+    });
+  }
+
+  async encode(frame) {
+    const videoFrame = new VideoFrame(frame.imageData, {
+      timestamp: frame.frameIndex * this.frameDuration,
+      duration: this.frameDuration,
+      colorSpace: 'srgb'
     });
 
-    updateProgress({
-      frameCounter: frame,
-      totalFrames,
-      thumbnailDataURL,
-      progressCallback
+    await this.videoEncoder.encode(videoFrame, {
+      keyFrame: frame.frameIndex % ENCODER_CONFIG.KEYFRAME_INTERVAL[this.format](this.fps) === 0,
+      quality: ENCODER_CONFIG.QUALITY
     });
+
+    videoFrame.close();
+  }
+
+  async startEncoding(totalFrames) {
+    if (this.isEncoding) return;
+    this.isEncoding = true;
+    this.encodingStats.startTime = Date.now();
+    
+    try {
+      let encodedFrames = 0;
+      while (encodedFrames < totalFrames || this.frameQueue.length > 0) {
+        const frame = this.frameQueue.dequeue();
+        if (frame) {
+          const encodeStartTime = Date.now();
+          await this.encode(frame);
+          
+          // 更新编码统计
+          const encodingTime = Date.now() - encodeStartTime;
+          this.encodingStats.averageEncodingTime = 
+            (this.encodingStats.averageEncodingTime * encodedFrames + encodingTime) / (encodedFrames + 1);
+          
+          encodedFrames++;
+          this.encodingStats.totalFramesProcessed = encodedFrames;
+          
+          // 定期输出性能统计
+          if (Date.now() - this.encodingStats.lastProgressUpdate > 1000) {
+            this.logEncodingStats(totalFrames);
+            this.encodingStats.lastProgressUpdate = Date.now();
+          }
+        } else {
+          // 动态调整等待时间
+          const waitTime = Math.max(1, this.encodingStats.averageEncodingTime / 4);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    } finally {
+      this.isEncoding = false;
+      this.logEncodingStats(totalFrames, true);
+    }
+  }
+
+  logEncodingStats(totalFrames, isFinal = false) {
+    const elapsedTime = (Date.now() - this.encodingStats.startTime) / 1000;
+    const fps = this.encodingStats.totalFramesProcessed / elapsedTime;
+    const queueSize = this.frameQueue.length;
+    const queueCapacity = this.frameQueue.capacity;
+    
+    console.log(`编码统计:
+      进度: ${this.encodingStats.totalFramesProcessed}/${totalFrames} (${((this.encodingStats.totalFramesProcessed/totalFrames)*100).toFixed(1)}%)
+      平均编码时间: ${this.encodingStats.averageEncodingTime.toFixed(1)}ms
+      编码FPS: ${fps.toFixed(1)}
+      队列状态: ${queueSize}/${queueCapacity}
+      ${isFinal ? '总耗时: ' + elapsedTime.toFixed(1) + '秒' : ''}
+    `);
+  }
+
+  async processFrames(totalFrames, frameGenerator) {
+    // 并行处理渲染和编码
+    const encodingPromise = this.startEncoding(totalFrames);
+    const renderingPromise = this.renderFrames(totalFrames, frameGenerator);
+    
+    await Promise.all([encodingPromise, renderingPromise]);
+  }
+
+  async renderFrames(totalFrames, frameGenerator) {
+    for (let frame = 0; frame < totalFrames; frame++) {
+      const { imageData, thumbnailDataURL } = await frameGenerator(frame);
+      await this.addFrame(imageData, thumbnailDataURL, frame);
+    }
+  }
+
+  async finalize() {
+    await this.videoEncoder.flush();
+    this.muxer.finalize();
+    const buffer = this.muxer.target.buffer;
+    const mimeType = this.format === 'mp4' ? 'video/mp4' : 'video/webm';
+    return new Blob([buffer], { type: mimeType });
   }
 }
 
@@ -240,92 +379,57 @@ export class PanoramaVideoGenerator {
     } = options;
 
     this.videoFormat = format;
-    this.muxer = createMuxer({
-      format: this.videoFormat,
-      width: this.width,
-      height: this.height,
-      fps,
-      bitrate: this.videoFormat === 'mp4' ? ENCODER_CONFIG.MP4_BITRATE : ENCODER_CONFIG.WEBM_BITRATE,
-      keyFrameInterval: ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps),
-      quality: ENCODER_CONFIG.QUALITY
-    });
-
-    // 更新渲染器和相机尺寸的逻辑移到新方法中
     this.updateCameraAndRenderer(width, height);
 
-    // 优化MP4编码参数
-    const bitrate = this.videoFormat === 'mp4' ? ENCODER_CONFIG.MP4_BITRATE : ENCODER_CONFIG.WEBM_BITRATE;
-    const keyFrameInterval = ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps);
-    const quality = ENCODER_CONFIG.QUALITY;
-
-    // 修复时间戳计算
-    const frameDuration = 1000000 / fps; // 每帧持续时间（微秒）
-    const totalFrames = Math.ceil(fps * duration); // 总帧数
+    const totalFrames = Math.ceil(fps * duration);
     this.duration = duration;
     this.fps = fps;
 
-    const videoEncoder = new VideoEncoder({
-      output: (chunk, meta) => this.muxer.addVideoChunk(chunk, meta),
-      error: (e) => console.error('VideoEncoder error:', e)
-    });
-
-    // 优化视频编码器配置
-    const codec = this.videoFormat === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08';
-    videoEncoder.configure({
-      codec: codec,
+    const encoderManager = new VideoEncoderManager({
       width: this.width,
       height: this.height,
-      bitrate: bitrate,
-      framerate: this.fps,
-      quality: quality,
-      latencyMode: 'quality',
+      fps: this.fps,
+      format: this.videoFormat
     });
 
-    // 在动画初始化阶段预计算
     const cameraPositions = 预计算球面轨迹({
-        totalFrames,
-        startLon,
-        endLon,
-        startLat,
-        endLat,
-        rotations,
-        smoothness
+      totalFrames,
+      startLon,
+      endLon,
+      startLat,
+      endLat,
+      rotations,
+      smoothness
     });
 
-    const frameQueue = new FrameQueue(5); // 创建帧队列
-    let isRendering = true;
-
-    // 使用新的纯函数替换原来的内联函数
     try {
-      await Promise.all([
-        renderFrames({
-          totalFrames,
-          cameraPositions,
-          renderer: this.renderer,
-          scene: this.scene,
-          camera: this.camera,
-          width: this.width,
-          height: this.height,
-          frameQueue,
-          progressCallback: this.progressCallback
-        }),
-        encodeFramesToVideo({
-          frameQueue,
-          totalFrames,
-          frameDuration,
-          videoEncoder,
-          keyFrameInterval,
-          quality
-        })
-      ]);
+      const frameGenerator = async (frame) => {
+        const { currentLon, currentLat } = 获取当前帧位置(cameraPositions, frame);
+        updateCamera(this.camera, { currentLon, currentLat });
+        
+        const frameData = await captureFrame(
+          this.renderer,
+          this.scene,
+          this.camera,
+          this.width,
+          this.height
+        );
 
-      await videoEncoder.flush();
-      this.muxer.finalize();
-      const buffer = this.muxer.target.buffer;
-      const mimeType = this.videoFormat === 'mp4' ? 'video/mp4' : 'video/webm';
-      return new Blob([buffer], { type: mimeType });
-    } finally {
-      isRendering = false;
+        updateProgress({
+          frameCounter: frame,
+          totalFrames,
+          thumbnailDataURL: frameData.thumbnailDataURL,
+          progressCallback: this.progressCallback
+        });
+
+        return frameData;
+      };
+
+      await encoderManager.processFrames(totalFrames, frameGenerator);
+      return await encoderManager.finalize();
+    } catch (error) {
+      console.error('视频生成错误:', error);
+      throw error;
     }
   }
 
