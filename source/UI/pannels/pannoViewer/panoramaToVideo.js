@@ -1,8 +1,12 @@
 import * as THREE from '../../../../static/three/three.mjs';
-import { Muxer,ArrayBufferTarget } from '../../../../static/webm-muxer.mjs';
-import { Muxer as MP4Muxer, ArrayBufferTarget as MP4ArrayBufferTarget } from '../../../../static/mp4-muxer.mjs';
 import { flipPixelsYAxis } from './utils/pixels.js';
-import { calculateCameraPosition, updateCamera } from './useThree.js';
+import { 
+    updateCamera,
+    预计算球面轨迹,
+    获取当前帧位置,
+    captureFrame  // 新增导入
+} from './useThree.js';
+import { createMuxer, ENCODER_CONFIG } from './videoMuxer.js';
 // 在类定义前添加常量配置对象
 const Constants = {
     DEFAULT_VALUES: {
@@ -22,15 +26,6 @@ const Constants = {
         DEPTH: true,
         LOGARITHMIC_DEPTH_BUFFER: true,
         SAMPLES: 8
-    },
-    ENCODER_CONFIG: {
-        MP4_BITRATE: 50_000_000,
-        WEBM_BITRATE: 30_000_000,
-        KEYFRAME_INTERVAL: {
-            mp4: fps => fps,
-            webm: fps => fps * 2
-        },
-        QUALITY: 1.0
     },
     CAMERA_CONFIG: {
         PORTRAIT_FOV: 90,
@@ -129,15 +124,23 @@ export class PanoramaVideoGenerator {
     } = options;
 
     this.videoFormat = format;
-    await this.initVideoEncoder(fps);
+    this.muxer = createMuxer({
+      format: this.videoFormat,
+      width: this.width,
+      height: this.height,
+      fps,
+      bitrate: this.videoFormat === 'mp4' ? ENCODER_CONFIG.MP4_BITRATE : ENCODER_CONFIG.WEBM_BITRATE,
+      keyFrameInterval: ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps),
+      quality: ENCODER_CONFIG.QUALITY
+    });
 
     // 更新渲染器和相机尺寸的逻辑移到新方法中
     this.updateCameraAndRenderer(width, height);
 
     // 优化MP4编码参数
-    const bitrate = this.videoFormat === 'mp4' ? Constants.ENCODER_CONFIG.MP4_BITRATE : Constants.ENCODER_CONFIG.WEBM_BITRATE;
-    const keyFrameInterval = Constants.ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps);
-    const quality = Constants.ENCODER_CONFIG.QUALITY;
+    const bitrate = this.videoFormat === 'mp4' ? ENCODER_CONFIG.MP4_BITRATE : ENCODER_CONFIG.WEBM_BITRATE;
+    const keyFrameInterval = ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps);
+    const quality = ENCODER_CONFIG.QUALITY;
 
     // 修复时间戳计算
     const frameDuration = 1000000 / fps; // 每帧持续时间（微秒）
@@ -161,15 +164,6 @@ export class PanoramaVideoGenerator {
       framerate: this.fps,
       quality: quality,
       latencyMode: 'quality',
-      avc: {
-        format: 'annexb',
-        level: '5.2',
-        // 添加优化参数
-        profile: 'high',           // 使用High Profile
-        chromaFormat: '420',       // 使用4:2:0色度采样
-        bitDepth: 8,               // 8位色深
-        entropyCoding: 'cabac'     // 使用CABAC熵编码
-      }
     });
 
     let frameCounter = 0;
@@ -181,6 +175,17 @@ export class PanoramaVideoGenerator {
 
     // 添加动画循环取消句柄
     this.animationFrameId = null;
+
+    // 在动画初始化阶段预计算
+    const cameraPositions = 预计算球面轨迹({
+        totalFrames,
+        startLon,
+        endLon,
+        startLat,
+        endLat,
+        rotations,
+        smoothness
+    });
 
     // 新增录制完成Promise
     const recordingPromise = new Promise((resolve, reject) => {
@@ -195,19 +200,23 @@ export class PanoramaVideoGenerator {
           });
           return;
         }
-
+        // 直接获取预计算的位置
+        const { currentLon, currentLat } = 获取当前帧位置(cameraPositions, frameCounter);
+        updateCamera(this.camera, { currentLon, currentLat });
         // 渲染当前帧
         this.renderer.render(this.scene, this.camera);
-
-        // 获取当前帧图像
-        const currentCanvas = this.renderer.domElement;
-        const frameImage = currentCanvas.toDataURL('image/jpeg', 0.8);
-
+        // 使用从useThree导入的captureFrame函数
+        const { imageData, thumbnailDataURL } = await captureFrame(
+          this.renderer,
+          this.scene,
+          this.camera,
+          this.width,
+          this.height
+        );
         // 更新阶段信息
         let stage = '渲染中...';
         if (frameCounter === 0) stage = '初始化中...';
         if (frameCounter >= totalFrames - 1) stage = '编码中...';
-
         // 调用进度回调
         if (this.progressCallback) {
           const progress = calculateProgress();
@@ -216,106 +225,27 @@ export class PanoramaVideoGenerator {
             currentFrame: frameCounter,
             totalFrames,
             stage,
-            frameImage
+            frameImage: thumbnailDataURL
           });
         }
-
         // 修复时间戳计算（使用累积时间戳）
         currentTimestamp += frameDuration;
-
-        // 使用纯函数计算相机位置
-        const { currentLon, currentLat } = calculateCameraPosition({
-            frameCounter,
-            totalFrames,
-            startLon,
-            endLon,
-            startLat,
-            endLat,
-            rotations,
-            smoothness
-        });
-
-        // 使用纯函数更新相机
-        updateCamera(this.camera, { currentLon, currentLat });
-
-        // 创建新的渲染目标
-        const renderTarget = new THREE.WebGLRenderTarget(this.width, this.height, {
-          format: THREE.RGBAFormat,
-          type: THREE.UnsignedByteType,
-          stencilBuffer: false,
-          colorSpace: THREE.SRGBColorSpace // 确保渲染目标使用 sRGB 颜色空间
-        });
-
-        // 修改渲染到纹理的逻辑，添加Y轴翻转
-        this.renderer.setRenderTarget(renderTarget);
-        this.renderer.clear();
-        this.renderer.render(this.scene, this.camera);
-        this.renderer.setRenderTarget(null);
-
-        // 修改读取像素数据的逻辑，添加Y轴翻转
-        const pixels = new Uint8Array(this.width * this.height * 4);
-        this.renderer.readRenderTargetPixels(
-          renderTarget,
-          0,
-          0,
-          this.width,
-          this.height,
-          pixels
-        );
-
-       
-
-        // 修改后的调用方式
-        const imageData = flipPixelsYAxis(
-            new Uint8ClampedArray(pixels.buffer), 
-            this.width, 
-            this.height
-        );
-
-        // 创建离屏Canvas
-        const canvas = new OffscreenCanvas(this.width, this.height);
-        const ctx = canvas.getContext('2d');
-        ctx.putImageData(imageData, 0, 0);
-
-        // 计算时间戳（第一帧为0）
-        const timestamp = frameCounter * frameDuration;
-
         // 创建VideoFrame
-        const frame = new VideoFrame(canvas, {
-          timestamp: timestamp,
+        const frame = new VideoFrame(imageData, {
+          timestamp: frameCounter * frameDuration,
           duration: frameDuration,
-          colorSpace: 'srgb' // 确保 VideoFrame 使用 sRGB 颜色空间
+          colorSpace: 'srgb'
         });
-
-        // 配置VideoEncoder以允许非零时间戳
-        if (frameCounter === 0) {
-            videoEncoder.configure({
-                codec: codec,
-                width: this.width,
-                height: this.height,
-                bitrate: bitrate, // 使用更高的比特率
-                framerate: this.fps,
-                quality: quality, // 添加质量参数
-                latencyMode: 'quality' // 优先考虑质量
-            });
-        }
-
         // 编码帧时使用更高质量设置
         videoEncoder.encode(frame, {
             keyFrame: frameCounter % keyFrameInterval === 0,
             quality: quality
         });
         frame.close();
-
-        // 释放渲染目标
-        renderTarget.dispose();
-
         frameCounter++;
-
         // 使用setTimeout以最快速度继续下一帧
         setTimeout(animate, 0);
       };
-
       // 立即开始动画循环
       animate();
     });
@@ -326,30 +256,6 @@ export class PanoramaVideoGenerator {
 
     const finalBlob = await recordingPromise;
     return finalBlob;
-  }
-
-  // 修改后的 initVideoEncoder 方法
-  async initVideoEncoder(fps) {
-    const bitrate = this.videoFormat === 'mp4' ? Constants.ENCODER_CONFIG.MP4_BITRATE : Constants.ENCODER_CONFIG.WEBM_BITRATE;
-    const keyFrameInterval = Constants.ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps);
-    const quality = Constants.ENCODER_CONFIG.QUALITY;
-
-    this.muxer = this.videoFormat === 'mp4' 
-      ? createMP4Muxer(
-          this.width,
-          this.height,
-          this.fps,
-          bitrate,
-          keyFrameInterval,
-          quality
-        )
-      : createWebMMuxer(
-          this.width,
-          this.height,
-          this.fps,
-          bitrate,
-          quality
-        );
   }
 
   // 新增方法：更新相机和渲染器设置
@@ -387,39 +293,4 @@ export async function saveVideoBlob(blob, format = 'mp4') {
   a.download = `panorama-video-${Date.now()}.${extension}`;
   a.click();
   URL.revokeObjectURL(a.href);
-}
-
-// 创建 MP4 Muxer 的纯函数
-function createMP4Muxer(width, height, fps, bitrate, keyFrameInterval, quality) {
-  return new MP4Muxer({
-    target: new MP4ArrayBufferTarget(),
-    fastStart: 'in-memory',
-    video: {
-      codec: 'avc',
-      width,
-      height,
-      frameRate: fps,
-      bitrate,
-      quality,
-      gopSize: keyFrameInterval,
-      temporalLayerCount: 1,
-      bitrateMode: 'vbr',
-      hardwareAcceleration: 'prefer-software'
-    }
-  });
-}
-
-// 创建 WebM Muxer 的纯函数
-function createWebMMuxer(width, height, fps, bitrate, quality) {
-  return new Muxer({
-    target: new ArrayBufferTarget(),
-    video: {
-      codec: 'V_VP9',
-      width,
-      height,
-      frameRate: fps,
-      bitrate,
-      quality
-    }
-  });
 }
