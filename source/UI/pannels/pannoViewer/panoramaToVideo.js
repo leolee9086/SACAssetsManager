@@ -1,13 +1,54 @@
 import * as THREE from '../../../../static/three/three.mjs';
 import { Muxer,ArrayBufferTarget } from '../../../../static/webm-muxer.mjs';
 import { Muxer as MP4Muxer, ArrayBufferTarget as MP4ArrayBufferTarget } from '../../../../static/mp4-muxer.mjs';
+
+// 在类定义前添加常量配置对象
+const Constants = {
+    DEFAULT_VALUES: {
+        WIDTH: 2560,
+        HEIGHT: 1440,
+        FPS: 120,
+        DURATION: 12,
+        FORMAT: 'mp4'
+    },
+    RENDERER_CONFIG: {
+        ANTIALIAS: true,
+        PRESERVE_DRAWING_BUFFER: true,
+        POWER_PREFERENCE: "high-performance",
+        ALPHA: true,
+        PRECISION: "highp",
+        STENCIL: false,
+        DEPTH: true,
+        LOGARITHMIC_DEPTH_BUFFER: true,
+        SAMPLES: 8
+    },
+    ENCODER_CONFIG: {
+        MP4_BITRATE: 50_000_000,
+        WEBM_BITRATE: 30_000_000,
+        KEYFRAME_INTERVAL: {
+            mp4: fps => fps,
+            webm: fps => fps * 2
+        },
+        QUALITY: 1.0
+    },
+    CAMERA_CONFIG: {
+        PORTRAIT_FOV: 90,
+        LANDSCAPE_FOV: 75
+    },
+    SPHERE_CONFIG: {
+        RADIUS: 500,
+        WIDTH_SEGMENTS: 120,
+        HEIGHT_SEGMENTS: 80
+    }
+};
+
 export class PanoramaVideoGenerator {
-  constructor(width = 2560, height = 1440) {
+  constructor(width = Constants.DEFAULT_VALUES.WIDTH, height = Constants.DEFAULT_VALUES.HEIGHT) {
     this.width = width;
     this.height = height;
-    this.fps = 120; // 降低帧率以提高质量
-    this.duration = 1; // 默认12秒
-    this.videoFormat = 'webm'; // 新增视频格式选项
+    this.fps = Constants.DEFAULT_VALUES.FPS;
+    this.duration = Constants.DEFAULT_VALUES.DURATION;
+    this.videoFormat = Constants.DEFAULT_VALUES.FORMAT;
     this.progressCallback = null; // 新增进度回调函数
 
     this.initRenderer();
@@ -17,7 +58,7 @@ export class PanoramaVideoGenerator {
     const aspect = width / height;
     const isPortrait = height > width;
     // 竖屏模式下使用更大的 FOV 以显示更多内容
-    const fov = isPortrait ? 90 : 75;
+    const fov = isPortrait ? Constants.CAMERA_CONFIG.PORTRAIT_FOV : Constants.CAMERA_CONFIG.LANDSCAPE_FOV;
     this.camera = new THREE.PerspectiveCamera(fov, aspect, 1, 1000);
 
     // 创建MediaRecorder
@@ -26,18 +67,7 @@ export class PanoramaVideoGenerator {
   }
 
   initRenderer() {
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      preserveDrawingBuffer: true,
-      powerPreference: "high-performance",
-      alpha: true,
-      precision: "highp",
-      stencil: false,  // 禁用模板缓冲区以提高性能
-      depth: true,     // 启用深度测试
-      logarithmicDepthBuffer: true,  // 添加对数深度缓冲
-      antialias: true, // 启用多重采样抗锯齿
-      samples: 8 // 提高多重采样
-    });
+    this.renderer = new THREE.WebGLRenderer(Constants.RENDERER_CONFIG);
     this.renderer.setSize(this.width, this.height);
     this.renderer.setPixelRatio(1); // 固定像素比
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -66,7 +96,11 @@ export class PanoramaVideoGenerator {
     });
 
     // 创建球体几何体
-    const geometry = new THREE.SphereGeometry(500, 120, 80); // 增加细分
+    const geometry = new THREE.SphereGeometry(
+        Constants.SPHERE_CONFIG.RADIUS,
+        Constants.SPHERE_CONFIG.WIDTH_SEGMENTS,
+        Constants.SPHERE_CONFIG.HEIGHT_SEGMENTS
+    );
     geometry.scale(-1, 1, 1);
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -100,9 +134,9 @@ export class PanoramaVideoGenerator {
     this.updateCameraAndRenderer(width, height);
 
     // 优化MP4编码参数
-    const bitrate = this.videoFormat === 'mp4' ? 50_000_000 : 30_000_000; // MP4使用更高比特率
-    const keyFrameInterval = this.videoFormat === 'mp4' ? fps : fps * 2; // MP4每1秒一个关键帧
-    const quality = 1.0;
+    const bitrate = this.videoFormat === 'mp4' ? Constants.ENCODER_CONFIG.MP4_BITRATE : Constants.ENCODER_CONFIG.WEBM_BITRATE;
+    const keyFrameInterval = Constants.ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps);
+    const quality = Constants.ENCODER_CONFIG.QUALITY;
 
     // 修复时间戳计算
     const frameDuration = 1000000 / fps; // 每帧持续时间（微秒）
@@ -296,51 +330,32 @@ export class PanoramaVideoGenerator {
     this.camera.position.set(0, 0, 0);
     this.camera.lookAt(0, 0, -1);
 
-    // 等待录制完成
-    await recordingPromise;
-
-    // 返回生成的视频Blob
     const finalBlob = await recordingPromise;
-    console.log(finalBlob);
     return finalBlob;
   }
 
-  // 新增方法：初始化视频编码器
+  // 修改后的 initVideoEncoder 方法
   async initVideoEncoder(fps) {
-    const bitrate = this.videoFormat === 'mp4' ? 50_000_000 : 30_000_000;
-    const keyFrameInterval = this.videoFormat === 'mp4' ? fps : fps * 2;
-    const quality = 1.0;
+    const bitrate = this.videoFormat === 'mp4' ? Constants.ENCODER_CONFIG.MP4_BITRATE : Constants.ENCODER_CONFIG.WEBM_BITRATE;
+    const keyFrameInterval = Constants.ENCODER_CONFIG.KEYFRAME_INTERVAL[this.videoFormat](fps);
+    const quality = Constants.ENCODER_CONFIG.QUALITY;
 
-    if (this.videoFormat === 'mp4') {
-      this.muxer = new MP4Muxer({
-        target: new MP4ArrayBufferTarget(),
-        fastStart: 'in-memory',
-        video: {
-          codec: 'avc',
-          width: this.width,
-          height: this.height,
-          frameRate: this.fps,
-          bitrate: bitrate,
-          quality: quality,
-          gopSize: keyFrameInterval,
-          temporalLayerCount: 1,
-          bitrateMode: 'vbr',
-          hardwareAcceleration: 'prefer-software'
-        }
-      });
-    } else {
-      this.muxer = new Muxer({
-        target: new ArrayBufferTarget(),
-        video: {
-          codec: 'V_VP9',
-          width: this.width,
-          height: this.height,
-          frameRate: this.fps,
-          bitrate: bitrate,
-          quality: quality
-        }
-      });
-    }
+    this.muxer = this.videoFormat === 'mp4' 
+      ? createMP4Muxer(
+          this.width,
+          this.height,
+          this.fps,
+          bitrate,
+          keyFrameInterval,
+          quality
+        )
+      : createWebMMuxer(
+          this.width,
+          this.height,
+          this.fps,
+          bitrate,
+          quality
+        );
   }
 
   // 新增方法：更新相机和渲染器设置
@@ -353,7 +368,7 @@ export class PanoramaVideoGenerator {
     // 根据新的宽高比更新相机参数
     const aspect = width / height;
     const isPortrait = height > width;
-    this.camera.fov = isPortrait ? 90 : 75; // 竖屏使用更大的 FOV
+    this.camera.fov = isPortrait ? Constants.CAMERA_CONFIG.PORTRAIT_FOV : Constants.CAMERA_CONFIG.LANDSCAPE_FOV;
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
   }
@@ -378,4 +393,39 @@ export async function saveVideoBlob(blob, format = 'mp4') {
   a.download = `panorama-video-${Date.now()}.${extension}`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// 创建 MP4 Muxer 的纯函数
+function createMP4Muxer(width, height, fps, bitrate, keyFrameInterval, quality) {
+  return new MP4Muxer({
+    target: new MP4ArrayBufferTarget(),
+    fastStart: 'in-memory',
+    video: {
+      codec: 'avc',
+      width,
+      height,
+      frameRate: fps,
+      bitrate,
+      quality,
+      gopSize: keyFrameInterval,
+      temporalLayerCount: 1,
+      bitrateMode: 'vbr',
+      hardwareAcceleration: 'prefer-software'
+    }
+  });
+}
+
+// 创建 WebM Muxer 的纯函数
+function createWebMMuxer(width, height, fps, bitrate, quality) {
+  return new Muxer({
+    target: new ArrayBufferTarget(),
+    video: {
+      codec: 'V_VP9',
+      width,
+      height,
+      frameRate: fps,
+      bitrate,
+      quality
+    }
+  });
 }
