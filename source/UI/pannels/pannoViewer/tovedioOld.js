@@ -10,22 +10,7 @@ export class PanoramaVideoGenerator {
     this.videoFormat = 'webm'; // 新增视频格式选项
     this.progressCallback = null; // 新增进度回调函数
 
-    this.initRenderer();
-
-    // 初始化场景和相机
-    this.scene = new THREE.Scene();
-    const aspect = width / height;
-    const isPortrait = height > width;
-    // 竖屏模式下使用更大的 FOV 以显示更多内容
-    const fov = isPortrait ? 90 : 75;
-    this.camera = new THREE.PerspectiveCamera(fov, aspect, 1, 1000);
-
-    // 创建MediaRecorder
-    this.mediaRecorder = null;
-    this.chunks = [];
-  }
-
-  initRenderer() {
+    // 优化渲染器设置
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       preserveDrawingBuffer: true,
@@ -38,7 +23,7 @@ export class PanoramaVideoGenerator {
       antialias: true, // 启用多重采样抗锯齿
       samples: 8 // 提高多重采样
     });
-    this.renderer.setSize(this.width, this.height);
+    this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(1); // 固定像素比
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.5; // 增加曝光值
@@ -46,9 +31,21 @@ export class PanoramaVideoGenerator {
 
     // 添加Y轴翻转
     this.renderer.setScissorTest(true);
-    this.renderer.setScissor(0, 0, this.width, this.height);
-    this.renderer.setViewport(0, 0, this.width, this.height);
+    this.renderer.setScissor(0, 0, width, height);
+    this.renderer.setViewport(0, 0, width, height);
     this.renderer.setScissorTest(false);
+
+    // 初始化场景和相机
+    this.scene = new THREE.Scene();
+    const aspect = width / height;
+    const isPortrait = height > width;
+    // 竖屏模式下使用更大的 FOV 以显示更多内容
+    const fov = isPortrait ? 90 : 75;
+    this.camera = new THREE.PerspectiveCamera(fov, aspect, 1, 1000);
+
+    // 创建MediaRecorder
+    this.mediaRecorder = null;
+    this.chunks = [];
   }
 
   async setupScene(texture) {
@@ -186,6 +183,7 @@ export class PanoramaVideoGenerator {
     });
 
     let frameCounter = 0;
+    const startTime = performance.now();
 
     // 新增进度计算
     const calculateProgress = () => {
