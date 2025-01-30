@@ -94,9 +94,10 @@ export class PanoramaVideoGenerator {
     } = options;
 
     this.videoFormat = format;
-    
-    // 将编码器初始化逻辑提取到新方法
     await this.initVideoEncoder(fps);
+
+    // 更新渲染器和相机尺寸的逻辑移到新方法中
+    this.updateCameraAndRenderer(width, height);
 
     // 优化MP4编码参数
     const bitrate = this.videoFormat === 'mp4' ? 50_000_000 : 30_000_000; // MP4使用更高比特率
@@ -112,18 +113,6 @@ export class PanoramaVideoGenerator {
     const totalRotation = (endLon - startLon) * rotations;
     const latDelta = endLat - startLat;
     const smoothFactor = Math.max(0.1, Math.min(smoothness, 0.9)); // 限制平滑系数范围
-
-    // 更新渲染器和相机尺寸
-    this.width = width;
-    this.height = height;
-    this.renderer.setSize(width, height);
-
-    // 根据新的宽高比更新相机参数
-    const aspect = width / height;
-    const isPortrait = height > width;
-    this.camera.fov = isPortrait ? 90 : 75; // 竖屏使用更大的 FOV
-    this.camera.aspect = aspect;
-    this.camera.updateProjectionMatrix();
 
     this.duration = duration;
     this.fps = fps;
@@ -352,6 +341,21 @@ export class PanoramaVideoGenerator {
         }
       });
     }
+  }
+
+  // 新增方法：更新相机和渲染器设置
+  updateCameraAndRenderer(width, height) {
+    // 更新渲染器尺寸
+    this.width = width;
+    this.height = height;
+    this.renderer.setSize(width, height);
+
+    // 根据新的宽高比更新相机参数
+    const aspect = width / height;
+    const isPortrait = height > width;
+    this.camera.fov = isPortrait ? 90 : 75; // 竖屏使用更大的 FOV
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
   }
 
   dispose() {
