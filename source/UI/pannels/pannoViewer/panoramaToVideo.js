@@ -1,7 +1,7 @@
 import * as THREE from '../../../../static/three/three.mjs';
 import { Muxer,ArrayBufferTarget } from '../../../../static/webm-muxer.mjs';
 import { Muxer as MP4Muxer, ArrayBufferTarget as MP4ArrayBufferTarget } from '../../../../static/mp4-muxer.mjs';
-
+import { flipPixelsYAxis } from './utils/pixels.js';
 // 在类定义前添加常量配置对象
 const Constants = {
     DEFAULT_VALUES: {
@@ -264,18 +264,13 @@ export class PanoramaVideoGenerator {
           pixels
         );
 
-        // 创建ImageData时直接翻转Y轴
-        const flippedPixels = new Uint8ClampedArray(this.width * this.height * 4);
-        for (let y = 0; y < this.height; y++) {
-          const srcOffset = y * this.width * 4;
-          const dstOffset = (this.height - y - 1) * this.width * 4;
-          flippedPixels.set(pixels.subarray(srcOffset, srcOffset + this.width * 4), dstOffset);
-        }
+       
 
-        const imageData = new ImageData(
-          flippedPixels,
-          this.width,
-          this.height
+        // 修改后的调用方式
+        const imageData = flipPixelsYAxis(
+            new Uint8ClampedArray(pixels.buffer), 
+            this.width, 
+            this.height
         );
 
         // 创建离屏Canvas
