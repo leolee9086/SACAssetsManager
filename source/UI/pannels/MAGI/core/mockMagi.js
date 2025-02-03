@@ -4,6 +4,11 @@ export class MockWISE {
     this.config = {
       responseType: 'mock', // 新增响应类型字段
       persona: 'UNKNOWN',  // 添加默认值
+      sseConfig: { // 新增SSE配置
+        eventTypes: ['init', 'chunk', 'complete'],
+        chunkInterval: 300,
+        ...config?.sseConfig
+      },
       ...config  // 确保config在后面以覆盖默认值
     }
     this.messages = []
@@ -79,13 +84,13 @@ export class MockWISE {
       // 更新状态
       voteMessage.status = 'success'
       return {
-        scores: validResponses.map((_, i) => ({
-          target: `方案${i+1}`,
+        scores: responses.map((_, i) => ({
+          targetIndex: i,
           score: Math.floor(Math.random() * 3 + 7),
-          comment: this.getVoteComment(validResponses[i])
+          decision: ['通过', '否决', '复议'][Math.floor(Math.random() * 3)],
+          comment: this.getVoteComment(responses[i])
         })),
-        weight: 8.5,
-        conclusion: '通过'
+        conclusion: '综合评估完成'
       }
     } catch (e) {
       // 确保错误处理
@@ -134,10 +139,49 @@ export class MockWISE {
     }
   }
 
-  // 修改回复方法以支持投票
-  async reply(userInput) {
+  // 新增SSE流响应方法
+  async *streamResponse(prompt) {
+    const newMsg = {
+      type: 'sse_stream',
+      content: '',
+      status: 'loading',
+      timestamp: Date.now()
+    }
+    this.messages.push(newMsg)
+
     try {
-      this.loading = true
+      // 模拟流式响应开始
+      yield `event: ${this.sseConfig.eventTypes[0]}\ndata: ${JSON.stringify({status: 'START'})}\n\n`
+      
+      // 生成分块响应
+      const chunks = this.getRandomResponse().split('...')
+      for (const [index, chunk] of chunks.entries()) {
+        await new Promise(resolve => 
+          setTimeout(resolve, this.sseConfig.chunkInterval + Math.random() * 200)
+        )
+        newMsg.content += chunk + '...'
+        yield `event: ${this.sseConfig.eventTypes[1]}\ndata: ${JSON.stringify({
+          content: chunk,
+          progress: (index + 1)/chunks.length
+        })}\n\n`
+      }
+
+      // 流式响应完成
+      yield `event: ${this.sseConfig.eventTypes[2]}\ndata: ${JSON.stringify({status: 'DONE'})}\n\n`
+      newMsg.status = 'success'
+    } catch(e) {
+      newMsg.status = 'error'
+      throw e
+    }
+  }
+
+  // 修改回复方法以支持SSE
+  async reply(userInput) {
+    this.loading = true
+    try {
+      if (this.config.responseType === 'sse') {
+        return this.streamResponse(userInput) // 返回生成器
+      }
       const newMsg = {
         type: 'ai', // 使用合法类型
         content: this.getRandomResponse(),
@@ -186,7 +230,10 @@ export class MockMelchior extends MockWISE {
       color: 'red',
       icon: '✝',
       responseType: 'theological',
-      persona: 'REI AS SUPEREGO' // 确保这个值被正确传递
+      persona: 'REI AS SUPEREGO', // 确保这个值被正确传递
+      sseConfig: {
+        eventTypes: ['theo_init', 'scripture', 'benediction'] // 定制化事件类型
+      }
     })
   }
 }
@@ -199,7 +246,7 @@ export class MockBalthazar extends MockWISE {
       color: 'blue',
       icon: '☪',
       responseType: 'emotional',
-      persona: 'REI AS EGO' // 自我
+      persona: 'REI AS EGO', // 自我
     })
   }
 }
@@ -212,7 +259,7 @@ export class MockCasper extends MockWISE {
       color: 'yellow',
       icon: '🔥',
       responseType: 'practical',
-      persona: 'REI AS ID' // 本我
+      persona: 'REI AS ID', // 本我
     })
   }
 }

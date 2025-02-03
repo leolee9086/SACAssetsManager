@@ -30,15 +30,28 @@
           :timestamp="msg.timestamp"
         >
           <template v-if="msg.type === 'vote'">
+            <div class="vote-header">
+              <span class="vote-timestamp">VOTE FOR {{ formatVoteTime(msg.timestamp) }}</span>
+              <span class="vote-conclusion" :class="conclusionClass">
+                {{ formattedConclusion }}
+              </span>
+            </div>
             <div class="vote-meta">
-              <span class="conclusion">{{ msg.meta?.conclusion || '未达成结论' }}</span>
-              <div v-for="(score, idx) in msg.meta?.scores" :key="idx" class="score-item">
-                <span class="target">{{ score.target }}</span>
+              <div class="score-item" v-for="(score, idx) in msg?.meta?.scores" :key="idx">
+                <div class="target-info">
+                  <span class="seel-index">{{String(idx+1).padStart(2, '0')}}</span>
+                  <div class="seel-details">
+                    <div class="seel-name">{{ getSeelName(score.targetIndex) }}</div>
+                    <div class="seel-role">{{ getSeelRole(score.targetIndex) }}</div>
+                  </div>
+                </div>
                 <div class="score-bar">
                   <div class="score-fill" :style="{ width: `${score.score * 10}%` }"></div>
                   <span class="score-value">{{ score.score }}</span>
                 </div>
-                <span class="comment">{{ score.comment }}</span>
+                <span class="decision" :class="decisionClass(score.decision)">
+                  {{ score.decision || '待定' }}
+                </span>
               </div>
             </div>
           </template>
@@ -56,7 +69,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import MessageBubble from './MessageBubble.vue'
 
 const props = defineProps({
@@ -82,21 +95,19 @@ const statusText = computed(() => {
   return '已连接'
 })
 
-const safeMeta = computed(() => props.msg.meta || {})
-const safeConclusion = computed(() => safeMeta.value.conclusion || '未知')
-const safeScores = computed(() => safeMeta.value.scores || [])
-const safeWeight = computed(() => (safeMeta.value.weight || 0).toFixed(1))
-const hasError = computed(() => safeMeta.value.error)
-const errorMessage = computed(() => safeMeta.value.message || '未知错误')
-const hasScores = computed(() => safeScores.value.length > 0)
-
-const conclusionClass = computed(() => {
-  return {
-    'pass': safeConclusion.value === '通过',
-    'reject': safeConclusion.value === '否决',
-    'review': safeConclusion.value === '复议'
-  }
+const safeMeta = computed(() => props.msg?.meta || {})
+const safeConclusion = computed(() => safeMeta.value.conclusion || '评估未完成')
+const formattedConclusion = computed(() => {
+  if (safeConclusion.value === 'pending') return '评估进行中'
+  if (safeConclusion.value === 'error') return '评估异常'
+  return safeConclusion.value
 })
+
+const conclusionClass = computed(() => ({
+  'conclusion-pass': safeConclusion.value === '通过',
+  'conclusion-reject': safeConclusion.value === '否决',
+  'conclusion-pending': !safeMeta.value.conclusion
+}))
 
 const displayName = computed(() => 
   props.ai?.config?.displayName || '未知AI'
@@ -106,6 +117,32 @@ const systemInfo = computed(() => ({
   name: props.ai?.config?.name || 'SYSTEM_ID',
   persona: props.ai?.config?.persona || '基础人格'
 }))
+
+// 注入seels列表
+const seels = inject('magi-system', [])
+
+const getSeelName = (index) => {
+  return seels[index]?.config.displayName || `MAGI-${index + 1}`
+}
+
+const getSeelRole = (index) => {
+  return seels[index]?.config.persona || 'UNKNOWN PROTOCOL'
+}
+
+// 新增决策状态分类方法
+const decisionClass = (decision) => {
+  return {
+    'text-green': decision === '通过',
+    'text-red': decision === '否决',
+    'text-yellow': decision === '复议'
+  }
+}
+
+// 新增时间格式化方法
+const formatVoteTime = (timestamp) => {
+  const date = new Date(timestamp)
+  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
+}
 </script>
 
 <style scoped>
@@ -244,19 +281,22 @@ const systemInfo = computed(() => ({
 }
 
 /* 新增投票结论样式 */
-.conclusion-通过 {
+.conclusion-pass {
   color: #0f0;
   border-left: 3px solid #0f0;
+  padding-left: 0.5rem;
 }
 
-.conclusion-复议 {
-  color: #ff0;
-  border-left: 3px solid #ff0;
-}
-
-.conclusion-否决 {
+.conclusion-reject {
   color: #f00;
   border-left: 3px solid #f00;
+  padding-left: 0.5rem;
+}
+
+.conclusion-pending {
+  color: #ff0;
+  border-left: 3px solid #ff0;
+  padding-left: 0.5rem;
 }
 
 .score-bar {
@@ -383,5 +423,49 @@ const systemInfo = computed(() => ({
 @keyframes pulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
+}
+
+.target-info {
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+}
+
+.seel-index {
+  font-size: 1.2em;
+  margin-right: 0.5rem;
+  color: #0ff;
+}
+
+.seel-details {
+  line-height: 1.2;
+}
+
+.seel-name {
+  font-size: 0.9em;
+  font-weight: bold;
+}
+
+.seel-role {
+  font-size: 0.7em;
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+
+.vote-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.vote-timestamp::before {
+  content: "⌚ ";
+  margin-right: 0.3em;
+}
+
+.vote-conclusion {
+  color: #0ff;
 }
 </style> 

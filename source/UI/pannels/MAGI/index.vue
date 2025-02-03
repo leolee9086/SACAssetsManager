@@ -35,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, provide } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
 import TrinitiPanel from './components/TrinitiPanel.vue'
 import { initMagi } from './core/mockMagi.js'
@@ -99,6 +99,9 @@ const initializeMAGI = async () => {
 onMounted(() => {
   initializeMAGI()
 })
+
+// 初始化后提供全局访问
+provide('magi-system', seels)
 
 const generateResponse = (aiIndex) => {
   const responses = [
@@ -202,7 +205,10 @@ const sendToAll = async () => {
           type: 'vote',
           content: '完成评估',
           status: 'success',
-          meta: voteResult,
+          meta: voteResult || {
+            scores: [],
+            conclusion: 'error'
+          },
           timestamp: Date.now()
         })
         
@@ -264,6 +270,50 @@ const sendToAll = async () => {
 </script>
 
 <style scoped>
+/* 添加字体声明 */
+@font-face {
+  font-family: 'EVA-Matisse';
+  src: 
+    url('/fonts/EVA-Matisse-Classic.woff2') format('woff2'),
+    url('/fonts/EVA-Matisse-Standard.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SourceHanSerif';
+  src: url('https://cdn.jsdelivr.net/npm/source-han-serif@2.0/source-han-serif-sc-heavy.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+}
+
+/* 应用字体到界面元素 */
+.magi-container {
+  font-family: 'EVA-Matisse', 'SourceHanSerif', sans-serif;
+  position: relative;
+  background: 
+    linear-gradient(to right, rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(45deg, rgba(0, 0, 0, 0.8), rgba(0, 30, 30, 0.9));
+  background-size: 20px 20px;
+}
+
+.neon-text {
+  font-family: 'EVA-Matisse', sans-serif;
+  font-weight: 900;
+}
+
+/* 系统消息使用思源宋体 */
+.message-bubble[type="system"] {
+  font-family: 'SourceHanSerif', serif;
+  font-weight: 900;
+}
+
+/* 控制台数字字体 */
+.status-code {
+  font-family: 'EVA-Matisse', monospace;
+}
+
 .magi-container {
   display: flex;
   flex-direction: column;
@@ -281,7 +331,17 @@ const sendToAll = async () => {
 .main-output {
   flex: 1;
   margin: 1rem;
-  background: rgba(0, 30, 30, 0.9);
+  background: 
+    linear-gradient(0deg, 
+      rgba(0, 255, 255, 0.05) 1px, 
+      transparent 1px
+    ),
+    linear-gradient(90deg, 
+      rgba(0, 255, 255, 0.05) 1px, 
+      transparent 1px
+    ),
+    rgba(0, 30, 30, 0.9);
+  background-size: 15px 15px;
   border: 2px solid #0f0;
   box-shadow: 0 0 15px #0f0;
   min-height: 50vh;
@@ -289,7 +349,15 @@ const sendToAll = async () => {
 
 .ai-panel {
   height: 100%;
-  background: rgba(0, 20, 20, 0.9);
+  background: 
+    repeating-linear-gradient(
+      45deg,
+      rgba(0, 255, 255, 0.05),
+      rgba(0, 255, 255, 0.05) 1px,
+      transparent 1px,
+      transparent 10px
+    ),
+    rgba(0, 20, 20, 0.9);
   border-width: 3px;
   transform: scale(0.95);
   transform-origin: top;
@@ -403,5 +471,57 @@ const sendToAll = async () => {
   );
   background-size: 100% 4px;
   pointer-events: none;
+}
+
+/* 添加动态扫描线效果 */
+.magi-container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(0, 255, 255, 0.05) 51%,
+    transparent 51%
+  );
+  background-size: 100% 4px;
+  animation: scanline 30s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scanline {
+  from { background-position: 0 0; }
+  to { background-position: 0 100vh; }
+}
+
+/* 增强面板网格效果 */
+.ai-panel {
+  background: 
+    repeating-linear-gradient(
+      45deg,
+      rgba(0, 255, 255, 0.05),
+      rgba(0, 255, 255, 0.05) 1px,
+      transparent 1px,
+      transparent 10px
+    ),
+    rgba(0, 20, 20, 0.9);
+}
+
+/* 主面板添加电路板纹理 */
+.main-output {
+  background: 
+    linear-gradient(0deg, 
+      rgba(0, 255, 255, 0.05) 1px, 
+      transparent 1px
+    ),
+    linear-gradient(90deg, 
+      rgba(0, 255, 255, 0.05) 1px, 
+      transparent 1px
+    ),
+    rgba(0, 30, 30, 0.9);
+  background-size: 15px 15px;
 }
 </style>
