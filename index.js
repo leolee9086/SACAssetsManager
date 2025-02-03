@@ -64,7 +64,7 @@ const TAB_CONFIGS = {
     containerId: 'assetsColumn'
   },
   ImagePreviewerTab: {
-    component: '/plugins/SACAssetsManager/source/UI/pannels/pannoViewer/index.vue',
+    component: '/plugins/SACAssetsManager/source/UI/pannels/MAGI/index.vue',
     containerId: 'imagePreviewerPanel'
   }
 }
