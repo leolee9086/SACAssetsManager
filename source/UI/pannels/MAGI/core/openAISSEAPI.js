@@ -31,7 +31,9 @@ export class AISSEProvider {
     const msgId = `chatcmpl-${Date.now()}`
     let response
     let reader = null
-
+    const CHUNK_DELIMITER = '\n\n'
+    const TEXT_DECODER = new TextDecoder()
+    
     try {
       response = await fetch(this.config.endpoint, {
         method: 'POST',
@@ -47,46 +49,89 @@ export class AISSEProvider {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorBody = await response.text()
+        throw new Error(`HTTP ${response.status}: ${errorBody.slice(0, 200)}`)
       }
 
       reader = response.body.getReader()
-      const decoder = new TextDecoder()
       let buffer = ''
+      let pendingYield = Promise.resolve()
 
-      while (true) {
+      do {
         const { done, value } = await reader.read()
         if (done) break
 
-        buffer += decoder.decode(value, { stream: true })
+        buffer += TEXT_DECODER.decode(value, { stream: true })
         
-        // 处理分块数据
-        while (buffer.includes('\n\n')) {
-          const chunkEnd = buffer.indexOf('\n\n')
-          const chunk = buffer.slice(0, chunkEnd)
-          buffer = buffer.slice(chunkEnd + 2)
+        // 高效分割处理块
+        let chunks
+        [chunks, buffer] = this._splitBuffer(buffer, CHUNK_DELIMITER)
 
+        // 批量处理避免频繁yield
+        const events = []
+        for (const chunk of chunks) {
           if (chunk.startsWith('data: ')) {
-            const eventData = this._parseSSEEvent(chunk)
-            if (eventData) { // 只在有有效数据时yield
-              yield this._formatToOpenAIEvent(eventData, msgId)
-            }
+            const event = this._processChunk(chunk, msgId)
+            event && events.push(event)
           }
         }
+
+        // 批量yield并添加调度间隙
+        if (events.length) {
+          await pendingYield
+          for (const event of events) {
+            yield event
+            pendingYield = new Promise(resolve => 
+              setTimeout(resolve, this.config.chunkInterval || 0)
+            )
+          }
+        }
+      } while (true)
+
+      // 处理最终残留数据
+      if (buffer) {
+        const event = this._processChunk(buffer, msgId)
+        event && (yield event)
       }
+
     } catch (e) {
       yield this._generateErrorEvent(e, msgId)
       throw e
     } finally {
-      if (reader) {
-        reader.releaseLock()
-      }
+      reader?.releaseLock()
     }
   }
 
-  // 统一事件格式转换
+  _splitBuffer(buffer, delimiter) {
+    const chunks = []
+    let index
+    while ((index = buffer.indexOf(delimiter)) >= 0) {
+      chunks.push(buffer.slice(0, index))
+      buffer = buffer.slice(index + delimiter.length)
+    }
+    return [chunks, buffer]
+  }
+
+  _processChunk(chunk, msgId) {
+    const eventData = this._parseSSEEvent(chunk)
+    return eventData ? this._formatToOpenAIEvent(eventData, msgId) : null
+  }
+
+  _parseSSEEvent(chunk) {
+    try {
+      const data = chunk.replace('data: ', '')
+      // 更好地处理[DONE]信号
+      if (data.trim() === '[DONE]') {
+        return null
+      }
+      return JSON.parse(data)
+    } catch (e) {
+      console.warn('SSE解析警告:', e, '原始数据:', chunk)
+      return null
+    }
+  }
+
   _formatToOpenAIEvent(data, msgId) {
-    // 如果data为null，返回null
     if (!data) return null
 
     const baseEvent = {
@@ -96,7 +141,7 @@ export class AISSEProvider {
       system_fingerprint: 'ai_service_1'
     }
 
-    // 添加DeepSeek响应格式适配
+    // 优化DeepSeek响应格式适配
     if (data.choices?.[0]?.delta?.content) {
       return {
         ...baseEvent,
@@ -108,44 +153,21 @@ export class AISSEProvider {
         }]
       }
     }
-    // 适配不同供应商的响应格式
-    if (data.delta) {
-      // OpenAI兼容格式
+
+    // 处理其他格式
+    if (data.choices) {
       return {
         ...baseEvent,
         object: 'chat.completion.chunk',
-        choices: [{
-          delta: data.delta,
-          index: 0,
-          finish_reason: data.finish_reason
-        }]
-      }
-    } else if (data.choices) {
-      // 其他供应商格式适配
-      return {
-        ...baseEvent,
-        ...data,
         choices: data.choices.map(choice => ({
           delta: choice.message ? { content: choice.message.content } : {},
-          index: choice.index,
+          index: choice.index || 0,
           finish_reason: choice.finish_reason
         }))
       }
     }
-  }
 
-  _parseSSEEvent(chunk) {
-    try {
-      const data = chunk.replace('data: ', '')
-      // 处理流结束标记
-      if (data === '[DONE]') {
-        return null
-      }
-      return JSON.parse(data)
-    } catch (e) {
-      console.warn('SSE解析警告:', e, '原始数据:', chunk)
-      return null
-    }
+    return null
   }
 
   _generateErrorEvent(error, msgId) {
