@@ -122,6 +122,12 @@ const getTypeLabel = (type) => {
 }
 
 const formatContent = (msg) => {
+  if (msg.type === 'sse_stream') {
+    return [
+      `[实时流] ${msg.content}`,
+      msg.meta?.progress ? `进度: ${msg.meta.progress}%` : ''
+    ].filter(Boolean).join(' | ')
+  }
   if (msg.meta?.type === 'vote-status') {
     const statusMap = {
       '通过': '✓',

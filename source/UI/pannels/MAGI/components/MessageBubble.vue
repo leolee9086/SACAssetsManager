@@ -52,6 +52,19 @@
           ></div>
         </div>
       </div>
+
+      <!-- 添加加载状态模板 -->
+      <template v-else-if="msg?.type === 'sse_stream'">
+        <div class="sse-stream">
+          <span class="stream-content">
+            {{ msg.content || '初始化神经连接...' }}
+          </span>
+          <span 
+            v-if="msg.status === 'loading'" 
+            class="stream-cursor animate-pulse"
+          >█</span>
+        </div>
+      </template>
     </div>
 
     <!-- 扩展内容 -->
@@ -74,8 +87,8 @@ const props = defineProps({
     type: String,
     default: 'default',
     validator: (v) => [
-      'ai', 'user', 'system', 
-      'vote', 'error', 'consensus',
+      'ai', 'user', 'system', 'vote', 
+      'error', 'consensus', 'sse_stream',
       'default', 'warning', 'info'
     ].includes(v)
   },
@@ -100,6 +113,14 @@ const props = defineProps({
     validator: v => ['left', 'right', 'center'].includes(v)
   },
   meta: {
+    type: Object,
+    default: () => ({})
+  },
+  streaming: {
+    type: Boolean,
+    default: false
+  },
+  msg: {
     type: Object,
     default: () => ({})
   }

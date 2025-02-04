@@ -23,40 +23,53 @@
     <transition name="panel-slide">
       <div v-show="showMessages" class="message-container secondary-output">
         <MessageBubble
-          v-for="(msg, i) in ai.messages"
-          :key="`msg-${i}`"
-          :type="msg.type === 'vote' ? 'vote' : msg.type"
-          :status="msg.status || 'default'"
+          v-for="msg in ai.messages"
+          :key="msg.id"
+          :type="msg.type"
+          :status="msg.status"
           :timestamp="msg.timestamp"
         >
-          <template v-if="msg.type === 'vote'">
-            <div class="vote-header">
-              <span class="vote-timestamp">VOTE FOR {{ formatVoteTime(msg.timestamp) }}</span>
-              <span class="vote-conclusion" :class="conclusionClass">
-                {{ formattedConclusion }}
-              </span>
-            </div>
-            <div class="vote-meta">
-              <div class="score-item" v-for="(score, idx) in msg?.meta?.scores" :key="idx">
-                <div class="target-info">
-                  <span class="seel-index">{{String(idx+1).padStart(2, '0')}}</span>
-                  <div class="seel-details">
-                    <div class="seel-name">{{ getSeelName(score.targetIndex) }}</div>
-                    <div class="seel-role">{{ getSeelRole(score.targetIndex) }}</div>
-                  </div>
-                </div>
-                <div class="score-bar">
-                  <div class="score-fill" :style="{ width: `${score.score * 10}%` }"></div>
-                  <span class="score-value">{{ score.score }}</span>
-                </div>
-                <span class="decision" :class="decisionClass(score.decision)">
-                  {{ score.decision || '待定' }}
+          <template #default>
+            <template v-if="msg.type === 'vote'">
+              <div class="vote-header">
+                <span class="vote-timestamp">VOTE FOR {{ formatVoteTime(msg.timestamp) }}</span>
+                <span class="vote-conclusion" :class="conclusionClass">
+                  {{ formattedConclusion }}
                 </span>
               </div>
-            </div>
-          </template>
-          <template v-else>
-            {{ msg.content }}
+              <div class="vote-meta">
+                <div class="score-item" v-for="(score, idx) in msg?.meta?.scores" :key="idx">
+                  <div class="target-info">
+                    <span class="seel-index">{{String(idx+1).padStart(2, '0')}}</span>
+                    <div class="seel-details">
+                      <div class="seel-name">{{ getSeelName(score.targetIndex) }}</div>
+                      <div class="seel-role">{{ getSeelRole(score.targetIndex) }}</div>
+                    </div>
+                  </div>
+                  <div class="score-bar">
+                    <div class="score-fill" :style="{ width: `${score.score * 10}%` }"></div>
+                    <span class="score-value">{{ score.score }}</span>
+                  </div>
+                  <span class="decision" :class="decisionClass(score.decision)">
+                    {{ score.decision || '待定' }}
+                  </span>
+                </div>
+              </div>
+            </template>
+            <template v-else-if="msg.type === 'sse_stream'">
+              <div class="sse-stream" 
+                   v-if="msg.status !== 'pending' && (msg.content.trim() || msg.status === 'loading')">
+                <span class="stream-content">{{ msg.content || '处理中...' }}</span>
+                <span 
+                  v-if="msg.status === 'loading'"
+                  class="stream-cursor"
+                  :style="{ color: `var(--${ai.config.color}-color)` }"
+                >▊</span>
+              </div>
+            </template>
+            <template v-else>
+              {{ msg.content }}
+            </template>
           </template>
         </MessageBubble>
         <div v-if="ai.loading" class="loading-animation">
@@ -69,8 +82,9 @@
 </template>
 
 <script setup>
-import { computed, inject } from 'vue'
+import { computed, inject, ref, defineExpose } from 'vue'
 import MessageBubble from './MessageBubble.vue'
+import { Vue } from 'vue'
 
 const props = defineProps({
   ai: {
@@ -143,6 +157,24 @@ const formatVoteTime = (timestamp) => {
   const date = new Date(timestamp)
   return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
 }
+
+// 增强流式更新处理
+const handleStreamUpdate = (chunk) => {
+  const lastMsg = props.ai.messages[props.ai.messages.length - 1]
+  if (!lastMsg || lastMsg.type !== 'sse_stream') return
+  
+  // 使用Vue.set确保响应式
+  Vue.set(lastMsg, 'content', (lastMsg.content || '') + chunk)
+  Vue.set(lastMsg, 'timestamp', Date.now())
+}
+
+// 允许父组件访问
+defineExpose({ handleStreamUpdate })
+
+// 添加配置访问保护
+const eventTypes = computed(() => {
+  return props.ai.config.sseConfig?.eventTypes || ['init', 'chunk', 'complete']
+})
 </script>
 
 <style scoped>
@@ -467,5 +499,21 @@ const formatVoteTime = (timestamp) => {
 
 .vote-conclusion {
   color: #0ff;
+}
+
+/* 新增SSE流样式 */
+.sse-stream {
+  font-family: 'MS Gothic', monospace;
+  white-space: pre-wrap;
+}
+
+.stream-cursor {
+  color: var(--${ai.config.color}-color);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 </style> 

@@ -1,15 +1,12 @@
 // 三贤人模拟模块（增强版）
-import { createAISSEProvider } from './openAISSEAPI.js'
+import { createOpenAI } from './mockOpenAISSEAPI.js'
 
 export class MockWISE {
   constructor(config = {}) {
-    // 替换为真实SSE客户端
-    this.openaiClient = createAISSEProvider({
-      apiKey: config.openAIConfig?.apiKey || 'default_key',
-      model: config.openAIConfig?.model || 'gpt-4',
-      endpoint: config.openAIConfig?.endpoint || 'https://api.your-ai-service.com/v1',
-      temperature: config.openAIConfig?.temperature ?? 0.7,
-      max_tokens: config.openAIConfig?.max_tokens ?? 500
+    // 新增OpenAI客户端实例
+    this.openaiClient = createOpenAI({
+      responseDelay: config.sseConfig?.chunkInterval || 300,
+      ...config.openAIConfig
     })
     
     // 深度合并配置
@@ -163,7 +160,7 @@ export class MockWISE {
     }
   }
 
-  // 修改流式响应适配逻辑
+  // 修改SSE流响应方法
   async *streamResponse(prompt) {
     try {
       const messages = [
@@ -171,38 +168,34 @@ export class MockWISE {
         { role: 'user', content: prompt }
       ]
 
+      // 使用OpenAI兼容接口
       const stream = await this.openaiClient.createChatCompletion(messages)
       
       for await (const chunk of stream) {
-        // 增强错误处理
-        if (chunk.error) {
-          throw new Error(chunk.error.message)
-        }
+        // 增强解析健壮性
+        const eventString = chunk.toString().trim()
+        if (!eventString.startsWith('data:')) continue
         
-        // 统一内容提取方式
-        const contentChunk = chunk.choices?.[0]?.delta?.content || ''
-        if (contentChunk) {
+        try {
+          const eventData = JSON.parse(eventString.slice(5).trim())
+          // 添加安全访问检查
+          const contentChunk = eventData?.choices?.[0]?.delta?.content || ''
+          
+          if (contentChunk) {
+            yield chunk
+          }
+        } catch (e) {
+          console.warn('SSE事件解析失败:', e)
           yield `data: ${JSON.stringify({
-            id: chunk.id,
-            object: 'chat.completion.chunk',
-            created: chunk.created,
-            model: chunk.model,
-            choices: [{
-              delta: { content: contentChunk },
-              index: 0,
-              finish_reason: null
-            }]
+            error: {
+              code: 'PARSE_ERROR',
+              message: '事件解析失败'
+            }
           })}\n\n`
         }
       }
     } catch(e) {
       console.error('流式响应异常:', e)
-      yield `data: ${JSON.stringify({
-        error: {
-          code: 'STREAM_ERROR',
-          message: e.message
-        }
-      })}\n\n`
       throw e
     }
   }
@@ -251,11 +244,13 @@ export class MockMelchior extends MockWISE {
         chunkInterval: 200
       },
       openAIConfig: {
-        apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
-        model: "deepseek-ai/DeepSeek-R1",
-        endpoint: 'https://api.siliconflow.cn/v1/',
+        model: 'melchior-v1',
         temperature: 0.3,
-        max_tokens: 1000
+        responseTemplates: [
+          "以父之名：『${prompt}』",
+          "马太福音模式：${prompt}是必要的牺牲",
+          "启示录协议：${prompt}"
+        ]
       }
     })
   }
@@ -275,11 +270,12 @@ export class MockBalthazar extends MockWISE {
         chunkInterval: 150
       },
       openAIConfig: {
-        apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
-        model: "deepseek-ai/DeepSeek-R1",
-        endpoint: 'https://api.siliconflow.cn/v1/',
+        model: 'balthazar-v2', 
         temperature: 0.7,
-        max_tokens: 500
+        responseTemplates: [
+          prompt => `量子分析：${prompt} (可信度 ${Math.random().toFixed(2)})`,
+          prompt => `战术预测：${prompt} 成功概率 ${Math.floor(Math.random()*100)}%`
+        ]
       }
     })
   }
@@ -299,11 +295,12 @@ export class MockCasper extends MockWISE {
         chunkInterval: 100
       },
       openAIConfig: {
-        apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
-        model: "deepseek-ai/DeepSeek-R1",
-        endpoint: 'https://api.siliconflow.cn/v1/',
+        model: 'casper-v3',
         temperature: 1.0,
-        max_tokens: 800
+        responseTemplates: [
+          prompt => `$${prompt} = \\sqrt{${Math.random()*100}}$$`,
+          prompt => `$$\\int_{0}^{${Math.floor(Math.random()*10)}} ${prompt}\\,dx$$`
+        ]
       }
     })
   }

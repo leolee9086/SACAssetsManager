@@ -6,6 +6,7 @@
         :key="seel.name"
         :ai="seel"
         :show-messages="showAllMessages"
+        ref="(el) => seelPanelRefs[seel.config.name] = el"
       />
     </div>
 
@@ -35,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, provide } from 'vue'
+import { ref, reactive, computed, onMounted, provide, nextTick } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
 import TrinitiPanel from './components/TrinitiPanel.vue'
 import { initMagi } from './core/mockMagi.js'
@@ -119,6 +120,13 @@ const toggleAllMessages = () => {
   seels.forEach(seel => seel.showMessages = showAllMessages.value)
 }
 
+// 增强SSE响应验证
+const isValidStream = (response) => {
+  return response && 
+    typeof response[Symbol.asyncIterator] === 'function' &&
+    typeof response.next === 'function'
+}
+
 const sendToAll = async () => {
   try {
     const userMessage = globalInput.value.trim()
@@ -134,39 +142,130 @@ const sendToAll = async () => {
       timestamp: Date.now()
     })
 
-    // 第一阶段：收集AI响应
-    const responsePromises = seels.map(async (seel, index) => {
+    // 重构响应处理逻辑
+    const responsePromises = seels.map(async (seel) => {
       try {
-        // 先显示加载状态
         const response = await seel.reply(userMessage)
-        
-        // 确保响应添加到对应AI的消息列表中
-        if (response && response.content) {
-          seel.messages.push({
-            type: 'ai',
-            content: response.content,
-            status: 'success',
-            timestamp: Date.now()
-          })
+        if (!isValidStream(response)) return null
+
+        // 创建暂存区避免直接操作消息数组
+        const pendingMsg = {
+          id: Symbol('sseMsg'),
+          type: 'sse_stream',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          meta: { progress: 0 },
+          _lastFull: ''
         }
-        
-        return response
-      } catch (error) {
-        console.error(`AI ${seel.config.displayName} 响应错误:`, error)
-        seel.messages.push({
-          type: 'error',
-          content: '响应失败',
-          status: 'error',
-          timestamp: Date.now()
-        })
-        throw error
+
+        let hasContent = false
+        let finalContent = ''
+        let receivedChunks = 0
+        let lastFullContent = ''
+
+        for await (const event of response) {
+          const { type, data } = parseSSEEvent(event)
+          
+          // 增强首包验证逻辑
+          receivedChunks++
+          if (receivedChunks === 1) {
+            // 扩展有效性判断标准
+            const isValidFirstChunk = (
+              (type === 'init' && (data.progress !== undefined || data.content)) ||  
+              (type === 'chunk' && (data.content || data.progress !== undefined))
+            )
+
+            if (!isValidFirstChunk) {
+              console.warn('首包验证失败', JSON.stringify({
+                type,
+                data,
+                rawEvent: event, // 记录原始事件数据
+                timestamp: Date.now(),
+                ai: seel.config.name // 记录当前AI实例
+              }, null, 2))
+              
+              seel.messages.push({
+                type: 'error',
+                content: `首包格式异常 [${type}]`,
+                timestamp: Date.now(),
+                meta: {
+                  progress: data.progress,
+                  eventType: type,
+                  rawData: data
+                }
+              })
+              return null
+            }
+            
+            // 处理初始化信息
+            if (data.progress !== undefined) {
+              pendingMsg.meta.progress = data.progress
+            }
+          }
+
+          // 延迟消息创建直到实际内容到达
+          if (data.content?.trim() && !hasContent) {
+            hasContent = true
+            const validMsg = reactive({ 
+              ...pendingMsg,
+              status: 'loading',
+              content: data.content
+            })
+            seel.messages.push(validMsg)
+          }
+
+          // 更新已提交的消息
+          const targetMsg = seel.messages.find(m => m.id === pendingMsg.id)
+          if (targetMsg) {
+            // 修改内容拼接逻辑
+            if (data._mode === 'delta') {
+              // 仅追加新内容（去除可能重复的起始部分）
+              const newContent = data.content.replace(targetMsg.content, '')
+              targetMsg.content += newContent
+            } else if (data._mode === 'full') {
+              // 使用智能比对算法
+              const diffStartIndex = findDiffIndex(lastFullContent, data.content)
+              const newContent = data.content.slice(diffStartIndex)
+              targetMsg.content += newContent
+              lastFullContent = data.content
+            }
+            targetMsg.meta.progress = data.progress
+            targetMsg.status = 'loading'
+            targetMsg.timestamp = Date.now()
+            finalContent = targetMsg.content
+          }
+        }
+
+        // 最终状态处理
+        if (hasContent) {
+          const targetMsg = seel.messages.find(m => m.id === pendingMsg.id)
+          if (targetMsg) {
+            targetMsg.status = 'success'
+            targetMsg.timestamp = Date.now()
+            if (!finalContent.trim()) {
+              seel.messages = seel.messages.filter(m => m !== targetMsg)
+            }
+          }
+          return finalContent
+        }
+        return null
+      } catch (e) {
+        console.error('流处理异常:', e)
+        return null
       }
     })
 
-    // 等待所有响应
-    const firstStageResponses = await Promise.all(responsePromises)
+    // 过滤空响应
+    const completedResponses = (await Promise.all(responsePromises))
+      .filter(Boolean)
 
-    // 第二阶段：交叉验证
+    // 过滤有效响应
+    const validResponses = completedResponses
+      .filter(response => response?.content)
+      .map(response => response.content)
+
+    // 添加系统消息
     consensusMessages.push({
       type: 'system',
       content: '开始交叉验证...',
@@ -174,7 +273,6 @@ const sendToAll = async () => {
       timestamp: Date.now()
     })
 
-    // 计算和显示验证进度
     const updateProgress = (percent) => {
       consensusMessages.push({
         type: 'system',
@@ -185,22 +283,17 @@ const sendToAll = async () => {
       })
     }
 
-    // 执行交叉验证
+    // 修改投票循环
     const voteResults = []
     for (let i = 0; i < seels.length; i++) {
       const seel = seels[i]
-      // 计算进度
       const progress = Math.floor((i / seels.length) * 100)
       updateProgress(progress)
       
       try {
-        const voteResult = await seel.voteFor(
-          firstStageResponses
-            .filter(r => r && r.content)
-            .map(r => r.content)
-        )
+        // 使用有效响应进行投票
+        const voteResult = await seel.voteFor(validResponses)
         
-        // 添加投票结果到AI消息列表
         seel.messages.push({
           type: 'vote',
           content: '完成评估',
@@ -224,28 +317,16 @@ const sendToAll = async () => {
       }
     }
 
-    // 更新最终进度
-    updateProgress(100)
-
-    // 计算权重和最终结果
-    const weightedResults = firstStageResponses
-      .map((response, index) => {
-        const votes = voteResults
-          .filter(v => v && v.scores && v.scores[index])
-          .map(v => v.scores[index].score)
-        
-        const weight = votes.length > 0
-          ? votes.reduce((a, b) => a + b, 0) / votes.length
-          : 0
-
-        return {
-          content: response?.content || '无响应',
-          weight: parseFloat(weight.toFixed(1))
-        }
-      })
+    // 修改加权结果计算
+    const weightedResults = validResponses
+      .map((content, index) => ({
+        content,
+        weight: voteResults
+          .filter(v => v?.scores)
+          .reduce((acc, cur) => acc + (cur.scores[index]?.score || 0), 0) / seels.length
+      }))
       .sort((a, b) => b.weight - a.weight)
 
-    // 添加最终决议
     consensusMessages.push({
       type: 'consensus',
       content: weightedResults[0]?.content || '未达成共识',
@@ -258,15 +339,70 @@ const sendToAll = async () => {
     })
 
   } catch (error) {
-    console.error('处理错误:', error)
+    console.error('SSE处理失败:', error)
     consensusMessages.push({
       type: 'error',
-      content: `系统错误: ${error.message}`,
+      content: `[${new Date().toLocaleTimeString()}] 流式响应错误: ${error.message}`,
       status: 'error',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      meta: {
+        source: 'SSE Handler',
+        errorCode: 'STREAM_ERR_001'
+      }
     })
   }
 }
+
+// 添加差异比对函数
+const findDiffIndex = (prev, current) => {
+  const minLength = Math.min(prev.length, current.length)
+  for (let i = 0; i < minLength; i++) {
+    if (prev[i] !== current[i]) return i
+  }
+  return minLength
+}
+
+// 增强事件解析
+const parseSSEEvent = (rawEvent) => {
+  const lines = rawEvent.split('\n').filter(l => l.trim())
+  let type = 'chunk'
+  let data = {}
+  
+  lines.forEach(line => {
+    if (line.startsWith('event:')) type = line.replace('event:', '').trim()
+    if (line.startsWith('data:')) {
+      try {
+        data = JSON.parse(line.replace('data:', '').trim())
+      } catch(e) {
+        console.error('SSE数据解析失败:', e)
+      }
+    }
+  })
+
+  // 自动检测内容模式
+  const isDeltaMode = data.choices?.[0]?.delta?.content !== undefined
+  const isFullMode = data.choices?.[0]?.message?.content !== undefined || 
+                    (data.content && data._isFull) // 兼容自定义标记
+
+  return {
+    type,
+    data: {
+      // 兼容两种数据格式
+      content: isDeltaMode 
+        ? data.choices[0].delta.content || ''
+        : isFullMode
+          ? data.choices[0].message.content || ''
+          : data.content || '',
+      progress: data.progress || 0,
+      // 添加模式标记
+      _mode: isDeltaMode ? 'delta' : isFullMode ? 'full' : 'unknown',
+      _isFull: !!data.isFull // 显式标记全量模式
+    }
+  }
+}
+
+// 添加面板引用
+const seelPanelRefs = ref({})
 </script>
 
 <style scoped>
