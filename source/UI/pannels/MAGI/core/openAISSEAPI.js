@@ -13,7 +13,7 @@ function normalizeConfig(config = {}) {
     endpoint: normalizeEndpoint(config.endpoint),
     model: config.model || 'deepseek-ai/DeepSeek-R1',
     temperature: config.temperature ?? 0.7,
-    max_tokens: config.max_tokens ?? 500,
+    max_tokens: config.max_tokens ?? 4096,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${config.apiKey}`
@@ -191,7 +191,148 @@ export class AISSEProvider {
   }
 }
 
+export class AISSEConversation {
+  constructor(providerConfig = {}) {
+    this.provider = new AISSEProvider({
+      apiKey: providerConfig.apiKey,
+      endpoint: providerConfig.apiBaseURL,
+      model: providerConfig.apiModel,
+      temperature: providerConfig.temperature,
+      max_tokens: providerConfig.apiMaxTokens,
+      chunkInterval: providerConfig.chunkInterval
+    });
+    this.messages = [];
+  }
+
+  addAsSystem(prompt) {
+    this.messages.push({
+      role: 'system',
+      content: prompt
+    });
+    return this;
+  }
+
+  async postAsUser(message) {
+    this.messages.push({
+      role: 'user',
+      content: message
+    });
+    return this._sendMessages();
+  }
+
+  async postBatch(messages) {
+    this.messages = this.messages.concat(messages);
+    return this._sendMessages();
+  }
+
+  async _sendMessages() {
+    try {
+      let fullResponse = '';
+      for await (const chunk of this.provider.createChatCompletion(this.messages)) {
+        if (chunk.error) {
+          throw new Error(chunk.error.message);
+        }
+        const content = chunk.choices[0]?.delta?.content || '';
+        fullResponse += content;
+      }
+      
+      this.messages.push({
+        role: 'assistant',
+        content: fullResponse
+      });
+      
+      return {
+        choices: [{
+          message: {
+            content: fullResponse,
+            role: 'assistant'
+          }
+        }]
+      };
+    } finally {
+      // 保持当前消息历史，如需清空可在此添加重置逻辑
+    }
+  }
+
+  setConfig(newConfig) {
+    this.provider = new AISSEProvider({
+      ...this.provider.config,
+      ...newConfig
+    });
+  }
+
+  async *streamAsUser(message) {
+    this.messages.push({ role: 'user', content: message });
+    
+    let fullResponse = '';
+    for await (const chunk of this.provider.createChatCompletion(this.messages)) {
+      if (chunk.error) throw new Error(chunk.error.message);
+      
+      const content = chunk.choices[0]?.delta?.content || '';
+      fullResponse += content;
+      
+      // 实时返回增量内容
+      yield {
+        partial: content,
+        chunk: chunk,
+        full: fullResponse
+      };
+    }
+
+    this.messages.push({ role: 'assistant', content: fullResponse });
+  }
+
+  async postAsUser(message) {
+    let full = '';
+    for await (const { full: response } of this.streamAsUser(message)) {
+      full = response;
+    }
+    return { choices: [{ message: { content: full, role: 'assistant' } }] };
+  }
+}
+
+export class SSEPromptStreamer {
+  constructor(providerConfig = {}, systemPrompt = '') {
+    this.provider = new AISSEProvider({
+      apiKey: providerConfig.apiKey,
+      endpoint: providerConfig.apiBaseURL,
+      model: providerConfig.apiModel,
+      temperature: providerConfig.temperature,
+      max_tokens: providerConfig.apiMaxTokens,
+      chunkInterval: providerConfig.chunkInterval
+    });
+    this.systemPrompt = systemPrompt;
+  }
+
+  /**
+   * 创建带系统提示的原始SSE流
+   * @param {Array} messages - 单次对话消息数组
+   * @yields {Object} 原始SSE事件对象
+   */
+  async *createStream(messages) {
+    const mergedMessages = [
+      { role: 'system', content: this.systemPrompt },
+      ...messages.filter(m => m.role !== 'system')
+    ];
+
+    yield* this.provider.createChatCompletion(mergedMessages);
+  }
+
+  /**
+   * 更新系统提示词（立即生效）
+   * @param {string} newPrompt - 新的系统级提示词
+   */
+  setSystemPrompt(newPrompt) {
+    this.systemPrompt = newPrompt;
+  }
+}
+
 // 工厂函数
 export function createAISSEProvider(config) {
   return new AISSEProvider(config)
+}
+
+// 更新工厂函数名称
+export function createPromptStreamer(config, systemPrompt = '') {
+  return new SSEPromptStreamer(config, systemPrompt);
 }

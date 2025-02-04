@@ -39,7 +39,7 @@
 import { ref, reactive, computed, onMounted, provide, nextTick } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
 import TrinitiPanel from './components/TrinitiPanel.vue'
-import { initMagi } from './core/mockMagi.js'
+import { initMagi,MockTrinity } from './core/mockMagi.js'
 
 const globalInput = ref('')
 const consensusMessages = reactive([])
@@ -55,6 +55,7 @@ const initializeMAGI = async () => {
       autoConnect: true
     })
     
+    // 添加三贤者
     seels.push(...rawSeels.map(ai => ({
       config: {
         name: ai.config.name,
@@ -81,6 +82,33 @@ const initializeMAGI = async () => {
         return await ai.voteFor(responses)
       }
     })))
+
+    // 添加崔尼蒂
+    const trinity = new MockTrinity()
+    seels.push({
+      config: {
+        name: trinity.config.name,
+        displayName: trinity.config.displayName,
+        color: trinity.config.color,
+        icon: trinity.config.icon,
+        responseType: trinity.config.responseType,
+        persona: trinity.config.persona
+      },
+      messages: reactive([]),
+      loading: false,
+      connected: true,
+      async reply(userInput, context) {
+        return await trinity.reply(userInput, {
+          context: {
+            responses: context?.responses || []
+          }
+        })
+      },
+      // Trinity 不参与投票
+      async voteFor() {
+        return null
+      }
+    })
     
     connectionStatus.value = 'connected'
     
@@ -142,8 +170,12 @@ const sendToAll = async () => {
       timestamp: Date.now()
     })
 
-    // 重构响应处理逻辑
-    const responsePromises = seels.map(async (seel) => {
+    // 获取三贤者的响应
+    const sages = seels.filter(seel => seel.config.name !== 'TRINITY-04')
+    const trinity = seels.find(seel => seel.config.name === 'TRINITY-04')
+
+    // 首先获取三贤者的响应
+    const responsePromises = sages.map(async (seel) => {
       try {
         const response = await seel.reply(userMessage)
         if (!isValidStream(response)) return null
@@ -247,7 +279,10 @@ const sendToAll = async () => {
               seel.messages = seel.messages.filter(m => m !== targetMsg)
             }
           }
-          return finalContent
+          return {
+            content: finalContent,
+            seel: seel.config.name
+          }
         }
         return null
       } catch (e) {
@@ -256,23 +291,84 @@ const sendToAll = async () => {
       }
     })
 
-    // 过滤空响应
+    // 等待所有三贤者响应完成
     const completedResponses = (await Promise.all(responsePromises))
       .filter(Boolean)
 
     // 过滤有效响应
     const validResponses = completedResponses
       .filter(response => response?.content)
-      .map(response => response.content)
 
-    // 添加系统消息
-    consensusMessages.push({
-      type: 'system',
-      content: '开始交叉验证...',
-      status: 'loading',
-      timestamp: Date.now()
-    })
+    // 确保有足够的有效响应并且Trinity存在
+    if (validResponses.length > 0 && trinity) {
+      console.log('开始Trinity总结', {
+        responses: validResponses.map(r => ({
+          seel: r.seel,
+          contentLength: r.content.length
+        }))
+      })
 
+      try {
+        // 准备Trinity的上下文
+        const trinityContext = {
+          context: {
+            responses: validResponses.map(r => r.content)
+          }
+        }
+
+        // 发起Trinity的响应请求
+        const trinityResponse = await trinity.reply(userMessage, trinityContext)
+
+        if (isValidStream(trinityResponse)) {
+          // 清理旧消息
+          const lastMsg = trinity.messages[trinity.messages.length - 1]
+          if (lastMsg?.type === 'assistant') {
+            trinity.messages.pop()
+          }
+
+          let trinityContent = ''
+          for await (const event of trinityResponse) {
+            const { data } = parseSSEEvent(event)
+            if (data.content) {
+              trinityContent += data.content
+              // 更新或创建消息
+              if (!trinity.messages.length || trinity.messages[trinity.messages.length - 1].type !== 'assistant') {
+                trinity.messages.push({
+                  type: 'assistant',
+                  content: trinityContent,
+                  status: 'loading',
+                  timestamp: Date.now()
+                })
+              } else {
+                trinity.messages[trinity.messages.length - 1].content = trinityContent
+              }
+            }
+          }
+
+          // 更新最终状态
+          if (trinity.messages.length > 0) {
+            const lastMessage = trinity.messages[trinity.messages.length - 1]
+            lastMessage.status = 'success'
+            lastMessage.timestamp = Date.now()
+          }
+        }
+      } catch (error) {
+        console.error('Trinity响应错误:', error)
+        trinity.messages.push({
+          type: 'error',
+          content: '响应生成失败: ' + error.message,
+          status: 'error',
+          timestamp: Date.now()
+        })
+      }
+    } else {
+      console.warn('Trinity总结跳过', {
+        validResponsesCount: validResponses.length,
+        trinityExists: !!trinity
+      })
+    }
+
+    // 继续原有的投票流程
     const updateProgress = (percent) => {
       consensusMessages.push({
         type: 'system',
@@ -283,16 +379,16 @@ const sendToAll = async () => {
       })
     }
 
-    // 修改投票循环
+    // 修改投票循环（仅三贤者参与）
     const voteResults = []
-    for (let i = 0; i < seels.length; i++) {
-      const seel = seels[i]
-      const progress = Math.floor((i / seels.length) * 100)
+    for (let i = 0; i < sages.length; i++) {
+      const seel = sages[i]
+      const progress = Math.floor((i / sages.length) * 100)
       updateProgress(progress)
       
       try {
         // 使用有效响应进行投票
-        const voteResult = await seel.voteFor(validResponses)
+        const voteResult = await seel.voteFor(validResponses.map(r => r.content))
         
         seel.messages.push({
           type: 'vote',
@@ -323,7 +419,7 @@ const sendToAll = async () => {
         content,
         weight: voteResults
           .filter(v => v?.scores)
-          .reduce((acc, cur) => acc + (cur.scores[index]?.score || 0), 0) / seels.length
+          .reduce((acc, cur) => acc + (cur.scores[index]?.score || 0), 0) / sages.length
       }))
       .sort((a, b) => b.weight - a.weight)
 
@@ -453,12 +549,12 @@ const seelPanelRefs = ref({})
 .magi-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
 }
 
 .magi-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.8rem;
   padding: 1rem;
   height: 35vh;
@@ -495,8 +591,9 @@ const seelPanelRefs = ref({})
     ),
     rgba(0, 20, 20, 0.9);
   border-width: 3px;
-  transform: scale(0.95);
+  transform: scale(0.98);
   transform-origin: top;
+  min-width: 0;
 }
 
 .secondary-output {
