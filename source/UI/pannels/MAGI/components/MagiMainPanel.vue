@@ -4,11 +4,25 @@
       <h3 class="neon-text">REI</h3>
       <div class="controls">
         <span 
-          @click="$emit('toggle-messages')"
+          @click="emit('toggle-messages')"
           class="toggle-text"
           :class="{ 'active': showMessages }"
         >
           {{ showMessages ? 'HIDE MAGI OUTPUT' : 'SHOW MAGI OUTPUT' }}
+        </span>
+        <span 
+          @click="emit('toggle-seels')"
+          class="toggle-text"
+          :class="{ 'active': showSeels }"
+        >
+          {{ showSeels ? 'HIDE SEELS' : 'SHOW SEELS' }}
+        </span>
+        <span 
+          @click="emit('toggle-trinity')"
+          class="toggle-text"
+          :class="{ 'active': showTrinity }"
+        >
+          {{ showTrinity ? 'HIDE TRINITY' : 'SHOW TRINITY' }}
         </span>
         <div class="consensus-status">
           <span class="status-flag">SECURITY LEVEL: </span>
@@ -73,10 +87,18 @@ const props = defineProps({
   showMessages: {
     type: Boolean,
     default: true
+  },
+  showSeels: {
+    type: Boolean,
+    default: true
+  },
+  showTrinity: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['toggle-messages'])
+const emit = defineEmits(['toggle-messages', 'toggle-seels', 'toggle-trinity'])
 
 // 计算连接状态
 const connectionStatuses = computed(() => {
@@ -153,10 +175,9 @@ const formatContent = (msg) => {
 <style scoped>
 .main-output {
   flex: 1;
-  margin: 1rem;
-  background: rgba(0, 30, 30, 0.9);
-  border: 2px solid #0f0;
-  box-shadow: 0 0 15px #0f0;
+  margin: 0;
+  border: none;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -172,6 +193,7 @@ const formatContent = (msg) => {
     rgba(0, 30, 0, 0.8));
   height: 50px;
   flex-shrink: 0;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.3);
 }
 
 /* 全局状态样式 */

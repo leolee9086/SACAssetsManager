@@ -1,35 +1,77 @@
 <template>
   <div class="magi-container neon-scroll">
-    <div class="magi-grid">
-      <SeelPanel
-        v-for="seel in seels"
-        :key="seel.name"
-        :ai="seel"
-        :show-messages="showAllMessages"
-        ref="(el) => seelPanelRefs[seel.config.name] = el"
-      />
-    </div>
+    <div class="magi-layout">
+      <!-- 左侧 MAGI 单元区域 -->
+      <div v-show="showSeels" class="magi-grid" :class="{ 'trinity-active': showTrinity }">
+        <div v-for="(seel, index) in seels.filter(s => s.config.name !== 'TRINITY-00')"
+             :key="seel.name"
+             class="seel-row"
+        >
+          <!-- 状态容器 -->
+          <div class="status-container" :class="{ 'status-left': (index + 1) % 2 !== 0 }">
+            <!-- 预留状态显示区域 -->
+          </div>
+          
+          <!-- AI面板 -->
+          <SeelPanel
+            :ai="seel"
+            :show-messages="showAllMessages"
+            :class="[
+              'seel-panel-wrapper',
+              `panel-${index + 1}`,
+              { 'panel-left': (index + 1) % 2 !== 0 }
+            ]"
+            ref="(el) => seelPanelRefs[seel.config.name] = el"
+          />
+        </div>
+      </div>
 
-    <TrinitiPanel 
-      :messages="consensusMessages" 
-      :seels="seels"
-      :show-messages="showAllMessages"
-      @toggle-messages="toggleAllMessages"
-    />
-
-    <div class="input-wrapper">
-      <div class="global-input">
-        <textarea
-          v-model="globalInput"
-          @keydown.enter.exact.prevent="sendToAll"
-          class="neon-input"
-          placeholder="输入指令..."
+      <!-- Trinity 面板区域 -->
+      <div v-show="showTrinity" class="trinity-column">
+        <div class="status-container trinity-status-top">
+          <!-- 上方状态容器 -->
+        </div>
+        
+        <SeelPanel
+          v-if="trinityAI"
+          :ai="trinityAI"
+          :show-messages="showAllMessages"
+          class="trinity-panel-wrapper"
+          ref="(el) => seelPanelRefs['TRINITY-00'] = el"
         />
-        <button 
-          @click="sendToAll"
-          class="neon-button"
-          :disabled="globalInput.trim() === ''"
-        >↵</button>
+        
+        <div class="status-container trinity-status-bottom">
+          <!-- 下方状态容器 -->
+        </div>
+      </div>
+
+      <div class="main-chat-area">
+        <MagiMainPanel 
+          :messages="consensusMessages" 
+          :seels="seels"
+          :show-seels="showSeels"
+          :show-trinity="showTrinity"
+          :show-messages="showAllMessages"
+          @toggle-messages="toggleAllMessages"
+          @toggle-seels="toggleSeels"
+          @toggle-trinity="toggleTrinity"
+        />
+
+        <div class="input-wrapper">
+          <div class="global-input">
+            <textarea
+              v-model="globalInput"
+              @keydown.enter.exact.prevent="sendToAll"
+              class="neon-input"
+              placeholder="输入指令..."
+            />
+            <button 
+              @click="sendToAll"
+              class="neon-button"
+              :disabled="globalInput.trim() === ''"
+            >↵</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -38,15 +80,19 @@
 <script setup>
 import { ref, reactive, computed, onMounted, provide, nextTick } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
-import TrinitiPanel from './components/TrinitiPanel.vue'
+import MagiMainPanel from './components/MagiMainPanel.vue'
 import { initMagi,MockTrinity } from './core/mockMagi.js'
 
 const globalInput = ref('')
 const consensusMessages = reactive([])
 const showAllMessages = ref(true)
-const connectionStatus = ref('connecting')
+const connectionStatus = ref('disconnected')
 
 const seels = reactive([])
+const showSeels = ref(true)
+const showTrinity = ref(false)
+const trinityAI = computed(() => seels.find(s => s.config.name === 'TRINITY-00'))
+
 const initializeMAGI = async () => {
   try {
     connectionStatus.value = 'connecting'
@@ -66,15 +112,8 @@ const initializeMAGI = async () => {
         persona: ai.config.persona
       },
       messages: reactive(ai.messages),
-      get loading() {
-        return ai.loading
-      },
-      set loading(value) {
-        ai.loading = value
-      },
-      get connected() {
-        return ai.connected
-      },
+      loading: false,
+      connected: true,
       async reply(userInput) {
         return await ai.reply(userInput)
       },
@@ -499,6 +538,14 @@ const parseSSEEvent = (rawEvent) => {
 
 // 添加面板引用
 const seelPanelRefs = ref({})
+
+const toggleSeels = () => {
+  showSeels.value = !showSeels.value
+}
+
+const toggleTrinity = () => {
+  showTrinity.value = !showTrinity.value
+}
 </script>
 
 <style scoped>
@@ -528,6 +575,10 @@ const seelPanelRefs = ref({})
     linear-gradient(to bottom, rgba(0, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(45deg, rgba(0, 0, 0, 0.8), rgba(0, 30, 30, 0.9));
   background-size: 20px 20px;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .neon-text {
@@ -546,72 +597,138 @@ const seelPanelRefs = ref({})
   font-family: 'EVA-Matisse', monospace;
 }
 
-.magi-container {
+.magi-layout {
   display: flex;
-  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
   height: 100%;
+  box-sizing: border-box;
 }
 
 .magi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-direction: column;
+  width: 61.8%;
+  min-width: 600px;
   gap: 0.8rem;
-  padding: 1rem;
-  height: 35vh;
-}
-
-.main-output {
-  flex: 1;
-  margin: 1rem;
-  background: 
-    linear-gradient(0deg, 
-      rgba(0, 255, 255, 0.05) 1px, 
-      transparent 1px
-    ),
-    linear-gradient(90deg, 
-      rgba(0, 255, 255, 0.05) 1px, 
-      transparent 1px
-    ),
-    rgba(0, 30, 30, 0.9);
-  background-size: 15px 15px;
-  border: 2px solid #0f0;
-  box-shadow: 0 0 15px #0f0;
-  min-height: 50vh;
-}
-
-.ai-panel {
   height: 100%;
-  background: 
-    repeating-linear-gradient(
-      45deg,
-      rgba(0, 255, 255, 0.05),
-      rgba(0, 255, 255, 0.05) 1px,
-      transparent 1px,
-      transparent 10px
-    ),
-    rgba(0, 20, 20, 0.9);
-  border-width: 3px;
-  transform: scale(0.98);
-  transform-origin: top;
-  min-width: 0;
+  overflow: hidden;
 }
 
-.secondary-output {
-  max-height: 25vh;
-  font-size: 0.85em;
-  padding: 0.5rem;
+.seel-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 0.8rem;
+}
+
+.seel-panel-wrapper {
+  width: 38.2%;
+  height: 100%;
+}
+
+.status-container {
+  flex: 1;
+  height: 100%;
+}
+
+/* Trinity激活时的样式 */
+.trinity-active {
+  width: 38.2%;
+}
+
+.trinity-column {
+  width: 23.6%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  height: 100%;
+}
+
+.trinity-panel-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+
+.trinity-status-top,
+.trinity-status-bottom {
+  flex: 0.5;
+  min-height: 0;
+}
+
+/* 自定义滚动条样式 */
+.magi-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.magi-grid::-webkit-scrollbar-track {
+  background: rgba(0, 255, 255, 0.05);
+}
+
+.magi-grid::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.magi-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 255, 0.5);
+}
+
+/* 当Trinity激活时，修改子AI面板布局 */
+.trinity-active .seel-row {
+  flex-direction: column;
+  height: auto;
+}
+
+.trinity-active .seel-panel-wrapper {
+  width: 100%;
+  order: 0;
+}
+
+.trinity-active .status-container {
+  display: none;
+}
+
+/* 奇数行布局 */
+.panel-left {
+  order: -1; /* 将面板移到左侧 */
+}
+
+.status-left {
+  order: 1; /* 将状态容器移到右侧 */
+}
+
+/* 确保面板内容正确显示 */
+.seel-panel-wrapper :deep(.seel-panel) {
+  height: 100%;
+  width: 100%;
+}
+
+.main-chat-area {
+  flex: 1;
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .input-wrapper {
+  margin-top: auto;
   padding: 1rem;
-  background: #001010;
-  border-top: 2px solid #0ff;
-  box-shadow: 0 -5px 15px rgba(0, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
 }
 
 .global-input {
-  max-width: 800px;
-  margin: 0 auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* 确保主聊天区域占满剩余空间 */
+:deep(.triniti-panel) {
+  flex: 1;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* EVA风格调整 */
@@ -634,7 +751,6 @@ const seelPanelRefs = ref({})
 
 /* EVA风格视觉设计 */
 .magi-container {
-  background: #001a1a;
   color: #0ff;
   font-family: 'MS Gothic', monospace;
 }
@@ -743,18 +859,26 @@ const seelPanelRefs = ref({})
     rgba(0, 20, 20, 0.9);
 }
 
-/* 主面板添加电路板纹理 */
-.main-output {
-  background: 
-    linear-gradient(0deg, 
-      rgba(0, 255, 255, 0.05) 1px, 
-      transparent 1px
-    ),
-    linear-gradient(90deg, 
-      rgba(0, 255, 255, 0.05) 1px, 
-      transparent 1px
-    ),
-    rgba(0, 30, 30, 0.9);
-  background-size: 15px 15px;
+/* 添加切换按钮的样式 */
+.toggle-text {
+  color: #0ff;
+  font-family: 'MS Gothic', monospace;
+  font-size: 0.8em;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  transition: all 0.3s ease;
+  opacity: 0.8;
+  margin-right: 1rem;
+  user-select: none;
+}
+
+.toggle-text:hover {
+  opacity: 1;
+  text-shadow: 0 0 5px #0ff;
+}
+
+.toggle-text.active {
+  opacity: 1;
+  text-shadow: 0 0 5px #0ff;
 }
 </style>

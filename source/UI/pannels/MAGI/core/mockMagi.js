@@ -376,7 +376,7 @@ export class MockTrinity extends MockWISE {
   constructor(customName) {
     super({
       magiInstanceName: customName || 'rei',
-      name: 'TRINITY-04',
+      name: 'TRINITY-00',
       displayName: 'TRINITY',
       color: 'purple',
       icon: '⚕',
