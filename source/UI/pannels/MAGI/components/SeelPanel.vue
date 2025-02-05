@@ -6,11 +6,6 @@
           <path :stroke="getColor(ai.config.color)" stroke-width="0.5" stroke-opacity="0.05" fill="none" 
                 d="M 20 0 L 0 0 0 20"/>
         </pattern>
-        <linearGradient :id="`header-gradient-${ai.config.name}`" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color: rgba(0, 0, 0, 0.8)"/>
-          <stop offset="50%" style="stop-color: rgba(0, 30, 30, 0.9)"/>
-          <stop offset="100%" style="stop-color: rgba(0, 0, 0, 0.8)"/>
-        </linearGradient>
         <linearGradient :id="`bg-gradient-${ai.config.name}`" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" style="stop-color: rgba(0, 0, 0, 0.8)"/>
           <stop offset="50%" style="stop-color: rgba(0, 30, 30, 0.9)"/>
@@ -352,8 +347,8 @@ const rootStyle = computed(() => ({
 }
 
 .ai-icon {
-  margin-right: 0.5rem;
-  font-size: 1.1em;
+  margin-right: 0.3rem;
+  font-size: 0.8em;
   opacity: 0.9;
 }
 
@@ -361,17 +356,19 @@ const rootStyle = computed(() => ({
   color: inherit;
   opacity: 0.9;
   font-weight: bold;
+  font-size: 0.7em;
 }
 
 .ai-number {
   color: inherit;
   opacity: 0.7;
+  font-size: 0.6em;
 }
 
 .ai-role {
-  font-size: 0.9em;
+  font-size: 0.6em;
   opacity: 0.9;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   font-weight: bold;
   text-transform: uppercase;
 }
@@ -407,7 +404,7 @@ const rootStyle = computed(() => ({
 }
 
 .status-text {
-  font-size: 0.9em;
+  font-size: 0.6em;
   opacity: 0.8;
 }
 
@@ -596,7 +593,7 @@ const rootStyle = computed(() => ({
 .header-content {
   height: 100%;
   padding: 0 2%;
-  font-size: 0.5em;
+  font-size: 0.35em;
 }
 
 .panel-content::after {
