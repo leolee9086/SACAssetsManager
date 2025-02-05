@@ -171,16 +171,6 @@ onMounted(() => {
 // 初始化后提供全局访问
 provide('magi-system', seels)
 
-const generateResponse = (aiIndex) => {
-  const responses = [
-    "同步率400%...模式BLUE",
-    "AT力场中和进度78%",
-    "LCL溶液浓度稳定", 
-    "插入栓深度进入安全阈值",
-    "使徒核心定位中..."
-  ]
-  return responses[Math.floor(Math.random() * responses.length)]
-}
 
 const toggleAllMessages = () => {
   showAllMessages.value = !showAllMessages.value
@@ -210,8 +200,8 @@ const sendToAll = async () => {
     })
 
     // 获取三贤者的响应
-    const sages = seels.filter(seel => seel.config.name !== 'TRINITY-04')
-    const trinity = seels.find(seel => seel.config.name === 'TRINITY-04')
+    const sages = seels.filter(seel => seel.config.name !== 'TRINITY-00')
+    const trinity = seels.find(seel => seel.config.name === 'TRINITY-00')
 
     // 首先获取三贤者的响应
     const responsePromises = sages.map(async (seel) => {
