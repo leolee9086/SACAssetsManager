@@ -74,7 +74,7 @@
             <span class="status-text">{{ statusText }}</span>
           </div>
         </div>
-        <div class="header-bottom">
+        <div class="header-bottom" :style="{ height: `${svgToPixels(4)}px`, marginTop: `${svgToPixels(1)}px` }">
           <span class="ai-role">{{ ai.config.persona }}</span>
         </div>
       </div>
@@ -238,12 +238,13 @@ const eventTypes = computed(() => {
   return props.ai.config.sseConfig?.eventTypes || ['init', 'chunk', 'complete']
 })
 
-// 添加颜色映射函数
+// 修改颜色映射函数
 const getColor = (colorName) => {
   const colorMap = {
     'red': '#ff3366',
     'blue': '#33ccff',
-    'yellow': '#ffcc00'
+    'yellow': '#ffcc00',
+    'rgba(255, 255, 255, 0.9)': 'rgba(255, 255, 255, 0.9)' // 添加崔尼蒂的颜色映射
   }
   return colorMap[colorName] || '#33ccff' // 默认使用蓝色
 }
@@ -303,7 +304,6 @@ const headerStyle = computed(() => ({
   display: flex;
   flex-direction: column;
   position: relative;
-  transform: scale(0.95);
   transform-origin: top;
 }
 
@@ -347,8 +347,8 @@ const headerStyle = computed(() => ({
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 1.8em; /* 使用固定em高度 */
-  margin-top: 0.3em; /* 使用margin替代行高 */
+  padding: 2px 0; /* 微调垂直居中 */
+  border-top: 1px solid rgba(255,255,255,0.1); /* 增强分割线效果 */
 }
 
 .ai-id {
@@ -636,11 +636,11 @@ const headerStyle = computed(() => ({
 /* 新增标题层样式 */
 .header-overlay {
   position: absolute;
-  z-index: 3; /* 高于SVG层 */
-  top: 4%;
+  z-index: 3;
+  top: calc(var(--header-height) * 0.14); /* 对应SVG y4位置 */
   left: 5%;
   width: 90%;
-  height: 26%;
+  height: calc(var(--header-height) * 0.82); /* 精确对应28px在100px viewBox中的比例 */
   pointer-events: none;
 }
 
