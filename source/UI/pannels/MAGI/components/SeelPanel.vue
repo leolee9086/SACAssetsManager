@@ -39,20 +39,7 @@
       
       <foreignObject x="5" y="4" width="90" height="24">
         <div xmlns="http://www.w3.org/1999/xhtml" class="header-content">
-          <div class="header-top">
-            <div class="ai-id">
-              <span class="ai-icon">{{ ai.config.icon }}</span>
-              <span class="ai-name">{{ ai.config.name.split('-')[0] }}</span>
-              <span class="ai-number">-{{ ai.config.name.split('-')[1] }}</span>
-            </div>
-            <div class="status-indicator">
-              <span class="status-led" :class="statusClass"></span>
-              <span class="status-text">{{ statusText }}</span>
-            </div>
-          </div>
-          <div class="header-bottom">
-            <span class="ai-role">{{ ai.config.persona }}</span>
-          </div>
+          <!-- 移除原有标题内容 -->
         </div>
       </foreignObject>
       
@@ -73,6 +60,26 @@
             d="M 0,28 L 5,28 M 95,28 L 100,28"/>
     </svg>
     
+    <!-- 调整后的标题层 -->
+    <div class="header-overlay" :style="headerStyle">
+      <div class="header-content">
+        <div class="header-top">
+          <div class="ai-id">
+            <span class="ai-icon">{{ ai.config.icon }}</span>
+            <span class="ai-name">{{ ai.config.name.split('-')[0] }}</span>
+            <span class="ai-number">-{{ ai.config.name.split('-')[1] }}</span>
+          </div>
+          <div class="status-indicator">
+            <span class="status-led" :class="statusClass"></span>
+            <span class="status-text">{{ statusText }}</span>
+          </div>
+        </div>
+        <div class="header-bottom">
+          <span class="ai-role">{{ ai.config.persona }}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="panel-content">
       <transition name="panel-slide">
         <div v-show="showMessages" class="message-container secondary-output">
@@ -276,6 +283,12 @@ const rootStyle = computed(() => ({
   '--header-height': `${headerHeight.value}px`,
   '--content-height': `${contentHeight.value}px`
 }))
+
+// 新增标题层样式
+const headerStyle = computed(() => ({
+  '--header-height': `${headerHeight.value}px`,
+  '--content-height': `${contentHeight.value}px`
+}))
 </script>
 
 <style scoped>
@@ -326,24 +339,22 @@ const rootStyle = computed(() => ({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 11px;
-  padding: 0 0.5rem;
-  margin-bottom: 1px;
+  height: 1.8em; /* 使用固定em高度 */
+  margin-bottom: 0.3em; /* 使用margin替代行高 */
 }
 
 .header-bottom {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 13px;
-  padding: 0 0.5rem;
-  margin-top: 1px;
+  height: 1.8em; /* 使用固定em高度 */
+  margin-top: 0.3em; /* 使用margin替代行高 */
 }
 
 .ai-id {
   display: flex;
   align-items: center;
-  font-size: 0.95em;
+  gap: 0.3em;
 }
 
 .ai-icon {
@@ -376,13 +387,12 @@ const rootStyle = computed(() => ({
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9em;
+  gap: 0.3em; /* 使用gap控制间距 */
 }
 
 .status-led {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 
@@ -404,7 +414,7 @@ const rootStyle = computed(() => ({
 }
 
 .status-text {
-  font-size: 0.6em;
+  font-size: 1.1em;
   opacity: 0.8;
 }
 
@@ -544,7 +554,10 @@ const rootStyle = computed(() => ({
 }
 
 .seel-details {
-  line-height: 1.2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* 使用flex对齐替代行高 */
+  margin-left: 0.3em;
 }
 
 .seel-name {
@@ -591,9 +604,11 @@ const rootStyle = computed(() => ({
 }
 
 .header-content {
-  height: 100%;
-  padding: 0 2%;
-  font-size: 0.35em;
+  font-size: clamp(10px, 1.6vh, 16px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.2rem 0; /* 使用padding替代行高 */
 }
 
 .panel-content::after {
@@ -617,4 +632,34 @@ const rootStyle = computed(() => ({
     height: calc(var(--content-height) * 1.2);
   }
 }
+
+/* 新增标题层样式 */
+.header-overlay {
+  position: absolute;
+  z-index: 3; /* 高于SVG层 */
+  top: 4%;
+  left: 5%;
+  width: 90%;
+  height: 26%;
+  pointer-events: none;
+}
+
+/* 调整原有样式 */
+.ai-name {
+  font-size: 1.2em;
+}
+
+.ai-number {
+  font-size: 0.9em;
+}
+
+.ai-role {
+  font-size: 1.1em;
+}
+
+.status-text {
+  font-size: 1.1em;
+}
+
+/* 移除原foreignObject中的header-content样式 */
 </style> 
