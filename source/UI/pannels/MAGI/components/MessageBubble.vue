@@ -54,9 +54,18 @@
       <!-- 使用条件渲染来显示消息内容 -->
       <template v-if="msg?.type === 'sse_stream'">
         <div class="sse-stream">
-          <span class="stream-content">
-            {{ msg.content || '初始化神经连接...' }}
-          </span>
+          <div v-show="hasThinkContent" class="think-section">
+            <div class="think-header" @click="toggleThink">
+              <span class="think-icon">{{ isThinkExpanded ? '▼' : '▶' }}</span>
+              <span class="think-title">思考过程</span>
+            </div>
+            <div class="think-content" :class="{ 'expanded': isThinkExpanded }" ref="thinkContentRef">
+              {{ thinkContent }}
+            </div>
+          </div>
+          <div class="stream-content">
+            {{ normalContent || msg.content || '初始化神经连接...' }}
+          </div>
           <span 
             v-if="msg.status === 'loading'" 
             class="stream-cursor animate-pulse"
@@ -81,7 +90,7 @@
 </template>
 
 <script setup>
-import { computed, watch, onMounted } from 'vue'
+import { computed, watch, onMounted, ref, nextTick } from 'vue'
 
 const props = defineProps({
   type: {
@@ -141,6 +150,64 @@ const formattedTime = computed(() => {
   })
 })
 
+// 新增状态控制
+const isThinkExpanded = ref(false)
+const thinkContent = ref('')
+const normalContent = ref('')
+const hasThinkContent = ref(false)
+
+// 切换思考内容显示状态
+const toggleThink = () => {
+  isThinkExpanded.value = !isThinkExpanded.value
+}
+
+// 处理消息内容
+watch(() => props.msg?.content, (newContent) => {
+  if (newContent && typeof newContent === 'string') {
+    // 使用更严格的正则匹配完整的 think 标签
+    const thinkMatch = newContent.match(/<think>([\s\S]*?)<\/think>(\n[\s\S]*)?/)
+    
+    if (thinkMatch && thinkMatch[1]) {
+      // 确保有完整的闭合标签才显示思考内容
+      thinkContent.value = thinkMatch[1].trim()
+      normalContent.value = thinkMatch[2] ? thinkMatch[2].trim() : ''
+      hasThinkContent.value = true
+    } else if (newContent.includes('<think>') && !newContent.includes('</think>')) {
+      // 如果只有开始标签，说明还在流式输出中，暂时不显示思考区域
+      thinkContent.value = ''
+      normalContent.value = newContent
+      //hasThinkContent.value = false
+    } else {
+      // 没有 think 标签或其他情况
+      thinkContent.value = ''
+      normalContent.value = newContent
+     // hasThinkContent.value = false
+    }
+  } else {
+    // 重置状态
+    thinkContent.value = ''
+    normalContent.value = ''
+    //hasThinkContent.value = false
+  }
+  console.log(hasThinkContent.value)
+
+}, { immediate: true })
+
+// 监听消息状态，在完成时再次检查内容
+watch(() => props.msg?.status, (newStatus, oldStatus) => {
+  if (newStatus !== 'loading' && oldStatus === 'loading' && props.msg?.content) {
+    // 流式输出完成后，再次检查内容
+    const content = props.msg.content
+    const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>(\n[\s\S]*)?/)
+    
+    if (thinkMatch && thinkMatch[1]) {
+      thinkContent.value = thinkMatch[1].trim()
+      normalContent.value = thinkMatch[2] ? thinkMatch[2].trim() : ''
+      hasThinkContent.value = true
+    }
+  }
+})
+
 // 简化事件触发
 watch(() => props.msg?.content, () => {
   if (props.msg?.type === 'sse_stream') {
@@ -153,6 +220,33 @@ onMounted(() => {
   if (props.msg?.type === 'sse_stream' && props.msg?.status === 'loading') {
     emit('cursor-update')
   }
+})
+
+// 在setup顶部添加模板引用声明
+const thinkContentRef = ref(null)
+
+// 修改watch中的DOM操作部分
+watch(() => hasThinkContent.value, (newValue) => {
+  if (newValue) {
+    nextTick(() => {
+      if (thinkContentRef.value) {
+        thinkContentRef.value.style.maxHeight = '0px'
+        thinkContentRef.value.offsetHeight // 强制重绘
+        if (isThinkExpanded.value) {
+          thinkContentRef.value.style.maxHeight = `${thinkContentRef.value.scrollHeight}px`
+        }
+      }
+    })
+  }
+})
+
+// 修改展开状态监听
+watch(() => isThinkExpanded.value, (newValue) => {
+  nextTick(() => {
+    if (thinkContentRef.value) {
+      thinkContentRef.value.style.maxHeight = newValue ? `${thinkContentRef.value.scrollHeight}px` : '0px'
+    }
+  })
 })
 </script>
 
@@ -326,5 +420,56 @@ onMounted(() => {
 @keyframes dot-pulse {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
+}
+
+/* 思考内容样式 */
+.think-section {
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.think-header {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  user-select: none;
+}
+
+.think-header:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.think-icon {
+  margin-right: 0.5rem;
+  font-family: monospace;
+  transition: transform 0.2s ease;
+}
+
+.think-title {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.think-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+  background: rgba(0, 0, 0, 0.2);
+  font-family: monospace;
+  white-space: pre-wrap;
+  padding: 0;
+}
+
+.think-content.expanded {
+  padding: 0.8rem;
+}
+
+.stream-content {
+  margin-top: 0.5rem;
+  line-height: 1.5;
 }
 </style> 

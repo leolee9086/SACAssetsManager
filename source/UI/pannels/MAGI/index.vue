@@ -279,7 +279,8 @@ const sendToAll = async () => {
                     }
                     return {
                         content: finalContent,
-                        seel: seel.config.name
+                        seel: seel.config.name,
+                        displayName: seel.config.displayName
                     }
                 }
                 return null
@@ -293,13 +294,16 @@ const sendToAll = async () => {
         const completedResponses = (await Promise.all(responsePromises))
             .filter(Boolean)
 
-        // 过滤有效响应
+        // 过滤有效响应并转换 think 标签
         const validResponses = completedResponses
             .filter(response => response?.content)
             .map(response => ({
-                seel: response.seel,  // 携带AI标识
-                content: response.content,
-                displayName: seels.find(s => s.config.name === response.seel)?.config.displayName // 携带显示名称
+                seel: response.seel,
+                content: response.content.replace(
+                    /<think>([\s\S]*?)<\/think>/g, 
+                    `<thinkOf-${response.seel}>$1</thinkOf-${response.seel}>`
+                ),
+                displayName: response.displayName
             }))
 
         // 存储崔尼蒂的总结结果
@@ -318,10 +322,10 @@ const sendToAll = async () => {
                 // 准备Trinity的上下文
                 const trinityContext = {
                     context: {
-                        responses: validResponses  // 直接传递完整响应对象
+                        responses: validResponses
                     }
                 }
-                console.log(trinityContext)
+                
                 // 发起Trinity的响应请求
                 const trinityResponse = await trinity.reply(userMessage, trinityContext)
 
@@ -332,32 +336,30 @@ const sendToAll = async () => {
                         trinity.messages.pop()
                     }
 
+                    // 创建暂存消息（与其他AI处理逻辑保持一致）
                     let trinityContent = ''
+                    const pendingMsg = reactive({
+                        type: 'assistant',
+                        content: '',
+                        status: 'loading',
+                        timestamp: Date.now()
+                    })
+                    trinity.messages.push(pendingMsg)
+
                     for await (const event of trinityResponse) {
                         const { data } = parseSSEEvent(event)
                         if (data.content) {
                             trinityContent += data.content
-                            // 更新或创建消息
-                            if (!trinity.messages.length || trinity.messages[trinity.messages.length - 1].type !== 'assistant') {
-                                trinity.messages.push({
-                                    type: 'assistant',
-                                    content: trinityContent,
-                                    status: 'loading',
-                                    timestamp: Date.now()
-                                })
-                            } else {
-                                trinity.messages[trinity.messages.length - 1].content = trinityContent
-                            }
+                            // 直接更新暂存消息（而不是创建新消息）
+                            pendingMsg.content = trinityContent
+                            pendingMsg.timestamp = Date.now()
                         }
                     }
 
-                    // 保存崔尼蒂的最终结果
-                    if (trinity.messages.length > 0) {
-                        const lastMessage = trinity.messages[trinity.messages.length - 1]
-                        lastMessage.status = 'success'
-                        lastMessage.timestamp = Date.now()
-                        trinityResult = lastMessage.content
-                    }
+                    // 最终状态处理
+                    pendingMsg.status = 'success'
+                    pendingMsg.timestamp = Date.now()
+                    trinityResult = pendingMsg.content
                 }
             } catch (error) {
                 console.error('Trinity响应错误:', error)

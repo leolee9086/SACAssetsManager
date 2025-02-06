@@ -270,7 +270,7 @@ export class MockMelchior extends MockWISE {
       },
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-R1",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.3,
         max_tokens: 4096
@@ -322,7 +322,7 @@ export class MockBalthazar extends MockWISE {
       },
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-R1",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.7,
         max_tokens: 4096
@@ -375,7 +375,7 @@ export class MockCasper extends MockWISE {
       },
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-R1",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.7,
         max_tokens: 4096
@@ -426,7 +426,7 @@ export class MockTrinity extends MockWISE {
       },
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-R1",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.5,
         max_tokens: 4096

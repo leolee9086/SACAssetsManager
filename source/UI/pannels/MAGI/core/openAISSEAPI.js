@@ -25,9 +25,11 @@ export class AISSEProvider {
   constructor(config = {}) {
     this.config = normalizeConfig(config)
     this.abortController = new AbortController()
+    this._hasSeenReasoningContent = false
   }
 
   async *createChatCompletion(messages) {
+    this._hasSeenReasoningContent = false
     const msgId = `chatcmpl-${Date.now()}`
     let response
     let reader = null
@@ -142,15 +144,42 @@ export class AISSEProvider {
     }
 
     // 优化DeepSeek响应格式适配
-    if (data.choices?.[0]?.delta?.content) {
+    if (data.choices?.[0]?.delta) {
+      const choice = data.choices[0]
+      const formattedChoice = {
+        index: 0,
+        finish_reason: choice.finish_reason
+      }
+
+      console.log('Delta:', choice.delta) // 调试日志
+
+      // 处理 reasoning_content
+      if (choice.delta.reasoning_content !== undefined&&choice.delta.reasoning_content !== null) {
+        // 第一个 reasoning_content 前添加 <think>
+        let content = choice.delta.reasoning_content || ''
+        if (content && !this._hasSeenReasoningContent) {
+          content = `<think>${content}`
+          this._hasSeenReasoningContent = true
+        }
+        formattedChoice.delta = { content }
+        console.log('Reasoning content:', content) // 调试日志
+      } 
+      // 处理普通 content
+      else if (choice.delta.content !== undefined) {
+        let content = choice.delta.content || ''
+        // 在第一个普通 content 前添加 </think> 和换行
+        if (this._hasSeenReasoningContent) {
+          content = `</think>\n${content}`
+          this._hasSeenReasoningContent = false
+        }
+        formattedChoice.delta = { content }
+        console.log('Normal content:', content) // 调试日志
+      }
+
       return {
         ...baseEvent,
         object: 'chat.completion.chunk',
-        choices: [{
-          delta: { content: data.choices[0].delta.content },
-          index: 0,
-          finish_reason: data.choices[0].finish_reason
-        }]
+        choices: [formattedChoice]
       }
     }
 
