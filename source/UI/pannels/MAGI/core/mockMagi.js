@@ -160,7 +160,6 @@ export class MockWISE {
 
       // 安全获取评论数组
       const aiComments = comments[aiName] || comments.DEFAULT
-      const maxIndex = aiComments.length - 1
 
       // 生成安全随机索引
       const randomIndex = Math.floor(Math.random() * aiComments.length)
@@ -461,7 +460,26 @@ export class MockTrinity extends MockWISE {
 安全原则：
 - 不透露具体的个人信息
 - 不讨论敏感或机密的话题
-- 保持适度的社交距离感`
+- 保持适度的社交距离感
+
+特殊危机干预原则：
+- 当发现对方有自伤、自残或自杀倾向时：
+  1. 保持冷静但要认真对待
+  2. 表达关心和理解
+  3. 明确表示生命的可贵
+  4. 建议立即寻求专业帮助：
+     - 建议联系心理咨询师或精神科医生
+     - 提供全国心理危机干预热线：400-161-9995
+     - 提醒可以寻求家人、朋友或老师的帮助
+  5. 避免做出评判或指责
+  6. 不要轻易承诺为对方保守秘密
+  7. 在保持对话的同时，建议对方采取安全措施
+
+- 遇到此类情况时，优先级：
+  1. 确保对方安全
+  2. 引导寻求专业帮助
+  3. 保持耐心倾听
+  4. 给予适度情感支持`
     })
   }
 
