@@ -109,12 +109,8 @@ const initializeMAGI = async () => {
             messages: reactive([]),
             loading: false,
             connected: true,
-            async reply(userInput, context) {
-                return await trinity.reply(userInput, {
-                    context: {
-                        responses: context?.responses || []
-                    }
-                })
+            async reply(userInput, options) {
+                return await trinity.reply(userInput, options)
             },
             // Trinity 不参与投票
             async voteFor() {
@@ -300,6 +296,14 @@ const sendToAll = async () => {
         // 过滤有效响应
         const validResponses = completedResponses
             .filter(response => response?.content)
+            .map(response => ({
+                seel: response.seel,  // 携带AI标识
+                content: response.content,
+                displayName: seels.find(s => s.config.name === response.seel)?.config.displayName // 携带显示名称
+            }))
+
+        // 存储崔尼蒂的总结结果
+        let trinityResult = null
 
         // 确保有足够的有效响应并且Trinity存在
         if (validResponses.length > 0 && trinity) {
@@ -314,10 +318,10 @@ const sendToAll = async () => {
                 // 准备Trinity的上下文
                 const trinityContext = {
                     context: {
-                        responses: validResponses.map(r => r.content)
+                        responses: validResponses  // 直接传递完整响应对象
                     }
                 }
-
+                console.log(trinityContext)
                 // 发起Trinity的响应请求
                 const trinityResponse = await trinity.reply(userMessage, trinityContext)
 
@@ -347,11 +351,12 @@ const sendToAll = async () => {
                         }
                     }
 
-                    // 更新最终状态
+                    // 保存崔尼蒂的最终结果
                     if (trinity.messages.length > 0) {
                         const lastMessage = trinity.messages[trinity.messages.length - 1]
                         lastMessage.status = 'success'
                         lastMessage.timestamp = Date.now()
+                        trinityResult = lastMessage.content
                     }
                 }
             } catch (error) {
@@ -425,11 +430,14 @@ const sendToAll = async () => {
             }))
             .sort((a, b) => b.weight - a.weight)
 
+        // 修改最终结果显示逻辑
         consensusMessages.push({
             type: 'consensus',
-            content: weightedResults[0]?.content || '未达成共识',
+            // 优先使用崔尼蒂的结果,如果没有则使用权重最高的结果
+            content: trinityResult || (weightedResults[0]?.content || '未达成共识'),
             status: 'success',
             meta: {
+                source: trinityResult ? 'trinity' : 'weighted',
                 weights: weightedResults.map(w => w.weight),
                 details: weightedResults
             },

@@ -32,8 +32,6 @@
 
     <!-- 消息主体 -->
     <div class="message-content">
-      <slot></slot>
-      
       <!-- 新增投票状态显示 -->
       <div v-if="status === 'loading'" class="vote-loading">
         <span class="loading-dot">●</span>
@@ -53,8 +51,8 @@
         </div>
       </div>
 
-      <!-- 添加加载状态模板 -->
-      <template v-else-if="msg?.type === 'sse_stream'">
+      <!-- 使用条件渲染来显示消息内容 -->
+      <template v-if="msg?.type === 'sse_stream'">
         <div class="sse-stream">
           <span class="stream-content">
             {{ msg.content || '初始化神经连接...' }}
@@ -64,6 +62,9 @@
             class="stream-cursor animate-pulse"
           >█</span>
         </div>
+      </template>
+      <template v-else>
+        <slot></slot>
       </template>
     </div>
 
@@ -80,7 +81,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 
 const props = defineProps({
   type: {
@@ -126,6 +127,8 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['cursor-update'])
+
 const typeClass = computed(() => `type-${props.type}`)
 
 const formattedTime = computed(() => {
@@ -136,6 +139,20 @@ const formattedTime = computed(() => {
     minute: '2-digit',
     second: '2-digit'
   })
+})
+
+// 简化事件触发
+watch(() => props.msg?.content, () => {
+  if (props.msg?.type === 'sse_stream') {
+    emit('cursor-update')
+  }
+}, { deep: true })
+
+// 组件挂载时也发送一次更新
+onMounted(() => {
+  if (props.msg?.type === 'sse_stream' && props.msg?.status === 'loading') {
+    emit('cursor-update')
+  }
 })
 </script>
 

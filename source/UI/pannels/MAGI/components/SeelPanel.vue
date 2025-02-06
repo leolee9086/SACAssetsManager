@@ -82,13 +82,19 @@
 
     <div class="panel-content">
       <transition name="panel-slide">
-        <div v-show="showMessages" class="message-container secondary-output">
+        <div 
+          v-show="showMessages" 
+          ref="messageContainer"
+          class="message-container secondary-output"
+        >
           <MessageBubble
             v-for="msg in ai.messages"
             :key="msg.id"
             :type="msg.type"
             :status="msg.status"
             :timestamp="msg.timestamp"
+            :msg="msg"
+            @cursor-update="handleCursorUpdate"
           >
             <template #default>
               <template v-if="msg.type === 'vote'">
@@ -144,7 +150,7 @@
 </template>
 
 <script setup>
-import { computed, inject, ref, defineExpose, onMounted, onUnmounted } from 'vue'
+import { computed, inject, ref, defineExpose, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import MessageBubble from './MessageBubble.vue'
 import { Vue } from 'vue'
 
@@ -220,15 +226,39 @@ const formatVoteTime = (timestamp) => {
   return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
 }
 
-// 增强流式更新处理
-const handleStreamUpdate = (chunk) => {
+// 添加消息容器引用和光标位置追踪
+const messageContainer = ref(null)
+const lastCursorPosition = ref(0)
+
+// 简化滚动逻辑
+const handleCursorUpdate = async () => {
+  await nextTick()
+  const container = messageContainer.value
+  if (container) {
+    // 直接滚动到容器底部
+    container.scrollTop = container.scrollHeight
+  }
+}
+
+// 修改流式更新处理
+const handleStreamUpdate = async (chunk) => {
   const lastMsg = props.ai.messages[props.ai.messages.length - 1]
   if (!lastMsg || lastMsg.type !== 'sse_stream') return
   
-  // 使用Vue.set确保响应式
-  Vue.set(lastMsg, 'content', (lastMsg.content || '') + chunk)
-  Vue.set(lastMsg, 'timestamp', Date.now())
+  // 直接更新内容
+  lastMsg.content = (lastMsg.content || '') + chunk
+  lastMsg.timestamp = Date.now()
+  
+  // 触发滚动
+  await handleCursorUpdate()
 }
+
+// 监听消息变化
+watch(() => props.ai.messages, async (newVal, oldVal) => {
+  if (newVal.length > oldVal.length) {
+    await handleCursorUpdate()
+  }
+}, { deep: true })
 
 // 允许父组件访问
 defineExpose({ handleStreamUpdate })
@@ -478,11 +508,13 @@ const headerStyle = computed(() => ({
 .message-container {
   flex: 1;
   min-height: 0;
-  max-height: calc(100% - 2%); /* 保留操作余量 */
+  max-height: calc(100% - 2%);
   overflow-y: auto;
   padding: 0.5rem;
-  margin: 0 4% 4%; /* 左右边距对应SVG的x="5"位置 */
+  margin: 0 4% 4%;
   background: rgba(0, 0, 0, 0.3);
+  scroll-behavior: smooth; /* 添加平滑滚动效果 */
+  overflow-anchor: none; /* 禁用浏览器自动滚动锚定 */
 }
 
 .message-container::-webkit-scrollbar {
@@ -589,12 +621,14 @@ const headerStyle = computed(() => ({
 }
 
 .sse-stream {
-  font-family: 'MS Gothic', monospace;
-  white-space: pre-wrap;
+  position: relative;
+  padding-right: 1em; /* 为光标预留空间 */
 }
 
 .stream-cursor {
-  color: var(--${ai.config.color}-color);
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
   animation: blink 1s step-end infinite;
 }
 
