@@ -56,6 +56,7 @@ import SeelPanel from './components/SeelPanel.vue'
 import MagiMainPanel from './components/MagiMainPanel.vue'
 import { initMagi, MockTrinity } from './core/mockMagi.js'
 import { 解析SSE事件, 是有效流, 查找差异索引 } from './utils/sseUtils.js'
+import { 处理流式消息, 创建消息 } from './utils/messageUtils.js'
 
 const globalInput = ref('')
 const consensusMessages = reactive([])
@@ -153,132 +154,49 @@ const sendToAll = async () => {
         if (!userMessage || connectionStatus.value !== 'connected') return
 
         globalInput.value = ''
-
-        // 添加用户消息到主面板
-        consensusMessages.push({
-            type: 'user',
-            content: userMessage,
-            status: 'default',
-            timestamp: Date.now()
-        })
+        
+        // 添加用户消息
+        consensusMessages.push(创建消息('user', userMessage))
 
         // 获取三贤者的响应
         const sages = seels.filter(seel => seel.config.name !== 'TRINITY-00')
         const trinity = seels.find(seel => seel.config.name === 'TRINITY-00')
 
-        // 首先获取三贤者的响应
+        // 处理三贤者响应
         const responsePromises = sages.map(async (seel) => {
             try {
                 const response = await seel.reply(userMessage)
-                if (!是有效流(response)) return null
-
-                // 创建暂存区避免直接操作消息数组
-                const pendingMsg = {
-                    id: Symbol('sseMsg'),
-                    type: 'sse_stream',
-                    content: '',
-                    status: 'pending',
-                    timestamp: Date.now(),
-                    meta: { progress: 0 },
-                    _lastFull: ''
-                }
-
-                let hasContent = false
-                let finalContent = ''
-                let receivedChunks = 0
-                let lastFullContent = ''
-
-                for await (const event of response) {
-                    const { 类型: type, 数据: data } = 解析SSE事件(event)
-
-                    // 增强首包验证逻辑
-                    receivedChunks++
-                    if (receivedChunks === 1) {
-                        // 扩展有效性判断标准
-                        const isValidFirstChunk = (
-                            (type === 'init' && (data.进度 !== undefined || data.内容)) ||
-                            (type === 'chunk' && (data.内容 || data.进度 !== undefined))
-                        )
-
-                        if (!isValidFirstChunk) {
-                            console.warn('首包验证失败', JSON.stringify({
-                                type,
-                                data,
-                                rawEvent: event,
-                                timestamp: Date.now(),
-                                ai: seel.config.name
-                            }, null, 2))
-
-                            seel.messages.push({
-                                type: 'error',
-                                content: `首包格式异常 [${type}]`,
-                                timestamp: Date.now(),
-                                meta: {
-                                    progress: data.进度,
-                                    eventType: type,
-                                    rawData: data
-                                }
-                            })
-                            return null
+                const { content, success } = await 处理流式消息(response, {
+                    onStart: (msg) => {
+                        seel.loading = true
+                    },
+                    onChunk: (msg) => {
+                        const existingMsg = seel.messages.find(m => m.id === msg.id)
+                        if (existingMsg) {
+                            Object.assign(existingMsg, msg)
+                        } else {
+                            seel.messages.push({ ...msg })
                         }
-
-                        // 处理初始化信息
-                        if (data.进度 !== undefined) {
-                            pendingMsg.meta.progress = data.进度
-                        }
+                    },
+                    onComplete: (msg) => {
+                        seel.loading = false
+                    },
+                    onError: (error) => {
+                        seel.loading = false
+                        seel.messages.push(创建消息('error', error.message))
                     }
+                })
 
-                    // 延迟消息创建直到实际内容到达
-                    if (data.内容?.trim() && !hasContent) {
-                        hasContent = true
-                        const validMsg = reactive({
-                            ...pendingMsg,
-                            status: 'loading',
-                            content: data.内容
-                        })
-                        seel.messages.push(validMsg)
-                    }
-
-                    // 更新已提交的消息
-                    const targetMsg = seel.messages.find(m => m.id === pendingMsg.id)
-                    if (targetMsg) {
-                        // 修改内容拼接逻辑
-                        if (data.模式 === 'delta') {
-                            // 仅追加新内容（去除可能重复的起始部分）
-                            const newContent = data.内容.replace(targetMsg.content, '')
-                            targetMsg.content += newContent
-                        } else if (data.模式 === 'full') {
-                            // 使用智能比对算法
-                            const diffStartIndex = 查找差异索引(lastFullContent, data.内容)
-                            const newContent = data.内容.slice(diffStartIndex)
-                            targetMsg.content += newContent
-                            lastFullContent = data.内容
-                        }
-                        targetMsg.meta.progress = data.进度
-                        targetMsg.status = 'loading'
-                        targetMsg.timestamp = Date.now()
-                        finalContent = targetMsg.content
-                    }
-                }
-
-                // 最终状态处理
-                if (hasContent) {
-                    const targetMsg = seel.messages.find(m => m.id === pendingMsg.id)
-                    if (targetMsg) {
-                        targetMsg.status = 'success'
-                        targetMsg.timestamp = Date.now()
-                        if (!finalContent.trim()) {
-                            seel.messages = seel.messages.filter(m => m !== targetMsg)
-                        }
-                    }
+                if (success) {
                     return {
-                        content: finalContent,
+                        content,
                         seel: seel.config.name,
                         displayName: seel.config.displayName
                     }
                 }
                 return null
             } catch (e) {
+                seel.loading = false
                 console.error('流处理异常:', e)
                 return null
             }
@@ -322,47 +240,34 @@ const sendToAll = async () => {
                 
                 // 发起Trinity的响应请求
                 const trinityResponse = await trinity.reply(userMessage, trinityContext)
-
-                if (是有效流(trinityResponse)) {
-                    // 清理旧消息
-                    const lastMsg = trinity.messages[trinity.messages.length - 1]
-                    if (lastMsg?.type === 'assistant') {
-                        trinity.messages.pop()
-                    }
-
-                    // 创建暂存消息（与其他AI处理逻辑保持一致）
-                    let trinityContent = ''
-                    const pendingMsg = reactive({
-                        type: 'assistant',
-                        content: '',
-                        status: 'loading',
-                        timestamp: Date.now()
-                    })
-                    trinity.messages.push(pendingMsg)
-
-                    for await (const event of trinityResponse) {
-                        const { 数据: data } = 解析SSE事件(event)
-                        if (data.内容) {
-                            trinityContent += data.内容
-                            // 直接更新暂存消息（而不是创建新消息）
-                            pendingMsg.content = trinityContent
-                            pendingMsg.timestamp = Date.now()
+                const { content: trinityContent, success } = await 处理流式消息(trinityResponse, {
+                    onStart: (msg) => {
+                        trinity.loading = true
+                    },
+                    onChunk: (msg) => {
+                        const existingMsg = trinity.messages.find(m => m.id === msg.id)
+                        if (existingMsg) {
+                            Object.assign(existingMsg, msg)
+                        } else {
+                            trinity.messages.push({ ...msg })
                         }
+                    },
+                    onComplete: (msg) => {
+                        trinity.loading = false
+                    },
+                    onError: (error) => {
+                        trinity.loading = false
+                        trinity.messages.push(创建消息('error', error.message))
                     }
+                })
 
-                    // 最终状态处理
-                    pendingMsg.status = 'success'
-                    pendingMsg.timestamp = Date.now()
-                    trinityResult = pendingMsg.content
+                if (success) {
+                    trinityResult = trinityContent
                 }
             } catch (error) {
+                trinity.loading = false
                 console.error('Trinity响应错误:', error)
-                trinity.messages.push({
-                    type: 'error',
-                    content: '响应生成失败: ' + error.message,
-                    status: 'error',
-                    timestamp: Date.now()
-                })
+                trinity.messages.push(创建消息('error', '响应生成失败: ' + error.message))
             }
         } else {
             console.warn('Trinity总结跳过', {
@@ -442,16 +347,12 @@ const sendToAll = async () => {
 
     } catch (error) {
         console.error('SSE处理失败:', error)
-        consensusMessages.push({
-            type: 'error',
-            content: `[${new Date().toLocaleTimeString()}] 流式响应错误: ${error.message}`,
-            status: 'error',
-            timestamp: Date.now(),
+        consensusMessages.push(创建消息('error', `流式响应错误: ${error.message}`, {
             meta: {
                 source: 'SSE Handler',
                 errorCode: 'STREAM_ERR_001'
             }
-        })
+        }))
     }
 }
 
