@@ -55,6 +55,7 @@ import { ref, reactive, computed, onMounted, provide, nextTick } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
 import MagiMainPanel from './components/MagiMainPanel.vue'
 import { initMagi, MockTrinity } from './core/mockMagi.js'
+import { 解析SSE事件, 是有效流, 查找差异索引 } from './utils/sseUtils.js'
 
 const globalInput = ref('')
 const consensusMessages = reactive([])
@@ -146,13 +147,6 @@ const toggleAllMessages = () => {
     seels.forEach(seel => seel.showMessages = showAllMessages.value)
 }
 
-// 增强SSE响应验证
-const isValidStream = (response) => {
-    return response &&
-        typeof response[Symbol.asyncIterator] === 'function' &&
-        typeof response.next === 'function'
-}
-
 const sendToAll = async () => {
     try {
         const userMessage = globalInput.value.trim()
@@ -176,7 +170,7 @@ const sendToAll = async () => {
         const responsePromises = sages.map(async (seel) => {
             try {
                 const response = await seel.reply(userMessage)
-                if (!isValidStream(response)) return null
+                if (!是有效流(response)) return null
 
                 // 创建暂存区避免直接操作消息数组
                 const pendingMsg = {
@@ -195,24 +189,24 @@ const sendToAll = async () => {
                 let lastFullContent = ''
 
                 for await (const event of response) {
-                    const { type, data } = parseSSEEvent(event)
+                    const { 类型: type, 数据: data } = 解析SSE事件(event)
 
                     // 增强首包验证逻辑
                     receivedChunks++
                     if (receivedChunks === 1) {
                         // 扩展有效性判断标准
                         const isValidFirstChunk = (
-                            (type === 'init' && (data.progress !== undefined || data.content)) ||
-                            (type === 'chunk' && (data.content || data.progress !== undefined))
+                            (type === 'init' && (data.进度 !== undefined || data.内容)) ||
+                            (type === 'chunk' && (data.内容 || data.进度 !== undefined))
                         )
 
                         if (!isValidFirstChunk) {
                             console.warn('首包验证失败', JSON.stringify({
                                 type,
                                 data,
-                                rawEvent: event, // 记录原始事件数据
+                                rawEvent: event,
                                 timestamp: Date.now(),
-                                ai: seel.config.name // 记录当前AI实例
+                                ai: seel.config.name
                             }, null, 2))
 
                             seel.messages.push({
@@ -220,7 +214,7 @@ const sendToAll = async () => {
                                 content: `首包格式异常 [${type}]`,
                                 timestamp: Date.now(),
                                 meta: {
-                                    progress: data.progress,
+                                    progress: data.进度,
                                     eventType: type,
                                     rawData: data
                                 }
@@ -229,18 +223,18 @@ const sendToAll = async () => {
                         }
 
                         // 处理初始化信息
-                        if (data.progress !== undefined) {
-                            pendingMsg.meta.progress = data.progress
+                        if (data.进度 !== undefined) {
+                            pendingMsg.meta.progress = data.进度
                         }
                     }
 
                     // 延迟消息创建直到实际内容到达
-                    if (data.content?.trim() && !hasContent) {
+                    if (data.内容?.trim() && !hasContent) {
                         hasContent = true
                         const validMsg = reactive({
                             ...pendingMsg,
                             status: 'loading',
-                            content: data.content
+                            content: data.内容
                         })
                         seel.messages.push(validMsg)
                     }
@@ -249,18 +243,18 @@ const sendToAll = async () => {
                     const targetMsg = seel.messages.find(m => m.id === pendingMsg.id)
                     if (targetMsg) {
                         // 修改内容拼接逻辑
-                        if (data._mode === 'delta') {
+                        if (data.模式 === 'delta') {
                             // 仅追加新内容（去除可能重复的起始部分）
-                            const newContent = data.content.replace(targetMsg.content, '')
+                            const newContent = data.内容.replace(targetMsg.content, '')
                             targetMsg.content += newContent
-                        } else if (data._mode === 'full') {
+                        } else if (data.模式 === 'full') {
                             // 使用智能比对算法
-                            const diffStartIndex = findDiffIndex(lastFullContent, data.content)
-                            const newContent = data.content.slice(diffStartIndex)
+                            const diffStartIndex = 查找差异索引(lastFullContent, data.内容)
+                            const newContent = data.内容.slice(diffStartIndex)
                             targetMsg.content += newContent
-                            lastFullContent = data.content
+                            lastFullContent = data.内容
                         }
-                        targetMsg.meta.progress = data.progress
+                        targetMsg.meta.progress = data.进度
                         targetMsg.status = 'loading'
                         targetMsg.timestamp = Date.now()
                         finalContent = targetMsg.content
@@ -329,7 +323,7 @@ const sendToAll = async () => {
                 // 发起Trinity的响应请求
                 const trinityResponse = await trinity.reply(userMessage, trinityContext)
 
-                if (isValidStream(trinityResponse)) {
+                if (是有效流(trinityResponse)) {
                     // 清理旧消息
                     const lastMsg = trinity.messages[trinity.messages.length - 1]
                     if (lastMsg?.type === 'assistant') {
@@ -347,9 +341,9 @@ const sendToAll = async () => {
                     trinity.messages.push(pendingMsg)
 
                     for await (const event of trinityResponse) {
-                        const { data } = parseSSEEvent(event)
-                        if (data.content) {
-                            trinityContent += data.content
+                        const { 数据: data } = 解析SSE事件(event)
+                        if (data.内容) {
+                            trinityContent += data.内容
                             // 直接更新暂存消息（而不是创建新消息）
                             pendingMsg.content = trinityContent
                             pendingMsg.timestamp = Date.now()
@@ -458,54 +452,6 @@ const sendToAll = async () => {
                 errorCode: 'STREAM_ERR_001'
             }
         })
-    }
-}
-
-// 添加差异比对函数
-const findDiffIndex = (prev, current) => {
-    const minLength = Math.min(prev.length, current.length)
-    for (let i = 0; i < minLength; i++) {
-        if (prev[i] !== current[i]) return i
-    }
-    return minLength
-}
-
-// 增强事件解析
-const parseSSEEvent = (rawEvent) => {
-    const lines = rawEvent.split('\n').filter(l => l.trim())
-    let type = 'chunk'
-    let data = {}
-
-    lines.forEach(line => {
-        if (line.startsWith('event:')) type = line.replace('event:', '').trim()
-        if (line.startsWith('data:')) {
-            try {
-                data = JSON.parse(line.replace('data:', '').trim())
-            } catch (e) {
-                console.error('SSE数据解析失败:', e)
-            }
-        }
-    })
-
-    // 自动检测内容模式
-    const isDeltaMode = data.choices?.[0]?.delta?.content !== undefined
-    const isFullMode = data.choices?.[0]?.message?.content !== undefined ||
-        (data.content && data._isFull) // 兼容自定义标记
-
-    return {
-        type,
-        data: {
-            // 兼容两种数据格式
-            content: isDeltaMode
-                ? data.choices[0].delta.content || ''
-                : isFullMode
-                    ? data.choices[0].message.content || ''
-                    : data.content || '',
-            progress: data.progress || 0,
-            // 添加模式标记
-            _mode: isDeltaMode ? 'delta' : isFullMode ? 'full' : 'unknown',
-            _isFull: !!data.isFull // 显式标记全量模式
-        }
     }
 }
 

@@ -22,9 +22,7 @@
       <div class="header-right">
         <slot name="header-right">
           <span v-if="status" class="status-icon" :class="`status-${status}`">
-            <template v-if="status === 'loading'">⌛</template>
-            <template v-else-if="status === 'success'">✓</template>
-            <template v-else-if="status === 'error'">✕</template>
+            {{ 获取状态图标(status) }}
           </span>
         </slot>
       </div>
@@ -91,26 +89,29 @@
 
 <script setup>
 import { computed, watch, onMounted, ref, nextTick } from 'vue'
+import { 格式化时间戳, 解析思考内容, 更新元素高度 } from '../utils/messageUtils.js'
+import {
+  验证消息类型,
+  验证状态类型,
+  验证对齐方式,
+  是否为流式消息,
+  检查状态转换,
+  获取消息样式类,
+  获取状态图标
+} from '../utils/messageFormatUtils.js'
 
 const props = defineProps({
   type: {
     type: String,
     default: 'default',
-    validator: (v) => [
-      'ai', 'user', 'system', 'vote', 
-      'error', 'consensus', 'sse_stream',
-      'default', 'warning', 'info'
-    ].includes(v)
+    validator: 验证消息类型
   },
   typeLabel: String,
   timestamp: [Number, Date],
   status: {
     type: String,
     default: 'default',
-    validator: (v) => [
-      'default', 'success', 'error', 
-      'loading', 'pending', 'warning'
-    ].includes(v)
+    validator: 验证状态类型
   },
   interactive: Boolean,
   showHeader: {
@@ -120,7 +121,7 @@ const props = defineProps({
   align: {
     type: String,
     default: 'left',
-    validator: v => ['left', 'right', 'center'].includes(v)
+    validator: 验证对齐方式
   },
   meta: {
     type: Object,
@@ -140,17 +141,10 @@ const emit = defineEmits(['cursor-update'])
 
 const typeClass = computed(() => `type-${props.type}`)
 
-const formattedTime = computed(() => {
-  if (!props.timestamp) return ''
-  const date = new Date(props.timestamp)
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-})
+// 使用工具函数格式化时间
+const formattedTime = computed(() => 格式化时间戳(props.timestamp))
 
-// 新增状态控制
+// 状态控制
 const isThinkExpanded = ref(false)
 const thinkContent = ref('')
 const normalContent = ref('')
@@ -162,49 +156,27 @@ const toggleThink = () => {
 }
 
 // 处理消息内容
-watch(() => props.msg?.content, (newContent) => {
-  if (newContent && typeof newContent === 'string') {
-    // 使用更严格的正则匹配完整的 think 标签
-    const thinkMatch = newContent.match(/<think>([\s\S]*?)<\/think>(\n[\s\S]*)?/)
-    
-    if (thinkMatch && thinkMatch[1]) {
-      // 确保有完整的闭合标签才显示思考内容
-      thinkContent.value = thinkMatch[1].trim()
-      normalContent.value = thinkMatch[2] ? thinkMatch[2].trim() : ''
-      hasThinkContent.value = true
-    } else if (newContent.includes('<think>') && !newContent.includes('</think>')) {
-      // 如果只有开始标签，说明还在流式输出中，暂时不显示思考区域
-      thinkContent.value = ''
-      normalContent.value = newContent
-      //hasThinkContent.value = false
-    } else {
-      // 没有 think 标签或其他情况
-      thinkContent.value = ''
-      normalContent.value = newContent
-     // hasThinkContent.value = false
-    }
+watch(() => props.msg?.content, (新内容) => {
+  if (新内容) {
+    const { 思考内容, 普通内容, 有思考 } = 解析思考内容(新内容)
+    thinkContent.value = 思考内容
+    normalContent.value = 普通内容
+    hasThinkContent.value = 有思考
   } else {
     // 重置状态
     thinkContent.value = ''
     normalContent.value = ''
-    //hasThinkContent.value = false
+    hasThinkContent.value = false
   }
-  console.log(hasThinkContent.value)
-
 }, { immediate: true })
 
-// 监听消息状态，在完成时再次检查内容
+// 监听消息状态
 watch(() => props.msg?.status, (newStatus, oldStatus) => {
-  if (newStatus !== 'loading' && oldStatus === 'loading' && props.msg?.content) {
-    // 流式输出完成后，再次检查内容
-    const content = props.msg.content
-    const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>(\n[\s\S]*)?/)
-    
-    if (thinkMatch && thinkMatch[1]) {
-      thinkContent.value = thinkMatch[1].trim()
-      normalContent.value = thinkMatch[2] ? thinkMatch[2].trim() : ''
-      hasThinkContent.value = true
-    }
+  if (检查状态转换(newStatus, oldStatus, props.msg?.content)) {
+    const { 思考内容, 普通内容, 有思考 } = 解析思考内容(props.msg.content)
+    thinkContent.value = 思考内容
+    normalContent.value = 普通内容
+    hasThinkContent.value = 有思考
   }
 })
 
@@ -215,26 +187,21 @@ watch(() => props.msg?.content, () => {
   }
 }, { deep: true })
 
-// 组件挂载时也发送一次更新
+// 组件挂载时的更新
 onMounted(() => {
-  if (props.msg?.type === 'sse_stream' && props.msg?.status === 'loading') {
+  if (是否为流式消息(props.msg)) {
     emit('cursor-update')
   }
 })
 
-// 在setup顶部添加模板引用声明
 const thinkContentRef = ref(null)
 
-// 修改watch中的DOM操作部分
+// 使用工具函数更新元素高度
 watch(() => hasThinkContent.value, (newValue) => {
   if (newValue) {
     nextTick(() => {
       if (thinkContentRef.value) {
-        thinkContentRef.value.style.maxHeight = '0px'
-        thinkContentRef.value.offsetHeight // 强制重绘
-        if (isThinkExpanded.value) {
-          thinkContentRef.value.style.maxHeight = `${thinkContentRef.value.scrollHeight}px`
-        }
+        更新元素高度(thinkContentRef.value, isThinkExpanded.value)
       }
     })
   }
@@ -244,7 +211,7 @@ watch(() => hasThinkContent.value, (newValue) => {
 watch(() => isThinkExpanded.value, (newValue) => {
   nextTick(() => {
     if (thinkContentRef.value) {
-      thinkContentRef.value.style.maxHeight = newValue ? `${thinkContentRef.value.scrollHeight}px` : '0px'
+      更新元素高度(thinkContentRef.value, newValue)
     }
   })
 })
