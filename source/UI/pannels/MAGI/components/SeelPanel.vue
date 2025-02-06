@@ -16,6 +16,7 @@
         </clipPath>
       </defs>
       
+      
       <rect x="0" y="0" width="100" height="100" 
             :fill="`url(#bg-gradient-${ai.config.name})`"
             :clip-path="`url(#panel-clip-${ai.config.name})`"/>

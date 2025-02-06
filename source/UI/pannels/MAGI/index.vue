@@ -54,86 +54,17 @@
 import { ref, reactive, computed, onMounted, provide, nextTick } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
 import MagiMainPanel from './components/MagiMainPanel.vue'
-import { initMagi, MockTrinity } from './core/mockMagi.js'
-import { 解析SSE事件, 是有效流, 查找差异索引 } from './utils/sseUtils.js'
 import { 处理流式消息, 创建消息 } from './utils/messageUtils.js'
+import { useMagi } from './composables/useMagi.js'
+
+const { seels, connectionStatus, consensusMessages, initializeMAGI } = useMagi()
 
 const globalInput = ref('')
-const consensusMessages = reactive([])
 const showAllMessages = ref(true)
-const connectionStatus = ref('disconnected')
 
-const seels = reactive([])
 const showSeels = ref(true)
 const showTrinity = ref(false)
 const trinityAI = computed(() => seels.find(s => s.config.name === 'TRINITY-00'))
-
-const initializeMAGI = async () => {
-    try {
-        connectionStatus.value = 'connecting'
-        const rawSeels = await initMagi({
-            delay: 800,
-            autoConnect: true
-        })
-
-        // 添加三贤者
-        seels.push(...rawSeels.map(ai => ({
-            config: {
-                name: ai.config.name,
-                displayName: ai.config.displayName,
-                color: ai.config.color,
-                icon: ai.config.icon,
-                responseType: ai.config.responseType,
-                persona: ai.config.persona
-            },
-            messages: reactive(ai.messages),
-            loading: false,
-            connected: true,
-            async reply(userInput) {
-                return await ai.reply(userInput)
-            },
-            async voteFor(responses) {
-                return await ai.voteFor(responses)
-            }
-        })))
-
-        // 添加崔尼蒂
-        const trinity = new MockTrinity()
-        seels.push({
-            config: {
-                name: trinity.config.name,
-                displayName: trinity.config.displayName,
-                color: 'rgba(255, 255, 255, 0.9)',
-                icon: trinity.config.icon,
-                responseType: trinity.config.responseType,
-                persona: trinity.config.persona
-            },
-            messages: reactive([]),
-            loading: false,
-            connected: true,
-            async reply(userInput, options) {
-                return await trinity.reply(userInput, options)
-            },
-            // Trinity 不参与投票
-            async voteFor() {
-                return null
-            }
-        })
-
-        connectionStatus.value = 'connected'
-
-        consensusMessages.push({
-            type: 'system',
-            content: 'MAGI系统初始化完成'
-        })
-    } catch (error) {
-        connectionStatus.value = 'error'
-        consensusMessages.push({
-            type: 'error',
-            content: '系统初始化失败：' + error.message
-        })
-    }
-}
 
 onMounted(() => {
     initializeMAGI()
