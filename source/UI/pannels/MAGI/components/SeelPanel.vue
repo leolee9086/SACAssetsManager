@@ -12,6 +12,9 @@
           <stop offset="100%" style="stop-color: rgba(0, 0, 0, 0.8)"/>
         </linearGradient>
         <clipPath :id="`panel-clip-${ai.config.name}`">
+          <path d="M5,0 H95 L100,5 V95 L95,100 H5 L0,95 V5 L5,0 Z"/>
+        </clipPath>
+        <clipPath :id="`bg-clip-${ai.config.name}`">
           <path d="M 5,0 H 95 L 100,5 V 95 L 95,100 H 5 L 0,95 V 5 Z"/>
         </clipPath>
       </defs>
@@ -646,19 +649,7 @@ const headerStyle = computed(() => ({
   padding: 0.2rem 0; /* 使用padding替代行高 */
 }
 
-.panel-content::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
-  background: linear-gradient(to bottom, 
-    transparent, 
-    rgba(0,0,0,0.8) 80%
-  );
-  pointer-events: none;
-}
+
 
 /* 添加动态高度适配 */
 @media (max-height: 600px) {
