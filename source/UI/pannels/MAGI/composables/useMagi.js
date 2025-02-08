@@ -1,4 +1,4 @@
-import { ref, reactive } from '../../../../../static/vue.esm-browser.js'
+import { ref, reactive, watch } from '../../../../../static/vue.esm-browser.js'
 import { initMagi, MockTrinity } from '../core/mockMagi.js'
 import { 处理流式消息 ,创建消息} from '../utils/messageUtils.js'
 export function useMagi() {
@@ -15,38 +15,60 @@ export function useMagi() {
             seels.splice(0, seels.length)
             consensusMessages.splice(0, consensusMessages.length)
 
-            const rawSeels = await initMagi({
+            // 添加配置项
+            const config = {
                 delay: 800,
                 autoConnect: true,
-                prompts: window.__loadedPrompts
-            })
+                prompts: window.__loadedPrompts,
+                memorySize: 7, // 添加默认记忆长度
+                openAIConfig: {
+                    // ... 现有的openAI配置 ...
+                }
+            }
+
+            const rawSeels = await initMagi(config)
 
             // 重新创建所有AI实例
-            const newSeels = rawSeels.map(ai => ({
-                config: {
-                    name: ai.config.name,
-                    displayName: ai.config.displayName,
-                    color: ai.config.color,
-                    icon: ai.config.icon,
-                    responseType: ai.config.responseType,
-                    persona: ai.config.persona
-                },
-                messages: reactive(ai.messages),
-                loading: false,
-                connected: true,
-                async reply(userInput) {
-                    return await ai.reply(userInput)
-                },
-                async voteFor(responses) {
-                    return await ai.voteFor(responses)
-                }
-            }))
+            const newSeels = rawSeels.map(ai => {
+                // 保持原始AI实例的引用
+                const wrappedAI = {
+                    _originalAI: ai,  // 保存原始AI实例
+                    config: {
+                        name: ai.config.name,
+                        displayName: ai.config.displayName,
+                        color: ai.config.color,
+                        icon: ai.config.icon,
+                        responseType: ai.config.responseType,
+                        persona: ai.config.persona,
+                        memorySize: ai.config.memorySize  // 添加记忆配置
+                    },
+                    messages: reactive(ai.messages),
+                    loading: false,
+                    connected: true,
+                    async reply(userInput) {
+                        // 确保消息同步
+                        this._originalAI.messages = this.messages;
+                        return await this._originalAI.reply(userInput);
+                    },
+                    async voteFor(responses) {
+                        return await this._originalAI.voteFor(responses);
+                    }
+                };
+
+                // 设置消息监听
+                watch(() => wrappedAI.messages, (newMessages) => {
+                    wrappedAI._originalAI.messages = newMessages;
+                }, { deep: true });
+
+                return wrappedAI;
+            })
             
             // 修改崔尼蒂实例创建方式
             const trinityInstance = rawSeels.find(s => s.config.name === 'TRINITY-00')
             if (!trinityInstance) {
                 const trinity = new MockTrinity(null, window.__loadedPrompts?.trinity)
-                newSeels.push({
+                const wrappedTrinity = {
+                    _originalAI: trinity,
                     config: {
                         name: trinity.config.name,
                         displayName: trinity.config.displayName,
@@ -54,19 +76,27 @@ export function useMagi() {
                         icon: trinity.config.icon,
                         responseType: trinity.config.responseType,
                         persona: trinity.config.persona,
-                        // 确保传递更新后的提示词
+                        memorySize: trinity.config.memorySize,  // 添加记忆配置
                         systemPromptForChat: window.__loadedPrompts?.trinity || trinity.config.systemPromptForChat
                     },
                     messages: reactive([]),
                     loading: false,
                     connected: true,
                     async reply(userInput, options) {
-                        return await trinity.reply(userInput, options)
+                        this._originalAI.messages = this.messages;
+                        return await this._originalAI.reply(userInput, options);
                     },
                     async voteFor() {
-                        return null
+                        return null;
                     }
-                })
+                };
+
+                // 设置消息监听
+                watch(() => wrappedTrinity.messages, (newMessages) => {
+                    wrappedTrinity._originalAI.messages = newMessages;
+                }, { deep: true });
+
+                newSeels.push(wrappedTrinity)
             }
 
             seels.push(...newSeels)
@@ -105,10 +135,17 @@ export const  processSagesResponses = async (sages, userMessage, difficulty) => 
 
     const responsePromises = sages.map(async (seel) => {
         try {
+            // 确保消息同步
+            if (seel._originalAI) {
+                seel._originalAI.messages = seel.messages;
+            }
+
             const response = await seel.reply(userMessage)
             const { content, success } = await 处理流式消息(response, {
                 onStart: (msg) => {
                     seel.loading = true
+                    // 添加用户消息到历史
+                    seel.messages.push(创建消息('user', userMessage));
                 },
                 onChunk: (msg) => {
                     const existingMsg = seel.messages.find(m => m.id === msg.id)

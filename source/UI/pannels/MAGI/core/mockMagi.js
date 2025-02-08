@@ -23,6 +23,7 @@ export class MockWISE {
     this.config = {
       magiInstanceName: 'rei', // 新增统一标识
       systemPromptForChat: '你是一个AI助手',
+      memorySize: 7, // 默认记忆长度
       ...Object.assign(
         {
           responseType: 'mock',
@@ -47,6 +48,7 @@ export class MockWISE {
     this.config.sseConfig.chunkInterval = Math.max(50, this.config.sseConfig.chunkInterval || 300)
 
     this.messages = []
+    this._contextMessages = [] // 专门用于API调用的上下文消息
     this._loading = false // 私有属性
     this.responseDelay = 500 // 新增响应延迟配置
     this._connected = false // 新增连接状态
@@ -173,8 +175,12 @@ export class MockWISE {
     }
   }
 
-  // 修改流式响应适配逻辑
-  async *streamResponse(prompt,systemPromptForChat) {
+  // 修改记忆管理方法
+  getContextMessages() {
+    return this._contextMessages.slice(-this.config.memorySize);
+  }
+
+  async *streamResponse(prompt, systemPromptForChat, context = []) {
     try {
       const streamer = createPromptStreamer(
         {
@@ -184,22 +190,18 @@ export class MockWISE {
           temperature: this.config.openAIConfig?.temperature,
           max_tokens: this.config.openAIConfig?.max_tokens
         },
-        systemPromptForChat|| this.config.systemPromptForChat
+        systemPromptForChat || this.config.systemPromptForChat
       );
 
-      const messages = [
-        { role: 'user', content: prompt }
-      ];
-
-      for await (const chunk of streamer.createStream(messages)) {
-        // 保持原有错误处理逻辑
+      var responseContent = '';
+      for await (const chunk of streamer.createStream(context)) {
         if (chunk.error) {
           throw new Error(chunk.error.message);
         }
 
-        // 保持原有数据格式
         const contentChunk = chunk.choices?.[0]?.delta?.content || '';
         if (contentChunk) {
+          responseContent += contentChunk;
           yield `data: ${JSON.stringify({
             id: chunk.id,
             object: 'chat.completion.chunk',
@@ -213,6 +215,15 @@ export class MockWISE {
           })}\n\n`;
         }
       }
+
+      // 流式响应完成后，添加到上下文
+      this._contextMessages.push({
+        role: 'assistant',
+        content: responseContent,
+        timestamp: Date.now()
+      });
+
+      return responseContent;
     } catch (e) {
       console.error('流式响应异常:', e);
       yield `data: ${JSON.stringify({
@@ -225,32 +236,56 @@ export class MockWISE {
     }
   }
 
-  // 修改回复方法
   async reply(userInput) {
-    this.loading = true
+    this.loading = true;
     try {
+      // 添加用户消息到上下文
+      const userMessage = {
+        role: 'user',
+        content: userInput,
+        timestamp: Date.now()
+      };
+      this._contextMessages.push(userMessage);
+
+      // 只在本地消息中添加用户消息
+      this.messages = [{
+        type: 'user',
+        content: userInput,
+        timestamp: Date.now()
+      }];
+
+      const context = this.getContextMessages();
+
       if (this.config.responseType === 'sse') {
-        return this.streamResponse(userInput)
+        return this.streamResponse(userInput, null, context);
       }
-      // 非SSE模式保持原有逻辑
-      const response = await this.getResponse(userInput)
+      
+      const response = await this.getResponse(userInput, context);
+      
+      // 添加AI响应到上下文
+      this._contextMessages.push({
+        role: 'assistant',
+        content: response,
+        timestamp: Date.now()
+      });
+
+      // 只添加当前响应到本地消息
       this.messages.push({
         type: 'ai',
         content: response,
         status: 'success',
         timestamp: Date.now()
-      })
-      return response
+      });
+      
+      return response;
     } finally {
-      this.loading = false
+      this.loading = false;
     }
   }
 
-  // 添加基础响应生成方法
-  getResponse(prompt) {
-    // 使用OpenAI实例生成响应
-    const response = this.openaiClient._generateResponse(prompt)
-    return response
+  // 更新响应生成方法
+  async getResponse(prompt, context = []) {
+    return this.openaiClient._generateResponse(context);
   }
 
   // 新增配置更新方法
@@ -286,9 +321,11 @@ export class MockMelchior extends MockWISE {
         model: "deepseek-ai/DeepSeek-V3",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.3,
-        max_tokens: 4096
+        max_tokens: 4096,
+        context_window: 12800
       },
-      systemPromptForChat: customPrompt || MELCHIOR提示词模板集.系统提示词模板.普通聊天(customName,MELCHIOR特征集)
+      systemPromptForChat: customPrompt || MELCHIOR提示词模板集.系统提示词模板.普通聊天(customName,MELCHIOR特征集),
+      memorySize: 7
     })
   }
 }
@@ -312,7 +349,8 @@ export class MockBalthazar extends MockWISE {
         model: "deepseek-ai/DeepSeek-V3",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.7,
-        max_tokens: 4096
+        max_tokens: 4096,
+        context_window: 6400
       },
       systemPromptForChat: customPrompt || `
 重要：你必须始终以${customName || 'rei'}的身份回应。这是你的核心身份设定。
@@ -365,7 +403,8 @@ export class MockCasper extends MockWISE {
         model: "deepseek-ai/DeepSeek-V3",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.7,
-        max_tokens: 30
+        max_tokens: 30,
+        context_window: 0
       },
       systemPromptForChat: customPrompt || `
 重要：你必须始终以${customName || 'rei'}的身份回应。这是你的核心身份设定。
@@ -416,7 +455,8 @@ export class MockTrinity extends MockWISE {
         model: "deepseek-ai/DeepSeek-V3",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.5,
-        max_tokens: 4096
+        max_tokens: 4096,
+        context_window: 16000
       },
       systemPromptForChat: customPrompt || `
 重要：我是${customName || 'rei'}。
@@ -501,7 +541,7 @@ ${otherResponses.length > 0 ? `
 ${mappedResponses}
 ` : ''}
 
-记住：用自然的方式表达，就像日常对话一样。${Casper?`我的第一反应接近:${Casper},但我可能应该考虑更多`:""}`
+记住：用自然的方式表达，就像日常对话一样,绝对禁止以任何形式暴露MAGI的结构。${Casper?`我的第一反应接近:${Casper},但我可能应该考虑更多`:""}`
 
       if (this.config.responseType === 'sse') {
         return this.streamResponse(userInput, this.config.systemPromptForChat)
@@ -531,7 +571,12 @@ export function initMagi(options = {}) {
     new MockCasper(null, options.prompts?.casper),
    // new MockTrinity(null, options.prompts?.trinity)
   ].map(ai => {
+    // 传递所有相关配置
     ai.responseDelay = options.delay || 500
+    ai.config.memorySize = options.memorySize || 7
+    if (options.openAIConfig) {
+        ai.config.openAIConfig = { ...ai.config.openAIConfig, ...options.openAIConfig }
+    }
     return ai
   })
 
