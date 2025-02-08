@@ -301,6 +301,47 @@ export class AISSEConversation {
       throw error;
     }
   }
+
+  /**
+   * 获取SSE流式响应
+   * @param {Object} options - 请求选项
+   * @param {Array} options.messages - 消息数组
+   * @returns {AsyncGenerator} SSE流式响应
+   */
+  async *getSSECompletion({ messages }) {
+    try {
+      this.messages = [...messages];
+      
+      let buffer = [];
+      const flushBuffer = () => {
+        if (buffer.length > 0) {
+          const content = buffer.join('');
+          buffer = [];
+          return { content };
+        }
+        return null;
+      };
+
+      for await (const chunk of this.provider.createChatCompletion(this.messages)) {
+        if (chunk.error) throw new Error(chunk.error.message);
+        
+        const content = chunk.choices[0]?.delta?.content || '';
+        buffer.push(content);
+        
+        if (content.includes('\n') || buffer.length > 3) {
+          const flushed = flushBuffer();
+          if (flushed) yield flushed;
+        }
+      }
+
+      const finalContent = flushBuffer();
+      if (finalContent) yield finalContent;
+
+    } catch (error) {
+      console.error('SSE completion error:', error);
+      throw error;
+    }
+  }
 }
 
 export class SSEPromptStreamer {

@@ -10,237 +10,144 @@
         </div>
       </header>
 
-      <main>
-        <!-- 章节介绍 -->
-        <div v-if="showSectionIntro" class="section-intro">
-          <h2>{{ currentSection.systemTitle }}</h2>
-          <p>{{ currentSection.description }}</p>
-          <button @click="startSection" class="nav-button primary">开始评估</button>
-        </div>
+      <main class="three-column-layout">
+        <!-- 左侧：结构化问题 -->
+        <div class="left-column">
+          <div v-for="(section, sectionIndex) in sections" :key="sectionIndex" class="section-container">
+            <h2>{{ section.systemTitle }}</h2>
+            <div v-for="(question, questionIndex) in section.questions" :key="questionIndex" class="question-container">
+              <h3>{{ question.text }}</h3>
+              <div class="question">
+                <template v-if="question.type === 'composite_rating'">
+                  <CompositeRating 
+                    :question="question" 
+                    @update:question="handleQuestionUpdate"
+                    @update:score="(score) => handleScoreUpdate(question, score)"
+                  />
+                </template>
 
-        <!-- 问题内容 -->
-        <div v-else>
-          <h2>{{ currentSection.title }}</h2>
-          <div class="question-container" v-if="!isComplete">
-            <div class="question">
-              <template v-if="currentQuestion.type === 'composite_rating'">
-                <h3>{{ currentQuestion.text }}</h3>
-                <p v-if="currentQuestion.hint" class="question-hint">{{ currentQuestion.hint }}</p>
-                <div class="sub-questions">
-                  <div v-for="(subQuestion, index) in currentQuestion.subQuestions" :key="index" class="sub-question">
-                    <p>{{ subQuestion.text }}</p>
-                    <div class="options">
-                      <div v-for="(option, optIndex) in subQuestion.options" :key="optIndex" class="option-item"
-                        :class="{ 'selected': subQuestion.selectedOptionIndex === optIndex }"
-                        @click="selectSubQuestionOption(subQuestion, optIndex)">
-                        {{ option }}
+                <!-- 根据问题类型显示不同的输入方式 -->
+                <template v-else-if="question.type === 'text'">
+                  <input v-model="question.value" class="text-input"
+                    :placeholder="question.placeholder || `请输入${question.text}`">
+                </template>
+
+                <!-- 多行文本输入 -->
+                <template v-else-if="question.type === 'multiple_text'">
+                  <div class="multiple-text">
+                    <div v-for="(value, index) in question.values" :key="index" class="multiple-text-item">
+                      <input v-model="question.values[index]" class="text-input"
+                        :placeholder="`请输入${question.text} #${index + 1}`">
+                      <button @click="removeTextValue(question, index)" class="remove-button">删除</button>
+                    </div>
+                    <button @click="addTextValue(question)" class="add-button">添加新条目</button>
+                  </div>
+                </template>
+
+                <!-- 选择题选项 -->
+                <template v-else-if="question.type === 'single' || question.type === 'multiple'">
+                  <p v-if="question.hint" class="question-hint">{{ question.hint }}</p>
+                  <div class="options">
+                    <div v-for="(option, index) in question.options" :key="index" class="option-item" :class="{
+                      'selected': question.type === 'single'
+                        ? question.selectedOption === option
+                        : (question.selectedOptions && question.selectedOptions.includes(option))
+                    }" @click="toggleOption(option, question)">
+                      {{ option }}
+                    </div>
+                  </div>
+                </template>
+
+                <!-- 五级评分选项 -->
+                <template v-if="question.type === 'rating'">
+                  <div class="rating-options">
+                    <div class="rating-scale">
+                      <div v-for="score in 5" :key="score" class="rating-item"
+                        :class="{ 'selected': question.score === score }" @click="setScore(score, question)">
+                        {{ score }}
                       </div>
                     </div>
-                  </div>
-                </div>
-              </template>
-
-              <!-- 根据问题类型显示不同的输入方式 -->
-              <template v-else-if="currentQuestion.type === 'text'">
-                <input v-model="currentQuestion.value" class="text-input"
-                  :placeholder="currentQuestion.placeholder || `请输入${currentQuestion.text}`">
-              </template>
-
-              <!-- 多行文本输入 -->
-              <template v-else-if="currentQuestion.type === 'multiple_text'">
-                <div class="multiple-text">
-                  <div v-for="(value, index) in currentQuestion.values" :key="index" class="multiple-text-item">
-                    <input v-model="currentQuestion.values[index]" class="text-input"
-                      :placeholder="`请输入${currentQuestion.text} #${index + 1}`">
-                    <button @click="removeTextValue(currentQuestion, index)" class="remove-button">删除</button>
-                  </div>
-                  <button @click="addTextValue(currentQuestion)" class="add-button">添加新条目</button>
-                </div>
-              </template>
-
-              <!-- 选择题选项 -->
-              <template v-else-if="currentQuestion.type === 'single' || currentQuestion.type === 'multiple'">
-                <h3>{{ currentQuestion.text }}</h3>
-                <p v-if="currentQuestion.hint" class="question-hint">{{ currentQuestion.hint }}</p>
-                <div class="options">
-                  <div v-for="(option, index) in currentQuestion.options" :key="index" class="option-item" :class="{
-                    'selected': currentQuestion.type === 'single'
-                      ? currentQuestion.selectedOption === option
-                      : (currentQuestion.selectedOptions && currentQuestion.selectedOptions.includes(option))
-                  }" @click="toggleOption(option)">
-                    {{ option }}
-                  </div>
-                </div>
-              </template>
-
-              <!-- 五级评分选项 -->
-              <template v-if="currentQuestion.type === 'rating'">
-                <div class="rating-options">
-                  <div class="rating-scale">
-                    <div v-for="score in 5" :key="score" class="rating-item"
-                      :class="{ 'selected': currentQuestion.score === score }" @click="setScore(score)">
-                      {{ score }}
+                    <div class="rating-labels">
+                      <span>很低</span>
+                      <span>较低</span>
+                      <span>一般</span>
+                      <span>较高</span>
+                      <span>很高</span>
                     </div>
                   </div>
-                  <div class="rating-labels">
-                    <span>很低</span>
-                    <span>较低</span>
-                    <span>一般</span>
-                    <span>较高</span>
-                    <span>很高</span>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <div class="navigation">
-              <button @click="previousQuestion" :disabled="currentQuestionIndex === 0" class="nav-button">上一题</button>
-              <button @click="nextQuestion" class="nav-button primary">{{ isLastQuestion ? '完成' : '下一题' }}</button>
+                </template>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="results" v-else>
-            <h2>评估结果</h2>
-            <div class="result-sections">
-              <div v-for="(section, index) in sections" :key="index" class="result-section">
-                <h3>{{ section.title }}</h3>
-                <div class="result-items">
-                  <template v-for="(question, qIndex) in section.questions" :key="qIndex">
-                    <div v-if="question.type === 'composite_rating'" class="composite-result">
-                      <h4>{{ question.text }}</h4>
-                      <div class="result-bar">
-                        <div class="result-value" :style="{ width: calculateCompositeScore(question) + '%' }"></div>
-                      </div>
-                      <div class="result-percentage">
-                        {{ calculateCompositeScore(question) }}%
-                      </div>
-                    </div>
-                    <div v-else-if="question.type === 'rating'" class="result-item">
-                      <div class="result-label">{{ question.text }}</div>
-                      <div class="result-bar">
-                        <div class="result-value" :style="{ width: ((question.score || 3) / 5 * 100) + '%' }"></div>
-                      </div>
-                      <div class="result-percentage">{{ ((question.score || 3) / 5 * 100).toFixed(0) }}%</div>
-                    </div>
-                    <template v-else-if="question.type === 'single'">
-                      <div class="result-text">{{ question.selectedOption || '未选择' }}</div>
-                    </template>
-                    <template v-else-if="question.type === 'multiple'">
-                      <div class="result-text">{{ (question.selectedOptions || []).join(', ') || '未选择' }}</div>
-                    </template>
-                    <template v-else-if="question.type === 'text'">
-                      <div class="result-text">{{ question.value || '未填写' }}</div>
-                    </template>
-                    <template v-else-if="question.type === 'multiple_text'">
-                      <div class="result-text">
-                        <div v-for="(value, vIndex) in question.values" :key="vIndex">
-                          {{ value }}
-                        </div>
-                      </div>
-                    </template>
-                  </template>
+        <!-- 中间：补充描述系统 -->
+        <div class="middle-column">
+          <div class="additional-notes-section">
+            <div class="notes-header">
+              <h3>补充描述</h3>
+              <button @click="addNote" class="add-note-button">
+                <i class="icon-plus"></i> 添加说明
+              </button>
+            </div>
+            
+            <!-- 直接内联显示输入区域 -->
+            <div class="inline-note-editor" v-if="currentNote.content !== undefined">
+              <textarea
+                v-model="currentNote.content"
+                class="note-textarea"
+                placeholder="请输入补充说明内容..."
+                rows="3"
+              ></textarea>
+              <div class="system-selection">
+                <h4>关联系统：</h4>
+                <div class="system-checkboxes">
+                  <label v-for="system in ['trinity', 'melchior', 'balthazar', 'casper']" :key="system">
+                    <input
+                      type="checkbox"
+                      v-model="currentNote.systems[system]"
+                    >
+                    {{ system.toUpperCase() }}
+                  </label>
                 </div>
+              </div>
+              <div class="inline-editor-buttons">
+                <button class="cancel-button" @click="cancelNote">取消</button>
+                <button class="save-button" @click="saveNote">保存</button>
               </div>
             </div>
 
-            <!-- 添加额外说明准备页面 -->
-            <div v-if="showSummaryPreparation" class="summary-preparation">
-              <div class="additional-notes">
-                <div class="notes-header">
-                  <h3>添加额外说明</h3>
-                  <button @click="addNote" class="add-note-button">添加说明</button>
-                </div>
-                
-                <div class="notes-list">
-                  <div v-for="(note, index) in additionalNotes" :key="index" class="note-item">
-                    <div class="note-content">{{ note.content }}</div>
-                    <div class="note-systems">
-                      适用于：
-                      <span v-for="(enabled, system) in note.systems" :key="system" 
-                            :class="{ 'system-tag': true, 'enabled': enabled }">
-                        {{ system.toUpperCase() }}
-                      </span>
-                    </div>
-                    <button @click="removeNote(index)" class="remove-note-button">删除</button>
-                  </div>
-                </div>
-
-                <div class="preparation-actions">
-                  <p class="preparation-hint">请添加所需的额外说明，完成后点击下方按钮开始生成系统总结</p>
-                  <button @click="startGeneratingSummaries" class="start-generation-button">
-                    开始生成系统总结
-                  </button>
-                </div>
+            <!-- 现有笔记列表显示 -->
+            <div v-for="(note, index) in additionalNotes" :key="index" class="note-item">
+              <div class="note-content">{{ note.content }}</div>
+              <div class="note-systems">
+                <span v-for="(enabled, system) in note.systems" :key="system" 
+                      :class="['system-tag', { 'enabled': enabled }]">
+                  {{ system.toUpperCase() }}
+                </span>
               </div>
+              <button @click="editNote(index)" class="edit-button">编辑</button>
             </div>
+          </div>
+        </div>
 
-            <!-- 系统总结显示部分 -->
-            <div v-else class="system-summaries">
-              <h3>DummySys模拟指令</h3>
-              
-              <div v-for="(summary, system) in sectionSummaries" :key="system" class="summary-section">
-                <h4>{{ system.toUpperCase() }}子线程模拟指令</h4>
-                <div class="summary-content">
-                  <div v-if="summary.loading" class="loading-indicator">
-                    正在生成总结...
-                  </div>
-                  <div v-else>
-                    {{ summary.content }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="result-actions">
-              <button @click="restartQuestionnaire" class="nav-button">重新评估</button>
-              <button @click="$emit('close')" class="nav-button primary">完成</button>
-            </div>
+        <!-- 右侧：AI提示词输出区域 -->
+        <div class="right-column">
+          <div class="summary-section">
+            <h3>AI 提示词输出</h3>
+            <SSETextDisplay 
+              v-for="(summary, system) in sectionSummaries" 
+              :key="system"
+              :systemName="system.toUpperCase()"
+              :promptContent="generateSystemPrompt(system)"
+              @generationComplete="handleGenerationComplete"
+            />
           </div>
         </div>
       </main>
-    </div>
 
-    <!-- 修改错误提示对话框 -->
-    <div v-if="showErrorDialog" class="error-dialog">
-      <div class="error-content">
-        <h3>{{ getErrorDialogContent.title }}</h3>
-        <p>{{ getErrorDialogContent.message }}</p>
-        <div class="error-buttons">
-          <button v-if="getErrorDialogContent.showRetry" 
-                  @click="retryGenerateSummary" 
-                  class="retry-button">重试</button>
-          <button v-if="getErrorDialogContent.showSkip" 
-                  @click="skipSummary" 
-                  class="skip-button">跳过</button>
-          <button v-if="getErrorDialogContent.showConfirm" 
-                  @click="confirmError" 
-                  class="confirm-button">确定</button>
-        </div>
-      </div>
-    </div>
 
-    <!-- 添加说明对话框 -->
-    <div v-if="showAddNoteDialog" class="note-dialog-overlay">
-      <div class="note-dialog">
-        <h3>添加额外说明</h3>
-        <textarea v-model="currentNote.content" 
-                  placeholder="请输入额外说明内容..."
-                  class="note-textarea"></textarea>
-        
-        <div class="system-selection">
-          <div class="system-checkboxes">
-            <label v-for="(_, system) in currentNote.systems" :key="system">
-              <input type="checkbox" v-model="currentNote.systems[system]">
-              {{ system.toUpperCase() }}
-            </label>
-          </div>
-        </div>
-        
-        <div class="dialog-buttons">
-          <button @click="showAddNoteDialog = false" class="cancel-button">取消</button>
-          <button @click="saveNote" class="save-button">保存</button>
-        </div>
-      </div>
+
     </div>
   </div>
 </template>
@@ -249,7 +156,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { questionnaireSections } from '../../data/questionnaire-sections.js';
 import { summaryPrompts } from '../../data/questionnaire-sections.js';
-import { AISSEConversation } from '../../core/openAISSEAPI.js';
+import CompositeRating from './CompositeRating.vue';
+import SSETextDisplay from './SSETextDisplay.vue';
 
 // 添加 emit 定义
 const emit = defineEmits(['close', 'complete']);
@@ -263,103 +171,36 @@ const isComplete = ref(false);
 
 // 修改计算属性以正确访问ref值
 const currentSection = computed(() => sections.value[currentSectionIndex.value]);
-const currentQuestion = computed(() =>
-  currentSection.value.questions[currentQuestionIndex.value]
-);
 
-// 在 setup 中添加
-const aiConversation = new AISSEConversation({
-  apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg', // 需要从配置或环境变量中获取
-  model: 'deepseek-ai/DeepSeek-V3',
-  temperature: 0.7,
-  max_tokens: 4096
-});
-
-// 添加处理选项改变的方法
-const handleOptionChange = (question, option) => {
-  question.selectedOption = option;
-  // 如果存在onChange处理器，则调用它
-  if (question.onChange) {
-    const currentSection = sections.value.find(s =>
-      s.questions.includes(question)
-    );
-    question.onChange(option, currentSection.questions);
-  }
-};
-
-// 修改toggleOption方法
-const toggleOption = (option) => {
-  if (currentQuestion.value.type === 'single') {
-    currentQuestion.value.selectedOption = option;
-    // 调用handleOptionChange
-    handleOptionChange(currentQuestion.value, option);
-  } else if (currentQuestion.value.type === 'multiple') {
-    if (!currentQuestion.value.selectedOptions) {
-      currentQuestion.value.selectedOptions = [];
-    }
-    const index = currentQuestion.value.selectedOptions.indexOf(option);
-    if (index === -1) {
-      currentQuestion.value.selectedOptions.push(option);
-    } else {
-      currentQuestion.value.selectedOptions.splice(index, 1);
-    }
-  }
-};
-
-// 添加评分处理方法
-const setScore = (score) => {
-  if (currentQuestion.value.type === 'rating') {
-    currentQuestion.value.score = score;
-    // 转换为0-1范围的值
-    currentQuestion.value.value = score / 5;
-  }
-};
-
-// 添加处理复合评分的方法
-const selectSubQuestionOption = (subQuestion, optionIndex) => {
-  subQuestion.selectedOptionIndex = optionIndex;
-};
-
-const calculateCompositeScore = (question) => {
-  if (!question.subQuestions) return 0;
-  
-  const scores = question.subQuestions.map(subQ => {
-    const score = subQ.selectedOptionIndex !== undefined ? subQ.selectedOptionIndex : 0;
-    return score * (subQ.weight || 1);
-  });
-  
-  const totalWeight = question.subQuestions.reduce((sum, subQ) => 
-    sum + (subQ.weight || 1), 0
-  );
-  
-  const weightedSum = scores.reduce((sum, score) => sum + score, 0);
-  return Math.round((weightedSum / (totalWeight * 4)) * 100); // 4是选项数量-1
-};
-
-// 修改初始化方法
-const initializeQuestions = () => {
-  sections.value.forEach(section => {
-    section.questions.forEach(question => {
-      if (question.type === 'composite_rating') {
-        question.subQuestions.forEach(subQuestion => {
-          subQuestion.selectedOptionIndex = null;
-        });
-      } else if (question.type === 'rating') {
-        question.score = 3;
-        question.value = 0.5;
-      }
-      // 保持其他类型的初始化
-    });
-  });
-};
-
-// 修改 sectionSummaries 的结构，添加 loading 状态
+// 修改 sectionSummaries 的初始化
 const sectionSummaries = ref({
-  trinity: { content: '', loading: false },
-  melchior: { content: '', loading: false },
-  balthazar: { content: '', loading: false },
-  casper: { content: '', loading: false }
+  trinity: { promptContent: '', loading: false },
+  melchior: { promptContent: '', loading: false },
+  balthazar: { promptContent: '', loading: false },
+  casper: { promptContent: '', loading: false }
 });
+
+// 添加 calculateCompositeScore 函数
+const calculateCompositeScore = (question) => {
+  if (!question.subQuestions || question.subQuestions.length === 0) {
+    return 0;
+  }
+
+  // 计算所有已选择选项的分数总和
+  const totalScore = question.subQuestions.reduce((sum, subQ) => {
+    if (subQ.selectedOptionIndex !== undefined && subQ.weights) {
+      // 使用权重计算分数，如果没有权重则使用选项索引作为分数
+      const weight = subQ.weights ? subQ.weights[subQ.selectedOptionIndex] : subQ.selectedOptionIndex + 1;
+      return sum + weight;
+    }
+    return sum;
+  }, 0);
+
+  // 计算平均分（四舍五入到一位小数）
+  const averageScore = Math.round((totalScore / question.subQuestions.length) * 10) / 10;
+  
+  return averageScore;
+};
 
 // 修改 generatePersonaData 方法
 const generatePersonaData = () => {
@@ -461,11 +302,6 @@ const progress = computed(() => {
   return (completedQuestions / totalQuestions) * 100;
 });
 
-// 判断是否为最后一个问题
-const isLastQuestion = computed(() => {
-  return currentSectionIndex.value === sections.value.length - 1 &&
-    currentQuestionIndex.value === currentSection.value.questions.length - 1;
-});
 
 // 添加错误处理相关的响应式状态
 const showErrorDialog = ref(false);
@@ -474,62 +310,6 @@ const errorMessage = ref('');
 const errorShowRetry = ref(false);
 const errorShowSkip = ref(false);
 const errorShowConfirm = ref(false);
-
-// 添加一个状态来控制流程
-const showSummaryPreparation = ref(true);
-
-// 修改 nextQuestion 方法
-const nextQuestion = async () => {
-  if (!isQuestionComplete(currentQuestion.value)) {
-    showError({
-      title: '请完成当前问题',
-      message: '所有问题都需要完整填写才能继续',
-      showConfirm: true
-    });
-    return;
-  }
-
-  const isLastQuestionInSection = currentQuestionIndex.value === currentSection.value.questions.length - 1;
-  const isLastSection = currentSectionIndex.value === sections.value.length - 1;
-  
-  if (isLastQuestionInSection && isLastSection) {
-    // 显示额外说明准备页面，而不是直接生成总结
-    isComplete.value = true;
-    showSummaryPreparation.value = true;
-  } else if (isLastQuestionInSection) {
-    currentSectionIndex.value++;
-    currentQuestionIndex.value = 0;
-  } else {
-    currentQuestionIndex.value++;
-  }
-};
-
-// 修改 isQuestionComplete 方法
-const isQuestionComplete = (question) => {
-  if (!question) return false;
-
-  switch (question.type) {
-    case 'text':
-      return !!question.value && question.value.trim() !== '';
-    case 'multiple_text':
-      return question.values && 
-             question.values.length > 0 && 
-             question.values.every(v => v && v.trim() !== '');
-    case 'single':
-      return !!question.selectedOption;
-    case 'multiple':
-      return question.selectedOptions && question.selectedOptions.length > 0;
-    case 'rating':
-      return question.score !== undefined;
-    case 'composite_rating':
-      return question.subQuestions && 
-             question.subQuestions.every(sq => 
-               sq.selectedOptionIndex !== undefined
-             );
-    default:
-      return true; // 对于未知类型的问题，默认返回 true
-  }
-};
 
 // 修改错误对话框相关方法
 const showError = ({ title, message, showRetry = false, showSkip = false, showConfirm = false }) => {
@@ -541,50 +321,7 @@ const showError = ({ title, message, showRetry = false, showSkip = false, showCo
   showErrorDialog.value = true;
 };
 
-const confirmError = () => {
-  showErrorDialog.value = false;
-};
 
-const retryGenerateSummary = async () => {
-  showErrorDialog.value = false;
-  try {
-    await generateAllSummaries();
-    isComplete.value = true;
-  } catch (error) {
-    showError({
-      title: '生成总结失败',
-      message: error.message,
-      showRetry: true,
-      showSkip: true
-    });
-  }
-};
-
-const skipSummary = () => {
-  showErrorDialog.value = false;
-  isComplete.value = true;
-};
-
-// 修改 previousQuestion 方法
-const previousQuestion = () => {
-  if (currentQuestionIndex.value > 0) {
-    currentQuestionIndex.value--;
-  } else if (currentSectionIndex.value > 0) {
-    currentSectionIndex.value--;
-    currentQuestionIndex.value = sections.value[currentSectionIndex.value].questions.length - 1;
-  }
-};
-
-const restartQuestionnaire = () => {
-  currentSectionIndex.value = 0;
-  currentQuestionIndex.value = 0;
-  isComplete.value = false;
-  sections.value.forEach(section => {
-    section.questions.forEach(question => {
-      question.value = 0.5;
-    });
-  });
-};
 
 // 添加用于处理多行文本输入的方法
 const addTextValue = (question) => {
@@ -598,13 +335,6 @@ const removeTextValue = (question, index) => {
   question.values.splice(index, 1);
 };
 
-// 添加章节显示控制
-const showSectionIntro = ref(true);
-
-// 添加开始章节的方法
-const startSection = () => {
-  showSectionIntro.value = false;
-};
 
 // 添加 getErrorDialogContent 计算属性
 const getErrorDialogContent = computed(() => {
@@ -617,33 +347,9 @@ const getErrorDialogContent = computed(() => {
   };
 });
 
-// 修改 generateAllSummaries 方法
-const generateAllSummaries = async () => {
-  const personaData = generatePersonaData();
-  
-  // 并行生成所有总结，但独立处理每个结果
-  const systems = ['trinity', 'melchior', 'balthazar', 'casper'];
-  
-  systems.forEach(async (system) => {
-    sectionSummaries.value[system].loading = true;
-    try {
-      const summary = await generateSystemSummary(system.toUpperCase(), personaData);
-      sectionSummaries.value[system].content = summary;
-    } catch (error) {
-      console.error(`生成${system}总结失败:`, error);
-      sectionSummaries.value[system].content = `生成失败: ${error.message}`;
-    } finally {
-      sectionSummaries.value[system].loading = false;
-    }
-  });
-  
-  // 立即显示结果页面
-  isComplete.value = true;
-};
 
 // 添加额外说明相关的响应式状态
 const additionalNotes = ref([]);
-const showAddNoteDialog = ref(false);
 const currentNote = ref({
   content: '',
   systems: {
@@ -651,12 +357,17 @@ const currentNote = ref({
     melchior: false,
     balthazar: false,
     casper: false
+  },
+  visibility: {
+    trinity: true,
+    melchior: true,
+    balthazar: true,
+    casper: true
   }
 });
 
-// 添加处理额外说明的方法
+// 修改添加/取消笔记方法
 const addNote = () => {
-  showAddNoteDialog.value = true;
   currentNote.value = {
     content: '',
     systems: {
@@ -668,67 +379,100 @@ const addNote = () => {
   };
 };
 
+const cancelNote = () => {
+  currentNote.value = { content: undefined };
+};
+
+const editNote = (index) => {
+  currentNote.value = {
+    ...additionalNotes.value[index],
+    originalIndex: index // 记录原始索引用于保存时更新
+  };
+};
+
 const saveNote = () => {
-  if (currentNote.value.content.trim()) {
-    additionalNotes.value.push({ ...currentNote.value });
-    showAddNoteDialog.value = false;
+  if (currentNote.value.content?.trim()) {
+    // 确保至少选择一个系统
+    if (Object.values(currentNote.value.systems).some(v => v)) {
+      if (typeof currentNote.value.originalIndex === 'number') {
+        // 更新现有笔记
+        additionalNotes.value[currentNote.value.originalIndex] = {
+          content: currentNote.value.content.trim(),
+          systems: { ...currentNote.value.systems }
+        };
+      } else {
+        // 添加新笔记
+        additionalNotes.value.push({ 
+          content: currentNote.value.content.trim(),
+          systems: { ...currentNote.value.systems }
+        });
+      }
+      currentNote.value = { content: undefined };
+    } else {
+      showError({
+        title: '请选择至少一个系统',
+        message: '每个额外说明必须至少关联一个子系统',
+        showConfirm: true
+      });
+    }
   }
 };
 
-const removeNote = (index) => {
-  additionalNotes.value.splice(index, 1);
+
+// 修改 generateSystemPrompt 方法
+const generateSystemPrompt = (system) => {
+  const systemKey = system.toLowerCase();
+  const personaData = generatePersonaData();
+  const promptGenerator = summaryPrompts[systemKey];
+  
+  if (!promptGenerator) {
+    throw new Error(`未找到${system}系统的提示词配置`);
+  }
+
+  const relevantNotes = additionalNotes.value
+    .filter(note => note.systems[systemKey])
+    .map(note => note.content)
+    .join('\n');
+
+  return promptGenerator(personaData) + 
+    (relevantNotes ? `\n\n额外特殊说明，必须优先关注：\n${relevantNotes}` : '');
 };
 
-// 修改 generateSystemSummary 方法以包含额外说明
-const generateSystemSummary = async (system, data) => {
-  try {
-    const systemKey = system.toLowerCase();
-    const promptGenerator = summaryPrompts[systemKey];
-    
-    if (!promptGenerator) {
-      throw new Error(`未找到${system}系统的提示词配置`);
-    }
+// 处理生成完成的事件
+const handleGenerationComplete = ({ system, content }) => {
+  console.log(`${system} 系统生成完成:`, content);
+  // 这里可以添加其他需要的处理逻辑
+};
 
-    // 收集适用于当前系统的额外说明
-    const relevantNotes = additionalNotes.value
-      .filter(note => note.systems[systemKey])
-      .map(note => note.content)
-      .join('\n');
-
-    const promptContent = promptGenerator(data) + 
-      (relevantNotes ? `\n\n额外特殊说明，必须优先关注：\n${relevantNotes}` : '');
-
-    const response = await aiConversation.getCompletion({
-      messages: [
-     
-        {
-          role: 'user',
-          content: promptContent
-        }
-      ]
-    });
-
-    if (!response || !response.content) {
-      throw new Error('AI 响应异常');
-    }
-
-    return response.content.trim();
-  } catch (error) {
-    console.error(`生成${system}总结失败:`, error);
-    throw new Error(`生成${system}系统总结时发生错误: ${error.message}`);
+const handleQuestionUpdate = (updatedQuestion) => {
+  // 更新question对象
+  const section = sections.value.find(s => s.questions.includes(updatedQuestion));
+  if (section) {
+    const questionIndex = section.questions.indexOf(updatedQuestion);
+    section.questions[questionIndex] = updatedQuestion;
   }
 };
 
-// 添加开始生成总结的方法
-const startGeneratingSummaries = async () => {
-  showSummaryPreparation.value = false;
-  await generateAllSummaries();
+const handleScoreUpdate = (question, score) => {
+  question.score = score;
 };
 
-// 在组件挂载时初始化
-onMounted(() => {
-  initializeQuestions();
-});
+const toggleOption = (option, question) => {
+  if (question.type === 'single') {
+    question.selectedOption = question.selectedOption === option ? null : option;
+  } else if (question.type === 'multiple') {
+    if (!question.selectedOptions) {
+      question.selectedOptions = [];
+    }
+    const index = question.selectedOptions.indexOf(option);
+    if (index === -1) {
+      question.selectedOptions.push(option);
+    } else {
+      question.selectedOptions.splice(index, 1);
+    }
+  }
+};
+
 </script>
 
 <style scoped>
@@ -1491,5 +1235,114 @@ header h1 {
 .start-generation-button:hover {
   background: rgba(0, 255, 255, 0.3);
   box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+}
+
+/* 添加额外说明按钮样式 */
+.add-note-button {
+  padding: 0.5rem 1rem;
+  background: rgba(0, 255, 255, 0.2);
+  border: 1px solid #0ff;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.add-note-button:hover {
+  background: rgba(0, 255, 255, 0.3);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.additional-notes-section {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: rgba(0, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.three-column-layout {
+  display: flex;
+  gap: 2rem;
+  margin-top: 2rem;
+  height: calc(100% - 120px); /* 调整高度计算方式 */
+  overflow: hidden;
+}
+
+.left-column,
+.middle-column,
+.right-column {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+  padding-bottom: 1rem; /* 减少底部内边距 */
+}
+
+.left-column {
+  flex: 2;
+}
+
+.middle-column {
+  flex: 1.5;
+}
+
+.right-column {
+  flex: 1.5;
+}
+
+.questionnaire {
+  width: 95%;
+  max-width: 1600px;
+  height: 90vh;
+  overflow: hidden;
+  padding-bottom: 1rem; /* 减少底部内边距 */
+}
+
+.inline-note-editor {
+  background: rgba(0, 255, 255, 0.05);
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.inline-editor-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.note-textarea {
+  width: 100%;
+  min-height: 80px;
+  margin: 1rem 0;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 4px;
+  color: #fff;
+  resize: vertical;
+}
+
+/* 添加编辑按钮样式 */
+.edit-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
 }
 </style>

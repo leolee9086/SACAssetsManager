@@ -34,14 +34,15 @@
             </div>
 
             <div class="main-chat-area">
-            
-                
+
+
                 <!-- 添加问卷组件 -->
                 <Questionnaire v-if="showQuestionnaire" @close="showQuestionnaire = false" />
-                
+
                 <MagiMainPanel :messages="consensusMessages" :seels="seels" :show-seels="showSeels"
                     :show-trinity="showTrinity" :show-messages="showAllMessages" @toggle-messages="toggleAllMessages"
-                    @toggle-seels="toggleSeels" @toggle-trinity="toggleTrinity" @show-questionnaire="showQuestionnaire = true" />
+                    @toggle-seels="toggleSeels" @toggle-trinity="toggleTrinity"
+                    @show-questionnaire="showQuestionnaire = true" />
 
                 <div class="input-wrapper">
                     <div class="global-input">
@@ -60,7 +61,14 @@ import { ref, reactive, computed, onMounted, provide, nextTick } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
 import MagiMainPanel from './components/MagiMainPanel.vue'
 import { 处理流式消息, 创建消息 } from './utils/messageUtils.js'
-import { useMagi } from './composables/useMagi.js'
+import { 
+    useMagi, 
+    processSagesResponses,
+    生成共识聊天回复 as generateConsensusResult, 
+    handleTrinitySummary, 
+    processVoting,
+    assessDeepThinking
+} from './composables/useMagi.js'
 import Questionnaire from './components/persona/questionnaire.vue'
 
 const { seels, connectionStatus, consensusMessages, initializeMAGI } = useMagi()
@@ -93,7 +101,7 @@ const sendToAll = async () => {
         if (!userMessage || connectionStatus.value !== 'connected') return
 
         globalInput.value = ''
-        
+
         // 添加用户消息
         consensusMessages.push(创建消息('user', userMessage))
 
@@ -101,49 +109,8 @@ const sendToAll = async () => {
         const sages = seels.filter(seel => seel.config.name !== 'TRINITY-00')
         const trinity = seels.find(seel => seel.config.name === 'TRINITY-00')
 
-        // 处理三贤者响应
-        const responsePromises = sages.map(async (seel) => {
-            try {
-                const response = await seel.reply(userMessage)
-                const { content, success } = await 处理流式消息(response, {
-                    onStart: (msg) => {
-                        seel.loading = true
-                    },
-                    onChunk: (msg) => {
-                        const existingMsg = seel.messages.find(m => m.id === msg.id)
-                        if (existingMsg) {
-                            Object.assign(existingMsg, msg)
-                        } else {
-                            seel.messages.push({ ...msg })
-                        }
-                    },
-                    onComplete: (msg) => {
-                        seel.loading = false
-                    },
-                    onError: (error) => {
-                        seel.loading = false
-                        seel.messages.push(创建消息('error', error.message))
-                    }
-                })
-
-                if (success) {
-                    return {
-                        content,
-                        seel: seel.config.name,
-                        displayName: seel.config.displayName
-                    }
-                }
-                return null
-            } catch (e) {
-                seel.loading = false
-                console.error('流处理异常:', e)
-                return null
-            }
-        })
-
-        // 等待所有三贤者响应完成
-        const completedResponses = (await Promise.all(responsePromises))
-            .filter(Boolean)
+        // 拆分处理三贤者响应为独立函数
+        const completedResponses = await processSagesResponses(sages, userMessage);
 
         // 过滤有效响应并转换 think 标签
         const validResponses = completedResponses
@@ -151,7 +118,7 @@ const sendToAll = async () => {
             .map(response => ({
                 seel: response.seel,
                 content: response.content.replace(
-                    /<think>([\s\S]*?)<\/think>/g, 
+                    /<think>([\s\S]*?)<\/think>/g,
                     `<thinkOf-${response.seel}>$1</thinkOf-${response.seel}>`
                 ),
                 displayName: response.displayName
@@ -159,63 +126,19 @@ const sendToAll = async () => {
 
         // 存储崔尼蒂的总结结果
         let trinityResult = null
-
-        // 确保有足够的有效响应并且Trinity存在
         if (validResponses.length > 0 && trinity) {
-            console.log('开始Trinity总结', {
-                responses: validResponses.map(r => ({
-                    seel: r.seel,
-                    contentLength: r.content.length
-                }))
-            })
-
-            try {
-                // 准备Trinity的上下文
-                const trinityContext = {
-                    context: {
-                        responses: validResponses
-                    }
-                }
-                
-                // 发起Trinity的响应请求
-                const trinityResponse = await trinity.reply(userMessage, trinityContext)
-                const { content: trinityContent, success } = await 处理流式消息(trinityResponse, {
-                    onStart: (msg) => {
-                        trinity.loading = true
-                    },
-                    onChunk: (msg) => {
-                        const existingMsg = trinity.messages.find(m => m.id === msg.id)
-                        if (existingMsg) {
-                            Object.assign(existingMsg, msg)
-                        } else {
-                            trinity.messages.push({ ...msg })
-                        }
-                    },
-                    onComplete: (msg) => {
-                        trinity.loading = false
-                    },
-                    onError: (error) => {
-                        trinity.loading = false
-                        trinity.messages.push(创建消息('error', '响应生成失败: ' + error.message))
-                    }
-                })
-
-                if (success) {
-                    trinityResult = trinityContent
-                }
-            } catch (error) {
-                trinity.loading = false
-                console.error('Trinity响应错误:', error)
-                trinity.messages.push(创建消息('error', '响应生成失败: ' + error.message))
-            }
+            // 调用封装的handleTrinitySummary方法
+            trinityResult = await handleTrinitySummary(
+                validResponses,  // 有效响应列表
+                trinity,         // 崔尼蒂实例
+                userMessage      // 用户原始输入
+            )
         } else {
             console.warn('Trinity总结跳过', {
                 validResponsesCount: validResponses.length,
                 trinityExists: !!trinity
             })
         }
-
-        // 继续原有的投票流程
         const updateProgress = (percent) => {
             consensusMessages.push({
                 type: 'system',
@@ -225,65 +148,14 @@ const sendToAll = async () => {
                 timestamp: Date.now()
             })
         }
-
-        // 修改投票循环（仅三贤者参与）
-        const voteResults = []
-        for (let i = 0; i < sages.length; i++) {
-            const seel = sages[i]
-            const progress = Math.floor((i / sages.length) * 100)
-            updateProgress(progress)
-
-            try {
-                // 使用有效响应进行投票
-                const voteResult = await seel.voteFor(validResponses.map(r => r.content))
-
-                seel.messages.push({
-                    type: 'vote',
-                    content: '完成评估',
-                    status: 'success',
-                    meta: voteResult || {
-                        scores: [],
-                        conclusion: 'error'
-                    },
-                    timestamp: Date.now()
-                })
-
-                voteResults.push(voteResult)
-            } catch (error) {
-                console.error(`AI ${seel.config.displayName} 投票错误:`, error)
-                seel.messages.push({
-                    type: 'error',
-                    content: '评估失败',
-                    status: 'error',
-                    timestamp: Date.now()
-                })
-            }
-        }
-
-        // 修改加权结果计算
-        const weightedResults = validResponses
-            .map((content, index) => ({
-                content,
-                weight: voteResults
-                    .filter(v => v?.scores)
-                    .reduce((acc, cur) => acc + (cur.scores[index]?.score || 0), 0) / sages.length
-            }))
-            .sort((a, b) => b.weight - a.weight)
-
-        // 修改最终结果显示逻辑
-        consensusMessages.push({
-            type: 'consensus',
-            // 优先使用崔尼蒂的结果,如果没有则使用权重最高的结果
-            content: trinityResult || (weightedResults[0]?.content || '未达成共识'),
-            status: 'success',
-            meta: {
-                source: trinityResult ? 'trinity' : 'weighted',
-                weights: weightedResults.map(w => w.weight),
-                details: weightedResults
-            },
-            timestamp: Date.now()
-        })
-
+        let voteResults = await processVoting(sages, validResponses, updateProgress)
+        const ConsensusResult = generateConsensusResult(
+            validResponses,
+            trinityResult,
+            voteResults,
+            sages.length
+        )
+        consensusMessages.push(ConsensusResult)
     } catch (error) {
         console.error('SSE处理失败:', error)
         consensusMessages.push(创建消息('error', `流式响应错误: ${error.message}`, {
@@ -294,6 +166,7 @@ const sendToAll = async () => {
         }))
     }
 }
+
 
 // 添加面板引用
 const seelPanelRefs = ref({})
@@ -450,7 +323,7 @@ const toggleTrinity = () => {
         aspect-ratio: auto;
     }
 
-   
+
 
     :deep(.seel-panel) {
         min-height: unset !important;
@@ -691,7 +564,7 @@ const toggleTrinity = () => {
 .trinity-panel-wrapper ::v-deep(.neon-scroll::after) {
     background: linear-gradient(to bottom,
             transparent 50%,
-            rgba(255, 255, 255, 0.05) 51%, 
+            rgba(255, 255, 255, 0.05) 51%,
             transparent 51%);
 }
 

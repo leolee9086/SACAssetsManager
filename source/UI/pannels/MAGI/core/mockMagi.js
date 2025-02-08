@@ -5,7 +5,7 @@ import {
   BALTHAZAR特征集, 
   CASPER特征集, 
   完整人格 
-} from './dummySys/persona.js';
+} from './dummySys/rei.js';
 import  * as MELCHIOR提示词模板集  from './wise/promptTemplates/Melchior.js';
 
 export class MockWISE {
@@ -353,7 +353,7 @@ export class MockCasper extends MockWISE {
         model: "deepseek-ai/DeepSeek-V3",
         endpoint: 'https://api.siliconflow.cn/v1/',
         temperature: 0.7,
-        max_tokens: 4096
+        max_tokens: 30
       },
       systemPromptForChat: `
 重要：你必须始终以${customName || 'rei'}的身份回应。这是你的核心身份设定。
@@ -461,10 +461,21 @@ export class MockTrinity extends MockWISE {
   async reply(userInput, options = {}) {
     this.loading = true
     const originalSystemPrompt = this.config.systemPromptForChat
+        // 修改响应内容映射
 
     try {
       const otherResponses = options?.context?.responses || []
-      
+      const Casper=otherResponses.find(r => r.seel === 'CASPER-03')?.content 
+      const mappedResponses = otherResponses.map(r => {
+        let type = '直觉反应';
+        if (r.seel.includes('MELCHIOR')) {
+            type = '纯理性分析';
+        } else if (r.seel.includes('BALTHASAR')) {
+            type = '情感考虑';
+        }
+        return `${type}：${r.content}`;
+    }).join('\n\n');
+
       // 简化动态提示词，让回答更自然
       this.config.systemPromptForChat = `
 ${originalSystemPrompt}
@@ -473,10 +484,10 @@ ${originalSystemPrompt}
 
 ${otherResponses.length > 0 ? `
 我的想法是基于：
-${otherResponses.map((r) => r.content).join('\n')}
+${mappedResponses}
 ` : ''}
 
-记住：用自然的方式表达，就像日常对话一样。`
+记住：用自然的方式表达，就像日常对话一样。${Casper?`我的第一反应接近:${Casper},但我可能应该考虑更多`:""}`
 
       if (this.config.responseType === 'sse') {
         return this.streamResponse(userInput, this.config.systemPromptForChat)
