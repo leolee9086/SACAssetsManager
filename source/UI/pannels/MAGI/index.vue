@@ -34,9 +34,14 @@
             </div>
 
             <div class="main-chat-area">
+            
+                
+                <!-- 添加问卷组件 -->
+                <Questionnaire v-if="showQuestionnaire" @close="showQuestionnaire = false" />
+                
                 <MagiMainPanel :messages="consensusMessages" :seels="seels" :show-seels="showSeels"
                     :show-trinity="showTrinity" :show-messages="showAllMessages" @toggle-messages="toggleAllMessages"
-                    @toggle-seels="toggleSeels" @toggle-trinity="toggleTrinity" />
+                    @toggle-seels="toggleSeels" @toggle-trinity="toggleTrinity" @show-questionnaire="showQuestionnaire = true" />
 
                 <div class="input-wrapper">
                     <div class="global-input">
@@ -56,6 +61,7 @@ import SeelPanel from './components/SeelPanel.vue'
 import MagiMainPanel from './components/MagiMainPanel.vue'
 import { 处理流式消息, 创建消息 } from './utils/messageUtils.js'
 import { useMagi } from './composables/useMagi.js'
+import Questionnaire from './components/persona/questionnaire.vue'
 
 const { seels, connectionStatus, consensusMessages, initializeMAGI } = useMagi()
 
@@ -65,6 +71,8 @@ const showAllMessages = ref(true)
 const showSeels = ref(true)
 const showTrinity = ref(false)
 const trinityAI = computed(() => seels.find(s => s.config.name === 'TRINITY-00'))
+
+const showQuestionnaire = ref(false)
 
 onMounted(() => {
     initializeMAGI()
@@ -188,7 +196,7 @@ const sendToAll = async () => {
                     },
                     onError: (error) => {
                         trinity.loading = false
-                        trinity.messages.push(创建消息('error', error.message))
+                        trinity.messages.push(创建消息('error', '响应生成失败: ' + error.message))
                     }
                 })
 
@@ -561,17 +569,6 @@ const toggleTrinity = () => {
     text-shadow: 0 0 10px currentColor;
 }
 
-.border-red {
-    color: #ff3366;
-}
-
-.border-blue {
-    color: #33ccff;
-}
-
-.border-yellow {
-    color: #ffcc00;
-}
 
 /* EVA风格视觉设计 */
 .magi-container {
@@ -579,27 +576,6 @@ const toggleTrinity = () => {
     font-family: 'MS Gothic', monospace;
 }
 
-.message-container {
-    flex: 1;
-    overflow-y: auto;
-    margin: 1rem 0;
-    border: 1px solid rgba(0, 255, 255, 0.2);
-    padding: 1rem;
-    background: rgba(0, 0, 0, 0.5);
-}
-
-.message-bubble {
-    margin: 0.3rem 0;
-    padding: 0.6rem;
-    background: rgba(0, 255, 255, 0.1);
-    border: 1px solid #0ff;
-    position: relative;
-}
-
-.ai-response {
-    background: rgba(255, 0, 255, 0.1);
-    border-color: #f0f;
-}
 
 .neon-input {
     background: transparent;
@@ -717,5 +693,26 @@ const toggleTrinity = () => {
             transparent 50%,
             rgba(255, 255, 255, 0.05) 51%, 
             transparent 51%);
+}
+
+.questionnaire-button-container {
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.questionnaire-button {
+    background: rgba(0, 255, 255, 0.1);
+    border: 1px solid #0ff;
+    color: #0ff;
+    padding: 0.8rem 1.5rem;
+    font-size: 1.1em;
+    transition: all 0.3s ease;
+}
+
+.questionnaire-button:hover {
+    background: rgba(0, 255, 255, 0.2);
+    text-shadow: 0 0 5px #0ff;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
 }
 </style>

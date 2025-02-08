@@ -1,29 +1,11 @@
-// 工具函数：标准化端点URL
-function normalizeEndpoint(endpoint) {
-  const baseURL = endpoint || 'https://api.siliconflow.cn/v1/'
-  const shouldAppendPath = !baseURL.includes('chat/completions')
-  const sanitizedURL = baseURL.replace(/\/$/, '')
-  return shouldAppendPath ? `${sanitizedURL}/chat/completions` : baseURL
-}
+import { 分割缓冲区, 解析SSE事件 } from '../../../../utils/netWork/sse.js'
+import { 标准化openAI兼容配置  } from './openAIUtils.js'
 
-// 工具函数：标准化配置
-function normalizeConfig(config = {}) {
-  return {
-    ...config,
-    endpoint: normalizeEndpoint(config.endpoint),
-    model: config.model || 'deepseek-ai/DeepSeek-R1',
-    temperature: config.temperature ?? 0.7,
-    max_tokens: config.max_tokens ?? 4096,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`
-    }
-  }
-}
+
 
 export class AISSEProvider {
   constructor(config = {}) {
-    this.config = normalizeConfig(config)
+    this.config = 标准化openAI兼容配置(config)
     this.abortController = new AbortController()
     this._hasSeenReasoningContent = false
   }
@@ -67,7 +49,7 @@ export class AISSEProvider {
         
         // 高效分割处理块
         let chunks
-        [chunks, buffer] = this._splitBuffer(buffer, CHUNK_DELIMITER)
+        [chunks, buffer] = 分割缓冲区(buffer, CHUNK_DELIMITER)
 
         // 批量处理避免频繁yield
         const events = []
@@ -104,33 +86,9 @@ export class AISSEProvider {
     }
   }
 
-  _splitBuffer(buffer, delimiter) {
-    const chunks = []
-    let index
-    while ((index = buffer.indexOf(delimiter)) >= 0) {
-      chunks.push(buffer.slice(0, index))
-      buffer = buffer.slice(index + delimiter.length)
-    }
-    return [chunks, buffer]
-  }
-
   _processChunk(chunk, msgId) {
-    const eventData = this._parseSSEEvent(chunk)
+    const eventData = 解析SSE事件(chunk)
     return eventData ? this._formatToOpenAIEvent(eventData, msgId) : null
-  }
-
-  _parseSSEEvent(chunk) {
-    try {
-      const data = chunk.replace('data: ', '')
-      // 更好地处理[DONE]信号
-      if (data.trim() === '[DONE]') {
-        return null
-      }
-      return JSON.parse(data)
-    } catch (e) {
-      console.warn('SSE解析警告:', e, '原始数据:', chunk)
-      return null
-    }
   }
 
   _formatToOpenAIEvent(data, msgId) {
@@ -224,10 +182,10 @@ export class AISSEConversation {
   constructor(providerConfig = {}) {
     this.provider = new AISSEProvider({
       apiKey: providerConfig.apiKey,
-      endpoint: providerConfig.apiBaseURL,
-      model: providerConfig.apiModel,
+      endpoint: providerConfig.endpoint || providerConfig.apiBaseURL,
+      model: providerConfig.model || providerConfig.apiModel,
       temperature: providerConfig.temperature,
-      max_tokens: providerConfig.apiMaxTokens,
+      max_tokens: providerConfig.max_tokens || providerConfig.apiMaxTokens,
       chunkInterval: providerConfig.chunkInterval
     });
     this.messages = [];
@@ -317,6 +275,31 @@ export class AISSEConversation {
       full = response;
     }
     return { choices: [{ message: { content: full, role: 'assistant' } }] };
+  }
+
+  async getCompletion({ messages }) {
+    try {
+      // 重置消息历史，只使用当前请求的消息
+      this.messages = [...messages];
+      
+      let fullResponse = '';
+      for await (const chunk of this.provider.createChatCompletion(this.messages)) {
+        if (chunk.error) {
+          throw new Error(chunk.error.message);
+        }
+        const content = chunk.choices[0]?.delta?.content || '';
+        fullResponse += content;
+      }
+      
+      // 不保存到消息历史，因为这是单次完成请求
+      return {
+        content: fullResponse,
+        role: 'assistant'
+      };
+    } catch (error) {
+      console.error('AI completion error:', error);
+      throw error;
+    }
   }
 }
 

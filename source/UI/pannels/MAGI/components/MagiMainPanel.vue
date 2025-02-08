@@ -3,6 +3,9 @@
     <div class="panel-header consensus-header">
       <h3 class="neon-text">REI</h3>
       <div class="controls">
+        <button @click="emit('show-questionnaire')" class="persona-button">
+          适格者 PERSONA 录入
+        </button>
         <span 
           @click="emit('toggle-messages')"
           class="toggle-text"
@@ -98,7 +101,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['toggle-messages', 'toggle-seels', 'toggle-trinity'])
+const emit = defineEmits([
+  'toggle-messages', 
+  'toggle-seels', 
+  'toggle-trinity',
+  'show-questionnaire'
+])
 
 // 计算连接状态
 const connectionStatuses = computed(() => {
@@ -388,5 +396,25 @@ const formatContent = (msg) => {
   color: #000;
   padding: 0 0.5rem;
   font-size: 0.8em;
+}
+
+/* 添加 Persona 按钮样式 */
+.persona-button {
+  background: rgba(0, 255, 0, 0.1);
+  border: 1px solid #0f0;
+  color: #0f0;
+  padding: 0.4rem 0.8rem;
+  font-family: 'MS Gothic', monospace;
+  font-size: 0.8em;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  transition: all 0.3s ease;
+  margin-right: 2rem;
+}
+
+.persona-button:hover {
+  background: rgba(0, 255, 0, 0.2);
+  text-shadow: 0 0 5px #0f0;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
 }
 </style> 

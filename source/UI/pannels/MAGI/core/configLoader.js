@@ -1,16 +1,8 @@
-import { plugin } from '../asyncModules.js'
 import { readDir, readFile } from '../polyfills/fs.js'
-
-const CONFIG_DIR = 'petal/SACKeyManager' // 配置存储目录
 const CONFIG_PREFIX = '_' // 配置文件名前缀
-
 // 加载最新AI配置
-export async function loadLatestAIConfig() {
+export async function 从思源工作空间路径加载AI配置(configPath) {
   try {
-    // 获取配置存储路径
-    const configPath = `${plugin.插件自身数据存储路径}/${CONFIG_DIR}`
-    
-    // 读取目录下所有配置文件
     const files = await readDir(configPath)
     const configFiles = files
       .filter(file => file.name.startsWith(CONFIG_PREFIX))
@@ -20,16 +12,11 @@ export async function loadLatestAIConfig() {
       console.warn('未找到AI配置文件')
       return null
     }
-
-    // 读取最新配置文件
     const latestFile = configFiles[0]
     const filePath = `${configPath}/${latestFile.name}`
     const rawData = await readFile(filePath)
-    
-    // 解析配置内容
     const config = JSON.parse(rawData)
     validateConfig(config)
-    
     return {
       ...config,
       _meta: {
@@ -74,7 +61,6 @@ function isValidUrl(url) {
 // 初始化AI配置
 export async function initializeAIConfig() {
   const config = await loadLatestAIConfig()
-  
   return {
     apiKey: config.apiKey,
     baseURL: config.apiBaseURL,
