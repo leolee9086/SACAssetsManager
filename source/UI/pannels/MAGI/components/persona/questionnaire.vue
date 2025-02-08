@@ -134,13 +134,25 @@
         <!-- 右侧：AI提示词输出区域 -->
         <div class="right-column">
           <div class="summary-section">
-            <h3>AI 提示词输出</h3>
+            <div class="summary-header">
+              <h3>AI 提示词输出</h3>
+              <button 
+                @click="handleExport"
+                :disabled="!canExport"
+                class="download-button"
+                :title="exportHint"
+              >
+                <i class="icon-download"></i> 
+                {{ canExport ? '导出结果' : '请完成所有生成' }}
+              </button>
+            </div>
             <SSETextDisplay 
               v-for="(summary, system) in sectionSummaries" 
               :key="system"
               :systemName="system.toUpperCase()"
               :promptContent="generateSystemPrompt(system)"
               @generationComplete="handleGenerationComplete"
+              :ref="el => registerDisplay(system, el)"
             />
           </div>
         </div>
@@ -179,6 +191,38 @@ const sectionSummaries = ref({
   balthazar: { promptContent: '', loading: false },
   casper: { promptContent: '', loading: false }
 });
+
+// 获取所有SSETextDisplay的ref
+const sseDisplays = ref({});
+
+// 注册显示组件的方法
+const registerDisplay = (systemName, displayRef) => {
+  sseDisplays.value[systemName] = displayRef;
+};
+
+// 导出控制逻辑
+const canExport = computed(() => {
+  return Object.values(sseDisplays.value).every(
+    display => display?.textContent?.trim()
+  );
+});
+
+const exportHint = computed(() => {
+  const missing = Object.entries(sseDisplays.value)
+    .filter(([_, display]) => !display?.textContent?.trim())
+    .map(([system]) => system);
+  return missing.length 
+    ? `以下系统未完成生成：${missing.join(', ')}`
+    : '点击导出完整结果';
+});
+
+const handleExport = () => {
+  if (!canExport.value) {
+    alert('请先完成所有系统的提示词生成');
+    return;
+  }
+  exportData();
+};
 
 // 添加 calculateCompositeScore 函数
 const calculateCompositeScore = (question) => {
@@ -471,6 +515,30 @@ const toggleOption = (option, question) => {
       question.selectedOptions.splice(index, 1);
     }
   }
+};
+
+const exportData = () => {
+  const data = {
+    meta: {
+      exportTime: new Date().toISOString(),
+      version: '1.0'
+    },
+    personaData: generatePersonaData(),
+    systemPrompts: Object.fromEntries(
+      Object.entries(sseDisplays.value).map(([system, display]) => [
+        system,
+        display?.textContent || '' // 直接获取显示内容
+      ])
+    ),
+    additionalNotes: additionalNotes.value
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `persona-export-${new Date().toISOString().slice(0,10)}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 };
 
 </script>
@@ -1344,5 +1412,30 @@ header h1 {
   border-radius: 4px;
   color: #fff;
   cursor: pointer;
+}
+
+.download-button {
+  padding: 0.8rem 1.5rem;
+  background: rgba(0, 255, 255, 0.2);
+  border: 1px solid #0ff;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.download-button:hover {
+  background: rgba(0, 255, 255, 0.3);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 </style>

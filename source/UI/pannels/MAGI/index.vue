@@ -44,6 +44,12 @@
                     @toggle-seels="toggleSeels" @toggle-trinity="toggleTrinity"
                     @show-questionnaire="showQuestionnaire = true" />
 
+                <!-- 添加加载按钮 -->
+                <div class="questionnaire-button-container">
+                    <input type="file" @change="loadPersonaConfig" ref="fileInput" style="display: none;" accept=".json" />
+                    <button class="questionnaire-button" @click="$refs.fileInput.click()">加载人格配置</button>
+                </div>
+
                 <div class="input-wrapper">
                     <div class="global-input">
                         <textarea v-model="globalInput" @keydown.enter.exact.prevent="sendToAll" class="neon-input"
@@ -177,6 +183,41 @@ const toggleSeels = () => {
 
 const toggleTrinity = () => {
     showTrinity.value = !showTrinity.value
+}
+
+const loadPersonaConfig = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    try {
+        const content = await file.text()
+        const config = JSON.parse(content)
+        
+        if (!config.systemPrompts) {
+            throw new Error('无效的人格配置文件')
+        }
+
+        // 存储到全局变量供初始化使用
+        window.__loadedPrompts = config.systemPrompts
+
+        // 重新初始化MAGI系统
+        await initializeMAGI()
+        
+        consensusMessages.push(创建消息('system', '人格配置已热重载', {
+            meta: { 
+                source: 'System', 
+                config: Object.keys(config.systemPrompts),
+                // 添加空值检查
+                debug: seels.value?.map(s => ({
+                    name: s.config.name,
+                    prompt: s.config.systemPromptForChat?.slice(0, 50) + '...'
+                })) ?? []  // 当seels.value未定义时返回空数组
+            }
+        }))
+    } catch (e) {
+        consensusMessages.push(创建消息('error', `配置加载失败: ${e.message}`))
+        console.error('人格配置加载错误:', e)
+    }
 }
 </script>
 

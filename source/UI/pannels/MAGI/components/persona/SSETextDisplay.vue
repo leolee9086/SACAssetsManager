@@ -34,7 +34,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, computed } from 'vue';
 import { AISSEConversation } from '../../core/openAISSEAPI.js';
 
 const props = defineProps({
@@ -66,6 +66,8 @@ const error = ref('');
 
 // 添加DOM引用
 const textContainerRef = ref(null);
+
+const hasContent = computed(() => textContent.value.trim().length > 0);
 
 const handleGenerate = async () => {
   if (isGenerating.value) return;
@@ -113,6 +115,12 @@ const handleGenerate = async () => {
     isGenerating.value = false;
   }
 };
+
+// 暴露属性给父组件
+defineExpose({
+  hasContent,
+  textContent
+});
 </script>
 
 <style scoped>

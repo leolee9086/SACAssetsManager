@@ -10,13 +10,19 @@ export function useMagi() {
     const initializeMAGI = async () => {
         try {
             connectionStatus.value = 'connecting'
+            
+            // 清空现有AI实例
+            seels.splice(0, seels.length)
+            consensusMessages.splice(0, consensusMessages.length)
+
             const rawSeels = await initMagi({
                 delay: 800,
-                autoConnect: true
+                autoConnect: true,
+                prompts: window.__loadedPrompts
             })
 
-            // 添加三贤者
-            seels.push(...rawSeels.map(ai => ({
+            // 重新创建所有AI实例
+            const newSeels = rawSeels.map(ai => ({
                 config: {
                     name: ai.config.name,
                     displayName: ai.config.displayName,
@@ -34,30 +40,37 @@ export function useMagi() {
                 async voteFor(responses) {
                     return await ai.voteFor(responses)
                 }
-            })))
+            }))
+            
+            // 修改崔尼蒂实例创建方式
+            const trinityInstance = rawSeels.find(s => s.config.name === 'TRINITY-00')
+            if (!trinityInstance) {
+                const trinity = new MockTrinity(null, window.__loadedPrompts?.trinity)
+                newSeels.push({
+                    config: {
+                        name: trinity.config.name,
+                        displayName: trinity.config.displayName,
+                        color: 'rgba(255, 255, 255, 0.9)',
+                        icon: trinity.config.icon,
+                        responseType: trinity.config.responseType,
+                        persona: trinity.config.persona,
+                        // 确保传递更新后的提示词
+                        systemPromptForChat: window.__loadedPrompts?.trinity || trinity.config.systemPromptForChat
+                    },
+                    messages: reactive([]),
+                    loading: false,
+                    connected: true,
+                    async reply(userInput, options) {
+                        return await trinity.reply(userInput, options)
+                    },
+                    async voteFor() {
+                        return null
+                    }
+                })
+            }
 
-            // 添加崔尼蒂
-            const trinity = new MockTrinity()
-            seels.push({
-                config: {
-                    name: trinity.config.name,
-                    displayName: trinity.config.displayName,
-                    color: 'rgba(255, 255, 255, 0.9)',
-                    icon: trinity.config.icon,
-                    responseType: trinity.config.responseType,
-                    persona: trinity.config.persona
-                },
-                messages: reactive([]),
-                loading: false,
-                connected: true,
-                async reply(userInput, options) {
-                    return await trinity.reply(userInput, options)
-                },
-                async voteFor() {
-                    return null
-                }
-            })
-
+            seels.push(...newSeels)
+            
             connectionStatus.value = 'connected'
             consensusMessages.push({
                 type: 'system',

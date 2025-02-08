@@ -252,11 +252,23 @@ export class MockWISE {
     const response = this.openaiClient._generateResponse(prompt)
     return response
   }
+
+  // 新增配置更新方法
+  updateConfig(newConfig) {
+    this.config = {
+      ...this.config,
+      ...newConfig,
+      sseConfig: {
+        ...this.config.sseConfig,
+        ...(newConfig.sseConfig || {})
+      }
+    }
+  }
 }
 
-// 修改子类响应生成方式
+// 修改子类构造函数以支持动态提示词
 export class MockMelchior extends MockWISE {
-  constructor(customName) {
+  constructor(customName, customPrompt) {
     super({
       magiInstanceName: customName || 'rei',
       name: 'MELCHIOR-01',
@@ -276,13 +288,13 @@ export class MockMelchior extends MockWISE {
         temperature: 0.3,
         max_tokens: 4096
       },
-      systemPromptForChat: MELCHIOR提示词模板集.系统提示词模板.普通聊天(customName,MELCHIOR特征集)
+      systemPromptForChat: customPrompt || MELCHIOR提示词模板集.系统提示词模板.普通聊天(customName,MELCHIOR特征集)
     })
   }
 }
 
 export class MockBalthazar extends MockWISE {
-  constructor(customName) {
+  constructor(customName, customPrompt) {
     super({
       magiInstanceName: customName || 'rei',
       name: 'BALTHASAR-02',
@@ -302,7 +314,7 @@ export class MockBalthazar extends MockWISE {
         temperature: 0.7,
         max_tokens: 4096
       },
-      systemPromptForChat: `
+      systemPromptForChat: customPrompt || `
 重要：你必须始终以${customName || 'rei'}的身份回应。这是你的核心身份设定。
 
 作为${customName || 'rei'}的情感调节单元(${BALTHAZAR特征集.系统定位})：
@@ -335,7 +347,7 @@ ${BALTHAZAR特征集.行为准则.禁忌事项.map(禁忌 => `- 避免${禁忌}`
 }
 
 export class MockCasper extends MockWISE {
-  constructor(customName) {
+  constructor(customName, customPrompt) {
     super({
       magiInstanceName: customName || 'rei',
       name: 'CASPER-03',
@@ -355,7 +367,7 @@ export class MockCasper extends MockWISE {
         temperature: 0.7,
         max_tokens: 30
       },
-      systemPromptForChat: `
+      systemPromptForChat: customPrompt || `
 重要：你必须始终以${customName || 'rei'}的身份回应。这是你的核心身份设定。
 
 作为${customName || 'rei'}最自然的一面(${CASPER特征集.系统定位})：
@@ -386,7 +398,7 @@ ${CASPER特征集.表达指南.注意事项.map(事项 => `- ${事项}`).join('\
 }
 
 export class MockTrinity extends MockWISE {
-  constructor(customName) {
+  constructor(customName, customPrompt) {
     super({
       magiInstanceName: customName || 'rei',
       name: 'TRINITY-00',
@@ -406,7 +418,7 @@ export class MockTrinity extends MockWISE {
         temperature: 0.5,
         max_tokens: 4096
       },
-      systemPromptForChat: `
+      systemPromptForChat: customPrompt || `
 重要：我是${customName || 'rei'}。
 
 我的基本认知：
@@ -462,10 +474,12 @@ export class MockTrinity extends MockWISE {
     this.loading = true
     const originalSystemPrompt = this.config.systemPromptForChat
         // 修改响应内容映射
+        console.log(options)
 
     try {
       const otherResponses = options?.context?.responses || []
       const Casper=otherResponses.find(r => r.seel === 'CASPER-03')?.content 
+      console.log(options)
       const mappedResponses = otherResponses.map(r => {
         let type = '直觉反应';
         if (r.seel.includes('MELCHIOR')) {
@@ -512,9 +526,10 @@ ${mappedResponses}
 // 新增测试工具方法
 export function initMagi(options = {}) {
   const instances = [
-    new MockMelchior(),
-    new MockBalthazar(),
-    new MockCasper()
+    new MockMelchior(null, options.prompts?.melchior),
+    new MockBalthazar(null, options.prompts?.balthazar),
+    new MockCasper(null, options.prompts?.casper),
+   // new MockTrinity(null, options.prompts?.trinity)
   ].map(ai => {
     ai.responseDelay = options.delay || 500
     return ai
