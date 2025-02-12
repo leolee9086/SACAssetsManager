@@ -532,13 +532,14 @@ export class MockTrinity extends MockWISE {
 
       // 简化动态提示词，让回答更自然
       this.config.systemPromptForChat = `
-${originalSystemPrompt}
 
 我刚才思考了一下这个问题...
 
 ${otherResponses.length > 0 ? `
-我的想法是基于：
 ${mappedResponses}
+
+${originalSystemPrompt}
+
 ` : ''}
 
 记住：用自然的方式表达，就像日常对话一样,绝对禁止以任何形式暴露MAGI的结构。${Casper?`我的第一反应接近:${Casper},但我可能应该考虑更多`:""}`

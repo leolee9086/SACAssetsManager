@@ -38,6 +38,12 @@ export function 标准化openAI兼容配置(配置 = {}) {
         最终端点 = 配置.proxy + 最终端点;
     }
 
+    // 处理apiModel参数兼容
+    if (配置.apiModel) {
+        配置.model = 配置.apiModel;
+        delete 配置.apiModel;
+    }
+
     return {
         ...默认配置,
         ...配置,

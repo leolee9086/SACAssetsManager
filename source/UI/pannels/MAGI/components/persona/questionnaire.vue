@@ -8,6 +8,10 @@
         <div class="progress-bar">
           <div class="progress" :style="{ width: progress + '%' }"></div>
         </div>
+        <!-- 添加骰子按钮 -->
+        <button class="dice-button" @click="randomizeAnswers" :title="'随机填充选项'">
+          🎲
+        </button>
       </header>
 
       <main class="three-column-layout">
@@ -179,7 +183,6 @@ const sections = ref([...questionnaireSections]);
 
 const currentSectionIndex = ref(0);
 const currentQuestionIndex = ref(0);
-const isComplete = ref(false);
 
 // 修改计算属性以正确访问ref值
 const currentSection = computed(() => sections.value[currentSectionIndex.value]);
@@ -284,54 +287,62 @@ const generatePersonaData = () => {
   // 遍历所有章节收集数据
   sections.value.forEach(section => {
     section.questions.forEach(question => {
-      if (question.type === 'composite_rating') {
-        // 计算总分
-        const totalScore = calculateCompositeScore(question);
-        
-        // 根据问题文本设置对应的得分
-        if (question.text === '情绪识别能力评估') {
-          data.情绪识别得分 = totalScore;
-        } else if (question.text === '情绪调节能力评估') {
-          data.情绪调节得分 = totalScore;
-        } else if (question.text === '社交互动能力评估') {
-          data.社交互动得分 = totalScore;
-        } else if (question.text === '关系处理能力评估') {
-          data.关系处理得分 = totalScore;
+      if (question.type === 'composite_rating' && question.subQuestions?.some(sq => sq.selectedOptionIndex !== undefined)) {
+        // 只计算已填写的子问题的得分
+        const validSubQuestions = question.subQuestions.filter(sq => sq.selectedOptionIndex !== undefined);
+        if (validSubQuestions.length > 0) {
+          const totalScore = validSubQuestions.reduce((sum, subQ) => {
+            const weight = subQ.weights ? subQ.weights[subQ.selectedOptionIndex] : subQ.selectedOptionIndex + 1;
+            return sum + weight;
+          }, 0);
+          
+          // 使用有效子问题数量计算平均分
+          const averageScore = Math.round((totalScore / validSubQuestions.length) * 10) / 10;
+          
+          // 根据问题文本设置对应的得分
+          if (question.text === '情绪识别能力评估') {
+            data.情绪识别得分 = averageScore;
+          } else if (question.text === '情绪调节能力评估') {
+            data.情绪调节得分 = averageScore;
+          } else if (question.text === '社交互动能力评估') {
+            data.社交互动得分 = averageScore;
+          } else if (question.text === '关系处理能力评估') {
+            data.关系处理得分 = averageScore;
+          }
         }
         
-        // 收集子问题的选项
+        // 只收集已填写的子问题选项
         question.subQuestions.forEach(subQ => {
           if (subQ.selectedOptionIndex !== undefined && subQ.path) {
             const value = subQ.options[subQ.selectedOptionIndex];
-            // 根据path设置对应的表现值
             const pathParts = subQ.path.split('.');
             const key = pathParts[pathParts.length - 1] + '表现';
             data[key] = value;
           }
         });
-      } else if (question.type === 'text' || question.type === 'single') {
-        // 处理基础信息
+      } else if ((question.type === 'text' && question.value) || 
+                 (question.type === 'single' && question.selectedOption)) {
+        // 只处理已填写的基础信息
         if (question.path) {
           const pathParts = question.path.split('.');
           const key = pathParts[pathParts.length - 1];
           if (question.type === 'text') {
-            data[key] = question.value || '';
+            data[key] = question.value;
           } else {
-            data[key] = question.selectedOption || '';
+            data[key] = question.selectedOption;
           }
         }
-      } else if (question.type === 'multiple_text') {
-        // 处理多行文本(如显著标记)
+      } else if (question.type === 'multiple_text' && question.values?.length > 0) {
+        // 只处理有值的多行文本
         if (question.path) {
           const pathParts = question.path.split('.');
           const key = pathParts[pathParts.length - 1];
-          data[key] = question.values || [];
+          data[key] = question.values.filter(v => v.trim()); // 过滤掉空值
         }
       }
     });
   });
   
-  console.log('收集的数据:', data);
   return data;
 };
 
@@ -380,16 +391,7 @@ const removeTextValue = (question, index) => {
 };
 
 
-// 添加 getErrorDialogContent 计算属性
-const getErrorDialogContent = computed(() => {
-  return {
-    title: errorTitle.value || '错误',
-    message: errorMessage.value || '发生未知错误',
-    showRetry: errorShowRetry.value || false,
-    showSkip: errorShowSkip.value || false,
-    showConfirm: errorShowConfirm.value || false
-  };
-});
+
 
 
 // 添加额外说明相关的响应式状态
@@ -539,6 +541,42 @@ const exportData = () => {
   link.download = `persona-export-${new Date().toISOString().slice(0,10)}.json`;
   link.click();
   URL.revokeObjectURL(link.href);
+};
+
+// 添加随机填充方法
+const randomizeAnswers = () => {
+  sections.value.forEach(section => {
+    section.questions.forEach(question => {
+      switch (question.type) {
+        case 'single':
+          if (question.options?.length) {
+            const randomIndex = Math.floor(Math.random() * question.options.length);
+            question.selectedOption = question.options[randomIndex];
+          }
+          break;
+          
+        case 'multiple':
+          if (question.options?.length) {
+            question.selectedOptions = question.options.filter(() => Math.random() > 0.5);
+          }
+          break;
+          
+        case 'rating':
+          question.score = Math.floor(Math.random() * 5) + 1;
+          break;
+          
+        case 'composite_rating':
+          if (question.subQuestions) {
+            question.subQuestions.forEach(subQ => {
+              if (subQ.options?.length) {
+                subQ.selectedOptionIndex = Math.floor(Math.random() * subQ.options.length);
+              }
+            });
+          }
+          break;
+      }
+    });
+  });
 };
 
 </script>
@@ -1437,5 +1475,31 @@ header h1 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+}
+
+/* 添加骰子按钮样式 */
+.dice-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: rgba(0, 255, 255, 0.1);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.dice-button:hover {
+  background: rgba(0, 255, 255, 0.2);
+  transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
 }
 </style>

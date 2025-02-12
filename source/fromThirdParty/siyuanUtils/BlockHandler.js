@@ -1,5 +1,4 @@
-import { blockTableClomuns } from "./tables.js";
-import kernelApi from '../polyfills/kernelApi.js'
+import kernelApi from '../../polyfills/kernelApi.js'
 let typeAbbrMap = {
   // 块级元素
   "NodeDocument": "d",
@@ -379,6 +378,17 @@ class BlockHandler {
         }
       )
     }
+  }
+  get markdown() {
+    return this.kernelApi.getBlockKramdown.sync({ id: this.id }).kramdown;
+  }
+
+  set markdown(content) {
+    this.kernelApi.updateBlock({
+      id: this.id,
+      data: content,
+      type: 'markdown'
+    });
   }
 }
 

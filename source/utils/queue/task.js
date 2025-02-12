@@ -2,7 +2,8 @@ import { IEventEmitterSimple } from "../events/emitter.js";
 import { MinHeap } from "../array/minHeap.js";
 export class 串行任务控制器 extends IEventEmitterSimple {
     constructor(options={
-        destroyOnComplete : false
+        destroyOnComplete : false,
+        useIdleCallback: false
     }) {
         super()
         this.taskQueue = new MinHeap(this.compareTasks);
@@ -19,6 +20,9 @@ export class 串行任务控制器 extends IEventEmitterSimple {
             allTasksCompleted: [],
             destroy: []  // 添加这一行
         };
+        this.supportIdle = typeof requestIdleCallback === 'function';
+        this.useIdleCallback = options.useIdleCallback;
+        this.idleCallbackId = null;
     }
     compareTasks(a, b) {
         const priorityA = a.priority !== undefined ? a.priority : Infinity;
@@ -63,7 +67,24 @@ export class 串行任务控制器 extends IEventEmitterSimple {
         this.isProcessing = true;
         try {
             this.currentTask = this.taskQueue.pop();
-            const result = await this.currentTask();
+            
+            // 新增空闲回调执行逻辑
+            const executeTask = () => {
+                return new Promise((resolve) => {
+                    const runner = async (deadline) => {
+                        const result = await this.currentTask();
+                        resolve(result);
+                    };
+
+                    if (this.useIdleCallback && this.supportIdle) {
+                        this.idleCallbackId = requestIdleCallback(runner, { timeout: 1000 });
+                    } else {
+                        runner({ timeRemaining: () => Infinity });
+                    }
+                });
+            };
+
+            const result = await executeTask();
             this.completedTasks++;
             this.emit('taskCompleted', {
                 completedTasks: this.completedTasks,
@@ -74,11 +95,19 @@ export class 串行任务控制器 extends IEventEmitterSimple {
             console.error('任务执行出错:', error);
             this.emit('taskError', { error, task: this.currentTask });
         } finally {
+            // 取消未执行的空闲回调
+            if (this.idleCallbackId && this.supportIdle) {
+                cancelIdleCallback(this.idleCallbackId);
+            }
             this.currentTask = null;
             this.isProcessing = false;
 
-            // 直接调用下一个任务，而不是使用 setImmediate
-            this.processNext();
+            // 根据配置选择执行方式
+            if (this.useIdleCallback && this.supportIdle) {
+                this.idleCallbackId = requestIdleCallback(() => this.processNext());
+            } else {
+                this.processNext();
+            }
         }
     }
     clear() {
@@ -102,6 +131,10 @@ export class 串行任务控制器 extends IEventEmitterSimple {
         }
     }
     destroy() {
+        // 新增空闲回调取消逻辑
+        if (this.idleCallbackId && this.supportIdle) {
+            cancelIdleCallback(this.idleCallbackId);
+        }
         // 清理任务队列
         this.clear();
         // 触发 destroy 事件
