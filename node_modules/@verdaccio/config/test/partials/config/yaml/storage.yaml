@@ -1,0 +1,4 @@
+---
+storage: './storage_default_storage'
+
+log: { type: stdout, format: pretty, level: warn }

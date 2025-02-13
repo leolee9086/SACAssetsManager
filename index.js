@@ -1,8 +1,13 @@
+/**
+ * 引入api等
+ */
 const { Plugin } = require("siyuan");
 const clientApi = require("siyuan");
-globalThis[Symbol.for(`clientApi`)] = globalThis[Symbol.for(`clientApi`)] || clientApi
+/**
+ * 将api暴露到全局空间
+ */
 let eventBus
-
+globalThis[Symbol.for(`clientApi`)] = globalThis[Symbol.for(`clientApi`)] || clientApi
 
 function 同步获取文件夹列表(路径) {
   const xhr = new XMLHttpRequest();
@@ -23,7 +28,6 @@ function 构建TAB配置() {
   const TAB_CONFIGS = {};
   // 使用插件工作空间的完整路径
   const 基础路径 = `/data/plugins/SACAssetsManager/source/UI/pannels`;
-
   try {
     const 文件列表 = 同步获取文件夹列表(基础路径);
 
@@ -47,7 +51,6 @@ function 构建TAB配置() {
   return TAB_CONFIGS;
 }
 
-console.log('测试', 构建TAB配置())
 
 
 
@@ -63,23 +66,31 @@ const TAB_CONFIGS = {
     component: '/plugins/SACAssetsManager/source/UI/components/editors/image.vue',
     containerId: 'assetsColumn'
   },
-  ImagePreviewerTab: {
-    component: '/plugins/SACAssetsManager/source/UI/pannels/transformersjs/index.vue',
-    containerId: 'imagePreviewerPanel'
-  }
+
+  ...构建TAB配置()
 }
+console.log(构建TAB配置())
 const DOCK_CONFIGS = {
   AssetsPanel: {
     icon: "iconInfo",
     position: "LeftBottom",
     component: '/plugins/SACAssetsManager/source/UI/pannels/assetInfoPanel/assestInfoPanel.vue',
-    title: "SACAssetsPanel"
+    title: "SACAssetsPanel",
+    propertyName: "assetsPanelDock"
   },
   CollectionPanel: {
     icon: "iconDatabase",
     position: "RightBottom",
     component: '/plugins/SACAssetsManager/source/UI/components/collectionPanel.vue',
-    title: "SACAssetsCollectionPanel"
+    title: "SACAssetsCollectionPanel",
+    propertyName: "collectionPanelDock"
+  },
+  PannelListPanel: {
+    icon: "iconPanel",
+    position: "RightBottom",
+    component: '/plugins/SACAssetsManager/source/UI/pannels/pannelList/index.vue',
+    title: "面板列表",
+    propertyName: "pannelListDock"
   }
 }
 let pluginInstance = {}
@@ -105,6 +116,7 @@ function createDock(plugin, dockType) {
       const container = 插入UI面板容器(this.element);
       import('/plugins/SACAssetsManager/source/UI/tab.js').then(
         module => {
+          console.log(module)
           const app = module.initVueApp(config.component)
           app.mount(container)
         }
@@ -117,11 +129,15 @@ function createDock(plugin, dockType) {
 module.exports = class SACAssetsManager extends Plugin {
   onload() {
     this.初始化插件同步状态()
+    this.初始化后台服务()
     this.初始化插件异步状态()
     this.创建web服务()
     this.创建资源Tab类型()
     this.添加菜单()
     this.加载i18n工具()
+  }
+  async 初始化后台服务(){
+    await import(`${this.插件自身伺服地址}/source/servicies/index.js`)
   }
   初始化插件同步状态() {
     pluginInstance = this
@@ -134,11 +150,9 @@ module.exports = class SACAssetsManager extends Plugin {
     this.selfURL = this.插件自身伺服地址
 
     this.最近打开本地文件夹列表 = new Set()
-    this.assetsPanelDock = createDock(this, 'AssetsPanel');
-    this.collectionPanelDock = createDock(this, 'CollectionPanel');
-
-
-
+    Object.entries(DOCK_CONFIGS).forEach(([dockType, config]) => {
+      this[config.propertyName] = createDock(this, dockType);
+    });
   }
   初始化插件异步状态() {
     import(`${this.插件自身伺服地址}/source/index.js`)

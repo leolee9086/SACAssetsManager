@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.reference",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./build",
+    "noImplicitAny": true
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../plugins/htpasswd"
+    },
+    {
+      "path": "../core/core"
+    },
+    {
+      "path": "../loaders"
+    },
+    {
+      "path": "../signature"
+    },
+    {
+      "path": "../logger/logger"
+    },
+    {
+      "path": "../utils"
+    }
+  ]
+}

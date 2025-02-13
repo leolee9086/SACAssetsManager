@@ -3,7 +3,7 @@ import { runPipeline } from './pipelineManager.js';
 import { AutoTokenizer, CLIPTextModelWithProjection,AutoModel, AutoProcessor, RawImage, matmul } from '../../../../static/@huggingface/transformers/index.js';
 import { IEventEmitterSimple } from "../../../utils/events/emitter.js";
 import { splitText } from './textSplitter.js';
-const sql = `select hash,id from blocks limit 10240000`
+const sql = `select hash,id from blocks where length limit 10240000`
 //请求所有hash
 console.time('查询全库hash')
 const allHashIds = (await kernelApi.sql({stmt:sql}))
@@ -88,7 +88,7 @@ async function generateEmbedding(content) {
         }
 
         // 对于短文本，直接处理而不拆分
-        if (content.length <= 50) {
+        if (content.length <= 1024) {
             try {
                 const inputs = await generateEmbedding.processor(content);
                 if (!inputs) {
@@ -116,24 +116,32 @@ async function generateEmbedding(content) {
 
         // 对于长文本，使用拆分处理
         const textChunks = splitText(content, {
-            maxLength: 4096,
-            minLength: 3,  // 降低最小长度限制
-            overlap: 0
+            maxLength: 1024,
+            minLength: 3,
+            overlap: 0,
+            verbose: true
+
         });
 
-        if (!textChunks || textChunks.length === 0) {
-            console.error('文本拆分失败:', content);
-            throw new Error('文本拆分失败');
-        }
-
+        console.log(`长文本拆分结果：共 ${textChunks.length} 个区块，总长度 ${content.length} 字符`);
+        
         const chunkEmbeddings = [];
-        for (const chunk of textChunks) {
+        for (const [index, chunk] of textChunks.entries()) {
+            console.log(textChunks)
             try {
+                // 添加区块处理日志
+                console.log(`处理区块 ${index + 1}/${textChunks.length}`, {
+                    chunkLength: chunk.length,
+                    startPos: chunk.offset,
+                    endPos: chunk.offset + chunk.length,
+                    contentPreview: chunk.text.slice(0, 50) + (chunk.text.length > 50 ? '...' : '')
+                });
+
                 // 确保文本块非空且长度足够
-                if (!chunk.trim() || chunk.length < 3) continue;
+                if (!chunk.text.trim() || chunk.length < 3) continue;
 
                 // 处理文本
-                const inputs = await generateEmbedding.processor(chunk);
+                const inputs = await generateEmbedding.processor(chunk.text);
                 if (!inputs) {
                     console.error('处理器处理失败:', chunk);
                     continue;
@@ -149,13 +157,14 @@ async function generateEmbedding(content) {
                 const embedding = Array.from(output.l2norm_text_embeddings.data);
                 if (embedding && embedding.length > 0) {
                     const uint8Array = new Uint8Array(embedding.map(x => Math.round((x + 1) * 127.5)));
+                    console.log(`区块 ${index + 1} 处理成功，向量维度: ${uint8Array.length}`);
                     chunkEmbeddings.push({
-                        text: chunk,
+                        text: chunk.text,
                         embedding: uint8Array
                     });
                 }
             } catch (chunkError) {
-                console.error('处理文本块失败:', chunk, chunkError);
+                console.error(`处理区块 ${index + 1} 失败:`, chunkError);
                 continue;
             }
         }
@@ -187,10 +196,20 @@ export function createEmbeddingIterator() {
     hasFirstEmbedding: false,
     startTime: Date.now(),
     totalCharacters: 0,
-    charactersPerSecond: 0
+    charactersPerSecond: 0,
+    eta: '计算中...'
   };
 
-  // 在创建迭代器时就绑定事件监听器
+  // 新增时间格式化函数
+  const formatETA = (ms) => {
+    if (ms <= 0 || !isFinite(ms)) return '--';
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${hours}小时${minutes}分钟${seconds}秒`.replace(/0小时|0分钟/g, '');
+  };
+
+  // 修改进度处理程序
   const progressHandler = ({ result }) => {
     if (Array.isArray(result)) {
       result.forEach(itemResult => {
@@ -224,6 +243,13 @@ export function createEmbeddingIterator() {
     
     iterator.progress.remaining = pendingIds.length;
     
+    // 计算剩余时间
+    const elapsed = Date.now() - iterator.progress.startTime;
+    const processedCount = iterator.progress.processed + iterator.progress.failed;
+    const remainingCount = iterator.progress.total - processedCount;
+    const avgTimePerItem = elapsed / Math.max(1, processedCount);
+    iterator.progress.eta = formatETA(avgTimePerItem * remainingCount);
+
     // 立即更新进度
     const progress = {
       ...iterator.progress,
@@ -231,7 +257,7 @@ export function createEmbeddingIterator() {
       charactersPerSecond: Math.round(iterator.progress.totalCharacters / ((Date.now() - iterator.progress.startTime) / 1000))
     };
 
-    console.log(`处理进度: ${progress.percentage}%, 处理速度: ${progress.charactersPerSecond} 字/秒`);
+    console.log(`处理进度: ${progress.percentage}%, 处理速度: ${progress.charactersPerSecond} 字/秒，预计剩余时间: ${iterator.progress.eta}`);
   };
 
   embeddingQueue.on('taskCompleted', progressHandler);
@@ -295,9 +321,10 @@ export function createEmbeddingIterator() {
                 const progress = {
                   ...iterator.progress,
                   percentage: ((iterator.progress.processed + iterator.progress.failed) / iterator.progress.total * 100).toFixed(1),
-                  charactersPerSecond: Math.round(iterator.progress.totalCharacters / ((Date.now() - iterator.progress.startTime) / 1000))
+                  charactersPerSecond: Math.round(iterator.progress.totalCharacters / ((Date.now() - iterator.progress.startTime) / 1000)),
+                  eta: iterator.progress.eta
                 };
-                console.log(`处理进度: ${progress.percentage}%, 处理速度: ${progress.charactersPerSecond} 字/秒`);
+                console.log(`处理进度: ${progress.percentage}%, 处理速度: ${progress.charactersPerSecond} 字/秒，预计剩余时间: ${progress.eta}`);
 
                 return {
                   success: true,
@@ -318,7 +345,7 @@ export function createEmbeddingIterator() {
                 };
               }
             });
-
+            console.log(content.length)
             // 返回内容获取成功的状态
             return {
               success: true,
@@ -346,13 +373,14 @@ export function createEmbeddingIterator() {
       const progress = {
         ...iterator.progress,
         percentage: ((iterator.progress.processed + iterator.progress.failed) / iterator.progress.total * 100).toFixed(1),
-        charactersPerSecond: Math.round(iterator.progress.totalCharacters / ((Date.now() - iterator.progress.startTime) / 1000))
+        charactersPerSecond: Math.round(iterator.progress.totalCharacters / ((Date.now() - iterator.progress.startTime) / 1000)),
+        eta: iterator.progress.eta
       };
 
       if (iterator.progress.failed > 0) {
-        console.warn(`处理进度: ${progress.percentage}%, 失败: ${iterator.progress.failed}个, 处理速度: ${progress.charactersPerSecond} 字/秒`);
+        console.warn(`处理进度: ${progress.percentage}%, 失败: ${iterator.progress.failed}个, 处理速度: ${progress.charactersPerSecond} 字/秒，预计剩余时间: ${progress.eta}`);
       } else {
-        console.log(`处理进度: ${progress.percentage}%, 处理速度: ${progress.charactersPerSecond} 字/秒`);
+        console.log(`处理进度: ${progress.percentage}%, 处理速度: ${progress.charactersPerSecond} 字/秒，预计剩余时间: ${progress.eta}`);
       }
       yield progress;
       await new Promise(resolve => setTimeout(resolve, 100));

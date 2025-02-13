@@ -2,7 +2,6 @@ import { AISSEProvider } from '../pannels/MAGI/core/openAISSEAPI.js'
 import { IEventEmitterSimple as EventEmitter} from '../../utils/events/emitter.js'
 export async function showStreamingChatDialog(messages, config = {}) {
   const emitter = new EventEmitter()
-  
   // 创建对话框
   const dialog = document.createElement('dialog')
   const content = document.createElement('div')
@@ -101,3 +100,4 @@ export async function showStreamingChatDialog(messages, config = {}) {
 
   return emitter
 } 
+

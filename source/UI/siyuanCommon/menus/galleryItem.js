@@ -259,7 +259,7 @@ function 添加通用菜单内容(menu, assets) {
                         custom:{
                             icon: "iconImage",
                             title: "图片预览器",
-                            id:plugin.name+'ImagePreviewerTab',
+                            id:plugin.name+'imagePreviewerTab',
                             data: {
                                 text: '图片预览器',
                                 assets: assets

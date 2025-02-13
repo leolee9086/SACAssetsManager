@@ -1,0 +1,26 @@
+web:
+  title: verdaccio web
+  login: true
+  scope: '@scope'
+  pkgManagers:
+    - pnpm
+    - yarn
+  showInfo: true
+  showSettings: true
+  showSearch: true
+  showFooter: true
+  showThemeSwitch: true
+  showDownloadTarball: true
+  showRaw: true
+  primary_color: '#ffffff'
+  logo: https://raw.githubusercontent.com/verdaccio/verdaccio/master/assets/svg/logo-small.svg
+  logoDark: https://raw.githubusercontent.com/verdaccio/verdaccio/master/assets/svg/logo-blackwhite.svg
+  favicon: https://raw.githubusercontent.com/verdaccio/verdaccio/master/website/static/img/favicon/favicon.ico
+  html_cache: false
+
+url_prefix: /prefix
+
+log: { type: stdout, format: pretty, level: trace }
+
+flags:
+  changePassword: true

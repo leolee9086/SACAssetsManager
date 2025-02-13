@@ -110,15 +110,17 @@ function findBestSplitPosition(text, targetLength) {
  * 智能文本拆分
  * @param {string} text 要拆分的文本
  * @param {Object} options 配置选项
- * @param {number} options.maxLength 最大长度（默认512）
- * @param {number} options.minLength 最小长度（默认50）
- * @param {number} options.overlap 重叠长度（默认0）
- * @returns {string[]} 拆分后的文本数组
+ * @param {number} [options.maxLength=512] 最大长度
+ * @param {number} [options.minLength=50] 最小长度
+ * @param {number} [options.overlap=0] 重叠长度
+ * @param {boolean} [options.verbose=false] 详细模式
+ * @returns {(string|Object)[]} 拆分后的文本数组或对象数组
  */
 export function splitText(text, {
     maxLength = 512,
     minLength = 50,
-    overlap = 0
+    overlap = 0,
+    verbose = false  // 新增verbose参数
 } = {}) {
     try {
         // 空文本处理
@@ -137,6 +139,7 @@ export function splitText(text, {
         
         const chunks = [];
         let currentPosition = 0;
+        let originalOffset = 0;  // 新增原始偏移量追踪
 
         while (currentPosition < processedText.length) {
             try {
@@ -152,14 +155,27 @@ export function splitText(text, {
                     currentPosition + endPosition
                 );
 
-                // 确保片段长度符合最小要求
-                if (chunk.length >= minLength) {
-                    // 恢复特殊内容
-                    chunk = restoreSpecialContent(chunk, markers);
-                    chunks.push(chunk.trim());
+                // 计算原始文本偏移量
+                const originalStart = originalOffset;
+                const originalEnd = Math.min(originalStart + endPosition, text.length);
+                
+                // 恢复特殊内容
+                const restoredChunk = restoreSpecialContent(chunk, markers);
+                
+                // 根据模式构建返回结果
+                if (verbose) {
+                    chunks.push({
+                        text: restoredChunk.trim(),
+                        offset: originalStart,
+                        length: restoredChunk.length,
+                        originalLength: chunk.length  // 处理前的长度
+                    });
+                } else {
+                    chunks.push(restoredChunk.trim());
                 }
 
-                // 更新位置，考虑重叠
+                // 更新偏移量 (处理标记替换导致的长度变化)
+                originalOffset += restoredChunk.length - (chunk.length - (endPosition - overlap));
                 currentPosition += Math.max(endPosition - overlap, minLength);
             } catch (error) {
                 console.error('splitText: 处理文本片段时出错:', error);

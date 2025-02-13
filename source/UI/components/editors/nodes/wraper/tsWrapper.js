@@ -63,9 +63,10 @@ async function parseDtsTypes(dtsContent, exportName) {
     // 解析输入参数
     const inputs = {};
     signature.parameters.forEach((param, index) => {
+        const declaration = param.declarations?.[0] || param.valueDeclaration;
         const paramType = checker.getTypeOfSymbolAtLocation(
             param,
-            param.valueDeclaration
+            declaration
         );
         
         inputs[param.name] = {
@@ -266,62 +267,88 @@ async function parseMathJSExports() {
         const checker = program.getTypeChecker();
 
         function visit(node) {
-            // 处理接口声明
             if (ts.isInterfaceDeclaration(node)) {
-                console.log('找到接口声明:', node.name.text);
-                
-                // 遍历接口成员
                 node.members.forEach(member => {
                     if (ts.isMethodSignature(member) || ts.isPropertySignature(member)) {
                         const memberName = member.name.getText();
-                        console.log('检查接口成员:', memberName);
                         
-                        // 检查是否为函数类型且在运行时存在
                         if (mathjs[memberName] && typeof mathjs[memberName] === 'function') {
-                            console.log('找到可用函数:', memberName);
-                            
                             try {
                                 const symbol = checker.getSymbolAtLocation(member.name);
                                 const type = checker.getTypeAtLocation(member);
                                 const signatures = type.getCallSignatures();
 
                                 if (signatures.length > 0) {
-                                    const signature = signatures[0];
-                                    
-                                    // 解析参数
-                                    const inputs = {};
-                                    signature.getParameters().forEach(param => {
-                                        const paramType = checker.getTypeOfSymbolAtLocation(
-                                            param,
-                                            param.valueDeclaration
-                                        );
-                                        inputs[param.getName()] = {
-                                            type: checker.typeToString(paramType),
-                                            label: param.getName(),
-                                            description: ts.displayPartsToString(
-                                                param.getDocumentationComment(checker)
-                                            )
+                                    // 获取所有签名
+                                    const allSignatures = signatures.map(signature => {
+                                        const inputs = {};
+                                        
+                                        // 处理泛型参数
+                                        if (signature.typeParameters) {
+                                            signature.typeParameters.forEach(typeParam => {
+                                                const typeParamName = typeParam.symbol.name;
+                                                inputs[typeParamName] = {
+                                                    type: 'type parameter',
+                                                    label: typeParamName,
+                                                    description: '类型参数'
+                                                };
+                                            });
+                                        }
+
+                                        // 处理值参数
+                                        signature.getParameters().forEach(param => {
+                                            const paramName = param.getName();
+                                            let paramType = checker.getTypeOfSymbolAtLocation(
+                                                param,
+                                                param.declarations?.[0] || param.valueDeclaration
+                                            );
+
+                                            // 处理联合类型
+                                            if (paramType.isUnion()) {
+                                                const types = paramType.types.map(t => 
+                                                    checker.typeToString(t)).join(' | ');
+                                                inputs[paramName] = {
+                                                    type: types,
+                                                    label: paramName,
+                                                    description: ts.displayPartsToString(
+                                                        param.getDocumentationComment(checker)
+                                                    )
+                                                };
+                                            } else {
+                                                inputs[paramName] = {
+                                                    type: checker.typeToString(paramType),
+                                                    label: paramName,
+                                                    description: ts.displayPartsToString(
+                                                        param.getDocumentationComment(checker)
+                                                    )
+                                                };
+                                            }
+                                        });
+
+                                        return {
+                                            inputs,
+                                            returnType: checker.typeToString(signature.getReturnType())
                                         };
                                     });
 
-                                    // 解析返回值
-                                    const returnType = signature.getReturnType();
-                                    const outputs = {
-                                        $result: {
-                                            type: checker.typeToString(returnType),
-                                            label: '返回值'
-                                        }
-                                    };
+                                    // 使用最详细的签名
+                                    const mostDetailedSignature = allSignatures.reduce((prev, curr) => 
+                                        Object.keys(curr.inputs).length > Object.keys(prev.inputs).length ? curr : prev
+                                    );
 
                                     functionNodes[memberName] = {
                                         name: memberName,
-                                        inputs,
-                                        outputs,
+                                        inputs: mostDetailedSignature.inputs,
+                                        outputs: {
+                                            $result: {
+                                                type: mostDetailedSignature.returnType,
+                                                label: '返回值'
+                                            }
+                                        },
                                         description: symbol ? ts.displayPartsToString(
                                             symbol.getDocumentationComment(checker)
                                         ) : ''
                                     };
-                                    console.log('成功添加函数节点:', memberName);
                                 }
                             } catch (err) {
                                 console.warn(`解析函数 ${memberName} 失败:`, err);
@@ -330,8 +357,6 @@ async function parseMathJSExports() {
                     }
                 });
             }
-
-            // 继续遍历其他节点
             ts.forEachChild(node, visit);
         }
 

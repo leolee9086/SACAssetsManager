@@ -2,9 +2,10 @@ import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
 import { applyStmt } from '../../data/galleryDefine.js'
 import { tabEvents } from './tabs/events.js'
 import { 打开附件面板 } from './tabs/assetsTab.js'
+import { 编辑器点击事件表 } from '../../events/editorEvents/click.js'
 const { eventBus, events, app } = plugin
 const menus = {
-    'click-editortitleicon': [
+    [编辑器点击事件表.思源原生事件.点击编辑器图标]: [
         {
             label: "打开资源管理视图",
             click: (ctx) => {

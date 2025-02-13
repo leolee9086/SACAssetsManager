@@ -1,0 +1,26 @@
+web:
+  title: verdaccio web
+  login: true
+  scope: '@scope'
+  pkgManagers:
+    - pnpm
+    - yarn
+  showInfo: true
+  showSettings: true
+  showSearch: true
+  showFooter: true
+  showThemeSwitch: true
+  showDownloadTarball: true
+  showRaw: true
+  primary_color: '#ffffff'
+  logo: './test/config/dark-logo.png'
+  logoDark: './test/config/dark-logo.png'
+  favicon: './test/config/favicon.ico'
+  html_cache: false
+
+url_prefix: /prefix
+
+log: { type: stdout, format: pretty, level: trace }
+
+flags:
+  changePassword: true

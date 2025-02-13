@@ -15,7 +15,6 @@ export function openDialog(appURL, name, mixinOptions = {}, directory, data,titl
             transparent: transparent,
             disableClose: transparent,
             disableAnimation: false,
-            
         }
     )
     data&&(data.$dialog=dialog);
