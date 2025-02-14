@@ -1,606 +1,985 @@
 <template>
-  <div class="image-processor-test">
-    <!-- 左侧处理堆栈 -->
-    <div class="processor-stack">
-      <div class="global-controls">
-        <label class="file-input-button">
-          <input 
-            type="file" 
-            accept="image/*" 
-            @change="handleFileUpload"
-            ref="fileInput"
-          >
-          <span class="button-text">选择图片</span>
-        </label>
-        <div class="control-options">
-          <label class="auto-process">
-            <input 
-              type="checkbox" 
-              v-model="autoProcess"
-            >
-            自动处理
-          </label>
-          <button 
-            @click="applyProcessing" 
-            :disabled="!hasImage"
-            class="process-button"
-          >
-            应用处理
-          </button>
+  <div class="fn__flex-column editor-container">
+    <div class="fn__flex fn__flex-1">
+      <!-- 左侧预览面板 -->
+      <div class="left-panel">
+        <div class="section-title">预览</div>
+        <div class="panel-content">
+          <div class="preview-list">
+            <!-- 原始图预览 -->
+            <div class="preview-item" 
+                 :class="{ active: currentPreview === 'original' }"
+                 @click="switchPreview('original')">
+              <h4>原始图</h4>
+              <div class="preview-content">
+                <canvas ref="originalDistanceCanvas" class="preview-thumbnail"></canvas>
+              </div>
+            </div>
+            <!-- 处理后图预览 -->
+            <div class="preview-item" 
+                 :class="{ active: currentPreview === 'processed' }"
+                 @click="switchPreview('processed')">
+              <h4>处理后</h4>
+              <div class="preview-content">
+                <canvas ref="distanceCanvas" class="preview-thumbnail"></canvas>
+              </div>
+            </div>
+            <!-- 法线图预览 -->
+            <div class="preview-item" 
+                 :class="{ active: currentPreview === 'normal' }"
+                 @click="switchPreview('normal')">
+              <h4>法线图</h4>
+              <div class="preview-content">
+                <canvas ref="normalMapCanvas" class="preview-thumbnail"></canvas>
+              </div>
+            </div>
+          </div>
         </div>
-        <button 
-          @click="downloadAllImages" 
-          :disabled="!hasResult"
-          class="download-all-button"
-        >
-          下载所有步骤图片
-        </button>
       </div>
 
-      <!-- 处理步骤列表 -->
-      <div class="steps-list">
-        <!-- 原始图像步骤 -->
-        <image-step-previewer
-          name="原始图像"
-          :processed="hasImage"
-          :source-ctx="currentCTX"
-          :thumbnail-size="THUMBNAIL_SIZE"
-        >
-          <template #controls>
-            <button 
-              v-if="hasImage"
-              class="download-button"
-              @click="downloadStepImage(currentCTX, '原始图像')"
-            >
-              下载图片
+      <!-- 主预览区域 -->
+      <div class="fn__flex fn__flex-1 fn__flex-column editor-main">
+        <!-- 顶部工具栏 -->
+        <div class="editor-toolbar">
+          <div class="toolbar-group fn__flex">
+            <label class="toolbar-btn" title="上传原始图">
+              <i class="icon">📁</i>
+              <span>上传</span>
+              <input 
+                type="file" 
+                accept="image/*" 
+                @change="handleDistanceMapUpload" 
+                style="display: none;"
+              >
+            </label>
+            <button class="toolbar-btn" title="导出贴图" @click="exportMaps">
+              <i class="icon">💾</i>
+              <span>导出</span>
             </button>
-          </template>
-        </image-step-previewer>
-        
-        <!-- 处理步骤 -->
-        <image-step-previewer
-          v-for="(step, index) in processingSteps"
-          :key="index"
-          :name="step.name"
-          :processed="step.processed"
-          :duration="step.duration"
-          :source-ctx="step.ctx"
-          :thumbnail-size="THUMBNAIL_SIZE"
-        >
-          <template #params v-if="step.params.length">
-            <div class="step-params">
-              <div v-for="param in step.params" :key="param.name" class="param-control">
-                <label :for="param.name">{{ param.label }}</label>
-                
-                <!-- 范围滑块 -->
-                <input v-if="param.type === 'range'"
-                  :id="param.name"
-                  type="range"
-                  v-model="step.paramValues[param.name]"
-                  :min="param.min"
-                  :max="param.max"
-                  :step="param.step"
-                  @change="handleParamChange(step)"
-                >
-                
-                <!-- 颜色选择器 -->
-                <input v-if="param.type === 'color'"
-                  :id="param.name"
-                  type="color"
-                  v-model="step.paramValues[param.name]"
-                  @change="handleParamChange(step)"
-                >
-                
-                <span v-if="param.type === 'range'" class="param-value">
-                  {{ step.paramValues[param.name] }}
-                </span>
-              </div>
-            </div>
-          </template>
-          
-          <template #debug v-if="step.debugInfo">
-            <div class="debug-previews">
-              <div v-if="step.debugInfo.darkChannel" class="debug-preview">
-                <h4>暗通道图</h4>
-                <img :src="step.debugInfo.darkChannel.toDataURL()" />
-              </div>
-              <div v-if="step.debugInfo.transmission" class="debug-preview">
-                <h4>透射率图</h4>
-                <img :src="step.debugInfo.transmission.toDataURL()" />
-              </div>
-              <div v-if="step.debugInfo.edges" class="debug-preview">
-                <h4>边缘图</h4>
-                <img :src="step.debugInfo.edges.toDataURL()" />
-              </div>
-              <div v-if="step.debugInfo.features" class="debug-info">
-                <h4>特征信息</h4>
-                <pre>{{ JSON.stringify(step.debugInfo.features, null, 2) }}</pre>
-              </div>
-              <div v-if="step.debugInfo.atmosphericLight" class="debug-info">
-                <h4>大气光值</h4>
-                <pre>{{ JSON.stringify(step.debugInfo.atmosphericLight, null, 2) }}</pre>
-              </div>
-            </div>
-          </template>
-          
-          <template #controls>
-            <button 
-              v-if="step.processed"
-              class="download-button"
-              @click="downloadStepImage(step.ctx, step.name)"
-            >
-              下载图片
-            </button>
-          </template>
-        </image-step-previewer>
+          </div>
 
-        <!-- 最终结果步骤 -->
-        <image-step-previewer
-          name="最终结果"
-          :processed="hasResult"
-          :source-ctx="resultCTX"
-          :thumbnail-size="THUMBNAIL_SIZE"
-        >
-          <template #controls>
-            <button 
-              v-if="hasResult"
-              class="download-button"
-              @click="downloadStepImage(resultCTX, '最终结果')"
+          <!-- 缩放控制 -->
+          <div class="zoom-control">
+            <input 
+              type="range" 
+              v-model.number="previewZoom" 
+              min="0.2" 
+              max="2" 
+              step="0.1"
             >
-              下载图片
-            </button>
-          </template>
-        </image-step-previewer>
+            <span class="zoom-value">{{ Math.round(previewZoom * 100) }}%</span>
+          </div>
+        </div>
+
+        <!-- 预览区域 -->
+        <div class="editor-workspace">
+          <div class="preview-container" :style="{ transform: `scale(${previewZoom})` }">
+            <div class="preview-item main-preview">
+              <canvas ref="mainPreviewCanvas" class="preview-canvas"></canvas>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <!-- 替换原有的预览区域 -->
-    <image-preview
-      :has-image="hasImage"
-      :resultCTX="resultCTX"
-    />
-
-    <!-- 调试信息 -->
-    <div class="debug-info">
-      <p>状态: {{ hasImage ? '已加载图像' : '未加载图像' }}</p>
-      <p v-if="hasImage">图像尺寸: {{ canvasWidth }}x{{ canvasHeight }}</p>
-      <p>处理步骤数: {{ processingSteps.length }}</p>
+      <!-- 右侧控制面板 -->
+      <div class="right-panel">
+        <div class="section-title fn__flex fn__flex-sb">
+          <span>参数设置</span>
+          <label class="show-all-toggle">
+            <input type="checkbox" v-model="showAllParams">
+            <span>显示全部参数</span>
+          </label>
+        </div>
+        <div class="control-groups">
+          <div v-for="(group, index) in showAllParams ? parameterGroups : filteredParameterGroups" 
+               :key="index" 
+               class="control-group">
+            <div class="group-header" @click="toggleGroup(index)">
+              <h3>{{ group.title }}</h3>
+              <span class="toggle-icon">{{ group.expanded ? '−' : '+' }}</span>
+            </div>
+            <div v-show="group.expanded" class="group-content">
+              <div v-for="param in group.params" 
+                   :key="param.key" 
+                   class="control-item">
+                <label>{{ param.label }}</label>
+                <div class="control-input">
+                  <input class="b3-slider fn__block" v-if="param.type === 'range'"
+                    type="range"
+                    v-model.number="params[param.key]"
+                    :min="param.min"
+                    :max="param.max"
+                    :step="param.step"
+                  >
+                  <input v-else-if="param.type === 'checkbox'"
+                    type="checkbox"
+                    v-model="params[param.key]"
+                  >
+                  <select v-else-if="param.type === 'select'"
+                    v-model="params[param.key]">
+                    <option v-for="opt in param.options" 
+                           :key="opt.value" 
+                           :value="opt.value">
+                      {{ opt.label }}
+                    </option>
+                  </select>
+                  <span v-if="param.type === 'range'" class="param-value">
+                    {{ params[param.key] }}{{ param.unit || '' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
-import { createImageCTXFromFile } from './ImageCTX.js'
-import ImageStepPreviewer from './components/imageStepPreviewer.vue'
-import { useImagePipeline } from './composable/useImagePipeline.js'
-import ImagePreview from './components/ImagePreview.vue'
-import { useImageDownloader } from './composable/useImageDownloader.js'
-// 使用 useImagePipeline composable
-const {
-  currentCTX,
-  processingSteps,
-  hasImage,
-  hasResult,
-  resultCTX,
-  initializePipeline,
-  executePipeline
-} = useImagePipeline()
+import { ref, onMounted, watch, computed } from 'vue'
+import { AdvancedTileSeamBaker } from './TileSeamBaker.js'
+import { 砖块法线生成器配置 } from '../../electronUI/windows/imageAdjuster/pipelineBuilder.js'
+import { parameterGroupTypes,parameterGroups,params } from './composable/useParameters.js'
+import { processors } from './composable/processors.js'
+// 添加预览缩放控制
+const previewZoom = ref(1) // 默认缩放比例为 1
 
-const { downloadImages, downloadSingleImage } = useImageDownloader()
+// 预览画布引用
+const originalDistanceCanvas = ref(null)
+const distanceCanvas = ref(null)
+const baker = ref(null)
 
-const fileInput = ref(null)
-const canvasWidth = ref(300)
-const canvasHeight = ref(300)
-const THUMBNAIL_SIZE = 100
-const autoProcess = ref(true)
+// 添加主预览画布引用
+const mainPreviewCanvas = ref(null)
 
-onMounted(() => {
-  // 使用 initializePipeline 替代原有的初始化逻辑
-  initializePipeline()
-})
+// 添加法线图画布引用
+const normalMapCanvas = ref(null)
 
-const updateCanvases = async () => {
-  await nextTick()
-  
-  canvasWidth.value = currentCTX.value.width
-  canvasHeight.value = currentCTX.value.height
-
-  if (autoProcess.value) {
-    await applyProcessing()
+// 参数组配置
+// 修改折叠切换函数
+const toggleGroup = (index) => {
+  // 获取当前显示的参数组标题
+  const groupTitle = filteredParameterGroups.value[index].title
+  // 在原始参数组中找到对应的组并切换其展开状态
+  const originalIndex = parameterGroups.value.findIndex(group => group.title === groupTitle)
+  if (originalIndex !== -1) {
+    parameterGroups.value[originalIndex].expanded = !parameterGroups.value[originalIndex].expanded
   }
 }
 
-const handleFileUpload = async (event) => {
+
+// 创建处理器堆栈
+const processorStack = ref(Object.keys(processors).map(key => ({
+  id: key,
+  ...processors[key]
+})))
+
+
+// 添加当前预览状态
+const currentPreview = ref('processed') // 默认显示处理后的图
+
+// 切换预览函数
+const switchPreview = (type) => {
+  currentPreview.value = type
+  const mainCtx = mainPreviewCanvas.value.getContext('2d')
+  mainCtx.clearRect(0, 0, mainPreviewCanvas.value.width, mainPreviewCanvas.value.height)
+  
+  let sourceCanvas
+  switch(type) {
+    case 'original':
+      sourceCanvas = originalDistanceCanvas.value
+      break
+    case 'processed':
+      sourceCanvas = distanceCanvas.value
+      break
+    case 'normal':
+      sourceCanvas = normalMapCanvas.value
+      break
+  }
+  
+  if (sourceCanvas) {
+    // 保持原始比例
+    const scale = Math.min(
+      mainPreviewCanvas.value.width / sourceCanvas.width,
+      mainPreviewCanvas.value.height / sourceCanvas.height
+    )
+    
+    // 计算居中位置
+    const x = (mainPreviewCanvas.value.width - sourceCanvas.width * scale) / 2
+    const y = (mainPreviewCanvas.value.height - sourceCanvas.height * scale) / 2
+    
+    // 清除之前的内容
+    mainCtx.clearRect(0, 0, mainPreviewCanvas.value.width, mainPreviewCanvas.value.height)
+    
+    // 绘制新内容，保持比例并居中
+    mainCtx.save()
+    mainCtx.translate(x, y)
+    mainCtx.scale(scale, scale)
+    mainCtx.drawImage(sourceCanvas, 0, 0)
+    mainCtx.restore()
+  }
+}
+
+// 初始化
+onMounted(async () => {
+  try {
+    // 初始化画布尺寸
+    if (originalDistanceCanvas.value) {
+      originalDistanceCanvas.value.width = 256  // 右侧预览尺寸小一些
+      originalDistanceCanvas.value.height = 256
+    }
+    if (distanceCanvas.value) {
+      distanceCanvas.value.width = 256
+      distanceCanvas.value.height = 256
+    }
+    if (mainPreviewCanvas.value) {
+      mainPreviewCanvas.value.width = 512  // 主预览尺寸大一些
+      mainPreviewCanvas.value.height = 512
+    }
+    if (normalMapCanvas.value) {
+      normalMapCanvas.value.width = 256
+      normalMapCanvas.value.height = 256
+    }
+
+    // 初始化烘焙器
+    baker.value = new AdvancedTileSeamBaker()
+    console.log('开始初始化 baker...')
+    await baker.value.init(mainPreviewCanvas.value)  // 使用主预览画布初始化
+    console.log('baker 初始化完成')
+
+    // 等待一帧以确保所有初始化完成
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    
+    console.log('开始首次烘焙...')
+    await updateBake()
+    console.log('首次烘焙完成')
+  } catch (error) {
+    console.error('初始化失败:', error)
+    console.error('错误堆栈:', error.stack)
+  }
+})
+
+// 更新烘焙
+const updateBake = async () => {
+  if (!baker.value) {
+    console.warn('Baker not initialized')
+    return
+  }
+
+  console.log('开始烘焙更新，参数:', params.value)
+  try {
+    const maps = await baker.value.bake(params.value)
+    
+    // 更新主预览
+    const mainCtx = mainPreviewCanvas.value.getContext('2d')
+    const mainImageData = mainCtx.getImageData(0, 0, mainPreviewCanvas.value.width, mainPreviewCanvas.value.height)
+    let pixels = mainImageData.data
+
+    // 应用启用的处理器
+    for (const processor of processorStack.value) {
+      if (processor.enabled) {
+        console.log(`应用处理器: ${processor.name}`)
+        pixels = processor.process(pixels, params.value)
+      }
+    }
+    
+    mainCtx.putImageData(mainImageData, 0, 0)
+
+    // 更新右侧小预览
+    const previewCtx = distanceCanvas.value.getContext('2d')
+    previewCtx.clearRect(0, 0, distanceCanvas.value.width, distanceCanvas.value.height)
+    previewCtx.drawImage(mainPreviewCanvas.value, 0, 0, distanceCanvas.value.width, distanceCanvas.value.height)
+    
+    // 生成并更新法线图
+    const normalParams = {
+      strength: params.value.normalStrength,
+      blur: params.value.normalBlur,
+      seamStrength: params.value.seamNormalStrength,
+      flipX: params.value.normalFlipX,
+      flipY: params.value.normalFlipY,
+      normalScale: params.value.normalScale,
+      normalBias: params.value.normalBias,
+      preprocess: {
+        invert: params.value.normalPreprocessInvert,
+        contrast: params.value.normalPreprocessContrast,
+        brightness: params.value.normalPreprocessBrightness,
+        smooth: params.value.normalPreprocessSmooth
+      }
+    }
+    
+    const normalMap = await 砖块法线生成器配置.处理函数(
+      distanceCanvas.value,
+      normalParams.strength,
+      normalParams.blur,
+      normalParams.seamStrength,
+      normalParams.flipX,
+      normalParams.flipY,
+      normalParams.normalScale,
+      normalParams.normalBias,
+      normalParams.preprocess
+    )
+
+    // 更新法线图预览
+    const normalCtx = normalMapCanvas.value.getContext('2d')
+    normalCtx.clearRect(0, 0, normalMapCanvas.value.width, normalMapCanvas.value.height)
+    normalCtx.drawImage(normalMap, 0, 0, normalMapCanvas.value.width, normalMapCanvas.value.height)
+
+    // 重要：在所有更新完成后，重新调用 switchPreview 来确保主预览与当前选中的预览类型同步
+    switchPreview(currentPreview.value)
+    
+    console.log('烘焙完成')
+
+  } catch (error) {
+    console.error('烘焙更新失败:', error)
+    console.error('错误堆栈:', error.stack)
+  }
+}
+
+// 监听参数变化
+watch(params, async () => {
+  try {
+    await updateBake()
+  } catch (error) {
+    console.error('参数更新烘焙失败:', error)
+  }
+}, { deep: true })
+
+// 处理上传
+const handleDistanceMapUpload = async (event) => {
   const file = event.target.files[0]
   if (!file) return
 
   try {
-    currentCTX.value = await createImageCTXFromFile(file)
-    hasImage.value = true
-    await nextTick()
-    await updateCanvases()
+    console.log('开始处理上传的图片')
+    
+    const img = new Image()
+    img.src = URL.createObjectURL(file)
+    
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = reject
+    })
+    
+    // 更新原始预览
+    const originalCtx = originalDistanceCanvas.value.getContext('2d')
+    originalCtx.clearRect(0, 0, originalDistanceCanvas.value.width, originalDistanceCanvas.value.height)
+    originalCtx.drawImage(img, 0, 0, originalDistanceCanvas.value.width, originalDistanceCanvas.value.height)
+    
+    // 更新主预览
+    const mainCtx = mainPreviewCanvas.value.getContext('2d')
+    mainCtx.clearRect(0, 0, mainPreviewCanvas.value.width, mainPreviewCanvas.value.height)
+    mainCtx.drawImage(img, 0, 0, mainPreviewCanvas.value.width, mainPreviewCanvas.value.height)
+    
+    // 更新GPU纹理并执行烘焙
+    if (baker.value) {
+      console.log('更新GPU纹理...')
+      await baker.value.updateUploadedDistanceTexture(mainPreviewCanvas.value)
+      console.log('执行烘焙...')
+      await updateBake()
+      console.log('烘焙完成')
+    }
+    
+    // 上传完成后切换到原始图预览
+    switchPreview('original')
+    
+    URL.revokeObjectURL(img.src)
   } catch (error) {
-    console.error('图像加载失败:', error)
-    alert('图像加载失败: ' + error.message)
+    console.error('上传距离图失败:', error)
+    console.error('错误堆栈:', error.stack)
   }
 }
 
-const handleParamChange = async (step) => {
-  if (autoProcess.value) {
-    await applyProcessing()
-  }
+// 导出贴图
+const exportMaps = () => {
+  if (!distanceCanvas.value) return
+  
+  const link = document.createElement('a')
+  link.download = 'tile-distance.png'
+  link.href = distanceCanvas.value.toDataURL('image/png')
+  link.click()
 }
 
-const applyProcessing = async () => {
-  try {
-    await executePipeline()
-  } catch (error) {
-    console.error('处理失败:', error)
-  }
-}
+// 计算当前应显示的参数组
+const filteredParameterGroups = computed(() => {
+  const allowedGroups = parameterGroupTypes[currentPreview.value] || []
+  return parameterGroups.value.filter(group => allowedGroups.includes(group.title))
+})
 
-const downloadAllImages = async () => {
-  if (!hasResult.value) return
-  await downloadImages(currentCTX.value, processingSteps.value, resultCTX.value)
-}
+// 添加显示全部参数的开关状态
+const showAllParams = ref(false)
 
-const downloadStepImage = (ctx, name) => {
-  downloadSingleImage(ctx, name)
-}
 </script>
 
 <style scoped>
-.image-processor-test {
-  display: flex;
-  padding: 20px;
-  gap: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-  min-height: 600px;
+.editor-container {
+  height: 100%;
+  background: var(--background-color);
 }
 
-.processor-stack {
-  flex: 0 0 300px;
+.left-panel {
+  width: 300px;
+  min-width: 300px;
+  background: var(--background-color-2);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+.right-panel {
+  width: 300px;
+  min-width: 300px;
+  background: var(--background-color-2);
+  border-left: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+.section-title {
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.panel-content {
+  padding: 16px;
+}
+
+.editor-main {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  border-right: 1px solid #eee;
-  padding-right: 20px;
-}
-
-.global-controls {
-  margin-bottom: 20px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-}
-
-.file-input-button {
-  display: block;
-  position: relative;
-  width: 100%;
-  cursor: pointer;
-  margin-bottom: 12px;
-}
-
-.file-input-button input[type="file"] {
-  position: absolute;
   width: 100%;
   height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  z-index: 2;
+  min-height: 0;
 }
 
-.file-input-button .button-text {
-  display: block;
-  padding: 10px 16px;
-  background-color: #4CAF50;
-  color: white;
-  text-align: center;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-}
-
-.file-input-button:hover .button-text {
-  background-color: #45a049;
-}
-
-.control-options {
+.editor-toolbar {
+  height: 48px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
-  gap: 15px;
-  margin-top: 12px;
-}
-
-.auto-process {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #666;
-  cursor: pointer;
-}
-
-.process-button {
-  flex: 1;
-  padding: 8px 16px;
-  background-color: #2196F3;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.process-button:hover:not(:disabled) {
-  background-color: #1976D2;
-}
-
-.process-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.steps-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.step-item {
-  padding: 15px;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  background-color: #fff;
-}
-
-.step-content {
-  display: flex;
-  gap: 15px;
-  align-items: flex-start;
-}
-
-.step-info {
-  flex: 1;
-}
-
-.step-preview {
-  flex: 0 0 100px;
-  height: 100px;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.thumbnail {
-  width: 100px;
-  height: 100px;
-  object-fit: contain;
-  background-color: #f5f5f5;
-}
-
-.step-header {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.step-duration {
-  font-size: 0.9em;
-  color: #666;
-}
-
-.step-status {
+.toolbar-group {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.9em;
-  color: #666;
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #ccc;
-}
-
-.status-dot.active {
-  background-color: #4CAF50;
-}
-
-.preview-area {
-  flex: 1;
+.toolbar-btn {
   display: flex;
-  align-items: flex-start;
-  padding: 20px;
-  background-color: #f9f9f9;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
+  background: var(--background-color);
+  cursor: pointer;
+  font-size: inherit;
+  color: inherit;
+}
+
+.toolbar-btn:hover {
+  background: var(--background-color-hover);
+}
+
+/* 确保label按钮和普通按钮样式一致 */
+label.toolbar-btn {
+  margin: 0;
+  font-weight: normal;
+}
+
+.editor-workspace {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+  background-image: linear-gradient(45deg, #80808010 25%, transparent 25%),
+    linear-gradient(-45deg, #80808010 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #80808010 75%),
+    linear-gradient(-45deg, transparent 75%, #80808010 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
 
 .preview-container {
-  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  transform-origin: center center;
 }
 
-.preview-item {
-  padding: 20px;
-  background-color: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.main-preview {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.preview-item h3 {
-  margin-bottom: 15px;
-  color: #333;
-  font-size: 1.1em;
+.preview-canvas {
+  display: block;
+  width: 512px;
+  height: 512px;
+  background: white;
 }
 
-.preview-item canvas {
-  width: 100%;
-  height: auto;
-  object-fit: contain;
-  border: 1px solid #eee;
-  border-radius: 4px;
+.control-group {
+  background: var(--background-color);
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 
-button {
-  padding: 8px 16px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
+.group-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
   cursor: pointer;
-  width: 100%;
-}
-
-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-button:hover:not(:disabled) {
-  background-color: #45a049;
-}
-
-.debug-info {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 10px;
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-.control-options {
+  transition: background-color 0.2s;
+  border-radius: 8px 8px 0 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 10px;
+  justify-content: space-between;
 }
 
-.auto-process {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.group-header:hover {
+  background-color: var(--background-color-hover);
+}
+
+.group-header h3 {
+  margin: 0;
   font-size: 14px;
-  color: #666;
+  font-weight: 500;
+  color: var(--text-color);
 }
 
-.download-all-button {
-  margin-top: 10px;
-  width: 100%;
-  padding: 8px 16px;
-  background-color: #673AB7;
-  color: white;
-  border: none;
-  border-radius: 4px;
+.toggle-icon {
+  color: var(--text-color-3);
+  font-size: 16px;
+}
+
+.group-content {
+  padding: 12px 16px;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-height: 32px;
+}
+
+.control-item:last-child {
+  margin-bottom: 0;
+}
+
+.control-item label {
+  flex: 0 0 80px;
+  font-size: 13px;
+  color: var(--text-color-2);
+}
+
+.control-item input[type="range"] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--b3-theme-primary-light);
+  border-radius: 2px;
+  outline: none;
+}
+
+.control-item input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--b3-theme-primary);
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: transform 0.2s;
 }
 
-.download-all-button:hover:not(:disabled) {
-  background-color: #5E35B1;
+.control-item input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
 }
 
-.download-all-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
+.control-item span {
+  min-width: 40px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text-color-3);
 }
 
-.download-button {
-  margin-top: 10px;
-  padding: 6px 12px;
-  background-color: #2196F3;
-  color: white;
-  border: none;
+.control-item select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
+  background: var(--background-color);
+  color: var(--text-color);
+  font-size: 13px;
+  outline: none;
   cursor: pointer;
-  font-size: 0.9em;
-  transition: background-color 0.3s;
 }
 
-.download-button:hover {
-  background-color: #1976D2;
+.control-item select:hover {
+  border-color: var(--b3-theme-primary);
 }
 
-.step-params {
-  margin-top: 10px;
-  padding: 8px;
-  background: #f5f5f5;
-  border-radius: 4px;
+.control-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
 }
 
-.param-control {
+.right-panel {
+  background: var(--background-color-2);
+  border-left: 1px solid var(--border-color);
+}
+
+.section-title {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.panel-content {
+  padding: 16px;
+}
+
+.zoom-control {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
-.param-control label {
-  min-width: 80px;
-  font-size: 0.9em;
-  color: #666;
+.zoom-value {
+  min-width: 60px;
+  text-align: center;
+  font-size: 13px;
 }
 
-.param-control input[type="range"] {
-  flex: 1;
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.param-value {
-  min-width: 40px;
-  text-align: right;
-  font-size: 0.9em;
-  color: #666;
+.preview-item {
+  background: var(--background-color);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.debug-previews {
-  margin-top: 15px;
-  padding: 10px;
-  background: #f8f9fa;
-  border-radius: 4px;
+.preview-item:hover {
+  background: var(--background-color-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.debug-preview {
-  margin-bottom: 15px;
+.preview-item.active {
+  border-color: var(--b3-theme-primary);
+  background: var(--b3-theme-surface);
 }
 
-.debug-preview h4 {
+.preview-item h4 {
   margin: 0 0 8px 0;
   font-size: 14px;
-  color: #666;
+  font-weight: 500;
+  color: var(--b3-theme-on-surface);
 }
 
-.debug-preview img {
-  max-width: 100%;
+.preview-thumbnail {
+  width: 100%;
   height: auto;
-  border: 1px solid #ddd;
   border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.debug-info {
-  margin-bottom: 15px;
+.show-all-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
 }
 
-.debug-info h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  color: #666;
-}
-
-.debug-info pre {
+.show-all-toggle input[type="checkbox"] {
   margin: 0;
-  padding: 8px;
-  background: #fff;
-  border: 1px solid #ddd;
+}
+
+.fn__flex-sb {
+  justify-content: space-between;
+}
+
+.step-preview-area {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--background-color-2);
+}
+
+.step-preview,
+.branche-preview-item {
+  position: relative;
+  min-width: 100px;
+  width: 100px;
+}
+
+.step-preview .preview-canvas {
+  width: 100%;
+  height: 200px;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.preview-label {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--text-color-3);
+}
+
+.branches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.branche-preview-item {
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.2s;
+}
+
+.branche-preview-item .preview-canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.branche-preview-item:hover {
+  opacity: 0.9;
+}
+
+.branche-preview-item.active {
+  opacity: 1;
+}
+
+.branche-preview-item.active .preview-canvas {
+  border: 2px solid var(--b3-theme-primary);
+}
+
+.branche-preview-item .preview-label {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  padding: 4px 8px;
+  background: var(--background-color);
   border-radius: 4px;
   font-size: 12px;
-  overflow-x: auto;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.branche-preview-item:hover .preview-label {
+  display: block;
+}
+
+.add-branche-btn {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-branche-btn:hover {
+  background: var(--background-color-hover);
+  border-color: var(--b3-theme-primary);
+}
+
+.add-icon {
+  font-size: 24px;
+  color: var(--text-color-3);
+}
+
+/* 修改预览项布局 */
+.preview-content {
+  display: flex;
+  gap: 12px;
+}
+
+.preview-thumbnail {
+  width: 200px;
+  height: 200px;
+}
+
+.branches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.branche-preview-item {
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.2s;
+}
+
+.branche-preview-item:hover {
+  opacity: 0.9;
+}
+
+.branche-preview-item.active {
+  opacity: 1;
+  border: 2px solid var(--b3-theme-primary);
+}
+
+.add-branche-btn {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-branche-btn:hover {
+  background: var(--background-color-hover);
+  border-color: var(--b3-theme-primary);
+}
+
+.preview-label {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--background-color);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.branche-preview-item:hover .preview-label {
+  display: block;
+}
+
+/* 确保滚动条样式统一 */
+
+
+.branches-list::-webkit-scrollbar,
+.control-groups::-webkit-scrollbar {
+  width: 6px;
+}
+
+.branches-list::-webkit-scrollbar-thumb,
+.control-groups::-webkit-scrollbar-thumb {
+  background-color: var(--scroll-bar-color);
+  border-radius: 3px;
+}
+
+.branches-list::-webkit-scrollbar-track,
+.control-groups::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 添加分支选择对话框样式 */
+.branch-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: var(--background-color);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  max-width: 500px;
+}
+
+.branch-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.branch-option {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.branch-option:hover {
+  background: var(--background-color-hover);
+  border-color: var(--b3-theme-primary);
+}
+
+.branch-name {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.branch-desc {
+  display: block;
+  font-size: 12px;
+  color: var(--text-color-3);
+}
+
+.close-btn {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  background: var(--b3-theme-primary);
+  color: white;
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  opacity: 0.9;
 }
 </style>

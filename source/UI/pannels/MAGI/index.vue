@@ -66,14 +66,14 @@
 import { ref, reactive, computed, onMounted, provide, nextTick } from 'vue'
 import SeelPanel from './components/SeelPanel.vue'
 import MagiMainPanel from './components/MagiMainPanel.vue'
-import { 处理流式消息, 创建消息 } from './utils/messageUtils.js'
+import { 处理流式消息, 创建消息,处理三贤人响应并转换Think标签 } from './utils/messageUtils.js'
 import { 
     useMagi, 
     processSagesResponses,
     生成共识聊天回复 as generateConsensusResult, 
     handleTrinitySummary, 
     processVoting,
-    assessDeepThinking
+    
 } from './composables/useMagi.js'
 import Questionnaire from './components/persona/questionnaire.vue'
 
@@ -100,36 +100,20 @@ const toggleAllMessages = () => {
     showAllMessages.value = !showAllMessages.value
     seels.forEach(seel => seel.showMessages = showAllMessages.value)
 }
-
 const sendToAll = async () => {
     try {
         const userMessage = globalInput.value.trim()
         if (!userMessage || connectionStatus.value !== 'connected') return
-
         globalInput.value = ''
-
         // 添加用户消息
         consensusMessages.push(创建消息('user', userMessage))
-
         // 获取三贤者的响应
         const sages = seels.filter(seel => seel.config.name !== 'TRINITY-00')
         const trinity = seels.find(seel => seel.config.name === 'TRINITY-00')
-
         // 拆分处理三贤者响应为独立函数
         const completedResponses = await processSagesResponses(sages, userMessage);
-
         // 过滤有效响应并转换 think 标签
-        const validResponses = completedResponses
-            .filter(response => response?.content)
-            .map(response => ({
-                seel: response.seel,
-                content: response.content.replace(
-                    /<think>([\s\S]*?)<\/think>/g,
-                    `<thinkOf-${response.seel}>$1</thinkOf-${response.seel}>`
-                ),
-                displayName: response.displayName
-            }))
-
+        const validResponses = 处理三贤人响应并转换Think标签(completedResponses)
         // 存储崔尼蒂的总结结果
         let trinityResult = null
         if (validResponses.length > 0 && trinity) {

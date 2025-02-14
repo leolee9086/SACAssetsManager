@@ -1,9 +1,11 @@
 import { kernelApi } from "../../../asyncModules.js";
 import { runPipeline } from './pipelineManager.js';
-import { AutoTokenizer, CLIPTextModelWithProjection,AutoModel, AutoProcessor, RawImage, matmul } from '../../../../static/@huggingface/transformers/index.js';
+import { AutoTokenizer, CLIPTextModelWithProjection,AutoModel, AutoProcessor, RawImage, matmul,env  } from '../../../../static/@huggingface/transformers/index.js';
 import { IEventEmitterSimple } from "../../../utils/events/emitter.js";
 import { splitText } from './textSplitter.js';
+console.log(env)
 const sql = `select hash,id from blocks where length limit 10240000`
+
 //请求所有hash
 console.time('查询全库hash')
 const allHashIds = (await kernelApi.sql({stmt:sql}))
@@ -61,6 +63,34 @@ const batchSizeController = {
   }
 };
 
+// 添加模型下载进度监控
+async function downloadWithProgress(url, options = {}) {
+    const response = await fetch(url);
+    const contentLength = response.headers.get('content-length');
+    const total = parseInt(contentLength, 10);
+    let loaded = 0;
+    
+    const reader = response.body.getReader();
+    const chunks = [];
+
+    while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        
+        chunks.push(value);
+        loaded += value.length;
+        
+        // 计算下载进度
+        const progress = (loaded / total) * 100;
+        console.log(`下载进度: ${progress.toFixed(1)}%, ${(loaded/1024/1024).toFixed(2)}MB/${(total/1024/1024).toFixed(2)}MB`);
+    }
+
+    return new Blob(chunks);
+}
+
+// 添加缓存控制
+const modelCache = new Map();
+
 // 修改嵌入生成函数中的向量处理
 async function generateEmbedding(content) {
     try {
@@ -80,9 +110,46 @@ async function generateEmbedding(content) {
         if (!generateEmbedding.model || !generateEmbedding.processor) {
             console.log('初始化模型和处理器...');
             const model_id = 'jinaai/jina-clip-v2';
+            
+            // 重写 AutoProcessor 和 AutoModel 的 from_pretrained 方法
+            const originalProcessorFromPretrained = AutoProcessor.from_pretrained;
+            const originalModelFromPretrained = AutoModel.from_pretrained;
+
+            AutoProcessor.from_pretrained = async (modelId, options = {}) => {
+                const cacheKey = `processor_${modelId}`;
+                if (modelCache.has(cacheKey)) {
+                    console.log('使用缓存的处理器');
+                    return modelCache.get(cacheKey);
+                }
+
+                console.log('开始下载处理器...');
+                const processor = await originalProcessorFromPretrained.call(AutoProcessor, modelId, {
+                    ...options,
+                    fetchFn: downloadWithProgress
+                });
+                modelCache.set(cacheKey, processor);
+                return processor;
+            };
+
+            AutoModel.from_pretrained = async (modelId, options = {}) => {
+                const cacheKey = `model_${modelId}`;
+                if (modelCache.has(cacheKey)) {
+                    console.log('使用缓存的模型');
+                    return modelCache.get(cacheKey);
+                }
+
+                console.log('开始下载模型...');
+                const model = await originalModelFromPretrained.call(AutoModel, modelId, {
+                    ...options,
+                    fetchFn: downloadWithProgress
+                });
+                modelCache.set(cacheKey, model);
+                return model;
+            };
+
             generateEmbedding.processor = await AutoProcessor.from_pretrained(model_id);
             generateEmbedding.model = await AutoModel.from_pretrained(model_id, {
-                dtype: "q4",  // 使用更高效的量化方式
+                dtype: "q4",
             });
             console.log('模型初始化完成');
         }

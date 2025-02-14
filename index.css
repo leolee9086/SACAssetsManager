@@ -1000,3 +1000,9 @@ body[data-subapp]  {
         pointer-events: none;
     }
 }
+.b3-card__img svg {
+    height: 74px;
+    object-fit: cover;
+    border-radius: var(--b3-border-radius);
+    width: 74px;
+}
