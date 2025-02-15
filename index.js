@@ -69,7 +69,6 @@ const TAB_CONFIGS = {
 
   ...构建TAB配置()
 }
-console.log(构建TAB配置())
 const DOCK_CONFIGS = {
   AssetsPanel: {
     icon: "iconInfo",

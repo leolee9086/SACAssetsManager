@@ -1,6 +1,7 @@
 import { plugin } from "../pluginSymbolRegistry.js"
 import { kernelApi } from "../asyncModules.js"
 import BlockHandler from "../fromThirdParty/siyuanUtils/BlockHandler.js"
+import { 思源sql助手提示词 } from "../../assets/prompts/思源笔记表结构介绍.js";
 function mergeUserDialogue(notechat) {
     let mergedDialogue = [];
     let tempContent = '';
@@ -148,7 +149,87 @@ plugin.eventBus.on(
                     console.error('对话出错:', error)
                 })
                 emitter.emit('start')
-            }
+            },
+            submenu: [
+                {
+                    label: '基于相关内容对话',
+                    click: async () => {
+                        // 获取选中块的内容
+                        const block = e.detail.blockElements[0];
+                        const blockHandler = new BlockHandler(block.getAttribute('data-node-id'));
+                        const content = blockHandler.markdown;
+                        
+                        // 构造系统提示词
+                        const systemPrompt = {
+                            role: 'system',
+                            content: 思源sql助手提示词
+                        };
+                        
+                        // 构造用户查询
+                        const userQuery = {
+                            role: 'user',
+                            content: `请分析以下内容，根据它们的主题和讨论领域，总结关键词,编写合适的SQL嵌入块来查询相关内容，例如如果内容中提到了悉尼歌剧院，你可能需要搜索建筑、澳大利亚等等关键词：\n${content}\n请直接给出嵌入块，不要使用代码块包裹。`
+                        };
+                        
+                        // 合并对话历史
+                        const noteChat = [systemPrompt, userQuery];
+                        const merged = mergeUserDialogue(noteChat);
+                        
+                        // 调用流式对话
+                        const { showStreamingChatDialog } = await import('../UI/dialogs/streamingChatDialog.js');
+                        const emitter = await showStreamingChatDialog(merged, window.siyuan.config.ai.openAI);
+                        
+                        let responseContent = '';
+                        
+                        emitter.on('data', (text) => {
+                            responseContent += text;
+                        });
+                        
+                        emitter.on('userAccept', async () => {
+                            if (responseContent) {
+                                const lastBlock = e.detail.blockElements[e.detail.blockElements.length - 1];
+                                const last = new BlockHandler(lastBlock.getAttribute('data-node-id'));
+                                const data = await last.insertAfter(responseContent);
+                                
+                                // 为新插入的块设置助手角色
+                                data.forEach(item => {
+                                    item.doOperations.forEach(async op => {
+                                        await kernelApi.setBlockAttrs({
+                                            id: op.id,
+                                            attrs: {
+                                                'custom-chat-role': 'assistant',
+                                                'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
+                                                'custom-chat-model': window.siyuan.config.ai.openAI.model
+                                            }
+                                        });
+                                        // 处理子块
+                                        const blockIds = op.data.match(/data-node-id="([^"]+)"/g);
+                                        if (blockIds) {
+                                            blockIds.forEach(blockId => {
+                                                const id = blockId.replace('data-node-id="', '').replace('"', '');
+                                                kernelApi.setBlockAttrs({
+                                                    id: id,
+                                                    attrs: {
+                                                        'custom-chat-role': 'assistant',
+                                                        'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
+                                                        'custom-chat-model': window.siyuan.config.ai.openAI.model
+                                                    }
+                                                });
+                                            });
+                                        }
+                                    });
+                                });
+                            }
+                        });
+                        
+                        emitter.on('error', (error) => {
+                            console.error('对话出错:', error);
+                        });
+                        
+                        emitter.emit('start');
+                    }
+                }
+            ]
         })
     }
 )
