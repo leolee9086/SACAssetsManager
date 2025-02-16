@@ -1,12 +1,73 @@
 <template>
   <div class="query-builder">
-    <!-- 表选择器 -->
-    <div class="table-selector">
-      <select v-model="selectedTable" class="table-select">
-        <option v-for="tableName in tableNames" :key="tableName" :value="tableName">
-          {{ tableName }}
-        </option>
-      </select>
+    <!-- 头部查询结构 -->
+    <div class="query-header">
+      <div class="query-clause">
+        <span class="keyword">SELECT</span>
+        <div class="field-selector-trigger" @click="isFieldSelectorOpen = !isFieldSelectorOpen">
+          <template v-if="selectedFields.filter(f => f.selected).length > 0">
+            <span v-for="(field, index) in selectedFields.filter(f => f.selected)" 
+                  :key="field.name" 
+                  class="selected-field-tag">
+              {{ field.name }}
+              <span v-if="field.alias" class="alias">AS {{ field.alias }}</span>
+              <span v-if="index < selectedFields.filter(f => f.selected).length - 1">, </span>
+            </span>
+          </template>
+          <span v-else class="placeholder">选择字段...</span>
+        </div>
+        
+        <div v-if="isFieldSelectorOpen" class="field-selector-dropdown">
+          <div class="selected-fields">
+            <div v-for="(field, index) in selectedFields" 
+                 :key="index" 
+                 class="field-item">
+              <label>
+                <input 
+                  type="checkbox" 
+                  v-model="field.selected"
+                  class="field-checkbox"
+                >
+                {{ field.name }}
+              </label>
+              <input
+                v-model="field.alias"
+                type="text"
+                placeholder="别名"
+                class="alias-input"
+              >
+              <button 
+                class="remove-field"
+                @click="removeField(index)"
+                title="移除字段"
+              >×</button>
+            </div>
+          </div>
+          <select 
+            v-model="newFieldToAdd" 
+            class="add-field-select"
+            @change="addFieldToSelection"
+          >
+            <option value="">添加新字段...</option>
+            <option 
+              v-for="field in availableFields" 
+              :key="field.name" 
+              :value="field.name"
+            >
+              {{ field.displayName || field.name }}
+            </option>
+          </select>
+        </div>
+
+        <span class="keyword">FROM</span>
+        <select v-model="selectedTable" class="table-select">
+          <option v-for="tableName in tableNames" 
+                  :key="tableName" 
+                  :value="tableName">
+            {{ tableName }}
+          </option>
+        </select>
+      </div>
     </div>
 
     <!-- 主条件选择器 -->
@@ -99,6 +160,28 @@ const conditions = ref([{
 }])
 const generatedSQL = ref('')
 
+const selectedFields = ref([]) // 改为数组存储选中字段和别名
+const newFieldToAdd = ref('')
+
+// 计算可用字段（排除已选择的）
+const availableFields = computed(() => {
+  return fields.value.filter(f => 
+    !selectedFields.value.some(sf => sf.name === f.name)
+  )
+})
+
+// 添加字段到选择列表
+const addFieldToSelection = () => {
+  if (newFieldToAdd.value) {
+    selectedFields.value.push({
+      name: newFieldToAdd.value,
+      alias: '',
+      selected: true
+    })
+    newFieldToAdd.value = ''
+  }
+}
+
 const addCondition = () => {
   conditions.value.push({
     field: '',
@@ -125,7 +208,19 @@ watch(conditions, (newConditions) => {
 }, { deep: true });
 
 const generateQuery = () => {
-  let query = `SELECT * FROM ${selectedTable.value}`
+  // 构建SELECT部分
+  const selectedColumns = selectedFields.value
+    .filter(f => f.selected)
+    .map(f => {
+      const alias = f.alias ? ` AS "${f.alias}"` : ''
+      return `${f.name}${alias}`
+    })
+  
+  const columns = selectedColumns.length > 0 
+    ? selectedColumns.join(', ') 
+    : '*'
+
+  let query = `SELECT ${columns} FROM ${selectedTable.value}`
   
   if (conditions.value.length > 0) {
     query += ' WHERE '
@@ -186,6 +281,14 @@ const generateQuery = () => {
   
   generatedSQL.value = query
 }
+
+// 新增响应式状态
+const isFieldSelectorOpen = ref(false)
+
+// 移除字段方法
+const removeField = (index) => {
+  selectedFields.value.splice(index, 1)
+}
 </script>
 
 <style scoped>
@@ -197,22 +300,101 @@ const generateQuery = () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.table-selector {
-  margin-bottom: 12px;
+.query-header {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  border: 1px solid #e9ecef;
+}
+
+.query-clause {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.keyword {
+  font-weight: 600;
+  color: #0d6efd;
+  white-space: nowrap;
+}
+
+.field-selector-trigger {
+  flex: 1;
+  min-width: 200px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  background: white;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.field-selector-trigger:hover {
+  border-color: #86b7fe;
+}
+
+.placeholder {
+  color: #6c757d;
+  font-style: italic;
+}
+
+.selected-field-tag {
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.alias {
+  color: #0d6efd;
+  font-size: 0.9em;
+}
+
+.field-selector-dropdown {
+  position: absolute;
+  width: 100%;
+  max-width: 600px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 12px;
+  z-index: 100;
+  margin-top: 8px;
+}
+
+.field-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.remove-field {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.remove-field:hover {
+  background: #fff5f5;
 }
 
 .table-select {
   padding: 6px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid #dee2e6;
   border-radius: 4px;
-  background: #fff;
+  background: white;
   min-width: 120px;
-  font-size: 14px;
-}
-
-.table-select:focus {
-  outline: none;
-  border-color: #1890ff;
 }
 
 .main-condition {
@@ -282,7 +464,7 @@ const generateQuery = () => {
 }
 
 .generate-btn {
-  margin-top: 16px;
+  margin-top: 20px;
   padding: 8px 16px;
   background: #1890ff;
   color: white;
@@ -320,5 +502,43 @@ button:hover {
   border-radius: 4px;
   font-family: monospace;
   font-size: 14px;
+}
+
+.field-selector {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 12px;
+}
+
+.selected-fields {
+  margin-bottom: 8px;
+}
+
+.field-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.field-checkbox {
+  margin-right: 6px;
+}
+
+.alias-input {
+  flex: 1;
+  max-width: 200px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.add-field-select {
+  width: 100%;
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
 }
 </style>
