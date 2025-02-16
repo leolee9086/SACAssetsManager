@@ -34,8 +34,8 @@ export const tables = {
         isSelector: true,
         getOptions: async () => {
           // 使用 SQL 查询获取所有唯一的 name 值
-          const sql = 'SELECT DISTINCT name FROM attributes ORDER BY name';
-          const result = await kernelApi.sql.sync({stmt:sql});
+          const sql = 'SELECT DISTINCT name FROM attributes ORDER BY name limit 100000';
+          const result = await kernelApi.sql({stmt:sql});
           return result.map(row => ({ label: row.name, value: row.name }));
         }
       },

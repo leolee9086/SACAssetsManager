@@ -1,20 +1,29 @@
 <template>
   <div class="field-input-container">
     <!-- 选择器输入 -->
-    <select
-      v-if="isSelector"
-      v-model="localValue"
-      class="field-select"
-    >
-      <option value="">请选择</option>
-      <option
-        v-for="option in options"
-        :key="option.value"
-        :value="option.value"
+    <div v-if="isSelector" class="selector-container">
+      <select
+        v-model="localValue"
+        class="field-select"
       >
-        {{ option.label }}
-      </option>
-    </select>
+        <option value="">请选择</option>
+        <option
+          v-for="option in options"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </select>
+      <button
+        v-if="fieldConfig?.getOptions"
+        class="refresh-button"
+        @click="loadOptions"
+        title="刷新选项"
+      >
+        🔄
+      </button>
+    </div>
 
     <!-- 日期时间输入 -->
     <template v-else-if="isDateTime">
@@ -68,6 +77,7 @@ const props = defineProps({
   modelValue: [String, Array],
   field: String,
   operator: String,
+  table: String 
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -78,11 +88,7 @@ const localValue = ref(props.modelValue);
 
 // 计算当前字段的配置信息
 const fieldConfig = computed(() => {
-  for (const table of Object.values(tables)) {
-    const field = table.fields.find(f => f.name === props.field);
-    if (field) return field;
-  }
-  return null;
+  return tables[props.table]?.fields.find(f => f.name === props.field);
 });
 
 // 判断是否为选择器类型
@@ -102,17 +108,43 @@ const placeholder = computed(() => {
   return '请输入匹配字符串';
 });
 
-// 加载选择器选项
+// 修改后的选项加载逻辑
 const loadOptions = async () => {
+  console.log('开始加载选项，当前字段:', props.field, '表:', props.table);
   if (isSelector.value && fieldConfig.value?.getOptions) {
     try {
+      console.log('正在调用getOptions函数');
       options.value = await fieldConfig.value.getOptions();
+      console.log('获取到选项:', options.value);
     } catch (error) {
       console.error('加载选项失败:', error);
       options.value = [];
     }
+  } else {
+    console.log('非选择器字段，清空选项');
+    options.value = [];
   }
 };
+
+// 添加表变化监听
+watch(() => props.table, (newVal, oldVal) => {
+  if (newVal !== oldVal) {
+    console.log('表变化，重新加载选项');
+    loadOptions();
+  }
+});
+
+// 修改后的字段变化监听
+watch(() => props.field, (newVal, oldVal) => {
+  console.log('字段变化:', oldVal, '->', newVal);
+  loadOptions();
+}, { immediate: true });
+
+// 组件挂载时也加载选项
+onMounted(() => {
+  console.log('组件挂载，初始加载选项');
+  loadOptions();
+});
 
 // 监听值的变化
 watch(localValue, (newValue) => {
@@ -122,11 +154,6 @@ watch(localValue, (newValue) => {
 // 监听外部值的变化
 watch(() => props.modelValue, (newValue) => {
   localValue.value = newValue;
-});
-
-// 组件挂载时加载选项
-onMounted(() => {
-  loadOptions();
 });
 
 // 处理范围值的情况
@@ -174,6 +201,12 @@ watch(() => props.operator, (newOperator) => {
   min-width: 200px;
 }
 
+.selector-container {
+  position: relative;
+  display: flex;
+  gap: 8px;
+}
+
 .field-select,
 .value-input {
   width: 100%;
@@ -212,5 +245,19 @@ select.value-input {
 select.value-input:disabled {
   background: #f5f5f5;
   cursor: not-allowed;
+}
+
+.refresh-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 12px;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.refresh-button:hover {
+  color: #1890ff;
 }
 </style> 

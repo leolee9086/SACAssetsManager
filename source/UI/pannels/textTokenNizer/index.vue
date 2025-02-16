@@ -54,6 +54,7 @@
           v-model="condition.value"
           :field="condition.field"
           :operator="condition.operator"
+          :table="selectedTable"
         />
 
         <div class="condition-buttons">
