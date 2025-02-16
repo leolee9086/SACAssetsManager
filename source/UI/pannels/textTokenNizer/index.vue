@@ -388,6 +388,42 @@ const formatValue = (value) => {
   background: #fff;
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 查询构建部分 */
+.query-section {
+  flex: 0 0 auto; /* 不会被压缩，保持原有大小 */
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+/* 结果显示部分 */
+.result-container {
+  margin-top: 20px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  overflow: hidden;
+  flex: 1 1 auto; /* 允许伸缩，占据剩余空间 */
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* 确保flex布局正常工作 */
+}
+
+.result-header {
+  padding: 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+
+.result-table {
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .query-header {
@@ -654,25 +690,6 @@ button:hover {
   border: 1px solid #ddd;
   border-radius: 4px;
   cursor: pointer;
-}
-
-.result-container {
-  margin-top: 20px;
-  border: 1px solid #e9ecef;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.result-header {
-  padding: 12px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
-  font-weight: 500;
-}
-
-.result-table {
-  overflow-x: auto;
-  display: grid;
 }
 
 table {
