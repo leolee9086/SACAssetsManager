@@ -251,7 +251,7 @@ export class VideoEncoderManager {
     return new Blob([buffer], { type: mimeType });
   }
 }
-
+/*
 async function createTextVideo() {
   // 视频配置
   const config = {
@@ -364,4 +364,4 @@ async function main() {
   }
 } 
 
-await main()
+await main()*/
