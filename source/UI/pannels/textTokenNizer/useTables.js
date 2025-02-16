@@ -1,4 +1,5 @@
 import { kernelApi } from "../../../asyncModules.js";
+export {kernelApi}
 const timeFormatter = {
     toDisplay: (value) => {
       if (!value) return '';

@@ -144,12 +144,36 @@
     <div v-if="generatedSQL" class="sql-preview">
       <pre>{{ generatedSQL }}</pre>
     </div>
+
+    <div v-if="queryResult" class="result-container">
+      <div class="result-header">
+        查询结果 ({{ queryResult.length }} 条记录)
+      </div>
+      <div class="result-table">
+        <table>
+          <thead>
+            <tr>
+              <th v-for="(value, key) in queryResult[0]" :key="key">
+                {{ key }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, index) in queryResult" :key="index">
+              <td v-for="(value, key) in row" :key="key">
+                {{ formatValue(value) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, watch, computed, nextTick } from 'vue'
-import { useTables } from './useTables.js'
+import { useTables,kernelApi } from './useTables.js'
 import FieldSelect from './FieldSelect.vue'
 import FieldInput from './FieldInput.vue'
 
@@ -216,79 +240,89 @@ watch(conditions, (newConditions) => {
   });
 }, { deep: true });
 
-const generateQuery = () => {
-  // 构建SELECT部分
-  const selectedColumns = selectedFields.value
-    .filter(f => f.selected)
-    .map(f => {
-      const alias = f.alias ? ` AS "${f.alias}"` : ''
-      return `${f.name}${alias}`
-    })
-  
-  const columns = selectedColumns.length > 0 
-    ? selectedColumns.join(', ') 
-    : '*'
-
-  let query = `SELECT ${columns} FROM ${selectedTable.value}`
-  
-  if (conditions.value.length > 0) {
-    query += ' WHERE '
-    if (matchType.value === 'IS NOT') {
-      query += 'NOT ('
-    }
-    query += conditions.value
-      .map(c => {
-        const field = fields.value.find(f => f.name === c.field);
-        const formatValue = (value) => {
-          if (field?.formatter) {
-            return field.formatter.toStorage(value);
-          }
-          return value;
-        };
-
-        if (c.field === 'subquery') {
-          return `(${c.value})`;
-        } else if (c.field === 'created' || c.field === 'updated') {
-          switch(c.operator) {
-            case '=':
-              return `${c.field} = '${formatValue(c.value)}'`;
-            case '<':
-              return `${c.field} < '${formatValue(c.value)}'`;
-            case '>':
-              return `${c.field} > '${formatValue(c.value)}'`;
-            case 'between':
-              if (!Array.isArray(c.value) || c.value.length !== 2) return '';
-              return `${c.field} BETWEEN '${formatValue(c.value[0])}' AND '${formatValue(c.value[1])}'`;
-            case 'not_between':
-              if (!Array.isArray(c.value) || c.value.length !== 2) return '';
-              return `(${c.field} < '${formatValue(c.value[0])}' OR ${c.field} > '${formatValue(c.value[1])}')`;
-            default:
-              return `${c.field} ${c.operator} '${formatValue(c.value)}'`;
-          }
-        } else {
-          let value = c.value;
-          switch(c.operator) {
-            case 'like_prefix':
-              return `${c.field} LIKE '${value}%'`;
-            case 'like_suffix':
-              return `${c.field} LIKE '%${value}'`;
-            case 'like_contains':
-              return `${c.field} LIKE '%${value}%'`;
-            case 'like_custom':
-              return `${c.field} LIKE '${value}'`;
-            default:
-              return `${c.field} ${c.operator} '${value}'`;
-          }
-        }
+const generateQuery = async () => {
+  try {
+    // 构建SELECT部分
+    const selectedColumns = selectedFields.value
+      .filter(f => f.selected)
+      .map(f => {
+        const alias = f.alias ? ` AS "${f.alias}"` : ''
+        return `${f.name}${alias}`
       })
-      .filter(Boolean) // 移除空字符串
-      .join(` ${logicOperator.value} `)
-    if (matchType.value === 'IS NOT') {
-      query += ')'
+    
+    const columns = selectedColumns.length > 0 
+      ? selectedColumns.join(', ') 
+      : '*'
+
+    let query = `SELECT ${columns} FROM ${selectedTable.value}`
+    
+    if (conditions.value.length > 0) {
+      query += ' WHERE '
+      if (matchType.value === 'IS NOT') {
+        query += 'NOT ('
+      }
+      query += conditions.value
+        .map(c => {
+          const field = fields.value.find(f => f.name === c.field);
+          const formatValue = (value) => {
+            if (field?.formatter) {
+              return field.formatter.toStorage(value);
+            }
+            return value;
+          };
+
+          if (c.field === 'subquery') {
+            return `(${c.value})`;
+          } else if (c.field === 'created' || c.field === 'updated') {
+            switch(c.operator) {
+              case '=':
+                return `${c.field} = '${formatValue(c.value)}'`;
+              case '<':
+                return `${c.field} < '${formatValue(c.value)}'`;
+              case '>':
+                return `${c.field} > '${formatValue(c.value)}'`;
+              case 'between':
+                if (!Array.isArray(c.value) || c.value.length !== 2) return '';
+                return `${c.field} BETWEEN '${formatValue(c.value[0])}' AND '${formatValue(c.value[1])}'`;
+              case 'not_between':
+                if (!Array.isArray(c.value) || c.value.length !== 2) return '';
+                return `(${c.field} < '${formatValue(c.value[0])}' OR ${c.field} > '${formatValue(c.value[1])}')`;
+              default:
+                return `${c.field} ${c.operator} '${formatValue(c.value)}'`;
+            }
+          } else {
+            let value = c.value;
+            switch(c.operator) {
+              case 'like_prefix':
+                return `${c.field} LIKE '${value}%'`;
+              case 'like_suffix':
+                return `${c.field} LIKE '%${value}'`;
+              case 'like_contains':
+                return `${c.field} LIKE '%${value}%'`;
+              case 'like_custom':
+                return `${c.field} LIKE '${value}'`;
+              default:
+                return `${c.field} ${c.operator} '${value}'`;
+            }
+          }
+        })
+        .filter(Boolean) // 移除空字符串
+        .join(` ${logicOperator.value} `)
+      if (matchType.value === 'IS NOT') {
+        query += ')'
+      }
     }
+    
+    generatedSQL.value = query
+    
+    // 调用API获取数据
+    const response = await kernelApi.sql({ stmt: query })
+    console.log(response)
+    queryResult.value = response
+  } catch (error) {
+    console.error('查询失败:', error)
+    queryResult.value = null
   }
-  
-  generatedSQL.value = query
 }
 
 // 新增响应式状态
@@ -333,6 +367,17 @@ const vClickOutside = {
   unmounted(el) {
     document.removeEventListener('click', el.clickOutsideEvent)
   }
+}
+
+// 新增响应式数据
+const queryResult = ref(null)
+
+// 新增格式化方法
+const formatValue = (value) => {
+  if (value === null) return 'NULL'
+  if (value instanceof Date) return value.toLocaleString()
+  if (typeof value === 'object') return JSON.stringify(value)
+  return value
 }
 </script>
 
@@ -609,5 +654,69 @@ button:hover {
   border: 1px solid #ddd;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.result-container {
+  margin-top: 20px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.result-header {
+  padding: 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-weight: 500;
+}
+
+.result-table {
+  overflow-x: auto;
+  display: grid;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  display: grid;
+}
+
+thead, tbody {
+  display: grid;
+  width: 100%;
+}
+
+tr {
+  display: grid;
+  grid-auto-columns: minmax(150px, auto);
+  grid-auto-flow: column;
+}
+
+th, td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+  white-space: normal;
+  word-break: break-word;
+  min-width: 0;
+  overflow: hidden;
+}
+
+th {
+  background: #f8f9fa;
+  font-weight: 500;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+tr:hover {
+  background-color: #f8f9fa;
+}
+
+td {
+  font-family: monospace;
+  font-size: 0.9em;
 }
 </style>
