@@ -424,6 +424,8 @@ const formatValue = (value) => {
   overflow: auto;
   flex: 1 1 auto;
   min-height: 0;
+  position: relative; /* 为固定表头提供定位上下文 */
+  max-height: 100%;
 }
 
 .query-header {
@@ -694,20 +696,30 @@ button:hover {
 
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate; /* 改为separate以支持固定表头 */
+  border-spacing: 0;
   background: white;
-  display: grid;
 }
 
-thead, tbody {
-  display: grid;
-  width: 100%;
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8f9fa;
 }
 
-tr {
-  display: grid;
-  grid-auto-columns: minmax(150px, auto);
-  grid-auto-flow: column;
+th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  font-weight: 500;
+  z-index: 2;
+  /* 添加边框阴影效果 */
+  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+tbody {
+  position: relative;
 }
 
 th, td {
@@ -716,24 +728,11 @@ th, td {
   border-bottom: 1px solid #e9ecef;
   white-space: normal;
   word-break: break-word;
-  min-width: 0;
-  overflow: hidden;
+  min-width: 150px;
 }
 
-th {
-  background: #f8f9fa;
-  font-weight: 500;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-tr:hover {
-  background-color: #f8f9fa;
-}
-
-td {
-  font-family: monospace;
-  font-size: 0.9em;
+/* 确保最后一行底部边框可见 */
+tr:last-child td {
+  border-bottom: 1px solid #e9ecef;
 }
 </style>
