@@ -4,7 +4,11 @@
     <div class="query-header">
       <div class="query-clause">
         <span class="keyword">SELECT</span>
-        <div class="field-selector-trigger" @click="isFieldSelectorOpen = !isFieldSelectorOpen">
+        <div 
+          ref="triggerElement"
+          class="field-selector-trigger" 
+          @click.stop="toggleFieldSelector"
+        >
           <template v-if="selectedFields.filter(f => f.selected).length > 0">
             <span v-for="(field, index) in selectedFields.filter(f => f.selected)" 
                   :key="field.name" 
@@ -17,7 +21,12 @@
           <span v-else class="placeholder">选择字段...</span>
         </div>
         
-        <div v-if="isFieldSelectorOpen" class="field-selector-dropdown">
+        <div 
+          v-if="isFieldSelectorOpen" 
+          class="field-selector-dropdown"
+          :style="dropdownPosition"
+          v-click-outside="closeFieldSelector"
+        >
           <div class="selected-fields">
             <div v-for="(field, index) in selectedFields" 
                  :key="index" 
@@ -139,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, nextTick } from 'vue'
 import { useTables } from './useTables.js'
 import FieldSelect from './FieldSelect.vue'
 import FieldInput from './FieldInput.vue'
@@ -289,6 +298,42 @@ const isFieldSelectorOpen = ref(false)
 const removeField = (index) => {
   selectedFields.value.splice(index, 1)
 }
+
+// 新增元素引用和位置计算
+const triggerElement = ref(null)
+const dropdownPosition = reactive({
+  top: '0px',
+  left: '0px'
+})
+
+const toggleFieldSelector = async () => {
+  isFieldSelectorOpen.value = !isFieldSelectorOpen.value
+  if (isFieldSelectorOpen.value) {
+    await nextTick()
+    const rect = triggerElement.value.getBoundingClientRect()
+    dropdownPosition.top = `${rect.bottom + window.scrollY + 4}px`
+    dropdownPosition.left = `${rect.left + window.scrollX}px`
+  }
+}
+
+const closeFieldSelector = () => {
+  isFieldSelectorOpen.value = false
+}
+
+// 修改后的点击外部指令
+const vClickOutside = {
+  beforeMount(el, binding) {
+    el.clickOutsideEvent = function(event) {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value()
+      }
+    }
+    document.addEventListener('click', el.clickOutsideEvent)
+  },
+  unmounted(el) {
+    document.removeEventListener('click', el.clickOutsideEvent)
+  }
+}
 </script>
 
 <style scoped>
@@ -322,6 +367,7 @@ const removeField = (index) => {
 }
 
 .field-selector-trigger {
+  position: relative;
   flex: 1;
   min-width: 200px;
   border: 1px solid #dee2e6;
@@ -358,16 +404,13 @@ const removeField = (index) => {
 }
 
 .field-selector-dropdown {
-  position: absolute;
-  width: 100%;
+  position: fixed; /* 改为fixed定位 */
+  width: auto;
+  min-width: 300px;
   max-width: 600px;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
+  z-index: 1000;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  padding: 12px;
-  z-index: 100;
-  margin-top: 8px;
+  /* 移除之前的定位属性 */
 }
 
 .field-item {
@@ -540,5 +583,31 @@ button:hover {
   border: 1px solid #ddd;
   border-radius: 4px;
   background: #fff;
+}
+
+.dropdown-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-btn {
+  padding: 6px 12px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  padding: 6px 12px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
 }
 </style>
