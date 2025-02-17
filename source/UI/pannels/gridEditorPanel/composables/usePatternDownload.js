@@ -1,6 +1,6 @@
 import { ref } from '../../../../../static/vue.esm-browser.js'
 import { CanvasProcessor } from '../../../../utils/canvas/index.js'
-import { getRectangularUnit } from '../../../../utils/image/textures.js/pattern/recUnit.js'
+import { getRectangularUnit } from '../../../../utils/image/textures/pattern/recUnit.js'
 import { createPattern } from '../patterns.js'
 
 export function usePatternDownload() {

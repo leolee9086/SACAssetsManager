@@ -2,7 +2,7 @@ import { ref } from '../../../../../static/vue.esm-browser.js'
 import { createPattern } from '../patterns.js'
 import { createPerfStats, updatePerfStats } from '../performanceState.js'
 import { 创建遮罩画布元素 } from '../utils.js'
-import { hasRectangularUnit, getRectangularUnit } from '../../../../utils/image/textures.js/pattern/recUnit.js'
+import { hasRectangularUnit, getRectangularUnit } from '../../../../utils/image/textures/pattern/recUnit.js'
 
 export function useCanvasRenderer() {
   const width = ref(300)

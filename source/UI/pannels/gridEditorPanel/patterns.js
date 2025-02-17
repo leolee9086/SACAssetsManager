@@ -1,9 +1,9 @@
-import { PatternRenderer } from '../../../utils/image/textures.js/pattern/index.js'
-import { P1ImagePattern } from '../../../utils/image/textures.js/pattern/p1Image.js';
-import { P2ImagePattern } from '../../../utils/image/textures.js/pattern/p2Image.js'
-import { PGImagePattern } from '../../../utils/image/textures.js/pattern/pgImage.js';
-import { PMImagePattern } from '../../../utils/image/textures.js/pattern/pmImage.js'
-import { PGGImagePattern } from '../../../utils/image/textures.js/pattern/pggImage.js'
+import { PatternRenderer } from '../../../utils/image/textures/pattern/index.js'
+import { P1ImagePattern } from '../../../utils/image/textures/pattern/p1Image.js';
+import { P2ImagePattern } from '../../../utils/image/textures/pattern/p2Image.js'
+import { PGImagePattern } from '../../../utils/image/textures/pattern/pgImage.js';
+import { PMImagePattern } from '../../../utils/image/textures/pattern/pmImage.js'
+import { PGGImagePattern } from '../../../utils/image/textures/pattern/pggImage.js'
 import {
     P4GImagePattern,
     PMMImagePattern,
@@ -17,7 +17,7 @@ import {
     P6ImagePattern,
     P6MImagePattern,
     P31MImagePattern
-} from '../../../utils/image/textures.js/pattern/pmm.js'
+} from '../../../utils/image/textures/pattern/pmm.js'
 export {PatternRenderer}
 export const getPatternClass = (type) => {
     const patterns = {

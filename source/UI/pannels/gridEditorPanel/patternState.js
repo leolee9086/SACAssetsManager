@@ -1,4 +1,4 @@
-import { Vector2 } from "../../../utils/image/textures.js/pattern/geometry-utils.js"
+import { Vector2 } from "../../../utils/image/textures/pattern/geometry-utils.js"
 export const genPatternConfig = (basis1, basis2, nodeTransform, fillImageUrl, fillTransform, lineColor, lineWidth) => {
     return {
         lattice: {

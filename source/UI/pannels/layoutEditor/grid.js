@@ -1,6 +1,6 @@
 // 创建网格生成器
-import { FundamentalDomain,Lattice,PatternDefinition  } from "../../../utils/image/textures.js/pattern/index.js";
-import { Vector2 } from "../../../utils/image/textures.js/pattern/index.js";
+import { FundamentalDomain,Lattice,PatternDefinition  } from "../../../utils/image/textures/pattern/index.js";
+import { Vector2 } from "../../../utils/image/textures/pattern/index.js";
 export function createGridPattern(gridSize, lineWidth, lineColor, opacity) {
     // 1. 创建基本晶格
     const basis1 = new Vector2(gridSize, 0);

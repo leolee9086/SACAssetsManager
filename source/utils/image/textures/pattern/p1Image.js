@@ -35,7 +35,7 @@ export class P1ImagePattern {
                 },
                 fitMode: config.nodeImage?.fitMode || 'contain'
             } : null,
-            // 填���图片配置
+            // 填充图片配置
             fillImage: config.fillImage ? {
                 imageUrl: config.fillImage.imageUrl,
                 transform: config.fillImage.transform || {
@@ -305,35 +305,31 @@ export class P1ImagePattern {
         const { color, width, dash } = this.config.render.gridStyle;
         const { basis1, basis2 } = this.config.lattice;
 
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.setLineDash(dash);
+        // 收集所有网格线的起点和终点
+        const gridLines = [];
 
-        // 沿基向量1方向绘制网格线
+        // 收集基向量1方向的线段
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            ctx.beginPath();
-            const startX = basis1.x * i + basis2.x * gridRange.minJ;
-            const startY = basis1.y * i + basis2.y * gridRange.minJ;
-            ctx.moveTo(startX, startY);
-            
-            const endX = basis1.x * i + basis2.x * gridRange.maxJ;
-            const endY = basis1.y * i + basis2.y * gridRange.maxJ;
-            ctx.lineTo(endX, endY);
-            ctx.stroke();
+            gridLines.push({
+                startX: basis1.x * i + basis2.x * gridRange.minJ,
+                startY: basis1.y * i + basis2.y * gridRange.minJ,
+                endX: basis1.x * i + basis2.x * gridRange.maxJ,
+                endY: basis1.y * i + basis2.y * gridRange.maxJ
+            });
         }
 
-        // 沿基向量2方向绘制网格线
+        // 收集基向量2方向的线段
         for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-            ctx.beginPath();
-            const startX = basis1.x * gridRange.minI + basis2.x * j;
-            const startY = basis1.y * gridRange.minI + basis2.y * j;
-            ctx.moveTo(startX, startY);
-            
-            const endX = basis1.x * gridRange.maxI + basis2.x * j;
-            const endY = basis1.y * gridRange.maxI + basis2.y * j;
-            ctx.lineTo(endX, endY);
-            ctx.stroke();
+            gridLines.push({
+                startX: basis1.x * gridRange.minI + basis2.x * j,
+                startY: basis1.y * gridRange.minI + basis2.y * j,
+                endX: basis1.x * gridRange.maxI + basis2.x * j,
+                endY: basis1.y * gridRange.maxI + basis2.y * j
+            });
         }
+
+        // 批量绘制所有网格线
+        batchDrawLines(ctx, gridLines, { color, width, dash });
     }
     renderBoundary(ctx, gridRange) {
         const { color, width, dash } = this.config.render.boundaryStyle;
@@ -606,5 +602,21 @@ export function calculateSeamlessTilingRange(basis1, basis2, targetWidth, target
         periodHeight: Math.abs(periodsY)
     };
 
+}
+
+function batchDrawLines(ctx, lines, style) {
+    ctx.save();
+    ctx.strokeStyle = style.color;
+    ctx.lineWidth = style.width;
+    ctx.setLineDash(style.dash);
+
+    ctx.beginPath();
+    for (const line of lines) {
+        ctx.moveTo(line.startX, line.startY);
+        ctx.lineTo(line.endX, line.endY);
+    }
+    ctx.stroke();
+    
+    ctx.restore();
 }
 
