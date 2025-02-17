@@ -1,7 +1,7 @@
 import { clientApi, plugin } from '../../../asyncModules.js';
 import { showStreamingChatDialog } from '../../dialogs/streamingChatDialog.js'
 import { 刷新页面菜单项 } from './menuItems/main.js';
-import { 提取店铺信息菜单项 } from './menuItems/大众点评专属.js';
+import { 提取店铺信息菜单项, 查找五家推荐店铺菜单项 } from './menuItems/大众点评专属.js';
 import { 创建网页浏览器上下文 } from './webviewContext/index.js';
 const remote = require('@electron/remote')
 const 实例化网页electron菜单项 = (网页浏览器上下文, 原始菜单项) => {
@@ -103,6 +103,8 @@ export function createContextMenu({ remote, webviewRef, selectionText, linkURL, 
 
   // 修正城市页面 URL 匹配
   if (currentURL.match(/dianping\.com\/(?!shop|shopold|review|photos|map|search|list|deal)/)) {
+    menu.append(实例化网页electron菜单项(网页浏览器上下文,查找五家推荐店铺菜单项));
+
     menu.append(new remote.MenuItem({
       label: '提取店铺列表',
       click: async () => {

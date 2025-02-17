@@ -145,29 +145,11 @@
       <pre>{{ generatedSQL }}</pre>
     </div>
 
-    <div v-if="queryResult" class="result-container">
-      <div class="result-header">
-        查询结果 ({{ queryResult.length }} 条记录)
-      </div>
-      <div class="result-table">
-        <table>
-          <thead>
-            <tr>
-              <th v-for="(value, key) in queryResult[0]" :key="key">
-                {{ key }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in queryResult" :key="index">
-              <td v-for="(value, key) in row" :key="key">
-                {{ formatValue(value) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <!-- 替换原有表格为新组件 -->
+    <DataTable
+      v-if="queryResult"
+      :data="queryResult"
+    />
   </div>
 </template>
 
@@ -176,6 +158,7 @@ import { ref, reactive, watch, computed, nextTick } from 'vue'
 import { useTables,kernelApi } from './useTables.js'
 import FieldSelect from './FieldSelect.vue'
 import FieldInput from './FieldInput.vue'
+import DataTable from './DataTable.vue'
 
 const { getTableFields, getTableNames } = useTables()
 const selectedTable = ref('blocks')
@@ -371,14 +354,6 @@ const vClickOutside = {
 
 // 新增响应式数据
 const queryResult = ref(null)
-
-// 新增格式化方法
-const formatValue = (value) => {
-  if (value === null) return 'NULL'
-  if (value instanceof Date) return value.toLocaleString()
-  if (typeof value === 'object') return JSON.stringify(value)
-  return value
-}
 </script>
 
 <style scoped>

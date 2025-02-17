@@ -66,3 +66,67 @@ export const 提取店铺信息菜单项 ={
       }
     }
   }
+
+export const 查找五家推荐店铺菜单项 = {
+    label: '查找五家推荐店铺',
+    click: async (ctx) => {
+        const webviewRef = ctx.webview
+        try {
+            const pageContent = await webviewRef.executeJavaScript(`
+                document.body.innerText
+            `);
+
+            let csvContent = '';
+            const messages = [
+                {
+                    role: 'system',
+                    content: `请从以下大众点评页面内容中推荐五家最具实力的店铺，按推荐顺序输出CSV格式。需要包含字段：排名,店铺名称,推荐理由,人均消费,地址。
+                    
+输出格式示例：
+排名,店铺名称,推荐理由,人均消费,地址
+1,聚丰园饺子馆,"饺子品种多,食材新鲜",45元,北京市海淀区中关村大街1号
+2,川渝人家,地道川菜/服务热情,80元,朝阳区建国路88号
+...
+                    
+要求：
+1. 推荐理由用斜杠分隔多个优点
+2. 如果字段值包含逗号，请用双引号包裹
+3. 第一行为表头，后续五行为推荐店铺
+4. 人均消费统一用"元"结尾`
+                },
+                {
+                    role: 'user',
+                    content: pageContent
+                }
+            ];
+
+            const emitter = await showStreamingChatDialog(messages, window.siyuan?.config?.ai?.openAI || {
+                endpoint: 'https://api.openai.com/v1',
+                apiKey: '',
+                model: 'gpt-3.5-turbo'
+            });
+
+            emitter.on('data', (text) => {
+                csvContent += text;
+            });
+
+            emitter.on('end', () => {
+                csvContent = csvContent.replace(/<think>.*?<\/think>/g, '').trim();
+                // 创建固定文件名的下载链接
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `五家推荐店铺.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            });
+            
+            emitter.emit('start');
+        } catch (error) {
+            console.error('推荐店铺查询失败:', error);
+        }
+    }
+}
