@@ -102,70 +102,7 @@ export class P1ImagePattern {
             img.src = this.config[`${type}Image`].imageUrl;
         });
     }
-    createPatternCell() {
-        const { basis1, basis2 } = this.config.lattice;
-        // 计算单元格的实际尺寸 - 使用基向量的长度
-        const width = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-        const height = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-        const canvas = document.createElement('canvas');
-        // 确保画布足够大以容纳整个平行四边形
-        canvas.width = Math.ceil(Math.abs(basis1.x) + Math.abs(basis2.x));
-        canvas.height = Math.ceil(Math.abs(basis1.y) + Math.abs(basis2.y));
-        const ctx = canvas.getContext('2d');
-        // 移动到单元格中心
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        // 先绘制填充图片
-        if (this.fillImage && this.fillImageLoaded) {
-            this.drawImage(ctx, 'fill', width, height);
-        }
 
-        // 再绘制晶格点图片
-        if (this.nodeImage && this.nodeImageLoaded) {
-            this.drawImage(ctx, 'node', width, height);
-        }
-
-        this.patternCell = canvas;
-        this.patternReady = true;
-    }
-
-    drawImage(ctx, type, cellWidth, cellHeight) {
-        const config = this.config[`${type}Image`];
-        const image = type === 'node' ? this.nodeImage : this.fillImage;
-        // 计算实际缩放比例
-        const fitScale = calculateImageFitScale(
-            image.width,
-            image.height,
-            cellWidth,
-            cellHeight,
-            config.fitMode
-        );
-
-
-        ctx.save();
-        // 应用裁剪
-        if (this.config.lattice.clipMotif) {
-            this.clipToLatticeShape(ctx, cellWidth, cellHeight);
-        }
-        // 应用变换
-        const { scale, rotation, translate } = config.transform;
-
-        // 先平移到指定位置
-        ctx.translate(translate.x, translate.y);
-
-        // 再旋转（转换角度为弧度）
-        ctx.rotate((rotation * Math.PI) / 180);
-
-        // 最后缩放
-        const finalScale = scale * fitScale;
-        ctx.scale(finalScale, finalScale);
-        // 绘制图片，确保居中
-        ctx.drawImage(
-            image,
-            -image.width / 2,
-            -image.height / 2
-        );
-        ctx.restore();
-    }
     clipToLatticeShape(ctx, width, height) {
         const { shape,basis1,basis2 } = this.config.lattice;
         const 形状配置 ={
@@ -309,9 +246,6 @@ export class P1ImagePattern {
         const config = this.config.nodeImage;
         const {fitMode} =config.fitMode
         if (!this.nodeImage || !config) return;
-
-        
-
         // 计算单元格尺寸
         const { basis1, basis2 } = this.config.lattice;
         const {width,height} =this.nodeImage
@@ -330,7 +264,6 @@ export class P1ImagePattern {
         ctx.translate(translate.x, translate.y);
         ctx.rotate((rotation * Math.PI) / 180);
         ctx.scale(scale * fitScale, scale * fitScale);
-
         // 绘制晶格点图片，相对于格点位置
         ctx.drawImage(
             this.nodeImage,
