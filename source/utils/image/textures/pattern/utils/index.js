@@ -90,7 +90,7 @@ export function 以基向量对在画布上下文创建平行四边形路径(ctx
     }
     ctx.closePath();
 }
-export function 在画布上下文应用填充图片变换(ctx, 适配比例, 平移量, 旋转角度, 缩放系数) {
+export function 在画布上下文应用变换(ctx, 适配比例, 平移量, 旋转角度, 缩放系数) {
     ctx.translate(平移量.x, 平移量.y);
     ctx.rotate((旋转角度 * Math.PI) / 180);
     ctx.scale(缩放系数 * 适配比例, 缩放系数 * 适配比例);
