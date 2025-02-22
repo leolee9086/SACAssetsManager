@@ -263,25 +263,6 @@ export class P1ImagePattern {
         在画布上下文批量绘制线条(ctx, gridLines, { color, width, dash });
     }
 
-    drawUnitCellBoundary(ctx, x, y) {
-        const { shape } = this.config.lattice;
-        const { basis1, basis2 } = this.config.lattice;
-        switch (shape) {
-            case 'parallelogram':
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis1.x, y + basis1.y);
-                ctx.lineTo(x + basis1.x + basis2.x, y + basis1.y + basis2.y);
-                ctx.lineTo(x + basis2.x, y + basis2.y);
-                ctx.closePath();
-                break;
-            // 可以添加其他形状的边界绘制
-            default:
-                // 默认矩形
-                const width = this.patternCell.width;
-                const height = this.patternCell.height;
-                ctx.rect(x - width / 2, y - height / 2, width, height);
-        }
-    }
     // 工具方法
     isReady() {
         return this.nodeImageLoaded && this.fillImageLoaded && this.patternReady;
@@ -326,25 +307,25 @@ export class P1ImagePattern {
 
     drawNodeImage(ctx) {
         const config = this.config.nodeImage;
+        const {fitMode} =config.fitMode
         if (!this.nodeImage || !config) return;
 
-        ctx.save();
+        
 
         // 计算单元格尺寸
         const { basis1, basis2 } = this.config.lattice;
+        const {width,height} =this.nodeImage
         const cellWidth = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
         const cellHeight = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-
+        ctx.save();
         const fitScale = calculateImageFitScale(
-            this.nodeImage.width,
-            this.nodeImage.height,
+            width,
+            height,
             cellWidth,
             cellHeight,
-            config.fitMode
+            fitMode
         );
-
         const { scale, rotation, translate } = config.transform;
-
         // 应用晶格点图片的变换
         ctx.translate(translate.x, translate.y);
         ctx.rotate((rotation * Math.PI) / 180);
@@ -353,10 +334,9 @@ export class P1ImagePattern {
         // 绘制晶格点图片，相对于格点位置
         ctx.drawImage(
             this.nodeImage,
-            -this.nodeImage.width / 2,
-            -this.nodeImage.height / 2
+            -width / 2,
+            -height / 2
         );
-
         ctx.restore();
     }
 
