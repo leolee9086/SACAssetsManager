@@ -117,28 +117,21 @@ export class PMImagePattern extends P1ImagePattern {
             ctx.restore();
         }
     }
-
-
     drawNodePattern(ctx, x, y) {
         const { basis1 } = this.config.lattice;
         // 使用相同的计算方法
         const index = Math.floor((x / basis1.x + 1000000)) % 2;
         const shouldRotate = index === 1;
-
         if (this.nodeImage && this.nodeImageLoaded) {
             this.drawNodeImage(ctx);
         }
-
         if (shouldRotate) {
             ctx.save();
             ctx.scale(-1, 1); // y轴反射
-            
             if (this.nodeImage && this.nodeImageLoaded) {
                 this.drawNodeImage(ctx);
-            }
-            
+            }       
             ctx.restore();
         }
     }
-
 }

@@ -24,7 +24,6 @@ export class P1ImagePattern {
         if (!config.lattice?.basis1 || !config.lattice?.basis2) {
             throw new Error('必须提供有效的晶格基向量');
         }
-
     }
     normalizeConfig(config) {
         return {
@@ -122,16 +121,12 @@ export class P1ImagePattern {
         offscreenCanvas.width = viewport.width;
         offscreenCanvas.height = viewport.height;
         const offscreenCtx = offscreenCanvas.getContext('2d');
-
         // 在离屏 canvas 上绘制
         offscreenCtx.fillStyle = this.config.render.backgroundColor;
         offscreenCtx.fillRect(0, 0, viewport.width, viewport.height);
-
         offscreenCtx.save();
         offscreenCtx.translate(viewport.x || viewport.width / 2, viewport.y || viewport.height / 2);
-
         const gridRange = viewport.gridRange || this.calculateGridRange(viewport.width, viewport.height);
-
         // 1. 先绘制填充图案 - 注意填充图案应该在晶格单元的中心
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
             for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
@@ -277,3 +272,8 @@ export class P1ImagePattern {
         return 获取最小重复单元(this.config.lattice)
     }
 }
+
+function 以位置配置在画布上下文绘制图像(){
+    
+}
+

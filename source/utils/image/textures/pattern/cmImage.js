@@ -111,7 +111,6 @@ export class CMImagePattern extends P1ImagePattern {
         ctx.save();
         ctx.translate(x, y);
 
-        // 创建第一个三角形的裁剪路径
         ctx.beginPath();
         ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
         ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
