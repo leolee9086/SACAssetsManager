@@ -1,5 +1,6 @@
 import { calculateImageFitScale } from "../../utils.js";
 import { batchDrawLines } from "../../../canvas/draw/simpleDraw/lines.js";
+import { 从晶格获取最小重复单元 as  获取最小重复单元,以基向量对生成网格线数据 } from "./utils/index.js";
 export class P1ImagePattern {
     constructor(config) {
         this.validateConfig(config);
@@ -300,34 +301,12 @@ export class P1ImagePattern {
             maxJ
         };
     }
-
+    
     renderGrid(ctx, gridRange) {
         const { color, width, dash } = this.config.render.gridStyle;
         const { basis1, basis2 } = this.config.lattice;
-
-        // 收集所有网格线的起点和终点
-        const gridLines = [];
-
-        // 收集基向量1方向的线段
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            gridLines.push({
-                startX: basis1.x * i + basis2.x * gridRange.minJ,
-                startY: basis1.y * i + basis2.y * gridRange.minJ,
-                endX: basis1.x * i + basis2.x * gridRange.maxJ,
-                endY: basis1.y * i + basis2.y * gridRange.maxJ
-            });
-        }
-
-        // 收集基向量2方向的线段
-        for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-            gridLines.push({
-                startX: basis1.x * gridRange.minI + basis2.x * j,
-                startY: basis1.y * gridRange.minI + basis2.y * j,
-                endX: basis1.x * gridRange.maxI + basis2.x * j,
-                endY: basis1.y * gridRange.maxI + basis2.y * j
-            });
-        }
-
+        // 使用独立函数计算网格线数据
+      const gridLines = 以基向量对生成网格线数据(basis1, basis2, gridRange);
         // 批量绘制所有网格线
         batchDrawLines(ctx, gridLines, { color, width, dash });
     }
@@ -494,34 +473,4 @@ export class P1ImagePattern {
     getMinimalSeamlessUnit(){
         return 获取最小重复单元(this.config.lattice)
     }
-}
-function 获取最小重复单元(lattice) {
-    const { basis1, basis2 } = lattice;
-    
-    // 计算基向量的分量比
-    const ratioX = Math.abs(basis2.x / basis1.x);
-    const ratioY = Math.abs(basis2.y / basis1.y);
-    
-    // 找到最小的整数倍数使得两个基向量的分量比接近整数
-    const findMinimalMultiple = (ratio) => {
-        if (Math.abs(ratio) < 0.001) return 1;
-        const precision = 1e-6;
-        let i = 1;
-        while (i < 10) {
-            if (Math.abs(Math.round(ratio * i) - ratio * i) < precision) {
-                return i;
-            }
-            i++;
-        }
-        return 1;
-    };
-    
-    const mx = findMinimalMultiple(ratioX);
-    const my = findMinimalMultiple(ratioY);
-    
-    // 计算最小无缝单元的尺寸
-    return {
-        width: Math.abs(basis1.x * mx) + Math.abs(basis2.x * my),
-        height: Math.abs(basis1.y * mx) + Math.abs(basis2.y * my)
-    };
 }
