@@ -37,7 +37,7 @@ export function 从晶格获取最小重复单元(lattice) {
 * @param {Object} 网格范围 - 网格索引范围 {minI: number, maxI: number, minJ: number, maxJ: number}
 * @returns {Array<{startX: number, startY: number, endX: number, endY: number}>} 网格线数组
 */
-export function 以基向量对生成网格线数据(基向量1, 基向量2, 网格范围) {
+export function 以基向量对生成网格线数据(基向量1, 基向量2, 网格范围,样式) {
     const 网格线 = [];
 
     // 生成基向量1方向的平行线族
@@ -46,7 +46,8 @@ export function 以基向量对生成网格线数据(基向量1, 基向量2, 网
             startX: 基向量1.x * i + 基向量2.x * 网格范围.minJ,
             startY: 基向量1.y * i + 基向量2.y * 网格范围.minJ,
             endX: 基向量1.x * i + 基向量2.x * 网格范围.maxJ,
-            endY: 基向量1.y * i + 基向量2.y * 网格范围.maxJ
+            endY: 基向量1.y * i + 基向量2.y * 网格范围.maxJ,
+            style:样式
         });
     }
 
@@ -56,7 +57,8 @@ export function 以基向量对生成网格线数据(基向量1, 基向量2, 网
             startX: 基向量1.x * 网格范围.minI + 基向量2.x * j,
             startY: 基向量1.y * 网格范围.minI + 基向量2.y * j,
             endX: 基向量1.x * 网格范围.maxI + 基向量2.x * j,
-            endY: 基向量1.y * 网格范围.maxI + 基向量2.y * j
+            endY: 基向量1.y * 网格范围.maxI + 基向量2.y * j,
+            style:样式
         });
     }
 

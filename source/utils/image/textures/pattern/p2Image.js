@@ -158,7 +158,7 @@ export class P2ImagePattern {
             const config = this.config.fillImage;
             if (!this.fillImage || !config) return;
             ctx.save();
-            shouldRotate&&              ctx.rotate(Math.PI); // 旋转180度
+            shouldRotate && ctx.rotate(Math.PI); // 旋转180度
             // 计算单元格尺寸
             const { basis1, basis2 } = this.config.lattice;
             const { width, height } = this.fillImage
@@ -189,7 +189,7 @@ export class P2ImagePattern {
             );
             ctx.restore();
         }
-    
+
     }
 
     drawNodePattern(ctx, x, y) {
@@ -212,33 +212,5 @@ export class P2ImagePattern {
 
             ctx.restore();
         }
-    }
-
-    // 重写renderSymmetryElements以显示旋转中心
-    renderSymmetryElements(ctx) {
-        super.renderSymmetryElements?.(ctx);
-
-        const center = this.config.symmetry.rotationCenter;
-        const radius = 5;
-
-        ctx.save();
-
-        // 绘制旋转中心点
-        ctx.beginPath();
-        ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ff0000';
-        ctx.fill();
-
-        // 绘制旋转轴指示线
-        ctx.beginPath();
-        ctx.moveTo(center.x - radius * 2, center.y);
-        ctx.lineTo(center.x + radius * 2, center.y);
-        ctx.moveTo(center.x, center.y - radius * 2);
-        ctx.lineTo(center.x, center.y + radius * 2);
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.restore();
     }
 }

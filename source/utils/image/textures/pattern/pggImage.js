@@ -1,50 +1,88 @@
 import { 在画布上下文批量绘制线条 } from '../../../canvas/draw/simpleDraw/lines.js';
-import { drawImageWithConfig, P1ImagePattern } from './p1Image.js';
+import { P1ImagePattern } from './p1Image.js';
 import { 从视点和基向量对计算P1网格范围, 以基向量对生成网格线数据 } from './utils/index.js';
+import { drawImageWithConfig } from '../../../canvas/draw/simpleDraw/images.js';
+import { 校验P1晶格基向量, 规范化P1图案配置 } from './utils/config.js';
+function 校验PGG图案配置(config) {
 
-export class PGGImagePattern extends P1ImagePattern {
+    // 验证基向量必须正交
+    const { basis1, basis2 } = config.lattice;
+    const dotProduct = basis1.x * basis2.x + basis1.y * basis2.y;
+    if (Math.abs(dotProduct) > 1e-6) { // 允许小误差
+        throw new Error('pg群的基向量必须正交');
+    }
+
+    // 验证滑移向量（如果提供）
+    if (config.symmetry?.glideVector) {
+        if (typeof config.symmetry.glideVector.x !== 'number' ||
+            typeof config.symmetry.glideVector.y !== 'number') {
+            throw new Error('滑移向量必须包含有效的x和y坐标');
+        }
+    }
+}
+function 规范化PGG图案配置(config){
+            // 计算默认的滑移向量（使用basis1的一半）
+            const defaultGlide = {
+                x: config.lattice.basis1.x / 2,
+                y: config.lattice.basis1.y / 2
+            };
+    
+            return {
+                ...config,
+                symmetry: {
+                    glideVector: config.symmetry?.glideVector || defaultGlide
+                }
+            };
+    
+}
+export class PGGImagePattern  {
     constructor(config) {
-        super(config);
+        校验P1晶格基向量(config);
+        校验PGG图案配置(config)
+        this.config = 规范化P1图案配置(config);
+        this.config = 规范化PGG图案配置(config)
+        this.nodeImageLoaded = false;
+        this.fillImageLoaded = false;
+        this.patternReady = false;
+        this.nodeImage = null;
+        this.fillImage = null;
+        this.loadImages();
     }
-
-    validateConfig(config) {
-        // 先调用P1的基本验证
-        super.validateConfig(config);
-
-        // 验证基向量必须正交
-        const { basis1, basis2 } = config.lattice;
-        const dotProduct = basis1.x * basis2.x + basis1.y * basis2.y;
-        if (Math.abs(dotProduct) > 1e-6) { // 允许小误差
-            throw new Error('pg群的基向量必须正交');
+    async loadImages() {
+        if (!this.config.nodeImage && !this.config.fillImage) {
+            this.patternReady = true;
+            return;
         }
-
-        // 验证滑移向量（如果提供）
-        if (config.symmetry?.glideVector) {
-            if (typeof config.symmetry.glideVector.x !== 'number' ||
-                typeof config.symmetry.glideVector.y !== 'number') {
-                throw new Error('滑移向量必须包含有效的x和y坐标');
-            }
+        const loadPromises = [];
+        if (this.config.nodeImage) {
+            loadPromises.push(this.loadImage('node').catch(() => null));
         }
+        if (this.config.fillImage) {
+            loadPromises.push(this.loadImage('fill').catch(() => null));
+        }
+        await Promise.all(loadPromises);
+        this.patternReady = true;
     }
-
-    normalizeConfig(config) {
-        // 获取P1的标准化配置
-        const baseConfig = super.normalizeConfig(config);
-
-        // 计算默认的滑移向量（使用basis1的一半）
-        const defaultGlide = {
-            x: baseConfig.lattice.basis1.x / 2,
-            y: baseConfig.lattice.basis1.y / 2
-        };
-
-        return {
-            ...baseConfig,
-            symmetry: {
-                glideVector: config.symmetry?.glideVector || defaultGlide
-            }
-        };
+    async loadImage(type) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                if (type === 'node') {
+                    this.nodeImage = img;
+                    this.nodeImageLoaded = true;
+                } else {
+                    this.fillImage = img;
+                    this.fillImageLoaded = true;
+                }
+                resolve(img);
+            };
+            img.onerror = (err) => {
+                reject(new Error(`${type}图片加载失败`));
+            };
+            img.src = this.config[`${type}Image`].imageUrl;
+        });
     }
-
 
     render(ctx, viewport) {
         if (!this.patternReady) {
@@ -132,7 +170,7 @@ export class PGGImagePattern extends P1ImagePattern {
                 this.config.lattice,
                 this.config.fillImage,
                 this.config.lattice.clipMotif
-        );
+            );
             ctx.restore();
         }
     }
@@ -165,8 +203,6 @@ export class PGGImagePattern extends P1ImagePattern {
             ctx.restore();
         }
     }
-
-
 }
 
 

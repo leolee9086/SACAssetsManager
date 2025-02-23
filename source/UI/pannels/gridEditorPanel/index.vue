@@ -29,8 +29,8 @@
           <template v-if="currentTool === 'node'">
             <NodeStyleControls v-model:nodeShape="nodeShape" v-model:nodeTransform="nodeTransform"
               v-model:nodeStrokeWidth="nodeStrokeWidth" v-model:nodeStrokeColor="nodeStrokeColor"
-              v-model:polygonSettings="polygonSettings" @nodeImageUpload="handleNodeImageUpload" 
-              @update="() => genGridStyle(getPatternConfig())" />
+              v-model:polygonSettings="polygonSettings" @nodeImageUpload="handleNodeImageUpload"
+              @update="() => updateRender()" />
           </template>
           <template v-if="currentTool === 'symmetry'">
             <SymmetryControls v-model="symmetryType" @update:modelValue="updateSymmetryType" />
@@ -55,17 +55,9 @@
       <!-- 右侧属性面板 -->
       <div class="properties-panel">
         <FillImageControls v-model="fillTransform" @imageUpload="handleFillImageUpload" />
-        <BasisControls 
-          :symmetryType="symmetryType"
-          :patternName="'main'"
-        />
-        <DownloadControls 
-          :renderer="renderer"
-          :symmetryType="symmetryType"
-          :basis1="basis1"
-          :basis2="basis2"
-          :getPatternConfig="getPatternConfig"
-        />
+        <BasisControls :symmetryType="symmetryType" :patternName="'main'" />
+        <DownloadControls :renderer="renderer" :symmetryType="symmetryType" :basis1="basis1" :basis2="basis2"
+          :getPatternConfig="getPatternConfig" />
       </div>
     </div>
   </div>
@@ -83,7 +75,7 @@ import SymmetryControls from './SymmetryControls.vue'
 import BasisControls from './components/BasisControls.vue'
 import FillImageControls from './components/FillImageControls.vue'
 import DownloadControls from './components/DownloadControls.vue'
-import {  usePatternStateByName } from './composables/usePatternState.js'
+import { mergePatternAndNode, usePatternStateByName } from './composables/usePatternState.js'
 
 const { lineWidth, lineColor, opacity } = useLineStyle()
 
@@ -109,9 +101,9 @@ const {
   handleBasisInput,
   updateSymmetryType,
   getPatternConfig
-} = usePatternStateByName({ 
+} = usePatternStateByName({
   name: 'main',
-  genGridStyle 
+  genGridStyle
 })
 
 const {
@@ -124,11 +116,21 @@ const {
   processedNodeImage
 } = useNodeImage()
 
+const updateRender = () => {
+  genGridStyle(mergePatternAndNode(getPatternConfig(), {
+    nodeImageUrl,
+    nodeTransform,
+    polygonSettings,
+    nodeShape,
+    nodeStrokeWidth,
+    nodeStrokeColor,
+    processedNodeImage
+  }))
+}
 const handleNodeImageUpload = (file) => {
   if (file) {
     nodeImageUrl.value = URL.createObjectURL(file)
-    console.log(getPatternConfig())
-    genGridStyle(getPatternConfig()).catch(console.error)
+    updateRender()
   }
 }
 
@@ -143,27 +145,28 @@ const handleFillImageUpload = (file) => {
       rotation: 0,
       translate: { x: 0, y: 0 }
     }
-    genGridStyle(getPatternConfig())
+    updateRender()
+
   }
 }
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
   handleResize()
-      // 当没有文件时，创建一个包含数字"6"的canvas作为默认图片
-      const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    canvas.width = 100
-    canvas.height = 100
-    ctx.fillStyle = 'black'
-    ctx.font = '90px Arial'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('6', canvas.width/2, canvas.height/2)
-    canvas.toBlob((blob) => {
-      fillImageUrl.value = URL.createObjectURL(blob)
-      genGridStyle(getPatternConfig()).catch(console.error)
-    })
+  // 当没有文件时，创建一个包含数字"6"的canvas作为默认图片
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  canvas.width = 100
+  canvas.height = 100
+  ctx.fillStyle = 'black'
+  ctx.font = '90px Arial'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('6', canvas.width / 2, canvas.height / 2)
+  canvas.toBlob((blob) => {
+    fillImageUrl.value = URL.createObjectURL(blob)
+    genGridStyle(getPatternConfig()).catch(console.error)
+  })
 
 })
 
@@ -285,5 +288,3 @@ const getPanelTitle = computed(() => {
   overflow-y: auto;
 }
 </style>
-
-

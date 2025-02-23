@@ -103,3 +103,18 @@ export function getAllPatternStates() {
 export function hasPatternState(name = DEFAULT_PATTERN_STATE) {
   return createPatternState.包含实例(name)
 } 
+
+
+export function mergePatternAndNode(patternConfig,nodeConfig){
+  return {
+    ...patternConfig,
+    processedNodeImage:nodeConfig.processedNodeImage.value,
+    nodeTransform:nodeConfig.nodeTransform.value,
+
+    nodeImage:{
+      imageUrl:nodeConfig.nodeImageUrl.value,
+      transform:nodeConfig.nodeTransform.value,
+      processedNodeImage:nodeConfig.processedNodeImage.value
+    }
+  }
+}

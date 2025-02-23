@@ -1,7 +1,7 @@
 import { 在画布上下文批量绘制线条 } from '../../../canvas/draw/simpleDraw/lines.js';
-import { drawImageWithConfig, flipLattice, P1ImagePattern } from './p1Image.js';
+import {  flipLattice, P1ImagePattern } from './p1Image.js';
 import { 从视点和基向量对计算P1网格范围, 以基向量对生成网格线数据 } from './utils/index.js';
-
+import { drawImageWithConfig } from '../../../canvas/draw/simpleDraw/images.js';
 export class PMImagePattern extends P1ImagePattern {
     constructor(config) {
         super(config);

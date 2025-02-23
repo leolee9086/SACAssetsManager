@@ -1,4 +1,4 @@
-import { drawImageWithConfig } from "./p1Image.js";
+import { drawImageWithConfig } from "../../../canvas/draw/simpleDraw/images.js";
 import { PGGImagePattern } from "./pggImage.js";
 export class P4ImagePattern extends PGGImagePattern {
     constructor(config) {

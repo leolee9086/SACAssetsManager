@@ -3,17 +3,19 @@ import { createPattern } from '../patterns.js'
 import { createPerfStats, updatePerfStats } from '../performanceState.js'
 import { 创建遮罩画布元素 } from '../utils.js'
 import { hasRectangularUnit, getRectangularUnit } from '../../../../utils/image/textures/pattern/recUnit.js'
+import {drawImageWithConfig} from '../../../../utils/canvas/draw/simpleDraw/images.js'
+import { 在画布上下文批量绘制线条 } from '../../../../utils/canvas/draw/simpleDraw/lines.js'
 
 export function useCanvasRenderer() {
   const width = ref(300)
   const height = ref(300)
   const renderer = ref(null)
   const canvas = ref(null)
-  
+
   // 离屏缓冲相关
   let backBufferCanvas = null
   let backBufferCtx = null
-  
+
   const initializeBuffers = () => {
     if (!backBufferCanvas) {
       backBufferCanvas = document.createElement('canvas')
@@ -33,7 +35,7 @@ export function useCanvasRenderer() {
     }
     const THROTTLE_INTERVAL = 15
     const perfStats = createPerfStats()
-    
+
     // 核心渲染逻辑
     const executeRender = async (patternConfig) => {
       const startTime = performance.now()
@@ -62,14 +64,39 @@ export function useCanvasRenderer() {
 
     // 渲染到缓冲区
     const renderToBuffer = async (pattern) => {
-      pattern.render(backBufferCtx, {
+
+      const result = pattern.render(backBufferCtx, {
         width: width.value,
         height: height.value,
         x: width.value / 2,
         y: height.value / 2,
       })
+      if(!result){
+        console.error('图案计算器无结果')
+        return
+      }
+      const { imageConfigs, lineConfigs }=result
+      backBufferCtx.save();
+      backBufferCtx.translate(width.value / 2, height.value / 2 );
+      if (imageConfigs) {
+        for (const { position, lattice, imageConfig, shouldClip, image } of imageConfigs) {
+          backBufferCtx.save();
+          backBufferCtx.translate(position.x, position.y);
+          drawImageWithConfig(
+            backBufferCtx,
+            image,
+            lattice,
+            imageConfig,
+            shouldClip // 该参数在节点生成器中会自动为undefined
+          );
+          backBufferCtx.restore();
+        }
+      }
+      if(lineConfigs){
+        在画布上下文批量绘制线条(backBufferCtx, lineConfigs)
+      }
+      backBufferCtx.restore();
     }
-
     // 更新主画布
     const updateMainCanvas = async () => {
       if (!renderer.value) {
@@ -83,7 +110,7 @@ export function useCanvasRenderer() {
       renderer.value.ctx.clearRect(0, 0, width.value, height.value)
       renderer.value.ctx.drawImage(backBufferCanvas, 0, 0)
     }
-    
+
     // 节流处理
     return async (patternConfig) => {
       if (state.isRendering) {
@@ -123,7 +150,7 @@ export function useCanvasRenderer() {
 
   const drawSeamlessUnitBox = (patternConfig) => {
     if (!canvas.value) return
-    
+
     // 移除旧的覆盖层
     const oldOverlay = canvas.value.parentElement.querySelector('.overlay-canvas')
     if (oldOverlay) {
@@ -133,17 +160,17 @@ export function useCanvasRenderer() {
     // 将对称群类型转换为小写
     const wallpaperGroup = patternConfig.symmetryType.toLowerCase()
     const hasRect = hasRectangularUnit(
-      patternConfig.basis1, 
-      patternConfig.basis2, 
+      patternConfig.basis1,
+      patternConfig.basis2,
       wallpaperGroup
     )
-    
+
     if (!hasRect) return
 
     // 获取矩形重复单元的尺寸和变换信息
     const rectUnit = getRectangularUnit(
-      patternConfig.basis1, 
-      patternConfig.basis2, 
+      patternConfig.basis1,
+      patternConfig.basis2,
       wallpaperGroup
     )
     if (!rectUnit) return

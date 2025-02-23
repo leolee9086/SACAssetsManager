@@ -67,7 +67,6 @@ export const 绘制形状遮罩的图像 = async (图片地址, 节点形状, �
                 img.width,
                 img.height
             );
-            // 创���形状配置
             const shape = {
                 type: 'polygon',
                 sides: 多边形设置.sides
