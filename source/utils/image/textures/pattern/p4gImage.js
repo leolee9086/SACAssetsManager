@@ -1,4 +1,5 @@
 import { CMImagePattern } from "./cmImage.js";
+import { 在画布上下文批量绘制线条 } from "../../../canvas/draw/simpleDraw/lines.js";
 export class P4GImagePattern extends CMImagePattern {
     constructor(config) {
         super(config);
@@ -112,85 +113,116 @@ export class P4GImagePattern extends CMImagePattern {
     }
 
     renderRhombusGrid(ctx, gridRange) {
-        const { basis1, basis2 } = this.config.lattice;
+        const gridStyle = {
+            color: this.config.render.gridColor,
+            width: this.config.render.gridWidth
+        };
+        const mirrorStyle = {
+            color: '#0000ff',
+            width: 1,
+            dash: [5, 5]
+        };
 
-        // 绘制主网格线（正方形边界）
-        ctx.beginPath();
-        ctx.strokeStyle = this.config.render.gridColor;
-        ctx.lineWidth = this.config.render.gridWidth;
-        ctx.setLineDash([]);
+        const lines = 计算P4G网格线(
+            gridRange,
+            this.config.lattice,
+            gridStyle,
+            mirrorStyle
+        );
+        在画布上下文批量绘制线条(ctx, lines);
 
-        // 绘制正方形网格的外边界
-        for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                if (j <= gridRange.maxJ) {
-                    ctx.moveTo(x, y);
-                    ctx.lineTo(x + basis1.x, y + basis1.y);
-                }
-                if (i <= gridRange.maxI) {
-                    ctx.moveTo(x, y);
-                    ctx.lineTo(x + basis2.x, y + basis2.y);
-                }
-            }
-        }
-        ctx.stroke();
-        // 绘制反射轴（十字和对角线）
-        ctx.beginPath();
-        ctx.strokeStyle = '#0000ff';
-        ctx.setLineDash([5, 5]);
+        // 优化后的旋转中心点标记
+        ctx.fillStyle = '#ff0000';
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
             for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-                const sideLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-                const halfSide = sideLength / 2;
-                // 绘制中心十字（连接边中点）
-                ctx.moveTo(x + halfSide, y);  // 上边中点
-                ctx.lineTo(x + halfSide, y + sideLength);  // 下边中点
-                ctx.moveTo(x, y + halfSide);  // 左边中点
-                ctx.lineTo(x + sideLength, y + halfSide);  // 右边中点
-                // 绘制对角线（连接顶点和中心）
-                ctx.moveTo(x, y + halfSide);
-                ctx.lineTo(x + halfSide, y);  // 左上顶点
-
-                ctx.moveTo(x + halfSide, y);  // 左下顶点
-                ctx.lineTo(x + sideLength, y + halfSide);  // 左上顶点
-
-                ctx.moveTo(x + sideLength, y + halfSide);
-                ctx.lineTo(x + halfSide, y + sideLength);
-
-                ctx.moveTo(x + halfSide, y + sideLength);
-                ctx.lineTo(x, y + halfSide);
-
-
-            }
-        }
-        ctx.stroke();
-
-        // 标记旋转中心点（可选）
-        ctx.fillStyle = '#ff0000';
-        for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-                const sideLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+                const x = this.config.lattice.basis1.x * i + this.config.lattice.basis2.x * j;
+                const y = this.config.lattice.basis1.y * i + this.config.lattice.basis2.y * j;
+                const sideLength = Math.sqrt(
+                    Math.pow(this.config.lattice.basis1.x, 2) + 
+                    Math.pow(this.config.lattice.basis1.y, 2)
+                );
                 const halfSide = sideLength / 2;
 
-                // 四重旋转中心（正方形顶点和中心）
+                // 仅绘制单元中心点（原四个点合并为一个）
                 ctx.beginPath();
-                ctx.arc(x, y, 3, 0, Math.PI * 2);
-                ctx.arc(x + halfSide, y + halfSide, 3, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 二重旋转中心（正方形边的中点）
-                ctx.beginPath();
-                ctx.arc(x + halfSide, y, 3, 0, Math.PI * 2);
-                ctx.arc(x, y + halfSide, 3, 0, Math.PI * 2);
+                ctx.arc(x + halfSide, y + halfSide, 3, 0, Math.PI * 2); // 单元中心
                 ctx.fill();
             }
         }
     }
+}
+
+function 计算P4G网格线(gridRange, lattice, gridStyle, mirrorStyle) {
+    const { basis1, basis2 } = lattice;
+    const lines = [];
+    const sideLength = Math.sqrt(basis1.x ** 2 + basis1.y ** 2);
+    const halfSide = sideLength / 2;
+
+    for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
+        for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
+            const baseX = basis1.x * i + basis2.x * j;
+            const baseY = basis1.y * i + basis2.y * j;
+
+            // 主网格线（正方形边界）
+            if (j <= gridRange.maxJ) {
+                lines.push({
+                    startX: baseX,
+                    startY: baseY,
+                    endX: baseX + basis1.x,
+                    endY: baseY + basis1.y,
+                    style: gridStyle
+                });
+            }
+            if (i <= gridRange.maxI) {
+                lines.push({
+                    startX: baseX,
+                    startY: baseY,
+                    endX: baseX + basis2.x,
+                    endY: baseY + basis2.y,
+                    style: gridStyle
+                });
+            }
+
+            // 反射轴线（当在有效单元格范围内时）
+            if (i <= gridRange.maxI && j <= gridRange.maxJ) {
+                // 中心十字
+                lines.push(
+                    {
+                        startX: baseX + halfSide,
+                        startY: baseY,
+                        endX: baseX + halfSide,
+                        endY: baseY + sideLength,
+                        style: mirrorStyle
+                    },
+                    {
+                        startX: baseX,
+                        startY: baseY + halfSide,
+                        endX: baseX + sideLength,
+                        endY: baseY + halfSide,
+                        style: mirrorStyle
+                    }
+                );
+
+                // 四条对角线
+                const diagonals = [
+                    { start: { x: 0, y: halfSide }, end: { x: halfSide, y: 0 } },
+                    { start: { x: halfSide, y: 0 }, end: { x: sideLength, y: halfSide } },
+                    { start: { x: sideLength, y: halfSide }, end: { x: halfSide, y: sideLength } },
+                    { start: { x: halfSide, y: sideLength }, end: { x: 0, y: halfSide } }
+                ];
+
+                diagonals.forEach(({ start, end }) => {
+                    lines.push({
+                        startX: baseX + start.x,
+                        startY: baseY + start.y,
+                        endX: baseX + end.x,
+                        endY: baseY + end.y,
+                        style: mirrorStyle
+                    });
+                });
+            }
+        }
+    }
+
+    return lines;
 }
