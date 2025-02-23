@@ -1,6 +1,7 @@
 import { drawImageWithConfig } from "../../../canvas/draw/simpleDraw/images.js";
 import { 从视点和基向量对计算P1网格范围 } from "./utils/index.js";
 import { 校验P1晶格基向量, 规范化P1图案配置 } from "./utils/config.js";
+import { 在画布上下文批量绘制线条 } from "../../../canvas/draw/simpleDraw/lines.js";
 function 校验CM图案配置(config){
     const { basis1, basis2 } = config.lattice;
 
@@ -202,19 +203,24 @@ export class CMImagePattern  {
 
     renderRhombusGrid(ctx, gridRange) {
         const { basis1, basis2 } = this.config.lattice;
+        const lines = [];
 
-        ctx.beginPath();
-        ctx.strokeStyle = this.config.render.gridColor;
-        ctx.lineWidth = this.config.render.gridWidth;
-
-        // 绘制菱形边界
+        // 合并所有线段到同一个数组
+        // 生成菱形边界线段
         for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
             for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
                 const x = basis1.x * i + basis2.x * j;
                 const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis2.x, y + basis2.y);
+                lines.push({
+                    startX: x,
+                    startY: y,
+                    endX: x + basis2.x,
+                    endY: y + basis2.y,
+                    style: {
+                        color: this.config.render.gridColor,
+                        width: this.config.render.gridWidth
+                    }
+                });
             }
         }
 
@@ -222,39 +228,41 @@ export class CMImagePattern  {
             for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
                 const x = basis1.x * i + basis2.x * j;
                 const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis1.x, y + basis1.y);
+                lines.push({
+                    startX: x,
+                    startY: y,
+                    endX: x + basis1.x,
+                    endY: y + basis1.y,
+                    style: {
+                        color: this.config.render.gridColor,
+                        width: this.config.render.gridWidth
+                    }
+                });
             }
         }
 
-        ctx.stroke();
-
-        // 绘制对角线镜像线
-        ctx.beginPath();
-        ctx.strokeStyle = '#0000ff';
-        ctx.setLineDash([5, 5]);
-
+        // 生成镜像线线段（直接合并到lines数组）
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
             for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
                 const x = basis1.x * i + basis2.x * j;
                 const y = basis1.y * i + basis2.y * j;
-
-                // 计算棱形的四个顶点
-                const vertices = [
-                    { x, y },  // 左下顶点
-                    { x: x + basis1.x, y: y + basis1.y },  // 右下顶点
-                    { x: x + basis1.x + basis2.x, y: y + basis1.y + basis2.y },  // 右上顶点
-                    { x: x + basis2.x, y: y + basis2.y }   // 左上顶点
-                ];
-
-                // 绘制从左上到右下的对角线
-                ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
-                ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
+                
+                lines.push({
+                    startX: x + basis2.x,
+                    startY: y + basis2.y,
+                    endX: x + basis1.x,
+                    endY: y + basis1.y,
+                    style: {
+                        color: '#0000ff',
+                        width: 2,    // 直接指定完整样式
+                        dash: [5, 5]
+                    }
+                });
             }
         }
 
-        ctx.stroke();
+        // 单次批量绘制（移除第二个基础样式参数）
+        在画布上下文批量绘制线条(ctx, lines);
     }
 
     drawFillPattern(ctx, i, j, isMirrored) {
