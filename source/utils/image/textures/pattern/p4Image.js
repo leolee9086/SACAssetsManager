@@ -1,4 +1,3 @@
-
 import { drawImageWithConfig } from "./p1Image.js";
 import { PGGImagePattern } from "./pggImage.js";
 export class P4ImagePattern extends PGGImagePattern {
@@ -15,7 +14,7 @@ export class P4ImagePattern extends PGGImagePattern {
         const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
 
         if (Math.abs(length1 - length2) > 1e-6) {
-            throw new Error('p4���要求两个基向量长度必须相等');
+            throw new Error('p4要求两个基向量长度必须相等');
         }
 
         // 验证基向量垂直
@@ -33,12 +32,18 @@ export class P4ImagePattern extends PGGImagePattern {
         const j = Math.floor((y / basis2.y + 1000000));
 
         if (this.fillImage && this.fillImageLoaded) {
-            // 分别根据 i 和 j 的奇偶性确定旋转角度
-            // i 为奇数时旋转 90 度，j 为奇数时旋转 90 度
-            // 两个旋转角度相加得到最终旋转角度
-            const rotationI = (i % 2) * Math.PI / 2;
-            const rotationJ = (j % 2) * Math.PI / 2;
-            const rotation = rotationI + rotationJ;
+            // 修正旋转方向
+            // i和j都为偶数时：0度
+            // i为奇数，j为偶数时：90度
+            // i为偶数，j为奇数时：270度
+            // i和j都为奇数时：180度
+            const iMod = i % 2;
+            const jMod = j % 2;
+            let rotation = 0;
+            
+            if (iMod && !jMod) rotation = -Math.PI / 2;      // 90度
+            else if (!iMod && jMod) rotation = Math.PI / 2; // 270度
+            else if (iMod && jMod) rotation = -Math.PI;       // 180度
 
             ctx.save();
             ctx.rotate(rotation);

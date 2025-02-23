@@ -1,4 +1,5 @@
-import { P1ImagePattern } from "./p1Image.js";
+import { drawImageWithConfig, P1ImagePattern } from "./p1Image.js";
+import { 从视点和基向量对计算P1网格范围 } from "./utils/index.js";
 export class CMImagePattern extends P1ImagePattern {
     constructor(config) {
         super(config);
@@ -49,7 +50,7 @@ export class CMImagePattern extends P1ImagePattern {
         ctx.save();
         ctx.translate(viewport.x || width / 2, viewport.y || height / 2);
 
-        const gridRange = viewport.gridRange || this.calculateGridRange(width, height);
+        const gridRange = 从视点和基向量对计算P1网格范围(viewport, 1, basis1, basis2)
 
         // 绘制棱形单元及其内部镜像
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
@@ -222,7 +223,13 @@ export class CMImagePattern extends P1ImagePattern {
                 ctx.save();
                 //   ctx.scale(1, -1);
             }
-            this.drawFillImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.fillImage,
+                this.config.lattice,
+                this.config.fillImage,
+                this.config.lattice.clipMotif
+            );
             if (isMirrored) {
                 ctx.restore();
             }

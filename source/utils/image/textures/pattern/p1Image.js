@@ -192,3 +192,10 @@ function clipToLatticeShape(ctx, width, height, lattice) {
     蒙版到节点形状(ctx, 形状配置)
     return
 }
+export function flipLattice(lattice) {
+    return {
+        ...lattice,
+        basis1: { x: lattice.basis1.x, y: -lattice.basis1.y },
+        basis2: { x: lattice.basis2.x, y: -lattice.basis2.y }
+    };
+}

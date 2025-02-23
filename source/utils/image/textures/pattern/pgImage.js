@@ -1,5 +1,5 @@
 import { 在画布上下文批量绘制线条 } from '../../../canvas/draw/simpleDraw/lines.js';
-import { drawImageWithConfig, P1ImagePattern } from './p1Image.js';
+import { drawImageWithConfig, flipLattice, P1ImagePattern } from './p1Image.js';
 import { 从视点和基向量对计算P1网格范围, 以基向量对生成网格线数据 } from './utils/index.js';
 
 export class PGImagePattern extends P1ImagePattern {
@@ -108,33 +108,21 @@ export class PGImagePattern extends P1ImagePattern {
         // 对于负数，我们需要先加上一个大的偶数来确保结果的正确性
         const index = Math.floor((x / basis1.x + 1000000)) % 2;  // 加上一个足够大的偶数
         const shouldRotate = index === 1;
-
+       
         if (this.fillImage && this.fillImageLoaded) {
+            shouldRotate&&            
+            ctx.scale(1, -1); // y轴反射
+
             drawImageWithConfig(
+                
                 ctx,
                 this.fillImage,
-                this.config.lattice,
+                shouldRotate? flipLattice(this.config.lattice):this.config.lattice,
                 this.config.fillImage,
                 this.config.lattice.clipMotif
             );
         }
 
-        if (shouldRotate) {
-            ctx.save();
-            ctx.scale(1, -1); // y轴反射
-
-            if (this.fillImage && this.fillImageLoaded) {
-                drawImageWithConfig(
-                    ctx,
-                    this.fillImage,
-                    this.config.lattice,
-                    this.config.fillImage,
-                    this.config.lattice.clipMotif
-                );
-            }
-
-            ctx.restore();
-        }
     }
 
 
