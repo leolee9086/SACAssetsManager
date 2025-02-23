@@ -3,7 +3,7 @@ import { P1ImagePattern } from './p1Image.js';
 import { 从视点和基向量对计算P1网格范围, 以基向量对生成网格线数据 } from './utils/index.js';
 import { drawImageWithConfig } from '../../../canvas/draw/simpleDraw/images.js';
 import { 校验P1晶格基向量, 规范化P1图案配置 } from './utils/config.js';
-function 校验PGG图案配置(config) {
+export function 校验PGG图案配置(config) {
 
     // 验证基向量必须正交
     const { basis1, basis2 } = config.lattice;
@@ -20,7 +20,7 @@ function 校验PGG图案配置(config) {
         }
     }
 }
-function 规范化PGG图案配置(config){
+export function 规范化PGG图案配置(config){
             // 计算默认的滑移向量（使用basis1的一半）
             const defaultGlide = {
                 x: config.lattice.basis1.x / 2,
