@@ -112,3 +112,20 @@ export function 蒙版到节点形状(ctx, 形状配置){
     }
     ctx.clip();
 }
+
+export const 纯色填充画布 = (ctx, option = { color: "#ffffff", width: 300, height: 150 }) => {
+    // 解构参数并设置默认值
+    const { color, width, height } = {
+        color: "#ffffff",
+        width: 300,
+        height: 150,
+        ...option
+    };
+    
+    // 设置填充样式并绘制矩形
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    
+    // 返回上下文以支持链式调用
+    return ctx;
+};
