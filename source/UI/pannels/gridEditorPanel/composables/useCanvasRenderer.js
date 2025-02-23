@@ -88,6 +88,7 @@ export function useCanvasRenderer() {
             lattice,
             imageConfig,
             shouldClip // 该参数在节点生成器中会自动为undefined
+
           );
           backBufferCtx.restore();
         }

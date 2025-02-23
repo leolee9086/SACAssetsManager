@@ -13,7 +13,7 @@ export function 以位置配置在画布上下文绘制图像(ctx, image, config
         fitMode
     );
     // 应用图片的变换
-    ctx.translate(translate.x, translate.y);
+    translate&&ctx.translate(translate.x, translate.y);
     ctx.rotate((rotation * Math.PI) / 180);
     ctx.scale(scale * fitScale, scale * fitScale);
     // 绘制图片，相对于中心位置
