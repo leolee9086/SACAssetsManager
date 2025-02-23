@@ -1,4 +1,6 @@
-import { P1ImagePattern } from './p1Image.js';
+import { 在画布上下文批量绘制线条 } from '../../../canvas/draw/simpleDraw/lines.js';
+import { drawImageWithConfig, P1ImagePattern } from './p1Image.js';
+import { 从视点和基向量对计算P1网格范围, 以基向量对生成网格线数据 } from './utils/index.js';
 
 export class PGImagePattern extends P1ImagePattern {
     constructor(config) {
@@ -8,7 +10,7 @@ export class PGImagePattern extends P1ImagePattern {
     validateConfig(config) {
         // 先调用P1的基本验证
         super.validateConfig(config);
-        
+
         // 验证基向量必须正交
         const { basis1, basis2 } = config.lattice;
         const dotProduct = basis1.x * basis2.x + basis1.y * basis2.y;
@@ -28,7 +30,7 @@ export class PGImagePattern extends P1ImagePattern {
     normalizeConfig(config) {
         // 获取P1的标准化配置
         const baseConfig = super.normalizeConfig(config);
-        
+
         // 计算默认的滑移向量（使用basis1的一半）
         const defaultGlide = {
             x: baseConfig.lattice.basis1.x / 2,
@@ -51,14 +53,14 @@ export class PGImagePattern extends P1ImagePattern {
 
         const { width, height } = viewport;
         const { basis1, basis2 } = this.config.lattice;
-        
+
         ctx.fillStyle = this.config.render.backgroundColor;
         ctx.fillRect(0, 0, width, height);
 
         ctx.save();
-        ctx.translate(viewport.x || width/2, viewport.y || height/2);
+        ctx.translate(viewport.x || width / 2, viewport.y || height / 2);
 
-        const gridRange = viewport.gridRange || this.calculateGridRange(width, height);
+        const gridRange = 从视点和基向量对计算P1网格范围(viewport, 1, basis1, basis2)
 
         // 1. 先绘制填充图案
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
@@ -66,7 +68,7 @@ export class PGImagePattern extends P1ImagePattern {
                 // 计算晶格单元的中心点
                 const centerX = basis1.x * (i + 0.5) + basis2.x * (j + 0.5);
                 const centerY = basis1.y * (i + 0.5) + basis2.y * (j + 0.5);
-                
+
                 ctx.save();
                 ctx.translate(centerX, centerY);
                 this.drawFillPattern(ctx, centerX, centerY);
@@ -76,7 +78,12 @@ export class PGImagePattern extends P1ImagePattern {
 
         // 2. 绘制网格线
         if (this.config.render.showGrid) {
-            this.renderGrid(ctx, gridRange);
+            const { color, width, dash } = this.config.render.gridStyle;
+            const { basis1, basis2 } = this.config.lattice;
+            // 使用独立函数计算网格线数据
+            const gridLines = 以基向量对生成网格线数据(basis1, basis2, gridRange);
+            // 批量绘制所有网格线
+            在画布上下文批量绘制线条(ctx, gridLines, { color, width, dash });
         }
 
         // 3. 绘制晶格点图案
@@ -85,7 +92,7 @@ export class PGImagePattern extends P1ImagePattern {
                 // 计算晶格点位置
                 const nodeX = basis1.x * i + basis2.x * j;
                 const nodeY = basis1.y * i + basis2.y * j;
-                
+
                 ctx.save();
                 ctx.translate(nodeX, nodeY);
                 this.drawNodePattern(ctx, nodeX, nodeY);
@@ -103,17 +110,29 @@ export class PGImagePattern extends P1ImagePattern {
         const shouldRotate = index === 1;
 
         if (this.fillImage && this.fillImageLoaded) {
-            this.drawFillImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.fillImage,
+                this.config.lattice,
+                this.config.fillImage,
+                this.config.lattice.clipMotif
+            );
         }
 
         if (shouldRotate) {
             ctx.save();
             ctx.scale(1, -1); // y轴反射
-            
+
             if (this.fillImage && this.fillImageLoaded) {
-                this.drawFillImage(ctx);
+                drawImageWithConfig(
+                    ctx,
+                    this.fillImage,
+                    this.config.lattice,
+                    this.config.fillImage,
+                    this.config.lattice.clipMotif
+                );
             }
-            
+
             ctx.restore();
         }
     }
@@ -126,17 +145,27 @@ export class PGImagePattern extends P1ImagePattern {
         const shouldRotate = index === 1;
 
         if (this.nodeImage && this.nodeImageLoaded) {
-            this.drawNodeImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.nodeImage,
+                this.config.lattice,
+                this.config.nodeImage
+            );
         }
 
         if (shouldRotate) {
             ctx.save();
             ctx.scale(1, -1); // y轴反射
-            
+
             if (this.nodeImage && this.nodeImageLoaded) {
-                this.drawNodeImage(ctx);
+                drawImageWithConfig(
+                    ctx,
+                    this.nodeImage,
+                    this.config.lattice,
+                    this.config.nodeImage
+                );
             }
-            
+
             ctx.restore();
         }
     }

@@ -1,3 +1,4 @@
+import { drawImageWithConfig } from "./p1Image.js";
 import { PGGImagePattern } from "./pggImage.js";
 export class PMMImagePattern extends PGGImagePattern {
     constructor(config) {
@@ -23,7 +24,13 @@ export class PMMImagePattern extends PGGImagePattern {
             }
 
             // 只绘制一次
-            this.drawFillImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.fillImage,
+                this.config.lattice,
+                this.config.fillImage,
+                this.config.lattice.clipMotif
+            );
             ctx.restore();
         }
     }
@@ -47,7 +54,12 @@ export class PMMImagePattern extends PGGImagePattern {
             }
 
             // 只绘制一次
-            this.drawNodeImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.nodeImage,
+                this.config.lattice,
+                this.config.nodeImage
+            ); 
             ctx.restore();
         }
     }

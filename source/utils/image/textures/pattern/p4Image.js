@@ -1,4 +1,5 @@
 
+import { drawImageWithConfig } from "./p1Image.js";
 import { PGGImagePattern } from "./pggImage.js";
 export class P4ImagePattern extends PGGImagePattern {
     constructor(config) {
@@ -26,11 +27,11 @@ export class P4ImagePattern extends PGGImagePattern {
 
     drawFillPattern(ctx, x, y) {
         const { basis1, basis2 } = this.config.lattice;
-    
+
         // 计算单元格的位置索引
         const i = Math.floor((x / basis1.x + 1000000));
         const j = Math.floor((y / basis2.y + 1000000));
-    
+
         if (this.fillImage && this.fillImageLoaded) {
             // 分别根据 i 和 j 的奇偶性确定旋转角度
             // i 为奇数时旋转 90 度，j 为奇数时旋转 90 度
@@ -38,10 +39,16 @@ export class P4ImagePattern extends PGGImagePattern {
             const rotationI = (i % 2) * Math.PI / 2;
             const rotationJ = (j % 2) * Math.PI / 2;
             const rotation = rotationI + rotationJ;
-    
+
             ctx.save();
             ctx.rotate(rotation);
-            this.drawFillImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.fillImage,
+                this.config.lattice,
+                this.config.fillImage,
+                this.config.lattice.clipMotif
+            );
             ctx.restore();
         }
     }
@@ -58,8 +65,12 @@ export class P4ImagePattern extends PGGImagePattern {
 
             ctx.save();
             ctx.rotate(rotation);
-            this.drawNodeImage(ctx);
-            ctx.restore();
+            drawImageWithConfig(
+                ctx,
+                this.fillImage,
+                this.config.lattice,
+                this.config.fillImage,
+            ); ctx.restore();
         }
     }
 

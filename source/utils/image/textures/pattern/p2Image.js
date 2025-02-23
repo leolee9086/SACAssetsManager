@@ -158,6 +158,7 @@ export class P2ImagePattern {
             const config = this.config.fillImage;
             if (!this.fillImage || !config) return;
             ctx.save();
+            shouldRotate&&              ctx.rotate(Math.PI); // 旋转180度
             // 计算单元格尺寸
             const { basis1, basis2 } = this.config.lattice;
             const { width, height } = this.fillImage
@@ -188,46 +189,7 @@ export class P2ImagePattern {
             );
             ctx.restore();
         }
-        if (shouldRotate) {
-            ctx.save();
-            ctx.rotate(Math.PI); // 旋转180度
-            if (this.fillImage && this.fillImageLoaded) {
-                const config = this.config.fillImage;
-                if (!this.fillImage || !config) return;
-                ctx.save();
-                // 计算单元格尺寸
-                const { basis1, basis2 } = this.config.lattice;
-                const { width, height } = this.fillImage
-                const cellWidth = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-                const cellHeight = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-                if (this.config.lattice.clipMotif) {
-                    // 使用基向量定义的平行四边形进行裁剪
-                    // 使用基向量定义的平行四边形进行裁剪
-                    const { shape, basis1, basis2 } = this.config.lattice;
-                    const 形状配置 = {
-                        width, height, shape, basis1, basis2
-                    }
-                    蒙版到节点形状(ctx, 形状配置)
-                }
-                const fitScale = calculateImageFitScale(
-                    width,
-                    height,
-                    cellWidth,
-                    cellHeight,
-                    config.fitMode
-                );
-                const { scale, rotation, translate } = config.transform;
-                在画布上下文应用变换(ctx, fitScale, translate, rotation, scale);
-                // 绘制填充图片，相对于格单元中心
-                ctx.drawImage(
-                    this.fillImage,
-                    -this.fillImage.width / 2,
-                    -this.fillImage.height / 2
-                );
-                ctx.restore();
-            }
-            ctx.restore();
-        }
+    
     }
 
     drawNodePattern(ctx, x, y) {

@@ -150,6 +150,21 @@ const handleFillImageUpload = (file) => {
 onMounted(() => {
   window.addEventListener('resize', handleResize)
   handleResize()
+      // 当没有文件时，创建一个包含数字"6"的canvas作为默认图片
+      const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    canvas.width = 100
+    canvas.height = 100
+    ctx.fillStyle = 'black'
+    ctx.font = '90px Arial'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('6', canvas.width/2, canvas.height/2)
+    canvas.toBlob((blob) => {
+      fillImageUrl.value = URL.createObjectURL(blob)
+      genGridStyle(getPatternConfig()).catch(console.error)
+    })
+
 })
 
 onUnmounted(() => {

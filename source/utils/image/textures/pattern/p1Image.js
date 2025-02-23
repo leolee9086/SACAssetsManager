@@ -5,11 +5,35 @@ import {
     以基向量对生成网格线数据,
     在画布上下文应用变换,
     蒙版到节点形状,
-    纯色填充画布
+    纯色填充画布,
+    从视点和基向量对计算P1网格范围
 } from "./utils/index.js";
 import { 从基向量对计算P1网格填充范围 } from "./utils/p1Utils.js";
 import { 以位置配置在画布上下文绘制图像 } from "../../../canvas/draw/simpleDraw/images.js";
 import { 校验P1晶格基向量, 规范化P1图案配置 } from "./utils/config.js";
+
+export function drawImageWithConfig(ctx, image, lattice, imageConfig, shouldClip = false) {
+    if (!image || !imageConfig) return;
+
+    const { basis1, basis2 } = lattice;
+    const { width, height } = image;
+    const cellWidth = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+    const cellHeight = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
+
+    if (shouldClip) {
+        clipToLatticeShape(ctx, cellWidth, cellHeight, lattice);
+    }
+
+    以位置配置在画布上下文绘制图像(ctx, image, {
+        width,
+        height,
+        cellWidth,
+        cellHeight,
+        fitMode: imageConfig.fitMode,
+        transform: imageConfig.transform
+    });
+}
+
 export class P1ImagePattern {
     constructor(config) {
         校验P1晶格基向量(config);
@@ -62,7 +86,6 @@ export class P1ImagePattern {
             // 如果图案未准备好，保持上一帧的内容
             return;
         }
-
         // 创建离屏 canvas 用于双缓冲
         const offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = viewport.width;
@@ -76,74 +99,52 @@ export class P1ImagePattern {
             height: viewport.height
         })
         const { basis1, basis2 } = this.config.lattice;
-
-        const gridRange = viewport.gridRange || 从基向量对计算P1网格填充范围(viewport.width, viewport.height, 1, basis1, basis2);
-
-        //offscreenCtx.fillStyle = this.config.render.backgroundColor;
-        // offscreenCtx.fillRect(0, 0, viewport.width, viewport.height);
+        const gridRange = 从视点和基向量对计算P1网格范围(viewport, 1, basis1, basis2)
         offscreenCtx.save();
         offscreenCtx.translate(viewport.x || viewport.width / 2, viewport.y || viewport.height / 2);
-        // 1. 先绘制填充图案 - 注意填充图案应该在晶格单元的中心
-        const fillPositions = [];
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                fillPositions.push({
-                    x: this.config.lattice.basis1.x * (i + 0.5) + this.config.lattice.basis2.x * (j + 0.5),
-                    y: this.config.lattice.basis1.y * (i + 0.5) + this.config.lattice.basis2.y * (j + 0.5)
-                });
-            }
-        }
-
-        fillPositions.forEach(pos => {
+        const 填充图片位置生成器 = 计算P1填充图片位置(gridRange, basis1, basis2)
+        for (const pos of 填充图片位置生成器) {
             offscreenCtx.save();
             offscreenCtx.translate(pos.x, pos.y);
             if (this.fillImage && this.fillImageLoaded) {
-                this.drawFillImage(offscreenCtx);
+                drawImageWithConfig(
+                    offscreenCtx,
+                    this.fillImage,
+                    this.config.lattice,
+                    this.config.fillImage,
+                    this.config.lattice.clipMotif
+                );
             }
             offscreenCtx.restore();
-        });
-
+        }
         // 2. 绘制网格线
         if (this.config.render.showGrid) {
-            this.renderGrid(offscreenCtx, gridRange);
-        }
-
-        // 3. 最后绘制晶格点图片 - 晶格点应该在格点位置
-        const nodePositions = [];
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                nodePositions.push({
-                    x: this.config.lattice.basis1.x * i + this.config.lattice.basis2.x * j,
-                    y: this.config.lattice.basis1.y * i + this.config.lattice.basis2.y * j
-                });
+            const { color, width, dash } = this.config.render.gridStyle;
+            const { basis1, basis2 } = this.config.lattice;
+            // 使用独立函数计算网格线数据
+            const gridLines = 以基向量对生成网格线数据(basis1, basis2, gridRange);
+            // 批量绘制所有网格线
+            在画布上下文批量绘制线条(ctx, gridLines, { color, width, dash });
             }
-        }
-
-        nodePositions.forEach(pos => {
+        const 节点图片位置生成器 = 计算P1节点图片位置(gridRange, basis1, basis2)
+        for (const pos of 节点图片位置生成器) {
             offscreenCtx.save();
             offscreenCtx.translate(pos.x, pos.y);
             if (this.nodeImage && this.nodeImageLoaded) {
-                this.drawNodeImage(offscreenCtx);
+                drawImageWithConfig(
+                    offscreenCtx,
+                    this.nodeImage,
+                    this.config.lattice,
+                    this.config.nodeImage
+                );
             }
             offscreenCtx.restore();
-        });
-
+        }
         offscreenCtx.restore();
 
         // 最后一次性将结果复制到实际显示的 canvas
         ctx.clearRect(0, 0, viewport.width, viewport.height);
         ctx.drawImage(offscreenCanvas, 0, 0);
-    }
-
-
-
-    renderGrid(ctx, gridRange) {
-        const { color, width, dash } = this.config.render.gridStyle;
-        const { basis1, basis2 } = this.config.lattice;
-        // 使用独立函数计算网格线数据
-        const gridLines = 以基向量对生成网格线数据(basis1, basis2, gridRange);
-        // 批量绘制所有网格线
-        在画布上下文批量绘制线条(ctx, gridLines, { color, width, dash });
     }
 
     // 工具方法
@@ -157,56 +158,33 @@ export class P1ImagePattern {
         }
         return this.patternCell.toDataURL(format);
     }
-    // 分离填充图片和晶格点图片的绘制
-    drawFillImage(ctx) {
-        const config = this.config.fillImage;
-        if (!this.fillImage || !config) return;
-        // 计算单元格尺寸
-        const { basis1, basis2 } = this.config.lattice;
-        const { width, height } = this.fillImage
-        const cellWidth = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-        const cellHeight = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-        if (this.config.lattice.clipMotif) {
-            // 使用基向量定义的平行四边形进行裁剪
-            clipToLatticeShape(ctx, cellWidth, cellHeight,this.config.lattice);
-        }
-
-        以位置配置在画布上下文绘制图像(ctx, this.fillImage, {
-            width,
-            height,
-            cellWidth,
-            cellHeight,
-            fitMode: config.fitMode,
-            transform: config.transform
-        });
-
-    }
-
-    drawNodeImage(ctx) {
-        const config = this.config.nodeImage;
-        if (!this.nodeImage || !config) return;
-        // 计算单元格尺寸
-        const { basis1, basis2 } = this.config.lattice;
-        const { width, height } = this.nodeImage;
-        const cellWidth = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-        const cellHeight = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-        以位置配置在画布上下文绘制图像(ctx, this.nodeImage, {
-            width,
-            height,
-            cellWidth,
-            cellHeight,
-            fitMode: config.fitMode,
-            transform: config.transform
-        });
-    }
-
     getMinimalSeamlessUnit() {
         return 获取最小重复单元(this.config.lattice)
     }
 }
 
+function* 计算P1填充图片位置(gridRange, basis1, basis2) {
+    for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
+        for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
+            yield {
+                x: basis1.x * (i + 0.5) + basis2.x * (j + 0.5),
+                y: basis1.y * (i + 0.5) + basis2.y * (j + 0.5)
+            };
+        }
+    }
+}
 
-function clipToLatticeShape(ctx, width, height,lattice) {
+function* 计算P1节点图片位置(gridRange, basis1, basis2) {
+    for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
+        for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
+            yield {
+                x: basis1.x * i + basis2.x * j,
+                y: basis1.y * i + basis2.y * j
+            };
+        }
+    }
+}
+function clipToLatticeShape(ctx, width, height, lattice) {
     const { shape, basis1, basis2 } = lattice;
     const 形状配置 = {
         width, height, shape, basis1, basis2

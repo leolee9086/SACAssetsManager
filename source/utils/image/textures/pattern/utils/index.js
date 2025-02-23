@@ -1,3 +1,5 @@
+import { 从基向量对计算P1网格填充范围 } from "./p1Utils.js";
+
 export function 从晶格获取最小重复单元(lattice) {
     const { basis1, basis2 } = lattice;
 
@@ -129,3 +131,7 @@ export const 纯色填充画布 = (ctx, option = { color: "#ffffff", width: 300,
     // 返回上下文以支持链式调用
     return ctx;
 };
+export const 从视点和基向量对计算P1网格范围=(viewport,scale,basis1,basis2)=>{
+    const gridRange = viewport.gridRange || 从基向量对计算P1网格填充范围(viewport.width, viewport.height, scale, basis1, basis2);
+    return gridRange
+}

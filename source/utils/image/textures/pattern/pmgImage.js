@@ -1,3 +1,4 @@
+import { drawImageWithConfig } from "./p1Image.js";
 import { PGGImagePattern } from "./pggImage.js";
 export class PMGImagePattern extends PGGImagePattern {
     constructor(config) {
@@ -14,15 +15,26 @@ export class PMGImagePattern extends PGGImagePattern {
         if (this.fillImage && this.fillImageLoaded) {
             // 1. 绘制原始图案
             ctx.save();
-            this.drawFillImage(ctx);
-            ctx.restore();
+            drawImageWithConfig(
+                ctx,
+                this.fillImage,
+                this.config.lattice,
+                this.config.fillImage,
+                this.config.lattice.clipMotif
+            ); ctx.restore();
 
             // 2. 根据行列号判断镜像和旋转
             if (i % 2 === 0) {
                 // 水平方向的变换
                 ctx.save();
                 ctx.rotate(Math.PI); // 180度旋转
-                this.drawFillImage(ctx);
+                drawImageWithConfig(
+                    ctx,
+                    this.fillImage,
+                    this.config.lattice,
+                    this.config.fillImage,
+                    this.config.lattice.clipMotif
+                ); 
                 ctx.restore();
             }
 
@@ -30,8 +42,14 @@ export class PMGImagePattern extends PGGImagePattern {
                 // 垂直方向的镜像
                 ctx.save();
                 ctx.scale(1, -1);
-                this.drawFillImage(ctx);
-                ctx.restore();
+                drawImageWithConfig(
+                    ctx,
+                    this.fillImage,
+                    this.config.lattice,
+                    this.config.fillImage,
+                    this.config.lattice.clipMotif
+                );
+                 ctx.restore();
             }
 
             // 组合变换
@@ -39,7 +57,13 @@ export class PMGImagePattern extends PGGImagePattern {
                 ctx.save();
                 ctx.scale(1, -1);
                 ctx.rotate(Math.PI);
-                this.drawFillImage(ctx);
+                drawImageWithConfig(
+                    ctx,
+                    this.fillImage,
+                    this.config.lattice,
+                    this.config.fillImage,
+                    this.config.lattice.clipMotif
+                ); 
                 ctx.restore();
             }
         }
@@ -55,21 +79,36 @@ export class PMGImagePattern extends PGGImagePattern {
         if (this.nodeImage && this.nodeImageLoaded) {
             // 1. 绘制原始图案
             ctx.save();
-            this.drawNodeImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.nodeImage,
+                this.config.lattice,
+                this.config.nodeImage
+            );
             ctx.restore();
 
             // 2. 根据行号判断垂直镜像
             if (j % 2 === 0) {
                 ctx.save();
                 ctx.scale(1, -1); // 垂直镜像
-                this.drawNodeImage(ctx);
-                ctx.restore();
+                drawImageWithConfig(
+                    ctx,
+                    this.nodeImage,
+                    this.config.lattice,
+                    this.config.nodeImage
+                );
+                    ctx.restore();
             }
 
             // 3. 对每个单元格进行180度旋转
             ctx.save();
             ctx.rotate(Math.PI);
-            this.drawNodeImage(ctx);
+            drawImageWithConfig(
+                ctx,
+                this.nodeImage,
+                this.config.lattice,
+                this.config.nodeImage
+            );
             ctx.restore();
 
             // 4. 结合垂直镜像和180度旋转
@@ -77,8 +116,13 @@ export class PMGImagePattern extends PGGImagePattern {
                 ctx.save();
                 ctx.scale(1, -1);
                 ctx.rotate(Math.PI);
-                this.drawNodeImage(ctx);
-                ctx.restore();
+                drawImageWithConfig(
+                    ctx,
+                    this.nodeImage,
+                    this.config.lattice,
+                    this.config.nodeImage
+                );
+                    ctx.restore();
             }
         }
     }
