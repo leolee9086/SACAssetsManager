@@ -1,67 +1,27 @@
 import { CMImagePattern } from "./cmImage.js";
+import { 在画布上下文批量绘制线条 } from "../../../canvas/draw/simpleDraw/lines.js";
 export class CMMImagePattern extends CMImagePattern {
     constructor(config) {
         super(config);
     }
     renderRhombusGrid(ctx, gridRange) {
-        const { basis1, basis2 } = this.config.lattice;
+        const gridStyle = {
+            color: this.config.render.gridColor,
+            width: this.config.render.gridWidth
+        };
+        const mirrorStyle = {
+            color: '#0000ff',
+            width: 2,
+            dash: [5, 5]
+        };
 
-        ctx.beginPath();
-        ctx.strokeStyle = this.config.render.gridColor;
-        ctx.lineWidth = this.config.render.gridWidth;
-
-        // 绘制菱形边界
-        for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis2.x, y + basis2.y);
-            }
-        }
-
-        for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
-            for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + basis1.x, y + basis1.y);
-            }
-        }
-
-        ctx.stroke();
-
-        // 绘制两组对角线对称轴
-        ctx.beginPath();
-        ctx.strokeStyle = '#0000ff';
-        ctx.setLineDash([5, 5]);
-
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-
-                // 计算棱形的四个顶点
-                const vertices = [
-                    { x, y },  // 左下顶点
-                    { x: x + basis1.x, y: y + basis1.y },  // 右下顶点
-                    { x: x + basis1.x + basis2.x, y: y + basis1.y + basis2.y },  // 右上顶点
-                    { x: x + basis2.x, y: y + basis2.y }   // 左上顶点
-                ];
-
-                // 绘制第一条对角线（从左上到右下）
-                ctx.moveTo(vertices[3].x, vertices[3].y);  // 左上顶点
-                ctx.lineTo(vertices[1].x, vertices[1].y);  // 右下顶点
-
-                // 绘制第二条对角线（从左下到右上）
-                ctx.moveTo(vertices[0].x, vertices[0].y);  // 左下顶点
-                ctx.lineTo(vertices[2].x, vertices[2].y);  // 右上顶点
-            }
-        }
-
-        ctx.stroke();
+        const lines = 计算CMM网格线(
+            gridRange,
+            this.config.lattice,
+            gridStyle,
+            mirrorStyle
+        );
+        return lines
     }
     drawRhombusUnit(ctx, i, j) {
         const { basis1, basis2 } = this.config.lattice;
@@ -172,5 +132,63 @@ export class CMMImagePattern extends CMImagePattern {
         ctx.restore();
 
     }
+}
+
+// 新增独立函数
+function 计算CMM网格线(gridRange, lattice, gridStyle, mirrorStyle) {
+    const { basis1, basis2 } = lattice;
+    const lines = [];
+
+    for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
+        for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
+            const baseX = basis1.x * i + basis2.x * j;
+            const baseY = basis1.y * i + basis2.y * j;
+
+            // 横向线段（当j未超出最大范围时）
+            if (j <= gridRange.maxJ) {
+                lines.push({
+                    startX: baseX,
+                    startY: baseY,
+                    endX: baseX + basis2.x,
+                    endY: baseY + basis2.y,
+                    style: gridStyle
+                });
+            }
+
+            // 纵向线段（当i未超出最大范围时）
+            if (i <= gridRange.maxI) {
+                lines.push({
+                    startX: baseX,
+                    startY: baseY,
+                    endX: baseX + basis1.x,
+                    endY: baseY + basis1.y,
+                    style: gridStyle
+                });
+            }
+
+            // 两条镜像线（当在有效单元格范围内时）
+            if (i <= gridRange.maxI && j <= gridRange.maxJ) {
+                // 第一条对角线（左上到右下）
+                lines.push({
+                    startX: baseX + basis2.x,
+                    startY: baseY + basis2.y,
+                    endX: baseX + basis1.x,
+                    endY: baseY + basis1.y,
+                    style: mirrorStyle
+                });
+                
+                // 第二条对角线（左下到右上）
+                lines.push({
+                    startX: baseX,
+                    startY: baseY,
+                    endX: baseX + basis1.x + basis2.x,
+                    endY: baseY + basis1.y + basis2.y,
+                    style: mirrorStyle
+                });
+            }
+        }
+    }
+
+    return lines;
 }
 
