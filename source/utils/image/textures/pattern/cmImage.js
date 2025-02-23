@@ -1,43 +1,82 @@
-import { P1ImagePattern } from "./p1Image.js";
 import { drawImageWithConfig } from "../../../canvas/draw/simpleDraw/images.js";
-
 import { 从视点和基向量对计算P1网格范围 } from "./utils/index.js";
-export class CMImagePattern extends P1ImagePattern {
-    constructor(config) {
-        super(config);
+import { 校验P1晶格基向量, 规范化P1图案配置 } from "./utils/config.js";
+function 校验CM图案配置(config){
+    const { basis1, basis2 } = config.lattice;
+
+    // 验证两个基向量长度必须相等
+    const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+    const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
+
+    if (Math.abs(length1 - length2) > 1e-6) {
+        throw new Error('cm群的两个基向量长度必须相等');
     }
 
-    validateConfig(config) {
-        super.validateConfig(config);
+}
+function 规范化CM图案配置(config){
+    const defaultMirrorLine = {
+        x: config.lattice.basis1.x / 2,
+        y: config.lattice.basis1.y / 2
+    };
 
-        const { basis1, basis2 } = config.lattice;
-
-        // 验证两个基向量长度必须相等
-        const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-        const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
-
-        if (Math.abs(length1 - length2) > 1e-6) {
-            throw new Error('cm群的两个基向量长度必须相等');
+    return {
+        ...config,
+        symmetry: {
+            mirrorLine: config.symmetry?.mirrorLine || defaultMirrorLine
         }
+    };
+
+}
+export class CMImagePattern  {
+    constructor(config) {
+        校验P1晶格基向量(config);
+        校验CM图案配置(config)
+        this.config = 规范化P1图案配置(config);
+        this.config= 规范化CM图案配置(config)
+        this.nodeImageLoaded = false;
+        this.fillImageLoaded = false;
+        this.patternReady = false;
+        this.nodeImage = null;
+        this.fillImage = null;
+        this.loadImages();
+    }
+    async loadImages() {
+        if (!this.config.nodeImage && !this.config.fillImage) {
+            this.patternReady = true;
+            return;
+        }
+        const loadPromises = [];
+        if (this.config.nodeImage) {
+            loadPromises.push(this.loadImage('node').catch(() => null));
+        }
+        if (this.config.fillImage) {
+            loadPromises.push(this.loadImage('fill').catch(() => null));
+        }
+        await Promise.all(loadPromises);
+        this.patternReady = true;
+    }
+    async loadImage(type) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                if (type === 'node') {
+                    this.nodeImage = img;
+                    this.nodeImageLoaded = true;
+                } else {
+                    this.fillImage = img;
+                    this.fillImageLoaded = true;
+                }
+                resolve(img);
+            };
+            img.onerror = (err) => {
+                reject(new Error(`${type}图片加载失败`));
+            };
+            img.src = this.config[`${type}Image`].imageUrl;
+        });
     }
 
-    normalizeConfig(config) {
-        const baseConfig = super.normalizeConfig(config);
-
-        // 镜面线默认位置在棱形的中线上
-        const defaultMirrorLine = {
-            x: baseConfig.lattice.basis1.x / 2,
-            y: baseConfig.lattice.basis1.y / 2
-        };
-
-        return {
-            ...baseConfig,
-            symmetry: {
-                mirrorLine: config.symmetry?.mirrorLine || defaultMirrorLine
-            }
-        };
-    }
-
+  
     render(ctx, viewport) {
         if (!this.patternReady) {
             throw new Error('图案尚未准备就绪');

@@ -83,10 +83,6 @@ export class P1ImagePattern {
         return { imageConfigs: combinedGenerator, lineConfigs: gridLines }
     }
 
-    // 工具方法
-    isReady() {
-        return this.nodeImageLoaded && this.fillImageLoaded && this.patternReady;
-    }
 
 }
 
