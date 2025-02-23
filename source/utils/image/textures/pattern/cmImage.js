@@ -103,9 +103,9 @@ export class CMImagePattern  {
 
         // 绘制网格
         if (this.config.render.showGrid) {
-            this.renderRhombusGrid(ctx, gridRange);
+            const lines = this.renderRhombusGrid(ctx, gridRange);
+            lines&&在画布上下文批量绘制线条(ctx, lines);
         }
-
         // 绘制网格点
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
             for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
@@ -203,66 +203,17 @@ export class CMImagePattern  {
 
     renderRhombusGrid(ctx, gridRange) {
         const { basis1, basis2 } = this.config.lattice;
-        const lines = [];
-
-        // 合并所有线段到同一个数组
-        // 生成菱形边界线段
-        for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-                lines.push({
-                    startX: x,
-                    startY: y,
-                    endX: x + basis2.x,
-                    endY: y + basis2.y,
-                    style: {
-                        color: this.config.render.gridColor,
-                        width: this.config.render.gridWidth
-                    }
-                });
-            }
-        }
-
-        for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
-            for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-                lines.push({
-                    startX: x,
-                    startY: y,
-                    endX: x + basis1.x,
-                    endY: y + basis1.y,
-                    style: {
-                        color: this.config.render.gridColor,
-                        width: this.config.render.gridWidth
-                    }
-                });
-            }
-        }
-
-        // 生成镜像线线段（直接合并到lines数组）
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = basis1.x * i + basis2.x * j;
-                const y = basis1.y * i + basis2.y * j;
-                
-                lines.push({
-                    startX: x + basis2.x,
-                    startY: y + basis2.y,
-                    endX: x + basis1.x,
-                    endY: y + basis1.y,
-                    style: {
-                        color: '#0000ff',
-                        width: 2,    // 直接指定完整样式
-                        dash: [5, 5]
-                    }
-                });
-            }
-        }
-
-        // 单次批量绘制（移除第二个基础样式参数）
-        在画布上下文批量绘制线条(ctx, lines);
+        const gridStyle = {
+            color: this.config.render.gridColor,
+            width: this.config.render.gridWidth
+        };
+        const mirrorStyle = {
+            color: '#0000ff',
+            width: 2,
+            dash: [5, 5]
+        };
+        const lines = 计算CM网格线(gridRange,this.config.lattice,gridStyle,mirrorStyle);
+        return lines
     }
 
     drawFillPattern(ctx, i, j, isMirrored) {
@@ -319,3 +270,49 @@ export class CMImagePattern  {
     }
 }
 
+function 计算CM网格线(gridRange,lattice,gridStyle,mirrorStyle){
+        // 合并后的单次遍历
+        const { basis1, basis2 } = lattice;
+        const lines =[]
+        for (let i = gridRange.minI; i <= gridRange.maxI + 1; i++) {
+            for (let j = gridRange.minJ; j <= gridRange.maxJ + 1; j++) {
+                const baseX = basis1.x * i + basis2.x * j;
+                const baseY = basis1.y * i + basis2.y * j;
+
+                // 横向线段（当j未超出最大范围时）
+                if (j <= gridRange.maxJ) {
+                    lines.push({
+                        startX: baseX,
+                        startY: baseY,
+                        endX: baseX + basis2.x,
+                        endY: baseY + basis2.y,
+                        style: gridStyle
+                    });
+                }
+
+                // 纵向线段（当i未超出最大范围时）
+                if (i <= gridRange.maxI) {
+                    lines.push({
+                        startX: baseX,
+                        startY: baseY,
+                        endX: baseX + basis1.x,
+                        endY: baseY + basis1.y,
+                        style: gridStyle
+                    });
+                }
+
+                // 镜像线（当在有效单元格范围内时）
+                if (i <= gridRange.maxI && j <= gridRange.maxJ) {
+                    lines.push({
+                        startX: baseX + basis2.x,
+                        startY: baseY + basis2.y,
+                        endX: baseX + basis1.x,
+                        endY: baseY + basis1.y,
+                        style: mirrorStyle
+                    });
+                }
+            }
+        }
+        return lines
+
+}
