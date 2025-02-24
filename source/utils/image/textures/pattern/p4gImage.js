@@ -4,6 +4,8 @@ import { 校验P1晶格基向量,校验配置基向量是否等长 as 校验P4G�
 import { 规范化P1图案配置,规范化CM图案配置  } from "./utils/config.js";
 import { 从视点和基向量对计算P1网格范围 } from "./utils/index.js";
 import { drawImageWithConfig } from "../../../canvas/draw/simpleDraw/images.js";
+import { 在画布上下文批量绘制标记点 } from "../../../canvas/draw/simpleDraw/points.js";
+
 export class P4GImagePattern  {
     constructor(config) {
         校验P1晶格基向量(config);
@@ -255,24 +257,33 @@ export class P4GImagePattern  {
         在画布上下文批量绘制线条(ctx, lines);
 
         // 优化后的旋转中心点标记
-        ctx.fillStyle = '#ff0000';
-        for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
-            for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
-                const x = this.config.lattice.basis1.x * i + this.config.lattice.basis2.x * j;
-                const y = this.config.lattice.basis1.y * i + this.config.lattice.basis2.y * j;
-                const sideLength = Math.sqrt(
-                    Math.pow(this.config.lattice.basis1.x, 2) + 
-                    Math.pow(this.config.lattice.basis1.y, 2)
-                );
-                const halfSide = sideLength / 2;
+        const lattice = this.config.lattice
+        绘制P4G中心点(gridRange,lattice,gridStyle,mirrorStyle,ctx)
+       
+    }
+}
 
-                // 仅绘制单元中心点（原四个点合并为一个）
-                ctx.beginPath();
-                ctx.arc(x + halfSide, y + halfSide, 3, 0, Math.PI * 2); // 单元中心
-                ctx.fill();
-            }
+function 绘制P4G中心点(gridRange, lattice, gridStyle, mirrorStyle, ctx) {
+    const { basis1, basis2 } = lattice;
+    const points = [];
+    const sideLength = Math.sqrt(basis1.x ** 2 + basis1.y ** 2);
+    const halfSide = sideLength / 2;
+    for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
+        for (let j = gridRange.minJ; j <= gridRange.maxJ; j++) {
+            points.push({
+                x: basis1.x * i + basis2.x * j + halfSide,
+                y: basis1.y * i + basis2.y * j + halfSide,
+                style: {
+                    color: '#ff0000',
+                    radius: 3
+                }
+            });
         }
     }
+    在画布上下文批量绘制标记点(ctx, points, {
+        color: '#ff0000',
+        radius: 3
+    });
 }
 
 function 计算P4G网格线(gridRange, lattice, gridStyle, mirrorStyle) {
