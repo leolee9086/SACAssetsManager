@@ -2,32 +2,9 @@ import { drawImageWithConfig } from "../../../canvas/draw/simpleDraw/images.js";
 import { 从视点和基向量对计算P1网格范围 } from "./utils/index.js";
 import { 校验P1晶格基向量, 规范化P1图案配置 } from "./utils/config.js";
 import { 在画布上下文批量绘制线条 } from "../../../canvas/draw/simpleDraw/lines.js";
-function 校验CM图案配置(config){
-    const { basis1, basis2 } = config.lattice;
+import { 校验配置基向量是否等长 as 校验CM图案配置,规范化CM图案配置 } from "./utils/config.js";
 
-    // 验证两个基向量长度必须相等
-    const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
-    const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
 
-    if (Math.abs(length1 - length2) > 1e-6) {
-        throw new Error('cm群的两个基向量长度必须相等');
-    }
-
-}
-function 规范化CM图案配置(config){
-    const defaultMirrorLine = {
-        x: config.lattice.basis1.x / 2,
-        y: config.lattice.basis1.y / 2
-    };
-
-    return {
-        ...config,
-        symmetry: {
-            mirrorLine: config.symmetry?.mirrorLine || defaultMirrorLine
-        }
-    };
-
-}
 export class CMImagePattern  {
     constructor(config) {
         校验P1晶格基向量(config);

@@ -44,3 +44,26 @@ export function 校验P1晶格基向量(config){
         throw new Error('必须提供有效的晶格基向量');
     }
 }
+
+export function 校验配置基向量是否等长(config){
+    const { basis1, basis2 } = config.lattice;
+    // 验证两个基向量长度必须相等
+    const length1 = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
+    const length2 = Math.sqrt(basis2.x * basis2.x + basis2.y * basis2.y);
+    if (Math.abs(length1 - length2) > 1e-6) {
+        throw new Error('cm群的两个基向量长度必须相等');
+    }
+}
+
+export function  规范化CM图案配置(config){
+    const defaultMirrorLine = {
+        x: config.lattice.basis1.x / 2,
+        y: config.lattice.basis1.y / 2
+    };
+    return {
+        ...config,
+        symmetry: {
+            mirrorLine: config.symmetry?.mirrorLine || defaultMirrorLine
+        }
+    };
+}
