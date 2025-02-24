@@ -79,8 +79,12 @@ export class P4GImagePattern  {
 
         // 绘制网格
         if (this.config.render.showGrid) {
-            const lines = this.renderRhombusGrid(ctx, gridRange);
+            const {lines,points} = this.renderRhombusGrid(ctx, gridRange);
             lines&&在画布上下文批量绘制线条(ctx, lines);
+            points&&在画布上下文批量绘制标记点(ctx,points,{
+                color: '#ff0000',
+                radius: 3
+            })
         }
         // 绘制网格点
         for (let i = gridRange.minI; i <= gridRange.maxI; i++) {
@@ -254,12 +258,10 @@ export class P4GImagePattern  {
             gridStyle,
             mirrorStyle
         );
-        在画布上下文批量绘制线条(ctx, lines);
-
-        // 优化后的旋转中心点标记
         const lattice = this.config.lattice
-        绘制P4G中心点(gridRange,lattice,gridStyle,mirrorStyle,ctx)
-       
+        const points= 绘制P4G中心点(gridRange,lattice,gridStyle,mirrorStyle,ctx)
+    
+        return {lines,points}
     }
 }
 
@@ -280,10 +282,8 @@ function 绘制P4G中心点(gridRange, lattice, gridStyle, mirrorStyle, ctx) {
             });
         }
     }
-    在画布上下文批量绘制标记点(ctx, points, {
-        color: '#ff0000',
-        radius: 3
-    });
+    return points
+    
 }
 
 function 计算P4G网格线(gridRange, lattice, gridStyle, mirrorStyle) {
