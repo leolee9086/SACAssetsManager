@@ -13,7 +13,7 @@
       
       <!-- 使用光栅图像子组件，仅在不显示平铺晶格时显示 -->
       <raster-layer
-        v-if="!showTiledLattice"
+        v-show="!showTiledLattice"
         ref="rasterLayerComponent"
         :stageWidth="stageConfig.width"
         :stageHeight="stageConfig.height"
@@ -50,7 +50,18 @@
         :rasterImages="rasterImages"
         :latticeVectors="latticeVectors"
         :tilingExtent="tilingExtent"
+        :tilingOffsets="tilingOffsets"
+        :blendMode="blendMode"
         v-if="showTiledLattice"
+      />
+      
+      <!-- 添加无缝单元图层 -->
+      <seamless-unit-layer
+        ref="seamlessUnitLayerComponent"
+        :stageWidth="stageConfig.width"
+        :stageHeight="stageConfig.height"
+        :seamlessUnit="seamlessUnit"
+        v-if="showSeamlessUnit"
       />
     </v-stage>
     
@@ -96,6 +107,33 @@
         <span>{{ tilingExtent }}</span>
       </div>
       
+      <div class="control-group">
+        <label>叠加模式:</label>
+        <select v-model="blendMode">
+          <option value="source-over">正常</option>
+          <option value="multiply">正片叠底</option>
+          <option value="screen">滤色</option>
+          <option value="overlay">叠加</option>
+          <option value="darken">变暗</option>
+          <option value="lighten">变亮</option>
+          <option value="color-dodge">颜色减淡</option>
+          <option value="color-burn">颜色加深</option>
+          <option value="hard-light">强光</option>
+          <option value="soft-light">柔光</option>
+          <option value="difference">差值</option>
+          <option value="exclusion">排除</option>
+          <option value="hue">色相</option>
+          <option value="saturation">饱和度</option>
+          <option value="color">颜色</option>
+          <option value="luminosity">亮度</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>显示无缝单元:</label>
+        <input type="checkbox" v-model="showSeamlessUnit" />
+      </div>
+      
       <!-- 添加自定义图像上传控件 -->
       <div class="control-group">
         <label>自定义图像:</label>
@@ -118,6 +156,7 @@ import GeomLayer from './GeomLayer.vue';
 import RasterLayer from './RasterLayer.vue';
 import LatticeVectorLayer from './LatticeVectorLayer.vue';
 import TiledLatticeLayer from './TiledLatticeLayer.vue';
+import SeamlessUnitLayer from './SeamlessUnitLayer.vue';
 import { generateUnits } from './textureUtils.js';
 
 const container = ref(null);
@@ -127,6 +166,7 @@ const geomLayerComponent = ref(null);
 const rasterLayerComponent = ref(null);
 const latticeVectorLayerComponent = ref(null);
 const tiledLatticeLayerComponent = ref(null);
+const seamlessUnitLayerComponent = ref(null);
 
 // 舞台配置
 const stageConfig = ref({
@@ -170,6 +210,9 @@ const showTiledLattice = ref(false);
 // 平铺范围（单位数量）
 const tilingExtent = ref(3);
 
+// 无缝单元显示控制
+const showSeamlessUnit = ref(false);
+
 // 从生成的单元中获取晶格向量
 const latticeVectors = ref([]);
 
@@ -187,9 +230,15 @@ const rasterImages = ref([]);
 // 从生成的单元中获取三角形中心点
 const triangleCenters = computed(() => generatedUnits.value.triangleCenters);
 
+// 从生成的单元中获取无缝单元
+const seamlessUnit = computed(() => generatedUnits.value.seamlessUnit);
+
 // 自定义图像
 const customImage = ref(null);
 const originalImageSources = ref([]);
+
+// 图像叠加模式
+const blendMode = ref('source-over');
 
 // 监听三角形变化，更新图像位置
 watch(triangleCenters, () => {
@@ -210,6 +259,16 @@ watch(showLatticeVectors, () => {
 watch([showTiledLattice, tilingExtent], () => {
   updateTiledLatticeVisibility();
 }, { deep: true });
+
+// 监听无缝单元显示控制变化
+watch(showSeamlessUnit, () => {
+  updateSeamlessUnitVisibility();
+});
+
+// 监听叠加模式变化
+watch(blendMode, () => {
+  updateBlendMode();
+});
 
 // 更新图像位置，使其与对应三角形的中心点对齐
 const updateImagePositions = () => {
@@ -328,7 +387,8 @@ const centerAllLayers = () => {
     geomLayerComponent,
     rasterLayerComponent,
     latticeVectorLayerComponent,
-    tiledLatticeLayerComponent
+    tiledLatticeLayerComponent,
+    seamlessUnitLayerComponent
   ];
   
   // 遍历所有图层组件并调用其centerCoordinateSystem方法
@@ -377,6 +437,29 @@ const updateTiledLatticeVisibility = () => {
       tiledLatticeLayer.visible(showTiledLattice.value);
       tiledLatticeLayer.draw();
     }
+  }
+};
+
+// 更新无缝单元可见性
+const updateSeamlessUnitVisibility = () => {
+  if (stage.value) {
+    const seamlessUnitLayer = stage.value.getStage().findOne('#seamlessUnitLayer');
+    if (seamlessUnitLayer) {
+      seamlessUnitLayer.visible(showSeamlessUnit.value);
+      seamlessUnitLayer.draw();
+    }
+  }
+};
+
+// 更新图像叠加模式
+const updateBlendMode = () => {
+  rasterImages.value.forEach(image => {
+    image.config.globalCompositeOperation = blendMode.value;
+  });
+  
+  // 如果平铺晶格图层存在，也更新其叠加模式
+  if (tiledLatticeLayerComponent.value) {
+    tiledLatticeLayerComponent.value.updateBlendMode(blendMode.value);
   }
 };
 
@@ -429,9 +512,11 @@ const applyCustomImage = () => {
   // 应用自定义图像
   rasterImages.value.forEach(image => {
     image.config.image = customImage.value;
+    // 确保应用当前的叠加模式
+    image.config.globalCompositeOperation = blendMode.value;
   });
   
- // 更新平铺图像
+  // 更新平铺图像
   if (tiledLatticeLayerComponent.value) {
     tiledLatticeLayerComponent.value.generateTiledImages();
   }
@@ -474,6 +559,7 @@ onMounted(() => {
   // 初始调整大小
   handleResize();
   loadImages(); // 加载图像
+  updateBlendMode(); // 应用初始叠加模式
   
   // 添加一个短暂延迟后再次居中所有图层，确保在DOM完全渲染后执行
   setTimeout(() => {
@@ -552,5 +638,13 @@ defineExpose({
 
 .custom-button:hover {
   background-color: #45a049;
+}
+
+.control-group select {
+  flex: 1;
+  margin-right: 10px;
+  padding: 3px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
 }
 </style>

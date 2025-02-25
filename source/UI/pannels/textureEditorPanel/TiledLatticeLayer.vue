@@ -47,6 +47,14 @@ const props = defineProps({
   tilingExtent: {
     type: Number,
     default: 3
+  },
+  tilingOffsets: {
+    type: Array,
+    required: true
+  },
+  blendMode: {
+    type: String,
+    default: 'source-over'
   }
 });
 
@@ -62,9 +70,21 @@ const stageCenter = computed(() => ({
 }));
 
 // 监听原始图像和晶格向量的变化
-watch([() => props.rasterImages, () => props.latticeVectors, () => props.tilingExtent], () => {
+watch([() => props.rasterImages, () => props.latticeVectors, () => props.tilingExtent, () => props.blendMode], () => {
   generateTiledImages();
 }, { deep: true });
+
+// 更新叠加模式
+const updateBlendMode = (mode) => {
+  tiledImages.value.forEach(image => {
+    image.config.globalCompositeOperation = mode;
+  });
+  
+  // 重新绘制图层
+  if (tiledLatticeLayer.value) {
+    tiledLatticeLayer.value.getNode().draw();
+  }
+};
 
 // 生成平铺图像
 const generateTiledImages = () => {
@@ -121,7 +141,9 @@ const generateTiledImages = () => {
           config: { 
             ...JSON.parse(JSON.stringify(sourceImage.config)),
             // 确保使用相同的图像对象
-            image: sourceImage.config.image
+            image: sourceImage.config.image,
+            // 应用当前的叠加模式
+            globalCompositeOperation: props.blendMode
           },
           relatedGeom: sourceImage.relatedGeom
         };
@@ -153,7 +175,8 @@ const centerCoordinateSystem = () => {
 defineExpose({
   centerCoordinateSystem,
   getNode: () => tiledLatticeLayer.value?.getNode(),
-  generateTiledImages
+  generateTiledImages,
+  updateBlendMode
 });
 
 onMounted(() => {

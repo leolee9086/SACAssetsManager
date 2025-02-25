@@ -162,6 +162,27 @@ watch(() => props.positionOffset, (newOffset) => {
   // 这里不需要手动更新，因为父组件已经在updateImageProperties中处理了
 }, { deep: true });
 
+// 监听叠加模式变化
+watch(() => props.blendMode, (newMode) => {
+  updateBlendMode(newMode);
+});
+
+// 更新叠加模式
+const updateBlendMode = (mode) => {
+  if (!mode) return;
+  
+  // 更新所有图像的叠加模式
+  const imageNodes = layer.value.getNode().findAll('image');
+  imageNodes.forEach(node => {
+    node.globalCompositeOperation(mode);
+  });
+  
+  // 重新绘制图层
+  if (layer.value) {
+    layer.value.getNode().draw();
+  }
+};
+
 // 组件挂载时
 onMounted(() => {
   centerCoordinateSystem();
@@ -169,7 +190,9 @@ onMounted(() => {
 
 // 暴露方法给父组件
 defineExpose({
-  centerCoordinateSystem
+  centerCoordinateSystem,
+  getNode: () => layer.value?.getNode(),
+  updateBlendMode
 });
 </script>
 

@@ -208,13 +208,35 @@ export const generateUnits = (spacing, precision) => {
     }
   ];
   
+  // 计算P3M1晶格的最小正交平移重复单元（无缝单元）
+  const seamlessUnit = {
+    id: 'seamless-unit',
+    // 以原点为中心的矩形
+    width: unitLength * 3,  // 宽度为3个单位长度
+    height: unitLength * sqrtThreeOverTwo * 2, // 高度为根号3个单位长度
+    center: { x: 0, y: 0 }, // 中心点在原点
+    // 矩形的四个顶点
+    vertices: [
+      { x: -unitLength * 1.5, y: -unitLength * sqrtThreeOverTwo }, // 左下
+      { x: unitLength * 1.5, y: -unitLength * sqrtThreeOverTwo },  // 右下
+      { x: unitLength * 1.5, y: unitLength * sqrtThreeOverTwo },   // 右上
+      { x: -unitLength * 1.5, y: unitLength * sqrtThreeOverTwo }   // 左上
+    ],
+    color: {
+      stroke: 'rgba(255,0,0,0.8)',
+      fill: 'rgba(255,0,0,0.1)'
+    },
+    label: '无缝单元'
+  };
+  
   return {
     geoms,
     rasterImages,
     triangleCenters,
     loadImagesWithDefaults,
-    latticeVectors,  // 添加晶格向量到返回对象
-    calculateInternalOffset  // 添加内部坐标偏移计算函数
+    latticeVectors,
+    calculateInternalOffset,
+    seamlessUnit  // 添加无缝单元到返回对象
   };
 };
 
@@ -269,13 +291,6 @@ export const calculateInternalOffset = (geom, image, offset) => {
   };
   
   // 输出调试信息
-  console.log('内部坐标计算:', {
-    geomId: geom.id,
-    offset,
-    xAxis,
-    yAxis,
-    result
-  });
   
   return result;
 };
