@@ -21,6 +21,9 @@
         :imageSize="computedImageSize"
         :angleIncrement="angleIncrement"
         :positionOffset="computedPositionOffset"
+        :blendMode="blendMode"
+        :clipToUnit="clipToUnit"
+        :geoms="geoms"
         @imageSelect="handleImageSelect"
         @imageHover="handleImageHover"
       />
@@ -134,7 +137,14 @@
         <input type="checkbox" v-model="showSeamlessUnit" />
       </div>
       
-      <!-- 添加自定义图像上传控件 -->
+      <!-- 修改裁剪控制部分 -->
+      <div class="control-group">
+        <label>启用裁剪:</label>
+        <input type="checkbox" v-model="clipToUnit" />
+        <span>{{ clipToUnit ? '已启用' : '已禁用' }}</span>
+      </div>
+      
+      <!-- 自定义图像上传控件 -->
       <div class="control-group">
         <label>自定义图像:</label>
         <input type="file" accept="image/*" @change="handleImageUpload" />
@@ -157,7 +167,13 @@ import RasterLayer from './RasterLayer.vue';
 import LatticeVectorLayer from './LatticeVectorLayer.vue';
 import TiledLatticeLayer from './TiledLatticeLayer.vue';
 import SeamlessUnitLayer from './SeamlessUnitLayer.vue';
-import { generateUnits } from './textureUtils.js';
+import { 
+  generateUnits, 
+  clipImageToUnit, 
+  clipImageToSeamlessUnit,
+  createTriangleMask,
+  createSeamlessUnitMask
+} from './textureUtils.js';
 
 const container = ref(null);
 const stage = ref(null);
@@ -235,6 +251,9 @@ const originalImageSources = ref([]);
 // 图像叠加模式
 const blendMode = ref('source-over');
 
+// 裁剪控制
+const clipToUnit = ref(false);
+
 // 监听三角形变化，更新图像位置
 watch(triangleCenters, () => {
   updateImagePositions();
@@ -263,6 +282,11 @@ watch(showSeamlessUnit, () => {
 // 监听叠加模式变化
 watch(blendMode, () => {
   updateBlendMode();
+});
+
+// 监听裁剪设置变化
+watch(clipToUnit, () => {
+  updateClipSettings();
 });
 
 // 更新图像位置，使其与对应三角形的中心点对齐
@@ -331,6 +355,9 @@ const updateImageProperties = () => {
     // 应用角度增量
     image.config.rotation = (originalRotation + effectiveAngleIncrement) % 360;
   });
+  
+  // 在更新完图像属性后应用裁剪设置
+  updateClipSettings();
 };
 
 // 处理图像选择事件
@@ -360,6 +387,9 @@ const loadImages = () => {
   
   // 获取晶格向量
   latticeVectors.value = generatedUnits.value.latticeVectors;
+  
+  // 应用初始裁剪设置
+  updateClipSettings();
 };
 
 // 处理画布大小变化
@@ -455,6 +485,19 @@ const updateBlendMode = () => {
   // 如果平铺晶格图层存在，也更新其叠加模式
   if (tiledLatticeLayerComponent.value) {
     tiledLatticeLayerComponent.value.updateBlendMode(blendMode.value);
+  }
+};
+
+// 更新裁剪设置
+const updateClipSettings = () => {
+  // 通知光栅图层组件更新裁剪设置
+  if (rasterLayerComponent.value) {
+    rasterLayerComponent.value.updateClipShapes();
+  }
+  
+  // 确保舞台更新
+  if (stage.value) {
+    stage.value.getStage().batchDraw();
   }
 };
 
