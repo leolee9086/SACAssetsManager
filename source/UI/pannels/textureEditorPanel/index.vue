@@ -121,12 +121,30 @@
       </div>
       
       <div class="control-group download-section" v-if="showTiledLattice">
-        <label>下载清晰度:</label>
+        <label>下载分辨率:</label>
         <select v-model="downloadResolution">
-          <option value="1">标准 (1x)</option>
-          <option value="2">高清 (2x)</option>
-          <option value="4">超高清 (4x)</option>
+          <option value="256">256px (小尺寸)</option>
+          <option value="512">512px (标准)</option>
+          <option value="1024">1024px (1K)</option>
+          <option value="2048">2048px (2K)</option>
+          <option value="4096">4096px (4K)</option>
+          <option value="8192">8192px (8K)</option>
         </select>
+        
+        <label>重复次数:</label>
+        <select v-model="downloadRepeatCount">
+          <option value="1">1×1 (单个单元)</option>
+          <option value="2">2×2 (4个单元)</option>
+          <option value="3">3×3 (9个单元)</option>
+          <option value="4">4×4 (16个单元)</option>
+          <option value="5">5×5 (25个单元)</option>
+          <option value="6">6×6 (36个单元)</option>
+          <option value="8">8×8 (64个单元)</option>
+          <option value="10">10×10 (100个单元)</option>
+          <option value="12">12×12 (144个单元)</option>
+          <option value="16">16×16 (256个单元)</option>
+        </select>
+        
         <button @click="downloadTiledPattern" class="custom-button">下载重复单元</button>
       </div>
       
@@ -674,7 +692,9 @@ const resetDefaultImages = () => {
 };
 
 // 添加下载清晰度选择
-const downloadResolution = ref('2'); // 默认2倍清晰度
+const downloadResolution = ref('512'); // 默认512px
+// 添加重复次数选择
+const downloadRepeatCount = ref('1'); // 默认1×1
 
 // 修改下载重复单元功能
 const downloadTiledPattern = async () => {
@@ -690,36 +710,59 @@ const downloadTiledPattern = async () => {
     // 等待下一个渲染周期，确保UI更新
     await nextTick();
     
-    // 计算要导出的尺寸（使用无缝单元尺寸而非固定公式）
-    const resolution = parseInt(downloadResolution.value);
-    const unitWidth = seamlessUnit.value.width * resolution;
-    const unitHeight = seamlessUnit.value.height * resolution;
+    // 设置目标分辨率和重复次数
+    const targetSize = parseInt(downloadResolution.value);
+    const repeatCount = parseInt(downloadRepeatCount.value);
     
-    // 创建临时Canvas用于绘制
+    // 计算无缝单元尺寸
+    const unitWidth = seamlessUnit.value.width;
+    const unitHeight = seamlessUnit.value.height;
+    
+    // 计算总的重复区域比例（宽高比）
+    const repeatAreaRatio = (unitWidth * repeatCount) / (unitHeight * repeatCount);
+    
+    // 根据总的重复区域比例计算最终尺寸，确保短边等于目标尺寸
+    let finalWidth, finalHeight;
+    
+    if (repeatAreaRatio >= 1) {
+      // 宽大于高，高度为短边
+      finalHeight = targetSize;
+      finalWidth = Math.round(targetSize * repeatAreaRatio);
+    } else {
+      // 高大于宽，宽度为短边
+      finalWidth = targetSize;
+      finalHeight = Math.round(targetSize / repeatAreaRatio);
+    }
+    
+    console.log(`开始下载: 分辨率=${targetSize}, 重复次数=${repeatCount}, 最终尺寸=${finalWidth}×${finalHeight}`);
+    
+    // 创建导出用的Canvas
     const canvas = document.createElement('canvas');
-    canvas.width = unitWidth;
-    canvas.height = unitHeight;
+    canvas.width = finalWidth;
+    canvas.height = finalHeight;
     const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('无法创建Canvas上下文');
+    }
     
-    console.log(`开始下载: 分辨率=${resolution}, 宽度=${unitWidth}, 高度=${unitHeight}`);
-    
-    // 请求平铺图层渲染到画布
+    // 使用TiledLatticeLayer的renderToCanvas方法渲染到画布
     const success = await tiledLatticeLayerComponent.value.renderToCanvas(ctx, {
-      width: unitWidth,
-      height: unitHeight,
-      resolution: resolution,
+      width: finalWidth,
+      height: finalHeight,
+      targetSize: targetSize,
+      repeatCount: repeatCount,
       hideExtras: true
     });
     
     if (!success) {
-      throw new Error('渲染失败');
+      throw new Error('渲染图像失败');
     }
     
     // 转换为图像并下载
     const dataUrl = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `tiled-pattern-${new Date().getTime()}.png`;
+    a.download = `tiled-pattern-${targetSize}px-${repeatCount}x${repeatCount}-${new Date().getTime()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

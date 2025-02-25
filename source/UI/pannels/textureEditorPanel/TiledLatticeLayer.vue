@@ -464,17 +464,18 @@ const updateClipSettings = () => {
   }
 };
 
-// 修复渲染到画布的方法，确保正确隐藏多余元素
+// 重写渲染到画布的方法，使用拼接方式实现完整重复
 const renderToCanvas = async (ctx, options = {}) => {
   const {
     width,
     height,
-    resolution = 1,
+    targetSize = 512, // 目标尺寸（像素）
+    repeatCount = 1, // 重复次数
     hideExtras = true
   } = options;
   
   try {
-    console.log('开始渲染到画布, 宽度:', width, '高度:', height, '分辨率:', resolution);
+    console.log('开始渲染到画布, 目标尺寸:', targetSize, '宽度:', width, '高度:', height, '重复次数:', repeatCount);
     
     // 获取当前图层和舞台
     const layerNode = tiledLatticeLayer.value?.getNode();
@@ -489,7 +490,7 @@ const renderToCanvas = async (ctx, options = {}) => {
       return false;
     }
     
-    // 获取无缝单元的尺寸
+    // 获取单个无缝单元的尺寸
     const unitWidth = props.seamlessUnit.width;
     const unitHeight = props.seamlessUnit.height;
     console.log('无缝单元尺寸:', unitWidth, 'x', unitHeight);
@@ -497,6 +498,8 @@ const renderToCanvas = async (ctx, options = {}) => {
     // 获取舞台当前状态
     const stageScale = props.currentScale / 100; // 当前缩放比例
     console.log('舞台当前缩放:', stageScale);
+    
+    // 第一步：先捕获单个完整重复单元
     
     // 记录所有需要临时修改的节点
     const nodesToRestore = [];
@@ -551,7 +554,9 @@ const renderToCanvas = async (ctx, options = {}) => {
               (attrs.id && (
                 attrs.id.includes('grid') || 
                 attrs.id.includes('helper') ||
-                attrs.id.includes('guideline')
+                attrs.id.includes('guideline') ||
+                attrs.id.includes('lod') ||
+                attrs.id.includes('text')
               ));
             
             // 如果是辅助元素，隐藏它
@@ -574,8 +579,21 @@ const renderToCanvas = async (ctx, options = {}) => {
         hideNode(targetNode);
       }
       
-      // 强制确保无缝单元边界框不可见
-      stage.find('.seamlessUnitRect, #seamlessUnitLayer, #gridLayer, #latticeVectorLayer').forEach(node => {
+      // 强制隐藏LOD单元容器
+      if (lodUnitsContainer.value) {
+        const node = lodUnitsContainer.value.getNode();
+        if (node) {
+          nodesToRestore.push({
+            node: node,
+            prop: 'visible',
+            value: node.visible()
+          });
+          node.visible(false);
+        }
+      }
+      
+      // 强制确保无缝单元边界框和其他辅助图层不可见
+      stage.find('.seamlessUnitRect, #seamlessUnitLayer, #gridLayer, #latticeVectorLayer, .label, .marker, Text').forEach(node => {
         if (node) {
           nodesToRestore.push({
             node: node,
@@ -591,25 +609,31 @@ const renderToCanvas = async (ctx, options = {}) => {
     const centerX = props.stageWidth / 2;
     const centerY = props.stageHeight / 2;
     
-    // 计算要捕获的区域（在舞台坐标系中）
-    // 考虑当前舞台缩放
+    // 计算单个无缝单元的捕获区域
     const captureX = centerX - (unitWidth/2 * stageScale);
     const captureY = centerY - (unitHeight/2 * stageScale);
     const captureWidth = unitWidth * stageScale;
     const captureHeight = unitHeight * stageScale;
     
-    console.log('捕获区域:', captureX, captureY, captureWidth, captureHeight);
+    console.log('单个单元捕获区域:', captureX, captureY, captureWidth, captureHeight);
+    
+    // 计算单个单元需要的缩放因子
+    // 我们先计算出单元的目标尺寸，然后再计算缩放因子
+    const singleUnitTargetSize = targetSize / repeatCount;
+    const shortSide = Math.min(unitWidth, unitHeight);
+    const scaleFactor = singleUnitTargetSize / (shortSide * stageScale);
+    console.log('单个单元的缩放因子:', scaleFactor);
     
     // 捕获舞台内容前先更新
     stage.batchDraw();
     
-    // 捕获舞台内容
-    const dataURL = stage.toDataURL({
+    // 捕获单个无缝单元
+    const singleUnitDataURL = stage.toDataURL({
       x: captureX,
       y: captureY,
       width: captureWidth,
       height: captureHeight,
-      pixelRatio: resolution / stageScale // 调整分辨率以考虑舞台缩放和导出分辨率
+      pixelRatio: scaleFactor
     });
     
     // 恢复所有修改的节点
@@ -620,23 +644,55 @@ const renderToCanvas = async (ctx, options = {}) => {
     // 更新舞台以恢复显示
     stage.batchDraw();
     
-    // 创建临时图像
-    const tempImg = new Image();
+    // 创建临时图像加载单个无缝单元
+    const singleUnitImg = new Image();
     await new Promise((resolve, reject) => {
-      tempImg.onload = resolve;
-      tempImg.onerror = (e) => {
-        console.error('加载临时图像失败:', e);
+      singleUnitImg.onload = resolve;
+      singleUnitImg.onerror = (e) => {
+        console.error('加载单个无缝单元图像失败:', e);
         reject(e);
       };
-      tempImg.src = dataURL;
+      singleUnitImg.src = singleUnitDataURL;
     });
+    
+    // 第二步：创建一个临时canvas来拼接重复单元
+    
+    // 计算单个无缝单元的实际尺寸（捕获后）
+    const singleUnitFinalWidth = singleUnitImg.width;
+    const singleUnitFinalHeight = singleUnitImg.height;
+    console.log('单个无缝单元的实际尺寸:', singleUnitFinalWidth, 'x', singleUnitFinalHeight);
+    
+    // 创建临时canvas用于拼接
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = singleUnitFinalWidth * repeatCount;
+    tempCanvas.height = singleUnitFinalHeight * repeatCount;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // 使用白色填充背景
+    tempCtx.fillStyle = 'white';
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // 拼接无缝单元
+    for (let i = 0; i < repeatCount; i++) {
+      for (let j = 0; j < repeatCount; j++) {
+        tempCtx.drawImage(
+          singleUnitImg,
+          i * singleUnitFinalWidth,
+          j * singleUnitFinalHeight,
+          singleUnitFinalWidth,
+          singleUnitFinalHeight
+        );
+      }
+    }
+    
+    // 第三步：将拼接结果绘制到目标画布
     
     // 清除目标画布并填充白色背景
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, width, height);
     
-    // 绘制到目标画布，使用完整尺寸
-    ctx.drawImage(tempImg, 0, 0, width, height);
+    // 绘制到目标画布，调整大小为所需的最终尺寸
+    ctx.drawImage(tempCanvas, 0, 0, width, height);
     
     console.log('渲染到画布完成');
     return true;
