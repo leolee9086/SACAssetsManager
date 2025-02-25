@@ -1,36 +1,61 @@
 <template>
   <v-layer ref="geomLayer">
-    <!-- 遍历所有几何图形 -->
-    <template v-for="geom in geoms" :key="geom.id">
-      <!-- 三角形 -->
-      <template v-if="geom.type === 'triangle'">
-        <v-line
-          :config="{
-            points: getTrianglePoints(geom),
-            closed: true,
-            fill: geom.color.fill,
-            stroke: geom.color.stroke,
-            strokeWidth: 2
-          }"
-        />
-        
-        <!-- 三角形顶点标记 -->
-        <template v-for="point in geom.vertices" :key="point.id">
+    <v-group ref="coordSystem">
+      <!-- 遍历所有几何图形 -->
+      <template v-for="geom in geoms" :key="geom.id">
+        <!-- 三角形 -->
+        <template v-if="geom.type === 'triangle'">
+          <v-line
+            :config="{
+              points: getTrianglePoints(geom),
+              closed: true,
+              fill: geom.color.fill,
+              stroke: geom.color.stroke,
+              strokeWidth: 2
+            }"
+          />
+          
+          <!-- 三角形顶点标记 -->
+          <template v-for="point in geom.vertices" :key="point.id">
+            <v-circle
+              :config="{
+                x: point.x,
+                y: point.y,
+                radius: 4,
+                fill: geom.color.pointFill,
+                stroke: 'white',
+                strokeWidth: 1
+              }"
+            />
+            <v-text
+              :config="{
+                x: point.x + point.labelOffsetX,
+                y: point.y + point.labelOffsetY,
+                text: point.label,
+                fontSize: 12,
+                fontFamily: 'Arial',
+                fill: 'rgba(0,0,0,0.8)',
+                align: 'center'
+              }"
+            />
+          </template>
+
+          <!-- 三角形中心点标记 -->
           <v-circle
             :config="{
-              x: point.x,
-              y: point.y,
+              x: getTriangleCenter(geom).x,
+              y: getTriangleCenter(geom).y,
               radius: 4,
-              fill: geom.color.pointFill,
+              fill: 'rgba(220,100,100,0.8)',
               stroke: 'white',
               strokeWidth: 1
             }"
           />
           <v-text
             :config="{
-              x: point.x + point.labelOffsetX,
-              y: point.y + point.labelOffsetY,
-              text: point.label,
+              x: getTriangleCenter(geom).x + 10,
+              y: getTriangleCenter(geom).y - 10,
+              text: geom.center.label,
               fontSize: 12,
               fontFamily: 'Arial',
               fill: 'rgba(0,0,0,0.8)',
@@ -38,33 +63,43 @@
             }"
           />
         </template>
-
-        <!-- 三角形中心点标记 -->
-        <v-circle
-          :config="{
-            x: getTriangleCenter(geom).x,
-            y: getTriangleCenter(geom).y,
-            radius: 4,
-            fill: 'rgba(220,100,100,0.8)',
-            stroke: 'white',
-            strokeWidth: 1
-          }"
-        />
-        <v-text
-          :config="{
-            x: getTriangleCenter(geom).x + 10,
-            y: getTriangleCenter(geom).y - 10,
-            text: geom.center.label,
-            fontSize: 12,
-            fontFamily: 'Arial',
-            fill: 'rgba(0,0,0,0.8)',
-            align: 'center'
-          }"
-        />
+        
+        <!-- 内部坐标轴 -->
+        <v-group v-if="geom.internalAxes">
+          <!-- 坐标轴线 -->
+          <v-line
+            :config="{
+              points: [
+                geom.internalAxes.center.x,
+                geom.internalAxes.center.y,
+                geom.internalAxes.center.x + geom.internalAxes.toOrigin.x * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2))),
+                geom.internalAxes.center.y + geom.internalAxes.toOrigin.y * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2)))
+              ],
+              stroke: geom.internalAxes.color,
+              strokeWidth: 2,
+              lineCap: 'round'
+            }"
+          />
+          
+          <!-- 箭头 -->
+          <v-arrow
+            :config="{
+              points: [
+                geom.internalAxes.center.x,
+                geom.internalAxes.center.y,
+                geom.internalAxes.center.x + geom.internalAxes.toOrigin.x * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2))),
+                geom.internalAxes.center.y + geom.internalAxes.toOrigin.y * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2)))
+              ],
+              pointerLength: 10,
+              pointerWidth: 10,
+              fill: geom.internalAxes.color,
+              stroke: geom.internalAxes.color,
+              strokeWidth: 2
+            }"
+          />
+        </v-group>
       </template>
-      
-      <!-- 这里可以添加其他类型的几何图形，如矩形、圆形等 -->
-    </template>
+    </v-group>
   </v-layer>
 </template>
 

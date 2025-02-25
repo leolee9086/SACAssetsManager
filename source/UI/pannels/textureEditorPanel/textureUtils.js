@@ -71,6 +71,23 @@ export const generateUnits = (spacing, precision) => {
       ],
       center: {
         label: `三角形${i+1}`
+      },
+      // 添加内部坐标轴
+      internalAxes: {
+        // 计算三角形中心点
+        center: {
+          x: (centerX + hexagonVertices[i].x + hexagonVertices[nextIndex].x) / 3,
+          y: (centerY + hexagonVertices[i].y + hexagonVertices[nextIndex].y) / 3
+        },
+        // 指向原点的向量
+        toOrigin: {
+          x: centerX - (centerX + hexagonVertices[i].x + hexagonVertices[nextIndex].x) / 3,
+          y: centerY - (centerY + hexagonVertices[i].y + hexagonVertices[nextIndex].y) / 3
+        },
+        // 坐标轴长度（可以根据需要调整）
+        length: unitLength * 0.4,
+        // 坐标轴颜色
+        color: 'rgba(0,0,0,0.7)'
       }
     });
   }
@@ -196,6 +213,69 @@ export const generateUnits = (spacing, precision) => {
     rasterImages,
     triangleCenters,
     loadImagesWithDefaults,
-    latticeVectors  // 添加晶格向量到返回对象
+    latticeVectors,  // 添加晶格向量到返回对象
+    calculateInternalOffset  // 添加内部坐标偏移计算函数
   };
+};
+
+/**
+ * 计算内部坐标系中的偏移
+ * @param {Object} geom - 几何图形对象
+ * @param {Object} image - 图像对象
+ * @param {Object} offset - 偏移量 {x, y}
+ * @returns {Object} 计算后的偏移量 {x, y}
+ */
+export const calculateInternalOffset = (geom, image, offset) => {
+  if (!geom || !geom.internalAxes) {
+    // 如果没有内部坐标轴信息，则返回原始偏移
+    return offset;
+  }
+  
+  // 获取指向原点的向量
+  const toOrigin = geom.internalAxes.toOrigin;
+  
+  // 计算指向原点的单位向量（这是内部Y轴的方向，因为Y轴偏移减小时图像向原点移动）
+  const magnitude = Math.sqrt(toOrigin.x * toOrigin.x + toOrigin.y * toOrigin.y);
+  const yAxis = {
+    x: toOrigin.x / magnitude,
+    y: toOrigin.y / magnitude
+  };
+  
+  // 计算X轴方向（垂直于Y轴，顺时针旋转90度）
+  let xAxis = {
+    x: yAxis.y,
+    y: -yAxis.x
+  };
+  
+  // 根据三角形ID判断是否需要镜像X轴
+  // 假设三角形ID格式为 "triangle-N"，其中N是三角形的编号
+  if (geom.id && typeof geom.id === 'string') {
+    const match = geom.id.match(/triangle-(\d+)/);
+    if (match && match[1]) {
+      const triangleNumber = parseInt(match[1], 10);
+      
+      // 如果是单数三角形，镜像X轴
+      if (triangleNumber % 2 === 1) {
+        xAxis.x = -xAxis.x;
+        xAxis.y = -xAxis.y;
+      }
+    }
+  }
+  
+  // 应用X和Y轴偏移
+  const result = {
+    x: offset.x * xAxis.x + offset.y * yAxis.x,
+    y: offset.x * xAxis.y + offset.y * yAxis.y
+  };
+  
+  // 输出调试信息
+  console.log('内部坐标计算:', {
+    geomId: geom.id,
+    offset,
+    xAxis,
+    yAxis,
+    result
+  });
+  
+  return result;
 };

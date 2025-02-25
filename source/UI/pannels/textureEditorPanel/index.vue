@@ -11,8 +11,9 @@
         :gridPrecision="gridPrecision"
       />
       
-      <!-- 使用光栅图像子组件 -->
+      <!-- 使用光栅图像子组件，仅在不显示平铺晶格时显示 -->
       <raster-layer
+        v-if="!showTiledLattice"
         ref="rasterLayerComponent"
         :stageWidth="stageConfig.width"
         :stageHeight="stageConfig.height"
@@ -40,6 +41,17 @@
         :latticeVectors="latticeVectors"
         v-if="showLatticeVectors"
       />
+      
+      <!-- 添加平铺晶格图层 -->
+      <tiled-lattice-layer
+        ref="tiledLatticeLayerComponent"
+        :stageWidth="stageConfig.width"
+        :stageHeight="stageConfig.height"
+        :rasterImages="rasterImages"
+        :latticeVectors="latticeVectors"
+        :tilingExtent="tilingExtent"
+        v-if="showTiledLattice"
+      />
     </v-stage>
     
     <!-- 控制面板 -->
@@ -57,13 +69,13 @@
       </div>
       
       <div class="control-group">
-        <label>X偏移:</label>
+        <label>内部坐标偏移X:</label>
         <input type="range" v-model.number="positionOffsetPercent.x" min="-100" max="100" step="5" />
         <span>{{ positionOffsetPercent.x }}%</span>
       </div>
       
       <div class="control-group">
-        <label>Y偏移:</label>
+        <label>内部坐标偏移Y:</label>
         <input type="range" v-model.number="positionOffsetPercent.y" min="-100" max="100" step="5" />
         <span>{{ positionOffsetPercent.y }}%</span>
       </div>
@@ -71,6 +83,29 @@
       <div class="control-group">
         <label>显示晶格向量:</label>
         <input type="checkbox" v-model="showLatticeVectors" />
+      </div>
+      
+      <div class="control-group">
+        <label>显示平铺晶格:</label>
+        <input type="checkbox" v-model="showTiledLattice" />
+      </div>
+      
+      <div class="control-group" v-if="showTiledLattice">
+        <label>平铺范围:</label>
+        <input type="range" v-model.number="tilingExtent" min="1" max="10" step="1" />
+        <span>{{ tilingExtent }}</span>
+      </div>
+      
+      <!-- 添加自定义图像上传控件 -->
+      <div class="control-group">
+        <label>自定义图像:</label>
+        <input type="file" accept="image/*" @change="handleImageUpload" />
+      </div>
+      
+      <!-- 添加应用自定义图像按钮 -->
+      <div class="control-group" v-if="customImage">
+        <button @click="applyCustomImage" class="custom-button">应用自定义图像</button>
+        <button @click="resetDefaultImages" class="custom-button">恢复默认图像</button>
       </div>
     </div>
   </div>
@@ -82,6 +117,7 @@ import GridLayer from './GridLayer.vue';
 import GeomLayer from './GeomLayer.vue';
 import RasterLayer from './RasterLayer.vue';
 import LatticeVectorLayer from './LatticeVectorLayer.vue';
+import TiledLatticeLayer from './TiledLatticeLayer.vue';
 import { generateUnits } from './textureUtils.js';
 
 const container = ref(null);
@@ -90,6 +126,7 @@ const gridLayerComponent = ref(null);
 const geomLayerComponent = ref(null);
 const rasterLayerComponent = ref(null);
 const latticeVectorLayerComponent = ref(null);
+const tiledLatticeLayerComponent = ref(null);
 
 // 舞台配置
 const stageConfig = ref({
@@ -128,6 +165,10 @@ const stageCenter = computed(() => ({
 
 // 晶格向量显示控制
 const showLatticeVectors = ref(true);
+// 平铺晶格显示控制
+const showTiledLattice = ref(false);
+// 平铺范围（单位数量）
+const tilingExtent = ref(3);
 
 // 从生成的单元中获取晶格向量
 const latticeVectors = ref([]);
@@ -146,6 +187,10 @@ const rasterImages = ref([]);
 // 从生成的单元中获取三角形中心点
 const triangleCenters = computed(() => generatedUnits.value.triangleCenters);
 
+// 自定义图像
+const customImage = ref(null);
+const originalImageSources = ref([]);
+
 // 监听三角形变化，更新图像位置
 watch(triangleCenters, () => {
   updateImagePositions();
@@ -160,6 +205,11 @@ watch([computedImageSize, angleIncrement, computedPositionOffset], () => {
 watch(showLatticeVectors, () => {
   updateLatticeVectorVisibility();
 });
+
+// 监听平铺晶格显示控制变化
+watch([showTiledLattice, tilingExtent], () => {
+  updateTiledLatticeVisibility();
+}, { deep: true });
 
 // 更新图像位置，使其与对应三角形的中心点对齐
 const updateImagePositions = () => {
@@ -183,11 +233,28 @@ const updateImageProperties = () => {
     image.config.offsetX = computedImageSize.value / 2;
     image.config.offsetY = computedImageSize.value / 2;
     
-    // 更新图像位置（应用偏移）
+    // 更新图像位置（应用内部坐标偏移）
     const relatedCenter = triangleCenters.value.find(c => c.id === image.relatedGeom);
     if (relatedCenter) {
-      image.config.x = relatedCenter.center.x + computedPositionOffset.value.x;
-      image.config.y = relatedCenter.center.y + computedPositionOffset.value.y;
+      // 获取相关三角形的内部坐标轴信息
+      const relatedGeom = geoms.value.find(g => g.id === image.relatedGeom);
+      
+      if (relatedGeom) {
+        // 使用textureUtils中的函数计算内部坐标偏移
+        const internalOffset = generatedUnits.value.calculateInternalOffset(
+          relatedGeom, 
+          image, 
+          computedPositionOffset.value
+        );
+        
+        // 设置最终位置
+        image.config.x = relatedCenter.center.x + internalOffset.x;
+        image.config.y = relatedCenter.center.y + internalOffset.y;
+      } else {
+        // 如果没有找到相关几何体，则使用全局坐标系
+        image.config.x = relatedCenter.center.x + computedPositionOffset.value.x;
+        image.config.y = relatedCenter.center.y + computedPositionOffset.value.y;
+      }
     }
     
     // 更新图像角度（应用增量）
@@ -199,8 +266,16 @@ const updateImageProperties = () => {
     // 存储原始角度以便后续调整
     image.originalRotation = originalRotation;
     
+    // 考虑镜像时角度增量的方向
+    let effectiveAngleIncrement = angleIncrement.value;
+    
+    // 如果图像被镜像（scaleY为-1），则角度增量应该反向
+    if (image.config.scaleY === -1) {
+      effectiveAngleIncrement = -angleIncrement.value;
+    }
+    
     // 应用角度增量
-    image.config.rotation = (originalRotation + angleIncrement.value) % 360;
+    image.config.rotation = (originalRotation + effectiveAngleIncrement) % 360;
   });
 };
 
@@ -241,32 +316,46 @@ const handleResize = () => {
     stageConfig.value.height = offsetHeight;
     
     // 更新所有图层的坐标系
-    if (gridLayerComponent.value) {
-      gridLayerComponent.value.centerCoordinateSystem();
-    }
-    
-    if (geomLayerComponent.value) {
-      geomLayerComponent.value.centerCoordinateSystem();
-    }
-    
-    if (rasterLayerComponent.value) {
-      rasterLayerComponent.value.centerCoordinateSystem();
-    }
-    
-    if (latticeVectorLayerComponent.value) {
-      latticeVectorLayerComponent.value.centerCoordinateSystem();
-    }
+    centerAllLayers();
   }
-  
-  // 更新晶格向量位置
-  updateLatticeVectorPositions();
 };
 
-// 更新晶格向量位置 - 当舞台大小变化时调用
-const updateLatticeVectorPositions = () => {
-  if (latticeVectorLayerComponent.value) {
-    latticeVectorLayerComponent.value.getNode().draw();
+// 新增函数：居中所有图层
+const centerAllLayers = () => {
+  // 创建一个图层组件数组
+  const layerComponents = [
+    gridLayerComponent,
+    geomLayerComponent,
+    rasterLayerComponent,
+    latticeVectorLayerComponent,
+    tiledLatticeLayerComponent
+  ];
+  
+  // 遍历所有图层组件并调用其centerCoordinateSystem方法
+  layerComponents.forEach(component => {
+    if (component.value) {
+      component.value.centerCoordinateSystem();
+    }
+  });
+  
+  // 确保舞台更新
+  if (stage.value) {
+    stage.value.getStage().batchDraw();
   }
+};
+
+// 监听窗口大小变化
+const setupWindowResizeListener = () => {
+  const handleWindowResize = () => {
+    handleResize();
+  };
+  
+  window.addEventListener('resize', handleWindowResize);
+  
+  // 组件卸载时移除事件监听器
+  onUnmounted(() => {
+    window.removeEventListener('resize', handleWindowResize);
+  });
 };
 
 // 更新晶格向量可见性
@@ -280,6 +369,95 @@ const updateLatticeVectorVisibility = () => {
   }
 };
 
+// 更新平铺晶格可见性
+const updateTiledLatticeVisibility = () => {
+  if (stage.value) {
+    const tiledLatticeLayer = stage.value.getStage().findOne('#tiledLatticeLayer');
+    if (tiledLatticeLayer) {
+      tiledLatticeLayer.visible(showTiledLattice.value);
+      tiledLatticeLayer.draw();
+    }
+  }
+};
+
+// 处理图像上传
+const handleImageUpload = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  // 检查文件类型
+  if (!file.type.match('image.*')) {
+    alert('请选择图像文件');
+    return;
+  }
+  
+  // 创建文件读取器
+  const reader = new FileReader();
+  
+  // 文件加载完成后的处理
+  reader.onload = (e) => {
+    // 创建新图像对象
+    const img = new Image();
+    
+    // 图像加载完成后的处理
+    img.onload = () => {
+      customImage.value = img;
+    };
+    
+    // 设置图像源
+    img.src = e.target.result;
+  };
+  
+  // 读取文件
+  reader.readAsDataURL(file);
+};
+
+// 应用自定义图像到所有栅格图像
+const applyCustomImage = () => {
+  if (!customImage.value) return;
+  
+  // 保存原始图像源（如果尚未保存）
+  if (originalImageSources.value.length === 0) {
+    rasterImages.value.forEach(image => {
+      originalImageSources.value.push({
+        id: image.id,
+        image: image.config.image
+      });
+    });
+  }
+  
+  // 应用自定义图像
+  rasterImages.value.forEach(image => {
+    image.config.image = customImage.value;
+  });
+  
+ // 更新平铺图像
+  if (tiledLatticeLayerComponent.value) {
+    tiledLatticeLayerComponent.value.generateTiledImages();
+  }
+};
+
+// 恢复默认图像
+const resetDefaultImages = () => {
+  if (originalImageSources.value.length === 0) return;
+  
+  // 恢复原始图像
+  rasterImages.value.forEach(image => {
+    const originalSource = originalImageSources.value.find(src => src.id === image.id);
+    if (originalSource) {
+      image.config.image = originalSource.image;
+    }
+  });
+  
+  // 更新平铺图像
+  if (tiledLatticeLayerComponent.value) {
+    tiledLatticeLayerComponent.value.generateTiledImages();
+  }
+  
+  // 清除自定义图像
+  customImage.value = null;
+};
+
 onMounted(() => {
   // 使用 ResizeObserver 监听容器大小变化
   const resizeObserver = new ResizeObserver(() => {
@@ -290,9 +468,17 @@ onMounted(() => {
     resizeObserver.observe(container.value);
   }
   
+  // 设置窗口大小变化监听器
+  setupWindowResizeListener();
+  
   // 初始调整大小
   handleResize();
   loadImages(); // 加载图像
+  
+  // 添加一个短暂延迟后再次居中所有图层，确保在DOM完全渲染后执行
+  setTimeout(() => {
+    centerAllLayers();
+  }, 100);
   
   // 组件卸载时清理 ResizeObserver
   onUnmounted(() => {
@@ -301,6 +487,16 @@ onMounted(() => {
     }
     resizeObserver.disconnect();
   });
+});
+
+// 添加一个方法，允许外部组件触发重新居中
+const recenterCanvas = () => {
+  centerAllLayers();
+};
+
+// 在defineExpose中暴露此方法
+defineExpose({
+  recenterCanvas
 });
 </script>
 
@@ -342,5 +538,19 @@ onMounted(() => {
 .control-group span {
   width: 50px;
   text-align: right;
+}
+
+.custom-button {
+  padding: 5px 10px;
+  margin-right: 5px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.custom-button:hover {
+  background-color: #45a049;
 }
 </style>
