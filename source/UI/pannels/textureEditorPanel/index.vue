@@ -145,15 +145,18 @@
         <span>{{ clipToUnit ? '已启用' : '已禁用' }}</span>
       </div>
       
-      <!-- 自定义图像上传控件 -->
-      <div class="control-group">
+      <!-- 修改自定义图像上传控件部分 -->
+      <div class="control-group image-upload-section">
         <label>自定义图像:</label>
         <input type="file" accept="image/*" @change="handleImageUpload" />
       </div>
       
-      <!-- 添加应用自定义图像按钮 -->
-      <div class="control-group" v-if="customImage">
-        <button @click="applyCustomImage" class="custom-button">应用自定义图像</button>
+      <!-- 添加图像预览部分 -->
+      <div class="image-preview" v-if="customImage">
+        <div class="preview-container">
+          <img :src="customImagePreviewUrl" alt="预览" class="preview-image" />
+          <div class="image-filename">{{ customImageFilename }}</div>
+        </div>
         <button @click="resetDefaultImages" class="custom-button">恢复默认图像</button>
       </div>
     </div>
@@ -250,6 +253,10 @@ const blendMode = ref('source-over');
 
 // 裁剪控制
 const clipToUnit = ref(false);
+
+// 添加新的响应式变量
+const customImagePreviewUrl = ref('');
+const customImageFilename = ref('');
 
 // 监听三角形变化，更新图像位置
 watch(triangleCenters, () => {
@@ -503,7 +510,7 @@ const updateClipSettings = () => {
   }
 };
 
-// 处理图像上传
+// 修改处理图像上传函数
 const handleImageUpload = (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -514,17 +521,26 @@ const handleImageUpload = (event) => {
     return;
   }
   
+  // 保存文件名
+  customImageFilename.value = file.name;
+  
   // 创建文件读取器
   const reader = new FileReader();
   
   // 文件加载完成后的处理
   reader.onload = (e) => {
+    // 设置预览图URL
+    customImagePreviewUrl.value = e.target.result;
+    
     // 创建新图像对象
     const img = new Image();
     
     // 图像加载完成后的处理
     img.onload = () => {
       customImage.value = img;
+      
+      // 立即应用图像，无需点击按钮
+      applyCustomImage();
     };
     
     // 设置图像源
@@ -686,5 +702,43 @@ defineExpose({
   padding: 3px;
   border-radius: 4px;
   border: 1px solid #ccc;
+}
+
+/* 添加自定义图像上传和预览样式 */
+.image-upload-section {
+  margin-bottom: 5px;
+}
+
+.image-preview {
+  margin-top: 5px;
+  margin-bottom: 15px;
+  padding: 8px;
+  background-color: rgba(240, 240, 240, 0.7);
+  border-radius: 5px;
+}
+
+.preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.preview-image {
+  max-width: 120px;
+  max-height: 80px;
+  object-fit: contain;
+  margin-bottom: 5px;
+  border: 1px solid #ccc;
+}
+
+.image-filename {
+  font-size: 12px;
+  color: #333;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 </style>
