@@ -72,6 +72,12 @@
     <!-- 控制面板 -->
     <div class="controls-panel">
       <div class="control-group">
+        <label>画布缩放:</label>
+        <input type="range" v-model.number="canvasScale" min="10" max="100" step="5" />
+        <span>{{ canvasScale }}%</span>
+      </div>
+      
+      <div class="control-group">
         <label>图像大小:</label>
         <input type="range" v-model.number="imageSizePercent" min="10" max="10000" step="10" />
         <span>{{ imageSizePercent }}%</span>
@@ -190,6 +196,9 @@ const stageConfig = ref({
   height: 500
 });
 
+// 添加画布缩放参数
+const canvasScale = ref(100); // 画布缩放百分比（默认100%）
+
 // 网格线配置
 const gridSpacing = ref(50); // 网格间距
 const gridExtent = ref(2); // 网格范围（单位数量）
@@ -291,6 +300,11 @@ watch(blendMode, () => {
 // 监听裁剪设置变化
 watch(clipToUnit, () => {
   updateClipSettings();
+});
+
+// 监听画布缩放变化
+watch(canvasScale, () => {
+  updateCanvasScale();
 });
 
 // 更新图像位置，使其与对应三角形的中心点对齐
@@ -405,6 +419,9 @@ const handleResize = () => {
     
     // 更新所有图层的坐标系
     centerAllLayers();
+    
+    // 应用当前缩放
+    updateCanvasScale();
   }
 };
 
@@ -429,7 +446,10 @@ const centerAllLayers = () => {
   
   // 确保舞台更新
   if (stage.value) {
-    stage.value.getStage().batchDraw();
+    const stageInstance = stage.value.getStage();
+    
+    // 在居中图层后重新应用当前缩放和位置
+    updateCanvasScale();
   }
 };
 
@@ -507,6 +527,35 @@ const updateClipSettings = () => {
   // 确保舞台更新
   if (stage.value) {
     stage.value.getStage().batchDraw();
+  }
+};
+
+// 更新画布缩放
+const updateCanvasScale = () => {
+  if (stage.value) {
+    const stageInstance = stage.value.getStage();
+    const scale = canvasScale.value / 100;
+    
+    // 获取容器尺寸
+    const containerWidth = container.value.offsetWidth;
+    const containerHeight = container.value.offsetHeight;
+    
+    // 获取舞台原始尺寸
+    const stageWidth = stageConfig.value.width;
+    const stageHeight = stageConfig.value.height;
+    
+    // 计算缩放后的中心位置
+    const scaledWidth = stageWidth * scale;
+    const scaledHeight = stageHeight * scale;
+    
+    // 计算应居中的位置
+    const centerX = (containerWidth - scaledWidth) / 2;
+    const centerY = (containerHeight - scaledHeight) / 2;
+    
+    // 应用缩放和位置
+    stageInstance.scale({ x: scale, y: scale });
+    stageInstance.position({ x: centerX, y: centerY });
+    stageInstance.batchDraw();
   }
 };
 
@@ -616,6 +665,7 @@ onMounted(() => {
   handleResize();
   loadImages(); // 加载图像
   updateBlendMode(); // 应用初始叠加模式
+  updateCanvasScale(); // 应用初始缩放
   
   // 添加一个短暂延迟后再次居中所有图层，确保在DOM完全渲染后执行
   setTimeout(() => {
