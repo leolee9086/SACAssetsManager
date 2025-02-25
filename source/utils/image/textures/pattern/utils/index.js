@@ -94,6 +94,18 @@ export function 以基向量对在画布上下文创建平行四边形路径(ctx
     }
     ctx.closePath();
 }
+
+export function 以点序列在画布上下文创建多边形路径(ctx,points){
+     // 绘制裁剪路径
+     ctx.beginPath();
+     ctx.moveTo(points[0].x, points[0].y);
+     for (let i = 1; i < points.length; i++) {
+         ctx.lineTo(points[i].x, points[i].y);
+     }
+     ctx.closePath();
+}
+
+
 export function 在画布上下文应用变换(ctx, 适配比例, 平移量, 旋转角度, 缩放系数) {
     ctx.translate(平移量.x, 平移量.y);
     ctx.rotate((旋转角度 * Math.PI) / 180);
@@ -101,7 +113,7 @@ export function 在画布上下文应用变换(ctx, 适配比例, 平移量, 旋
 }
 
 export function 蒙版到节点形状(ctx, 形状配置){
-    const {width, height, shape,basis1,basis2 } = 形状配置;
+    const {width, height, shape, basis1, basis2, points} = 形状配置;
     ctx.beginPath();
     switch (shape) {
         case 'parallelogram':
@@ -109,6 +121,9 @@ export function 蒙版到节点形状(ctx, 形状配置){
             break;
         case 'hexagon':
             以高度和宽度在画布上下文创建正六边形路径(ctx, width, height);
+            break;
+        case 'polygon':
+            以点序列在画布上下文创建多边形路径(ctx, points);
             break;
         case 'rectangle':
         default:

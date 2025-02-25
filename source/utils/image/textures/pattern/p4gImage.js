@@ -1,17 +1,17 @@
 import { CMImagePattern } from "./cmImage.js";
 import { 在画布上下文批量绘制线条 } from "../../../canvas/draw/simpleDraw/lines.js";
-import { 校验P1晶格基向量,校验配置基向量是否等长 as 校验P4G图案配置 } from "./utils/config.js";
-import { 规范化P1图案配置,规范化CM图案配置  } from "./utils/config.js";
+import { 校验P1晶格基向量, 校验配置基向量是否等长 as 校验P4G图案配置 } from "./utils/config.js";
+import { 规范化P1图案配置, 规范化CM图案配置 } from "./utils/config.js";
 import { 从视点和基向量对计算P1网格范围 } from "./utils/index.js";
 import { drawImageWithConfig } from "../../../canvas/draw/simpleDraw/images.js";
 import { 在画布上下文批量绘制标记点 } from "../../../canvas/draw/simpleDraw/points.js";
 
-export class P4GImagePattern  {
+export class P4GImagePattern {
     constructor(config) {
         校验P1晶格基向量(config);
         校验P4G图案配置(config)
         this.config = 规范化P1图案配置(config);
-        this.config= 规范化CM图案配置(config)
+        this.config = 规范化CM图案配置(config)
         this.nodeImageLoaded = false;
         this.fillImageLoaded = false;
         this.patternReady = false;
@@ -79,9 +79,9 @@ export class P4GImagePattern  {
 
         // 绘制网格
         if (this.config.render.showGrid) {
-            const {lines,points} = this.renderRhombusGrid(ctx, gridRange);
-            lines&&在画布上下文批量绘制线条(ctx, lines);
-            points&&在画布上下文批量绘制标记点(ctx,points,{
+            const { lines, points } = this.renderRhombusGrid(ctx, gridRange);
+            lines && 在画布上下文批量绘制线条(ctx, lines);
+            points && 在画布上下文批量绘制标记点(ctx, points, {
                 color: '#ff0000',
                 radius: 3
             })
@@ -100,26 +100,6 @@ export class P4GImagePattern  {
         }
 
         ctx.restore();
-    }
-
-    drawFillPattern(ctx, i, j, isMirrored) {
-        if (this.fillImage && this.fillImageLoaded) {
-            // 根据是否镜像调整绘制方式
-            if (isMirrored) {
-                ctx.save();
-                //   ctx.scale(1, -1);
-            }
-            drawImageWithConfig(
-                ctx,
-                this.fillImage,
-                this.config.lattice,
-                this.config.fillImage,
-                this.config.lattice.clipMotif
-            );
-            if (isMirrored) {
-                ctx.restore();
-            }
-        }
     }
     drawNodePattern(ctx, i, j) {
         if (this.nodeImage && this.nodeImageLoaded) {
@@ -144,76 +124,68 @@ export class P4GImagePattern  {
         // 计算正方形的边长和中心点
         const sideLength = Math.sqrt(basis1.x * basis1.x + basis1.y * basis1.y);
         const halfSide = sideLength / 2;
+        // 定义关键点坐标
+        const leftMid = { x: 0, y: halfSide };
+        const topMid = { x: halfSide, y: 0 };
+        const rightMid = { x: sideLength, y: halfSide };
+        const bottomMid = { x: halfSide, y: sideLength };
+        const centerPoint = { x: halfSide, y: halfSide };
+        const topLeft = { x: 0, y: 0 };
+        const topRight = { x: sideLength, y: 0 };
+        const bottomRight = { x: sideLength, y: sideLength };
+        const bottomLeft = { x: 0, y: sideLength };
 
         // 将正方形分成8个三角形区域
         for (let k = 0; k < 4; k++) {
             let points1 = []; // 存储内侧三角形的顶点
             let points2 = []; // 存储外侧三角形的顶点
 
+
             if (k === 0) {
-                points1 = [
-                    { x: 0, y: halfSide },      // 左边中点
-                    { x: halfSide, y: halfSide },// 中心点
-                    { x: halfSide, y: 0 }        // 上边中点
-                ];
-                points2 = [
-                    { x: 0, y: halfSide },    // 左边中点
-                    { x: 0, y: 0 },           // 左上角顶点
-                    { x: halfSide, y: 0 }     // 上边中点
-                ];
+                points1 = [leftMid, centerPoint, topMid];
+                points2 = [leftMid, topLeft, topMid];
             } else if (k === 1) {
-                points1 = [
-                    { x: halfSide, y: 0 },        // 上边中点
-                    { x: halfSide, y: halfSide }, // 中心点
-                    { x: sideLength, y: halfSide } // 右边中点
-                ];
-                points2 = [
-                    { x: halfSide, y: 0 },        // 上边中点
-                    { x: sideLength, y: 0 },      // 右上角顶点
-                    { x: sideLength, y: halfSide } // 右边中点
-                ];
+                points1 = [topMid, centerPoint, rightMid];
+                points2 = [topMid, topRight, rightMid];
             } else if (k === 2) {
-                points1 = [
-                    { x: sideLength, y: halfSide },  // 右边中点
-                    { x: halfSide, y: halfSide },    // 中心点
-                    { x: halfSide, y: sideLength }   // 下边中点
-                ];
-                points2 = [
-                    { x: sideLength, y: halfSide },    // 右边中点
-                    { x: sideLength, y: sideLength },  // 右下角顶点
-                    { x: halfSide, y: sideLength }     // 下边中点
-                ];
+                points1 = [rightMid, centerPoint, bottomMid];
+                points2 = [rightMid, bottomRight, bottomMid];
             } else {
-                points1 = [
-                    { x: halfSide, y: sideLength },  // 下边中点
-                    { x: halfSide, y: halfSide },    // 中心点
-                    { x: 0, y: halfSide }            // 左边中点
-                ];
-                points2 = [
-                    { x: halfSide, y: sideLength },  // 下边中点
-                    { x: 0, y: sideLength },         // 左下角顶点
-                    { x: 0, y: halfSide }            // 左边中点
-                ];
+                points1 = [bottomMid, centerPoint, leftMid];
+                points2 = [bottomMid, bottomLeft, leftMid];
             }
+
+            const centroid1X = (points1[0].x + points1[1].x + points1[2].x) / 3;
+            const centroid1Y = (points1[0].y + points1[1].y + points1[2].y) / 3;
+
+
+            const centroid2X = (points2[0].x + points2[1].x + points2[2].x) / 3;
+            const centroid2Y = (points2[0].y + points2[1].y + points2[2].y) / 3;
 
             // 绘制内侧三角形
             ctx.save();
             ctx.translate(x, y);
             ctx.beginPath();
+
             ctx.moveTo(points1[0].x, points1[0].y);
             ctx.lineTo(points1[1].x, points1[1].y);
             ctx.lineTo(points1[2].x, points1[2].y);
+
             ctx.closePath();
             ctx.clip();
-
-            const centroid1X = (points1[0].x + points1[1].x + points1[2].x) / 3;
-            const centroid1Y = (points1[0].y + points1[1].y + points1[2].y) / 3;
-
             ctx.translate(centroid1X, centroid1Y);
             ctx.rotate(k * Math.PI / 2);
-            this.drawFillPattern(ctx, i, j);
+            if (this.fillImage && this.fillImageLoaded) {
+                // 根据是否镜像调整绘制方式
+                drawImageWithConfig(
+                    ctx,
+                    this.fillImage,
+                    this.config.lattice,
+                    this.config.fillImage,
+                    this.config.lattice.clipMotif
+                )
+            }
             ctx.restore();
-
             // 绘制外侧三角形（沿对角线镜像）
             ctx.save();
             ctx.translate(x, y);
@@ -223,20 +195,24 @@ export class P4GImagePattern  {
             ctx.lineTo(points2[2].x, points2[2].y);
             ctx.closePath();
             ctx.clip();
-
-            const centroid2X = (points2[0].x + points2[1].x + points2[2].x) / 3;
-            const centroid2Y = (points2[0].y + points2[1].y + points2[2].y) / 3;
-
             // 计算对角线角度
             const diagonalAngle = k * Math.PI / 2 + Math.PI / 4;
-
             // 应用对角线镜像变换
             ctx.translate(centroid2X, centroid2Y);
             ctx.rotate(diagonalAngle);
             ctx.scale(-1, 1);
             ctx.rotate(-diagonalAngle);
             ctx.rotate(k * Math.PI / 2);
-            this.drawFillPattern(ctx, i, j);
+            if (this.fillImage && this.fillImageLoaded) {
+                // 根据是否镜像调整绘制方式
+                drawImageWithConfig(
+                    ctx,
+                    this.fillImage,
+                    this.config.lattice,
+                    this.config.fillImage,
+                    this.config.lattice.clipMotif
+                )
+            } 
             ctx.restore();
         }
     }
@@ -259,9 +235,9 @@ export class P4GImagePattern  {
             mirrorStyle
         );
         const lattice = this.config.lattice
-        const points= 绘制P4G中心点(gridRange,lattice,gridStyle,mirrorStyle,ctx)
-    
-        return {lines,points}
+        const points = 绘制P4G中心点(gridRange, lattice, gridStyle, mirrorStyle, ctx)
+
+        return { lines, points }
     }
 }
 
@@ -283,7 +259,6 @@ function 绘制P4G中心点(gridRange, lattice, gridStyle, mirrorStyle, ctx) {
         }
     }
     return points
-    
 }
 
 function 计算P4G网格线(gridRange, lattice, gridStyle, mirrorStyle) {

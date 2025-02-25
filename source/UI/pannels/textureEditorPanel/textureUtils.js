@@ -1,0 +1,201 @@
+// 计算根号3/2的值
+const sqrtThreeOverTwo = Math.sqrt(3) / 2;
+import { loadImagesWithDefaults } from "./utils/image.js";
+/**
+ * 生成几何图形和光栅图像
+ * @param {number} spacing - 网格间距
+ * @param {number} precision - 网格精度
+ * @returns {Object} 包含几何图形、光栅图像和三角形中心点的对象
+ */
+export const generateUnits = (spacing, precision) => {
+  // 计算单位长度
+  const unitLength = spacing / precision;
+  
+  // 正六边形的中心点
+  const centerX = 0;
+  const centerY = 0;
+  
+  // 正六边形的六个顶点
+  const hexagonVertices = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i;
+    const x = centerX + unitLength * Math.cos(angle);
+    const y = centerY + unitLength * Math.sin(angle);
+    hexagonVertices.push({ x, y });
+  }
+  
+  // 生成六个三角形
+  const geoms = [];
+  const colors = [
+    { fill: 'rgba(100,150,230,0.5)', stroke: 'rgba(70,120,200,0.8)', pointFill: 'rgba(70,120,200,0.8)' },
+    { fill: 'rgba(230,150,100,0.5)', stroke: 'rgba(200,120,70,0.8)', pointFill: 'rgba(200,120,70,0.8)' },
+    { fill: 'rgba(100,230,150,0.5)', stroke: 'rgba(70,200,120,0.8)', pointFill: 'rgba(70,200,120,0.8)' },
+    { fill: 'rgba(230,100,150,0.5)', stroke: 'rgba(200,70,120,0.8)', pointFill: 'rgba(200,70,120,0.8)' },
+    { fill: 'rgba(150,100,230,0.5)', stroke: 'rgba(120,70,200,0.8)', pointFill: 'rgba(120,70,200,0.8)' },
+    { fill: 'rgba(150,230,100,0.5)', stroke: 'rgba(120,200,70,0.8)', pointFill: 'rgba(120,200,70,0.8)' }
+  ];
+  
+  for (let i = 0; i < 6; i++) {
+    const nextIndex = (i + 1) % 6;
+    
+    // 创建从中心点到两个相邻顶点的三角形
+    geoms.push({
+      id: `triangle-${i+1}`,
+      type: 'triangle',
+      color: colors[i],
+      vertices: [
+        {
+          id: `vertex-center`,
+          x: centerX,
+          y: centerY,
+          labelOffsetX: 0,
+          labelOffsetY: 0,
+          label: '(0,0)'
+        },
+        {
+          id: `vertex-${i}`,
+          x: hexagonVertices[i].x,
+          y: hexagonVertices[i].y,
+          labelOffsetX: 10 * Math.cos(Math.PI / 3 * i),
+          labelOffsetY: 10 * Math.sin(Math.PI / 3 * i),
+          label: `(${Math.cos(Math.PI / 3 * i).toFixed(1)},${Math.sin(Math.PI / 3 * i).toFixed(1)})`
+        },
+        {
+          id: `vertex-${nextIndex}`,
+          x: hexagonVertices[nextIndex].x,
+          y: hexagonVertices[nextIndex].y,
+          labelOffsetX: 10 * Math.cos(Math.PI / 3 * nextIndex),
+          labelOffsetY: 10 * Math.sin(Math.PI / 3 * nextIndex),
+          label: `(${Math.cos(Math.PI / 3 * nextIndex).toFixed(1)},${Math.sin(Math.PI / 3 * nextIndex).toFixed(1)})`
+        }
+      ],
+      center: {
+        label: `三角形${i+1}`
+      }
+    });
+  }
+  
+  // 计算三角形中心点
+  const calculateTriangleCenter = (vertices) => {
+    const centerX = vertices.reduce((sum, vertex) => sum + vertex.x, 0) / vertices.length;
+    const centerY = vertices.reduce((sum, vertex) => sum + vertex.y, 0) / vertices.length;
+    return { x: centerX, y: centerY };
+  };
+  
+  // 计算所有三角形的中心点
+  const triangleCenters = geoms.map(geom => {
+    if (geom.type === 'triangle') {
+      return {
+        id: geom.id,
+        center: calculateTriangleCenter(geom.vertices)
+      };
+    }
+    return null;
+  }).filter(item => item !== null);
+  
+  // 生成光栅图像
+  const rasterImages = [];
+  
+  /**
+   * 计算沿特定轴的镜像变换参数
+   * @param {number} i - 三角形索引
+   * @returns {Object} 包含Konva兼容的变换参数
+   */
+  const calculateMirrorTransformation = (i) => {
+    // P3M1群中的旋转角度计算
+    // 将六个三角形分为三组（0-1, 2-3, 4-5）
+    // 每组中，偶数索引不旋转，奇数索引旋转120度
+    // 然后在此基础上，加上120*组别
+    
+    const groupIndex = Math.floor(i / 2); // 确定组别（0, 1, 2）
+    const baseGroupRotation = groupIndex * 120; // 组基础旋转（0, 120, 240）
+    const inGroupRotation = i % 2 === 0 ? 0 : 120; // 组内旋转（偶数0度，奇数120度）
+    
+    const rotation = (baseGroupRotation + inGroupRotation) % 360;
+    
+    // 对于奇数索引的三角形，我们需要应用镜像变换
+    if (i % 2 === 1) {
+      return {
+        rotation: rotation, // Konva中的旋转角度（以度为单位）
+        scaleY: -1,         // 垂直翻转
+        mirrorAxisAngle: (i * 60 + 30) % 360 // 镜像轴角度（以度为单位）
+      };
+    } else {
+      // 偶数索引的三角形不需要镜像
+      return {
+        rotation: rotation,
+        scaleY: 1,
+        mirrorAxisAngle: (i * 60 + 30) % 360
+      };
+    }
+  };
+  
+  // 为每个三角形创建一个对应的光栅图像
+  for (let i = 0; i < 6; i++) {
+    // 获取镜像变换参数
+    const transformation = calculateMirrorTransformation(i);
+    
+    rasterImages.push({
+      id: `texture-${i+1}`,
+      label: `纹理${i+1}`,
+      relatedGeom: `triangle-${i+1}`, // 关联到对应的三角形
+      labelOffsetX: 0,
+      labelOffsetY: -20,
+      config: {
+        x: 0, // 将在后面更新
+        y: 0, // 将在后面更新
+        image: null, // 将在loadImages中加载
+        width: 60,
+        height: 60,
+        offsetX: 30, // 设置图像中心点为参考点
+        offsetY: 30, // 设置图像中心点为参考点
+        opacity: 0.8,
+        draggable: true,
+        shadowColor: 'black',
+        shadowBlur: 5,
+        shadowOpacity: 0.3,
+        shadowOffsetX: 2,
+        shadowOffsetY: 2,
+        scaleY: transformation.scaleY, // 应用镜像变换
+        rotation: transformation.rotation, // 应用旋转变换（以度为单位）
+        // 存储额外信息，不影响Konva渲染
+        mirrorAxisAngle: transformation.mirrorAxisAngle
+      }
+    });
+  }
+  
+  // 更新图像位置，使其与对应三角形的中心点对齐
+  rasterImages.forEach(image => {
+    const relatedCenter = triangleCenters.find(c => c.id === image.relatedGeom);
+    if (relatedCenter) {
+      image.config.x = relatedCenter.center.x;
+      image.config.y = relatedCenter.center.y;
+    }
+  });
+  
+  // 计算晶格向量
+  // 对于六边形结构，我们使用两个非共线的向量来表示晶格
+  // 这些向量将允许通过整数线性组合来平铺整个平面
+  const latticeVectors = [
+    {
+      id: 'lattice-vector-1',
+      x: unitLength * 1.5,                // 第一个晶格向量的x分量
+      y: unitLength * sqrtThreeOverTwo,   // 第一个晶格向量的y分量
+      label: '晶格向量1'
+    },
+    {
+      id: 'lattice-vector-2',
+      x: 0,                               // 第二个晶格向量的x分量
+      y: unitLength * sqrtThreeOverTwo * 2, // 第二个晶格向量的y分量
+      label: '晶格向量2'
+    }
+  ];
+  
+  return {
+    geoms,
+    rasterImages,
+    triangleCenters,
+    loadImagesWithDefaults,
+    latticeVectors  // 添加晶格向量到返回对象
+  };
+};

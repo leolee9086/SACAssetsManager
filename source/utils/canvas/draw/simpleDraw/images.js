@@ -25,9 +25,9 @@ export function 以位置配置在画布上下文绘制图像(ctx, image, config
     ctx.restore();
 }
 function clipToLatticeShape(ctx, width, height, lattice) {
-    const { shape, basis1, basis2 } = lattice;
+    const { shape, basis1, basis2,points } = lattice;
     const 形状配置 = {
-        width, height, shape, basis1, basis2
+        width, height, shape, basis1, basis2,points
     }
     蒙版到节点形状(ctx, 形状配置)
     return
