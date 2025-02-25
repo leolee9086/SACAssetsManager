@@ -140,92 +140,133 @@ const generateTiledImages = () => {
   });
   
   nextTick(() => {
-    if (!tiledImagesContainer.value) return;
+    if (!tiledImagesContainer.value || !tiledImagesContainer.value.getNode()) return;
     
-    // 清除之前的平铺内容
-    const tiledContainer = tiledImagesContainer.value.getNode();
-    tiledContainer.destroyChildren();
-    
-    // 获取晶格向量
-    const vectors = props.latticeVectors;
-    if (vectors.length < 2) return;
+    try {
+      // 清除之前的平铺内容
+      const tiledContainer = tiledImagesContainer.value.getNode();
+      tiledContainer.destroyChildren();
+      
+      // 获取晶格向量
+      const vectors = props.latticeVectors;
+      if (vectors.length < 2) return;
 
-    // 为每个平铺位置创建新的图像组
-    for (let i = -props.tilingExtent; i <= props.tilingExtent; i++) {
-      for (let j = -props.tilingExtent; j <= props.tilingExtent; j++) {
-        // 跳过原点 (0,0)，因为这是原始图像的位置
-        if (i === 0 && j === 0) continue;
-        
-        // 计算平移向量
-        const translationVector = {
-          x: i * vectors[0].x + j * vectors[1].x,
-          y: i * vectors[0].y + j * vectors[1].y
-        };
-        
-        // 为此位置创建一个新组
-        const Konva = window.Konva; // 获取Konva引用
-        const positionGroup = new Konva.Group({
-          x: translationVector.x,
-          y: translationVector.y,
-          //opacity: 0.7,
-          id: `tiled-position-${i}-${j}`
-        });
-        
-        // 为每个原始图像创建对应的平铺图像
-        originalImages.value.forEach((originalImage, index) => {
-          try {
-            if (props.clipToUnit) {
-              // 创建带裁剪的组
-              const clipGroup = new Konva.Group({
-                clipFunc: (ctx) => {
-                  // 找到关联的几何体
-                  const relatedGeom = props.geoms.find(g => g.id === originalImage.relatedGeom);
-                  if (!relatedGeom || relatedGeom.type !== 'triangle') return;
-                  
-                  // 获取三角形顶点
-                  const vertices = relatedGeom.vertices;
-                  
-                  // 绘制三角形裁剪路径
-                  ctx.beginPath();
-                  ctx.moveTo(vertices[0].x, vertices[0].y);
-                  ctx.lineTo(vertices[1].x, vertices[1].y);
-                  ctx.lineTo(vertices[2].x, vertices[2].y);
-                  ctx.closePath();
-                }
-              });
-              
-              // 创建图像并添加到裁剪组
-              const imageConfig = {
-                ...originalImage.config,
-                globalCompositeOperation: props.blendMode
-              };
-              const image = new Konva.Image(imageConfig);
-              clipGroup.add(image);
-              
-              // 将裁剪组添加到位置组
-              positionGroup.add(clipGroup);
-            } else {
-              // 直接创建图像并添加到位置组
-              const imageConfig = {
-                ...originalImage.config,
-                globalCompositeOperation: props.blendMode
-              };
-              const image = new Konva.Image(imageConfig);
-              positionGroup.add(image);
-            }
-          } catch (error) {
-            console.error('创建平铺图像时出错:', error);
+      // 计算画布边界
+      const stageBounds = {
+        left: -stageCenter.value.x,
+        top: -stageCenter.value.y,
+        right: props.stageWidth - stageCenter.value.x,
+        bottom: props.stageHeight - stageCenter.value.y
+      };
+
+      // 估算一个图像的最大尺寸（用于边界检查）
+      let maxImageSize = 0;
+      originalImages.value.forEach(img => {
+        if (img.config.width && img.config.height) {
+          const size = Math.max(img.config.width, img.config.height);
+          maxImageSize = Math.max(maxImageSize, size);
+        }
+      });
+      
+      // 为每个平铺位置创建新的图像组
+      for (let i = -props.tilingExtent; i <= props.tilingExtent; i++) {
+        for (let j = -props.tilingExtent; j <= props.tilingExtent; j++) {
+          // 跳过原点 (0,0)，因为这是原始图像的位置
+          if (i === 0 && j === 0) continue;
+          
+          // 计算平移向量
+          const translationVector = {
+            x: i * vectors[0].x + j * vectors[1].x,
+            y: i * vectors[0].y + j * vectors[1].y
+          };
+          
+          // 检查此位置是否在画布可见范围内或接近可见范围
+          if (
+            translationVector.x + maxImageSize < stageBounds.left || 
+            translationVector.x - maxImageSize > stageBounds.right ||
+            translationVector.y + maxImageSize < stageBounds.top || 
+            translationVector.y - maxImageSize > stageBounds.bottom
+          ) {
+            continue;
           }
-        });
-        
-        // 将位置组添加到平铺容器
-        tiledContainer.add(positionGroup);
+          
+          // 为此位置创建一个新组
+          const Konva = window.Konva;
+          const positionGroup = new Konva.Group({
+            x: translationVector.x,
+            y: translationVector.y,
+            id: `tiled-position-${i}-${j}`
+          });
+          
+          // 为每个原始图像创建对应的平铺图像
+          let hasValidImages = false;
+          for (const originalImage of originalImages.value) {
+            try {
+              if (props.clipToUnit) {
+                // 创建带裁剪的组
+                const clipGroup = new Konva.Group({
+                  clipFunc: (ctx) => {
+                    // 找到关联的几何体
+                    const relatedGeom = props.geoms.find(g => g.id === originalImage.relatedGeom);
+                    if (!relatedGeom || relatedGeom.type !== 'triangle') return;
+                    
+                    // 获取三角形顶点
+                    const vertices = relatedGeom.vertices;
+                    
+                    // 绘制三角形裁剪路径
+                    ctx.beginPath();
+                    ctx.moveTo(vertices[0].x, vertices[0].y);
+                    ctx.lineTo(vertices[1].x, vertices[1].y);
+                    ctx.lineTo(vertices[2].x, vertices[2].y);
+                    ctx.closePath();
+                  }
+                });
+                
+                // 创建图像并添加到裁剪组
+                const imageConfig = {
+                  ...originalImage.config,
+                  globalCompositeOperation: props.blendMode
+                };
+                
+                if (imageConfig.image) {
+                  const image = new Konva.Image(imageConfig);
+                  clipGroup.add(image);
+                  hasValidImages = true;
+                }
+                
+                // 将裁剪组添加到位置组
+                positionGroup.add(clipGroup);
+              } else {
+                // 直接创建图像并添加到位置组
+                const imageConfig = {
+                  ...originalImage.config,
+                  globalCompositeOperation: props.blendMode
+                };
+                
+                if (imageConfig.image) {
+                  const image = new Konva.Image(imageConfig);
+                  positionGroup.add(image);
+                  hasValidImages = true;
+                }
+              }
+            } catch (error) {
+              console.error('创建平铺图像时出错:', error);
+            }
+          }
+          
+          // 只有当位置组包含有效图像时才添加到平铺容器
+          if (hasValidImages && tiledContainer && tiledContainer.children) {
+            tiledContainer.add(positionGroup);
+          }
+        }
       }
-    }
-    
-    // 重新绘制图层
-    if (tiledLatticeLayer.value) {
-      tiledLatticeLayer.value.getNode().draw();
+      
+      // 重新绘制图层
+      if (tiledLatticeLayer.value && tiledLatticeLayer.value.getNode()) {
+        tiledLatticeLayer.value.getNode().draw();
+      }
+    } catch (error) {
+      console.error('生成平铺图像时发生错误:', error);
     }
   });
 };
