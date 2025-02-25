@@ -52,10 +52,13 @@
         :stageHeight="stageConfig.height"
         :rasterImages="rasterImages"
         :latticeVectors="latticeVectors"
-        :tilingExtent="tilingExtent"
+        :tilingExtent="calculatedTilingExtent"
         :blendMode="blendMode"
         :clipToUnit="clipToUnit"
         :geoms="geoms"
+        :useLowDetailMode="useLowDetailMode"
+        :seamlessUnit="seamlessUnit"
+        :currentScale="canvasScale"
         v-if="showTiledLattice"
       />
       
@@ -91,13 +94,13 @@
       
       <div class="control-group">
         <label>内部坐标偏移X:</label>
-        <input type="range" v-model.number="positionOffsetPercent.x" min="-100" max="100" step="5" />
+        <input type="range" v-model.number="positionOffsetPercent.x" min="-1000" max="1000" step="5" />
         <span>{{ positionOffsetPercent.x }}%</span>
       </div>
       
       <div class="control-group">
         <label>内部坐标偏移Y:</label>
-        <input type="range" v-model.number="positionOffsetPercent.y" min="-100" max="100" step="5" />
+        <input type="range" v-model.number="positionOffsetPercent.y" min="-1000" max="1000" step="5" />
         <span>{{ positionOffsetPercent.y }}%</span>
       </div>
       
@@ -215,11 +218,10 @@ const computedImageSize = computed(() =>
   baseImageSize * (imageSizePercent.value / 100)
 );
 
-// 计算实际位置偏移（基准偏移 * 百分比）
-const baseOffsetUnit = 0.5; // 基准偏移单位
+// 计算实际位置偏移（基于当前图像大小的百分比）
 const computedPositionOffset = computed(() => ({
-  x: baseOffsetUnit * positionOffsetPercent.value.x,
-  y: baseOffsetUnit * positionOffsetPercent.value.y
+  x: (computedImageSize.value / 200) * positionOffsetPercent.value.x,
+  y: (computedImageSize.value / 200) * positionOffsetPercent.value.y
 }));
 
 
@@ -266,6 +268,19 @@ const clipToUnit = ref(false);
 // 添加新的响应式变量
 const customImagePreviewUrl = ref('');
 const customImageFilename = ref('');
+
+// 计算显示范围 - 根据缩放比例动态调整
+const calculatedTilingExtent = computed(() => {
+  // 缩放值越小，平铺范围越大，以保持视觉上填满画布
+  // 基础范围值为3，随着缩放减小而增加
+  return Math.ceil(3 * (100 / canvasScale.value));
+});
+
+// 判断是否应使用LOD（低细节层次）
+const useLowDetailMode = computed(() => {
+  // 当缩放比例低于30%时启用低细节模式
+  return canvasScale.value < 30;
+});
 
 // 监听三角形变化，更新图像位置
 watch(triangleCenters, () => {

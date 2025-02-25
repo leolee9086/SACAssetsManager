@@ -25,9 +25,14 @@
         </v-group>
       </v-group>
       
-      <!-- 平铺图像组（通过克隆原始图像组生成） -->
+      <!-- 平铺图像组（通过动态生成） -->
       <v-group ref="tiledImagesContainer">
         <!-- 这里将由JavaScript动态生成平铺内容 -->
+      </v-group>
+      
+      <!-- LOD模式下的重复单元 -->
+      <v-group ref="lodUnitsContainer" v-if="useLowDetailMode">
+        <!-- 这里将显示重复单元 -->
       </v-group>
     </v-group>
   </v-layer>
@@ -69,6 +74,18 @@ const props = defineProps({
   geoms: {
     type: Array,
     default: () => []
+  },
+  useLowDetailMode: {
+    type: Boolean,
+    default: false
+  },
+  seamlessUnit: {
+    type: Object,
+    default: null
+  },
+  currentScale: {
+    type: Number,
+    default: 100
   }
 });
 
@@ -76,6 +93,7 @@ const tiledLatticeLayer = ref(null);
 const tiledGroup = ref(null);
 const originalImagesGroup = ref(null);
 const tiledImagesContainer = ref(null);
+const lodUnitsContainer = ref(null);
 const originalImages = ref([]);
 
 // 计算舞台中心点
@@ -119,9 +137,21 @@ const clipToTriangle = (ctx, image) => {
   ctx.closePath();
 };
 
-// 监听原始图像和晶格向量的变化
-watch([() => props.rasterImages, () => props.latticeVectors, () => props.tilingExtent, () => props.blendMode, () => props.clipToUnit], () => {
-  generateTiledImages();
+// 监听原始图像和晶格向量的变化，以及LOD模式的变化
+watch([
+  () => props.rasterImages, 
+  () => props.latticeVectors, 
+  () => props.tilingExtent, 
+  () => props.blendMode, 
+  () => props.clipToUnit,
+  () => props.useLowDetailMode,
+  () => props.currentScale
+], () => {
+  if (props.useLowDetailMode) {
+    generateLodUnits();
+  } else {
+    generateTiledImages();
+  }
 }, { deep: true });
 
 // 更新叠加模式
@@ -169,12 +199,15 @@ const generateTiledImages = () => {
       const vectors = props.latticeVectors;
       if (vectors.length < 2) return;
 
-      // 计算画布边界
+      // 计算画布边界（考虑当前缩放比例）
+      const scaleRatio = props.currentScale / 100;
+      const expandFactor = 1 / scaleRatio; // 缩放越小，扩展越大
+      
       const stageBounds = {
-        left: -stageCenter.value.x,
-        top: -stageCenter.value.y,
-        right: props.stageWidth - stageCenter.value.x,
-        bottom: props.stageHeight - stageCenter.value.y
+        left: -stageCenter.value.x * expandFactor,
+        top: -stageCenter.value.y * expandFactor,
+        right: props.stageWidth * expandFactor - stageCenter.value.x,
+        bottom: props.stageHeight * expandFactor - stageCenter.value.y
       };
 
       // 估算一个图像的最大尺寸（用于边界检查）
@@ -315,6 +348,105 @@ const generateTiledImages = () => {
   });
 };
 
+// 生成LOD重复单元
+const generateLodUnits = () => {
+  if (!props.seamlessUnit || !lodUnitsContainer.value) return;
+  
+  nextTick(() => {
+    try {
+      // 清除之前的内容
+      const lodContainer = lodUnitsContainer.value.getNode();
+      lodContainer.destroyChildren();
+      
+      const Konva = window.Konva;
+      
+      // 计算画布边界（考虑当前缩放比例）
+      const scaleRatio = props.currentScale / 100;
+      const expandFactor = 1 / scaleRatio; // 缩放越小，扩展越大
+      
+      const stageBounds = {
+        left: -stageCenter.value.x * expandFactor,
+        top: -stageCenter.value.y * expandFactor,
+        right: props.stageWidth * expandFactor - stageCenter.value.x,
+        bottom: props.stageHeight * expandFactor - stageCenter.value.y
+      };
+      
+      // 获取重复单元的尺寸
+      const unitWidth = props.seamlessUnit.width;
+      const unitHeight = props.seamlessUnit.height;
+      
+      // 计算需要显示的重复单元的行列数
+      const colCount = Math.ceil(Math.max(
+        Math.abs(stageBounds.left),
+        Math.abs(stageBounds.right)
+      ) / unitWidth) + 1;
+      
+      const rowCount = Math.ceil(Math.max(
+        Math.abs(stageBounds.top),
+        Math.abs(stageBounds.bottom)
+      ) / unitHeight) + 1;
+      
+      // 创建重复单元的矩形网格
+      for (let i = -colCount; i <= colCount; i++) {
+        for (let j = -rowCount; j <= rowCount; j++) {
+          // 创建单元位置
+          const x = i * unitWidth;
+          const y = j * unitHeight;
+          
+          // 跳过画布外的单元
+          if (
+            x + unitWidth < stageBounds.left || 
+            x > stageBounds.right ||
+            y + unitHeight < stageBounds.top || 
+            y > stageBounds.bottom
+          ) {
+            continue;
+          }
+          
+          // 创建单元矩形 - 使用浅灰色细线条和完全透明的填充
+          const rect = new Konva.Rect({
+            x: x,
+            y: y,
+            width: unitWidth,
+            height: unitHeight,
+            fill: 'transparent',   // 透明填充
+            stroke: 'rgba(200,200,200,0.3)',  // 浅灰色边框
+            strokeWidth: 0.5,      // 细线条
+            dash: [2, 2],          // 虚线效果
+            opacity: 0.4           // 整体透明度低
+          });
+          
+          // 添加到容器
+          lodContainer.add(rect);
+          
+          // 为每个单元添加最小化的标签
+          const label = new Konva.Text({
+            x: x + unitWidth / 2,
+            y: y + unitHeight / 2,
+            text: `${i},${j}`,    // 简化标签文本
+            fontSize: 8,          // 小字体
+            fontFamily: 'Arial',
+            fill: 'rgba(100,100,100,0.5)',  // 浅灰色文本
+            align: 'center',
+            verticalAlign: 'middle',
+            offsetX: 10,
+            offsetY: 4
+          });
+          
+          lodContainer.add(label);
+        }
+      }
+      
+      // 重新绘制图层
+      if (tiledLatticeLayer.value) {
+        tiledLatticeLayer.value.getNode().draw();
+      }
+    } catch (error) {
+      console.error('生成LOD单元时发生错误:', error);
+    }
+  });
+};
+
 // 居中坐标系
 const centerCoordinateSystem = () => {
   if (tiledGroup.value) {
@@ -343,7 +475,13 @@ defineExpose({
 
 onMounted(() => {
   centerCoordinateSystem();
-  generateTiledImages();
+  
+  // 根据当前模式选择初始化方法
+  if (props.useLowDetailMode) {
+    generateLodUnits();
+  } else {
+    generateTiledImages();
+  }
   
   // 监听图像加载完成事件
   watch(() => props.rasterImages, (newImages) => {
