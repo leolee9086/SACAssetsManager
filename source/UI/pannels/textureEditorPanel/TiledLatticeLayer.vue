@@ -93,11 +93,29 @@ const clipToTriangle = (ctx, image) => {
   // 获取三角形顶点
   const vertices = relatedGeom.vertices;
   
-  // 绘制三角形裁剪路径
+  // 绘制三角形裁剪路径，稍微扩大裁剪区域以消除边缘接缝
   ctx.beginPath();
-  ctx.moveTo(vertices[0].x, vertices[0].y);
-  ctx.lineTo(vertices[1].x, vertices[1].y);
-  ctx.lineTo(vertices[2].x, vertices[2].y);
+  // 向外扩展1像素以消除接缝
+  const expandBy = 1;
+  const center = {
+    x: (vertices[0].x + vertices[1].x + vertices[2].x) / 3,
+    y: (vertices[0].y + vertices[1].y + vertices[2].y) / 3
+  };
+  
+  // 将顶点稍微向外扩展
+  const expandedVertices = vertices.map(v => {
+    const dx = v.x - center.x;
+    const dy = v.y - center.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    return {
+      x: center.x + dx * (len + expandBy) / len,
+      y: center.y + dy * (len + expandBy) / len
+    };
+  });
+  
+  ctx.moveTo(expandedVertices[0].x, expandedVertices[0].y);
+  ctx.lineTo(expandedVertices[1].x, expandedVertices[1].y);
+  ctx.lineTo(expandedVertices[2].x, expandedVertices[2].y);
   ctx.closePath();
 };
 
@@ -213,11 +231,29 @@ const generateTiledImages = () => {
                     // 获取三角形顶点
                     const vertices = relatedGeom.vertices;
                     
-                    // 绘制三角形裁剪路径
+                    // 绘制三角形裁剪路径，稍微扩大裁剪区域
                     ctx.beginPath();
-                    ctx.moveTo(vertices[0].x, vertices[0].y);
-                    ctx.lineTo(vertices[1].x, vertices[1].y);
-                    ctx.lineTo(vertices[2].x, vertices[2].y);
+                    // 向外扩展1像素以消除接缝
+                    const expandBy = 1;
+                    const center = {
+                      x: (vertices[0].x + vertices[1].x + vertices[2].x) / 3,
+                      y: (vertices[0].y + vertices[1].y + vertices[2].y) / 3
+                    };
+                    
+                    // 将顶点稍微向外扩展
+                    const expandedVertices = vertices.map(v => {
+                      const dx = v.x - center.x;
+                      const dy = v.y - center.y;
+                      const len = Math.sqrt(dx * dx + dy * dy);
+                      return {
+                        x: center.x + dx * (len + expandBy) / len,
+                        y: center.y + dy * (len + expandBy) / len
+                      };
+                    });
+                    
+                    ctx.moveTo(expandedVertices[0].x, expandedVertices[0].y);
+                    ctx.lineTo(expandedVertices[1].x, expandedVertices[1].y);
+                    ctx.lineTo(expandedVertices[2].x, expandedVertices[2].y);
                     ctx.closePath();
                   }
                 });
@@ -225,7 +261,11 @@ const generateTiledImages = () => {
                 // 创建图像并添加到裁剪组
                 const imageConfig = {
                   ...originalImage.config,
-                  globalCompositeOperation: props.blendMode
+                  globalCompositeOperation: props.blendMode,
+                  width: originalImage.config.width + 1,
+                  height: originalImage.config.height + 1,
+                  x: Math.floor(originalImage.config.x),
+                  y: Math.floor(originalImage.config.y)
                 };
                 
                 if (imageConfig.image) {
@@ -240,7 +280,11 @@ const generateTiledImages = () => {
                 // 直接创建图像并添加到位置组
                 const imageConfig = {
                   ...originalImage.config,
-                  globalCompositeOperation: props.blendMode
+                  globalCompositeOperation: props.blendMode,
+                  width: originalImage.config.width + 1,
+                  height: originalImage.config.height + 1,
+                  x: Math.floor(originalImage.config.x),
+                  y: Math.floor(originalImage.config.y)
                 };
                 
                 if (imageConfig.image) {
