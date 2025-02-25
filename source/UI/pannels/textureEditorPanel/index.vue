@@ -173,6 +173,15 @@
               </select>
             </div>
             
+            <div class="input-row">
+              <label>大小:</label>
+              <select v-model="watermarkSize">
+                <option value="small">小</option>
+                <option value="medium">中</option>
+                <option value="large">大</option>
+              </select>
+            </div>
+            
             <div class="watermark-option">
               <input type="checkbox" id="includeOriginalImage" v-model="includeOriginalImage" />
               <label for="includeOriginalImage">包含原始图像</label>
@@ -736,7 +745,7 @@ const addWatermark = ref(false);
 const watermarkAuthor = ref('');
 const watermarkTitle = ref('');
 const watermarkPosition = ref('bottom-right');
-// 添加是否包含原始图像的选项
+const watermarkSize = ref('medium'); // 默认中等大小
 const includeOriginalImage = ref(false);
 
 // 修改下载重复单元功能，支持水印和原始图像
@@ -820,6 +829,7 @@ const downloadTiledPattern = async () => {
         author: watermarkAuthor.value,
         title: watermarkTitle.value,
         position: watermarkPosition.value,
+        size: watermarkSize.value,
         width: finalWidth,
         height: finalHeight,
         originalImage: originalImg
@@ -853,9 +863,9 @@ const downloadTiledPattern = async () => {
   }
 };
 
-// 改进的水印函数，支持原始图像
+// 改进的水印函数，大幅增加水印尺寸
 const addWatermarkToCanvas = (ctx, options) => {
-  const { author, title, position, width, height, originalImage } = options;
+  const { author, title, position, width, height, originalImage, size = 'medium' } = options;
   
   // 准备水印文本
   let watermarkText = '';
@@ -868,25 +878,41 @@ const addWatermarkToCanvas = (ctx, options) => {
   // 如果既没有文本也没有原始图像则退出
   if (!watermarkText && !originalImage) return;
   
-  // 计算字体大小和边距
-  const fontSizeBase = Math.max(width, height) * 0.01; // 基础大小为图像短边的1%
-  const fontSize = Math.max(10, Math.min(36, fontSizeBase)); // 最小10px，最大36px
+  // 根据选择的大小设置基础字体大小的比例
+  let sizeMultiplier;
+  switch (size) {
+    case 'small':
+      sizeMultiplier = 0.85;
+      break;
+    case 'large':
+      sizeMultiplier = 1.5;
+      break;
+    case 'medium':
+    default:
+      sizeMultiplier = 1.0;
+      break;
+  }
+  
+  // 大幅增加基础尺寸计算比例（从0.012增加到0.036，约三倍）
+  const fontSizeBase = Math.max(width, height) * 0.036 * sizeMultiplier;
+  // 增加最小/最大字体尺寸限制
+  const fontSize = Math.max(24, Math.min(120, fontSizeBase));
   const padding = fontSize * 0.8; // 边距
   
   // 设置字体和样式
-  ctx.font = `${fontSize}px Arial, sans-serif`;
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
   
   // 测量文本宽度
   const textWidth = watermarkText ? ctx.measureText(watermarkText).width : 0;
   
-  // 计算原始图像的显示尺寸（如果有）
+  // 计算原始图像的显示尺寸（如果有），根据大小选项调整
   let originalImgWidth = 0;
   let originalImgHeight = 0;
   
   if (originalImage) {
-    // 确定原始图像的显示尺寸，高度为字体大小的3倍
-    const originalImgDisplayHeight = fontSize * 3;
+    // 确定原始图像的显示尺寸，高度为字体大小的3倍，根据大小选项调整
+    const originalImgDisplayHeight = fontSize * 3 * sizeMultiplier;
     // 按比例计算宽度
     const imgRatio = originalImage.width / originalImage.height;
     originalImgWidth = originalImgDisplayHeight * imgRatio;
@@ -896,10 +922,10 @@ const addWatermarkToCanvas = (ctx, options) => {
   // 填充和描边样式根据位置调整
   if (position === 'center') {
     // 中央水印半透明
-    ctx.globalAlpha = 0.2;
+    ctx.globalAlpha = size === 'small' ? 0.25 : 0.2;
     ctx.fillStyle = '#000';
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = fontSize * 0.1;
+    ctx.lineWidth = fontSize * (size === 'small' ? 0.15 : 0.1);
     
     // 绘制中央水印
     if (watermarkText) {
@@ -918,20 +944,20 @@ const addWatermarkToCanvas = (ctx, options) => {
     
     // 对于中央位置，如果有原始图像，添加到右下角，半透明
     if (originalImage) {
-      ctx.globalAlpha = 0.3;
+      ctx.globalAlpha = size === 'small' ? 0.4 : 0.3; // 小尺寸增加不透明度
       const imgX = width - originalImgWidth - padding;
       const imgY = height - originalImgHeight - padding;
       
       // 添加半透明背景
       ctx.fillStyle = '#fff';
-      ctx.fillRect(imgX - 5, imgY - 5, originalImgWidth + 10, originalImgHeight + 10);
+      ctx.fillRect(imgX - 10, imgY - 10, originalImgWidth + 20, originalImgHeight + 20);
       
       // 绘制原始图像
       ctx.drawImage(originalImage, imgX, imgY, originalImgWidth, originalImgHeight);
       
       // 绘制边框
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = Math.max(2, fontSize * 0.05); // 确保边框线宽至少1px
       ctx.strokeRect(imgX, imgY, originalImgWidth, originalImgHeight);
     }
     
@@ -943,10 +969,10 @@ const addWatermarkToCanvas = (ctx, options) => {
   let x, y, imgX, imgY;
   
   // 角落水印更明显
-  ctx.globalAlpha = 0.8;
+  ctx.globalAlpha = size === 'small' ? 0.85 : 0.8; // 小尺寸增加不透明度
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = '#000';
-  ctx.lineWidth = fontSize * 0.15;
+  ctx.lineWidth = fontSize * (size === 'small' ? 0.2 : 0.15); // 增加小尺寸的描边
   ctx.textAlign = 'left';
   
   // 计算文本和图像的位置
@@ -1037,27 +1063,30 @@ const addWatermarkToCanvas = (ctx, options) => {
   // 绘制原始图像（如果有）
   if (originalImage) {
     // 添加半透明背景
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.fillRect(imgX - 5, imgY - 5, originalImgWidth + 10, originalImgHeight + 10);
+    ctx.fillStyle = size === 'small' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.7)';
+    ctx.fillRect(imgX - 10, imgY - 10, originalImgWidth + 20, originalImgHeight + 20); // 增加背景边距
     
     // 绘制原始图像
     ctx.drawImage(originalImage, imgX, imgY, originalImgWidth, originalImgHeight);
     
     // 绘制边框
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = Math.max(2, fontSize * 0.05); // 增加最小边框宽度
     ctx.strokeRect(imgX, imgY, originalImgWidth, originalImgHeight);
     
     // 在原始图像下方添加"原图"标签
-    const labelSize = fontSize * 0.7;
-    ctx.font = `${labelSize}px Arial, sans-serif`;
+    const labelSize = Math.max(20, fontSize * 0.6); // 增加标签最小尺寸
+    ctx.font = `bold ${labelSize}px Arial, sans-serif`;
     ctx.fillStyle = '#000';
     ctx.fillText('原图', imgX, imgY + originalImgHeight + labelSize);
   }
   
   // 绘制文本（如果有）
   if (watermarkText) {
-    ctx.font = `${fontSize}px Arial, sans-serif`;
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    
+    // 使用更粗的描边增强可见性
+    ctx.lineWidth = Math.max(3, fontSize * 0.1); // 增加描边宽度
     ctx.strokeText(watermarkText, x, y);
     ctx.fillText(watermarkText, x, y);
   }
