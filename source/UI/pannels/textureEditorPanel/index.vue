@@ -197,11 +197,6 @@ const computedPositionOffset = computed(() => ({
   y: baseOffsetUnit * positionOffsetPercent.value.y
 }));
 
-// 舞台中心点
-const stageCenter = computed(() => ({
-  x: stageConfig.value.width / 2,
-  y: stageConfig.value.height / 2
-}));
 
 // 晶格向量显示控制
 const showLatticeVectors = ref(true);
