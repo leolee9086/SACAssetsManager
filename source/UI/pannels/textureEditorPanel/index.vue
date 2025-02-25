@@ -170,10 +170,6 @@ import TiledLatticeLayer from './TiledLatticeLayer.vue';
 import SeamlessUnitLayer from './SeamlessUnitLayer.vue';
 import { 
   generateUnits, 
-  clipImageToUnit, 
-  clipImageToSeamlessUnit,
-  createTriangleMask,
-  createSeamlessUnitMask
 } from './textureUtils.js';
 
 const container = ref(null);
