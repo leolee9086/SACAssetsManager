@@ -166,7 +166,6 @@ export const generateUnits = (spacing, precision) => {
         height: 60,
         offsetX: 30, // 设置图像中心点为参考点
         offsetY: 30, // 设置图像中心点为参考点
-        opacity: 0.8,
         draggable: true,
         shadowColor: 'black',
         shadowBlur: 5,

@@ -53,8 +53,9 @@
         :rasterImages="rasterImages"
         :latticeVectors="latticeVectors"
         :tilingExtent="tilingExtent"
-        :tilingOffsets="tilingOffsets"
         :blendMode="blendMode"
+        :clipToUnit="clipToUnit"
+        :geoms="geoms"
         v-if="showTiledLattice"
       />
       
@@ -72,7 +73,7 @@
     <div class="controls-panel">
       <div class="control-group">
         <label>图像大小:</label>
-        <input type="range" v-model.number="imageSizePercent" min="10" max="1000" step="10" />
+        <input type="range" v-model.number="imageSizePercent" min="10" max="10000" step="10" />
         <span>{{ imageSizePercent }}%</span>
       </div>
       
@@ -493,6 +494,11 @@ const updateClipSettings = () => {
   // 通知光栅图层组件更新裁剪设置
   if (rasterLayerComponent.value) {
     rasterLayerComponent.value.updateClipShapes();
+  }
+  
+  // 通知平铺晶格图层组件更新裁剪设置
+  if (tiledLatticeLayerComponent.value) {
+    tiledLatticeLayerComponent.value.updateClipSettings();
   }
   
   // 确保舞台更新
