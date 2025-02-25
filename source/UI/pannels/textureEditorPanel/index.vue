@@ -145,6 +145,41 @@
           <option value="16">16×16 (256个单元)</option>
         </select>
         
+        <div class="watermark-section">
+          <div class="watermark-option">
+            <input type="checkbox" id="addWatermark" v-model="addWatermark" />
+            <label for="addWatermark">添加水印信息</label>
+          </div>
+          
+          <div class="watermark-inputs" v-if="addWatermark">
+            <div class="input-row">
+              <label>作者:</label>
+              <input type="text" v-model="watermarkAuthor" placeholder="输入作者名称" />
+            </div>
+            
+            <div class="input-row">
+              <label>标题:</label>
+              <input type="text" v-model="watermarkTitle" placeholder="作品标题" />
+            </div>
+            
+            <div class="input-row">
+              <label>位置:</label>
+              <select v-model="watermarkPosition">
+                <option value="bottom-right">右下角</option>
+                <option value="bottom-left">左下角</option>
+                <option value="top-right">右上角</option>
+                <option value="top-left">左上角</option>
+                <option value="center">中央半透明</option>
+              </select>
+            </div>
+            
+            <div class="watermark-option">
+              <input type="checkbox" id="includeOriginalImage" v-model="includeOriginalImage" />
+              <label for="includeOriginalImage">包含原始图像</label>
+            </div>
+          </div>
+        </div>
+        
         <button @click="downloadTiledPattern" class="custom-button">下载重复单元</button>
       </div>
       
@@ -696,7 +731,15 @@ const downloadResolution = ref('512'); // 默认512px
 // 添加重复次数选择
 const downloadRepeatCount = ref('1'); // 默认1×1
 
-// 修改下载重复单元功能
+// 添加水印相关选项
+const addWatermark = ref(false);
+const watermarkAuthor = ref('');
+const watermarkTitle = ref('');
+const watermarkPosition = ref('bottom-right');
+// 添加是否包含原始图像的选项
+const includeOriginalImage = ref(false);
+
+// 修改下载重复单元功能，支持水印和原始图像
 const downloadTiledPattern = async () => {
   if (!showTiledLattice.value) return;
   
@@ -758,11 +801,42 @@ const downloadTiledPattern = async () => {
       throw new Error('渲染图像失败');
     }
     
+    // 添加水印和原始图像
+    if (addWatermark.value && (watermarkAuthor.value.trim() || watermarkTitle.value.trim() || includeOriginalImage.value)) {
+      // 获取原始图像（如果需要）
+      let originalImg = null;
+      if (includeOriginalImage.value && rasterImages.value.length > 0) {
+        // 尝试获取第一个栅格图像作为原始图像
+        const firstImage = rasterImages.value[0];
+        if (firstImage && firstImage.config && firstImage.config.image) {
+          originalImg = firstImage.config.image;
+        } else if (customImage.value) {
+          // 如果没有栅格图像但有自定义图像，则使用自定义图像
+          originalImg = customImage.value;
+        }
+      }
+      
+      addWatermarkToCanvas(ctx, {
+        author: watermarkAuthor.value,
+        title: watermarkTitle.value,
+        position: watermarkPosition.value,
+        width: finalWidth,
+        height: finalHeight,
+        originalImage: originalImg
+      });
+    }
+    
     // 转换为图像并下载
     const dataUrl = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `tiled-pattern-${targetSize}px-${repeatCount}x${repeatCount}-${new Date().getTime()}.png`;
+    
+    // 构建文件名，如果有标题则使用标题
+    let filename = watermarkTitle.value.trim() 
+      ? `${watermarkTitle.value}-${targetSize}px-${repeatCount}x${repeatCount}` 
+      : `tiled-pattern-${targetSize}px-${repeatCount}x${repeatCount}`;
+      
+    a.download = `${filename}-${new Date().getTime()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -777,6 +851,219 @@ const downloadTiledPattern = async () => {
       container.value.removeChild(loadingIndicator);
     }
   }
+};
+
+// 改进的水印函数，支持原始图像
+const addWatermarkToCanvas = (ctx, options) => {
+  const { author, title, position, width, height, originalImage } = options;
+  
+  // 准备水印文本
+  let watermarkText = '';
+  if (title.trim()) watermarkText += title.trim();
+  if (author.trim()) {
+    if (watermarkText) watermarkText += ' - ';
+    watermarkText += '作者: ' + author.trim();
+  }
+  
+  // 如果既没有文本也没有原始图像则退出
+  if (!watermarkText && !originalImage) return;
+  
+  // 计算字体大小和边距
+  const fontSizeBase = Math.max(width, height) * 0.01; // 基础大小为图像短边的1%
+  const fontSize = Math.max(10, Math.min(36, fontSizeBase)); // 最小10px，最大36px
+  const padding = fontSize * 0.8; // 边距
+  
+  // 设置字体和样式
+  ctx.font = `${fontSize}px Arial, sans-serif`;
+  ctx.textBaseline = 'middle';
+  
+  // 测量文本宽度
+  const textWidth = watermarkText ? ctx.measureText(watermarkText).width : 0;
+  
+  // 计算原始图像的显示尺寸（如果有）
+  let originalImgWidth = 0;
+  let originalImgHeight = 0;
+  
+  if (originalImage) {
+    // 确定原始图像的显示尺寸，高度为字体大小的3倍
+    const originalImgDisplayHeight = fontSize * 3;
+    // 按比例计算宽度
+    const imgRatio = originalImage.width / originalImage.height;
+    originalImgWidth = originalImgDisplayHeight * imgRatio;
+    originalImgHeight = originalImgDisplayHeight;
+  }
+  
+  // 填充和描边样式根据位置调整
+  if (position === 'center') {
+    // 中央水印半透明
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = '#000';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = fontSize * 0.1;
+    
+    // 绘制中央水印
+    if (watermarkText) {
+      const x = width / 2;
+      const y = height / 2;
+      ctx.textAlign = 'center';
+      
+      // 绘制旋转文本
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-Math.PI / 8); // 稍微旋转一下
+      ctx.strokeText(watermarkText, 0, 0);
+      ctx.fillText(watermarkText, 0, 0);
+      ctx.restore();
+    }
+    
+    // 对于中央位置，如果有原始图像，添加到右下角，半透明
+    if (originalImage) {
+      ctx.globalAlpha = 0.3;
+      const imgX = width - originalImgWidth - padding;
+      const imgY = height - originalImgHeight - padding;
+      
+      // 添加半透明背景
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(imgX - 5, imgY - 5, originalImgWidth + 10, originalImgHeight + 10);
+      
+      // 绘制原始图像
+      ctx.drawImage(originalImage, imgX, imgY, originalImgWidth, originalImgHeight);
+      
+      // 绘制边框
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(imgX, imgY, originalImgWidth, originalImgHeight);
+    }
+    
+    ctx.globalAlpha = 1.0; // 恢复透明度
+    return;
+  }
+  
+  // 计算角落水印位置
+  let x, y, imgX, imgY;
+  
+  // 角落水印更明显
+  ctx.globalAlpha = 0.8;
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = fontSize * 0.15;
+  ctx.textAlign = 'left';
+  
+  // 计算文本和图像的位置
+  const totalWidth = textWidth + (originalImage ? originalImgWidth + padding : 0);
+  
+  switch (position) {
+    case 'bottom-right':
+      // 文本位置
+      if (watermarkText && originalImage) {
+        // 有文本和图像，文本在右边
+        x = width - textWidth - padding;
+        y = height - fontSize - padding;
+        // 图像在文本左边
+        imgX = x - originalImgWidth - padding;
+        imgY = height - originalImgHeight - padding;
+      } else if (watermarkText) {
+        // 只有文本
+        x = width - textWidth - padding;
+        y = height - fontSize - padding;
+      } else {
+        // 只有图像
+        imgX = width - originalImgWidth - padding;
+        imgY = height - originalImgHeight - padding;
+      }
+      break;
+      
+    case 'bottom-left':
+      // 文本位置
+      if (watermarkText && originalImage) {
+        // 有文本和图像，图像在右边
+        x = padding;
+        y = height - fontSize - padding;
+        // 图像在文本右边
+        imgX = x + textWidth + padding;
+        imgY = height - originalImgHeight - padding;
+      } else if (watermarkText) {
+        // 只有文本
+        x = padding;
+        y = height - fontSize - padding;
+      } else {
+        // 只有图像
+        imgX = padding;
+        imgY = height - originalImgHeight - padding;
+      }
+      break;
+      
+    case 'top-right':
+      // 文本位置
+      if (watermarkText && originalImage) {
+        // 有文本和图像，文本在右边
+        x = width - textWidth - padding;
+        y = fontSize + padding;
+        // 图像在文本左边
+        imgX = x - originalImgWidth - padding;
+        imgY = padding;
+      } else if (watermarkText) {
+        // 只有文本
+        x = width - textWidth - padding;
+        y = fontSize + padding;
+      } else {
+        // 只有图像
+        imgX = width - originalImgWidth - padding;
+        imgY = padding;
+      }
+      break;
+      
+    case 'top-left':
+      // 文本位置
+      if (watermarkText && originalImage) {
+        // 有文本和图像，图像在右边
+        x = padding;
+        y = fontSize + padding;
+        // 图像在文本右边
+        imgX = x + textWidth + padding;
+        imgY = padding;
+      } else if (watermarkText) {
+        // 只有文本
+        x = padding;
+        y = fontSize + padding;
+      } else {
+        // 只有图像
+        imgX = padding;
+        imgY = padding;
+      }
+      break;
+  }
+  
+  // 绘制原始图像（如果有）
+  if (originalImage) {
+    // 添加半透明背景
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.fillRect(imgX - 5, imgY - 5, originalImgWidth + 10, originalImgHeight + 10);
+    
+    // 绘制原始图像
+    ctx.drawImage(originalImage, imgX, imgY, originalImgWidth, originalImgHeight);
+    
+    // 绘制边框
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(imgX, imgY, originalImgWidth, originalImgHeight);
+    
+    // 在原始图像下方添加"原图"标签
+    const labelSize = fontSize * 0.7;
+    ctx.font = `${labelSize}px Arial, sans-serif`;
+    ctx.fillStyle = '#000';
+    ctx.fillText('原图', imgX, imgY + originalImgHeight + labelSize);
+  }
+  
+  // 绘制文本（如果有）
+  if (watermarkText) {
+    ctx.font = `${fontSize}px Arial, sans-serif`;
+    ctx.strokeText(watermarkText, x, y);
+    ctx.fillText(watermarkText, x, y);
+  }
+  
+  // 恢复透明度
+  ctx.globalAlpha = 1.0;
 };
 
 onMounted(() => {
@@ -941,5 +1228,48 @@ defineExpose({
   padding: 10px 20px;
   border-radius: 5px;
   z-index: 1000;
+}
+
+/* 添加水印相关样式 */
+.watermark-section {
+  margin-top: 10px;
+  border-top: 1px dashed #eee;
+  padding-top: 10px;
+}
+
+.watermark-option {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.watermark-option label {
+  margin-left: 5px;
+  cursor: pointer;
+}
+
+.watermark-inputs {
+  background-color: rgba(245, 245, 245, 0.6);
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 5px;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.input-row label {
+  width: 50px;
+  margin-right: 5px;
+}
+
+.input-row input, .input-row select {
+  flex: 1;
+  padding: 3px 5px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
 }
 </style>
