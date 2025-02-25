@@ -120,6 +120,16 @@
         <span>{{ tilingExtent }}</span>
       </div>
       
+      <div class="control-group download-section" v-if="showTiledLattice">
+        <label>下载清晰度:</label>
+        <select v-model="downloadResolution">
+          <option value="1">标准 (1x)</option>
+          <option value="2">高清 (2x)</option>
+          <option value="4">超高清 (4x)</option>
+        </select>
+        <button @click="downloadTiledPattern" class="custom-button">下载重复单元</button>
+      </div>
+      
       <div class="control-group">
         <label>叠加模式:</label>
         <select v-model="blendMode">
@@ -173,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import GridLayer from './GridLayer.vue';
 import GeomLayer from './GeomLayer.vue';
 import RasterLayer from './RasterLayer.vue';
@@ -663,6 +673,69 @@ const resetDefaultImages = () => {
   customImage.value = null;
 };
 
+// 添加下载清晰度选择
+const downloadResolution = ref('2'); // 默认2倍清晰度
+
+// 修改下载重复单元功能
+const downloadTiledPattern = async () => {
+  if (!showTiledLattice.value) return;
+  
+  try {
+    // 显示加载状态
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'download-loading';
+    loadingIndicator.textContent = '正在生成图像...';
+    container.value.appendChild(loadingIndicator);
+    
+    // 等待下一个渲染周期，确保UI更新
+    await nextTick();
+    
+    // 计算要导出的尺寸（使用无缝单元尺寸而非固定公式）
+    const resolution = parseInt(downloadResolution.value);
+    const unitWidth = seamlessUnit.value.width * resolution;
+    const unitHeight = seamlessUnit.value.height * resolution;
+    
+    // 创建临时Canvas用于绘制
+    const canvas = document.createElement('canvas');
+    canvas.width = unitWidth;
+    canvas.height = unitHeight;
+    const ctx = canvas.getContext('2d');
+    
+    console.log(`开始下载: 分辨率=${resolution}, 宽度=${unitWidth}, 高度=${unitHeight}`);
+    
+    // 请求平铺图层渲染到画布
+    const success = await tiledLatticeLayerComponent.value.renderToCanvas(ctx, {
+      width: unitWidth,
+      height: unitHeight,
+      resolution: resolution,
+      hideExtras: true
+    });
+    
+    if (!success) {
+      throw new Error('渲染失败');
+    }
+    
+    // 转换为图像并下载
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `tiled-pattern-${new Date().getTime()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+  } catch (error) {
+    console.error('下载重复单元时出错:', error);
+    alert('生成图像时发生错误，请重试');
+  } finally {
+    // 确保移除加载指示器
+    const loadingIndicator = container.value.querySelector('.download-loading');
+    if (loadingIndicator) {
+      container.value.removeChild(loadingIndicator);
+    }
+  }
+};
+
 onMounted(() => {
   // 使用 ResizeObserver 监听容器大小变化
   const resizeObserver = new ResizeObserver(() => {
@@ -703,7 +776,8 @@ const recenterCanvas = () => {
 
 // 在defineExpose中暴露此方法
 defineExpose({
-  recenterCanvas
+  recenterCanvas,
+  downloadTiledPattern
 });
 </script>
 
@@ -805,5 +879,24 @@ defineExpose({
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+}
+
+/* 添加下载相关样式 */
+.download-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #ccc;
+}
+
+.download-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  z-index: 1000;
 }
 </style>
