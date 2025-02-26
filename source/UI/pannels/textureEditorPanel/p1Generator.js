@@ -245,6 +245,23 @@ export const generateUnits = (spacing, precision, options = {}) => {
     label: '无缝单元'
   };
   
+  // 计算两个晶格向量是否可以形成矩形（互相垂直或与坐标轴平行）
+  const isRectTileable = () => {
+    // 检查向量是否互相垂直（点积为0）
+    const dotProduct = latticeVectors[0].x * latticeVectors[1].x + 
+                      latticeVectors[0].y * latticeVectors[1].y;
+    
+    // 考虑浮点误差，使用小阈值
+    const epsilon = 0.001;
+    
+    // 检查是否与坐标轴平行（x或y分量为0）
+    const isAxisAligned = 
+      (Math.abs(latticeVectors[0].x) < epsilon || Math.abs(latticeVectors[0].y) < epsilon) && 
+      (Math.abs(latticeVectors[1].x) < epsilon || Math.abs(latticeVectors[1].y) < epsilon);
+    
+    return Math.abs(dotProduct) < epsilon || isAxisAligned;
+  };
+  
   return {
     geoms,
     rasterImages,
@@ -258,7 +275,8 @@ export const generateUnits = (spacing, precision, options = {}) => {
     vectorParams: { // 添加当前向量参数，方便控制面板读取
       vector1: { x: vector1.x, y: vector1.y },
       vector2: { x: vector2.x, y: vector2.y }
-    }
+    },
+    rectTileable: isRectTileable() // 添加矩形可平铺标志
   };
 };
 

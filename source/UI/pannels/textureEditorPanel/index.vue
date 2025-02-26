@@ -388,6 +388,9 @@ const useLowDetailMode = computed(() => {
   return canvasScale.value < 30;
 });
 
+// 从生成的单元中获取矩形可平铺标志
+const rectTileable = computed(() => generatedUnits.value.rectTileable || false);
+
 // 初始化晶格参数
 const initializeLatticeParams = () => {
   // 检查生成的单元是否声明为可调整
@@ -813,7 +816,7 @@ const watermarkPosition = ref('bottom-right');
 const watermarkSize = ref('medium'); // 默认中等大小
 const includeOriginalImage = ref(false);
 
-// 修改下载重复单元功能，支持水印和原始图像
+// 修改下载重复单元功能，支持不同的导出策略
 const downloadTiledPattern = async () => {
   if (!showTiledLattice.value) return;
   
@@ -851,7 +854,7 @@ const downloadTiledPattern = async () => {
       finalHeight = Math.round(targetSize / repeatAreaRatio);
     }
     
-    console.log(`开始下载: 分辨率=${targetSize}, 重复次数=${repeatCount}, 最终尺寸=${finalWidth}×${finalHeight}`);
+    console.log(`开始下载: 分辨率=${targetSize}, 重复次数=${repeatCount}, 最终尺寸=${finalWidth}×${finalHeight}, 矩形可平铺=${rectTileable.value}`);
     
     // 创建导出用的Canvas
     const canvas = document.createElement('canvas');
@@ -862,13 +865,14 @@ const downloadTiledPattern = async () => {
       throw new Error('无法创建Canvas上下文');
     }
     
-    // 使用TiledLatticeLayer的renderToCanvas方法渲染到画布
+    // 使用TiledLatticeLayer的renderToCanvas方法渲染到画布，传入rectTileable标志
     const success = await tiledLatticeLayerComponent.value.renderToCanvas(ctx, {
       width: finalWidth,
       height: finalHeight,
       targetSize: targetSize,
       repeatCount: repeatCount,
-      hideExtras: true
+      hideExtras: true,
+      rectTileable: rectTileable.value // 传递矩形可平铺标志
     });
     
     if (!success) {
