@@ -5,7 +5,7 @@
       <v-group ref="originalImagesGroup">
         <v-group v-for="(image, index) in originalImages" :key="`original-${index}`">
           <template v-if="clipToUnit">
-            <v-group :config="{ clipFunc: (ctx) => clipToTriangle(ctx, image) }">
+            <v-group :config="{ clipFunc: (ctx) => clipToBaseUnit(ctx, image) }">
               <v-image
                 :config="{
                   ...image.config,
@@ -40,7 +40,11 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
-
+import { clipToPath  } from './utils/clipTo.js';
+const clipToBaseUnit = (ctx, image) => {
+  const pathVertices = props.unitDefine.findUnitClipPath(image, props.geoms, true, 1);
+    clipToPath(ctx, pathVertices);
+};
 const props = defineProps({
   stageWidth: {
     type: Number,
@@ -86,6 +90,10 @@ const props = defineProps({
   currentScale: {
     type: Number,
     default: 100
+  },
+  unitDefine:{
+    type: Object,
+
   }
 });
 
@@ -102,40 +110,7 @@ const stageCenter = computed(() => ({
   y: props.stageHeight / 2
 }));
 
-// 裁剪到三角形的函数
-const clipToTriangle = (ctx, image) => {
-  // 找到关联的几何体
-  const relatedGeom = props.geoms.find(g => g.id === image.relatedGeom);
-  if (!relatedGeom || relatedGeom.type !== 'triangle') return;
-  
-  // 获取三角形顶点
-  const vertices = relatedGeom.vertices;
-  
-  // 绘制三角形裁剪路径，稍微扩大裁剪区域以消除边缘接缝
-  ctx.beginPath();
-  // 向外扩展1像素以消除接缝
-  const expandBy = 1;
-  const center = {
-    x: (vertices[0].x + vertices[1].x + vertices[2].x) / 3,
-    y: (vertices[0].y + vertices[1].y + vertices[2].y) / 3
-  };
-  
-  // 将顶点稍微向外扩展
-  const expandedVertices = vertices.map(v => {
-    const dx = v.x - center.x;
-    const dy = v.y - center.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    return {
-      x: center.x + dx * (len + expandBy) / len,
-      y: center.y + dy * (len + expandBy) / len
-    };
-  });
-  
-  ctx.moveTo(expandedVertices[0].x, expandedVertices[0].y);
-  ctx.lineTo(expandedVertices[1].x, expandedVertices[1].y);
-  ctx.lineTo(expandedVertices[2].x, expandedVertices[2].y);
-  ctx.closePath();
-};
+
 
 // 监听原始图像和晶格向量的变化，以及LOD模式的变化
 watch([

@@ -6,7 +6,7 @@
         <!-- 当启用裁剪时 -->
         <template v-if="clipToUnit">
           <!-- 使用剪切组 -->
-          <v-group :config="{ clipFunc: (ctx) => clipToTriangle(ctx, image) }">
+          <v-group :config="{ clipFunc: (ctx) => clipToBaseUnit(ctx, image) }">
             <!-- 图像 -->
             <v-image
               :config="{
@@ -56,7 +56,11 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-
+import { clipToPath  } from './utils/clipTo.js';
+const clipToBaseUnit = (ctx, image) => {
+  const pathVertices = props.unitDefine.findUnitClipPath(image, props.geoms, true, 1);
+    clipToPath(ctx, pathVertices);
+};
 // 接收属性
 const props = defineProps({
   stageWidth: {
@@ -94,6 +98,10 @@ const props = defineProps({
   geoms: {
     type: Array,
     default: () => []
+  },
+  unitDefine:{
+    type: Object,
+
   }
 });
 
@@ -101,22 +109,8 @@ const props = defineProps({
 const layer = ref(null);
 const coordSystem = ref(null);
 
-// 裁剪到三角形的函数
-const clipToTriangle = (ctx, image) => {
-  // 找到关联的几何体
-  const relatedGeom = props.geoms.find(g => g.id === image.relatedGeom);
-  if (!relatedGeom || relatedGeom.type !== 'triangle') return;
-  
-  // 获取三角形顶点
-  const vertices = relatedGeom.vertices;
-  
-  // 绘制三角形裁剪路径
-  ctx.beginPath();
-  ctx.moveTo(vertices[0].x, vertices[0].y);
-  ctx.lineTo(vertices[1].x, vertices[1].y);
-  ctx.lineTo(vertices[2].x, vertices[2].y);
-  ctx.closePath();
-};
+
+
 
 // 居中坐标系
 const centerCoordinateSystem = () => {

@@ -24,6 +24,7 @@
         :blendMode="blendMode"
         :clipToUnit="clipToUnit"
         :geoms="geoms"
+        :unitDefine="generatedUnits"
         @imageSelect="handleImageSelect"
         @imageHover="handleImageHover"
       />
@@ -42,6 +43,8 @@
         :stageWidth="stageConfig.width"
         :stageHeight="stageConfig.height"
         :latticeVectors="latticeVectors"
+        :unitDefine="generatedUnits"
+
         v-if="showLatticeVectors"
       />
       
@@ -254,8 +257,9 @@ import TiledLatticeLayer from './TiledLatticeLayer.vue';
 import SeamlessUnitLayer from './SeamlessUnitLayer.vue';
 import { 
   generateUnits, 
-} from './textureUtils.js';
-
+} from './p6Generator.js';
+import { findClipPath } from './utils/clipTo.js';
+//const unitDefine=ref({findClipPath})
 const container = ref(null);
 const stage = ref(null);
 const gridLayerComponent = ref(null);
