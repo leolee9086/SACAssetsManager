@@ -243,6 +243,30 @@
         </div>
         <button @click="resetDefaultImages" class="custom-button">恢复默认图像</button>
       </div>
+      
+      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
+        <label>晶格向量1 X:</label>
+        <input type="range" v-model.number="latticeVector1.x" min="0.1" max="1" step="0.05" />
+        <span>{{ latticeVector1.x.toFixed(2) }}</span>
+      </div>
+      
+      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
+        <label>晶格向量1 Y:</label>
+        <input type="range" v-model.number="latticeVector1.y" min="-1" max="1" step="0.05" />
+        <span>{{ latticeVector1.y.toFixed(2) }}</span>
+      </div>
+      
+      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
+        <label>晶格向量2 X:</label>
+        <input type="range" v-model.number="latticeVector2.x" min="0.1" max="1" step="0.05" />
+        <span>{{ latticeVector2.x.toFixed(2) }}</span>
+      </div>
+      
+      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
+        <label>晶格向量2 Y:</label>
+        <input type="range" v-model.number="latticeVector2.y" min="-1" max="1" step="0.05" />
+        <span>{{ latticeVector2.y.toFixed(2) }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -257,9 +281,7 @@ import TiledLatticeLayer from './TiledLatticeLayer.vue';
 import SeamlessUnitLayer from './SeamlessUnitLayer.vue';
 import { 
   generateUnits, 
-} from './p6Generator.js';
-import { findClipPath } from './utils/clipTo.js';
-//const unitDefine=ref({findClipPath})
+} from './p1Generator.js';
 const container = ref(null);
 const stage = ref(null);
 const gridLayerComponent = ref(null);
@@ -312,11 +334,19 @@ const tilingExtent = ref(3);
 const showSeamlessUnit = ref(false);
 
 // 从生成的单元中获取晶格向量
-const latticeVectors = ref([]);
+const latticeVectors = computed(() => generatedUnits.value.latticeVectors);
 
-// 使用计算属性获取生成的单元
+// 添加晶格向量调整相关的响应式变量
+const latticeVector1 = ref({ x: 0.8, y: 0.2 }); // 默认值
+const latticeVector2 = ref({ x: 0.3, y: 0.7 }); // 默认值
+const isLatticeAdjustable = ref(false);
+
+// 修改计算属性获取生成的单元，传入晶格向量参数
 const generatedUnits = computed(() => 
-  generateUnits(gridSpacing.value, gridPrecision.value)
+  generateUnits(gridSpacing.value, gridPrecision.value, {
+    vector1: latticeVector1.value,
+    vector2: latticeVector2.value
+  })
 );
 
 // 从生成的单元中获取几何图形
@@ -325,8 +355,8 @@ const geoms = computed(() => generatedUnits.value.geoms);
 // 从生成的单元中获取光栅图像
 const rasterImages = ref([]);
 
-// 从生成的单元中获取三角形中心点
-const triangleCenters = computed(() => generatedUnits.value.triangleCenters);
+// 从生成的单元中获取基本单元中心点
+const baseUnitCenters = computed(() => generatedUnits.value.baseUnitCenters);
 
 // 从生成的单元中获取无缝单元
 const seamlessUnit = computed(() => generatedUnits.value.seamlessUnit);
@@ -358,8 +388,25 @@ const useLowDetailMode = computed(() => {
   return canvasScale.value < 30;
 });
 
-// 监听三角形变化，更新图像位置
-watch(triangleCenters, () => {
+// 初始化晶格参数
+const initializeLatticeParams = () => {
+  // 检查生成的单元是否声明为可调整
+  if (generatedUnits.value && generatedUnits.value.isAdjustable) {
+    isLatticeAdjustable.value = true;
+    
+    // 如果有提供初始向量参数，则使用它们
+    if (generatedUnits.value.vectorParams) {
+      const { vector1, vector2 } = generatedUnits.value.vectorParams;
+      latticeVector1.value = { ...vector1 };
+      latticeVector2.value = { ...vector2 };
+    }
+  } else {
+    isLatticeAdjustable.value = false;
+  }
+};
+
+// 监听基础单元变化，更新图像位置
+watch(baseUnitCenters, () => {
   updateImagePositions();
 }, { deep: true });
 
@@ -398,9 +445,20 @@ watch(canvasScale, () => {
   updateCanvasScale();
 });
 
-// 更新图像位置，使其与对应三角形的中心点对齐
+// 监听晶格向量变化，触发重新生成
+watch([latticeVector1, latticeVector2], () => {
+  // 更新晶格向量会自动触发generatedUnits重新计算
+  // 然后通过计算属性更新latticeVectors
+  
+  // 如果需要手动更新平铺图层
+  if (tiledLatticeLayerComponent.value) {
+    tiledLatticeLayerComponent.value.generateTiledImages();
+  }
+}, { deep: true });
+
+// 更新图像位置，使其与对应基础单元的中心点对齐
 const updateImagePositions = () => {
-  const centers = triangleCenters.value;
+  const centers = baseUnitCenters.value;
   
   rasterImages.value.forEach(image => {
     const relatedCenter = centers.find(c => c.id === image.relatedGeom);
@@ -421,12 +479,15 @@ const updateImageProperties = () => {
     image.config.offsetY = computedImageSize.value / 2;
     
     // 更新图像位置（应用内部坐标偏移）
-    const relatedCenter = triangleCenters.value.find(c => c.id === image.relatedGeom);
+    const relatedCenter = baseUnitCenters.value.find(c => c.id === image.relatedGeom);
+    console.log(relatedCenter,relatedCenter,image.relatedGeom)
+
     if (relatedCenter) {
-      // 获取相关三角形的内部坐标轴信息
+      // 获取相关基础单元的内部坐标轴信息
       const relatedGeom = geoms.value.find(g => g.id === image.relatedGeom);
-      
+
       if (relatedGeom) {
+
         // 使用textureUtils中的函数计算内部坐标偏移
         const internalOffset = generatedUnits.value.calculateInternalOffset(
           relatedGeom, 
@@ -437,13 +498,13 @@ const updateImageProperties = () => {
         // 设置最终位置
         image.config.x = relatedCenter.center.x + internalOffset.x;
         image.config.y = relatedCenter.center.y + internalOffset.y;
+        
       } else {
         // 如果没有找到相关几何体，则使用全局坐标系
         image.config.x = relatedCenter.center.x + computedPositionOffset.value.x;
         image.config.y = relatedCenter.center.y + computedPositionOffset.value.y;
       }
     }
-    
     // 更新图像角度（应用增量）
     // 保存原始角度计算结果
     const originalRotation = image.originalRotation !== undefined 
@@ -1122,6 +1183,9 @@ onMounted(() => {
   setTimeout(() => {
     centerAllLayers();
   }, 100);
+  
+  // 初始化晶格参数
+  initializeLatticeParams();
   
   // 组件卸载时清理 ResizeObserver
   onUnmounted(() => {

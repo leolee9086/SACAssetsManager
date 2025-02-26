@@ -4,10 +4,10 @@
       <!-- 遍历所有几何图形 -->
       <template v-for="geom in geoms" :key="geom.id">
         <!-- 三角形 -->
-        <template v-if="geom.type === 'triangle'">
+        <template v-if="geom.type === 'baseUnit'">
           <v-line
             :config="{
-              points: getTrianglePoints(geom),
+              points: getBaseUnitPoints(geom),
               closed: true,
               fill: geom.color.fill,
               stroke: geom.color.stroke,
@@ -43,8 +43,8 @@
           <!-- 三角形中心点标记 -->
           <v-circle
             :config="{
-              x: getTriangleCenter(geom).x,
-              y: getTriangleCenter(geom).y,
+              x: getBaseUnitCenter(geom).x,
+              y: getBaseUnitCenter(geom).y,
               radius: 4,
               fill: 'rgba(220,100,100,0.8)',
               stroke: 'white',
@@ -53,8 +53,8 @@
           />
           <v-text
             :config="{
-              x: getTriangleCenter(geom).x + 10,
-              y: getTriangleCenter(geom).y - 10,
+              x: getBaseUnitCenter(geom).x + 10,
+              y: getBaseUnitCenter(geom).y - 10,
               text: geom.center.label,
               fontSize: 12,
               fontFamily: 'Arial',
@@ -124,12 +124,12 @@ const props = defineProps({
 const geomLayer = ref(null);
 
 // 获取三角形的点数组，用于v-line
-const getTrianglePoints = (geom) => {
+const getBaseUnitPoints = (geom) => {
   return geom.vertices.flatMap(vertex => [vertex.x, vertex.y]);
 };
 
 // 计算三角形中心点
-const getTriangleCenter = (geom) => {
+const getBaseUnitCenter = (geom) => {
   const vertices = geom.vertices;
   // 计算三个顶点的平均值
   const centerX = vertices.reduce((sum, vertex) => sum + vertex.x, 0) / vertices.length;

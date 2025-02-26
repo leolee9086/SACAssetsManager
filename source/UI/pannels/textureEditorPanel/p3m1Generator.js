@@ -40,8 +40,8 @@ export const generateUnits = (spacing, precision) => {
     
     // 创建从中心点到两个相邻顶点的三角形
     geoms.push({
-      id: `triangle-${i+1}`,
-      type: 'triangle',
+      id: `baseUnit-${i+1}`,
+      type: 'baseUnit',
       color: colors[i],
       vertices: [
         {
@@ -100,8 +100,8 @@ export const generateUnits = (spacing, precision) => {
   };
   
   // 计算所有三角形的中心点
-  const triangleCenters = geoms.map(geom => {
-    if (geom.type === 'triangle') {
+  const baseUnitCenters = geoms.map(geom => {
+    if (geom.type === 'baseUnit') {
       return {
         id: geom.id,
         center: calculateTriangleCenter(geom.vertices)
@@ -155,7 +155,7 @@ export const generateUnits = (spacing, precision) => {
     rasterImages.push({
       id: `texture-${i+1}`,
       label: `纹理${i+1}`,
-      relatedGeom: `triangle-${i+1}`, // 关联到对应的三角形
+      relatedGeom: `baseUnit-${i+1}`, // 关联到对应的三角形
       labelOffsetX: 0,
       labelOffsetY: -20,
       config: {
@@ -182,7 +182,7 @@ export const generateUnits = (spacing, precision) => {
   
   // 更新图像位置，使其与对应三角形的中心点对齐
   rasterImages.forEach(image => {
-    const relatedCenter = triangleCenters.find(c => c.id === image.relatedGeom);
+    const relatedCenter = baseUnitCenters.find(c => c.id === image.relatedGeom);
     if (relatedCenter) {
       image.config.x = relatedCenter.center.x;
       image.config.y = relatedCenter.center.y;
@@ -231,7 +231,7 @@ export const generateUnits = (spacing, precision) => {
   return {
     geoms,
     rasterImages,
-    triangleCenters,
+    baseUnitCenters,
     loadImagesWithDefaults,
     latticeVectors,
     calculateInternalOffset,
@@ -271,7 +271,7 @@ export const calculateInternalOffset = (geom, image, offset) => {
   // 根据三角形ID判断是否需要镜像X轴
   // 假设三角形ID格式为 "triangle-N"，其中N是三角形的编号
   if (geom.id && typeof geom.id === 'string') {
-    const match = geom.id.match(/triangle-(\d+)/);
+    const match = geom.id.match(/baseUnit-(\d+)/);
     if (match && match[1]) {
       const triangleNumber = parseInt(match[1], 10);
       
