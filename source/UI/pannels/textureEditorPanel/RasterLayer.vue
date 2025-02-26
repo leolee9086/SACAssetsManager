@@ -159,6 +159,14 @@ watch([() => props.stageWidth, () => props.stageHeight], () => {
   centerCoordinateSystem();
 });
 
+// 监听 rasterImages 变化并输出每个图像的角度
+watch(() => props.rasterImages, (newImages) => {
+  console.log('图像角度信息：');
+  newImages.forEach(image => {
+    console.log(`图像 ${image.id || '未命名'}: ${image.config.rotation || 0}°`);
+  });
+}, { deep: true });
+
 // 组件挂载时
 onMounted(() => {
   centerCoordinateSystem();

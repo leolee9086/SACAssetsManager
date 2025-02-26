@@ -246,7 +246,7 @@
       
       <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
         <label>晶格向量1 X:</label>
-        <input type="range" v-model.number="latticeVector1.x" min="0.1" max="1" step="0.05" />
+        <input type="range" v-model.number="latticeVector1.x" min="-1" max="1" step="0.05" />
         <span>{{ latticeVector1.x.toFixed(2) }}</span>
       </div>
       
@@ -258,7 +258,7 @@
       
       <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
         <label>晶格向量2 X:</label>
-        <input type="range" v-model.number="latticeVector2.x" min="0.1" max="1" step="0.05" />
+        <input type="range" v-model.number="latticeVector2.x" min="-1" max="1" step="0.05" />
         <span>{{ latticeVector2.x.toFixed(2) }}</span>
       </div>
       
@@ -281,7 +281,7 @@ import TiledLatticeLayer from './TiledLatticeLayer.vue';
 import SeamlessUnitLayer from './SeamlessUnitLayer.vue';
 import { 
   generateUnits, 
-} from './p1Generator.js';
+} from './pmGenerator.js';
 const container = ref(null);
 const stage = ref(null);
 const gridLayerComponent = ref(null);
@@ -452,7 +452,7 @@ watch(canvasScale, () => {
 watch([latticeVector1, latticeVector2], () => {
   // 更新晶格向量会自动触发generatedUnits重新计算
   // 然后通过计算属性更新latticeVectors
-  
+  updateImageProperties()
   // 如果需要手动更新平铺图层
   if (tiledLatticeLayerComponent.value) {
     tiledLatticeLayerComponent.value.generateTiledImages();
@@ -474,64 +474,69 @@ const updateImagePositions = () => {
 
 // 更新图像属性（大小和角度）
 const updateImageProperties = () => {
-  rasterImages.value.forEach(image => {
-    // 更新图像大小
-    image.config.width = computedImageSize.value;
-    image.config.height = computedImageSize.value;
-    image.config.offsetX = computedImageSize.value / 2;
-    image.config.offsetY = computedImageSize.value / 2;
-    
-    // 更新图像位置（应用内部坐标偏移）
-    const relatedCenter = baseUnitCenters.value.find(c => c.id === image.relatedGeom);
-    console.log(relatedCenter,relatedCenter,image.relatedGeom)
 
-    if (relatedCenter) {
-      // 获取相关基础单元的内部坐标轴信息
-      const relatedGeom = geoms.value.find(g => g.id === image.relatedGeom);
-
-      if (relatedGeom) {
-
-        // 使用textureUtils中的函数计算内部坐标偏移
-        const internalOffset = generatedUnits.value.calculateInternalOffset(
-          relatedGeom, 
-          image, 
-          computedPositionOffset.value
-        );
-        
-        // 设置最终位置
-        image.config.x = relatedCenter.center.x + internalOffset.x;
-        image.config.y = relatedCenter.center.y + internalOffset.y;
-        
-      } else {
-        // 如果没有找到相关几何体，则使用全局坐标系
-        image.config.x = relatedCenter.center.x + computedPositionOffset.value.x;
-        image.config.y = relatedCenter.center.y + computedPositionOffset.value.y;
+    // 使用默认的图像属性更新逻辑
+    rasterImages.value.forEach(image => {
+      // 更新图像大小
+      console.error(image)
+      if(image.onUpdate){
+        image.onUpdate(image,{latticeVector1:latticeVector1.value,latticeVector2:latticeVector2.value})
       }
-    }
-    // 更新图像角度（应用增量）
-    // 保存原始角度计算结果
-    const originalRotation = image.originalRotation !== undefined 
-      ? image.originalRotation 
-      : image.config.rotation;
-    
-    // 存储原始角度以便后续调整
-    image.originalRotation = originalRotation;
-    
-    // 考虑镜像时角度增量的方向
-    let effectiveAngleIncrement = angleIncrement.value;
-    
-    // 如果图像被镜像（scaleY为-1），则角度增量应该反向
-    if (image.config.scaleY === -1) {
-      effectiveAngleIncrement = -angleIncrement.value;
-    }
-    
-    // 应用角度增量
-    image.config.rotation = (originalRotation + effectiveAngleIncrement) % 360;
-  });
-  
+      image.config.width = computedImageSize.value;
+      image.config.height = computedImageSize.value;
+      image.config.offsetX = computedImageSize.value / 2;
+      image.config.offsetY = computedImageSize.value / 2;
+      console.log(image.config.rotation)
+      // 更新图像位置（应用内部坐标偏移）
+      const relatedCenter = baseUnitCenters.value.find(c => c.id === image.relatedGeom);
+
+      if (relatedCenter) {
+        // 获取相关基础单元的内部坐标轴信息
+        const relatedGeom = geoms.value.find(g => g.id === image.relatedGeom);
+
+        if (relatedGeom) {
+
+          // 使用textureUtils中的函数计算内部坐标偏移
+          const internalOffset = generatedUnits.value.calculateInternalOffset(
+            relatedGeom, 
+            image, 
+            computedPositionOffset.value
+          );
+          
+          // 设置最终位置
+          image.config.x = relatedCenter.center.x + internalOffset.x;
+          image.config.y = relatedCenter.center.y + internalOffset.y;
+          
+        } else {
+          // 如果没有找到相关几何体，则使用全局坐标系
+          image.config.x = relatedCenter.center.x + computedPositionOffset.value.x;
+          image.config.y = relatedCenter.center.y + computedPositionOffset.value.y;
+        }
+      }
+      // 更新图像角度（应用增量）
+      // 保存原始角度计算结果
+      const originalRotation =  image.config.rotation;
+      
+        console.log(image.config.rotation)
+
+      // 考虑镜像时角度增量的方向
+      let effectiveAngleIncrement = angleIncrement.value;
+      
+      // 如果图像被镜像（scaleY为-1），则角度增量应该反向
+      if (image.config.scaleY === -1) {
+        effectiveAngleIncrement = -angleIncrement.value;
+      }
+      // 应用角度增量
+      image.config.rotation = (originalRotation + effectiveAngleIncrement) % 360;
+      console.log(image.config.rotation)
+
+    });
+    updateClipSettings();
   // 在更新完图像属性后应用裁剪设置
-  updateClipSettings();
-};
+
+  }
+  
+
 
 // 处理图像选择事件
 const handleImageSelect = (image) => {

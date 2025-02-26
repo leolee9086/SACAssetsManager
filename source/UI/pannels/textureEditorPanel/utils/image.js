@@ -1,4 +1,3 @@
-
 /**
  * 将图像逆时针旋转120度
  * @param {HTMLImageElement|HTMLCanvasElement} image - 要旋转的图像
@@ -33,28 +32,36 @@ export const rotateImage120CounterClockwise = (image) => {
   /**
    * 加载图像并设置默认图像,使用"6"是因为这个数字可以比较好的显示出对称群特性
    * @param {Array} rasterImagesConfig - 光栅图像配置数组
+   * @param {Object} options - 配置选项
+   * @param {boolean} [options.autoRotate=true] - 是否自动旋转图像120度
    * @returns {Array} 更新后的光栅图像数组
    */
-  export const loadImagesWithDefaults = (rasterImagesConfig) => {
-    // 深拷贝配置，避免修改原始数据
-    const rasterImages = JSON.parse(JSON.stringify(rasterImagesConfig));
+  export const loadImagesWithDefaults = (rasterImagesConfig, options = {}) => {
+    
+    // 设置默认选项
+    const { autoRotate = true } = options;
     
     // 为每个图像设置默认图像
-    rasterImages.forEach((image, index) => {
+    rasterImagesConfig.forEach((image, index) => {
       const defaultImg = createDefaultImage((6).toString());
-      // 应用120度逆时针旋转
-      image.config.image = rotateImage120CounterClockwise(defaultImg);
+      
+      // 根据autoRotate选项决定是否应用旋转
+      image.config.image = autoRotate 
+        ? rotateImage120CounterClockwise(defaultImg)
+        : defaultImg;
       
       // 尝试加载实际图像（如果有的话）
       const img = new Image();
       img.onload = () => {
-        // 加载成功后应用120度逆时针旋转
-        image.config.image = rotateImage120CounterClockwise(img);
+        // 根据autoRotate选项决定是否应用旋转
+        image.config.image = autoRotate 
+          ? rotateImage120CounterClockwise(img)
+          : img;
       };
       img.src = `/path/to/texture${index + 1}.jpg`; // 替换为实际的图像路径
     });
     
-    return rasterImages;
+    return rasterImagesConfig;
   }; 
 
   
