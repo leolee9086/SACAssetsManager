@@ -64,6 +64,11 @@
         <span>距原点:</span> 
         <span>{{distanceFromOrigin.toFixed(2)}} / {{props.maxPanDistance === Infinity ? '无限制' : props.maxPanDistance}}</span>
       </div>
+      <!-- 添加FPS显示 -->
+      <div class="status-item" v-if="viewState.showFps">
+        <span>FPS:</span> 
+        <span>{{viewState.fps}}</span>
+      </div>
     </div>
 
     <!-- 控制面板 -->
@@ -210,6 +215,23 @@ const viewState = reactive({
   selectedElement: null, // 当前选中的元素
   lodLevel: 0, // 当前LOD级别
   visibleElements: new Set(), // 当前可见元素的ID集合
+  // 添加FPS相关状态
+  fps: 0,
+  frameCount: 0,
+  lastFpsUpdateTime: 0,
+  showFps: true, // 是否显示FPS
+  // 添加元素显隐统计
+  elementStats: {
+    total: 0,        // 总元素数量(不含系统元素)
+    visible: 0,      // 可见元素数量
+    hidden: 0,       // 隐藏元素数量
+    hideReasons: {   // 隐藏原因统计
+      lodScale: 0,   // 因LOD缩放级别隐藏
+      lodRange: 0,   // 因自定义LOD范围隐藏
+      manual: 0,     // 手动隐藏
+      other: 0       // 其他原因
+    }
+  }
 });
 
 // 计算Stage配置
@@ -506,17 +528,30 @@ const handleWheel = (e) => {
   // 获取鼠标位置相对于容器的坐标
   const pointer = getRelativePointerPosition(e);
 
-  // 计算缩放因子 - 使用更小的缩放步长处理极端值
+  // 计算缩放因子 - 自适应缩放步长
   let scaleBy;
-  if (viewState.scale > 1e10 || viewState.scale < 1e-10) {
-    scaleBy = e.deltaY < 0 ? 1.01 : 0.99; // 极端值时使用更小的缩放步长
+  
+  // 极端缩放值时使用更小的缩放步长
+  if (Math.abs(oldScale) < 1e-10) {
+    // 非常小的值时
+    scaleBy = e.deltaY < 0 ? 1.01 : 0.99;
+  } else if (Math.abs(oldScale) > 1e10) {
+    // 非常大的值时
+    scaleBy = e.deltaY < 0 ? 1.01 : 0.99;
+  } else if (oldScale < 0.1) {
+    // 较小值时
+    scaleBy = e.deltaY < 0 ? 1.05 : 0.95;
+  } else if (oldScale > 10) {
+    // 较大值时
+    scaleBy = e.deltaY < 0 ? 1.05 : 0.95;
   } else {
-    scaleBy = e.deltaY < 0 ? 1.1 : 0.9;   // 正常缩放步长
+    // 正常缩放范围
+    scaleBy = e.deltaY < 0 ? 1.1 : 0.9;
   }
 
   let newScale = oldScale * scaleBy;
 
-  // 约束缩放级别，确保不超过JS安全范围
+  // 约束缩放级别，确保不超过设置的限制
   newScale = Math.max(props.minScale, Math.min(props.maxScale, newScale));
 
   // 安全检查：如果缩放无效或NaN，不进行缩放
@@ -531,7 +566,7 @@ const handleWheel = (e) => {
   viewState.scale = newScale;
 
   // 更新变换（内部会触发LOD更新）
-  updateTransform()
+  updateTransform();
 };
 
 // 开始平移
@@ -862,6 +897,24 @@ const screenToWorld = (screenX, screenY) => ({
   y: (screenY - viewState.position.y) / viewState.scale
 });
 
+// 添加FPS计算和更新函数
+let animationFrameId = null;
+
+const updateFps = () => {
+  const now = performance.now();
+  viewState.frameCount++;
+  
+  // 每秒更新一次FPS值
+  if (now - viewState.lastFpsUpdateTime >= 1000) {
+    viewState.fps = Math.round(viewState.frameCount * 1000 / (now - viewState.lastFpsUpdateTime));
+    viewState.frameCount = 0;
+    viewState.lastFpsUpdateTime = now;
+  }
+  
+  // 保持循环
+  animationFrameId = requestAnimationFrame(updateFps);
+};
+
 // 组件挂载和卸载
 onMounted(() => {
   // 添加初始化标志
@@ -875,10 +928,20 @@ onMounted(() => {
 
   // 初始化网格
   drawGrid();
+  
+  // 启动FPS计算
+  viewState.lastFpsUpdateTime = performance.now();
+  viewState.frameCount = 0;
+  updateFps();
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+  
+  // 停止FPS计算
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+  }
 });
 
 // 监听属性变化
@@ -887,15 +950,16 @@ watch(() => props.unitRatio, drawGrid);
 
 // LOD处理相关函数
 const calculateLodLevel = () => {
-  // 根据当前缩放比例计算LOD级别
-  // 缩放越小，LOD级别越高（显示越少细节）
+  // 使用对数缩放来处理任意大小的缩放值
   let lodLevel = 0;
-  if (viewState.scale > 1) lodLevel = 0;
-  else if (viewState.scale > 0.5) lodLevel = 1;
-  else if (viewState.scale > 0.1) lodLevel = 2;
-  else if (viewState.scale > 0.05) lodLevel = 3;
-  else if (viewState.scale > 0.01) lodLevel = 4;
-  else lodLevel = 5;
+  
+  if (viewState.scale > 0) {
+    // 使用对数计算，确保能处理极端缩放值
+    lodLevel = Math.floor(-Math.log10(viewState.scale));
+    
+    // 限制在合理范围内
+    if (lodLevel < 0) lodLevel = 0;
+  }
   
   // 应用LOD级别约束
   return Math.max(props.minLodLevel, Math.min(props.maxLodLevel, lodLevel));
@@ -907,8 +971,18 @@ const shouldElementBeVisible = (element) => {
   
   // 如果元素有自定义LOD范围
   if (element.lodRange) {
-    return viewState.scale >= element.lodRange.minScale && 
-           viewState.scale <= element.lodRange.maxScale;
+    // 处理特殊情况：无穷大或非常小的值
+    const minScale = element.lodRange.minScale === -Infinity ? 0 : element.lodRange.minScale;
+    const maxScale = element.lodRange.maxScale === Infinity ? Number.MAX_VALUE : element.lodRange.maxScale;
+    
+    return viewState.scale >= minScale && viewState.scale <= maxScale;
+  }
+  
+  // 优化：针对超大或超小缩放值的特殊处理
+  if (viewState.scale < 1e-10 || viewState.scale > 1e10) {
+    // 根据LOD级别而非直接尺寸计算来判断可见性
+    const elementLod = calculateElementLodLevel(element);
+    return Math.abs(elementLod - viewState.lodLevel) <= 1; // 在当前LOD级别或相邻级别可见
   }
   
   // 计算元素在屏幕上的大小
@@ -916,8 +990,43 @@ const shouldElementBeVisible = (element) => {
   return elementSize >= props.lodThreshold;
 };
 
-// 计算元素在屏幕上的大小
+// 为极端缩放值增加LOD级别计算
+const calculateElementLodLevel = (element) => {
+  // 基于元素类型和特征计算其最适合的LOD级别
+  let baseLodLevel = 0;
+  
+  if (element.type === 'line') {
+    // 线条基于其复杂度和长度
+    const points = element.config.points || [];
+    const complexity = Math.max(1, Math.floor(points.length / 4));
+    baseLodLevel = complexity - 1;
+  } else if (element.type === 'text') {
+    // 文本基于其字体大小
+    const fontSize = element.config.fontSize || 12;
+    baseLodLevel = fontSize > 24 ? 0 : fontSize > 16 ? 1 : fontSize > 12 ? 2 : 3;
+  } else if (element.lodLevel !== undefined) {
+    // 使用元素预定义的LOD级别
+    baseLodLevel = element.lodLevel;
+  } else {
+    // 默认基于元素尺寸
+    const size = Math.max(
+      element.config.width || element.width || 10,
+      element.config.height || element.height || 10
+    );
+    baseLodLevel = size > 100 ? 0 : size > 50 ? 1 : size > 20 ? 2 : size > 10 ? 3 : 4;
+  }
+  
+  return baseLodLevel;
+};
+
+// 计算元素在屏幕上的大小 - 优化以处理极端缩放值
 const calculateElementScreenSize = (element) => {
+  // 针对极端缩放值的安全检查
+  if (!isFinite(viewState.scale) || isNaN(viewState.scale)) {
+    console.warn('缩放值无效:', viewState.scale);
+    return 0;
+  }
+  
   // 根据元素类型计算尺寸
   let size = 0;
   
@@ -938,12 +1047,24 @@ const calculateElementScreenSize = (element) => {
       }
     }
     
-    // 线宽和长度都要乘以缩放比例转换为屏幕尺寸
-    const widthSize = strokeWidth * viewState.scale;
-    const lengthSize = lineLength * viewState.scale;
-    
-    // 取长度和宽度的最大值作为最终尺寸
-    size = Math.max(widthSize, lengthSize);
+    // 安全计算：防止数值溢出
+    try {
+      // 线宽和长度都要乘以缩放比例转换为屏幕尺寸
+      const widthSize = strokeWidth * viewState.scale;
+      const lengthSize = lineLength * viewState.scale;
+      
+      // 取长度和宽度的最大值作为最终尺寸
+      size = Math.max(widthSize, lengthSize);
+      
+      // 检查计算结果的有效性
+      if (!isFinite(size) || isNaN(size)) {
+        // 回退到一个基于LOD级别的估计值
+        size = props.lodThreshold * Math.pow(2, props.maxLodLevel - viewState.lodLevel);
+      }
+    } catch (e) {
+      console.warn('计算元素尺寸时出错:', e);
+      size = props.lodThreshold; // 回退到默认值
+    }
   } else if (element.type === 'circle') {
     // 圆形使用半径作为尺寸基准
     size = (element.config.radius || 1) * viewState.scale;
@@ -960,7 +1081,8 @@ const calculateElementScreenSize = (element) => {
     size = Math.max(width, height) * viewState.scale;
   }
   
-  return size;
+  // 最终安全检查
+  return isFinite(size) ? size : props.lodThreshold;
 };
 
 // 1. 首先定义创建Konva元素的工厂函数
@@ -969,115 +1091,183 @@ const createKonvaElement = (element) => {
   
   let konvaElement = null;
   
-  switch (element.type) {
-    case 'line':
-      konvaElement = new Konva.Line({
-        points: element.points || [],
-        stroke: element.stroke || 'black',
-        strokeWidth: element.strokeWidth || 2,
-        id: element.id,
-        draggable: element.draggable !== false,
-        ...element.config
-      });
-      break;
-    
-    case 'circle':
-      konvaElement = new Konva.Circle({
-        x: element.x || 0,
-        y: element.y || 0,
-        radius: element.radius || 10,
-        fill: element.fill || 'blue',
-        stroke: element.stroke,
-        strokeWidth: element.strokeWidth,
-        id: element.id,
-        draggable: element.draggable !== false,
-        ...element.config
-      });
-      break;
-    
-    case 'rect':
-      konvaElement = new Konva.Rect({
-        x: element.x || 0,
-        y: element.y || 0,
-        width: element.width || 20,
-        height: element.height || 20,
-        fill: element.fill || 'green',
-        stroke: element.stroke,
-        strokeWidth: element.strokeWidth,
-        id: element.id,
-        draggable: element.draggable !== false,
-        ...element.config
-      });
-      break;
-    
-    case 'text':
-      konvaElement = new Konva.Text({
-        x: element.x || 0,
-        y: element.y || 0,
-        text: element.text || '',
-        fontSize: element.fontSize || 16,
-        fontFamily: element.fontFamily || 'Arial',
-        fill: element.fill || 'black',
-        id: element.id,
-        draggable: element.draggable !== false,
-        ...element.config
-      });
-      break;
-      
-    case 'image':
-      // 为图片创建特殊处理
-      if (element.imageUrl) {
-        const imageObj = new Image();
-        imageObj.onload = () => {
-          konvaElement.image(imageObj);
-          mainLayer.value.getNode().batchDraw();
-        };
-        imageObj.src = element.imageUrl;
-        
-        konvaElement = new Konva.Image({
+  // 使用对象池缓存常用元素类型
+  const elementPool = window._konvaElementPool = window._konvaElementPool || {
+    line: [],
+    circle: [],
+    rect: [],
+    text: []
+  };
+  
+  const getFromPool = (type) => {
+    const pool = elementPool[type];
+    return pool && pool.length > 0 ? pool.pop() : null;
+  };
+  
+  // 尝试从对象池获取元素
+  konvaElement = getFromPool(element.type);
+  
+  if (!konvaElement) {
+    // 如果对象池为空，则创建新元素
+    switch (element.type) {
+      case 'line':
+        konvaElement = new Konva.Line({
+          id: element.id,
+          listening: false // 默认不监听事件，提高性能
+        });
+        break;
+      case 'circle':
+        konvaElement = new Konva.Circle({
           x: element.x || 0,
           y: element.y || 0,
-          width: element.width,
-          height: element.height,
+          radius: element.radius || 10,
+          fill: element.fill || 'blue',
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
           id: element.id,
           draggable: element.draggable !== false,
           ...element.config
         });
-      }
-      break;
-      
-    case 'path':
-      konvaElement = new Konva.Path({
-        data: element.data || '',
-        fill: element.fill,
-        stroke: element.stroke || 'black',
-        strokeWidth: element.strokeWidth || 1,
-        id: element.id,
-        draggable: element.draggable !== false,
-        ...element.config
-      });
-      break;
-      
-    case 'custom':
-      // 支持自定义元素
-      if (element.createFunction && typeof element.createFunction === 'function') {
-        konvaElement = element.createFunction(Konva, element);
-      }
-      break;
-      
-    default:
-      console.warn('不支持的元素类型:', element.type);
+        break;
+      case 'rect':
+        konvaElement = new Konva.Rect({
+          x: element.x || 0,
+          y: element.y || 0,
+          width: element.width || 20,
+          height: element.height || 20,
+          fill: element.fill || 'green',
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          id: element.id,
+          draggable: element.draggable !== false,
+          ...element.config
+        });
+        break;
+      case 'text':
+        konvaElement = new Konva.Text({
+          x: element.x || 0,
+          y: element.y || 0,
+          text: element.text || '',
+          fontSize: element.fontSize || 16,
+          fontFamily: element.fontFamily || 'Arial',
+          fill: element.fill || 'black',
+          id: element.id,
+          draggable: element.draggable !== false,
+          ...element.config
+        });
+        break;
+        case 'image':
+          // 为图片创建特殊处理
+          if (element.imageUrl) {
+            const imageObj = new Image();
+            imageObj.onload = () => {
+              konvaElement.image(imageObj);
+              mainLayer.value.getNode().batchDraw();
+            };
+            imageObj.src = element.imageUrl;
+            
+            konvaElement = new Konva.Image({
+              x: element.x || 0,
+              y: element.y || 0,
+              width: element.width,
+              height: element.height,
+              id: element.id,
+              draggable: element.draggable !== false,
+              ...element.config
+            });
+          }
+          break;
+        case 'path':
+          konvaElement = new Konva.Path({
+            data: element.data || '',
+            fill: element.fill,
+            stroke: element.stroke || 'black',
+            strokeWidth: element.strokeWidth || 1,
+            id: element.id,
+            draggable: element.draggable !== false,
+            ...element.config
+          });
+          break;
+        case 'custom':
+          // 支持自定义元素
+          if (element.createFunction && typeof element.createFunction === 'function') {
+            konvaElement = element.createFunction(Konva, element);
+          }
+          break;
+        default:
+          console.warn('不支持的元素类型:', element.type);
+    }
   }
   
-  // 为元素添加事件处理
+  // 更新元素配置
   if (konvaElement) {
-    konvaElement.on('click', () => {
-      selectElement(element);
-    });
+    konvaElement.id(element.id);
     
-    konvaElement.on('dragend', () => {
-      updateElementPosition(element.id, konvaElement);
-    });
+    switch (element.type) {
+      case 'line':
+        konvaElement.points(element.points || []);
+        konvaElement.stroke(element.stroke || 'black');
+        konvaElement.strokeWidth(element.strokeWidth || 2);
+        konvaElement.draggable(element.draggable !== false);
+        break;
+      case 'circle':
+        konvaElement.x(element.x || 0);
+        konvaElement.y(element.y || 0);
+        konvaElement.radius(element.radius || 10);
+        konvaElement.fill(element.fill || 'blue');
+        konvaElement.stroke(element.stroke);
+        konvaElement.strokeWidth(element.strokeWidth);
+        konvaElement.draggable(element.draggable !== false);
+        break;
+      case 'rect':
+        konvaElement.x(element.x || 0);
+        konvaElement.y(element.y || 0);
+        konvaElement.width(element.width || 20);
+        konvaElement.height(element.height || 20);
+        konvaElement.fill(element.fill || 'green');
+        konvaElement.stroke(element.stroke);
+        konvaElement.strokeWidth(element.strokeWidth);
+        konvaElement.draggable(element.draggable !== false);
+        break;
+      case 'text':
+        konvaElement.text(element.text || '');
+        konvaElement.fontSize(element.fontSize || 16);
+        konvaElement.fontFamily(element.fontFamily || 'Arial');
+        konvaElement.fill(element.fill || 'black');
+        konvaElement.draggable(element.draggable !== false);
+        break;
+      case 'image':
+        konvaElement.image(element.image);
+        konvaElement.width(element.width);
+        konvaElement.height(element.height);
+        konvaElement.draggable(element.draggable !== false);
+        break;
+      case 'path':
+        konvaElement.data(element.data || '');
+        konvaElement.fill(element.fill);
+        konvaElement.stroke(element.stroke || 'black');
+        konvaElement.strokeWidth(element.strokeWidth || 1);
+        konvaElement.draggable(element.draggable !== false);
+        break;
+      case 'custom':
+        konvaElement.draggable(element.draggable !== false);
+        break;
+    }
+    
+    // 只为需要事件处理的元素添加事件
+    if (element.needsEvents) {
+      konvaElement.listening(true);
+      // 添加事件监听
+      konvaElement.off('click'); // 先移除旧事件
+      konvaElement.on('click', () => {
+        selectElement(element);
+      });
+      
+      konvaElement.off('dragend');
+      konvaElement.on('dragend', () => {
+        updateElementPosition(element.id, konvaElement);
+      });
+    }
   }
   
   return konvaElement;
@@ -1116,24 +1306,95 @@ const updateKonvaElements = () => {
   if (!mainLayer.value || !mainLayer.value.getNode()) return;
   
   const layer = mainLayer.value.getNode();
+  layer.listening(false); // 暂时禁用事件监听
   
-  // 移除所有旧元素
+  // 创建当前元素ID的映射，用于快速查找
+  const existingElements = new Map();
   layer.getChildren().forEach(child => {
-    if (child.attrs && child.attrs._isCanvasElement) {
-      child.destroy();
+    if (child.attrs && child.attrs._isCanvasElement && child.attrs.id) {
+      existingElements.set(child.attrs.id, child);
     }
   });
   
-  // 添加新元素
+  // 要添加的新元素
+  const elementsToAdd = [];
+  // 要更新的元素
+  const elementsToUpdate = [];
+  // 要保留的元素ID集合
+  const elementIdsToKeep = new Set();
+  
+  // 分类处理元素
   viewState.elements.forEach(element => {
-    const konvaElement = createKonvaElement(element);
-    if (konvaElement) {
-      konvaElement.setAttr('_isCanvasElement', true);
-      layer.add(konvaElement);
+    if (!element.id) return;
+    
+    elementIdsToKeep.add(element.id);
+    
+    if (existingElements.has(element.id)) {
+      // 现有元素，可能需要更新
+      elementsToUpdate.push({ element, node: existingElements.get(element.id) });
+    } else {
+      // 新元素，需要添加
+      elementsToAdd.push(element);
     }
   });
   
-  layer.batchDraw();
+  // 删除不再需要的元素
+  existingElements.forEach((node, id) => {
+    if (!elementIdsToKeep.has(id)) {
+      node.destroy();
+    }
+  });
+  
+  // 批量处理添加操作
+  const processBatch = (elements, index = 0, batchSize = 200) => {
+    const endIndex = Math.min(index + batchSize, elements.length);
+    const currentBatch = elements.slice(index, endIndex);
+    
+    // 处理当前批次
+    currentBatch.forEach(element => {
+      const konvaElement = createKonvaElement(element);
+      if (konvaElement) {
+        konvaElement.setAttr('_isCanvasElement', true);
+        layer.add(konvaElement);
+      }
+    });
+    
+    // 继续处理下一批或完成
+    if (endIndex < elements.length) {
+      requestAnimationFrame(() => processBatch(elements, endIndex, batchSize));
+    } else {
+      // 恢复事件监听并重绘
+      layer.listening(true);
+      layer.batchDraw();
+      updateLodState();
+    }
+  };
+  
+  // 处理更新操作
+  elementsToUpdate.forEach(({ element, node }) => {
+    // 根据元素类型更新属性
+    if (element.type === 'line' && element.points) {
+      node.points(element.points);
+    } else {
+      // 更新常见属性
+      if (element.x !== undefined) node.x(element.x);
+      if (element.y !== undefined) node.y(element.y);
+      if (element.fill !== undefined) node.fill(element.fill);
+      if (element.stroke !== undefined) node.stroke(element.stroke);
+      if (element.strokeWidth !== undefined) node.strokeWidth(element.strokeWidth);
+      // 更新其他特定属性...
+    }
+  });
+  
+  // 开始批量添加新元素
+  if (elementsToAdd.length > 0) {
+    processBatch(elementsToAdd);
+  } else {
+    // 没有新元素时，直接恢复事件监听和重绘
+    layer.listening(true);
+    layer.batchDraw();
+    updateLodState();
+  }
 };
 
 // 5. 现在可以安全地设置watch
@@ -1160,6 +1421,79 @@ const addElement = (element) => {
   updateLodState();
   
   return element;
+};
+
+// 添加批量高性能添加元素方法
+const addElements = (elements) => {
+  if (!Array.isArray(elements) || elements.length === 0) {
+    return [];
+  }
+  
+  // 批量处理：禁用自动重绘
+  if (mainLayer.value && mainLayer.value.getNode()) {
+    mainLayer.value.getNode().listening(false); // 暂时禁用事件监听以提高性能
+  }
+  
+  // 为没有ID的元素生成ID
+  const processedElements = elements.map(element => {
+    if (!element.id) {
+      return {...element, id: element.type + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)};
+    }
+    return element;
+  });
+  
+  // 使用直接数组操作而不是创建新数组
+  const originalLength = viewState.elements.length;
+  viewState.elements.push(...processedElements);
+  
+  // 只触发一次更新事件
+  emit('update:modelValue', viewState.elements);
+  
+  // 分批创建Konva元素以避免长时间阻塞UI
+  const batchSize = 500; // 每批处理的元素数量
+  const totalElements = processedElements.length;
+  
+  const processBatch = (startIndex) => {
+    const endIndex = Math.min(startIndex + batchSize, totalElements);
+    const currentBatch = processedElements.slice(startIndex, endIndex);
+    
+    // 批量添加Konva元素
+    if (mainLayer.value && mainLayer.value.getNode()) {
+      const layer = mainLayer.value.getNode();
+      
+      // 添加当前批次的元素
+      currentBatch.forEach(element => {
+        const konvaElement = createKonvaElement(element);
+        if (konvaElement) {
+          konvaElement.setAttr('_isCanvasElement', true);
+          layer.add(konvaElement);
+        }
+      });
+      
+      // 处理下一批，或完成所有批次处理
+      if (endIndex < totalElements) {
+        // 使用requestAnimationFrame允许浏览器在批次之间更新UI
+        requestAnimationFrame(() => processBatch(endIndex));
+      } else {
+        // 所有批次处理完成，恢复事件监听并重绘
+        layer.listening(true);
+        layer.batchDraw();
+        updateLodState();
+        
+        // 单独触发每个元素的added事件（如果需要的话）
+        processedElements.forEach(element => {
+          emit('element-added', element);
+        });
+      }
+    }
+  };
+  
+  // 开始批处理
+  if (totalElements > 0) {
+    processBatch(0);
+  }
+  
+  return processedElements;
 };
 
 // 移除元素
@@ -1219,16 +1553,129 @@ const updateLodState = () => {
   // 更新元素可见性
   const newVisibleElements = new Set();
   
-  // 处理所有绘制元素
-  viewState.elements.forEach(element => {
+  // 重置统计信息
+  viewState.elementStats = {
+    total: 0,
+    visible: 0,
+    hidden: 0,
+    hideReasons: {
+      lodScale: 0,
+      lodRange: 0,
+      manual: 0,
+      other: 0
+    }
+  };
+  
+  // 获取可见区域边界，用于视口剪裁
+  const bounds = getViewportBounds(viewState);
+  
+  // 添加缓冲区以避免边缘抖动
+  const bufferedBounds = {
+    left: bounds.left - (bounds.right - bounds.left) * 0.1,
+    right: bounds.right + (bounds.right - bounds.left) * 0.1,
+    top: bounds.top - (bounds.bottom - bounds.top) * 0.1,
+    bottom: bounds.bottom + (bounds.bottom - bounds.top) * 0.1
+  };
+  
+  // 如果元素数量超过阈值，使用批处理
+  const BATCH_THRESHOLD = 1000;
+  const BATCH_SIZE = 500;
+  
+  if (viewState.elements.length > BATCH_THRESHOLD) {
+    // 批量处理元素可见性
+    const processLodBatch = (startIndex = 0) => {
+      const endIndex = Math.min(startIndex + BATCH_SIZE, viewState.elements.length);
+      const batchElements = viewState.elements.slice(startIndex, endIndex);
+      
+      // 处理当前批次
+      batchElements.forEach(processElementVisibility);
+      
+      // 处理下一批或完成
+      if (endIndex < viewState.elements.length) {
+        setTimeout(() => processLodBatch(endIndex), 0);
+      } else {
+        // 完成所有批次处理
+        updateVisibilityStatistics();
+      }
+    };
+    
+    // 开始批处理
+    processLodBatch(0);
+  } else {
+    // 直接处理所有元素
+    viewState.elements.forEach(processElementVisibility);
+    updateVisibilityStatistics();
+  }
+  
+  // 处理单个元素可见性的函数
+  function processElementVisibility(element) {
+    // 跳过系统元素
+    if (element.isSystemElement || element.id?.startsWith('system_')) {
+      return;
+    }
+    
+    // 增加总元素计数
+    viewState.elementStats.total++;
+    
     // 转换为LOD计算所需格式
     const elementForLod = {
       type: element.type,
       config: element
     };
     
-    if (shouldElementBeVisible(elementForLod)) {
+    // 获取元素中心点坐标
+    let elementX = element.x || 0;
+    let elementY = element.y || 0;
+    
+    // 线条元素需要特殊处理，使用点的平均值
+    if (element.type === 'line' && element.points && element.points.length >= 4) {
+      const points = element.points;
+      let sumX = 0, sumY = 0, pointCount = 0;
+      for (let i = 0; i < points.length; i += 2) {
+        sumX += points[i];
+        sumY += points[i + 1];
+        pointCount++;
+      }
+      elementX = sumX / pointCount;
+      elementY = sumY / pointCount;
+    }
+    
+    // 视口剪裁 - 如果元素在可见区域外，直接隐藏
+    const isInViewport = (
+      elementX >= bufferedBounds.left && 
+      elementX <= bufferedBounds.right && 
+      elementY >= bufferedBounds.top && 
+      elementY <= bufferedBounds.bottom
+    );
+    
+    // 检查是否应该显示
+    let visible = isInViewport; // 首先检查是否在视口内
+    let hideReason = isInViewport ? null : 'outOfView';
+    
+    if (visible) { // 只有在视口内才进行其他检查
+      // 检查手动隐藏
+      if (element.visible === false) {
+        visible = false;
+        hideReason = 'manual';
+      } 
+      // 检查LOD显隐
+      else if (!shouldElementBeVisible(elementForLod)) {
+        visible = false;
+        
+        // 确定隐藏原因
+        if (element.lodRange) {
+          hideReason = 'lodRange';
+        } else {
+          // 基于元素屏幕尺寸的LOD
+          hideReason = 'lodScale';
+        }
+      }
+    }
+    
+    // 更新元素可见性
+    if (visible) {
       newVisibleElements.add(element.id);
+      viewState.elementStats.visible++;
       
       // 更新Konva元素可见性
       const konvaElement = mainLayer.value?.getNode()?.findOne('#' + element.id);
@@ -1236,28 +1683,45 @@ const updateLodState = () => {
         konvaElement.visible(true);
       }
     } else {
-      // 隐藏Konva元素
+      viewState.elementStats.hidden++;
+      
+      // 记录隐藏原因
+      if (hideReason === 'lodRange') {
+        viewState.elementStats.hideReasons.lodRange++;
+      } else if (hideReason === 'lodScale') {
+        viewState.elementStats.hideReasons.lodScale++;
+      } else if (hideReason === 'manual') {
+        viewState.elementStats.hideReasons.manual++;
+      } else {
+        viewState.elementStats.hideReasons.other++;
+      }
+      
+      // 隐藏Konva元素 - 使用查找缓存提高性能
       const konvaElement = mainLayer.value?.getNode()?.findOne('#' + element.id);
       if (konvaElement) {
         konvaElement.visible(false);
       }
     }
-  });
-  
- // 更新可见元素集合
-  viewState.visibleElements = newVisibleElements;
-  
-  // 重绘主图层
-  if (mainLayer.value && mainLayer.value.getNode()) {
-    mainLayer.value.getNode().batchDraw();
   }
   
-  // 触发可见性变更事件
-  emit('lod-update', {
-    lodLevel: viewState.lodLevel,
-    scale: viewState.scale,
-    visibleElements: Array.from(viewState.visibleElements)
-  });
+  // 更新可见性统计并触发事件
+  function updateVisibilityStatistics() {
+    // 更新可见元素集合
+    viewState.visibleElements = newVisibleElements;
+    
+    // 重绘主图层
+    if (mainLayer.value && mainLayer.value.getNode()) {
+      mainLayer.value.getNode().batchDraw();
+    }
+    
+    // 触发可见性变更事件
+    emit('lod-update', {
+      lodLevel: viewState.lodLevel,
+      scale: viewState.scale,
+      visibleElements: Array.from(viewState.visibleElements),
+      statistics: viewState.elementStats
+    });
+  }
 };
 
 // 计算与原点的距离
@@ -1302,6 +1766,7 @@ defineExpose({
 
   // 添加元素操作API
   addElement,
+  addElements,
   removeElement,
   updateElement,
   getElements: () => viewState.elements,
@@ -1348,7 +1813,37 @@ defineExpose({
   setConstrainPan: (constrain) => {
     props.constrainPan = constrain;
   },
-  getDistanceFromOrigin: () => distanceFromOrigin.value
+  getDistanceFromOrigin: () => distanceFromOrigin.value,
+  
+  // 添加FPS相关控制
+  setShowFps: (show) => {
+    viewState.showFps = show;
+  },
+  
+  getFps: () => viewState.fps,
+  
+  // 获取元素统计信息
+  getElementStatistics: () => viewState.elementStats,
+  
+  // 标记元素为系统元素(不计入统计)
+  markAsSystemElement: (elementId, isSystem = true) => {
+    const element = viewState.elements.find(el => el.id === elementId);
+    if (element) {
+      updateElement(elementId, {
+        isSystemElement: isSystem
+      });
+    }
+  },
+  
+  // 手动隐藏/显示元素
+  setElementVisibility: (elementId, visible) => {
+    const element = viewState.elements.find(el => el.id === elementId);
+    if (element) {
+      updateElement(elementId, {
+        visible: visible
+      });
+    }
+  },
 });
 </script>
 
@@ -1444,5 +1939,12 @@ defineExpose({
   border-radius: 4px;
   font-size: 12px;
   z-index: 20;
+}
+
+/* 为显隐统计添加样式 */
+.hidden-details {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
 }
 </style>

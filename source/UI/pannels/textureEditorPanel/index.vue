@@ -109,6 +109,27 @@
           <button @click="resetView(5)">重置视图</button>
         </div>
       </div>
+
+      <!-- 画布 6：性能测试 -->
+      <div class="canvas-wrapper">
+        <h2 class="canvas-title">性能测试（一万个元素）</h2>
+        <div class="canvas-box">
+          <InfiniteCanvas 
+            ref="canvas6" 
+            :initialScale="0.5" 
+            :gridSize="100"
+            :showMouseIndicator="true"
+          />
+        </div>
+        <div class="canvas-controls">
+          <button @click="addBulkElements" :disabled="isGenerating">一次性添加一万个元素</button>
+          <button @click="addElementsOneByOne" :disabled="isGenerating">逐个添加一万个元素</button>
+          <button @click="clearPerformanceCanvas">清除元素</button>
+          <div v-if="generationInfo" class="generation-info">
+            {{ generationInfo }}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -117,12 +138,13 @@
 import { ref, onMounted } from 'vue';
 import InfiniteCanvas from './InfiniteCanvas.vue';
 
-// 引用五个画布
+// 引用六个画布
 const canvas1 = ref(null);
 const canvas2 = ref(null);
 const canvas3 = ref(null);
 const canvas4 = ref(null);
 const canvas5 = ref(null);
+const canvas6 = ref(null);
 
 // 为画布3提供元素数组
 const elements = ref([]);
@@ -135,6 +157,10 @@ const maxLodLevel = ref(5);
 const minLodLevel = ref(0);
 const maxPanDistance = ref(Infinity);
 const constrainPan = ref(false);
+
+// 性能测试状态变量
+const isGenerating = ref(false);
+const generationInfo = ref('');
 
 // 1. 基本缩放和平移功能
 const testZoomIn = (canvasId) => {
@@ -529,6 +555,164 @@ const addTestElements = (canvasId) => {
   }, 100);
 };
 
+// 6. 性能测试功能
+const generateElements = (count) => {
+  const elements = [];
+  const colors = ['#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', 
+                 '#33FFF5', '#FF8033', '#8033FF', '#FFFF33', '#FF33A8'];
+  const types = ['circle', 'rect', 'line'];
+  
+  for (let i = 0; i < count; i++) {
+    const x = (Math.random() - 0.5) * 2000;
+    const y = (Math.random() - 0.5) * 2000;
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const type = types[Math.floor(Math.random() * types.length)];
+    
+    let element;
+    switch (type) {
+      case 'circle':
+        element = {
+          id: `perf_circle_${i}`,
+          type: 'circle',
+          x: x,
+          y: y,
+          radius: 2 + Math.random() * 6,
+          fill: color,
+          opacity: 0.7 + Math.random() * 0.3
+        };
+        break;
+      case 'rect':
+        const size = 4 + Math.random() * 8;
+        element = {
+          id: `perf_rect_${i}`,
+          type: 'rect',
+          x: x,
+          y: y,
+          width: size,
+          height: size,
+          fill: color,
+          opacity: 0.7 + Math.random() * 0.3
+        };
+        break;
+      case 'line':
+        const length = 5 + Math.random() * 15;
+        const angle = Math.random() * Math.PI * 2;
+        element = {
+          id: `perf_line_${i}`,
+          type: 'line',
+          points: [
+            x, 
+            y, 
+            x + Math.cos(angle) * length, 
+            y + Math.sin(angle) * length
+          ],
+          stroke: color,
+          strokeWidth: 1 + Math.random() * 2,
+          opacity: 0.7 + Math.random() * 0.3
+        };
+        break;
+    }
+    
+    if (element) {
+      elements.push(element);
+    }
+  }
+  
+  return elements;
+};
+
+const addBulkElements = async () => {
+  if (!canvas6.value || isGenerating.value) return;
+  
+  isGenerating.value = true;
+  generationInfo.value = '正在生成元素...';
+  
+  // 先清除画布
+  clearPerformanceCanvas();
+  
+  // 延迟执行，确保UI更新
+  setTimeout(async () => {
+    const startTime = performance.now();
+    
+    // 生成元素
+    generationInfo.value = '正在生成一万个元素...';
+    const elements = generateElements(10000);
+    const generationTime = performance.now() - startTime;
+    
+    // 添加元素
+    generationInfo.value = '正在将一万个元素添加到画布...';
+    await new Promise(resolve => setTimeout(resolve, 50)); // 允许UI更新
+    
+    const drawStartTime = performance.now();
+    canvas6.value.addElements(elements);
+    const drawTime = performance.now() - drawStartTime;
+    
+    // 更新信息
+    generationInfo.value = `完成！\n元素生成时间: ${generationTime.toFixed(2)}ms\n元素绘制时间: ${drawTime.toFixed(2)}ms\n总耗时: ${(generationTime + drawTime).toFixed(2)}ms`;
+    isGenerating.value = false;
+  }, 100);
+};
+
+const addElementsOneByOne = async () => {
+  if (!canvas6.value || isGenerating.value) return;
+  
+  isGenerating.value = true;
+  generationInfo.value = '正在生成元素...';
+  
+  // 先清除画布
+  clearPerformanceCanvas();
+  
+  // 延迟执行，确保UI更新
+  setTimeout(async () => {
+    const startTime = performance.now();
+    
+    // 生成元素
+    generationInfo.value = '正在生成一万个元素...';
+    const elements = generateElements(10000);
+    const generationTime = performance.now() - startTime;
+    
+    // 逐个添加元素
+    generationInfo.value = '正在逐个添加元素到画布...';
+    await new Promise(resolve => setTimeout(resolve, 50)); // 允许UI更新
+    
+    const drawStartTime = performance.now();
+    
+    // 使用requestAnimationFrame分批添加，避免UI阻塞
+    const batchSize = 100; // 每批添加100个元素
+    let index = 0;
+    
+    const addBatch = () => {
+      const end = Math.min(index + batchSize, elements.length);
+      const batch = elements.slice(index, end);
+      
+      if (batch.length > 0) {
+        canvas6.value.addElements(batch);
+        index = end;
+        
+        // 更新进度
+        const progress = Math.round((index / elements.length) * 100);
+        generationInfo.value = `添加进度: ${progress}% (${index}/10000)`;
+        
+        if (index < elements.length) {
+          requestAnimationFrame(addBatch);
+        } else {
+          const drawTime = performance.now() - drawStartTime;
+          generationInfo.value = `完成！\n元素生成时间: ${generationTime.toFixed(2)}ms\n元素逐批添加时间: ${drawTime.toFixed(2)}ms\n总耗时: ${(generationTime + drawTime).toFixed(2)}ms`;
+          isGenerating.value = false;
+        }
+      }
+    };
+    
+    addBatch();
+  }, 100);
+};
+
+const clearPerformanceCanvas = () => {
+  if (!canvas6.value) return;
+  canvas6.value.resetView();
+  generationInfo.value = '';
+};
+
 onMounted(() => {
   // 在组件挂载后初始化一些功能
   setTimeout(() => {
@@ -654,5 +838,17 @@ onMounted(() => {
   max-width: 100%;
   max-height: 130px;
   border: 1px solid #eee;
+}
+
+.generation-info {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-line;
+  color: #333;
+  width: 100%;
 }
 </style>
