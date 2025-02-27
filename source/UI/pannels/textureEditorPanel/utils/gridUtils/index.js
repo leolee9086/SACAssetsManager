@@ -101,195 +101,131 @@ const prepareGridParameters = (bounds, viewScale, gridSize) => {
     };
   };
   
-  // 生成次要网格线
-  const generateSecondaryGridLines = (bounds, params) => {
-    const { left, right, top, bottom } = bounds;
-    const { secondaryGridSize, mainGridSize, showSecondaryGrid, lineDefaults } = params;
-    const elements = [];
-    const EPSILON = 1e-10;
-    
-    if (!showSecondaryGrid) return elements;
-    
-    const secStartX = Math.floor(left / secondaryGridSize) * secondaryGridSize;
-    const secStartY = Math.floor(top / secondaryGridSize) * secondaryGridSize;
-    const secEndX = Math.ceil(right / secondaryGridSize) * secondaryGridSize;
-    const secEndY = Math.ceil(bottom / secondaryGridSize) * secondaryGridSize;
   
-    for (let x = secStartX; x <= secEndX; x += secondaryGridSize) {
-      if (Math.abs(x % mainGridSize) < EPSILON) continue;
-      elements.push({
-        type: 'line',
-        config: {
-          points: [x, top, x, bottom],
-          ...lineDefaults.secondaryLine
+  // 对象池以减少内存分配和垃圾回收
+  const objectPool = (() => {
+    const pools = {
+      line: [],
+      text: [],
+      circle: []
+    };
+    
+    return {
+      get: (type) => {
+        if (pools[type] && pools[type].length > 0) {
+          return pools[type].pop();
         }
-      });
-    }
-  
-    for (let y = secStartY; y <= secEndY; y += secondaryGridSize) {
-      if (Math.abs(y % mainGridSize) < EPSILON) continue;
-      elements.push({
-        type: 'line',
-        config: {
-          points: [left, y, right, y],
-          ...lineDefaults.secondaryLine
-        }
-      });
-    }
-    
-    return elements;
-  };
-  
-  // 生成主要网格线
-  const generateMainGridLines = (bounds, params) => {
-    const { top, bottom, left, right } = bounds;
-    const { startX, endX, startY, endY, mainGridSize, lineDefaults } = params;
-    const elements = [];
-    const EPSILON = 1e-10;
-  
-    for (let x = startX; x <= endX; x += mainGridSize) {
-      const isAxisLine = Math.abs(x) < EPSILON;
-      elements.push({
-        type: 'line',
-        config: {
-          points: [x, top, x, bottom],
-          ...(isAxisLine ? lineDefaults.mainAxisLine : lineDefaults.mainLine)
-        }
-      });
-    }
-  
-    for (let y = startY; y <= endY; y += mainGridSize) {
-      const isAxisLine = Math.abs(y) < EPSILON;
-      elements.push({
-        type: 'line',
-        config: {
-          points: [left, y, right, y],
-          ...(isAxisLine ? lineDefaults.mainAxisLine : lineDefaults.mainLine)
-        }
-      });
-    }
-    
-    return elements;
-  };
-  
-  // 生成坐标轴标签和刻度线
-  const generateAxisLabelsAndTicks = (bounds, params, viewScale, unitRatio) => {
-    const { left, right, top, bottom } = bounds;
-    const { inverseScale, lineDefaults } = params;
-    const elements = [];
-    const EPSILON = 1e-10;
-    
-    // 获取最佳标签间隔
-    const labelInterval = getOptimalLabelSpacing(viewScale);
-    const fontSizeScaled = 12 * inverseScale;
-    const tickLength = 3 * inverseScale;
-    const textOffset = 5 * inverseScale;
-    
-    const labelStartX = Math.floor(left / labelInterval) * labelInterval;
-    const labelEndX = Math.ceil(right / labelInterval) * labelInterval;
-    const labelStartY = Math.floor(top / labelInterval) * labelInterval;
-    const labelEndY = Math.ceil(bottom / labelInterval) * labelInterval;
-    const maxLabels = 100;
-    
-    // X轴标签和刻度线
-    let labelCount = 0;
-    for (let x = labelStartX; x <= labelEndX && labelCount < maxLabels; x += labelInterval) {
-      if (Math.abs(x) < EPSILON) continue; // 跳过原点
-  
-      labelCount++;
-      const labelValue = x * unitRatio;
-      const formattedLabel = formatAxisLabel(labelValue);
-      
-      elements.push(
-        {
-          type: 'text',
-          config: {
-            x: x,
-            y: textOffset,
-            text: formattedLabel,
-            fontSize: fontSizeScaled,
-            fill: '#666',
-            align: 'center',
-            verticalAlign: 'top',
-            offsetX: String(formattedLabel).length * 3 * inverseScale,
-          }
-        },
-        {
-          type: 'line',
-          config: {
-            points: [x, 0, x, tickLength],
-            ...lineDefaults.tickLine
-          }
-        }
-      );
-    }
-  
-    // Y轴标签和刻度线
-    labelCount = 0;
-    for (let y = labelStartY; y <= labelEndY && labelCount < maxLabels; y += labelInterval) {
-      if (Math.abs(y) < EPSILON) continue; // 跳过原点
-  
-      labelCount++;
-      const labelValue = y * unitRatio;
-      const formattedLabel = formatAxisLabel(labelValue);
-  
-      elements.push(
-        {
-          type: 'text',
-          config: {
-            x: textOffset,
-            y: y,
-            text: formattedLabel,
-            fontSize: fontSizeScaled,
-            fill: '#666',
-            align: 'left',
-            verticalAlign: 'middle',
-            offsetY: 6 * inverseScale,
-          }
-        },
-        {
-          type: 'line',
-          config: {
-            points: [0, y, tickLength, y],
-            ...lineDefaults.tickLine
-          }
-        }
-      );
-    }
-    
-    return elements;
-  };
-  
-  // 生成原点标记和标签
-  const generateOriginMarker = (inverseScale, textOffset, fontSizeScaled) => {
-    return [
-      {
-        type: 'circle',
-        config: {
-          x: 0,
-          y: 0,
-          radius: 3 * inverseScale,
-          fill: 'red',
-          stroke: 'white',
-          strokeWidth: inverseScale,
-        }
+        return { type, config: {} };
       },
-      {
-        type: 'text',
-        config: {
-          x: textOffset,
-          y: textOffset,
-          text: '(0,0)',
-          fontSize: fontSizeScaled,
-          fill: 'red',
-          padding: 2,
-        }
+      
+      release: (objects) => {
+        if (!Array.isArray(objects)) objects = [objects];
+        objects.forEach(obj => {
+          if (obj && pools[obj.type]) {
+            // 重置对象以便复用
+            const config = obj.config;
+            for (const key in config) {
+              if (Array.isArray(config[key])) {
+                config[key].length = 0;
+              } else if (typeof config[key] === 'object') {
+                for (const subKey in config[key]) {
+                  delete config[key][subKey];
+                }
+              }
+            }
+            pools[obj.type].push(obj);
+          }
+        });
       }
-    ];
+    };
+  })();
+
+  // 使用整型数据替代浮点数以提高性能
+  const PRECISION_FACTOR = 1000; // 3位小数精度
+  const toInt = (value) => ((value * PRECISION_FACTOR) | 0);
+  const fromInt = (intValue) => intValue / PRECISION_FACTOR;
+
+  // 网格计算结果缓存系统
+  const gridCache = (() => {
+    const cache = new Map();
+    const MAX_CACHE_SIZE = 10; // 缓存最近10个网格配置
+    
+    return {
+      getKey: (bounds, viewScale, gridSize) => {
+        // 创建一个合适精度的缓存键
+        const { left, right, top, bottom } = bounds;
+        return `${toInt(left)}-${toInt(right)}-${toInt(top)}-${toInt(bottom)}-${toInt(viewScale)}-${toInt(gridSize)}`;
+      },
+      
+      get: (key) => cache.get(key),
+      
+      set: (key, value) => {
+        if (cache.size >= MAX_CACHE_SIZE) {
+          // 移除最旧的条目
+          const oldestKey = cache.keys().next().value;
+          cache.delete(oldestKey);
+        }
+        cache.set(key, value);
+      }
+    };
+  })();
+
+  // 线条配置缓存进阶版 - 使用对象池
+  const createLineConfigCache = () => {
+    const cache = new Map();
+    return (type, x1, y1, x2, y2, params) => {
+      // 取整以提高缓存命中率
+      const ix1 = toInt(x1), iy1 = toInt(y1), ix2 = toInt(x2), iy2 = toInt(y2);
+      const key = `${type}-${ix1}-${iy1}-${ix2}-${iy2}`;
+      
+      if (!cache.has(key)) {
+        const lineObj = objectPool.get('line');
+        const defaults = params.lineDefaults[type];
+        
+        lineObj.config.points = [x1, y1, x2, y2];
+        lineObj.config.stroke = defaults.stroke;
+        lineObj.config.strokeWidth = defaults.strokeWidth;
+        
+        cache.set(key, lineObj);
+      }
+      return cache.get(key);
+    };
   };
-  
-  // 纯函数：构建网格元素配置 - 重构为调用上述辅助函数
+
+  // 优化：批量计算网格基础数据
+  const calculateGridBounds = (bounds, params) => {
+    const { left, right, top, bottom } = bounds;
+    const { mainGridSize, secondaryGridSize } = params;
+    
+    // 使用位运算和数学优化
+    const LEFT_INT = (left * PRECISION_FACTOR) | 0;
+    const RIGHT_INT = (right * PRECISION_FACTOR) | 0;
+    const TOP_INT = (top * PRECISION_FACTOR) | 0;
+    const BOTTOM_INT = (bottom * PRECISION_FACTOR) | 0;
+    
+    const MAIN_GRID_INT = (mainGridSize * PRECISION_FACTOR) | 0;
+    const SEC_GRID_INT = (secondaryGridSize * PRECISION_FACTOR) | 0;
+    
+    return {
+      mainStartX: fromInt(((LEFT_INT / MAIN_GRID_INT) | 0) * MAIN_GRID_INT),
+      mainEndX: fromInt((((RIGHT_INT / MAIN_GRID_INT) | 0) + 1) * MAIN_GRID_INT),
+      mainStartY: fromInt(((TOP_INT / MAIN_GRID_INT) | 0) * MAIN_GRID_INT), 
+      mainEndY: fromInt((((BOTTOM_INT / MAIN_GRID_INT) | 0) + 1) * MAIN_GRID_INT),
+      
+      secStartX: fromInt(((LEFT_INT / SEC_GRID_INT) | 0) * SEC_GRID_INT),
+      secEndX: fromInt((((RIGHT_INT / SEC_GRID_INT) | 0) + 1) * SEC_GRID_INT),
+      secStartY: fromInt(((TOP_INT / SEC_GRID_INT) | 0) * SEC_GRID_INT),
+      secEndY: fromInt((((BOTTOM_INT / SEC_GRID_INT) | 0) + 1) * SEC_GRID_INT)
+    };
+  };
+
+  // 纯函数：构建网格元素配置 - 终极性能优化版本
   export const buildGrid = (bounds, viewScale, gridSize, unitRatio) => {
+    // 缓存检查 - 避免重复计算
+    const cacheKey = gridCache.getKey(bounds, viewScale, gridSize);
+    const cachedGrid = gridCache.get(cacheKey);
+    if (cachedGrid) return cachedGrid;
+    
     // 准备参数
     const params = prepareGridParameters(bounds, viewScale, gridSize);
     
@@ -298,14 +234,228 @@ const prepareGridParameters = (bounds, viewScale, gridSize) => {
       return null; // 表示需要递归调用以使用更低精度
     }
   
-    // 收集所有网格元素
-    const elements = [
-      ...generateSecondaryGridLines(bounds, params),
-      ...generateMainGridLines(bounds, params),
-      ...generateAxisLabelsAndTicks(bounds, params, viewScale, unitRatio),
-      ...generateOriginMarker(params.inverseScale, 5 * params.inverseScale, 12 * params.inverseScale)
-    ];
+    // 预计算网格边界 - 批量优化
+    const gridBounds = calculateGridBounds(bounds, params);
+    Object.assign(params, gridBounds);
   
-    return elements;
+    // 优化：预分配数组容量，避免多次数组扩展
+    const labelSpacing = getOptimalLabelSpacing(viewScale);
+    const xLabelCount = ((bounds.right - bounds.left) / labelSpacing) | 0;
+    const yLabelCount = ((bounds.bottom - bounds.top) / labelSpacing) | 0;
+    
+    // 使用位运算优化
+    const estimatedElementCount = 
+      (params.showSecondaryGrid ? ((((gridBounds.secEndX - gridBounds.secStartX) / params.secondaryGridSize) | 0) + 
+                                 (((gridBounds.secEndY - gridBounds.secStartY) / params.secondaryGridSize) | 0)) : 0) + 
+      (((gridBounds.mainEndX - gridBounds.mainStartX) / params.mainGridSize) | 0) + 
+      (((gridBounds.mainEndY - gridBounds.mainStartY) / params.mainGridSize) | 0) + 
+      (xLabelCount << 1) +  // 标签和刻度线 (×2)
+      (yLabelCount << 1) +  // 标签和刻度线 (×2)
+      2;  // 原点标记
+      
+    const elements = new Array(estimatedElementCount);
+    let elementIndex = 0;
+  
+    // 创建线条配置缓存函数
+    const getLineConfig = createLineConfigCache();
+  
+    // 使用批处理方式渲染不同组件
+    // 1. 次要网格线渲染
+    if (params.showSecondaryGrid) {
+      elementIndex = addSecondaryGridLines(bounds, params, gridBounds, elements, elementIndex, getLineConfig);
+    }
+    
+    // 2. 主网格线渲染
+    elementIndex = addMainGridLines(bounds, params, gridBounds, elements, elementIndex, getLineConfig);
+    
+    // 3. 轴标签和刻度线
+    elementIndex = addAxisLabelsAndTicks(bounds, params, viewScale, unitRatio, elements, elementIndex, getLineConfig);
+    
+    // 4. 原点标记
+    elementIndex = addOriginMarker(params, elements, elementIndex);
+  
+    // 裁剪数组到实际大小
+    const result = elementIndex < estimatedElementCount ? elements.slice(0, elementIndex) : elements;
+    
+    // 存入缓存
+    gridCache.set(cacheKey, result);
+    
+    return result;
   };
+
+  // 优化：使用缓存的线条配置，直接添加次要网格线
+  const addSecondaryGridLines = (bounds, params, gridBounds, elements, startIndex, getLineConfig) => {
+    const { left, right, top, bottom } = bounds;
+    const { secondaryGridSize, mainGridSize } = params;
+    const { secStartX, secEndX, secStartY, secEndY } = gridBounds;
+    
+    let elementIndex = startIndex;
+    const EPSILON = 1e-10;
+    
+    // 使用do-while循环进一步优化
+    let x = secStartX;
+    do {
+      // 使用按位操作优化比较
+      if ((Math.abs(x) < EPSILON) || (Math.abs(x % mainGridSize) >= EPSILON)) {
+        elements[elementIndex++] = getLineConfig('secondaryLine', x, top, x, bottom, params);
+      }
+      x += secondaryGridSize;
+    } while (x <= secEndX);
   
+    let y = secStartY;
+    do {
+      if ((Math.abs(y) < EPSILON) || (Math.abs(y % mainGridSize) >= EPSILON)) {
+        elements[elementIndex++] = getLineConfig('secondaryLine', left, y, right, y, params);
+      }
+      y += secondaryGridSize;
+    } while (y <= secEndY);
+    
+    return elementIndex;
+  };
+
+  // 优化：使用缓存的线条配置，直接添加主网格线
+  const addMainGridLines = (bounds, params, gridBounds, elements, startIndex, getLineConfig) => {
+    const { top, bottom, left, right } = bounds;
+    const { mainGridSize } = params;
+    const { mainStartX, mainEndX, mainStartY, mainEndY } = gridBounds;
+    
+    let elementIndex = startIndex;
+    const EPSILON = 1e-10;
+  
+    // 使用do-while循环进一步优化
+    let x = mainStartX;
+    do {
+      const lineType = Math.abs(x) < EPSILON ? 'mainAxisLine' : 'mainLine';
+      elements[elementIndex++] = getLineConfig(lineType, x, top, x, bottom, params);
+      x += mainGridSize;
+    } while (x <= mainEndX);
+  
+    let y = mainStartY;
+    do {
+      const lineType = Math.abs(y) < EPSILON ? 'mainAxisLine' : 'mainLine';
+      elements[elementIndex++] = getLineConfig(lineType, left, y, right, y, params);
+      y += mainGridSize;
+    } while (y <= mainEndY);
+    
+    return elementIndex;
+  };
+
+  // 优化：使用缓存的线条配置，直接添加轴标签和刻度线
+  const addAxisLabelsAndTicks = (bounds, params, viewScale, unitRatio, elements, startIndex, getLineConfig) => {
+    const { left, right, top, bottom } = bounds;
+    const { inverseScale } = params;
+    let elementIndex = startIndex;
+    const EPSILON = 1e-10;
+    
+    // 缓存常用值避免重复计算
+    const labelInterval = getOptimalLabelSpacing(viewScale);
+    const fontSizeScaled = 12 * inverseScale;
+    const tickLength = 3 * inverseScale;
+    const textOffset = 5 * inverseScale;
+    
+    // 优化: 取整计算标签范围
+    const LABEL_INTERVAL_INT = (labelInterval * PRECISION_FACTOR) | 0;
+    const LEFT_INT = (left * PRECISION_FACTOR) | 0;
+    const RIGHT_INT = (right * PRECISION_FACTOR) | 0;
+    const TOP_INT = (top * PRECISION_FACTOR) | 0;
+    const BOTTOM_INT = (bottom * PRECISION_FACTOR) | 0;
+    
+    const labelStartX = fromInt(((LEFT_INT / LABEL_INTERVAL_INT) | 0) * LABEL_INTERVAL_INT);
+    const labelEndX = fromInt((((RIGHT_INT / LABEL_INTERVAL_INT) | 0) + 1) * LABEL_INTERVAL_INT);
+    const labelStartY = fromInt(((TOP_INT / LABEL_INTERVAL_INT) | 0) * LABEL_INTERVAL_INT);
+    const labelEndY = fromInt((((BOTTOM_INT / LABEL_INTERVAL_INT) | 0) + 1) * LABEL_INTERVAL_INT);
+    
+    const maxLabels = 100;
+    
+    // 使用预先计算的标签文本 - 减少反复的数值格式化
+    const labelTextCache = new Map();
+    const getLabelText = (value) => {
+      const cacheKey = toInt(value);
+      if (!labelTextCache.has(cacheKey)) {
+        labelTextCache.set(cacheKey, formatAxisLabel(value * unitRatio));
+      }
+      return labelTextCache.get(cacheKey);
+    };
+    
+    // X轴标签和刻度线 - 使用优化的循环
+    let labelCount = 0;
+    let x = labelStartX;
+    do {
+      if (Math.abs(x) >= EPSILON && labelCount < maxLabels) {
+        labelCount++;
+        const formattedLabel = getLabelText(x);
+        
+        const textObj = objectPool.get('text');
+        textObj.config.x = x;
+        textObj.config.y = textOffset;
+        textObj.config.text = formattedLabel;
+        textObj.config.fontSize = fontSizeScaled;
+        textObj.config.fill = '#666';
+        textObj.config.align = 'center';
+        textObj.config.verticalAlign = 'top';
+        textObj.config.offsetX = formattedLabel.length * 3 * inverseScale;
+        
+        elements[elementIndex++] = textObj;
+        elements[elementIndex++] = getLineConfig('tickLine', x, 0, x, tickLength, params);
+      }
+      x += labelInterval;
+    } while (x <= labelEndX);
+  
+    // Y轴标签和刻度线 - 使用优化的循环
+    labelCount = 0;
+    let y = labelStartY;
+    do {
+      if (Math.abs(y) >= EPSILON && labelCount < maxLabels) {
+        labelCount++;
+        const formattedLabel = getLabelText(y);
+    
+        const textObj = objectPool.get('text');
+        textObj.config.x = textOffset;
+        textObj.config.y = y;
+        textObj.config.text = formattedLabel;
+        textObj.config.fontSize = fontSizeScaled;
+        textObj.config.fill = '#666';
+        textObj.config.align = 'left';
+        textObj.config.verticalAlign = 'middle';
+        textObj.config.offsetY = 6 * inverseScale;
+        
+        elements[elementIndex++] = textObj;
+        elements[elementIndex++] = getLineConfig('tickLine', 0, y, tickLength, y, params);
+      }
+      y += labelInterval;
+    } while (y <= labelEndY);
+    
+    return elementIndex;
+  };
+
+  // 优化：添加原点标记
+  const addOriginMarker = (params, elements, startIndex) => {
+    const { inverseScale } = params;
+    let elementIndex = startIndex;
+    
+    const textOffset = 5 * inverseScale;
+    const fontSizeScaled = 12 * inverseScale;
+    
+    const circleObj = objectPool.get('circle');
+    circleObj.config.x = 0;
+    circleObj.config.y = 0;
+    circleObj.config.radius = 3 * inverseScale;
+    circleObj.config.fill = 'red';
+    circleObj.config.stroke = 'white';
+    circleObj.config.strokeWidth = inverseScale;
+    
+    elements[elementIndex++] = circleObj;
+    
+    const textObj = objectPool.get('text');
+    textObj.config.x = textOffset;
+    textObj.config.y = textOffset;
+    textObj.config.text = '(0,0)';
+    textObj.config.fontSize = fontSizeScaled;
+    textObj.config.fill = 'red';
+    textObj.config.padding = 2;
+    
+    elements[elementIndex++] = textObj;
+    
+    return elementIndex;
+  };
+    
