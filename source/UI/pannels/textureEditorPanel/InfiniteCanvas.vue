@@ -571,7 +571,11 @@ const handleWheel = (e) => {
 
 // 开始平移
 const startPan = (e) => {
-  if (e.button !== 0) return; // 只响应左键拖动
+  if (e.button !== 1) return; // 只响应中键拖动
+  
+  // 阻止事件冒泡和默认行为
+  e.preventDefault();
+  e.stopPropagation();
   
   // 如果在绘制模式，不进行平移
   if (viewState.drawMode) return;
