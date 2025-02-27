@@ -81,7 +81,7 @@ export const generateUnits = (spacing, precision) => {
           y: (centerY + hexagonVertices[i].y + hexagonVertices[nextIndex].y) / 3
         },
         // 指向原点的向量
-        toOrigin: {
+        mainAxe: {
           x: centerX - (centerX + hexagonVertices[i].x + hexagonVertices[nextIndex].x) / 3,
           y: centerY - (centerY + hexagonVertices[i].y + hexagonVertices[nextIndex].y) / 3
         },
@@ -234,13 +234,13 @@ export const calculateInternalOffset = (geom, image, offset) => {
   }
   
   // 获取指向原点的向量
-  const toOrigin = geom.internalAxes.toOrigin;
+  const mainAxe = geom.internalAxes.mainAxe;
   
   // 计算指向原点的单位向量（这是内部Y轴的方向，因为Y轴偏移减小时图像向原点移动）
-  const magnitude = Math.sqrt(toOrigin.x * toOrigin.x + toOrigin.y * toOrigin.y);
+  const magnitude = Math.sqrt(mainAxe.x * mainAxe.x + mainAxe.y * mainAxe.y);
   const yAxis = {
-    x: toOrigin.x / magnitude,
-    y: toOrigin.y / magnitude
+    x: mainAxe.x / magnitude,
+    y: mainAxe.y / magnitude
   };
   
   // 计算X轴方向（垂直于Y轴，顺时针旋转90度）

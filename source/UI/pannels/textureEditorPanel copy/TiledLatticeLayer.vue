@@ -599,7 +599,7 @@ const renderToCanvas = async (ctx, options = {}) => {
     hideExtras = true,
     rectTileable = true
   } = options;
-
+  
   try {
     console.log('开始渲染到画布, 目标尺寸:', targetSize, '宽度:', width, '高度:', height, '重复次数:', repeatCount);
 

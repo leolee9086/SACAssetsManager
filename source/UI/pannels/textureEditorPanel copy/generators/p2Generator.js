@@ -139,7 +139,7 @@ export const generateUnits = (spacing, precision, options = {}) => {
         x: 0,
         y: 0
       },
-      toOrigin: {
+      mainAxe: {
         x: 0,
         y: 0
       },
@@ -163,7 +163,7 @@ export const generateUnits = (spacing, precision, options = {}) => {
         x: 0,
         y: 0
       },
-      toOrigin: {
+      mainAxe: {
         x: 0,
         y: 0
       },

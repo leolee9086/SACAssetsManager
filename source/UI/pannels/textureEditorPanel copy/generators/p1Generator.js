@@ -1,29 +1,6 @@
-// 计算根号3/2的值
-const sqrtThreeOverTwo = Math.sqrt(3) / 2;
 import { loadImagesWithDefaults } from "./utils/image.js";
 import { findClipPath } from "./utils/unitUtils.js";
-  /**
-   * 生成P1群体的晶格向量
-   * @param {number} unitLength - 单位长度
-   * @returns {Array} 包含两个晶格向量的数组
-   */
-  const generateLatticeVectors = (unitLength) => {
-    return [
-      {
-        id: 'lattice-vector-1',
-        x: unitLength * 0.8,  // 第一个晶格向量的x分量
-        y: unitLength * 0.2,  // 第一个晶格向量的y分量
-        label: '晶格向量1'
-      },
-      {
-        id: 'lattice-vector-2',
-        x: unitLength * 0.3,  // 第二个晶格向量的x分量
-        y: unitLength * 0.7,  // 第二个晶格向量的y分量
-        label: '晶格向量2'
-      }
-    ];
-  };
-
+ 
 /**
  * 生成P1晶体学群体的几何图形和光栅图像
  * @param {number} spacing - 网格间距
@@ -133,7 +110,7 @@ export const generateUnits = (spacing, precision, options = {}) => {
         y: centerY
       },
       // 指向原点的向量（在P1中，原点就是中心）
-      toOrigin: {
+      mainAxe: {
         x: 0,
         y: 0
       },

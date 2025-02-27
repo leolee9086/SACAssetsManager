@@ -185,7 +185,7 @@ export const generateUnits = (spacing, precision, options = {}) => {
                 y: calculateCenter(unit1Vertices).y
             },
             // 指向原点的向量
-            toOrigin: {
+            mainAxe: {
                 x: 0 - calculateCenter(unit1Vertices).x,
                 y: 0 - calculateCenter(unit1Vertices).y
             },
@@ -211,7 +211,7 @@ export const generateUnits = (spacing, precision, options = {}) => {
                 y: calculateCenter(unit2Vertices).y
             },
             // 指向原点的向量
-            toOrigin: {
+            mainAxe: {
                 x: 0 - calculateCenter(unit2Vertices).x,
                 y: 0 - calculateCenter(unit2Vertices).y
             },
@@ -349,7 +349,23 @@ export const generateUnits = (spacing, precision, options = {}) => {
         },
         label: '无缝单元'
     };
-
+  // 计算两个晶格向量是否可以形成正交矩形（与坐标轴平行）
+  const isRectTileable = () => {
+    // 检查向量是否互相垂直（点积为0）
+    
+    // 考虑浮点误差，使用小阈值
+    const epsilon = 0.001;
+    
+    // 检查向量是否与坐标轴平行（一个分量接近0）
+    const vector1AxisAligned = Math.abs(latticeVectors[0].x) < epsilon || Math.abs(latticeVectors[0].y) < epsilon;
+    const vector2AxisAligned = Math.abs(latticeVectors[1].x) < epsilon || Math.abs(latticeVectors[1].y) < epsilon;
+    const bothAxisAligned = vector1AxisAligned && vector2AxisAligned;
+    
+    // 三种情况下可以矩形平铺：
+    // 1. 两个向量互相垂直
+    // 2. 两个向量都与坐标轴平行
+    return bothAxisAligned;
+  };
 
     return {
         geoms,
@@ -365,7 +381,7 @@ export const generateUnits = (spacing, precision, options = {}) => {
             vector1: { x: vector1.x, y: vector1.y },
             vector2: { x: adjustedVector2.x, y: adjustedVector2.y }
         },
-        rectTileable: true, // pm群总是矩形可平铺
+        rectTileable: isRectTileable(), // pm群总是矩形可平铺
     };
 };
 
@@ -383,13 +399,13 @@ export const calculateInternalOffset = (geom, image, offset) => {
     }
 
     // 获取指向原点的向量
-    const toOrigin = geom.internalAxes.toOrigin;
+    const mainAxe = geom.internalAxes.mainAxe;
 
     // 计算指向原点的单位向量（这是内部Y轴的方向，因为Y轴偏移减小时图像向原点移动）
-    const magnitude = Math.sqrt(toOrigin.x * toOrigin.x + toOrigin.y * toOrigin.y);
+    const magnitude = Math.sqrt(mainAxe.x * mainAxe.x + mainAxe.y * mainAxe.y);
     const yAxis = {
-        x: toOrigin.x / magnitude,
-        y: toOrigin.y / magnitude
+        x: mainAxe.x / magnitude,
+        y: mainAxe.y / magnitude
     };
 
     // 计算X轴方向

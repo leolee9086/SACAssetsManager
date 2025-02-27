@@ -72,8 +72,8 @@
               points: [
                 geom.internalAxes.center.x,
                 geom.internalAxes.center.y,
-                geom.internalAxes.center.x + geom.internalAxes.toOrigin.x * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2))),
-                geom.internalAxes.center.y + geom.internalAxes.toOrigin.y * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2)))
+                geom.internalAxes.center.x + geom.internalAxes.mainAxe.x * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.mainAxe.x, 2) + Math.pow(geom.internalAxes.mainAxe.y, 2))),
+                geom.internalAxes.center.y + geom.internalAxes.mainAxe.y * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.mainAxe.x, 2) + Math.pow(geom.internalAxes.mainAxe.y, 2)))
               ],
               stroke: geom.internalAxes.color,
               strokeWidth: 2,
@@ -87,8 +87,8 @@
               points: [
                 geom.internalAxes.center.x,
                 geom.internalAxes.center.y,
-                geom.internalAxes.center.x + geom.internalAxes.toOrigin.x * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2))),
-                geom.internalAxes.center.y + geom.internalAxes.toOrigin.y * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.toOrigin.x, 2) + Math.pow(geom.internalAxes.toOrigin.y, 2)))
+                geom.internalAxes.center.x + geom.internalAxes.mainAxe.x * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.mainAxe.x, 2) + Math.pow(geom.internalAxes.mainAxe.y, 2))),
+                geom.internalAxes.center.y + geom.internalAxes.mainAxe.y * (geom.internalAxes.length / Math.sqrt(Math.pow(geom.internalAxes.mainAxe.x, 2) + Math.pow(geom.internalAxes.mainAxe.y, 2)))
               ],
               pointerLength: 10,
               pointerWidth: 10,

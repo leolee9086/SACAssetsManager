@@ -1,1381 +1,1010 @@
 <template>
-  <div ref="container" class="canvas-container">
-    <v-stage :config="stageConfig" ref="stage">
-      <!-- 使用网格子组件 -->
-      <grid-layer
-        ref="gridLayerComponent"
-        :stageWidth="stageConfig.width"
-        :stageHeight="stageConfig.height"
-        :gridSpacing="gridSpacing"
-        :gridExtent="gridExtent"
-        :gridPrecision="gridPrecision"
-      />
+  <div 
+    ref="canvasContainer" 
+    class="infinite-canvas-container" 
+    @wheel="handleWheel"
+    @mousedown="startPan"
+    @mouseup="stopPan"
+    @mousemove="onMouseMove"
+    @mouseleave="stopPan">
+    
+    <!-- DOM层，位于Canvas下方 -->
+    <div class="dom-layer" :style="domLayerStyle">
+      <slot name="dom-elements"></slot>
+    </div>
+    
+    <!-- Konva画布 -->
+    <v-stage
+      ref="stage"
+      :config="stageConfig"
+      @mousedown="onStageMouseDown"
+      @mouseup="onStageMouseUp"
+      @mousemove="onStageMouseMove">
       
-      <!-- 使用光栅图像子组件，仅在不显示平铺晶格时显示 -->
-      <raster-layer
-        v-show="!showTiledLattice"
-        ref="rasterLayerComponent"
-        :stageWidth="stageConfig.width"
-        :stageHeight="stageConfig.height"
-        :rasterImages="rasterImages"
-        :imageSize="computedImageSize"
-        :angleIncrement="angleIncrement"
-        :positionOffset="computedPositionOffset"
-        :blendMode="blendMode"
-        :clipToUnit="clipToUnit"
-        :geoms="geoms"
-        :unitDefine="generatedUnits"
-        @imageSelect="handleImageSelect"
-        @imageHover="handleImageHover"
-      />
+      <!-- 背景层 -->
+      <v-layer ref="backgroundLayer">
+        <!-- 网格和坐标轴 -->
+        <v-group ref="gridGroup">
+          <!-- 网格线由代码动态生成 -->
+        </v-group>
+      </v-layer>
       
-      <!-- 使用几何图形子组件 -->
-      <geom-layer
-        ref="geomLayerComponent"
-        :stageWidth="stageConfig.width"
-        :stageHeight="stageConfig.height"
-        :geoms="geoms"
-      />
+      <!-- 主要内容层 -->
+      <v-layer ref="mainLayer">
+        <slot></slot>
+      </v-layer>
       
-      <!-- 添加晶格向量图层 -->
-      <lattice-vector-layer
-        ref="latticeVectorLayerComponent"
-        :stageWidth="stageConfig.width"
-        :stageHeight="stageConfig.height"
-        :latticeVectors="latticeVectors"
-        :unitDefine="generatedUnits"
-
-        v-if="showLatticeVectors"
-      />
-      
-      <!-- 添加平铺晶格图层 -->
-      <tiled-lattice-layer
-        ref="tiledLatticeLayerComponent"
-        :stageWidth="stageConfig.width"
-        :stageHeight="stageConfig.height"
-        :rasterImages="rasterImages"
-        :latticeVectors="latticeVectors"
-        :tilingExtent="calculatedTilingExtent"
-        :blendMode="blendMode"
-        :clipToUnit="clipToUnit"
-        :geoms="geoms"
-        :useLowDetailMode="useLowDetailMode"
-        :seamlessUnit="seamlessUnit"
-        :currentScale="canvasScale"
-        v-if="showTiledLattice"
-      />
-      
-      <!-- 添加无缝单元图层 -->
-      <seamless-unit-layer
-        ref="seamlessUnitLayerComponent"
-        :stageWidth="stageConfig.width"
-        :stageHeight="stageConfig.height"
-        :seamlessUnit="seamlessUnit"
-        v-if="showSeamlessUnit"
-      />
+      <!-- UI层（坐标轴、鼠标指示器等） -->
+      <v-layer ref="uiLayer">
+        <!-- 坐标轴 -->
+        <v-line :config="xAxisConfig"></v-line>
+        <v-line :config="yAxisConfig"></v-line>
+        
+        <!-- 鼠标位置指示器 -->
+        <v-group v-if="showMouseIndicator">
+          <v-line :config="mouseHorizontalLine"></v-line>
+          <v-line :config="mouseVerticalLine"></v-line>
+          <v-text :config="mousePositionText"></v-text>
+        </v-group>
+      </v-layer>
     </v-stage>
     
     <!-- 控制面板 -->
-    <div class="controls-panel">
-      <div class="control-group">
-        <label>画布缩放:</label>
-        <input type="range" v-model.number="canvasScale" min="10" max="100" step="5" />
-        <span>{{ canvasScale }}%</span>
-      </div>
-      
-      <div class="control-group">
-        <label>图像大小:</label>
-        <input type="range" v-model.number="imageSizePercent" min="10" max="10000" step="10" />
-        <span>{{ imageSizePercent }}%</span>
-      </div>
-      
-      <div class="control-group">
-        <label>角度增量:</label>
-        <input type="range" v-model.number="angleIncrement" min="0" max="360" step="5" />
-        <span>{{ angleIncrement }}°</span>
-      </div>
-      
-      <div class="control-group">
-        <label>内部坐标偏移X:</label>
-        <input type="range" v-model.number="positionOffsetPercent.x" min="-1000" max="1000" step="5" />
-        <span>{{ positionOffsetPercent.x }}%</span>
-      </div>
-      
-      <div class="control-group">
-        <label>内部坐标偏移Y:</label>
-        <input type="range" v-model.number="positionOffsetPercent.y" min="-1000" max="1000" step="5" />
-        <span>{{ positionOffsetPercent.y }}%</span>
-      </div>
-      
-      <div class="control-group">
-        <label>显示晶格向量:</label>
-        <input type="checkbox" v-model="showLatticeVectors" />
-      </div>
-      
-      <div class="control-group">
-        <label>显示平铺晶格:</label>
-        <input type="checkbox" v-model="showTiledLattice" />
-      </div>
-      
-      <div class="control-group" v-if="showTiledLattice">
-        <label>平铺范围:</label>
-        <input type="range" v-model.number="tilingExtent" min="1" max="10" step="1" />
-        <span>{{ tilingExtent }}</span>
-      </div>
-      
-      <div class="control-group download-section" v-if="showTiledLattice">
-        <label>下载分辨率:</label>
-        <select v-model="downloadResolution">
-          <option value="256">256px (小尺寸)</option>
-          <option value="512">512px (标准)</option>
-          <option value="1024">1024px (1K)</option>
-          <option value="2048">2048px (2K)</option>
-          <option value="4096">4096px (4K)</option>
-          <option value="8192">8192px (8K)</option>
-        </select>
-        
-        <label>重复次数:</label>
-        <select v-model="downloadRepeatCount">
-          <option value="1">1×1 (单个单元)</option>
-          <option value="2">2×2 (4个单元)</option>
-          <option value="3">3×3 (9个单元)</option>
-          <option value="4">4×4 (16个单元)</option>
-          <option value="5">5×5 (25个单元)</option>
-          <option value="6">6×6 (36个单元)</option>
-          <option value="8">8×8 (64个单元)</option>
-          <option value="10">10×10 (100个单元)</option>
-          <option value="12">12×12 (144个单元)</option>
-          <option value="16">16×16 (256个单元)</option>
-        </select>
-        
-        <div class="watermark-section">
-          <div class="watermark-option">
-            <input type="checkbox" id="addWatermark" v-model="addWatermark" />
-            <label for="addWatermark">添加水印信息</label>
-          </div>
-          
-          <div class="watermark-inputs" v-if="addWatermark">
-            <div class="input-row">
-              <label>作者:</label>
-              <input type="text" v-model="watermarkAuthor" placeholder="输入作者名称" />
-            </div>
-            
-            <div class="input-row">
-              <label>标题:</label>
-              <input type="text" v-model="watermarkTitle" placeholder="作品标题" />
-            </div>
-            
-            <div class="input-row">
-              <label>位置:</label>
-              <select v-model="watermarkPosition">
-                <option value="bottom-right">右下角</option>
-                <option value="bottom-left">左下角</option>
-                <option value="top-right">右上角</option>
-                <option value="top-left">左上角</option>
-                <option value="center">中央半透明</option>
-              </select>
-            </div>
-            
-            <div class="input-row">
-              <label>大小:</label>
-              <select v-model="watermarkSize">
-                <option value="small">小</option>
-                <option value="medium">中</option>
-                <option value="large">大</option>
-              </select>
-            </div>
-            
-            <div class="watermark-option">
-              <input type="checkbox" id="includeOriginalImage" v-model="includeOriginalImage" />
-              <label for="includeOriginalImage">包含原始图像</label>
-            </div>
-          </div>
-        </div>
-        
-        <button @click="downloadTiledPattern" class="custom-button">下载重复单元</button>
-      </div>
-      
-      <div class="control-group">
-        <label>叠加模式:</label>
-        <select v-model="blendMode">
-          <option value="source-over">正常</option>
-          <option value="multiply">正片叠底</option>
-          <option value="screen">滤色</option>
-          <option value="overlay">叠加</option>
-          <option value="darken">变暗</option>
-          <option value="lighten">变亮</option>
-          <option value="color-dodge">颜色减淡</option>
-          <option value="color-burn">颜色加深</option>
-          <option value="hard-light">强光</option>
-          <option value="soft-light">柔光</option>
-          <option value="difference">差值</option>
-          <option value="exclusion">排除</option>
-          <option value="hue">色相</option>
-          <option value="saturation">饱和度</option>
-          <option value="color">颜色</option>
-          <option value="luminosity">亮度</option>
-        </select>
-      </div>
-      
-      <div class="control-group">
-        <label>显示无缝单元:</label>
-        <input type="checkbox" v-model="showSeamlessUnit" />
-      </div>
-      
-      <!-- 修改裁剪控制部分 -->
-      <div class="control-group">
-        <label>启用裁剪:</label>
-        <input type="checkbox" v-model="clipToUnit" />
-        <span>{{ clipToUnit ? '已启用' : '已禁用' }}</span>
-      </div>
-      
-      <!-- 修改自定义图像上传控件部分 -->
-      <div class="control-group image-upload-section">
-        <label>自定义图像:</label>
-        <input type="file" accept="image/*" @change="handleImageUpload" />
-      </div>
-      
-      <!-- 添加图像预览部分 -->
-      <div class="image-preview" v-if="customImage">
-        <div class="preview-container">
-          <img :src="customImagePreviewUrl" alt="预览" class="preview-image" />
-          <div class="image-filename">{{ customImageFilename }}</div>
-        </div>
-        <button @click="resetDefaultImages" class="custom-button">恢复默认图像</button>
-      </div>
-      
-      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
-        <label>晶格向量1 X:</label>
-        <input type="range" v-model.number="latticeVector1.x" min="-1" max="1" step="0.05" />
-        <span>{{ latticeVector1.x.toFixed(2) }}</span>
-      </div>
-      
-      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
-        <label>晶格向量1 Y:</label>
-        <input type="range" v-model.number="latticeVector1.y" min="-1" max="1" step="0.05" />
-        <span>{{ latticeVector1.y.toFixed(2) }}</span>
-      </div>
-      
-      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
-        <label>晶格向量2 X:</label>
-        <input type="range" v-model.number="latticeVector2.x" min="-1" max="1" step="0.05" />
-        <span>{{ latticeVector2.x.toFixed(2) }}</span>
-      </div>
-      
-      <div class="control-group" v-if="showLatticeVectors && isLatticeAdjustable">
-        <label>晶格向量2 Y:</label>
-        <input type="range" v-model.number="latticeVector2.y" min="-1" max="1" step="0.05" />
-        <span>{{ latticeVector2.y.toFixed(2) }}</span>
-      </div>
+    <div class="canvas-controls">
+      <button @click="resetView" title="重置视图">
+        <i class="icon-reset"></i>
+      </button>
+      <button @click="zoomIn" title="放大">
+        <i class="icon-zoom-in"></i>
+      </button>
+      <button @click="zoomOut" title="缩小">
+        <i class="icon-zoom-out"></i>
+      </button>
+      <button @click="exportCanvasAsImage" title="导出为图片">
+        <i class="icon-export"></i>
+      </button>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import GridLayer from './GridLayer.vue';
-import GeomLayer from './GeomLayer.vue';
-import RasterLayer from './RasterLayer.vue';
-import LatticeVectorLayer from './LatticeVectorLayer.vue';
-import TiledLatticeLayer from './TiledLatticeLayer.vue';
-import SeamlessUnitLayer from './SeamlessUnitLayer.vue';
-import { 
-  generateUnits, 
-} from './pmGenerator.js';
-const container = ref(null);
-const stage = ref(null);
-const gridLayerComponent = ref(null);
-const geomLayerComponent = ref(null);
-const rasterLayerComponent = ref(null);
-const latticeVectorLayerComponent = ref(null);
-const tiledLatticeLayerComponent = ref(null);
-const seamlessUnitLayerComponent = ref(null);
+<script>
+import { ref, computed, onMounted, reactive, watch ,onUnmounted } from 'vue';
 
-// 舞台配置
-const stageConfig = ref({
-  width: 500,
-  height: 500
-});
-
-// 添加画布缩放参数
-const canvasScale = ref(100); // 画布缩放百分比（默认100%）
-
-// 网格线配置
-const gridSpacing = ref(50); // 网格间距
-const gridExtent = ref(2); // 网格范围（单位数量）
-const gridPrecision = ref(0.1); // 网格精度
-
-// 图像控制参数（百分比和角度）
-const imageSizePercent = ref(100); // 图像大小百分比（默认100%）
-const angleIncrement = ref(0); // 角度增量（0-360度）
-const positionOffsetPercent = ref({ x: 0, y: 0 }); // 位置偏移百分比
-
-// 计算实际图像大小（基准大小 * 百分比）
-const baseImageSize = 60; // 基准图像大小（像素）
-const computedImageSize = computed(() => 
-  baseImageSize * (imageSizePercent.value / 100)
-);
-
-// 计算实际位置偏移（基于当前图像大小的百分比）
-const computedPositionOffset = computed(() => ({
-  x: (computedImageSize.value / 200) * positionOffsetPercent.value.x,
-  y: (computedImageSize.value / 200) * positionOffsetPercent.value.y
-}));
-
-
-// 晶格向量显示控制
-const showLatticeVectors = ref(true);
-// 平铺晶格显示控制
-const showTiledLattice = ref(false);
-// 平铺范围（单位数量）
-const tilingExtent = ref(3);
-
-// 无缝单元显示控制
-const showSeamlessUnit = ref(false);
-
-// 从生成的单元中获取晶格向量
-const latticeVectors = computed(() => generatedUnits.value.latticeVectors);
-
-// 添加晶格向量调整相关的响应式变量
-const latticeVector1 = ref({ x: 0.8, y: 0.2 }); // 默认值
-const latticeVector2 = ref({ x: 0.3, y: 0.7 }); // 默认值
-const isLatticeAdjustable = ref(false);
-
-// 修改计算属性获取生成的单元，传入晶格向量参数
-const generatedUnits = computed(() => 
-  generateUnits(gridSpacing.value, gridPrecision.value, {
-    vector1: latticeVector1.value,
-    vector2: latticeVector2.value
-  })
-);
-
-// 从生成的单元中获取几何图形
-const geoms = computed(() => generatedUnits.value.geoms);
-
-// 从生成的单元中获取光栅图像
-const rasterImages = ref([]);
-
-// 从生成的单元中获取基本单元中心点
-const baseUnitCenters = computed(() => generatedUnits.value.baseUnitCenters);
-
-// 从生成的单元中获取无缝单元
-const seamlessUnit = computed(() => generatedUnits.value.seamlessUnit);
-
-// 自定义图像
-const customImage = ref(null);
-const originalImageSources = ref([]);
-
-// 图像叠加模式
-const blendMode = ref('source-over');
-
-// 裁剪控制
-const clipToUnit = ref(false);
-
-// 添加新的响应式变量
-const customImagePreviewUrl = ref('');
-const customImageFilename = ref('');
-
-// 计算显示范围 - 根据缩放比例动态调整
-const calculatedTilingExtent = computed(() => {
-  // 缩放值越小，平铺范围越大，以保持视觉上填满画布
-  // 基础范围值为3，随着缩放减小而增加
-  return Math.ceil(3 * (100 / canvasScale.value));
-});
-
-// 判断是否应使用LOD（低细节层次）
-const useLowDetailMode = computed(() => {
-  // 当缩放比例低于30%时启用低细节模式
-  return canvasScale.value < 30;
-});
-
-// 从生成的单元中获取矩形可平铺标志
-const rectTileable = computed(() => generatedUnits.value.rectTileable || false);
-
-// 初始化晶格参数
-const initializeLatticeParams = () => {
-  // 检查生成的单元是否声明为可调整
-  if (generatedUnits.value && generatedUnits.value.isAdjustable) {
-    isLatticeAdjustable.value = true;
-    
-    // 如果有提供初始向量参数，则使用它们
-    if (generatedUnits.value.vectorParams) {
-      const { vector1, vector2 } = generatedUnits.value.vectorParams;
-      latticeVector1.value = { ...vector1 };
-      latticeVector2.value = { ...vector2 };
+export default {
+  name: 'InfiniteCanvas',
+  props: {
+    // 单位配置，例如 1单位 = 多少像素
+    unitRatio: {
+      type: Number,
+      default: 1
+    },
+    // 初始缩放级别
+    initialScale: {
+      type: Number, 
+      default: 1
+    },
+    // 初始位置
+    initialPosition: {
+      type: Object,
+      default: () => ({ x: 0, y: 0 })
+    },
+    // 网格大小（单位）
+    gridSize: {
+      type: Number,
+      default: 50
+    },
+    // 是否显示鼠标指示器
+    showMouseIndicator: {
+      type: Boolean,
+      default: true
+    },
+    // 最大缩放级别 - 修改为接近JS数值上限
+    maxScale: {
+      type: Number,
+      default: 1e15
+    },
+    // 最小缩放级别 - 修改为接近JS数值下限但保持正值
+    minScale: {
+      type: Number,
+      default: 1e-15
     }
-  } else {
-    isLatticeAdjustable.value = false;
-  }
-};
-
-// 监听基础单元变化，更新图像位置
-watch(baseUnitCenters, () => {
-  updateImagePositions();
-}, { deep: true });
-
-// 监听控制参数变化，更新图像
-watch([computedImageSize, angleIncrement, computedPositionOffset], () => {
-  updateImageProperties();
-}, { deep: true });
-
-// 监听晶格向量显示控制变化
-watch(showLatticeVectors, () => {
-  updateLatticeVectorVisibility();
-});
-
-// 监听平铺晶格显示控制变化
-watch([showTiledLattice, tilingExtent], () => {
-  updateTiledLatticeVisibility();
-}, { deep: true });
-
-// 监听无缝单元显示控制变化
-watch(showSeamlessUnit, () => {
-  updateSeamlessUnitVisibility();
-});
-
-// 监听叠加模式变化
-watch(blendMode, () => {
-  updateBlendMode();
-});
-
-// 监听裁剪设置变化
-watch(clipToUnit, () => {
-  updateClipSettings();
-});
-
-// 监听画布缩放变化
-watch(canvasScale, () => {
-  updateCanvasScale();
-});
-
-// 监听晶格向量变化，触发重新生成
-watch([latticeVector1, latticeVector2], () => {
-  // 更新晶格向量会自动触发generatedUnits重新计算
-  // 然后通过计算属性更新latticeVectors
-  updateImageProperties()
-  // 如果需要手动更新平铺图层
-  if (tiledLatticeLayerComponent.value) {
-    tiledLatticeLayerComponent.value.generateTiledImages();
-  }
-}, { deep: true });
-
-// 更新图像位置，使其与对应基础单元的中心点对齐
-const updateImagePositions = () => {
-  const centers = baseUnitCenters.value;
+  },
   
-  rasterImages.value.forEach(image => {
-    const relatedCenter = centers.find(c => c.id === image.relatedGeom);
-    if (relatedCenter) {
-      image.config.x = relatedCenter.center.x + computedPositionOffset.value.x;
-      image.config.y = relatedCenter.center.y + computedPositionOffset.value.y;
-    }
-  });
-};
-
-// 更新图像属性（大小和角度）
-const updateImageProperties = () => {
-
-    // 使用默认的图像属性更新逻辑
-    rasterImages.value.forEach(image => {
-      // 更新图像大小
-      console.error(image)
-      if(image.onUpdate){
-        image.onUpdate(image,{latticeVector1:latticeVector1.value,latticeVector2:latticeVector2.value})
-      }
-      image.config.width = computedImageSize.value;
-      image.config.height = computedImageSize.value;
-      image.config.offsetX = computedImageSize.value / 2;
-      image.config.offsetY = computedImageSize.value / 2;
-      console.log(image.config.rotation)
-      // 更新图像位置（应用内部坐标偏移）
-      const relatedCenter = baseUnitCenters.value.find(c => c.id === image.relatedGeom);
-
-      if (relatedCenter) {
-        // 获取相关基础单元的内部坐标轴信息
-        const relatedGeom = geoms.value.find(g => g.id === image.relatedGeom);
-
-        if (relatedGeom) {
-
-          // 使用textureUtils中的函数计算内部坐标偏移
-          const internalOffset = generatedUnits.value.calculateInternalOffset(
-            relatedGeom, 
-            image, 
-            computedPositionOffset.value
-          );
-          
-          // 设置最终位置
-          image.config.x = relatedCenter.center.x + internalOffset.x;
-          image.config.y = relatedCenter.center.y + internalOffset.y;
-          
-        } else {
-          // 如果没有找到相关几何体，则使用全局坐标系
-          image.config.x = relatedCenter.center.x + computedPositionOffset.value.x;
-          image.config.y = relatedCenter.center.y + computedPositionOffset.value.y;
-        }
-      }
-      // 更新图像角度（应用增量）
-      // 保存原始角度计算结果
-      const originalRotation =  image.config.rotation;
-      
-        console.log(image.config.rotation)
-
-      // 考虑镜像时角度增量的方向
-      let effectiveAngleIncrement = angleIncrement.value;
-      
-      // 如果图像被镜像（scaleY为-1），则角度增量应该反向
-      if (image.config.scaleY === -1) {
-        effectiveAngleIncrement = -angleIncrement.value;
-      }
-      // 应用角度增量
-      image.config.rotation = (originalRotation + effectiveAngleIncrement) % 360;
-      console.log(image.config.rotation)
-
+  setup(props, { emit }) {
+    const canvasContainer = ref(null);
+    const stage = ref(null);
+    const backgroundLayer = ref(null);
+    const mainLayer = ref(null);
+    const uiLayer = ref(null);
+    const gridGroup = ref(null);
+    
+    // 视图状态
+    const viewState = reactive({
+      scale: props.initialScale,
+      position: { ...props.initialPosition },
+      width: 0,
+      height: 0,
+      isPanning: false,
+      lastPointerPosition: null,
+      mousePosition: { x: 0, y: 0 },
+      initialized: false
     });
-    updateClipSettings();
-  // 在更新完图像属性后应用裁剪设置
-
-  }
-  
-
-
-// 处理图像选择事件
-const handleImageSelect = (image) => {
-  console.log('选中图像:', image.id);
-  // 这里可以添加选中图像后的逻辑
-};
-
-// 处理图像悬停事件
-const handleImageHover = ({ image, isOver }) => {
-  console.log(isOver ? `悬停在图像 ${image.id} 上` : `离开图像 ${image.id}`);
-  // 这里可以添加图像悬停效果的逻辑
-};
-
-// 加载图像
-const loadImages = () => {
-  // 使用工具函数加载图像并设置默认图像
-  rasterImages.value = generatedUnits.value.loadImagesWithDefaults(generatedUnits.value.rasterImages);
-  
-  // 保存原始旋转角度
-  rasterImages.value.forEach(image => {
-    image.originalRotation = image.config.rotation;
-  });
-  
-  // 应用初始控制参数
-  updateImageProperties();
-  
-  // 获取晶格向量
-  latticeVectors.value = generatedUnits.value.latticeVectors;
-  
-  // 应用初始裁剪设置
-  updateClipSettings();
-};
-
-// 处理画布大小变化
-const handleResize = () => {
-  if (container.value && stage.value) {
-    const { offsetWidth, offsetHeight } = container.value;
-    stageConfig.value.width = offsetWidth;
-    stageConfig.value.height = offsetHeight;
     
-    // 更新所有图层的坐标系
-    centerAllLayers();
+    // 计算Stage配置
+    const stageConfig = computed(() => ({
+      width: viewState.width,
+      height: viewState.height,
+      draggable: false, // 我们自己处理拖动
+    }));
     
-    // 应用当前缩放
-    updateCanvasScale();
-  }
-};
-
-// 新增函数：居中所有图层
-const centerAllLayers = () => {
-  // 创建一个图层组件数组
-  const layerComponents = [
-    gridLayerComponent,
-    geomLayerComponent,
-    rasterLayerComponent,
-    latticeVectorLayerComponent,
-    tiledLatticeLayerComponent,
-    seamlessUnitLayerComponent
-  ];
-  
-  // 遍历所有图层组件并调用其centerCoordinateSystem方法
-  layerComponents.forEach(component => {
-    if (component.value) {
-      component.value.centerCoordinateSystem();
-    }
-  });
-  
-  // 确保舞台更新
-  if (stage.value) {
-    const stageInstance = stage.value.getStage();
+    // DOM层的样式，跟随画布变换
+    const domLayerStyle = computed(() => ({
+      transform: `translate(${viewState.position.x}px, ${viewState.position.y}px) scale(${viewState.scale})`,
+      transformOrigin: '0 0',
+      position: 'absolute',
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none', // 避免DOM层拦截鼠标事件
+      zIndex: 1
+    }));
     
-    // 在居中图层后重新应用当前缩放和位置
-    updateCanvasScale();
-  }
-};
-
-// 监听窗口大小变化
-const setupWindowResizeListener = () => {
-  const handleWindowResize = () => {
-    handleResize();
-  };
-  
-  window.addEventListener('resize', handleWindowResize);
-  
-  // 组件卸载时移除事件监听器
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleWindowResize);
-  });
-};
-
-// 更新晶格向量可见性
-const updateLatticeVectorVisibility = () => {
-  if (stage.value) {
-    const latticeVectorLayer = stage.value.getStage().findOne('#latticeVectorLayer');
-    if (latticeVectorLayer) {
-      latticeVectorLayer.visible(showLatticeVectors.value);
-      latticeVectorLayer.draw();
-    }
-  }
-};
-
-// 更新平铺晶格可见性
-const updateTiledLatticeVisibility = () => {
-  if (stage.value) {
-    const tiledLatticeLayer = stage.value.getStage().findOne('#tiledLatticeLayer');
-    if (tiledLatticeLayer) {
-      tiledLatticeLayer.visible(showTiledLattice.value);
-      tiledLatticeLayer.draw();
-    }
-  }
-};
-
-// 更新无缝单元可见性
-const updateSeamlessUnitVisibility = () => {
-  if (stage.value) {
-    const seamlessUnitLayer = stage.value.getStage().findOne('#seamlessUnitLayer');
-    if (seamlessUnitLayer) {
-      seamlessUnitLayer.visible(showSeamlessUnit.value);
-      seamlessUnitLayer.draw();
-    }
-  }
-};
-
-// 更新图像叠加模式
-const updateBlendMode = () => {
-  rasterImages.value.forEach(image => {
-    image.config.globalCompositeOperation = blendMode.value;
-  });
-  
-  // 如果平铺晶格图层存在，也更新其叠加模式
-  if (tiledLatticeLayerComponent.value) {
-    tiledLatticeLayerComponent.value.updateBlendMode(blendMode.value);
-  }
-};
-
-// 更新裁剪设置
-const updateClipSettings = () => {
-  // 通知光栅图层组件更新裁剪设置
-  if (rasterLayerComponent.value) {
-    rasterLayerComponent.value.updateClipShapes();
-  }
-  
-  // 通知平铺晶格图层组件更新裁剪设置
-  if (tiledLatticeLayerComponent.value) {
-    tiledLatticeLayerComponent.value.updateClipSettings();
-  }
-  
-  // 确保舞台更新
-  if (stage.value) {
-    stage.value.getStage().batchDraw();
-  }
-};
-
-// 更新画布缩放
-const updateCanvasScale = () => {
-  if (stage.value) {
-    const stageInstance = stage.value.getStage();
-    const scale = canvasScale.value / 100;
-    
-    // 获取容器尺寸
-    const containerWidth = container.value.offsetWidth;
-    const containerHeight = container.value.offsetHeight;
-    
-    // 获取舞台原始尺寸
-    const stageWidth = stageConfig.value.width;
-    const stageHeight = stageConfig.value.height;
-    
-    // 计算缩放后的中心位置
-    const scaledWidth = stageWidth * scale;
-    const scaledHeight = stageHeight * scale;
-    
-    // 计算应居中的位置
-    const centerX = (containerWidth - scaledWidth) / 2;
-    const centerY = (containerHeight - scaledHeight) / 2;
-    
-    // 应用缩放和位置
-    stageInstance.scale({ x: scale, y: scale });
-    stageInstance.position({ x: centerX, y: centerY });
-    stageInstance.batchDraw();
-  }
-};
-
-// 修改处理图像上传函数
-const handleImageUpload = (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  // 检查文件类型
-  if (!file.type.match('image.*')) {
-    alert('请选择图像文件');
-    return;
-  }
-  
-  // 保存文件名
-  customImageFilename.value = file.name;
-  
-  // 创建文件读取器
-  const reader = new FileReader();
-  
-  // 文件加载完成后的处理
-  reader.onload = (e) => {
-    // 设置预览图URL
-    customImagePreviewUrl.value = e.target.result;
-    
-    // 创建新图像对象
-    const img = new Image();
-    
-    // 图像加载完成后的处理
-    img.onload = () => {
-      customImage.value = img;
+    // 计算当前视口在世界坐标系中的边界 - 新增函数
+    const getViewportBounds = () => {
+      // 计算视口左上角和右下角的世界坐标
+      const topLeft = {
+        x: -viewState.position.x / viewState.scale,
+        y: -viewState.position.y / viewState.scale
+      };
       
-      // 立即应用图像，无需点击按钮
-      applyCustomImage();
+      const bottomRight = {
+        x: (viewState.width - viewState.position.x) / viewState.scale,
+        y: (viewState.height - viewState.position.y) / viewState.scale
+      };
+      
+      // 返回视口边界，增加20%的余量确保覆盖整个视口
+      const width = bottomRight.x - topLeft.x;
+      const height = bottomRight.y - topLeft.y;
+      
+      return {
+        left: topLeft.x - width * 0.2,
+        right: bottomRight.x + width * 0.2,
+        top: topLeft.y - height * 0.2,
+        bottom: bottomRight.y + height * 0.2,
+        width: width * 1.4, // 增加40%宽度
+        height: height * 1.4 // 增加40%高度
+      };
     };
     
-    // 设置图像源
-    img.src = e.target.result;
-  };
-  
-  // 读取文件
-  reader.readAsDataURL(file);
-};
-
-// 应用自定义图像到所有栅格图像
-const applyCustomImage = () => {
-  if (!customImage.value) return;
-  
-  // 保存原始图像源（如果尚未保存）
-  if (originalImageSources.value.length === 0) {
-    rasterImages.value.forEach(image => {
-      originalImageSources.value.push({
-        id: image.id,
-        image: image.config.image
-      });
-    });
-  }
-  
-  // 应用自定义图像
-  rasterImages.value.forEach(image => {
-    image.config.image = customImage.value;
-    // 确保应用当前的叠加模式
-    image.config.globalCompositeOperation = blendMode.value;
-  });
-  
-  // 更新平铺图像
-  if (tiledLatticeLayerComponent.value) {
-    tiledLatticeLayerComponent.value.generateTiledImages();
-  }
-};
-
-// 恢复默认图像
-const resetDefaultImages = () => {
-  if (originalImageSources.value.length === 0) return;
-  
-  // 恢复原始图像
-  rasterImages.value.forEach(image => {
-    const originalSource = originalImageSources.value.find(src => src.id === image.id);
-    if (originalSource) {
-      image.config.image = originalSource.image;
-    }
-  });
-  
-  // 更新平铺图像
-  if (tiledLatticeLayerComponent.value) {
-    tiledLatticeLayerComponent.value.generateTiledImages();
-  }
-  
-  // 清除自定义图像
-  customImage.value = null;
-};
-
-// 添加下载清晰度选择
-const downloadResolution = ref('512'); // 默认512px
-// 添加重复次数选择
-const downloadRepeatCount = ref('1'); // 默认1×1
-
-// 添加水印相关选项
-const addWatermark = ref(false);
-const watermarkAuthor = ref('');
-const watermarkTitle = ref('');
-const watermarkPosition = ref('bottom-right');
-const watermarkSize = ref('medium'); // 默认中等大小
-const includeOriginalImage = ref(false);
-
-// 修改下载重复单元功能，支持不同的导出策略
-const downloadTiledPattern = async () => {
-  if (!showTiledLattice.value) return;
-  
-  try {
-    // 显示加载状态
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'download-loading';
-    loadingIndicator.textContent = '正在生成图像...';
-    container.value.appendChild(loadingIndicator);
-    
-    // 等待下一个渲染周期，确保UI更新
-    await nextTick();
-    
-    // 设置目标分辨率和重复次数
-    const targetSize = parseInt(downloadResolution.value);
-    const repeatCount = parseInt(downloadRepeatCount.value);
-    
-    // 计算无缝单元尺寸
-    const unitWidth = seamlessUnit.value.width;
-    const unitHeight = seamlessUnit.value.height;
-    
-    // 计算总的重复区域比例（宽高比）
-    const repeatAreaRatio = (unitWidth * repeatCount) / (unitHeight * repeatCount);
-    
-    // 根据总的重复区域比例计算最终尺寸，确保短边等于目标尺寸
-    let finalWidth, finalHeight;
-    
-    if (repeatAreaRatio >= 1) {
-      // 宽大于高，高度为短边
-      finalHeight = targetSize;
-      finalWidth = Math.round(targetSize * repeatAreaRatio);
-    } else {
-      // 高大于宽，宽度为短边
-      finalWidth = targetSize;
-      finalHeight = Math.round(targetSize / repeatAreaRatio);
-    }
-    
-    console.log(`开始下载: 分辨率=${targetSize}, 重复次数=${repeatCount}, 最终尺寸=${finalWidth}×${finalHeight}, 矩形可平铺=${rectTileable.value}`);
-    
-    // 创建导出用的Canvas
-    const canvas = document.createElement('canvas');
-    canvas.width = finalWidth;
-    canvas.height = finalHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('无法创建Canvas上下文');
-    }
-    
-    // 使用TiledLatticeLayer的renderToCanvas方法渲染到画布，传入rectTileable标志
-    const success = await tiledLatticeLayerComponent.value.renderToCanvas(ctx, {
-      width: finalWidth,
-      height: finalHeight,
-      targetSize: targetSize,
-      repeatCount: repeatCount,
-      hideExtras: true,
-      rectTileable: rectTileable.value // 传递矩形可平铺标志
+    // 坐标轴配置 - 动态计算长度
+    const xAxisConfig = computed(() => {
+      const bounds = getViewportBounds();
+      return {
+        points: [bounds.left, 0, bounds.right, 0], // 动态计算水平线长度
+        stroke: 'red',
+        strokeWidth: 1 / viewState.scale,
+      };
     });
     
-    if (!success) {
-      throw new Error('渲染图像失败');
-    }
+    const yAxisConfig = computed(() => {
+      const bounds = getViewportBounds();
+      return {
+        points: [0, bounds.top, 0, bounds.bottom], // 动态计算垂直线长度
+        stroke: 'green',
+        strokeWidth: 1 / viewState.scale,
+      };
+    });
     
-    // 添加水印和原始图像
-    if (addWatermark.value && (watermarkAuthor.value.trim() || watermarkTitle.value.trim() || includeOriginalImage.value)) {
-      // 获取原始图像（如果需要）
-      let originalImg = null;
-      if (includeOriginalImage.value && rasterImages.value.length > 0) {
-        // 尝试获取第一个栅格图像作为原始图像
-        const firstImage = rasterImages.value[0];
-        if (firstImage && firstImage.config && firstImage.config.image) {
-          originalImg = firstImage.config.image;
-        } else if (customImage.value) {
-          // 如果没有栅格图像但有自定义图像，则使用自定义图像
-          originalImg = customImage.value;
+    // 创建一个鼠标位置指示器组件，确保偏移固定
+    const createMousePositionIndicator = () => {
+      // 移除UI层上原有的指示器文本
+      // 保留十字线，因为它们需要随画布缩放
+      
+      // 创建一个绝对定位的DOM元素作为鼠标指示器文本
+      const indicatorContainer = document.createElement('div');
+      indicatorContainer.className = 'mouse-position-indicator';
+      indicatorContainer.style.cssText = `
+        position: absolute;
+        background: white;
+        border: 1px solid #ccc;
+        padding: 2px 6px;
+        border-radius: 2px;
+        font-size: 12px;
+        pointer-events: none;
+        z-index: 1000;
+        transform: translate(10px, -30px);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        color: #333;
+      `;
+      
+      canvasContainer.value.appendChild(indicatorContainer);
+      
+      return indicatorContainer;
+    };
+    
+    // 鼠标位置文本DOM元素引用
+    let mouseIndicatorElement = null;
+    
+    // 更新鼠标位置指示器
+    const updateMousePositionIndicator = (event) => {
+      if (!mouseIndicatorElement) return;
+      
+      // 获取鼠标相对于canvas容器的坐标
+      const rect = canvasContainer.value.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      
+      // 将DOM元素放置在鼠标位置
+      mouseIndicatorElement.style.left = `${x}px`;
+      mouseIndicatorElement.style.top = `${y}px`;
+      
+      // 更新显示的世界坐标文本
+      const worldX = (viewState.mousePosition.x * props.unitRatio).toFixed(2);
+      const worldY = (viewState.mousePosition.y * props.unitRatio).toFixed(2);
+      mouseIndicatorElement.textContent = `X: ${worldX}, Y: ${worldY}`;
+    };
+    
+    // 替代原有的mousePositionText计算属性
+    const mousePositionText = computed(() => {
+      // 返回空配置，我们将使用DOM元素显示文本
+      return {
+        text: '',
+        visible: false
+      };
+    });
+    
+    // 鼠标指示线配置 - 保持不变
+    const mouseHorizontalLine = computed(() => {
+      const bounds = getViewportBounds();
+      return {
+        points: [bounds.left, 0, bounds.right, 0],
+        stroke: 'rgba(0, 0, 255, 0.5)',
+        strokeWidth: 1 / viewState.scale,
+        dash: [5 / viewState.scale, 5 / viewState.scale],
+        y: viewState.mousePosition.y,
+      };
+    });
+    
+    const mouseVerticalLine = computed(() => {
+      const bounds = getViewportBounds();
+      return {
+        points: [0, bounds.top, 0, bounds.bottom],
+        stroke: 'rgba(0, 0, 255, 0.5)',
+        strokeWidth: 1 / viewState.scale,
+        dash: [5 / viewState.scale, 5 / viewState.scale],
+        x: viewState.mousePosition.x,
+      };
+    });
+    
+    // 获取当前LOD级别 - 新增函数
+    const getLODLevel = () => {
+      // 根据缩放级别返回LOD级别
+      if (viewState.scale <= 0.001) return 0; // 极远视图
+      if (viewState.scale <= 0.01) return 1;  // 远视图
+      if (viewState.scale <= 0.1) return 2;   // 中远视图
+      if (viewState.scale <= 1) return 3;     // 中视图
+      if (viewState.scale <= 10) return 4;    // 中近视图
+      if (viewState.scale <= 100) return 5;   // 近视图
+      return 6;                               // 极近视图
+    };
+    
+    // 获取当前LOD级别的网格大小 - 新增函数
+    const getLODGridSize = () => {
+      const level = getLODLevel();
+      const baseSize = props.gridSize;
+      
+      // 根据LOD级别返回不同的网格大小
+      switch (level) {
+        case 0: return baseSize * 1000;  // 极远视图显示超大网格
+        case 1: return baseSize * 100;   // 远视图
+        case 2: return baseSize * 10;    // 中远视图
+        case 3: return baseSize;         // 中视图 - 基本网格大小
+        case 4: return baseSize / 10;    // 中近视图
+        case 5: return baseSize / 100;   // 近视图
+        case 6: return baseSize / 1000;  // 极近视图显示超小网格
+        default: return baseSize;
+      }
+    };
+    
+    // 计算坐标标签最佳间隔的函数 - 扩展支持极小值
+    const getOptimalLabelSpacing = () => {
+      // 最小标签间距（像素）- 防止标签重叠
+      const MIN_LABEL_DISTANCE_PX = 60;
+      
+      // 计算当前缩放下多少世界单位对应于最小标签间距
+      const worldUnitsPerMinDistance = MIN_LABEL_DISTANCE_PX / viewState.scale;
+      
+      // 扩展可接受的标签间隔值（添加更多极小值以支持极高缩放）
+      const niceIntervals = [
+        // 添加极小值支持
+        1e-15, 2e-15, 5e-15,
+        1e-14, 2e-14, 5e-14,
+        1e-13, 2e-13, 5e-13,
+        1e-12, 2e-12, 5e-12,
+        1e-11, 2e-11, 5e-11,
+        1e-10, 2e-10, 5e-10,
+        1e-9, 2e-9, 5e-9,
+        1e-8, 2e-8, 5e-8,
+        1e-7, 2e-7, 5e-7,
+        1e-6, 2e-6, 5e-6,
+        // 原有值
+        0.000001, 0.000002, 0.000005, 
+        0.00001, 0.00002, 0.00005, 
+        0.0001, 0.0002, 0.0005, 
+        0.001, 0.002, 0.005, 
+        0.01, 0.02, 0.05, 
+        0.1, 0.2, 0.5, 
+        1, 2, 5, 
+        10, 20, 50, 
+        100, 200, 500, 
+        1000, 2000, 5000, 
+        10000, 20000, 50000,
+        100000, 200000, 500000,
+        1000000, 2000000, 5000000,
+        // 添加超大值支持
+        1e7, 2e7, 5e7,
+        1e8, 2e8, 5e8,
+        1e9, 2e9, 5e9,
+        1e10, 2e10, 5e10,
+        1e11, 2e11, 5e11,
+        1e12, 2e12, 5e12,
+        1e13, 2e13, 5e13,
+        1e14, 2e14, 5e14
+      ];
+      
+      // 确保至少有一个间隔，如果缩放太小，使用最小值
+      if (worldUnitsPerMinDistance <= niceIntervals[0]) {
+        console.log("使用最小间隔值:", niceIntervals[0], "当前计算所需:", worldUnitsPerMinDistance);
+        return niceIntervals[0];
+      }
+      
+      // 寻找大于等于所需间隔的最小美观值
+      let optimalInterval = niceIntervals[niceIntervals.length - 1];
+      for (const interval of niceIntervals) {
+        if (interval >= worldUnitsPerMinDistance) {
+          optimalInterval = interval;
+          break;
         }
       }
       
-      addWatermarkToCanvas(ctx, {
-        author: watermarkAuthor.value,
-        title: watermarkTitle.value,
-        position: watermarkPosition.value,
-        size: watermarkSize.value,
-        width: finalWidth,
-        height: finalHeight,
-        originalImage: originalImg
+      // 调试信息
+      console.log("选择间隔:", optimalInterval, "当前缩放:", viewState.scale, "所需世界单位间隔:", worldUnitsPerMinDistance);
+      
+      return optimalInterval;
+    };
+    
+    // 格式化轴标签文本 - 增强处理极小/极大值
+    const formatAxisLabel = (value) => {
+      // 非常小的值，使用科学计数法
+      if (Math.abs(value) > 0 && Math.abs(value) < 0.01) {
+        return value.toExponential(1);
+      }
+      // 大于1000使用k单位
+      if (Math.abs(value) >= 1000 && Math.abs(value) < 1000000) {
+        return (value / 1000).toFixed(1) + 'k';
+      }
+      // 大于1M使用M单位
+      if (Math.abs(value) >= 1000000 && Math.abs(value) < 1000000000) {
+        return (value / 1000000).toFixed(1) + 'M';
+      }
+      // 大于1G使用G单位
+      if (Math.abs(value) >= 1000000000) {
+        return (value / 1000000000).toFixed(1) + 'G';
+      }
+      // 一般情况
+      if (Number.isInteger(value)) {
+        return value.toString();
+      }
+      // 小数保留合适精度
+      const decimalPlaces = Math.min(2, Math.max(0, -Math.floor(Math.log10(Math.abs(value % 1)))));
+      return value.toFixed(decimalPlaces);
+    };
+    
+    // 提前声明更新函数
+    const updateTransform = ref(null);
+    const drawGrid = ref(null);
+    
+    // 更新舞台变换时重新计算视口边界
+    updateTransform.value = () => {
+      if (!stage.value || !stage.value.getNode()) return;
+      
+      const konvaStage = stage.value.getNode();
+      
+      // 更新主要图层的变换
+      const mainKonvaLayer = mainLayer.value.getNode();
+      mainKonvaLayer.x(viewState.position.x);
+      mainKonvaLayer.y(viewState.position.y);
+      mainKonvaLayer.scale({ x: viewState.scale, y: viewState.scale });
+      
+      // 更新背景图层（网格）的变换
+      const bgKonvaLayer = backgroundLayer.value.getNode();
+      bgKonvaLayer.x(viewState.position.x);
+      bgKonvaLayer.y(viewState.position.y);
+      bgKonvaLayer.scale({ x: viewState.scale, y: viewState.scale });
+      
+      // UI层应用与其他层相同的变换，便于坐标一致性
+      const uiKonvaLayer = uiLayer.value.getNode();
+      uiKonvaLayer.x(viewState.position.x);
+      uiKonvaLayer.y(viewState.position.y);
+      uiKonvaLayer.scale({ x: viewState.scale, y: viewState.scale });
+      
+      // 绘制所有图层
+      konvaStage.batchDraw();
+      
+      // 更新网格以确保填满画布
+      if (drawGrid.value) {
+        drawGrid.value();
+      }
+    };
+    
+    // 绘制网格 - 增强处理极端缩放情况
+    drawGrid.value = () => {
+      if (!gridGroup.value || !gridGroup.value.getNode()) return;
+      
+      const group = gridGroup.value.getNode();
+      group.destroyChildren();
+      
+      // 计算当前视口边界
+      const bounds = getViewportBounds();
+      
+      // 计算当前LOD级别和网格大小
+      const lodLevel = getLODLevel();
+      const mainGridSize = getLODGridSize();
+      
+      // 计算次要网格尺寸（仅在中等级别显示）
+      const showSecondaryGrid = lodLevel >= 2 && lodLevel <= 5;
+      const secondaryGridSize = mainGridSize / 10;
+      
+      // 获取最佳标签间隔 - 动态计算
+      const labelInterval = getOptimalLabelSpacing();
+      
+      // 调试信息 - 输出当前状态
+      console.log("绘制网格 - 缩放:", viewState.scale, "标签间隔:", labelInterval);
+      
+      // 计算视口范围内的网格 - 扩大范围确保填满画布
+      const startX = Math.floor(bounds.left / mainGridSize) * mainGridSize;
+      const startY = Math.floor(bounds.top / mainGridSize) * mainGridSize;
+      const endX = Math.ceil(bounds.right / mainGridSize) * mainGridSize;
+      const endY = Math.ceil(bounds.bottom / mainGridSize) * mainGridSize;
+      
+      // 性能优化：限制网格线数量
+      const maxGridLines = 1000;
+      const estimatedHLines = Math.ceil((endY - startY) / mainGridSize);
+      const estimatedVLines = Math.ceil((endX - startX) / mainGridSize);
+      
+      // 如果估计的网格线数量过多，调整网格大小
+      if (estimatedHLines + estimatedVLines > maxGridLines) {
+        // 递归调用，跳到更低精度的LOD级别
+        return drawGrid.value();
+      }
+      
+      // 绘制次要网格（较细的线）
+      if (showSecondaryGrid) {
+        const secStartX = Math.floor(bounds.left / secondaryGridSize) * secondaryGridSize;
+        const secStartY = Math.floor(bounds.top / secondaryGridSize) * secondaryGridSize;
+        const secEndX = Math.ceil(bounds.right / secondaryGridSize) * secondaryGridSize;
+        const secEndY = Math.ceil(bounds.bottom / secondaryGridSize) * secondaryGridSize;
+        
+        // 在一定范围内绘制次要网格线
+        for (let x = secStartX; x <= secEndX; x += secondaryGridSize) {
+          // 如果是主网格线，跳过（稍后绘制）
+          if (Math.abs(x % mainGridSize) < 0.000001) continue;
+          
+          const line = new Konva.Line({
+            points: [x, bounds.top, x, bounds.bottom],
+            stroke: '#eee',
+            strokeWidth: 0.5 / viewState.scale,
+          });
+          group.add(line);
+        }
+        
+        for (let y = secStartY; y <= secEndY; y += secondaryGridSize) {
+          // 如果是主网格线，跳过（稍后绘制）
+          if (Math.abs(y % mainGridSize) < 0.000001) continue;
+          
+          const line = new Konva.Line({
+            points: [bounds.left, y, bounds.right, y],
+            stroke: '#eee',
+            strokeWidth: 0.5 / viewState.scale,
+          });
+          group.add(line);
+        }
+      }
+      
+      // 绘制主网格线
+      for (let x = startX; x <= endX; x += mainGridSize) {
+        const line = new Konva.Line({
+          points: [x, bounds.top, x, bounds.bottom],
+          stroke: x === 0 ? '#999' : '#ddd', // 原点线颜色加深
+          strokeWidth: x === 0 ? 1.5 / viewState.scale : 1 / viewState.scale,
+        });
+        group.add(line);
+      }
+      
+      for (let y = startY; y <= endY; y += mainGridSize) {
+        const line = new Konva.Line({
+          points: [bounds.left, y, bounds.right, y],
+          stroke: y === 0 ? '#999' : '#ddd', // 原点线颜色加深
+          strokeWidth: y === 0 ? 1.5 / viewState.scale : 1 / viewState.scale,
+        });
+        group.add(line);
+      }
+      
+      // 根据最佳间隔绘制X轴坐标标签 - 改进浮点数比较
+      const labelStartX = Math.floor(bounds.left / labelInterval) * labelInterval;
+      const labelEndX = Math.ceil(bounds.right / labelInterval) * labelInterval;
+      const EPSILON = 1e-10; // 浮点比较容差
+      
+      // 确保至少显示一些标签
+      const maxLabels = 100; // 安全限制
+      let labelCount = 0;
+      
+      for (let x = labelStartX; x <= labelEndX && labelCount < maxLabels; x += labelInterval) {
+        // 跳过原点(0)，因为它用特殊标记
+        if (Math.abs(x) < EPSILON) continue;
+        
+        labelCount++;
+        const labelValue = x * props.unitRatio;
+        const formattedLabel = formatAxisLabel(labelValue);
+        
+        const text = new Konva.Text({
+          x: x,
+          y: 5 / viewState.scale, // 固定距离X轴
+          text: formattedLabel,
+          fontSize: 12 / viewState.scale,
+          fill: '#666',
+          align: 'center',
+          verticalAlign: 'top',
+          offsetX: String(formattedLabel).length * 3 / viewState.scale, // 居中显示
+        });
+        group.add(text);
+        
+        // 添加小刻度线
+        const tickLine = new Konva.Line({
+          points: [x, 0, x, 3 / viewState.scale],
+          stroke: '#666',
+          strokeWidth: 1 / viewState.scale,
+        });
+        group.add(tickLine);
+      }
+      
+      // 根据最佳间隔绘制Y轴坐标标签 - 同样改进浮点比较
+      const labelStartY = Math.floor(bounds.top / labelInterval) * labelInterval;
+      const labelEndY = Math.ceil(bounds.bottom / labelInterval) * labelInterval;
+      
+      labelCount = 0; // 重置计数
+      for (let y = labelStartY; y <= labelEndY && labelCount < maxLabels; y += labelInterval) {
+        // 跳过原点(0)，因为它用特殊标记
+        if (Math.abs(y) < EPSILON) continue;
+        
+        labelCount++;
+        const labelValue = y * props.unitRatio;
+        const formattedLabel = formatAxisLabel(labelValue);
+        
+        const text = new Konva.Text({
+          x: 5 / viewState.scale, // 固定距离Y轴
+          y: y,
+          text: formattedLabel,
+          fontSize: 12 / viewState.scale,
+          fill: '#666',
+          align: 'left',
+          verticalAlign: 'middle',
+          offsetY: 6 / viewState.scale, // 轻微向上偏移
+        });
+        group.add(text);
+        
+        // 添加小刻度线
+        const tickLine = new Konva.Line({
+          points: [0, y, 3 / viewState.scale, y],
+          stroke: '#666',
+          strokeWidth: 1 / viewState.scale,
+        });
+        group.add(tickLine);
+      }
+      
+      // 原点标记 - 用圆圈标记
+      const originMark = new Konva.Circle({
+        x: 0,
+        y: 0,
+        radius: 3 / viewState.scale,
+        fill: 'red',
+        stroke: 'white',
+        strokeWidth: 1 / viewState.scale,
       });
-    }
-    
-    // 转换为图像并下载
-    const dataUrl = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    
-    // 构建文件名，如果有标题则使用标题
-    let filename = watermarkTitle.value.trim() 
-      ? `${watermarkTitle.value}-${targetSize}px-${repeatCount}x${repeatCount}` 
-      : `tiled-pattern-${targetSize}px-${repeatCount}x${repeatCount}`;
+      group.add(originMark);
       
-    a.download = `${filename}-${new Date().getTime()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      // 原点标签
+      const originLabel = new Konva.Text({
+        x: 5 / viewState.scale,
+        y: 5 / viewState.scale,
+        text: '(0,0)',
+        fontSize: 12 / viewState.scale,
+        fill: 'red',
+        padding: 2,
+      });
+      group.add(originLabel);
+      
+      group.draw();
+    };
     
-  } catch (error) {
-    console.error('下载重复单元时出错:', error);
-    alert('生成图像时发生错误，请重试');
-  } finally {
-    // 确保移除加载指示器
-    const loadingIndicator = container.value.querySelector('.download-loading');
-    if (loadingIndicator) {
-      container.value.removeChild(loadingIndicator);
-    }
+    // 鼠标滚轮缩放 - 优化以处理极端缩放值
+    const handleWheel = (e) => {
+      e.preventDefault();
+      
+      const oldScale = viewState.scale;
+      
+      // 获取鼠标位置相对于容器的坐标
+      const pointer = getRelativePointerPosition(e);
+      
+      // 计算缩放因子 - 使用更小的缩放步长处理极端值
+      let scaleBy;
+      if (viewState.scale > 1e10 || viewState.scale < 1e-10) {
+        scaleBy = e.deltaY < 0 ? 1.01 : 0.99; // 极端值时使用更小的缩放步长
+      } else {
+        scaleBy = e.deltaY < 0 ? 1.1 : 0.9;   // 正常缩放步长
+      }
+      
+      let newScale = oldScale * scaleBy;
+      
+      // 约束缩放级别，确保不超过JS安全范围
+      newScale = Math.max(props.minScale, Math.min(props.maxScale, newScale));
+      
+      // 安全检查：如果缩放无效或NaN，不进行缩放
+      if (!isFinite(newScale) || isNaN(newScale)) {
+        console.warn('缩放值无效:', newScale);
+        return;
+      }
+      
+      // 计算新的位置，使鼠标保持在同一个世界坐标点上
+      viewState.position.x = pointer.x - (pointer.x - viewState.position.x) * (newScale / oldScale);
+      viewState.position.y = pointer.y - (pointer.y - viewState.position.y) * (newScale / oldScale);
+      viewState.scale = newScale;
+      
+      // 更新变换
+      if (updateTransform.value) {
+        updateTransform.value();
+      }
+    };
+    
+    // 开始平移
+    const startPan = (e) => {
+      if (e.button !== 0) return; // 只响应左键拖动
+      
+      viewState.isPanning = true;
+      viewState.lastPointerPosition = getRelativePointerPosition(e);
+      document.body.style.cursor = 'grabbing';
+      
+      if (updateTransform.value) {
+        updateTransform.value();
+      }
+    };
+    
+    // 停止平移
+    const stopPan = () => {
+      viewState.isPanning = false;
+      viewState.lastPointerPosition = null;
+      document.body.style.cursor = 'default';
+      
+      if (updateTransform.value) {
+        updateTransform.value();
+      }
+    };
+    
+    // 鼠标移动处理
+    const onMouseMove = (event) => {
+      // 如果正在平移，更新位置
+      if (viewState.isPanning && viewState.lastPointerPosition) {
+        const pointerPos = getRelativePointerPosition(event);
+        
+        // 计算自上次位置以来的移动距离
+        const dx = pointerPos.x - viewState.lastPointerPosition.x;
+        const dy = pointerPos.y - viewState.lastPointerPosition.y;
+        
+        // 应用移动
+        viewState.position.x += dx;
+        viewState.position.y += dy;
+        
+        // 保存当前位置用于下次计算
+        viewState.lastPointerPosition = pointerPos;
+        
+        // 更新变换
+        if (updateTransform.value) {
+          updateTransform.value();
+        }
+      }
+      
+      // 无论是否平移，都更新鼠标世界位置
+      updateMouseWorldPosition(event);
+      
+      // 更新DOM指示器位置
+      updateMousePositionIndicator(event);
+    };
+    
+    // Konva舞台事件处理
+    const onStageMouseDown = (e) => {
+      // Konva特定事件处理
+    };
+    
+    const onStageMouseUp = (e) => {
+      // Konva特定事件处理
+    };
+    
+    const onStageMouseMove = (e) => {
+      // Konva特定事件处理
+    };
+    
+    // 获取相对于容器的鼠标位置
+    const getRelativePointerPosition = (event) => {
+      if (!canvasContainer.value) return { x: 0, y: 0 };
+      
+      const rect = canvasContainer.value.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+    };
+    
+    // 获取鼠标的世界坐标位置 - 确保计算正确
+    const updateMouseWorldPosition = (event) => {
+      const pointerPos = getRelativePointerPosition(event);
+      
+      // 转换为世界坐标 - 直接使用一致的公式
+      viewState.mousePosition = {
+        x: (pointerPos.x - viewState.position.x) / viewState.scale,
+        y: (pointerPos.y - viewState.position.y) / viewState.scale,
+      };
+      
+      // 确保UI层更新
+      if (uiLayer.value && uiLayer.value.getNode()) {
+        uiLayer.value.getNode().batchDraw();
+      }
+    };
+    
+    // 重置视图
+    const resetView = () => {
+      viewState.scale = props.initialScale;
+      viewState.position = { ...props.initialPosition };
+      if (updateTransform.value) {
+        updateTransform.value();
+      }
+      drawGrid.value();
+    };
+    
+    // 放大
+    const zoomIn = () => {
+      const newScale = Math.min(props.maxScale, viewState.scale * 1.2);
+      const oldScale = viewState.scale;
+      
+      // 以中心点为基准缩放
+      const centerX = viewState.width / 2;
+      const centerY = viewState.height / 2;
+      
+      viewState.position.x = centerX - (centerX - viewState.position.x) * (newScale / oldScale);
+      viewState.position.y = centerY - (centerY - viewState.position.y) * (newScale / oldScale);
+      viewState.scale = newScale;
+      
+      if (updateTransform.value) {
+        updateTransform.value();
+      }
+      drawGrid.value();
+    };
+    
+    // 缩小
+    const zoomOut = () => {
+      const newScale = Math.max(props.minScale, viewState.scale / 1.2);
+      const oldScale = viewState.scale;
+      
+      // 以中心点为基准缩放
+      const centerX = viewState.width / 2;
+      const centerY = viewState.height / 2;
+      
+      viewState.position.x = centerX - (centerX - viewState.position.x) * (newScale / oldScale);
+      viewState.position.y = centerY - (centerY - viewState.position.y) * (newScale / oldScale);
+      viewState.scale = newScale;
+      
+      if (updateTransform.value) {
+        updateTransform.value();
+      }
+      drawGrid.value();
+    };
+    
+    // 导出画布为图片
+    const exportCanvasAsImage = (options = {}) => {
+      const { 
+        x = 0, 
+        y = 0, 
+        width = viewState.width / viewState.scale, 
+        height = viewState.height / viewState.scale,
+        pixelRatio = 2,
+        mimeType = 'image/png'
+      } = options;
+      
+      // 创建一个临时舞台来渲染导出部分
+      const tempStage = new Konva.Stage({
+        container: document.createElement('div'),
+        width: width,
+        height: height,
+      });
+      
+      // 复制背景层
+      const tempBgLayer = new Konva.Layer();
+      const bgClone = gridGroup.value.getNode().clone();
+      bgClone.x(-x);
+      bgClone.y(-y);
+      tempBgLayer.add(bgClone);
+      
+      // 复制主内容层
+      const tempMainLayer = new Konva.Layer();
+      const mainClone = mainLayer.value.getNode().clone();
+      mainClone.x(-x);
+      mainClone.y(-y);
+      tempMainLayer.add(mainClone);
+      
+      // 添加图层到临时舞台
+      tempStage.add(tempBgLayer);
+      tempStage.add(tempMainLayer);
+      
+      // 导出为图片
+      const dataURL = tempStage.toDataURL({
+        pixelRatio: pixelRatio,
+        mimeType: mimeType,
+      });
+      
+      // 销毁临时舞台
+      tempStage.destroy();
+      
+      return dataURL;
+    };
+    
+    // 导出选定区域
+    const exportSelectedArea = (area, options = {}) => {
+      return exportCanvasAsImage({
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: area.height,
+        ...options
+      });
+    };
+    
+    // 窗口大小变化时调整舞台大小并居中原点
+    const handleResize = () => {
+      if (!canvasContainer.value) return;
+      
+      const { width, height } = canvasContainer.value.getBoundingClientRect();
+      viewState.width = width;
+      viewState.height = height;
+      
+      // 初始化时居中原点
+      if (!viewState.initialized) {
+        // 设置位置使得原点(0,0)位于画布中心
+        viewState.position.x = width / 2;
+        viewState.position.y = height / 2;
+        viewState.initialized = true;
+      }
+      
+      if (updateTransform.value) {
+        updateTransform.value();
+      }
+      
+      if (drawGrid.value) {
+        drawGrid.value();
+      }
+    };
+    
+    // 组件挂载后的初始化
+    onMounted(() => {
+      // 添加初始化标志
+      viewState.initialized = false;
+      
+      // 调用handleResize进行初始化和居中
+      handleResize();
+      
+      // 监听窗口大小变化
+      window.addEventListener('resize', handleResize);
+      
+      // 初始化网格
+      drawGrid.value();
+      
+      // 创建鼠标位置指示器DOM元素
+      mouseIndicatorElement = createMousePositionIndicator();
+    });
+    
+    // 组件卸载时清理
+    onUnmounted(() => {
+      window.removeEventListener('resize', handleResize);
+      
+      // 移除鼠标位置指示器
+      if (mouseIndicatorElement && mouseIndicatorElement.parentNode) {
+        mouseIndicatorElement.parentNode.removeChild(mouseIndicatorElement);
+      }
+    });
+    
+    // 监听属性变化
+    watch(() => props.gridSize, drawGrid.value);
+    watch(() => props.unitRatio, drawGrid.value);
+    
+    // 暴露给父组件的方法
+    return {
+      // refs
+      canvasContainer,
+      stage,
+      backgroundLayer,
+      mainLayer,
+      uiLayer,
+      gridGroup,
+      
+      // computed
+      stageConfig,
+      domLayerStyle,
+      xAxisConfig,
+      yAxisConfig,
+      mouseHorizontalLine,
+      mouseVerticalLine,
+      mousePositionText,
+      
+      // methods
+      handleWheel,
+      startPan,
+      stopPan,
+      onMouseMove,
+      onStageMouseDown,
+      onStageMouseUp,
+      onStageMouseMove,
+      resetView,
+      zoomIn,
+      zoomOut,
+      exportCanvasAsImage,
+      exportSelectedArea,
+      
+      // 坐标转换方法（世界坐标和屏幕坐标之间的转换）
+      worldToScreen: (worldX, worldY) => ({
+        x: worldX * viewState.scale + viewState.position.x,
+        y: worldY * viewState.scale + viewState.position.y
+      }),
+      
+      screenToWorld: (screenX, screenY) => ({
+        x: (screenX - viewState.position.x) / viewState.scale,
+        y: (screenY - viewState.position.y) / viewState.scale
+      })
+    };
   }
 };
-
-// 改进的水印函数，大幅增加水印尺寸
-const addWatermarkToCanvas = (ctx, options) => {
-  const { author, title, position, width, height, originalImage, size = 'medium' } = options;
-  
-  // 准备水印文本
-  let watermarkText = '';
-  if (title.trim()) watermarkText += title.trim();
-  if (author.trim()) {
-    if (watermarkText) watermarkText += ' - ';
-    watermarkText += '作者: ' + author.trim();
-  }
-  
-  // 如果既没有文本也没有原始图像则退出
-  if (!watermarkText && !originalImage) return;
-  
-  // 根据选择的大小设置基础字体大小的比例
-  let sizeMultiplier;
-  switch (size) {
-    case 'small':
-      sizeMultiplier = 0.85;
-      break;
-    case 'large':
-      sizeMultiplier = 1.5;
-      break;
-    case 'medium':
-    default:
-      sizeMultiplier = 1.0;
-      break;
-  }
-  
-  // 大幅增加基础尺寸计算比例（从0.012增加到0.036，约三倍）
-  const fontSizeBase = Math.max(width, height) * 0.036 * sizeMultiplier;
-  // 增加最小/最大字体尺寸限制
-  const fontSize = Math.max(24, Math.min(120, fontSizeBase));
-  const padding = fontSize * 0.8; // 边距
-  
-  // 设置字体和样式
-  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-  ctx.textBaseline = 'middle';
-  
-  // 测量文本宽度
-  const textWidth = watermarkText ? ctx.measureText(watermarkText).width : 0;
-  
-  // 计算原始图像的显示尺寸（如果有），根据大小选项调整
-  let originalImgWidth = 0;
-  let originalImgHeight = 0;
-  
-  if (originalImage) {
-    // 确定原始图像的显示尺寸，高度为字体大小的3倍，根据大小选项调整
-    const originalImgDisplayHeight = fontSize * 3 * sizeMultiplier;
-    // 按比例计算宽度
-    const imgRatio = originalImage.width / originalImage.height;
-    originalImgWidth = originalImgDisplayHeight * imgRatio;
-    originalImgHeight = originalImgDisplayHeight;
-  }
-  
-  // 填充和描边样式根据位置调整
-  if (position === 'center') {
-    // 中央水印半透明
-    ctx.globalAlpha = size === 'small' ? 0.25 : 0.2;
-    ctx.fillStyle = '#000';
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = fontSize * (size === 'small' ? 0.15 : 0.1);
-    
-    // 绘制中央水印
-    if (watermarkText) {
-      const x = width / 2;
-      const y = height / 2;
-      ctx.textAlign = 'center';
-      
-      // 绘制旋转文本
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(-Math.PI / 8); // 稍微旋转一下
-      ctx.strokeText(watermarkText, 0, 0);
-      ctx.fillText(watermarkText, 0, 0);
-      ctx.restore();
-    }
-    
-    // 对于中央位置，如果有原始图像，添加到右下角，半透明
-    if (originalImage) {
-      ctx.globalAlpha = size === 'small' ? 0.4 : 0.3; // 小尺寸增加不透明度
-      const imgX = width - originalImgWidth - padding;
-      const imgY = height - originalImgHeight - padding;
-      
-      // 添加半透明背景
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(imgX - 10, imgY - 10, originalImgWidth + 20, originalImgHeight + 20);
-      
-      // 绘制原始图像
-      ctx.drawImage(originalImage, imgX, imgY, originalImgWidth, originalImgHeight);
-      
-      // 绘制边框
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = Math.max(2, fontSize * 0.05); // 确保边框线宽至少1px
-      ctx.strokeRect(imgX, imgY, originalImgWidth, originalImgHeight);
-    }
-    
-    ctx.globalAlpha = 1.0; // 恢复透明度
-    return;
-  }
-  
-  // 计算角落水印位置
-  let x, y, imgX, imgY;
-  
-  // 角落水印更明显
-  ctx.globalAlpha = size === 'small' ? 0.85 : 0.8; // 小尺寸增加不透明度
-  ctx.fillStyle = '#fff';
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = fontSize * (size === 'small' ? 0.2 : 0.15); // 增加小尺寸的描边
-  ctx.textAlign = 'left';
-  
-  // 计算文本和图像的位置
-  const totalWidth = textWidth + (originalImage ? originalImgWidth + padding : 0);
-  
-  switch (position) {
-    case 'bottom-right':
-      // 文本位置
-      if (watermarkText && originalImage) {
-        // 有文本和图像，文本在右边
-        x = width - textWidth - padding;
-        y = height - fontSize - padding;
-        // 图像在文本左边
-        imgX = x - originalImgWidth - padding;
-        imgY = height - originalImgHeight - padding;
-      } else if (watermarkText) {
-        // 只有文本
-        x = width - textWidth - padding;
-        y = height - fontSize - padding;
-      } else {
-        // 只有图像
-        imgX = width - originalImgWidth - padding;
-        imgY = height - originalImgHeight - padding;
-      }
-      break;
-      
-    case 'bottom-left':
-      // 文本位置
-      if (watermarkText && originalImage) {
-        // 有文本和图像，图像在右边
-        x = padding;
-        y = height - fontSize - padding;
-        // 图像在文本右边
-        imgX = x + textWidth + padding;
-        imgY = height - originalImgHeight - padding;
-      } else if (watermarkText) {
-        // 只有文本
-        x = padding;
-        y = height - fontSize - padding;
-      } else {
-        // 只有图像
-        imgX = padding;
-        imgY = height - originalImgHeight - padding;
-      }
-      break;
-      
-    case 'top-right':
-      // 文本位置
-      if (watermarkText && originalImage) {
-        // 有文本和图像，文本在右边
-        x = width - textWidth - padding;
-        y = fontSize + padding;
-        // 图像在文本左边
-        imgX = x - originalImgWidth - padding;
-        imgY = padding;
-      } else if (watermarkText) {
-        // 只有文本
-        x = width - textWidth - padding;
-        y = fontSize + padding;
-      } else {
-        // 只有图像
-        imgX = width - originalImgWidth - padding;
-        imgY = padding;
-      }
-      break;
-      
-    case 'top-left':
-      // 文本位置
-      if (watermarkText && originalImage) {
-        // 有文本和图像，图像在右边
-        x = padding;
-        y = fontSize + padding;
-        // 图像在文本右边
-        imgX = x + textWidth + padding;
-        imgY = padding;
-      } else if (watermarkText) {
-        // 只有文本
-        x = padding;
-        y = fontSize + padding;
-      } else {
-        // 只有图像
-        imgX = padding;
-        imgY = padding;
-      }
-      break;
-  }
-  
-  // 绘制原始图像（如果有）
-  if (originalImage) {
-    // 添加半透明背景
-    ctx.fillStyle = size === 'small' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.7)';
-    ctx.fillRect(imgX - 10, imgY - 10, originalImgWidth + 20, originalImgHeight + 20); // 增加背景边距
-    
-    // 绘制原始图像
-    ctx.drawImage(originalImage, imgX, imgY, originalImgWidth, originalImgHeight);
-    
-    // 绘制边框
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = Math.max(2, fontSize * 0.05); // 增加最小边框宽度
-    ctx.strokeRect(imgX, imgY, originalImgWidth, originalImgHeight);
-    
-    // 在原始图像下方添加"原图"标签
-    const labelSize = Math.max(20, fontSize * 0.6); // 增加标签最小尺寸
-    ctx.font = `bold ${labelSize}px Arial, sans-serif`;
-    ctx.fillStyle = '#000';
-    ctx.fillText('原图', imgX, imgY + originalImgHeight + labelSize);
-  }
-  
-  // 绘制文本（如果有）
-  if (watermarkText) {
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    
-    // 使用更粗的描边增强可见性
-    ctx.lineWidth = Math.max(3, fontSize * 0.1); // 增加描边宽度
-    ctx.strokeText(watermarkText, x, y);
-    ctx.fillText(watermarkText, x, y);
-  }
-  
-  // 恢复透明度
-  ctx.globalAlpha = 1.0;
-};
-
-onMounted(() => {
-  // 使用 ResizeObserver 监听容器大小变化
-  const resizeObserver = new ResizeObserver(() => {
-    handleResize();
-  });
-  
-  if (container.value) {
-    resizeObserver.observe(container.value);
-  }
-  
-  // 设置窗口大小变化监听器
-  setupWindowResizeListener();
-  
-  // 初始调整大小
-  handleResize();
-  loadImages(); // 加载图像
-  updateBlendMode(); // 应用初始叠加模式
-  updateCanvasScale(); // 应用初始缩放
-  
-  // 添加一个短暂延迟后再次居中所有图层，确保在DOM完全渲染后执行
-  setTimeout(() => {
-    centerAllLayers();
-  }, 100);
-  
-  // 初始化晶格参数
-  initializeLatticeParams();
-  
-  // 组件卸载时清理 ResizeObserver
-  onUnmounted(() => {
-    if (container.value) {
-      resizeObserver.unobserve(container.value);
-    }
-    resizeObserver.disconnect();
-  });
-});
-
-// 添加一个方法，允许外部组件触发重新居中
-const recenterCanvas = () => {
-  centerAllLayers();
-};
-
-// 在defineExpose中暴露此方法
-defineExpose({
-  recenterCanvas,
-  downloadTiledPattern
-});
 </script>
 
 <style scoped>
-.canvas-container {
+.infinite-canvas-container {
+  position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  position: relative;
+  touch-action: none;
+  user-select: none;
 }
 
-.controls-panel {
+.canvas-controls {
   position: absolute;
-  bottom: 20px;
-  left: 20px;
-  background-color: rgba(255, 255, 255, 0.8);
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-}
-
-.control-group {
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-}
-
-.control-group label {
-  width: 80px;
-  margin-right: 10px;
-}
-
-.control-group input {
-  flex: 1;
-  margin-right: 10px;
-}
-
-.control-group span {
-  width: 50px;
-  text-align: right;
-}
-
-.custom-button {
-  padding: 5px 10px;
-  margin-right: 5px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.custom-button:hover {
-  background-color: #45a049;
-}
-
-.control-group select {
-  flex: 1;
-  margin-right: 10px;
-  padding: 3px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-}
-
-/* 添加自定义图像上传和预览样式 */
-.image-upload-section {
-  margin-bottom: 5px;
-}
-
-.image-preview {
-  margin-top: 5px;
-  margin-bottom: 15px;
-  padding: 8px;
-  background-color: rgba(240, 240, 240, 0.7);
-  border-radius: 5px;
-}
-
-.preview-container {
+  bottom: 10px;
+  right: 10px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  margin-bottom: 8px;
+  gap: 5px;
+  z-index: 10;
 }
 
-.preview-image {
-  max-width: 120px;
-  max-height: 80px;
-  object-fit: contain;
-  margin-bottom: 5px;
-  border: 1px solid #ccc;
-}
-
-.image-filename {
-  font-size: 12px;
-  color: #333;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-}
-
-/* 添加下载相关样式 */
-.download-section {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed #ccc;
-}
-
-.download-loading {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 10px 20px;
-  border-radius: 5px;
-  z-index: 1000;
-}
-
-/* 添加水印相关样式 */
-.watermark-section {
-  margin-top: 10px;
-  border-top: 1px dashed #eee;
-  padding-top: 10px;
-}
-
-.watermark-option {
-  display: flex;
-  align-items: center;
-  margin-bottom: 5px;
-}
-
-.watermark-option label {
-  margin-left: 5px;
-  cursor: pointer;
-}
-
-.watermark-inputs {
-  background-color: rgba(245, 245, 245, 0.6);
-  padding: 8px;
+.canvas-controls button {
+  width: 36px;
+  height: 36px;
   border-radius: 4px;
-  margin-top: 5px;
-}
-
-.input-row {
+  background: white;
+  border: 1px solid #ddd;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  margin-bottom: 5px;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.input-row label {
-  width: 50px;
-  margin-right: 5px;
-}
-
-.input-row input, .input-row select {
-  flex: 1;
-  padding: 3px 5px;
-  border: 1px solid #ddd;
-  border-radius: 3px;
+.canvas-controls button:hover {
+  background: #f5f5f5;
 }
 </style>
