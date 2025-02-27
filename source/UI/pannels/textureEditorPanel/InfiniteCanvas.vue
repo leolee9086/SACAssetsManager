@@ -87,6 +87,7 @@
 <script setup>
 import { ref, computed, onMounted, reactive, watch, onUnmounted } from 'vue';
 import { getViewportBounds, buildGrid } from './utils/canvasUtils.js';
+import { drawGridWithThrottle } from './utils/gridUtils/index.js';
 
 // 定义props
 const props = defineProps({
@@ -301,94 +302,28 @@ const drawModeText = computed(() => {
   }
 });
 
-// 添加网格缓存和节流控制
-const gridCache = reactive({
-  lastScale: 0,
-  lastBounds: null,
-  throttleTimer: null,
-  isThrottled: false
-});
-
 // 优化后的网格绘制函数
 const drawGrid = () => {
   if (!gridGroup.value || !gridGroup.value.getNode()) return;
   
-  // 节流控制：限制短时间内多次调用
-  if (gridCache.isThrottled) return;
-  gridCache.isThrottled = true;
-  
-  // 60ms后才允许下一次绘制（约16.6fps的频率）
-  clearTimeout(gridCache.throttleTimer);
-  gridCache.throttleTimer = setTimeout(() => {
-    gridCache.isThrottled = false;
-  }, 60);
-
   // 计算当前视口边界
   const bounds = getViewportBounds(viewState);
+  bounds.width = viewState.width;  // 添加宽度和高度信息用于边界变化检测
+  bounds.height = viewState.height;
   
-  // 检查网格是否需要重绘
-  // 只有在缩放变化显著或视口边界变化较大时才重绘
-  const scaleChanged = Math.abs(viewState.scale / gridCache.lastScale - 1) > 0.1;
-  const boundsChanged = !gridCache.lastBounds || 
-    Math.abs(bounds.left - gridCache.lastBounds.left) > viewState.width * 0.2 / viewState.scale ||
-    Math.abs(bounds.right - gridCache.lastBounds.right) > viewState.width * 0.2 / viewState.scale ||
-    Math.abs(bounds.top - gridCache.lastBounds.top) > viewState.height * 0.2 / viewState.scale ||
-    Math.abs(bounds.bottom - gridCache.lastBounds.bottom) > viewState.height * 0.2 / viewState.scale;
-    
-  if (!scaleChanged && !boundsChanged) {
-    return; // 如果变化不大，不重绘网格
-  }
-  
-  // 更新缓存
-  gridCache.lastScale = viewState.scale;
-  gridCache.lastBounds = {...bounds};
-  
-  const group = gridGroup.value.getNode();
-  
-  // 构建网格元素前，先清空现有内容
-  group.destroyChildren();
-  
-  // 使用纯函数构建网格元素
-  let gridElements = buildGrid(bounds, viewState.scale, props.gridSize, props.unitRatio);
-  
-  // 如果网格生成失败，使用不同参数重试（非递归方式）
-  if (gridElements === null) {
-    // 尝试使用更低精度的方式构建网格
-    const lowerPrecisionBounds = {...bounds};
-    const lowerScale = viewState.scale * 0.8; // 降低精度的参数
-    gridElements = buildGrid(lowerPrecisionBounds, lowerScale, props.gridSize, props.unitRatio);
-    
-    if (gridElements === null) {
-      return; // 如果仍然失败，本次不绘制
+  // 调用工具函数绘制网格，传入所需参数
+  drawGridWithThrottle(
+    gridGroup.value.getNode(),  // Konva网格组
+    bounds,                     // 视口边界
+    viewState.scale,            // 当前缩放比例
+    props.gridSize,             // 网格大小配置
+    props.unitRatio,            // 单位比例
+    Konva,                      // Konva对象(用于创建元素)
+    {
+      // 可选配置，如自定义节流延迟等
+      throttleDelay: 60
     }
-  }
-  
-  // 批量创建和添加元素，减少逐个添加的开销
-  const lines = [];
-  const texts = [];
-  const circles = [];
-  
-  gridElements.forEach(element => {
-    switch (element.type) {
-      case 'line':
-        lines.push(element.config);
-        break;
-      case 'text':
-        texts.push(element.config);
-        break;
-      case 'circle':
-        circles.push(element.config);
-        break;
-    }
-  });
-  
-  // 批量创建和添加节点
-  lines.forEach(config => group.add(new Konva.Line(config)));
-  texts.forEach(config => group.add(new Konva.Text(config)));
-  circles.forEach(config => group.add(new Konva.Circle(config)));
-  
-  // 绘制网格组
-  group.draw();
+  );
 };
 
 // 更新舞台变换时重新计算视口边界

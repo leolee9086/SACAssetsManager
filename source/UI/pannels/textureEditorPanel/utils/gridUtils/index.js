@@ -467,4 +467,101 @@ const prepareGridParameters = (bounds, viewScale, gridSize) => {
     
     return elementIndex;
   };
+
+  // 节流网格绘制函数 - 接受Konva对象作为参数
+  export const drawGridWithThrottle = (() => {
+    // 闭包维护节流状态
+    let isThrottled = false;
+    let throttleTimer = null;
+    let lastScale = 0;
+    let lastBounds = null;
+    
+    // 返回节流版本的绘制函数
+    return (gridGroup, bounds, viewScale, gridSize, unitRatio, Konva, options = {}) => {
+      if (!gridGroup) return false;
+      
+      // 默认配置
+      const config = {
+        throttleDelay: 60, // 节流延迟(ms)
+        scaleThreshold: 0.1, // 缩放变化阈值
+        boundsThreshold: 0.2, // 边界变化阈值(比例)
+        ...options
+      };
+      
+      // 节流控制：限制短时间内多次调用
+      if (isThrottled) return false;
+      isThrottled = true;
+      
+      // 设置节流定时器
+      clearTimeout(throttleTimer);
+      throttleTimer = setTimeout(() => {
+        isThrottled = false;
+      }, config.throttleDelay);
+      
+      // 检查网格是否需要重绘
+      // 只有在缩放变化显著或视口边界变化较大时才重绘
+      const scaleChanged = !lastScale || Math.abs(viewScale / lastScale - 1) > config.scaleThreshold;
+      
+      const boundsChanged = !lastBounds || 
+        Math.abs(bounds.left - lastBounds.left) > bounds.width * config.boundsThreshold / viewScale ||
+        Math.abs(bounds.right - lastBounds.right) > bounds.width * config.boundsThreshold / viewScale ||
+        Math.abs(bounds.top - lastBounds.top) > bounds.height * config.boundsThreshold / viewScale ||
+        Math.abs(bounds.bottom - lastBounds.bottom) > bounds.height * config.boundsThreshold / viewScale;
+        
+      if (!scaleChanged && !boundsChanged) {
+        return false; // 如果变化不大，不重绘网格
+      }
+      
+      // 更新上次状态缓存
+      lastScale = viewScale;
+      lastBounds = {...bounds};
+      
+      // 构建网格元素
+      let gridElements = buildGrid(bounds, viewScale, gridSize, unitRatio);
+      
+      // 如果网格生成失败，使用不同参数重试
+      if (gridElements === null) {
+        // 尝试使用更低精度构建网格
+        const lowerPrecisionBounds = {...bounds};
+        const lowerScale = viewScale * 0.8; // 降低精度
+        gridElements = buildGrid(lowerPrecisionBounds, lowerScale, gridSize, unitRatio);
+        
+        if (gridElements === null) {
+          return false; // 如果仍然失败，不绘制
+        }
+      }
+      
+      // 清空现有内容
+      gridGroup.destroyChildren();
+      
+      // 按类型分类元素，为批量创建做准备
+      const lines = [];
+      const texts = [];
+      const circles = [];
+      
+      gridElements.forEach(element => {
+        switch (element.type) {
+          case 'line':
+            lines.push(element.config);
+            break;
+          case 'text':
+            texts.push(element.config);
+            break;
+          case 'circle':
+            circles.push(element.config);
+            break;
+        }
+      });
+      
+      // 批量创建和添加节点
+      lines.forEach(config => gridGroup.add(new Konva.Line(config)));
+      texts.forEach(config => gridGroup.add(new Konva.Text(config)));
+      circles.forEach(config => gridGroup.add(new Konva.Circle(config)));
+      
+      // 绘制
+      gridGroup.draw();
+      
+      return true; // 返回绘制成功
+    };
+  })();
     
