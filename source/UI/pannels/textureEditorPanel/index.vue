@@ -124,9 +124,36 @@
         <div class="canvas-controls">
           <button @click="addBulkElements" :disabled="isGenerating">一次性添加一万个元素</button>
           <button @click="addElementsOneByOne" :disabled="isGenerating">逐个添加一万个元素</button>
+          <button @click="addHexagonGrid" :disabled="isGenerating">添加蜂巢网格(1000个)</button>
           <button @click="clearPerformanceCanvas">清除元素</button>
           <div v-if="generationInfo" class="generation-info">
             {{ generationInfo }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 画布 7：六边形网格测试 -->
+      <div class="canvas-wrapper">
+        <h2 class="canvas-title">六边形网格测试</h2>
+        <div class="canvas-box">
+          <InfiniteCanvas 
+            ref="canvas7" 
+            :initialScale="0.8" 
+            :gridSize="100"
+            :showMouseIndicator="true"
+          />
+        </div>
+        <div class="canvas-controls">
+          <button @click="addHexagonGrid">生成蜂巢网格(1000个)</button>
+          <button @click="clearHexagonCanvas">清除网格</button>
+          <div class="control-group">
+            <label>六边形大小:</label>
+            <button @click="updateHexSize(15)">小(15px)</button>
+            <button @click="updateHexSize(20)">中(20px)</button>
+            <button @click="updateHexSize(30)">大(30px)</button>
+          </div>
+          <div v-if="hexagonInfo" class="generation-info">
+            {{ hexagonInfo }}
           </div>
         </div>
       </div>
@@ -145,6 +172,7 @@ const canvas3 = ref(null);
 const canvas4 = ref(null);
 const canvas5 = ref(null);
 const canvas6 = ref(null);
+const canvas7 = ref(null);
 
 // 为画布3提供元素数组
 const elements = ref([]);
@@ -161,6 +189,10 @@ const constrainPan = ref(false);
 // 性能测试状态变量
 const isGenerating = ref(false);
 const generationInfo = ref('');
+
+// 六边形网格相关状态
+const hexagonInfo = ref('');
+const currentHexSize = ref(20);
 
 // 1. 基本缩放和平移功能
 const testZoomIn = (canvasId) => {
@@ -713,6 +745,106 @@ const clearPerformanceCanvas = () => {
   generationInfo.value = '';
 };
 
+// 添加生成六边形网格的函数
+const generateHexagonPoints = (centerX, centerY, size) => {
+  const points = [];
+  // 从正上方开始，顺时针生成六个顶点
+  for (let i = 0; i <= 6; i++) {  // 注意这里改为 <= 6，以确保闭合
+    const angle = (Math.PI / 3) * i - Math.PI / 2; // 从正上方开始
+    points.push(
+      centerX + size * Math.cos(angle),
+      centerY + size * Math.sin(angle)
+    );
+  }
+  return points;
+};
+
+const updateHexSize = (size) => {
+  currentHexSize.value = size;
+  // 如果已经有网格，重新生成
+  if (hexagonInfo.value) {
+    addHexagonGrid();
+  }
+};
+
+const addHexagonGrid = async () => {
+  if (!canvas7.value) return;
+  
+  hexagonInfo.value = '正在生成蜂巢网格...';
+  
+  clearHexagonCanvas();
+  
+  setTimeout(async () => {
+    const startTime = performance.now();
+    const elements = [];
+    const hexSize = currentHexSize.value;
+    
+    // 调整间距计算以实现紧密排列
+    const width = hexSize * 2;  // 六边形的宽度
+    const height = Math.sqrt(3) * hexSize;  // 六边形的高度
+    const horizontalSpacing = width * 3/4;  // 水平间距
+    const verticalSpacing = height;  // 垂直间距
+    
+    const rows = Math.ceil(Math.sqrt(1000) / 2);
+    const cols = Math.ceil(Math.sqrt(1000) / 2);
+    let count = 0;
+
+    // 生成蜂巢状的六边形网格
+    for (let row = -rows; row <= rows && count < 1000; row++) {
+      for (let col = -cols; col <= cols && count < 1000; col++) {
+        // 调整偏移量以实现紧密排列
+        const x = col * horizontalSpacing;
+        const y = row * verticalSpacing + (col % 2 ? height/2 : 0);
+        
+        elements.push({
+          id: `hexagon_${count}`,
+          type: 'line',
+          points: generateHexagonPoints(x, y, hexSize),
+          stroke: '#3357FF',
+          strokeWidth: 1,
+          fill: 'rgba(51, 87, 255, 0.1)',
+          closed: true,
+          tension: 0  // 确保线段是直的
+        });
+        
+        // 如果是第一个六边形（位于原点附近），添加标记
+        if (count === 0) {
+          elements.push({
+            id: 'origin_marker',
+            type: 'text',
+            x: x,
+            y: y - hexSize - 10,
+            text: '原点六边形',
+            fontSize: 14,
+            fontFamily: 'Arial',
+            fill: '#3357FF',
+            align: 'center'
+          });
+        }
+        
+        count++;
+      }
+    }
+
+    const generationTime = performance.now() - startTime;
+    
+    hexagonInfo.value = '正在添加六边形到画布...';
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    const drawStartTime = performance.now();
+    canvas7.value.addElements(elements);
+    const drawTime = performance.now() - drawStartTime;
+    
+    hexagonInfo.value = `完成！\n生成了 ${count} 个六边形\n六边形边长: ${hexSize}px\n生成时间: ${generationTime.toFixed(2)}ms\n绘制时间: ${drawTime.toFixed(2)}ms\n总耗时: ${(generationTime + drawTime).toFixed(2)}ms`;
+  }, 100);
+};
+
+const clearHexagonCanvas = () => {
+  if (!canvas7.value) return;
+  canvas7.value.resetView();
+  hexagonInfo.value = '';
+};
+
 onMounted(() => {
   // 在组件挂载后初始化一些功能
   setTimeout(() => {
@@ -724,6 +856,13 @@ onMounted(() => {
     // 为第五个画布添加测试元素
     if (canvas5.value) {
       addTestElements(5);
+    }
+    
+    // 为第七个画布添加初始网格
+    if (canvas7.value) {
+      setTimeout(() => {
+        addHexagonGrid();
+      }, 500);
     }
   }, 500);
 });

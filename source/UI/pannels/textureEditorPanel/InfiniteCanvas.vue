@@ -73,6 +73,18 @@
 
     <!-- 控制面板 -->
     <div class="canvas-controls">
+      <!-- 添加前置自定义按钮 -->
+      <template v-for="button in customButtons.filter(b => b.position === 'start')" :key="button.id">
+        <button 
+          @click="button.onClick" 
+          :title="button.title"
+          :class="{ active: button.active }"
+        >
+          <i :class="button.icon"></i>
+        </button>
+      </template>
+
+      <!-- 原有的默认按钮 -->
       <button @click="resetView" title="重置视图">
         <i class="icon-reset"></i>
       </button>
@@ -88,6 +100,21 @@
       <button @click="exportCanvasAsImage" title="导出为图片">
         <i class="icon-export"></i>
       </button>
+      <!-- 添加全屏按钮 -->
+      <button @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏'">
+        <i :class="isFullscreen ? 'icon-fullscreen-exit' : 'icon-fullscreen'"></i>
+      </button>
+
+      <!-- 添加后置自定义按钮 -->
+      <template v-for="button in customButtons.filter(b => b.position !== 'start')" :key="button.id">
+        <button 
+          @click="button.onClick" 
+          :title="button.title"
+          :class="{ active: button.active }"
+        >
+          <i :class="button.icon"></i>
+        </button>
+      </template>
     </div>
 
     <!-- 绘制模式指示器 -->
@@ -178,6 +205,20 @@ const props = defineProps({
   constrainPan: {
     type: Boolean,
     default: false
+  },
+  // 自定义按钮配置
+  customButtons: {
+    type: Array,
+    default: () => [],
+    // 每个按钮对象的结构：
+    // {
+    //   id: string,          // 按钮唯一标识
+    //   icon: string,        // 按钮图标类名
+    //   title: string,       // 按钮提示文本
+    //   onClick: Function,   // 点击回调函数
+    //   active: boolean,     // 是否激活状态（可选）
+    //   position: 'start' | 'end' // 按钮位置，开始或结束（可选，默认end）
+    // }
   }
 });
 
@@ -232,6 +273,68 @@ const viewState = reactive({
       other: 0       // 其他原因
     }
   }
+});
+
+// 添加全屏状态
+const isFullscreen = ref(false);
+
+// 切换全屏方法
+const toggleFullscreen = async () => {
+  try {
+    if (!isFullscreen.value) {
+      // 进入全屏
+      if (canvasContainer.value.requestFullscreen) {
+        await canvasContainer.value.requestFullscreen();
+      } else if (canvasContainer.value.webkitRequestFullscreen) {
+        await canvasContainer.value.webkitRequestFullscreen();
+      } else if (canvasContainer.value.msRequestFullscreen) {
+        await canvasContainer.value.msRequestFullscreen();
+      }
+    } else {
+      // 退出全屏
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        await document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        await document.msExitFullscreen();
+      }
+    }
+  } catch (error) {
+    console.error('全屏切换失败:', error);
+  }
+};
+
+// 监听全屏状态变化
+const handleFullscreenChange = () => {
+  isFullscreen.value = !!(
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.msFullscreenElement
+  );
+  
+  // 全屏状态变化后重新计算画布尺寸
+  handleResize();
+};
+
+// 组件挂载时添加全屏事件监听
+onMounted(() => {
+  // ... existing mounted code ...
+  
+  // 添加全屏变化事件监听
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+  document.addEventListener('msfullscreenchange', handleFullscreenChange);
+});
+
+// 组件卸载时移除全屏事件监听
+onUnmounted(() => {
+  // ... existing unmounted code ...
+  
+  // 移除全屏变化事件监听
+  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+  document.removeEventListener('msfullscreenchange', handleFullscreenChange);
 });
 
 // 计算Stage配置
@@ -793,14 +896,27 @@ const exportCanvasAsImage = (options = {}) => {
           // 克隆节点
           const clone = child.clone();
           
-          // 应用与原始舞台相同的变换
-          // 但是考虑到临时舞台的坐标系与原始舞台不同，需要调整位置
-          clone.x((clone.x() + viewState.position.x / viewState.scale) * pixelRatio);
-          clone.y((clone.y() + viewState.position.y / viewState.scale) * pixelRatio);
+          // 坐标转换过程：
+          // 1. 从画布坐标转换到世界坐标
+          const canvasX = child.x();
+          const canvasY = child.y();
           
-          // 调整缩放比例
-          clone.scaleX(clone.scaleX() * viewState.scale * pixelRatio);
-          clone.scaleY(clone.scaleY() * viewState.scale * pixelRatio);
+          // 2. 从世界坐标转换到屏幕坐标
+          const screenX = canvasX * viewState.scale + viewState.position.x;
+          const screenY = canvasY * viewState.scale + viewState.position.y;
+          
+          // 3. 应用像素比例
+          clone.x(screenX * pixelRatio);
+          clone.y(screenY * pixelRatio);
+          
+          // 4. 调整缩放比例
+          clone.scaleX(child.scaleX() * viewState.scale * pixelRatio);
+          clone.scaleY(child.scaleY() * viewState.scale * pixelRatio);
+          
+          // 5. 如果是线条，需要特别处理线宽
+          if (clone.getClassName() === 'Line') {
+            clone.strokeWidth((child.strokeWidth() / viewState.scale) * pixelRatio);
+          }
           
           tempContentLayer.add(clone);
         } catch (cloneError) {
@@ -826,34 +942,6 @@ const exportCanvasAsImage = (options = {}) => {
     return dataURL;
   } catch (error) {
     console.error('导出图片时出错:', error);
-    
-    // 极简备用方法
-    try {
-      // 直接尝试复制舞台的当前可见区域
-      const canvas = document.createElement('canvas');
-      canvas.width = viewState.width * pixelRatio;
-      canvas.height = viewState.height * pixelRatio;
-      const ctx = canvas.getContext('2d');
-      
-      // 获取Konva的原始canvas
-      const konvaCanvas = stage.value.getNode().content.querySelector('canvas');
-      if (konvaCanvas) {
-        // 绘制白色背景
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // 缩放以匹配像素比
-        ctx.scale(pixelRatio, pixelRatio);
-        
-        // 复制舞台的内容
-        ctx.drawImage(konvaCanvas, 0, 0);
-        
-        return canvas.toDataURL(mimeType, quality);
-      }
-    } catch (backupError) {
-      console.error('备用导出方法也失败:', backupError);
-    }
-    
     return null;
   }
 };
@@ -1950,5 +2038,30 @@ defineExpose({
   font-size: 11px;
   color: #666;
   margin-top: 2px;
+}
+
+/* 全屏按钮样式 */
+.canvas-controls button i.icon-fullscreen,
+.canvas-controls button i.icon-fullscreen-exit {
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* 全屏时的样式 */
+.infinite-canvas-container:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: white;
+}
+
+/* 添加自定义按钮相关样式 */
+.canvas-controls button.custom-button {
+  /* 继承现有按钮样式 */
+}
+
+.canvas-controls button.custom-button.active {
+  background: #e6f7ff;
+  border-color: #1890ff;
 }
 </style>
