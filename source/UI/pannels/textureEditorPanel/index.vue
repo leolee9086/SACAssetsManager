@@ -59,7 +59,7 @@
 
 <script setup>
 import { ref, computed, onMounted, reactive, watch, onUnmounted } from 'vue';
-import { getViewportBounds, getOptimalLabelSpacing, getLODLevel, getLODGridSize } from './utils/canvasUtils.js';
+import { getViewportBounds, getOptimalLabelSpacing, getLODLevel, getLODGridSize, buildGrid } from './utils/canvasUtils.js';
 
 // 定义props
 const props = defineProps({
@@ -244,35 +244,48 @@ const mouseVerticalLine = computed(() => {
 
 
 
-// 格式化轴标签文本 - 增强处理极小/极大值
-const formatAxisLabel = (value) => {
-  // 非常小的值，使用科学计数法
-  if (Math.abs(value) > 0 && Math.abs(value) < 0.01) {
-    return value.toExponential(1);
-  }
-  // 大于1000使用k单位
-  if (Math.abs(value) >= 1000 && Math.abs(value) < 1000000) {
-    return (value / 1000).toFixed(1) + 'k';
-  }
-  // 大于1M使用M单位
-  if (Math.abs(value) >= 1000000 && Math.abs(value) < 1000000000) {
-    return (value / 1000000).toFixed(1) + 'M';
-  }
-  // 大于1G使用G单位
-  if (Math.abs(value) >= 1000000000) {
-    return (value / 1000000000).toFixed(1) + 'G';
-  }
-  // 一般情况
-  if (Number.isInteger(value)) {
-    return value.toString();
-  }
-  // 小数保留合适精度
-  const decimalPlaces = Math.min(2, Math.max(0, -Math.floor(Math.log10(Math.abs(value % 1)))));
-  return value.toFixed(decimalPlaces);
-};
 
 // 提前声明更新函数
-const drawGrid = ref(null);
+// 提前声明更新函数
+const drawGrid = () => {
+  if (!gridGroup.value || !gridGroup.value.getNode()) return;
+
+  const group = gridGroup.value.getNode();
+  group.destroyChildren();
+
+  // 计算当前视口边界
+  const bounds = getViewportBounds(viewState);
+
+  // 使用纯函数构建网格元素
+  const gridElements = buildGrid(bounds, viewState.scale, props.gridSize, props.unitRatio);
+
+  // 如果返回null，表示需要调整网格尺寸后重试
+  if (gridElements === null) {
+    return drawGrid(); // 递归调用，会使用更低精度的LOD级别
+  }
+
+  // 创建并添加所有元素到网格组
+  gridElements.forEach(element => {
+    let node;
+    switch (element.type) {
+      case 'line':
+        node = new Konva.Line(element.config);
+        break;
+      case 'text':
+        node = new Konva.Text(element.config);
+        break;
+      case 'circle':
+        node = new Konva.Circle(element.config);
+        break;
+      default:
+        console.warn('未知的元素类型:', element.type);
+        return;
+    }
+    group.add(node);
+  });
+  // 绘制网格组
+  group.draw();
+};
 
 // 更新舞台变换时重新计算视口边界
 const updateTransform = () => {
@@ -302,197 +315,10 @@ const updateTransform = () => {
   konvaStage.batchDraw();
 
   // 更新网格以确保填满画布
-  if (drawGrid.value) {
-    drawGrid.value();
-  }
+  drawGrid()
 };
 
 // 绘制网格 - 增强处理极端缩放情况
-drawGrid.value = () => {
-  if (!gridGroup.value || !gridGroup.value.getNode()) return;
-
-  const group = gridGroup.value.getNode();
-  group.destroyChildren();
-
-  // 计算当前视口边界
-  const bounds = getViewportBounds(viewState);
-
-  // 计算当前LOD级别和网格大小
-  const lodLevel = getLODLevel(viewState);
-  const mainGridSize = getLODGridSize(props.gridSize, viewState);
-
-  // 计算次要网格尺寸（仅在中等级别显示）
-  const showSecondaryGrid = lodLevel >= 2 && lodLevel <= 5;
-  const secondaryGridSize = mainGridSize / 10;
-
-  // 获取最佳标签间隔 - 动态计算
-  const labelInterval = getOptimalLabelSpacing(viewState.scale);
-
-  // 计算视口范围内的网格 - 扩大范围确保填满画布
-  const startX = Math.floor(bounds.left / mainGridSize) * mainGridSize;
-  const startY = Math.floor(bounds.top / mainGridSize) * mainGridSize;
-  const endX = Math.ceil(bounds.right / mainGridSize) * mainGridSize;
-  const endY = Math.ceil(bounds.bottom / mainGridSize) * mainGridSize;
-
-  // 性能优化：限制网格线数量
-  const maxGridLines = 1000;
-  const estimatedHLines = Math.ceil((endY - startY) / mainGridSize);
-  const estimatedVLines = Math.ceil((endX - startX) / mainGridSize);
-
-  // 如果估计的网格线数量过多，调整网格大小
-  if (estimatedHLines + estimatedVLines > maxGridLines) {
-    // 递归调用，跳到更低精度的LOD级别
-    return drawGrid.value();
-  }
-
-  // 绘制次要网格（较细的线）
-  if (showSecondaryGrid) {
-    const secStartX = Math.floor(bounds.left / secondaryGridSize) * secondaryGridSize;
-    const secStartY = Math.floor(bounds.top / secondaryGridSize) * secondaryGridSize;
-    const secEndX = Math.ceil(bounds.right / secondaryGridSize) * secondaryGridSize;
-    const secEndY = Math.ceil(bounds.bottom / secondaryGridSize) * secondaryGridSize;
-
-    // 在一定范围内绘制次要网格线
-    for (let x = secStartX; x <= secEndX; x += secondaryGridSize) {
-      // 如果是主网格线，跳过（稍后绘制）
-      if (Math.abs(x % mainGridSize) < 0.000001) continue;
-
-      const line = new Konva.Line({
-        points: [x, bounds.top, x, bounds.bottom],
-        stroke: '#eee',
-        strokeWidth: 0.5 / viewState.scale,
-      });
-      group.add(line);
-    }
-
-    for (let y = secStartY; y <= secEndY; y += secondaryGridSize) {
-      // 如果是主网格线，跳过（稍后绘制）
-      if (Math.abs(y % mainGridSize) < 0.000001) continue;
-
-      const line = new Konva.Line({
-        points: [bounds.left, y, bounds.right, y],
-        stroke: '#eee',
-        strokeWidth: 0.5 / viewState.scale,
-      });
-      group.add(line);
-    }
-  }
-
-  // 绘制主网格线
-  for (let x = startX; x <= endX; x += mainGridSize) {
-    const line = new Konva.Line({
-      points: [x, bounds.top, x, bounds.bottom],
-      stroke: x === 0 ? '#999' : '#ddd', // 原点线颜色加深
-      strokeWidth: x === 0 ? 1.5 / viewState.scale : 1 / viewState.scale,
-    });
-    group.add(line);
-  }
-
-  for (let y = startY; y <= endY; y += mainGridSize) {
-    const line = new Konva.Line({
-      points: [bounds.left, y, bounds.right, y],
-      stroke: y === 0 ? '#999' : '#ddd', // 原点线颜色加深
-      strokeWidth: y === 0 ? 1.5 / viewState.scale : 1 / viewState.scale,
-    });
-    group.add(line);
-  }
-
-  // 根据最佳间隔绘制X轴坐标标签 - 改进浮点数比较
-  const labelStartX = Math.floor(bounds.left / labelInterval) * labelInterval;
-  const labelEndX = Math.ceil(bounds.right / labelInterval) * labelInterval;
-  const EPSILON = 1e-10; // 浮点比较容差
-
-  // 确保至少显示一些标签
-  const maxLabels = 100; // 安全限制
-  let labelCount = 0;
-
-  for (let x = labelStartX; x <= labelEndX && labelCount < maxLabels; x += labelInterval) {
-    // 跳过原点(0)，因为它用特殊标记
-    if (Math.abs(x) < EPSILON) continue;
-
-    labelCount++;
-    const labelValue = x * props.unitRatio;
-    const formattedLabel = formatAxisLabel(labelValue);
-
-    const text = new Konva.Text({
-      x: x,
-      y: 5 / viewState.scale, // 固定距离X轴
-      text: formattedLabel,
-      fontSize: 12 / viewState.scale,
-      fill: '#666',
-      align: 'center',
-      verticalAlign: 'top',
-      offsetX: String(formattedLabel).length * 3 / viewState.scale, // 居中显示
-    });
-    group.add(text);
-
-    // 添加小刻度线
-    const tickLine = new Konva.Line({
-      points: [x, 0, x, 3 / viewState.scale],
-      stroke: '#666',
-      strokeWidth: 1 / viewState.scale,
-    });
-    group.add(tickLine);
-  }
-
-  // 根据最佳间隔绘制Y轴坐标标签 - 同样改进浮点比较
-  const labelStartY = Math.floor(bounds.top / labelInterval) * labelInterval;
-  const labelEndY = Math.ceil(bounds.bottom / labelInterval) * labelInterval;
-
-  labelCount = 0; // 重置计数
-  for (let y = labelStartY; y <= labelEndY && labelCount < maxLabels; y += labelInterval) {
-    // 跳过原点(0)，因为它用特殊标记
-    if (Math.abs(y) < EPSILON) continue;
-
-    labelCount++;
-    const labelValue = y * props.unitRatio;
-    const formattedLabel = formatAxisLabel(labelValue);
-
-    const text = new Konva.Text({
-      x: 5 / viewState.scale, // 固定距离Y轴
-      y: y,
-      text: formattedLabel,
-      fontSize: 12 / viewState.scale,
-      fill: '#666',
-      align: 'left',
-      verticalAlign: 'middle',
-      offsetY: 6 / viewState.scale, // 轻微向上偏移
-    });
-    group.add(text);
-
-    // 添加小刻度线
-    const tickLine = new Konva.Line({
-      points: [0, y, 3 / viewState.scale, y],
-      stroke: '#666',
-      strokeWidth: 1 / viewState.scale,
-    });
-    group.add(tickLine);
-  }
-
-  // 原点标记 - 用圆圈标记
-  const originMark = new Konva.Circle({
-    x: 0,
-    y: 0,
-    radius: 3 / viewState.scale,
-    fill: 'red',
-    stroke: 'white',
-    strokeWidth: 1 / viewState.scale,
-  });
-  group.add(originMark);
-
-  // 原点标签
-  const originLabel = new Konva.Text({
-    x: 5 / viewState.scale,
-    y: 5 / viewState.scale,
-    text: '(0,0)',
-    fontSize: 12 / viewState.scale,
-    fill: 'red',
-    padding: 2,
-  });
-  group.add(originLabel);
-
-  group.draw();
-};
 
 // 获取相对于容器的鼠标位置
 const getRelativePointerPosition = (event) => {
@@ -626,7 +452,7 @@ const resetView = () => {
   viewState.scale = props.initialScale;
   viewState.position = { ...props.initialPosition };
   updateTransform()
-  drawGrid.value();
+  drawGrid();
 };
 
 // 放大
@@ -643,7 +469,7 @@ const zoomIn = () => {
   viewState.scale = newScale;
 
   updateTransform()
-  drawGrid.value();
+  drawGrid();
 };
 
 // 缩小
@@ -660,7 +486,7 @@ const zoomOut = () => {
   viewState.scale = newScale;
 
   updateTransform()
-  drawGrid.value();
+  drawGrid();
 };
 
 // 导出画布为图片
@@ -740,9 +566,7 @@ const handleResize = () => {
 
   updateTransform()
 
-  if (drawGrid.value) {
-    drawGrid.value();
-  }
+  drawGrid()
 };
 
 // 坐标转换方法
@@ -768,7 +592,7 @@ onMounted(() => {
   window.addEventListener('resize', handleResize);
 
   // 初始化网格
-  drawGrid.value();
+  drawGrid();
 
   // 创建鼠标位置指示器DOM元素
   mouseIndicatorElement = createMousePositionIndicator();
@@ -784,8 +608,8 @@ onUnmounted(() => {
 });
 
 // 监听属性变化
-watch(() => props.gridSize, drawGrid.value);
-watch(() => props.unitRatio, drawGrid.value);
+watch(() => props.gridSize, drawGrid);
+watch(() => props.unitRatio, drawGrid);
 
 // 向父组件暴露方法和变量
 defineExpose({
