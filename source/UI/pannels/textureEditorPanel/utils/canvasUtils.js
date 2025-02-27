@@ -95,3 +95,33 @@ export const getOptimalLabelSpacing = (scale, minLabelDistancePx = 60) => {
     
     return optimalInterval;
   };
+
+
+  // 获取当前LOD级别 - 新增函数
+export const getLODLevel = (viewState) => {
+  // 根据缩放级别返回LOD级别
+  if (viewState.scale <= 0.001) return 0; // 极远视图
+  if (viewState.scale <= 0.01) return 1;  // 远视图
+  if (viewState.scale <= 0.1) return 2;   // 中远视图
+  if (viewState.scale <= 1) return 3;     // 中视图
+  if (viewState.scale <= 10) return 4;    // 中近视图
+  if (viewState.scale <= 100) return 5;   // 近视图
+  return 6;                               // 极近视图
+};
+
+// 获取当前LOD级别的网格大小 - 新增函数
+export const getLODGridSize = (baseSize,viewState) => {
+  const level = getLODLevel(viewState);
+  
+  // 根据LOD级别返回不同的网格大小
+  switch (level) {
+    case 0: return baseSize * 1000;  // 极远视图显示超大网格
+    case 1: return baseSize * 100;   // 远视图
+    case 2: return baseSize * 10;    // 中远视图
+    case 3: return baseSize;         // 中视图 - 基本网格大小
+    case 4: return baseSize / 10;    // 中近视图
+    case 5: return baseSize / 100;   // 近视图
+    case 6: return baseSize / 1000;  // 极近视图显示超小网格
+    default: return baseSize;
+  }
+};
