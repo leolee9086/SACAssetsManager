@@ -5,7 +5,7 @@
     <div class="canvas-grid">
       <!-- 画布 1：基本功能测试 -->
       <div class="canvas-wrapper">
-        <h2 class="canvas-title">基本功能</h2>
+        <h2 class="canvas-title">基本缩放与平移</h2>
         <div class="canvas-box">
           <InfiniteCanvas 
             ref="canvas1" 
@@ -15,14 +15,15 @@
           />
         </div>
         <div class="canvas-controls">
-          <button @click="testZoomAndPan(1)">测试缩放和平移</button>
-          <button @click="testDrawLine(1)">绘制线条</button>
+          <button @click="testZoomIn(1)">放大</button>
+          <button @click="testZoomOut(1)">缩小</button>
+          <button @click="resetView(1)">重置视图</button>
         </div>
       </div>
       
       <!-- 画布 2：网格系统测试 -->
       <div class="canvas-wrapper">
-        <h2 class="canvas-title">自定义网格</h2>
+        <h2 class="canvas-title">网格系统</h2>
         <div class="canvas-box">
           <InfiniteCanvas 
             ref="canvas2" 
@@ -71,11 +72,41 @@
           <button @click="addSampleContent">添加示例内容</button>
           <button @click="exportCanvas">导出为图片</button>
           <button @click="exportSpecificArea">导出指定区域</button>
-          <button @click="exportSpecificElements">导出指定元素</button>
-          <button @click="addMassiveElements">渲染巨量元素</button>
         </div>
         <div v-if="exportedImage" class="export-preview">
           <img :src="exportedImage" alt="导出预览" />
+        </div>
+      </div>
+
+      <!-- 画布 5：LOD与平移约束测试 -->
+      <div class="canvas-wrapper">
+        <h2 class="canvas-title">LOD与平移约束</h2>
+        <div class="canvas-box">
+          <InfiniteCanvas 
+            ref="canvas5" 
+            :initialScale="1" 
+            :gridSize="50"
+            :maxLodLevel="maxLodLevel"
+            :minLodLevel="minLodLevel"
+            :maxPanDistance="maxPanDistance"
+            :constrainPan="constrainPan"
+            :showMouseIndicator="true"
+          />
+        </div>
+        <div class="canvas-controls">
+          <div class="control-group">
+            <label>LOD限制:</label>
+            <button @click="setLodLevels(0, 2)">低LOD范围(0-2)</button>
+            <button @click="setLodLevels(0, 5)">全LOD范围(0-5)</button>
+          </div>
+          <div class="control-group">
+            <label>平移约束:</label>
+            <button @click="togglePanConstraint">{{ constrainPan ? '禁用约束' : '启用约束' }}</button>
+            <button @click="setMaxPanDistance(500)" :disabled="!constrainPan">设置约束500px</button>
+            <button @click="setMaxPanDistance(200)" :disabled="!constrainPan">设置约束200px</button>
+          </div>
+          <button @click="addTestElements(5)">添加测试元素</button>
+          <button @click="resetView(5)">重置视图</button>
         </div>
       </div>
     </div>
@@ -86,11 +117,12 @@
 import { ref, onMounted } from 'vue';
 import InfiniteCanvas from './InfiniteCanvas.vue';
 
-// 引用四个画布
+// 引用五个画布
 const canvas1 = ref(null);
 const canvas2 = ref(null);
 const canvas3 = ref(null);
 const canvas4 = ref(null);
+const canvas5 = ref(null);
 
 // 为画布3提供元素数组
 const elements = ref([]);
@@ -98,33 +130,32 @@ const elements = ref([]);
 // 导出预览图片
 const exportedImage = ref(null);
 
-// 1. 测试基本功能
-const testZoomAndPan = (canvasId) => {
-  const canvas = canvasId === 1 ? canvas1.value : null;
+// 画布5的LOD和平移约束配置
+const maxLodLevel = ref(5);
+const minLodLevel = ref(0);
+const maxPanDistance = ref(Infinity);
+const constrainPan = ref(false);
+
+// 1. 基本缩放和平移功能
+const testZoomIn = (canvasId) => {
+  const canvas = canvasId === 1 ? canvas1.value : 
+                canvasId === 5 ? canvas5.value : null;
   if (!canvas) return;
-  
-  // 测试缩放
   canvas.zoomIn();
-  
-  // 500ms后平移
-  setTimeout(() => {
-    const stage = canvas.stage.getNode();
-    // 模拟平移
-    canvas.resetView();
-  }, 500);
-  
-  // 1000ms后再次缩放
-  setTimeout(() => {
-    canvas.zoomOut();
-  }, 1000);
 };
 
-const testDrawLine = (canvasId) => {
-  const canvas = canvasId === 1 ? canvas1.value : null;
+const testZoomOut = (canvasId) => {
+  const canvas = canvasId === 1 ? canvas1.value : 
+                canvasId === 5 ? canvas5.value : null;
   if (!canvas) return;
-  
-  // 切换到线条绘制模式
-  canvas.toggleDrawMode();
+  canvas.zoomOut();
+};
+
+const resetView = (canvasId) => {
+  const canvas = canvasId === 1 ? canvas1.value : 
+                canvasId === 5 ? canvas5.value : null;
+  if (!canvas) return;
+  canvas.resetView();
 };
 
 // 2. 测试网格系统
@@ -342,7 +373,7 @@ const addSampleContent = () => {
   }, 100);
 };
 
-// 1. 导出指定范围
+// 导出指定范围
 const exportSpecificArea = () => {
   if (!canvas4.value) return;
   
@@ -359,72 +390,7 @@ const exportSpecificArea = () => {
   });
 };
 
-// 2. 导出指定元素
-const exportSpecificElements = () => {
-  if (!canvas4.value) return;
-  
-  // 获取特定ID的元素
-  const elementsToExport = ['red_circle', 'blue_circle', 'connect_line'];
-  
-  // 导出特定元素
-  exportedImage.value = canvas4.value.exportCanvasAsImage({
-    pixelRatio: 2,
-    mimeType: 'image/png',
-    elementIds: elementsToExport
-  });
-};
-
-// 3. 添加大量元素测试
-const addMassiveElements = () => {
-  if (!canvas4.value) return;
-  
-  // 清除现有内容
-  canvas4.value.resetView();
-  
-  // 延迟添加元素
-  setTimeout(() => {
-    // 准备添加1000个随机小圆点
-    const count = 1000;
-    const bounds = {
-      minX: -300,
-      maxX: 300,
-      minY: -200,
-      maxY: 200
-    };
-    
-    console.time('添加巨量元素');
-    
-    // 批量添加元素
-    for (let i = 0; i < count; i++) {
-      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-      const y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
-      const radius = 2 + Math.random() * 4;
-      
-      // 创建随机颜色
-      const r = Math.floor(Math.random() * 255);
-      const g = Math.floor(Math.random() * 255);
-      const b = Math.floor(Math.random() * 255);
-      const opacity = 0.3 + Math.random() * 0.7;
-      
-      const element = {
-        id: `dot_${i}`,
-        type: 'circle',
-        x: x,
-        y: y,
-        radius: radius,
-        fill: `rgba(${r}, ${g}, ${b}, ${opacity})`,
-        stroke: 'rgba(0,0,0,0.2)',
-        strokeWidth: 0.5
-      };
-      
-      canvas4.value.addElement(element);
-    }
-    
-    console.timeEnd('添加巨量元素');
-  }, 100);
-};
-
-// 修改现有导出函数，支持添加的测试
+// 导出指定元素
 const exportCanvas = () => {
   if (!canvas4.value) return;
   
@@ -435,12 +401,145 @@ const exportCanvas = () => {
   });
 };
 
+// 5. 测试LOD与平移约束功能
+const setLodLevels = (min, max) => {
+  minLodLevel.value = min;
+  maxLodLevel.value = max;
+};
+
+const togglePanConstraint = () => {
+  constrainPan.value = !constrainPan.value;
+  
+  // 如果启用约束但没有设置约束值，设置一个默认值
+  if (constrainPan.value && maxPanDistance.value === Infinity) {
+    maxPanDistance.value = 500;
+  }
+};
+
+const setMaxPanDistance = (distance) => {
+  maxPanDistance.value = distance;
+};
+
+const addTestElements = (canvasId) => {
+  const canvas = canvasId === 5 ? canvas5.value : null;
+  if (!canvas) return;
+  
+  // 添加一些测试元素，便于观察LOD和平移约束效果
+  // 首先清除画布
+  canvas.resetView();
+  
+  // 创建从原点发散的同心圆
+  setTimeout(() => {
+    // 创建中心标记
+    canvas.addElement({
+      id: 'origin_marker',
+      type: 'text',
+      x: 0,
+      y: 0,
+      text: '原点(0,0)',
+      fontSize: 16,
+      fontFamily: 'Arial',
+      fill: 'black',
+      align: 'center'
+    });
+    
+    // 创建水平垂直参考线
+    canvas.addElement({
+      id: 'h_reference_line',
+      type: 'line',
+      points: [-1000, 0, 1000, 0],
+      stroke: '#999999',
+      strokeWidth: 1,
+      dash: [5, 5]
+    });
+    
+    canvas.addElement({
+      id: 'v_reference_line',
+      type: 'line',
+      points: [0, -1000, 0, 1000],
+      stroke: '#999999',
+      strokeWidth: 1,
+      dash: [5, 5]
+    });
+    
+    // 添加几个同心圆，标注距离
+    const radiusValues = [100, 200, 500, 1000];
+    
+    radiusValues.forEach((radius, index) => {
+      // 添加圆
+      canvas.addElement({
+        id: `circle_${radius}`,
+        type: 'circle',
+        x: 0,
+        y: 0,
+        radius: radius,
+        stroke: '#3357FF',
+        strokeWidth: 2,
+        dash: [8, 4],
+        fill: 'rgba(51, 87, 255, 0.05)'
+      });
+      
+      // 添加标签
+      canvas.addElement({
+        id: `label_${radius}`,
+        type: 'text',
+        x: 0,
+        y: -radius - 20,
+        text: `${radius}px`,
+        fontSize: 14,
+        fontFamily: 'Arial',
+        fill: '#3357FF',
+        align: 'center'
+      });
+    });
+    
+    // 在每象限添加一些指示性元素
+    const quadrants = [
+      { x: 300, y: -300, name: '第一象限', color: '#FF5733' },
+      { x: -300, y: -300, name: '第二象限', color: '#33FF57' },
+      { x: -300, y: 300, name: '第三象限', color: '#3357FF' },
+      { x: 300, y: 300, name: '第四象限', color: '#F3FF33' }
+    ];
+    
+    quadrants.forEach((q, i) => {
+      canvas.addElement({
+        id: `quadrant_${i + 1}`,
+        type: 'rect',
+        x: q.x - 50,
+        y: q.y - 50,
+        width: 100,
+        height: 100,
+        fill: q.color,
+        stroke: 'black',
+        strokeWidth: 1
+      });
+      
+      canvas.addElement({
+        id: `quadrant_label_${i + 1}`,
+        type: 'text',
+        x: q.x,
+        y: q.y,
+        text: q.name,
+        fontSize: 14,
+        fontFamily: 'Arial',
+        fill: 'black',
+        align: 'center'
+      });
+    });
+  }, 100);
+};
+
 onMounted(() => {
   // 在组件挂载后初始化一些功能
   setTimeout(() => {
     // 为第四个画布添加一些初始内容
     if (canvas4.value) {
       addSampleContent();
+    }
+    
+    // 为第五个画布添加测试元素
+    if (canvas5.value) {
+      addTestElements(5);
     }
   }, 500);
 });
@@ -461,9 +560,8 @@ onMounted(() => {
 .canvas-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-auto-rows: minmax(400px, auto);
   gap: 20px;
-  height: 80vh;
 }
 
 .canvas-wrapper {
@@ -501,6 +599,26 @@ onMounted(() => {
   background: #f5f5f5;
 }
 
+.control-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-right: 12px;
+  border-right: 1px solid #ddd;
+  padding-right: 12px;
+}
+
+.control-group:last-child {
+  border-right: none;
+}
+
+.control-group label {
+  font-weight: bold;
+  font-size: 14px;
+  color: #555;
+}
+
 .canvas-controls button {
   padding: 6px 12px;
   background: #4285f4;
@@ -509,9 +627,15 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  white-space: nowrap;
 }
 
-.canvas-controls button:hover {
+.canvas-controls button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+.canvas-controls button:not(:disabled):hover {
   background: #3367d6;
 }
 

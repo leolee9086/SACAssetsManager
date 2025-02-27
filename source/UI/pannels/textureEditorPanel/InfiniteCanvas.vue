@@ -56,6 +56,14 @@
         <span>缩放比例:</span> 
         <span>{{displayScale}}</span>
       </div>
+      <div class="status-item">
+        <span>LOD级别:</span> 
+        <span>{{viewState.lodLevel}}</span>
+      </div>
+      <div class="status-item" v-if="props.constrainPan">
+        <span>距原点:</span> 
+        <span>{{distanceFromOrigin.toFixed(2)}} / {{props.maxPanDistance === Infinity ? '无限制' : props.maxPanDistance}}</span>
+      </div>
     </div>
 
     <!-- 控制面板 -->
@@ -145,6 +153,26 @@ const props = defineProps({
   allowedElementTypes: {
     type: Array,
     default: () => ['line', 'circle', 'rect', 'text', 'image', 'path']
+  },
+  // 最大LOD级别
+  maxLodLevel: {
+    type: Number,
+    default: 5
+  },
+  // 最小LOD级别
+  minLodLevel: {
+    type: Number,
+    default: 0
+  },
+  // 最大平移距离（从原点算起）
+  maxPanDistance: {
+    type: Number,
+    default: Infinity // 默认无限制
+  },
+  // 是否启用平移约束
+  constrainPan: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -540,8 +568,39 @@ const onMouseMove = (event) => {
     const dy = pointerPos.y - viewState.lastPointerPosition.y;
 
     // 应用移动
-    viewState.position.x += dx;
-    viewState.position.y += dy;
+    const newPositionX = viewState.position.x + dx;
+    const newPositionY = viewState.position.y + dy;
+
+    // 如果启用了平移约束，检查是否超出最大距离
+    if (props.constrainPan && props.maxPanDistance !== Infinity) {
+      // 计算新位置下原点到屏幕中心的距离
+      const screenCenterX = viewState.width / 2;
+      const screenCenterY = viewState.height / 2;
+      
+      // 原点在屏幕上的新位置
+      const newOriginX = newPositionX;
+      const newOriginY = newPositionY;
+      
+      // 计算新距离
+      const newDx = newOriginX - screenCenterX;
+      const newDy = newOriginY - screenCenterY;
+      const newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
+      
+      // 只有在距离范围内才应用新位置
+      if (newDistance <= props.maxPanDistance) {
+        viewState.position.x = newPositionX;
+        viewState.position.y = newPositionY;
+      } else {
+        // 计算合法的最大位置
+        const ratio = props.maxPanDistance / newDistance;
+        viewState.position.x = screenCenterX + newDx * ratio;
+        viewState.position.y = screenCenterY + newDy * ratio;
+      }
+    } else {
+      // 不受约束的情况下直接设置新位置
+      viewState.position.x = newPositionX;
+      viewState.position.y = newPositionY;
+    }
 
     // 保存当前位置用于下次计算
     viewState.lastPointerPosition = pointerPos;
@@ -830,12 +889,16 @@ watch(() => props.unitRatio, drawGrid);
 const calculateLodLevel = () => {
   // 根据当前缩放比例计算LOD级别
   // 缩放越小，LOD级别越高（显示越少细节）
-  if (viewState.scale > 1) return 0;
-  if (viewState.scale > 0.5) return 1;
-  if (viewState.scale > 0.1) return 2;
-  if (viewState.scale > 0.05) return 3;
-  if (viewState.scale > 0.01) return 4;
-  return 5;
+  let lodLevel = 0;
+  if (viewState.scale > 1) lodLevel = 0;
+  else if (viewState.scale > 0.5) lodLevel = 1;
+  else if (viewState.scale > 0.1) lodLevel = 2;
+  else if (viewState.scale > 0.05) lodLevel = 3;
+  else if (viewState.scale > 0.01) lodLevel = 4;
+  else lodLevel = 5;
+  
+  // 应用LOD级别约束
+  return Math.max(props.minLodLevel, Math.min(props.maxLodLevel, lodLevel));
 };
 
 // 检查元素是否应该显示（基于自动LOD或手动LOD）
@@ -1197,6 +1260,23 @@ const updateLodState = () => {
   });
 };
 
+// 计算与原点的距离
+const distanceFromOrigin = computed(() => {
+  // 计算当前视图位置的原点(0,0)距离屏幕中心的距离
+  const screenCenterX = viewState.width / 2;
+  const screenCenterY = viewState.height / 2;
+  
+  // 原点在屏幕上的位置
+  const originOnScreenX = viewState.position.x;
+  const originOnScreenY = viewState.position.y;
+  
+  // 计算距离
+  const dx = originOnScreenX - screenCenterX;
+  const dy = originOnScreenY - screenCenterY;
+  
+  return Math.sqrt(dx * dx + dy * dy);
+});
+
 // 向父组件暴露方法和变量
 defineExpose({
   // refs
@@ -1251,7 +1331,24 @@ defineExpose({
   setLodThreshold: (threshold) => {
     props.lodThreshold = threshold;
     updateLodState();
-  }
+  },
+  
+  // 添加LOD和平移约束相关方法
+  setMaxLodLevel: (level) => {
+    props.maxLodLevel = level;
+    updateLodState();
+  },
+  setMinLodLevel: (level) => {
+    props.minLodLevel = level;
+    updateLodState();
+  },
+  setMaxPanDistance: (distance) => {
+    props.maxPanDistance = distance;
+  },
+  setConstrainPan: (constrain) => {
+    props.constrainPan = constrain;
+  },
+  getDistanceFromOrigin: () => distanceFromOrigin.value
 });
 </script>
 
