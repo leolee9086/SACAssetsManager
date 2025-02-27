@@ -39,6 +39,25 @@
       </v-layer>
     </v-stage>
 
+    <!-- 鼠标位置指示器 - 使用Vue组件方式 -->
+    <div v-if="showMouseIndicator" class="mouse-position-indicator" :style="mouseIndicatorStyle">
+      X: {{(viewState.mousePosition.x * props.unitRatio).toFixed(2)}}, 
+      Y: {{(viewState.mousePosition.y * props.unitRatio).toFixed(2)}}
+    </div>
+
+    <!-- 状态显示面板 -->
+    <div class="canvas-status-panel">
+      <div class="status-item">
+        <span>坐标范围:</span> 
+        <span>X: {{viewportBounds.left.toFixed(2)}} 至 {{viewportBounds.right.toFixed(2)}}</span>
+        <span>Y: {{viewportBounds.top.toFixed(2)}} 至 {{viewportBounds.bottom.toFixed(2)}}</span>
+      </div>
+      <div class="status-item">
+        <span>缩放比例:</span> 
+        <span>{{displayScale}}</span>
+      </div>
+    </div>
+
     <!-- 控制面板 -->
     <div class="canvas-controls">
       <button @click="resetView" title="重置视图">
@@ -59,7 +78,7 @@
 
 <script setup>
 import { ref, computed, onMounted, reactive, watch, onUnmounted } from 'vue';
-import { getViewportBounds, getOptimalLabelSpacing, getLODLevel, getLODGridSize, buildGrid } from './utils/canvasUtils.js';
+import { getViewportBounds, buildGrid } from './utils/canvasUtils.js';
 
 // 定义props
 const props = defineProps({
@@ -120,6 +139,7 @@ const viewState = reactive({
   isPanning: false,
   lastPointerPosition: null,
   mousePosition: { x: 0, y: 0 },
+  mousePointerScreenPosition: null,
   initialized: false
 });
 
@@ -163,50 +183,29 @@ const yAxisConfig = computed(() => {
 // 鼠标位置文本DOM元素引用
 let mouseIndicatorElement = null;
 
-// 创建一个鼠标位置指示器组件，确保偏移固定
-const createMousePositionIndicator = () => {
-  // 移除UI层上原有的指示器文本
-  // 保留十字线，因为它们需要随画布缩放
-
-  // 创建一个绝对定位的DOM元素作为鼠标指示器文本
-  const indicatorContainer = document.createElement('div');
-  indicatorContainer.className = 'mouse-position-indicator';
-  indicatorContainer.style.cssText = `
-    position: absolute;
-    background: white;
-    border: 1px solid #ccc;
-    padding: 2px 6px;
-    border-radius: 2px;
-    font-size: 12px;
-    pointer-events: none;
-    z-index: 1000;
-    transform: translate(10px, -30px);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    color: #333;
-  `;
-
-  canvasContainer.value.appendChild(indicatorContainer);
-
-  return indicatorContainer;
-};
+// 鼠标指示器样式计算属性
+const mouseIndicatorStyle = computed(() => {
+  if (!viewState.mousePointerScreenPosition) {
+    return { display: 'none' };
+  }
+  
+  return {
+    position: 'absolute',
+    left: `${viewState.mousePointerScreenPosition.x}px`,
+    top: `${viewState.mousePointerScreenPosition.y}px`,
+    transform: 'translate(10px, -30px)'
+  };
+});
 
 // 更新鼠标位置指示器
 const updateMousePositionIndicator = (event) => {
-  if (!mouseIndicatorElement) return;
-
   // 获取鼠标相对于canvas容器的坐标
   const rect = canvasContainer.value.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
 
-  // 将DOM元素放置在鼠标位置
-  mouseIndicatorElement.style.left = `${x}px`;
-  mouseIndicatorElement.style.top = `${y}px`;
-
-  // 更新显示的世界坐标文本
-  const worldX = (viewState.mousePosition.x * props.unitRatio).toFixed(2);
-  const worldY = (viewState.mousePosition.y * props.unitRatio).toFixed(2);
-  mouseIndicatorElement.textContent = `X: ${worldX}, Y: ${worldY}`;
+  // 更新鼠标屏幕位置状态
+  viewState.mousePointerScreenPosition = { x, y };
 };
 
 // 替代原有的mousePositionText计算属性
@@ -241,11 +240,21 @@ const mouseVerticalLine = computed(() => {
   };
 });
 
+// 计算用于显示的视口边界
+const viewportBounds = computed(() => {
+  return getViewportBounds(viewState);
+});
 
+// 格式化缩放比例显示
+const displayScale = computed(() => {
+  // 如果比例过小或过大，使用科学计数法
+  if (viewState.scale < 0.01 || viewState.scale > 100) {
+    return viewState.scale.toExponential(2) + 'x';
+  } 
+  // 否则使用固定小数位显示
+  return viewState.scale.toFixed(2) + 'x';
+});
 
-
-
-// 提前声明更新函数
 // 提前声明更新函数
 const drawGrid = () => {
   if (!gridGroup.value || !gridGroup.value.getNode()) return;
@@ -317,8 +326,6 @@ const updateTransform = () => {
   // 更新网格以确保填满画布
   drawGrid()
 };
-
-// 绘制网格 - 增强处理极端缩放情况
 
 // 获取相对于容器的鼠标位置
 const getRelativePointerPosition = (event) => {
@@ -593,18 +600,10 @@ onMounted(() => {
 
   // 初始化网格
   drawGrid();
-
-  // 创建鼠标位置指示器DOM元素
-  mouseIndicatorElement = createMousePositionIndicator();
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
-
-  // 移除鼠标位置指示器
-  if (mouseIndicatorElement && mouseIndicatorElement.parentNode) {
-    mouseIndicatorElement.parentNode.removeChild(mouseIndicatorElement);
-  }
 });
 
 // 监听属性变化
@@ -642,6 +641,31 @@ defineExpose({
   user-select: none;
 }
 
+.canvas-status-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  min-width: 200px;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+
+.status-item > span:first-child {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
 .canvas-controls {
   position: absolute;
   bottom: 10px;
@@ -667,5 +691,18 @@ defineExpose({
 
 .canvas-controls button:hover {
   background: #f5f5f5;
+}
+
+/* 添加鼠标位置指示器样式 */
+.mouse-position-indicator {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  color: #333;
 }
 </style>
