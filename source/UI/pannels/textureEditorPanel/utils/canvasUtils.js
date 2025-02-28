@@ -1,11 +1,16 @@
 import { buildGrid } from "./gridUtils/index.js";
-import { getLODGridSize, getLODLevel } from "./LODUtils/index.js";
+import { 
+  getLODGridSize, 
+  getLODLevel ,
+  calculateLodLevel
+} from "./LODUtils/index.js";
 import { getOptimalLabelSpacing } from "./labelUtils/index.js";
 export {
   buildGrid,
   getLODGridSize,
   getLODLevel,
-  getOptimalLabelSpacing
+  getOptimalLabelSpacing,
+  calculateLodLevel
 }
 /**
  * 计算当前视口在世界坐标系中的边界
