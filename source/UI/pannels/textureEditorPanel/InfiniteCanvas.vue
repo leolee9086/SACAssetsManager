@@ -122,9 +122,12 @@
 import { ref, computed, onMounted, reactive, watch, onUnmounted } from 'vue';
 import { getViewportBounds, calculateLodLevel } from './utils/canvasUtils.js';
 import { shouldElementBeVisible } from './utils/LODUtils/index.js';
+import { processElementVisibility } from './utils/LODUtils/elementVisibility.js';
 import GridSystem from './components/GridSystem.vue';
 import CanvasStatusPanel from './components/CanvasStatusPanel.vue';
 import AxisSystem from './components/AxisSystem.vue';
+// 导入元素工厂函数
+import { createKonvaElement, attachElementEvents } from './utils/elementFactory.js';
 // 导入全屏工具函数
 import { 
   toggleFullscreen as toggleFullscreenUtil,
@@ -851,201 +854,13 @@ onUnmounted(() => {
 
   // 停止FPS计算
   if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId);
+    cancelAnimationFrame(animationId);
   }
 });
 
 // 监听属性变化
 watch(() => props.gridSize, updateTransform);
 watch(() => props.unitRatio, updateTransform);
-
-// 1. 首先定义创建Konva元素的工厂函数
-const createKonvaElement = (element) => {
-  if (!element || !element.type) return null;
-
-  let konvaElement = null;
-
-  // 使用对象池缓存常用元素类型
-  const elementPool = window._konvaElementPool = window._konvaElementPool || {
-    line: [],
-    circle: [],
-    rect: [],
-    text: []
-  };
-
-  const getFromPool = (type) => {
-    const pool = elementPool[type];
-    return pool && pool.length > 0 ? pool.pop() : null;
-  };
-
-  // 尝试从对象池获取元素
-  konvaElement = getFromPool(element.type);
-
-  if (!konvaElement) {
-    // 如果对象池为空，则创建新元素
-    switch (element.type) {
-      case 'line':
-        konvaElement = new Konva.Line({
-          id: element.id,
-          listening: false // 默认不监听事件，提高性能
-        });
-        break;
-      case 'circle':
-        konvaElement = new Konva.Circle({
-          x: element.x || 0,
-          y: element.y || 0,
-          radius: element.radius || 10,
-          fill: element.fill || 'blue',
-          stroke: element.stroke,
-          strokeWidth: element.strokeWidth,
-          id: element.id,
-          draggable: element.draggable !== false,
-          ...element.config
-        });
-        break;
-      case 'rect':
-        konvaElement = new Konva.Rect({
-          x: element.x || 0,
-          y: element.y || 0,
-          width: element.width || 20,
-          height: element.height || 20,
-          fill: element.fill || 'green',
-          stroke: element.stroke,
-          strokeWidth: element.strokeWidth,
-          id: element.id,
-          draggable: element.draggable !== false,
-          ...element.config
-        });
-        break;
-      case 'text':
-        konvaElement = new Konva.Text({
-          x: element.x || 0,
-          y: element.y || 0,
-          text: element.text || '',
-          fontSize: element.fontSize || 16,
-          fontFamily: element.fontFamily || 'Arial',
-          fill: element.fill || 'black',
-          id: element.id,
-          draggable: element.draggable !== false,
-          ...element.config
-        });
-        break;
-      case 'image':
-        // 为图片创建特殊处理
-        if (element.imageUrl) {
-          const imageObj = new Image();
-          imageObj.onload = () => {
-            konvaElement.image(imageObj);
-            mainLayer.value.getNode().batchDraw();
-          };
-          imageObj.src = element.imageUrl;
-
-          konvaElement = new Konva.Image({
-            x: element.x || 0,
-            y: element.y || 0,
-            width: element.width,
-            height: element.height,
-            id: element.id,
-            draggable: element.draggable !== false,
-            ...element.config
-          });
-        }
-        break;
-      case 'path':
-        konvaElement = new Konva.Path({
-          data: element.data || '',
-          fill: element.fill,
-          stroke: element.stroke || 'black',
-          strokeWidth: element.strokeWidth || 1,
-          id: element.id,
-          draggable: element.draggable !== false,
-          ...element.config
-        });
-        break;
-      case 'custom':
-        // 支持自定义元素
-        if (element.createFunction && typeof element.createFunction === 'function') {
-          konvaElement = element.createFunction(Konva, element);
-        }
-        break;
-      default:
-        console.warn('不支持的元素类型:', element.type);
-    }
-  }
-
-  // 更新元素配置
-  if (konvaElement) {
-    konvaElement.id(element.id);
-
-    switch (element.type) {
-      case 'line':
-        konvaElement.points(element.points || []);
-        konvaElement.stroke(element.stroke || 'black');
-        konvaElement.strokeWidth(element.strokeWidth || 2);
-        konvaElement.draggable(element.draggable !== false);
-        break;
-      case 'circle':
-        konvaElement.x(element.x || 0);
-        konvaElement.y(element.y || 0);
-        konvaElement.radius(element.radius || 10);
-        konvaElement.fill(element.fill || 'blue');
-        konvaElement.stroke(element.stroke);
-        konvaElement.strokeWidth(element.strokeWidth);
-        konvaElement.draggable(element.draggable !== false);
-        break;
-      case 'rect':
-        konvaElement.x(element.x || 0);
-        konvaElement.y(element.y || 0);
-        konvaElement.width(element.width || 20);
-        konvaElement.height(element.height || 20);
-        konvaElement.fill(element.fill || 'green');
-        konvaElement.stroke(element.stroke);
-        konvaElement.strokeWidth(element.strokeWidth);
-        konvaElement.draggable(element.draggable !== false);
-        break;
-      case 'text':
-        konvaElement.text(element.text || '');
-        konvaElement.fontSize(element.fontSize || 16);
-        konvaElement.fontFamily(element.fontFamily || 'Arial');
-        konvaElement.fill(element.fill || 'black');
-        konvaElement.draggable(element.draggable !== false);
-        break;
-      case 'image':
-        konvaElement.image(element.image);
-        konvaElement.width(element.width);
-        konvaElement.height(element.height);
-        konvaElement.draggable(element.draggable !== false);
-        break;
-      case 'path':
-        konvaElement.data(element.data || '');
-        konvaElement.fill(element.fill);
-        konvaElement.stroke(element.stroke || 'black');
-        konvaElement.strokeWidth(element.strokeWidth || 1);
-        konvaElement.draggable(element.draggable !== false);
-        break;
-      case 'custom':
-        konvaElement.draggable(element.draggable !== false);
-        break;
-    }
-
-    // 只为需要事件处理的元素添加事件
-    if (element.needsEvents) {
-      konvaElement.listening(true);
-      // 添加事件监听
-      konvaElement.off('click'); // 先移除旧事件
-      konvaElement.on('click', () => {
-        selectElement(element);
-      });
-
-      konvaElement.off('dragend');
-      konvaElement.on('dragend', () => {
-        updateElementPosition(element.id, konvaElement);
-      });
-    }
-  }
-
-  return konvaElement;
-};
 
 // 2. 选中元素函数
 const selectElement = (element) => {
@@ -1126,9 +941,18 @@ const updateKonvaElements = () => {
 
     // 处理当前批次
     currentBatch.forEach(element => {
+      // 添加图像加载完成后的回调
+      if (element.type === 'image' && element.imageUrl) {
+        element.onImageLoad = (konvaElement) => {
+          layer.batchDraw();
+        };
+      }
+      
       const konvaElement = createKonvaElement(element);
       if (konvaElement) {
         konvaElement.setAttr('_isCanvasElement', true);
+        // 为需要事件的元素添加事件处理
+        attachElementEvents(konvaElement, element, selectElement, updateElementPosition);
         layer.add(konvaElement);
       }
     });
@@ -1202,12 +1026,10 @@ const addElements = (elements) => {
   if (!Array.isArray(elements) || elements.length === 0) {
     return [];
   }
-
   // 批量处理：禁用自动重绘
   if (mainLayer.value && mainLayer.value.getNode()) {
     mainLayer.value.getNode().listening(false); // 暂时禁用事件监听以提高性能
   }
-
   // 为没有ID的元素生成ID
   const processedElements = elements.map(element => {
     if (!element.id) {
@@ -1215,26 +1037,18 @@ const addElements = (elements) => {
     }
     return element;
   });
-
-  // 使用直接数组操作而不是创建新数组
-  const originalLength = viewState.elements.length;
   viewState.elements.push(...processedElements);
-
   // 只触发一次更新事件
   emit('update:modelValue', viewState.elements);
-
   // 分批创建Konva元素以避免长时间阻塞UI
   const batchSize = 500; // 每批处理的元素数量
   const totalElements = processedElements.length;
-
   const processBatch = (startIndex) => {
     const endIndex = Math.min(startIndex + batchSize, totalElements);
     const currentBatch = processedElements.slice(startIndex, endIndex);
-
     // 批量添加Konva元素
     if (mainLayer.value && mainLayer.value.getNode()) {
       const layer = mainLayer.value.getNode();
-
       // 添加当前批次的元素
       currentBatch.forEach(element => {
         const konvaElement = createKonvaElement(element);
@@ -1243,7 +1057,6 @@ const addElements = (elements) => {
           layer.add(konvaElement);
         }
       });
-
       // 处理下一批，或完成所有批次处理
       if (endIndex < totalElements) {
         // 使用requestAnimationFrame允许浏览器在批次之间更新UI
@@ -1253,7 +1066,6 @@ const addElements = (elements) => {
         layer.listening(true);
         layer.batchDraw();
         updateLodState();
-
         // 单独触发每个元素的added事件（如果需要的话）
         processedElements.forEach(element => {
           emit('element-added', element);
@@ -1261,12 +1073,10 @@ const addElements = (elements) => {
       }
     }
   };
-
   // 开始批处理
   if (totalElements > 0) {
     processBatch(0);
   }
-
   return processedElements;
 };
 
@@ -1300,20 +1110,16 @@ const updateElement = (elementId, properties) => {
     ...viewState.elements[elementIndex],
     ...properties
   };
-
   // 更新数组
   const newElements = [...viewState.elements];
   newElements[elementIndex] = updatedElement;
   viewState.elements = newElements;
-
   // 更新v-model并通知父组件
   emit('update:modelValue', newElements);
   emit('element-updated', updatedElement);
-
   // 更新Konva图层
   updateKonvaElements();
   updateLodState();
-
   return true;
 };
 
@@ -1351,6 +1157,18 @@ const updateLodState = () => {
     bottom: bounds.bottom + (bounds.bottom - bounds.top) * 0.1
   };
 
+  // 获取主图层引用
+  const konvaLayer = mainLayer.value?.getNode();
+
+  // 提前准备处理选项
+  const processOptions = {
+    viewState,
+    props,
+    bufferedBounds,
+    newVisibleElements,
+    layer: konvaLayer
+  };
+
   // 如果元素数量超过阈值，使用批处理
   const BATCH_THRESHOLD = 1000;
   const BATCH_SIZE = 500;
@@ -1362,7 +1180,9 @@ const updateLodState = () => {
       const batchElements = viewState.elements.slice(startIndex, endIndex);
 
       // 处理当前批次
-      batchElements.forEach(processElementVisibility);
+      batchElements.forEach(element => {
+        viewState.elementStats = processElementVisibility(element, processOptions);
+      });
 
       // 处理下一批或完成
       if (endIndex < viewState.elements.length) {
@@ -1377,118 +1197,10 @@ const updateLodState = () => {
     processLodBatch(0);
   } else {
     // 直接处理所有元素
-    viewState.elements.forEach(processElementVisibility);
+    viewState.elements.forEach(element => {
+      viewState.elementStats = processElementVisibility(element, processOptions);
+    });
     updateVisibilityStatistics();
-  }
-
-  // 处理单个元素可见性的函数
-  function processElementVisibility(element) {
-    // 跳过系统元素
-    if (element.isSystemElement || element.id?.startsWith('system_')) {
-      return;
-    }
-
-    // 增加总元素计数
-    viewState.elementStats.total++;
-
-    // 转换为LOD计算所需格式
-    const elementForLod = {
-      type: element.type,
-      config: element
-    };
-
-    // 获取元素中心点坐标
-    let elementX = element.x || 0;
-    let elementY = element.y || 0;
-
-    // 线条元素需要特殊处理，使用点的平均值
-    if (element.type === 'line' && element.points && element.points.length >= 4) {
-      const points = element.points;
-      let sumX = 0, sumY = 0, pointCount = 0;
-      for (let i = 0; i < points.length; i += 2) {
-        sumX += points[i];
-        sumY += points[i + 1];
-        pointCount++;
-      }
-      elementX = sumX / pointCount;
-      elementY = sumY / pointCount;
-    }
-
-    // 视口剪裁 - 如果元素在可见区域外，直接隐藏
-    const isInViewport = (
-      elementX >= bufferedBounds.left &&
-      elementX <= bufferedBounds.right &&
-      elementY >= bufferedBounds.top &&
-      elementY <= bufferedBounds.bottom
-    );
-
-    // 检查是否应该显示
-    let visible = isInViewport; // 首先检查是否在视口内
-    let hideReason = isInViewport ? null : 'outOfView';
-
-    if (visible) { // 只有在视口内才进行其他检查
-      // 检查手动隐藏
-      if (element.visible === false) {
-        visible = false;
-        hideReason = 'manual';
-      }
-      // 检查LOD显隐
-      else {
-        // 获取可见性和透明度信息
-        const visibilityResult = shouldElementBeVisible(elementForLod, viewState, props);
-        
-        if (!visibilityResult.visible) {
-          visible = false;
-
-          // 确定隐藏原因
-          if (element.lodRange) {
-            hideReason = 'lodRange';
-          } else {
-            // 基于元素屏幕尺寸的LOD
-            hideReason = 'lodScale';
-          }
-        } else {
-          // 元素可见，保存透明度信息供后续使用
-          visible = true;
-          element._lodOpacity = visibilityResult.opacity;
-        }
-      }
-    }
-
-    // 更新元素可见性
-    if (visible) {
-      newVisibleElements.add(element.id);
-      viewState.elementStats.visible++;
-
-      // 更新Konva元素可见性
-      const konvaElement = mainLayer.value?.getNode()?.findOne('#' + element.id);
-      if (konvaElement) {
-        konvaElement.visible(true);
-        // 设置透明度 - 使用LOD计算的透明度值
-        if (element._lodOpacity !== undefined) {
-          konvaElement.opacity(element._lodOpacity);
-        }
-      }
-    } else {
-      viewState.elementStats.hidden++;
-
-      // 记录隐藏原因
-      if (hideReason === 'lodRange') {
-        viewState.elementStats.hideReasons.lodRange++;
-      } else if (hideReason === 'lodScale') {
-        viewState.elementStats.hideReasons.lodScale++;
-      } else if (hideReason === 'manual') {
-        viewState.elementStats.hideReasons.manual++;
-      } else {
-        viewState.elementStats.hideReasons.other++;
-      }
-
-      // 隐藏Konva元素 - 使用查找缓存提高性能
-      const konvaElement = mainLayer.value?.getNode()?.findOne('#' + element.id);
-      if (konvaElement) {
-        konvaElement.visible(false);
-      }
-    }
   }
 
   // 更新可见性统计并触发事件
