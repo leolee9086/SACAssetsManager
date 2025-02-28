@@ -33,9 +33,15 @@
 
       <!-- UI层（坐标轴、鼠标指示器等） -->
       <v-layer ref="uiLayer">
-        <!-- 坐标轴 -->
-        <v-line :config="xAxisConfig"></v-line>
-        <v-line :config="yAxisConfig"></v-line>
+        <!-- 使用新的坐标轴系统组件 -->
+        <axis-system 
+          :viewport="viewportBounds"
+          :scale="viewState.scale"
+          :xAxisColor="'red'"
+          :yAxisColor="'green'"
+          :strokeWidth="1"
+          :visible="true"
+        />
 
         <!-- 鼠标位置指示器 -->
         <v-group v-if="showMouseIndicator">
@@ -53,31 +59,19 @@
     </div>
 
     <!-- 状态显示面板 -->
-    <div class="canvas-status-panel">
-      <div class="status-item">
-        <span>坐标范围:</span>
-        <span>X: {{ viewportBounds.left.toFixed(2) }} 至 {{ viewportBounds.right.toFixed(2) }}</span>
-        <span>Y: {{ viewportBounds.top.toFixed(2) }} 至 {{ viewportBounds.bottom.toFixed(2) }}</span>
-      </div>
-      <div class="status-item">
-        <span>缩放比例:</span>
-        <span>{{ displayScale }}</span>
-      </div>
-      <div class="status-item">
-        <span>LOD级别:</span>
-        <span>{{ viewState.lodLevel }}</span>
-      </div>
-      <div class="status-item" v-if="props.constrainPan">
-        <span>距原点:</span>
-        <span>{{ distanceFromOrigin.toFixed(2) }} / {{ props.maxPanDistance === Infinity ? '无限制' :
-          props.maxPanDistance}}</span>
-      </div>
-      <!-- 添加FPS显示 -->
-      <div class="status-item" v-if="viewState.showFps">
-        <span>FPS:</span>
-        <span>{{ viewState.fps }}</span>
-      </div>
-    </div>
+    <canvas-status-panel
+      :viewportBounds="viewportBounds"
+      :scale="viewState.scale"
+      :lodLevel="viewState.lodLevel"
+      :constrainPan="props.constrainPan"
+      :distanceFromOrigin="distanceFromOrigin"
+      :maxPanDistance="props.maxPanDistance"
+      :fps="viewState.fps"
+      :showFps="viewState.showFps"
+      position="top-left"
+    >
+      <!-- 可以添加自定义状态项 -->
+    </canvas-status-panel>
 
     <!-- 控制面板 -->
     <div class="canvas-controls">
@@ -129,6 +123,16 @@ import { ref, computed, onMounted, reactive, watch, onUnmounted } from 'vue';
 import { getViewportBounds, calculateLodLevel } from './utils/canvasUtils.js';
 import { shouldElementBeVisible } from './utils/LODUtils/index.js';
 import GridSystem from './components/GridSystem.vue';
+import CanvasStatusPanel from './components/CanvasStatusPanel.vue';
+import AxisSystem from './components/AxisSystem.vue';
+// 导入全屏工具函数
+import { 
+  toggleFullscreen as toggleFullscreenUtil,
+  isInFullscreenMode,
+  addFullscreenChangeListener,
+  removeFullscreenChangeListener
+} from './utils/fullscreenUtils.js';
+import { handlePanMovement, canPan } from './utils/panUtils.js';
 
 // 定义props
 const props = defineProps({
@@ -282,38 +286,12 @@ const isFullscreen = ref(false);
 
 // 切换全屏方法
 const toggleFullscreen = async () => {
-  try {
-    if (!isFullscreen.value) {
-      // 进入全屏
-      if (canvasContainer.value.requestFullscreen) {
-        await canvasContainer.value.requestFullscreen();
-      } else if (canvasContainer.value.webkitRequestFullscreen) {
-        await canvasContainer.value.webkitRequestFullscreen();
-      } else if (canvasContainer.value.msRequestFullscreen) {
-        await canvasContainer.value.msRequestFullscreen();
-      }
-    } else {
-      // 退出全屏
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        await document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        await document.msExitFullscreen();
-      }
-    }
-  } catch (error) {
-    console.error('全屏切换失败:', error);
-  }
+  await toggleFullscreenUtil(canvasContainer.value);
 };
 
 // 监听全屏状态变化
 const handleFullscreenChange = () => {
-  isFullscreen.value = !!(
-    document.fullscreenElement ||
-    document.webkitFullscreenElement ||
-    document.msFullscreenElement
-  );
+  isFullscreen.value = isInFullscreenMode();
 
   // 全屏状态变化后重新计算画布尺寸
   handleResize();
@@ -321,9 +299,7 @@ const handleFullscreenChange = () => {
 
 // 组件挂载时添加全屏事件监听
 onMounted(() => {
-  document.addEventListener('fullscreenchange', handleFullscreenChange);
-  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-  document.addEventListener('msfullscreenchange', handleFullscreenChange);
+  addFullscreenChangeListener(handleFullscreenChange);
   
   // 添加挂载完成事件
   emit('mounted');
@@ -331,9 +307,7 @@ onMounted(() => {
 
 // 组件卸载时移除全屏事件监听
 onUnmounted(() => {
-  document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-  document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+  removeFullscreenChangeListener(handleFullscreenChange);
 });
 
 // 计算Stage配置
@@ -353,26 +327,6 @@ const domLayerStyle = computed(() => ({
   pointerEvents: 'none', // 避免DOM层拦截鼠标事件
   zIndex: 1
 }));
-
-// 坐标轴配置 - 动态计算长度
-const xAxisConfig = computed(() => {
-  const bounds = getViewportBounds(viewState);
-  return {
-    points: [bounds.left, 0, bounds.right, 0], // 动态计算水平线长度
-    stroke: 'red',
-    strokeWidth: 1 / viewState.scale,
-  };
-});
-
-const yAxisConfig = computed(() => {
-  const bounds = getViewportBounds(viewState);
-  return {
-    points: [0, bounds.top, 0, bounds.bottom], // 动态计算垂直线长度
-    stroke: 'green',
-    strokeWidth: 1 / viewState.scale,
-  };
-});
-
 
 // 鼠标指示器样式计算属性
 const mouseIndicatorStyle = computed(() => {
@@ -436,14 +390,21 @@ const viewportBounds = computed(() => {
   return getViewportBounds(viewState);
 });
 
-// 格式化缩放比例显示
-const displayScale = computed(() => {
-  // 如果比例过小或过大，使用科学计数法
-  if (viewState.scale < 0.01 || viewState.scale > 100) {
-    return viewState.scale.toExponential(2) + 'x';
-  }
-  // 否则使用固定小数位显示
-  return viewState.scale.toFixed(2) + 'x';
+// 计算与原点的距离
+const distanceFromOrigin = computed(() => {
+  // 计算当前视图位置的原点(0,0)距离屏幕中心的距离
+  const screenCenterX = viewState.width / 2;
+  const screenCenterY = viewState.height / 2;
+
+  // 原点在屏幕上的位置
+  const originOnScreenX = viewState.position.x;
+  const originOnScreenY = viewState.position.y;
+
+  // 计算距离
+  const dx = originOnScreenX - screenCenterX;
+  const dy = originOnScreenY - screenCenterY;
+
+  return Math.sqrt(dx * dx + dy * dy);
 });
 
 // 绘制模式显示文本
@@ -683,61 +644,54 @@ const stopPan = () => {
   updateTransform()
 };
 
-// 鼠标移动处理
-const onMouseMove = (event) => {
-  // 如果正在平移，更新位置
-  if (viewState.isPanning && viewState.lastPointerPosition) {
-    const pointerPos = getRelativePointerPosition(event);
-    // 计算自上次位置以来的移动距离
-    const dx = pointerPos.x - viewState.lastPointerPosition.x;
-    const dy = pointerPos.y - viewState.lastPointerPosition.y;
-    // 应用移动
-    const newPositionX = viewState.position.x + dx;
-    const newPositionY = viewState.position.y + dy;
-    // 如果启用了平移约束，检查是否超出最大距离
-    if (props.constrainPan && props.maxPanDistance !== Infinity) {
-      // 计算新位置下原点到屏幕中心的距离
-      const screenCenterX = viewState.width / 2;
-      const screenCenterY = viewState.height / 2;
+// 处理平移逻辑
+const handlePanning = (event) => {
+  if (!canPan(viewState, event)) return;
+  
+  const pointerPos = getRelativePointerPosition(event);
+  
+  // 使用工具函数处理平移
+  const newPosition = handlePanMovement(viewState, pointerPos, {
+    constrainPan: props.constrainPan,
+    maxPanDistance: props.maxPanDistance
+  });
+  
+  // 更新位置
+  viewState.position.x = newPosition.x;
+  viewState.position.y = newPosition.y;
+  
+  // 保存当前位置用于下次计算
+  viewState.lastPointerPosition = pointerPos;
+  
+  // 更新变换
+  updateTransform();
+};
 
-      // 原点在屏幕上的新位置
-      const newOriginX = newPositionX;
-      const newOriginY = newPositionY;
-      // 计算新距离
-      const newDx = newOriginX - screenCenterX;
-      const newDy = newOriginY - screenCenterY;
-      const newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
-
-      // 只有在距离范围内才应用新位置
-      if (newDistance <= props.maxPanDistance) {
-        viewState.position.x = newPositionX;
-        viewState.position.y = newPositionY;
-      } else {
-        // 计算合法的最大位置
-        const ratio = props.maxPanDistance / newDistance;
-        viewState.position.x = screenCenterX + newDx * ratio;
-        viewState.position.y = screenCenterY + newDy * ratio;
-      }
-    } else {
-      // 不受约束的情况下直接设置新位置
-      viewState.position.x = newPositionX;
-      viewState.position.y = newPositionY;
-    }
-    // 保存当前位置用于下次计算
-    viewState.lastPointerPosition = pointerPos;
-    // 更新变换
-    if (updateTransform) {
-      updateTransform();
-    }
-  }
-  // 如果在绘制线条模式
+// 处理绘制逻辑
+const handleDrawing = (event) => {
   if (viewState.drawMode === 'line' && viewState.drawingElement) {
     continueDrawingLine(event);
   }
-  // 无论是否平移，都更新鼠标世界位置
+};
+
+// 更新鼠标状态
+const updateMouseState = (event) => {
+  // 更新鼠标世界位置
   updateMouseWorldPosition(event);
   // 更新DOM指示器位置
   updateMousePositionIndicator(event);
+};
+
+// 鼠标移动处理 - 重构后的方法
+const onMouseMove = (event) => {
+  // 处理平移
+  handlePanning(event);
+  
+  // 处理绘制
+  handleDrawing(event);
+  
+  // 更新鼠标状态
+  updateMouseState(event);
 };
 
 // Konva舞台事件处理
@@ -1582,15 +1536,24 @@ const updateLodState = () => {
         hideReason = 'manual';
       }
       // 检查LOD显隐
-      else if (!shouldElementBeVisible(elementForLod,viewState,props)) {
-        visible = false;
+      else {
+        // 获取可见性和透明度信息
+        const visibilityResult = shouldElementBeVisible(elementForLod, viewState, props);
+        
+        if (!visibilityResult.visible) {
+          visible = false;
 
-        // 确定隐藏原因
-        if (element.lodRange) {
-          hideReason = 'lodRange';
+          // 确定隐藏原因
+          if (element.lodRange) {
+            hideReason = 'lodRange';
+          } else {
+            // 基于元素屏幕尺寸的LOD
+            hideReason = 'lodScale';
+          }
         } else {
-          // 基于元素屏幕尺寸的LOD
-          hideReason = 'lodScale';
+          // 元素可见，保存透明度信息供后续使用
+          visible = true;
+          element._lodOpacity = visibilityResult.opacity;
         }
       }
     }
@@ -1604,6 +1567,10 @@ const updateLodState = () => {
       const konvaElement = mainLayer.value?.getNode()?.findOne('#' + element.id);
       if (konvaElement) {
         konvaElement.visible(true);
+        // 设置透明度 - 使用LOD计算的透明度值
+        if (element._lodOpacity !== undefined) {
+          konvaElement.opacity(element._lodOpacity);
+        }
       }
     } else {
       viewState.elementStats.hidden++;
@@ -1646,23 +1613,6 @@ const updateLodState = () => {
     });
   }
 };
-
-// 计算与原点的距离
-const distanceFromOrigin = computed(() => {
-  // 计算当前视图位置的原点(0,0)距离屏幕中心的距离
-  const screenCenterX = viewState.width / 2;
-  const screenCenterY = viewState.height / 2;
-
-  // 原点在屏幕上的位置
-  const originOnScreenX = viewState.position.x;
-  const originOnScreenY = viewState.position.y;
-
-  // 计算距离
-  const dx = originOnScreenX - screenCenterX;
-  const dy = originOnScreenY - screenCenterY;
-
-  return Math.sqrt(dx * dx + dy * dy);
-});
 
 // 向父组件暴露方法和变量
 defineExpose({
@@ -1783,31 +1733,6 @@ defineExpose({
   overflow: hidden;
   touch-action: none;
   user-select: none;
-}
-
-.canvas-status-panel {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 8px 10px;
-  font-size: 12px;
-  z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  min-width: 200px;
-}
-
-.status-item {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 4px;
-}
-
-.status-item>span:first-child {
-  font-weight: bold;
-  margin-bottom: 2px;
 }
 
 .canvas-controls {

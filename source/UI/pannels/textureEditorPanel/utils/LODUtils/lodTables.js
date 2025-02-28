@@ -78,7 +78,9 @@ export const GRID_SIZE_FACTORS = {
 
 // 获取当前LOD级别 - 优化为查表法
 export const getLODLevel = (viewState) => {
-  const scale = viewState.scale;
+  // 如果传入的是简单的数值，转换为正确的格式
+  const scale = typeof viewState === 'number' ? viewState : 
+                (viewState.scale !== undefined ? viewState.scale : 1.0);
   
   // 处理极小值边界情况
   if (scale <= Number.MIN_VALUE) return 0;

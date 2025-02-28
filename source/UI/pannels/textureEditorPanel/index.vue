@@ -157,6 +157,58 @@
           </div>
         </div>
       </div>
+
+      <!-- 画布 8：元素级LOD测试 -->
+      <div class="canvas-wrapper">
+        <h2 class="canvas-title">元素级LOD测试</h2>
+        <div class="canvas-box">
+          <InfiniteCanvas 
+            ref="canvas8" 
+            :initialScale="1.0" 
+            :gridSize="50"
+            :showMouseIndicator="true"
+          />
+        </div>
+        <div class="canvas-controls">
+          <button @click="addLodTestElements">添加测试元素</button>
+          <button @click="clearLodCanvas">清除元素</button>
+          <div class="control-group">
+            <label>元素LOD范围:</label>
+            <button @click="setElementLodRanges('narrow')">窄范围(0.5-2.0)</button>
+            <button @click="setElementLodRanges('medium')">中等范围(0.3-3.0)</button>
+            <button @click="setElementLodRanges('wide')">宽范围(0.1-10.0)</button>
+          </div>
+          <div v-if="lodTestInfo" class="generation-info">
+            {{ lodTestInfo }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 画布 9：时光隧道效果测试 -->
+      <div class="canvas-wrapper">
+        <h2 class="canvas-title">时光隧道效果测试</h2>
+        <div class="canvas-box">
+          <InfiniteCanvas 
+            ref="canvas9" 
+            :initialScale="1.0" 
+            :gridSize="50"
+            :showMouseIndicator="true"
+          />
+        </div>
+        <div class="canvas-controls">
+          <button @click="createTimeTunnel">创建时光隧道</button>
+          <button @click="clearTimeTunnel">清除隧道</button>
+          <div class="control-group">
+            <label>隧道深度:</label>
+            <button @click="setTunnelDepth(5)">浅(5层)</button>
+            <button @click="setTunnelDepth(10)">中(10层)</button>
+            <button @click="setTunnelDepth(20)">深(20层)</button>
+          </div>
+          <div v-if="tunnelInfo" class="generation-info">
+            {{ tunnelInfo }}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -165,7 +217,7 @@
 import { ref, onMounted } from 'vue';
 import InfiniteCanvas from './InfiniteCanvas.vue';
 
-// 引用六个画布
+// 引用八个画布
 const canvas1 = ref(null);
 const canvas2 = ref(null);
 const canvas3 = ref(null);
@@ -173,6 +225,8 @@ const canvas4 = ref(null);
 const canvas5 = ref(null);
 const canvas6 = ref(null);
 const canvas7 = ref(null);
+const canvas8 = ref(null);
+const canvas9 = ref(null);
 
 // 为画布3提供元素数组
 const elements = ref([]);
@@ -193,6 +247,16 @@ const generationInfo = ref('');
 // 六边形网格相关状态
 const hexagonInfo = ref('');
 const currentHexSize = ref(20);
+
+// 元素级LOD测试相关状态
+const lodTestInfo = ref('');
+const lodTestElements = ref([]);
+const currentLodRange = ref('medium');
+
+// 时光隧道相关状态
+const tunnelInfo = ref('');
+const tunnelDepth = ref(10);
+const tunnelElements = ref([]);
 
 // 1. 基本缩放和平移功能
 const testZoomIn = (canvasId) => {
@@ -845,6 +909,433 @@ const clearHexagonCanvas = () => {
   hexagonInfo.value = '';
 };
 
+// 添加元素级LOD测试相关函数
+const addLodTestElements = () => {
+  if (!canvas8.value) return;
+  
+  lodTestInfo.value = '正在生成具有不同LOD范围的测试元素...';
+  clearLodCanvas();
+  
+  setTimeout(() => {
+    const startTime = performance.now();
+    
+    // 添加中心标记
+    canvas8.value.addElement({
+      id: 'lod_center_marker',
+      type: 'text',
+      x: 0,
+      y: 0,
+      text: '原点(0,0)',
+      fontSize: 16,
+      fontFamily: 'Arial',
+      fill: 'black',
+      align: 'center',
+      isSystemElement: true
+    });
+    
+    // 添加不同颜色的圆环，每个设置不同的LOD范围
+    const colors = ['#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3'];
+    const radii = [50, 100, 150, 200, 250];
+    const elements = [];
+    
+    colors.forEach((color, index) => {
+      const radius = radii[index];
+      const circleId = `lod_circle_${radius}`;
+      const element = {
+        id: circleId,
+        type: 'circle',
+        x: 0,
+        y: 0,
+        radius: radius,
+        stroke: color,
+        strokeWidth: 5,
+        fill: 'transparent'
+      };
+      
+      elements.push(element);
+      
+      // 添加标签
+      elements.push({
+        id: `lod_label_${radius}`,
+        type: 'text',
+        x: 0,
+        y: -radius - 15,
+        text: `圆环 ${radius}px`,
+        fontSize: 14,
+        fontFamily: 'Arial',
+        fill: color,
+        align: 'center'
+      });
+    });
+    
+    // 添加方形区域作为额外测试
+    for (let i = 0; i < 4; i++) {
+      const size = 40;
+      const posX = 300 * Math.cos(i * Math.PI / 2);
+      const posY = 300 * Math.sin(i * Math.PI / 2);
+      
+      elements.push({
+        id: `lod_square_${i}`,
+        type: 'rect',
+        x: posX - size / 2,
+        y: posY - size / 2,
+        width: size,
+        height: size,
+        fill: colors[i % colors.length],
+        stroke: 'black',
+        strokeWidth: 1
+      });
+      
+      elements.push({
+        id: `lod_square_label_${i}`,
+        type: 'text',
+        x: posX,
+        y: posY + size/2 + 15,
+        text: `方形 ${i+1}`,
+        fontSize: 14,
+        fontFamily: 'Arial',
+        fill: 'black',
+        align: 'center'
+      });
+    }
+    
+    // 添加所有元素到画布
+    canvas8.value.addElements(elements);
+    lodTestElements.value = elements;
+    
+    // 根据选择的范围设置LOD
+    setElementLodRanges(currentLodRange.value);
+    
+    const endTime = performance.now();
+    lodTestInfo.value = `已添加 ${elements.length} 个测试元素，耗时: ${(endTime - startTime).toFixed(2)}ms\n当前LOD范围: ${getLodRangeDescription(currentLodRange.value)}\n缩放查看不同元素的显示/隐藏效果`;
+  }, 100);
+};
+
+const clearLodCanvas = () => {
+  if (!canvas8.value) return;
+  canvas8.value.resetView();
+  lodTestElements.value = [];
+  lodTestInfo.value = '';
+};
+
+const getLodRangeDescription = (range) => {
+  switch(range) {
+    case 'narrow': return '窄范围(0.5-2.0)';
+    case 'medium': return '中等范围(0.3-3.0)';
+    case 'wide': return '宽范围(0.1-10.0)';
+    default: return '未设置';
+  }
+};
+
+const setElementLodRanges = (range) => {
+  if (!canvas8.value || lodTestElements.value.length === 0) return;
+  
+  currentLodRange.value = range;
+  
+  // 定义不同范围的LOD设置
+  const ranges = {
+    narrow: { min: 0.5, max: 2.0 },
+    medium: { min: 0.3, max: 3.0 },
+    wide: { min: 0.1, max: 10.0 }
+  };
+  
+  const selectedRange = ranges[range] || ranges.medium;
+  
+  // 为不同元素设置不同的LOD范围
+  const colors = ['#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3'];
+  const radii = [50, 100, 150, 200, 250];
+  
+  radii.forEach((radius, index) => {
+    const circleId = `lod_circle_${radius}`;
+    const labelId = `lod_label_${radius}`;
+    
+    // 不同的圆环设置稍微不同的LOD范围
+    const minScale = selectedRange.min * (1 + index * 0.2);
+    const maxScale = selectedRange.max / (1 + index * 0.1);
+    
+    // 设置圆的LOD范围
+    canvas8.value.setElementLodRange(circleId, minScale, maxScale);
+    
+    // 标签与圆使用相同的LOD范围
+    canvas8.value.setElementLodRange(labelId, minScale, maxScale);
+  });
+  
+  // 设置方形元素的LOD范围
+  for (let i = 0; i < 4; i++) {
+    const squareId = `lod_square_${i}`;
+    const labelId = `lod_square_label_${i}`;
+    
+    // 四个方向的方形使用不同的LOD范围
+    let minScale, maxScale;
+    
+    switch(i) {
+      case 0: // 上方 - 只在放大时可见
+        minScale = selectedRange.min * 2;
+        maxScale = selectedRange.max * 2;
+        break;
+      case 1: // 右方 - 只在缩小时可见
+        minScale = selectedRange.min / 2;
+        maxScale = selectedRange.min;
+        break;
+      case 2: // 下方 - 在中等缩放时可见
+        minScale = (selectedRange.min + selectedRange.max) / 3;
+        maxScale = (selectedRange.min + selectedRange.max) * 2/3;
+        break;
+      case 3: // 左方 - 无LOD限制，始终可见
+        minScale = 0.0001;
+        maxScale = 10000;
+        break;
+    }
+    
+    canvas8.value.setElementLodRange(squareId, minScale, maxScale);
+    canvas8.value.setElementLodRange(labelId, minScale, maxScale);
+  }
+  
+  lodTestInfo.value = `已为所有元素设置LOD范围: ${getLodRangeDescription(range)}\n不同元素有略微不同的可见范围，请缩放查看效果`;
+};
+
+// 时光隧道相关功能
+const setTunnelDepth = (depth) => {
+  tunnelDepth.value = depth;
+  if (tunnelElements.value.length > 0) {
+    // 如果已经创建了隧道，重新创建
+    createTimeTunnel();
+  }
+};
+
+const clearTimeTunnel = () => {
+  if (!canvas9.value) return;
+  canvas9.value.resetView();
+  tunnelElements.value = [];
+  tunnelInfo.value = '';
+};
+
+const createTimeTunnel = () => {
+  if (!canvas9.value) return;
+  return
+  tunnelInfo.value = '正在生成时光隧道...';
+  clearTimeTunnel();
+  
+  setTimeout(() => {
+    const startTime = performance.now();
+    const depth = tunnelDepth.value;
+    const elements = [];
+    
+    // 添加中心标记
+    elements.push({
+      id: 'tunnel_center',
+      type: 'text',
+      x: 0,
+      y: 0,
+      text: '隧道中心点',
+      fontSize: 16,
+      fontFamily: 'Arial',
+      fill: 'black',
+      align: 'center'
+    });
+    
+    // 创建时光隧道的层次结构
+    const colors = [
+      '#FF5733', '#FF8C33', '#FFBD33', '#FFFB33', 
+      '#BDFF33', '#75FF33', '#33FF51', '#33FFBD',
+      '#33DCFF', '#3384FF', '#5133FF', '#9C33FF',
+      '#FF33F5', '#FF3384'
+    ];
+    
+    // 计算半径和LOD范围的函数
+    const calculateRadius = (ringIndex, level) => {
+      // 基础半径随层级递增
+      const baseRadius = 50 * Math.pow(1.5, level);
+      // 在同一层级内平滑变化
+      const levelProgress = (ringIndex % 50) / 50;
+      return baseRadius * (1 + levelProgress * 0.5);
+    };
+    
+    // 基于半径计算LOD范围的函数
+    const calculateLodRange = (radius) => {
+      const baseMinScale = 2.0;
+      const baseMaxScale = 8.0;
+      const factor = 0.6; // 衰减因子
+      
+      // 使用对数关系: 半径越大，LOD范围越小
+      const minScale = baseMinScale * Math.pow(radius/100, -factor);
+      const maxScale = baseMaxScale * Math.pow(radius/100, -factor);
+      
+      return {
+        min: Math.max(0.01, minScale), // 确保最小值不低于0.01
+        max: Math.max(0.05, maxScale)  // 确保最大值不低于0.05
+      };
+    };
+    
+    // 计算视觉属性的函数
+    const calculateVisualProps = (radius, ringIndex, level) => {
+      // 线宽随半径增加而增加，但有上限
+      const strokeWidth = Math.min(4, 1 + radius / 200);
+      
+      // 透明度随半径减小
+      const opacity = Math.max(0.3, 1 - radius / 2000);
+      
+      // 是否使用虚线 - 有规律地分布
+      const isDashed = (ringIndex % 7 === 0);
+      
+      return {
+        strokeWidth,
+        opacity,
+        isDashed
+      };
+    };
+    
+    let elementCount = 1; // 已添加的元素数（中心点）
+    const targetCount = 10000; // 固定为一万个元素
+    
+    // 创建系统化的层级设计
+    const maxLevels = depth * 2; // 根据深度参数确定层级数
+    
+    // 第一阶段：按层级生成圆环
+    for (let level = 0; level < maxLevels && elementCount < targetCount; level++) {
+      // 每个层级的圆环数，随层级增加而减少
+      const ringsPerLevel = Math.max(10, Math.floor(500 / (level + 1)));
+      
+      for (let i = 0; i < ringsPerLevel && elementCount < targetCount; i++) {
+        const ringIndex = (level * 500) + i;
+        const radius = calculateRadius(ringIndex, level);
+        const lodRange = calculateLodRange(radius);
+        const visualProps = calculateVisualProps(radius, ringIndex, level);
+        const colorIndex = (level + i) % colors.length;
+        
+        // 主环
+        elements.push({
+          id: `tunnel_ring_${ringIndex}`,
+          type: 'circle',
+          x: 0,
+          y: 0,
+          radius: radius,
+          stroke: colors[colorIndex],
+          strokeWidth: visualProps.strokeWidth,
+          dash: visualProps.isDashed ? [5, 5] : undefined,
+          fill: 'transparent',
+          opacity: visualProps.opacity,
+          lodMinScale: lodRange.min,
+          lodMaxScale: lodRange.max,
+          lodTransitionType: 'fade'
+        });
+        elementCount++;
+        
+        // 为部分圆环添加内环，创造更丰富的视觉效果
+        if (i % 3 === 0 && elementCount < targetCount) {
+          const innerRadius = radius * 0.9;
+          const innerLodRange = calculateLodRange(innerRadius);
+          
+          elements.push({
+            id: `tunnel_inner_ring_${ringIndex}`,
+            type: 'circle',
+            x: 0,
+            y: 0,
+            radius: innerRadius,
+            stroke: colors[(colorIndex + 1) % colors.length],
+            strokeWidth: Math.max(1, visualProps.strokeWidth - 1),
+            dash: [3, 3],
+            fill: 'transparent',
+            opacity: visualProps.opacity * 0.8,
+            lodMinScale: innerLodRange.min,
+            lodMaxScale: innerLodRange.max,
+            lodTransitionType: 'fade'
+          });
+          elementCount++;
+        }
+      }
+    }
+    
+    // 第二阶段：填充剩余元素，确保到达一万个
+    const remainingCount = targetCount - elementCount;
+    if (remainingCount > 0) {
+      tunnelInfo.value = `已生成 ${elementCount} 个结构化圆环，正在填充剩余 ${remainingCount} 个...`;
+      
+      // 批量生成圆环
+      const batchSize = 1000;
+      const batchCount = Math.ceil(remainingCount / batchSize);
+      
+      for (let b = 0; b < batchCount; b++) {
+        const startIndex = elementCount;
+        const endIndex = Math.min(startIndex + batchSize, targetCount);
+        const count = endIndex - startIndex;
+        
+        for (let i = 0; i < count; i++) {
+          const ringIndex = startIndex + i;
+          
+          // 使用非线性函数创造多样化的半径
+          const level = maxLevels + Math.floor(ringIndex / 200);
+          const radius = calculateRadius(ringIndex, level);
+          const lodRange = calculateLodRange(radius);
+          const visualProps = calculateVisualProps(radius, ringIndex, level);
+          const colorIndex = ringIndex % colors.length;
+          
+          elements.push({
+            id: `tunnel_extra_ring_${ringIndex}`,
+            type: 'circle',
+            x: 0,
+            y: 0,
+            radius: radius,
+            stroke: colors[colorIndex],
+            strokeWidth: visualProps.strokeWidth,
+            dash: visualProps.isDashed ? [5, 5] : undefined,
+            fill: 'transparent',
+            opacity: visualProps.opacity,
+            lodMinScale: lodRange.min,
+            lodMaxScale: lodRange.max,
+            lodTransitionType: 'fade'
+          });
+          elementCount++;
+        }
+      }
+    }
+    
+    // 添加指导文字
+    elements.push({
+      id: 'tunnel_instructions',
+      type: 'text',
+      x: 0,
+      y: -200,
+      text: '不断放大或缩小以体验一万个圆环构成的时光隧道效果\n随着缩放级别变化，不同层级的圆环将出现或消失',
+      fontSize: 16,
+      fontFamily: 'Arial',
+      fill: 'black',
+      align: 'center',
+      lodMinScale: 0.1,
+      lodMaxScale: 50
+    });
+    elementCount++;
+    
+    // 添加所有元素到画布，使用分批添加以避免界面冻结
+    tunnelInfo.value = `准备添加 ${elements.length} 个圆环到画布...`;
+    
+    // 分批添加元素，每批1000个
+    const addBatchSize = 1000;
+    const addBatchCount = Math.ceil(elements.length / addBatchSize);
+    
+    const addElementBatch = (batchIndex) => {
+      const start = batchIndex * addBatchSize;
+      const end = Math.min(start + addBatchSize, elements.length);
+      const batch = elements.slice(start, end);
+      
+      canvas9.value.addElements(batch);
+      
+      const progress = Math.round(((batchIndex + 1) * addBatchSize / elements.length) * 100);
+      tunnelInfo.value = `正在添加圆环: ${Math.min(end, elements.length)}/${elements.length} (${progress}%)`;
+      
+      if (batchIndex + 1 < addBatchCount) {
+        setTimeout(() => addElementBatch(batchIndex + 1), 30);
+      } else {
+        const endTime = performance.now();
+        tunnelElements.value = elements;
+        tunnelInfo.value = `已生成时光隧道，共 ${elements.length} 个圆环元素，${depth} 层递归结构\n生成耗时: ${(endTime - startTime).toFixed(2)}ms\n请放大和缩小以体验无限隧道效果`;
+      }
+    };
+    
+    // 开始分批添加
+    addElementBatch(0);
+  }, 100);
+};
 onMounted(() => {
   // 在组件挂载后初始化一些功能
   setTimeout(() => {
@@ -863,6 +1354,20 @@ onMounted(() => {
       setTimeout(() => {
         addHexagonGrid();
       }, 500);
+    }
+    
+    // 为第八个画布添加LOD测试元素
+    if (canvas8.value) {
+      setTimeout(() => {
+        addLodTestElements();
+      }, 600);
+    }
+    
+    // 为第九个画布创建时光隧道
+    if (canvas9.value) {
+      setTimeout(() => {
+        createTimeTunnel();
+      }, 700);
     }
   }, 500);
 });

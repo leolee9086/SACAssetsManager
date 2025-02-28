@@ -48,31 +48,118 @@ export const calculateLodLevel = (viewState, props) => {
  * @param {Object} element 要检查的元素
  * @param {Object} viewState 当前视图状态
  * @param {Object} props 组件属性
- * @returns {Boolean} 元素是否应该显示
+ * @returns {Object} 包含可见性和透明度信息的对象 {visible: Boolean, opacity: Number}
  */
 export const shouldElementBeVisible = (element, viewState, props) => {
-  if (!props.enableLod) return true;
+  // 初始化返回值对象，默认元素原始透明度或1.0
+  const result = {
+    visible: false,
+    opacity: element.config?.opacity !== undefined ? element.config.opacity : 1.0
+  };
   
-  // 如果元素有自定义LOD范围
-  if (element.lodRange) {
-    // 处理特殊情况：无穷大或非常小的值
-    const minScale = element.lodRange.minScale === -Infinity ? 0 : element.lodRange.minScale;
-    const maxScale = element.lodRange.maxScale === Infinity ? Number.MAX_VALUE : element.lodRange.maxScale;
-    
-    return viewState.scale >= minScale && viewState.scale <= maxScale;
+  // 如果禁用了LOD功能，则所有元素都应该显示
+  if (!props.enableLod) {
+    result.visible = true;
+    return result;
   }
   
-  // 优化：针对超大或超小缩放值的特殊处理
+  // 如果元素被手动设置为不可见，则直接返回false
+  if (element.visible === false) {
+    return result;
+  }
+  
+  // 如果元素是系统元素(isSystemElement=true)，则总是显示
+  if (element.isSystemElement === true) {
+    result.visible = true;
+    return result;
+  }
+  
+  // 处理元素自定义LOD范围 - 直接基于缩放值
+  if (element.config.lodRange || element.lodMinScale !== undefined || element.config.lodMinScale !== undefined) {
+    // 获取缩放范围，优先使用直接属性，然后是config中的属性，最后是lodRange
+    const minScale = element.lodMinScale !== undefined ? element.lodMinScale : 
+                    (element.config.lodMinScale !== undefined ? element.config.lodMinScale : 
+                     (element.config.lodRange?.minScale === -Infinity ? 0 : element.config.lodRange?.minScale));
+    
+    const maxScale = element.lodMaxScale !== undefined ? element.lodMaxScale : 
+                    (element.config.lodMaxScale !== undefined ? element.config.lodMaxScale : 
+                     (element.config.lodRange?.maxScale === Infinity ? Number.MAX_VALUE : element.config.lodRange?.maxScale));
+    
+    // 直接比较缩放值，而不是转换为LOD级别
+    const currentScale = viewState.scale;
+    
+    // 检查是否启用渐进渐出效果
+    const transitionType = element.lodTransitionType || element.config.lodTransitionType;
+    
+    if (transitionType === 'fade') {
+      // 计算缩放边界过渡区域的透明度
+      const scaleOpacity = calculateScaleTransitionOpacity(currentScale, minScale, maxScale);
+      
+      // 元素在任何缩放范围内都"可见"，但透明度可能为0
+      result.visible = scaleOpacity > 0;
+      // 将缩放透明度与元素自身透明度相乘
+      result.opacity *= scaleOpacity;
+      return result;
+    } else {
+      // 没有过渡效果的情况 - 简单的范围检查
+      result.visible = currentScale >= minScale && currentScale <= maxScale;
+      return result;
+    }
+  }
+  
+  // 针对极端缩放值的特殊处理
   if (viewState.scale < 1e-10 || viewState.scale > 1e10) {
     // 根据LOD级别而非直接尺寸计算来判断可见性
     const elementLod = calculateElementLodLevel(element);
     const currentLod = calculateLodLevel(viewState, props);
-    return Math.abs(elementLod - currentLod) <= 1; // 在当前LOD级别或相邻级别可见
+    // 在当前LOD级别或相邻级别可见
+    result.visible = Math.abs(elementLod - currentLod) <= 1;
+    return result;
   }
   
   // 计算元素在屏幕上的大小
   const elementSize = calculateElementScreenSize(element, viewState, props);
-  return elementSize >= props.lodThreshold;
+  
+  // 根据元素屏幕尺寸判断可见性
+  // 如果元素尺寸大于或等于阈值，则显示它
+  result.visible = elementSize >= props.lodThreshold;
+  return result;
+};
+
+/**
+ * 计算缩放过渡区域的透明度
+ * @param {Number} currentScale 当前缩放值
+ * @param {Number} minScale 最小可见缩放值
+ * @param {Number} maxScale 最大可见缩放值
+ * @returns {Number} 计算出的透明度值（0-1之间）
+ */
+const calculateScaleTransitionOpacity = (currentScale, minScale, maxScale) => {
+  // 过渡区域大小比例（相对于临界值）
+  const transitionFactor = 0.2;
+  
+  // 计算过渡区域范围
+  const minTransition = minScale * (1 - transitionFactor);
+  const maxTransition = maxScale * (1 + transitionFactor);
+  
+  // 元素完全在可见范围内
+  if (currentScale > minScale * (1 + transitionFactor) && currentScale < maxScale * (1 - transitionFactor)) {
+    return 1.0;
+  }
+  
+  // 元素在最小缩放边界的过渡区域内
+  if (currentScale >= minTransition && currentScale <= minScale * (1 + transitionFactor)) {
+    // 从0到1的线性过渡
+    return (currentScale - minTransition) / (minScale * transitionFactor * 2);
+  }
+  
+  // 元素在最大缩放边界的过渡区域内
+  if (currentScale >= maxScale * (1 - transitionFactor) && currentScale <= maxTransition) {
+    // 从1到0的线性过渡
+    return 1.0 - (currentScale - maxScale * (1 - transitionFactor)) / (maxScale * transitionFactor * 2);
+  }
+  
+  // 完全超出可见范围
+  return 0.0;
 };
 
 // 为极端缩放值增加LOD级别计算
