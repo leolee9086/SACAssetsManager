@@ -133,6 +133,7 @@ import {
   removeFullscreenChangeListener
 } from './utils/fullscreenUtils.js';
 import { handlePanMovement, canPan } from './utils/panUtils.js';
+import { exportCanvasAsImage as exportCanvasAsImageUtil, exportSelectedArea as exportSelectedAreaUtil } from './utils/exportUtils.js';
 
 // 定义props
 const props = defineProps({
@@ -686,10 +687,8 @@ const updateMouseState = (event) => {
 const onMouseMove = (event) => {
   // 处理平移
   handlePanning(event);
-  
   // 处理绘制
   handleDrawing(event);
-  
   // 更新鼠标状态
   updateMouseState(event);
 };
@@ -755,130 +754,28 @@ const zoomOut = () => {
   // 无需手动调用drawGrid
 };
 
-// 导出画布为图片
+// 将导出画布为图片的方法替换为使用工具函数
 const exportCanvasAsImage = (options = {}) => {
-  const {
-    pixelRatio = 2,
-    mimeType = 'image/png',
-    quality = 1
-  } = options;
-
-  if (!stage.value || !stage.value.getNode()) {
-    console.error('无法导出：舞台不存在');
-    return null;
-  }
-
-  try {
-    // 计算当前视口可见范围在屏幕上的尺寸
-    const visibleWidth = viewState.width;
-    const visibleHeight = viewState.height;
-
-    // 创建临时复制的舞台，以避免改变原始舞台的状态
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.top = '-9999px';
-    tempContainer.style.left = '-9999px';
-    document.body.appendChild(tempContainer);
-
-    // 创建临时舞台
-    const tempStage = new Konva.Stage({
-      container: tempContainer,
-      width: visibleWidth * pixelRatio,
-      height: visibleHeight * pixelRatio
-    });
-
-    // 创建背景层
-    const tempBackgroundLayer = new Konva.Layer();
-    tempStage.add(tempBackgroundLayer);
-
-    // 添加白色背景矩形
-    const background = new Konva.Rect({
-      x: 0,
-      y: 0,
-      width: visibleWidth * pixelRatio,
-      height: visibleHeight * pixelRatio,
-      fill: 'white'
-    });
-    tempBackgroundLayer.add(background);
-
-    // 创建内容层
-    const tempContentLayer = new Konva.Layer();
-    tempStage.add(tempContentLayer);
-
-    // 复制各层的内容
-    const allLayers = [backgroundLayer.value, mainLayer.value, uiLayer.value];
-
-    for (const layerRef of allLayers) {
-      if (!layerRef || !layerRef.getNode()) continue;
-
-      // 复制图层节点
-      const originalLayer = layerRef.getNode();
-      const children = originalLayer.getChildren();
-
-      for (const child of children) {
-        try {
-          // 克隆节点
-          const clone = child.clone();
-
-          // 坐标转换过程：
-          // 1. 从画布坐标转换到世界坐标
-          const canvasX = child.x();
-          const canvasY = child.y();
-
-          // 2. 从世界坐标转换到屏幕坐标
-          const screenX = canvasX * viewState.scale + viewState.position.x;
-          const screenY = canvasY * viewState.scale + viewState.position.y;
-
-          // 3. 应用像素比例
-          clone.x(screenX * pixelRatio);
-          clone.y(screenY * pixelRatio);
-
-          // 4. 调整缩放比例
-          clone.scaleX(child.scaleX() * viewState.scale * pixelRatio);
-          clone.scaleY(child.scaleY() * viewState.scale * pixelRatio);
-
-          // 5. 如果是线条，需要特别处理线宽
-          if (clone.getClassName() === 'Line') {
-            clone.strokeWidth((child.strokeWidth() / viewState.scale) * pixelRatio);
-          }
-
-          tempContentLayer.add(clone);
-        } catch (cloneError) {
-          console.warn('克隆节点时出错:', cloneError);
-        }
-      }
-    }
-
-    // 绘制舞台
-    tempStage.draw();
-
-    // 使用toDataURL获取图像数据
-    const dataURL = tempStage.toDataURL({
-      mimeType,
-      quality,
-      pixelRatio: 1 // 已经应用了pixelRatio，不需要重复应用
-    });
-
-    // 清理临时元素
-    tempStage.destroy();
-    document.body.removeChild(tempContainer);
-
-    return dataURL;
-  } catch (error) {
-    console.error('导出图片时出错:', error);
-    return null;
-  }
+  // 准备图层引用
+  const layerRefs = {
+    backgroundLayer: backgroundLayer.value,
+    mainLayer: mainLayer.value,
+    uiLayer: uiLayer.value
+  };
+  
+  return exportCanvasAsImageUtil(options, stage.value, layerRefs, viewState);
 };
 
 // 导出选定区域
 const exportSelectedArea = (area, options = {}) => {
-  return exportCanvasAsImage({
-    x: area.x,
-    y: area.y,
-    width: area.width,
-    height: area.height,
-    ...options
-  });
+  // 准备图层引用
+  const layerRefs = {
+    backgroundLayer: backgroundLayer.value,
+    mainLayer: mainLayer.value,
+    uiLayer: uiLayer.value
+  };
+  
+  return exportSelectedAreaUtil(area, options, stage.value, layerRefs, viewState);
 };
 
 // 窗口大小变化时调整舞台大小并居中原点
