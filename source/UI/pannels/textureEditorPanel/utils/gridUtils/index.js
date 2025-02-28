@@ -68,7 +68,7 @@ const prepareGridParameters = (bounds, viewScale, gridSize) => {
     // 计算当前LOD级别和网格大小
     const lodLevel = getLODLevel({ scale: viewScale });
     const mainGridSize = getLODGridSize(gridSize, { scale: viewScale });
-  
+    console.log(mainGridSize)
     // 计算次要网格尺寸
     const showSecondaryGrid = lodLevel >= 2 && lodLevel <= 5;
     const secondaryGridSize = mainGridSize / 10;
@@ -469,99 +469,110 @@ const prepareGridParameters = (bounds, viewScale, gridSize) => {
   };
 
   // 节流网格绘制函数 - 接受Konva对象作为参数
-  export const drawGridWithThrottle = (() => {
-    // 闭包维护节流状态
+  export function drawGridWithThrottle(
+    gridGroup,
+    bounds,
+    scale,
+    gridSize,
+    unitRatio,
+    Konva,
+    options = {}
+  ) {
+    const {
+      throttleDelay = 60,
+      theme = {
+        primaryColor: 'rgba(200, 200, 200, 0.2)',
+        secondaryColor: 'rgba(200, 200, 200, 0.1)',
+        tertiaryColor: 'rgba(200, 200, 200, 0.05)',
+        axisXColor: 'rgba(255, 0, 0, 0.5)',
+        axisYColor: 'rgba(0, 128, 0, 0.5)',
+        lineWidth: 1
+      }
+    } = options;
+
+    if (!gridGroup) return false;
+    
+    // 节流控制：限制短时间内多次调用
     let isThrottled = false;
     let throttleTimer = null;
     let lastScale = 0;
     let lastBounds = null;
     
-    // 返回节流版本的绘制函数
-    return (gridGroup, bounds, viewScale, gridSize, unitRatio, Konva, options = {}) => {
-      if (!gridGroup) return false;
+    // 检查网格是否需要重绘
+    // 只有在缩放变化显著或视口边界变化较大时才重绘
+    const scaleChanged = !lastScale || Math.abs(scale / lastScale - 1) > 0.1;
+    
+    const boundsChanged = !lastBounds || 
+      Math.abs(bounds.left - lastBounds.left) > bounds.width * 0.2 / scale ||
+      Math.abs(bounds.right - lastBounds.right) > bounds.width * 0.2 / scale ||
+      Math.abs(bounds.top - lastBounds.top) > bounds.height * 0.2 / scale ||
+      Math.abs(bounds.bottom - lastBounds.bottom) > bounds.height * 0.2 / scale;
       
-      // 默认配置
-      const config = {
-        throttleDelay: 60, // 节流延迟(ms)
-        scaleThreshold: 0.1, // 缩放变化阈值
-        boundsThreshold: 0.2, // 边界变化阈值(比例)
-        ...options
-      };
+    if (!scaleChanged && !boundsChanged) {
+      return false; // 如果变化不大，不重绘网格
+    }
+    
+    // 更新上次状态缓存
+    lastScale = scale;
+    lastBounds = {...bounds};
+    
+    // 构建网格元素
+    let gridElements = buildGrid(bounds, scale, gridSize, unitRatio);
+    
+    // 如果网格生成失败，使用不同参数重试
+    if (gridElements === null) {
+      // 尝试使用更低精度构建网格
+      const lowerPrecisionBounds = {...bounds};
+      const lowerScale = scale * 0.8; // 降低精度
+      gridElements = buildGrid(lowerPrecisionBounds, lowerScale, gridSize, unitRatio);
       
-      // 节流控制：限制短时间内多次调用
-      if (isThrottled) return false;
-      isThrottled = true;
-      
-      // 设置节流定时器
-      clearTimeout(throttleTimer);
-      throttleTimer = setTimeout(() => {
-        isThrottled = false;
-      }, config.throttleDelay);
-      
-      // 检查网格是否需要重绘
-      // 只有在缩放变化显著或视口边界变化较大时才重绘
-      const scaleChanged = !lastScale || Math.abs(viewScale / lastScale - 1) > config.scaleThreshold;
-      
-      const boundsChanged = !lastBounds || 
-        Math.abs(bounds.left - lastBounds.left) > bounds.width * config.boundsThreshold / viewScale ||
-        Math.abs(bounds.right - lastBounds.right) > bounds.width * config.boundsThreshold / viewScale ||
-        Math.abs(bounds.top - lastBounds.top) > bounds.height * config.boundsThreshold / viewScale ||
-        Math.abs(bounds.bottom - lastBounds.bottom) > bounds.height * config.boundsThreshold / viewScale;
-        
-      if (!scaleChanged && !boundsChanged) {
-        return false; // 如果变化不大，不重绘网格
-      }
-      
-      // 更新上次状态缓存
-      lastScale = viewScale;
-      lastBounds = {...bounds};
-      
-      // 构建网格元素
-      let gridElements = buildGrid(bounds, viewScale, gridSize, unitRatio);
-      
-      // 如果网格生成失败，使用不同参数重试
       if (gridElements === null) {
-        // 尝试使用更低精度构建网格
-        const lowerPrecisionBounds = {...bounds};
-        const lowerScale = viewScale * 0.8; // 降低精度
-        gridElements = buildGrid(lowerPrecisionBounds, lowerScale, gridSize, unitRatio);
-        
-        if (gridElements === null) {
-          return false; // 如果仍然失败，不绘制
-        }
+        return false; // 如果仍然失败，不绘制
       }
-      
-      // 清空现有内容
-      gridGroup.destroyChildren();
-      
-      // 按类型分类元素，为批量创建做准备
-      const lines = [];
-      const texts = [];
-      const circles = [];
-      
-      gridElements.forEach(element => {
-        switch (element.type) {
-          case 'line':
-            lines.push(element.config);
-            break;
-          case 'text':
-            texts.push(element.config);
-            break;
-          case 'circle':
-            circles.push(element.config);
-            break;
-        }
-      });
-      
-      // 批量创建和添加节点
-      lines.forEach(config => gridGroup.add(new Konva.Line(config)));
-      texts.forEach(config => gridGroup.add(new Konva.Text(config)));
-      circles.forEach(config => gridGroup.add(new Konva.Circle(config)));
-      
-      // 绘制
-      gridGroup.draw();
-      
-      return true; // 返回绘制成功
-    };
-  })();
+    }
+    
+    // 清空现有内容
+    gridGroup.destroyChildren();
+    
+    // 按类型分类元素，为批量创建做准备
+    const lines = [];
+    const texts = [];
+    const circles = [];
+    
+    gridElements.forEach(element => {
+      switch (element.type) {
+        case 'line':
+          lines.push(element.config);
+          break;
+        case 'text':
+          texts.push(element.config);
+          break;
+        case 'circle':
+          circles.push(element.config);
+          break;
+      }
+    });
+    
+    // 批量创建和添加节点
+    lines.forEach(config => {
+      const line = new Konva.Line(config);
+      line.stroke(theme.primaryColor);
+      gridGroup.add(line);
+    });
+    texts.forEach(config => {
+      const text = new Konva.Text(config);
+      text.fill(theme.axisXColor);
+      gridGroup.add(text);
+    });
+    circles.forEach(config => {
+      const circle = new Konva.Circle(config);
+      circle.fill(theme.primaryColor);
+      gridGroup.add(circle);
+    });
+    
+    // 绘制
+    gridGroup.draw();
+    
+    return true; // 返回绘制成功
+  }
     

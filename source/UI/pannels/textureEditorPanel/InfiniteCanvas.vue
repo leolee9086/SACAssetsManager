@@ -13,10 +13,17 @@
 
       <!-- 背景层 -->
       <v-layer ref="backgroundLayer">
-        <!-- 网格和坐标轴 -->
-        <v-group ref="gridGroup">
-          <!-- 网格线由代码动态生成 -->
-        </v-group>
+        <!-- 使用新的网格系统组件 -->
+        <grid-system 
+          ref="gridSystem"
+          :viewport="viewportBounds"
+          :scale="viewState.scale"
+          :gridSize="props.gridSize"
+          :unitRatio="props.unitRatio"
+          :theme="gridTheme"
+          :throttleDelay="60"
+          :visible="true"
+        />
       </v-layer>
 
       <!-- 主要内容层 -->
@@ -120,8 +127,8 @@
 <script setup>
 import { ref, computed, onMounted, reactive, watch, onUnmounted } from 'vue';
 import { getViewportBounds, calculateLodLevel } from './utils/canvasUtils.js';
-import { drawGridWithThrottle } from './utils/gridUtils/index.js';
 import { shouldElementBeVisible } from './utils/LODUtils/index.js';
+import GridSystem from './components/GridSystem.vue';
 
 // 定义props
 const props = defineProps({
@@ -222,7 +229,8 @@ const emit = defineEmits([
   'update:modelValue', // 添加v-model事件
   'element-added',
   'element-removed',
-  'element-updated'
+  'element-updated',
+  'mounted'
 ]);
 
 // DOM和舞台引用
@@ -231,7 +239,7 @@ const stage = ref(null);
 const backgroundLayer = ref(null);
 const mainLayer = ref(null);
 const uiLayer = ref(null);
-const gridGroup = ref(null);
+const gridSystem = ref(null);
 
 // 视图状态
 const viewState = reactive({
@@ -316,6 +324,9 @@ onMounted(() => {
   document.addEventListener('fullscreenchange', handleFullscreenChange);
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
   document.addEventListener('msfullscreenchange', handleFullscreenChange);
+  
+  // 添加挂载完成事件
+  emit('mounted');
 });
 
 // 组件卸载时移除全屏事件监听
@@ -443,29 +454,15 @@ const drawModeText = computed(() => {
   }
 });
 
-// 优化后的网格绘制函数
-const drawGrid = () => {
-  if (!gridGroup.value || !gridGroup.value.getNode()) return;
-
-  // 计算当前视口边界
-  const bounds = getViewportBounds(viewState);
-  bounds.width = viewState.width;  // 添加宽度和高度信息用于边界变化检测
-  bounds.height = viewState.height;
-
-  // 调用工具函数绘制网格，传入所需参数
-  drawGridWithThrottle(
-    gridGroup.value.getNode(),  // Konva网格组
-    bounds,                     // 视口边界
-    viewState.scale,            // 当前缩放比例
-    props.gridSize,             // 网格大小配置
-    props.unitRatio,            // 单位比例
-    Konva,                      // Konva对象(用于创建元素)
-    {
-      // 可选配置，如自定义节流延迟等
-      throttleDelay: 60
-    }
-  );
-};
+// 添加网格主题配置
+const gridTheme = reactive({
+  primaryColor: 'rgba(200, 200, 200, 0.2)',
+  secondaryColor: 'rgba(200, 200, 200, 0.1)',
+  tertiaryColor: 'rgba(200, 200, 200, 0.05)',
+  axisXColor: 'rgba(255, 0, 0, 0.5)',
+  axisYColor: 'rgba(0, 128, 0, 0.5)',
+  lineWidth: 1
+});
 
 // 更新舞台变换时重新计算视口边界
 const updateTransform = () => {
@@ -497,8 +494,7 @@ const updateTransform = () => {
   // 绘制所有图层
   konvaStage.batchDraw();
 
-  // 更新网格以确保填满画布
-  drawGrid()
+  // 网格系统无需额外调用，由组件内部监听处理
 };
 
 // 获取相对于容器的鼠标位置
@@ -767,8 +763,8 @@ const onStageMouseMove = (e) => {
 const resetView = () => {
   viewState.scale = props.initialScale;
   viewState.position = { ...props.initialPosition };
-  updateTransform()
-  drawGrid();
+  updateTransform();
+  // 无需手动调用drawGrid
 };
 
 // 放大
@@ -784,8 +780,8 @@ const zoomIn = () => {
   viewState.position.y = centerY - (centerY - viewState.position.y) * (newScale / oldScale);
   viewState.scale = newScale;
 
-  updateTransform()
-  drawGrid();
+  updateTransform();
+  // 无需手动调用drawGrid
 };
 
 // 缩小
@@ -801,8 +797,8 @@ const zoomOut = () => {
   viewState.position.y = centerY - (centerY - viewState.position.y) * (newScale / oldScale);
   viewState.scale = newScale;
 
-  updateTransform()
-  drawGrid();
+  updateTransform();
+  // 无需手动调用drawGrid
 };
 
 // 导出画布为图片
@@ -819,11 +815,6 @@ const exportCanvasAsImage = (options = {}) => {
   }
 
   try {
-    const konvaStage = stage.value.getNode();
-
-    // 获取当前视口的实际可见范围（世界坐标系）
-    const bounds = getViewportBounds(viewState);
-
     // 计算当前视口可见范围在屏幕上的尺寸
     const visibleWidth = viewState.width;
     const visibleHeight = viewState.height;
@@ -953,8 +944,6 @@ const handleResize = () => {
   }
 
   updateTransform()
-
-  drawGrid()
 };
 
 // 坐标转换方法
@@ -998,7 +987,7 @@ onMounted(() => {
   window.addEventListener('resize', handleResize);
 
   // 初始化网格
-  drawGrid();
+  updateTransform();
 
   // 启动FPS计算
   viewState.lastFpsUpdateTime = performance.now();
@@ -1016,11 +1005,8 @@ onUnmounted(() => {
 });
 
 // 监听属性变化
-watch(() => props.gridSize, drawGrid);
-watch(() => props.unitRatio, drawGrid);
-
-
-
+watch(() => props.gridSize, updateTransform);
+watch(() => props.unitRatio, updateTransform);
 
 // 1. 首先定义创建Konva元素的工厂函数
 const createKonvaElement = (element) => {
@@ -1686,7 +1672,7 @@ defineExpose({
   backgroundLayer,
   mainLayer,
   uiLayer,
-  gridGroup,
+  gridSystem,
 
   // methods
   resetView,
@@ -1780,6 +1766,11 @@ defineExpose({
         visible: visible
       });
     }
+  },
+
+  gridSystem: computed(() => gridSystem.value), // 暴露网格系统组件
+  setGridTheme: (theme) => {
+    Object.assign(gridTheme, theme);
   },
 });
 </script>

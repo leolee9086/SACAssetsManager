@@ -1,54 +1,16 @@
+// 导入常量和基础查表函数
+import { 
+  LOD_THRESHOLDS, 
+  GRID_SIZE_FACTORS, 
+  getLODLevel, 
+  getLODGridSize 
+} from './lodTables.js';
 
-
-// LOD级别阈值查找表 - 使用查表法提高性能
-const LOD_THRESHOLDS = [
-    { threshold: 0.001, level: 0 },  // 极远视图
-    { threshold: 0.01, level: 1 },   // 远视图
-    { threshold: 0.1, level: 2 },    // 中远视图
-    { threshold: 1, level: 3 },      // 中视图
-    { threshold: 10, level: 4 },     // 中近视图
-    { threshold: 100, level: 5 },    // 近视图
-    { threshold: Number.MAX_VALUE, level: 6 }  // 极近视图，支持到JS数字上界
-  ];
-  
-  // 获取当前LOD级别 - 优化为查表法
-  export const getLODLevel = (viewState) => {
-    const scale = viewState.scale;
-    
-    // 处理极小值边界情况
-    if (scale <= Number.MIN_VALUE) return 0;
-    
-    // 查表法快速查询
-    for (const entry of LOD_THRESHOLDS) {
-      if (scale <= entry.threshold) {
-        return entry.level;
-      }
-    }
-    
-    // 默认情况，不应该到达此处
-    return 6;
-  };
-  
-  // 网格大小计算查找表 - 使用查表法提高性能
-  const GRID_SIZE_FACTORS = {
-    0: (baseSize) => baseSize * 1000,   // 极远视图
-    1: (baseSize) => baseSize * 100,    // 远视图
-    2: (baseSize) => baseSize * 10,     // 中远视图
-    3: (baseSize) => baseSize,          // 中视图 - 基本网格大小
-    4: (baseSize) => baseSize / 10,     // 中近视图
-    5: (baseSize) => baseSize / 100,    // 近视图
-    6: (baseSize) => baseSize / 1000    // 极近视图
-  };
-  
-  // 获取当前LOD级别的网格大小 - 优化为查表法
-  export const getLODGridSize = (baseSize, viewState) => {
-    const level = getLODLevel(viewState);
-    
-    // 查表法快速查询并计算网格大小
-    const sizeFactor = GRID_SIZE_FACTORS[level] || GRID_SIZE_FACTORS[3]; // 默认使用中视图基准
-    return sizeFactor(baseSize);
-  };
-
+// 导出从lodTables导入的函数和常量（以便保持API兼容性）
+export { 
+  getLODLevel, 
+  getLODGridSize 
+};
 
 /**
  * 计算当前的LOD级别
@@ -81,9 +43,6 @@ export const calculateLodLevel = (viewState, props) => {
   return Math.max(props.minLodLevel || 0, Math.min(props.maxLodLevel || 6, lodLevel));
 };
 
-
-
-
 /**
  * 检查元素是否应该显示（基于自动LOD或手动LOD）
  * @param {Object} element 要检查的元素
@@ -112,11 +71,9 @@ export const shouldElementBeVisible = (element, viewState, props) => {
   }
   
   // 计算元素在屏幕上的大小
-  const elementSize = calculateElementScreenSize(element, viewState);
+  const elementSize = calculateElementScreenSize(element, viewState, props);
   return elementSize >= props.lodThreshold;
 };
-
-
 
 // 为极端缩放值增加LOD级别计算
 const calculateElementLodLevel = (element) => {
@@ -147,68 +104,405 @@ const calculateElementLodLevel = (element) => {
   return baseLodLevel;
 };
 
-// 计算元素在屏幕上的大小 - 优化以处理极端缩放值
-const calculateElementScreenSize = (element, viewState) => {
+/**
+ * 计算元素在屏幕上的大小 - 优化以处理极端缩放值
+ * @param {Object} element 要计算的元素对象
+ * @param {Object} viewState 当前视图状态
+ * @param {Object} props 组件属性
+ * @returns {Number} 元素在屏幕上的大小（像素值）
+ */
+const calculateElementScreenSize = (element, viewState, props) => {
   // 针对极端缩放值的安全检查
   if (!isFinite(viewState.scale) || isNaN(viewState.scale)) {
     console.warn('缩放值无效:', viewState.scale);
     return 0;
   }
 
-  // 根据元素类型计算尺寸
-  let size = 0;
+  // 根据元素类型分发到对应的计算函数
+  switch (element.type) {
+    case 'line':
+      return calculateLineScreenSize(element, viewState, props);
+    case 'circle':
+      return calculateCircleScreenSize(element, viewState);
+    case 'text':
+      return calculateTextScreenSize(element, viewState);
+    case 'rect':
+      return calculateRectScreenSize(element, viewState);
+    case 'ellipse':
+      return calculateEllipseScreenSize(element, viewState);
+    case 'image':
+      return calculateImageScreenSize(element, viewState);
+    case 'path':
+      return calculatePathScreenSize(element, viewState, props);
+    case 'polygon':
+    case 'regularPolygon': 
+      return calculatePolygonScreenSize(element, viewState);
+    case 'star':
+      return calculateStarScreenSize(element, viewState);
+    case 'wedge':
+    case 'arc':
+      return calculateArcScreenSize(element, viewState);
+    case 'ring':
+      return calculateRingScreenSize(element, viewState);
+    case 'label':
+      return calculateLabelScreenSize(element, viewState);
+    case 'arrow':
+      return calculateArrowScreenSize(element, viewState);
+    case 'group':
+      return calculateGroupScreenSize(element, viewState, props);
+    case 'sprite':
+      return calculateSpriteScreenSize(element, viewState);
+    case 'custom':
+      return calculateCustomScreenSize(element, viewState, props);
+    default:
+      return calculateDefaultScreenSize(element, viewState, props);
+  }
+};
 
-  if (element.type === 'line') {
-    // 线条同时考虑线宽和长度
-    const strokeWidth = element.config.strokeWidth || 1;
+/**
+ * 计算线条元素在屏幕上的大小
+ * @param {Object} element 线条元素
+ * @param {Object} viewState 当前视图状态
+ * @param {Object} props 组件属性
+ * @returns {Number} 线条在屏幕上的大小
+ */
+const calculateLineScreenSize = (element, viewState, props) => {
+  // 获取线条宽度，如果未指定则默认为1
+  const strokeWidth = element.config.strokeWidth || 1;
+  
+  // 获取线条的点集合
+  const points = element.config.points;
+  let lineLength = 0;
 
-    // 计算线条长度
-    const points = element.config.points;
-    let lineLength = 0;
-
-    if (points && points.length >= 4) {
-      // 对于多段线，计算所有线段长度总和
-      for (let i = 0; i < points.length - 2; i += 2) {
-        const dx = points[i + 2] - points[i];
-        const dy = points[i + 3] - points[i + 1];
-        lineLength += Math.sqrt(dx * dx + dy * dy);
-      }
+  // 计算线条总长度（多段线的所有段长度总和）
+  if (points && points.length >= 4) {
+    for (let i = 0; i < points.length - 2; i += 2) {
+      // 计算相邻两点之间的x和y方向距离
+      const dx = points[i + 2] - points[i];
+      const dy = points[i + 3] - points[i + 1];
+      // 使用勾股定理计算线段长度并累加
+      lineLength += Math.sqrt(dx * dx + dy * dy);
     }
-
-    // 安全计算：防止数值溢出
-    try {
-      // 线宽和长度都要乘以缩放比例转换为屏幕尺寸
-      const widthSize = strokeWidth * viewState.scale;
-      const lengthSize = lineLength * viewState.scale;
-
-      // 取长度和宽度的最大值作为最终尺寸
-      size = Math.max(widthSize, lengthSize);
-
-      // 检查计算结果的有效性
-      if (!isFinite(size) || isNaN(size)) {
-        // 回退到一个基于LOD级别的估计值
-        size = props.lodThreshold * Math.pow(2, props.maxLodLevel - viewState.lodLevel);
-      }
-    } catch (e) {
-      console.warn('计算元素尺寸时出错:', e);
-      size = props.lodThreshold; // 回退到默认值
-    }
-  } else if (element.type === 'circle') {
-    // 圆形使用半径作为尺寸基准
-    size = (element.config.radius || 1) * viewState.scale;
-  } else if (element.type === 'text') {
-    // 文本使用字体大小作为尺寸基准
-    size = (element.config.fontSize || 12) * viewState.scale;
-  } else if (element.type === 'custom' && element.getScreenSize) {
-    // 自定义元素可以提供计算方法
-    size = element.getScreenSize(viewState.scale);
-  } else {
-    // 默认尺寸计算方法（宽高平均值）
-    const width = element.config.width || element.width || 10;
-    const height = element.config.height || element.height || 10;
-    size = Math.max(width, height) * viewState.scale;
   }
 
-  // 最终安全检查
+  try {
+    // 将线宽转换为屏幕像素尺寸
+    const widthSize = strokeWidth * viewState.scale;
+    // 将线长转换为屏幕像素尺寸
+    const lengthSize = lineLength * viewState.scale;
+
+    // 使用线宽和线长中的较大值作为最终尺寸
+    // 这确保了即使短线条，如果线宽很大，也能正确显示
+    let size = Math.max(widthSize, lengthSize);
+
+    // 检查计算结果是否有效
+    if (!isFinite(size) || isNaN(size)) {
+      // 如果无效，回退到基于LOD级别的估计值
+      size = props.lodThreshold * Math.pow(2, props.maxLodLevel - viewState.lodLevel);
+    }
+    
+    return size;
+  } catch (e) {
+    // 捕获任何计算过程中的错误
+    console.warn('计算线条尺寸时出错:', e);
+    // 返回默认的阈值大小
+    return props.lodThreshold;
+  }
+};
+
+/**
+ * 计算圆形元素在屏幕上的大小
+ * @param {Object} element 圆形元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 圆形在屏幕上的大小
+ */
+const calculateCircleScreenSize = (element, viewState) => {
+  // 获取圆的半径，如果未指定则默认为1
+  const radius = element.config.radius || 1;
+  // 将半径转换为屏幕像素大小（半径乘以当前缩放比例）
+  return radius * viewState.scale;
+};
+
+/**
+ * 计算文本元素在屏幕上的大小
+ * @param {Object} element 文本元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 文本在屏幕上的大小
+ */
+const calculateTextScreenSize = (element, viewState) => {
+  // 获取文本的字体大小，如果未指定则默认为12
+  const fontSize = element.config.fontSize || 12;
+  // 将字体大小转换为屏幕像素大小
+  return fontSize * viewState.scale;
+};
+
+/**
+ * 计算矩形元素在屏幕上的大小
+ * @param {Object} element 矩形元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 矩形在屏幕上的大小
+ */
+const calculateRectScreenSize = (element, viewState) => {
+  // 获取矩形的宽度和高度，如果未指定则使用默认值
+  const width = element.config.width || 10;
+  const height = element.config.height || 10;
+  
+  // 使用矩形的宽高中的较大值作为其屏幕尺寸
+  return Math.max(width, height) * viewState.scale;
+};
+
+/**
+ * 计算椭圆元素在屏幕上的大小
+ * @param {Object} element 椭圆元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 椭圆在屏幕上的大小
+ */
+const calculateEllipseScreenSize = (element, viewState) => {
+  // 获取椭圆的主轴和次轴半径，如果未指定则使用默认值
+  const radiusX = element.config.radiusX || 10;
+  const radiusY = element.config.radiusY || 10;
+  
+  // 使用椭圆主轴和次轴半径中的较大值乘以2作为其屏幕尺寸
+  return Math.max(radiusX * 2, radiusY * 2) * viewState.scale;
+};
+
+/**
+ * 计算图像元素在屏幕上的大小
+ * @param {Object} element 图像元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 图像在屏幕上的大小
+ */
+const calculateImageScreenSize = (element, viewState) => {
+  // 获取图像的宽度和高度，如果未指定则使用默认值
+  const width = element.config.width || element.width || 10;
+  const height = element.config.height || element.height || 10;
+  
+  // 使用图像的宽高中的较大值作为其屏幕尺寸
+  return Math.max(width, height) * viewState.scale;
+};
+
+/**
+ * 计算路径元素在屏幕上的大小
+ * @param {Object} element 路径元素
+ * @param {Object} viewState 当前视图状态
+ * @param {Object} props 组件属性
+ * @returns {Number} 路径在屏幕上的大小
+ */
+const calculatePathScreenSize = (element, viewState, props) => {
+  // 检查路径是否有定义的边界框
+  if (element.config.bboxWidth && element.config.bboxHeight) {
+    // 使用路径边界框的宽高中的较大值作为其屏幕尺寸
+    return Math.max(element.config.bboxWidth, element.config.bboxHeight) * viewState.scale;
+  }
+  
+  // 获取路径的线宽，如果未指定则默认为1
+  const strokeWidth = element.config.strokeWidth || 1;
+  // 如果路径没有边界框信息，则基于线宽和路径数据估算大小
+  const pathComplexity = element.config.data ? element.config.data.length / 2 : 1;
+  
+  // 根据路径的复杂度（数据点数量）和线宽来估算其屏幕尺寸
+  return Math.max(strokeWidth, 10 * pathComplexity) * viewState.scale;
+};
+
+/**
+ * 计算多边形元素在屏幕上的大小
+ * @param {Object} element 多边形元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 多边形在屏幕上的大小
+ */
+const calculatePolygonScreenSize = (element, viewState) => {
+  let maxDistance = 0;
+  
+  // 处理正多边形类型
+  if (element.type === 'regularPolygon') {
+    // 正多边形使用其半径作为大小基准
+    return (element.config.radius || 10) * 2 * viewState.scale;
+  }
+  
+  // 处理一般多边形
+  if (element.config.points && element.config.points.length >= 4) {
+    // 计算多边形每个点到原点的最大距离，作为多边形的"半径"
+    for (let i = 0; i < element.config.points.length; i += 2) {
+      const x = element.config.points[i];
+      const y = element.config.points[i + 1];
+      const distance = Math.sqrt(x * x + y * y);
+      maxDistance = Math.max(maxDistance, distance);
+    }
+  } else {
+    // 如果没有有效的点数据，使用默认值
+    maxDistance = 10;
+  }
+  
+  // 返回多边形"直径"的屏幕尺寸
+  return maxDistance * 2 * viewState.scale;
+};
+
+/**
+ * 计算星形元素在屏幕上的大小
+ * @param {Object} element 星形元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 星形在屏幕上的大小
+ */
+const calculateStarScreenSize = (element, viewState) => {
+  // 获取星形的外半径，如果未指定则使用默认值
+  const outerRadius = element.config.outerRadius || 10;
+  
+  // 使用星形的外半径乘以2作为其屏幕尺寸
+  return outerRadius * 2 * viewState.scale;
+};
+
+/**
+ * 计算弧形/楔形元素在屏幕上的大小
+ * @param {Object} element 弧形/楔形元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 弧形/楔形在屏幕上的大小
+ */
+const calculateArcScreenSize = (element, viewState) => {
+  // 获取弧形/楔形的半径，如果未指定则使用默认值
+  const radius = element.config.radius || 10;
+  
+  // 使用弧形/楔形的半径乘以2作为其屏幕尺寸
+  return radius * 2 * viewState.scale;
+};
+
+/**
+ * 计算环形元素在屏幕上的大小
+ * @param {Object} element 环形元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 环形在屏幕上的大小
+ */
+const calculateRingScreenSize = (element, viewState) => {
+  // 获取环形的外半径，如果未指定则使用默认值
+  const outerRadius = element.config.outerRadius || 10;
+  
+  // 使用环形的外半径乘以2作为其屏幕尺寸
+  return outerRadius * 2 * viewState.scale;
+};
+
+/**
+ * 计算标签元素在屏幕上的大小
+ * @param {Object} element 标签元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 标签在屏幕上的大小
+ */
+const calculateLabelScreenSize = (element, viewState) => {
+  // 获取标签的文本内容和字体大小
+  const text = element.config.text || '';
+  const fontSize = element.config.fontSize || 12;
+  
+  // 标签尺寸基于文本长度和字体大小
+  const textLength = text.length * fontSize * 0.6; // 估算文本宽度
+  return Math.max(textLength, fontSize) * viewState.scale;
+};
+
+/**
+ * 计算箭头元素在屏幕上的大小
+ * @param {Object} element 箭头元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 箭头在屏幕上的大小
+ */
+const calculateArrowScreenSize = (element, viewState) => {
+  // 获取箭头的点集合
+  const points = element.config.points;
+  let arrowLength = 0;
+  
+  // 计算箭头总长度
+  if (points && points.length >= 4) {
+    for (let i = 0; i < points.length - 2; i += 2) {
+      const dx = points[i + 2] - points[i];
+      const dy = points[i + 3] - points[i + 1];
+      arrowLength += Math.sqrt(dx * dx + dy * dy);
+    }
+  } else {
+    // 如果没有有效的点数据，使用默认值
+    arrowLength = 10;
+  }
+  
+  // 获取箭头的线宽，如果未指定则默认为1
+  const strokeWidth = element.config.strokeWidth || 1;
+  
+  // 使用箭头长度和线宽中的较大值作为其屏幕尺寸
+  return Math.max(arrowLength, strokeWidth) * viewState.scale;
+};
+
+/**
+ * 计算组元素在屏幕上的大小
+ * @param {Object} element 组元素
+ * @param {Object} viewState 当前视图状态
+ * @param {Object} props 组件属性
+ * @returns {Number} 组在屏幕上的大小
+ */
+const calculateGroupScreenSize = (element, viewState, props) => {
+  // 如果组有明确定义的宽高，直接使用
+  if (element.config.width && element.config.height) {
+    return Math.max(element.config.width, element.config.height) * viewState.scale;
+  }
+  
+  // 如果组包含子元素，计算所有子元素的最大尺寸
+  if (element.children && element.children.length > 0) {
+    let maxChildSize = 0;
+    
+    for (const child of element.children) {
+      // 递归计算每个子元素的屏幕尺寸
+      const childSize = calculateElementScreenSize(child, viewState, props);
+      maxChildSize = Math.max(maxChildSize, childSize);
+    }
+    
+    return maxChildSize;
+  }
+  
+  // 如果无法确定组的大小，返回默认值
+  return 10 * viewState.scale;
+};
+
+/**
+ * 计算精灵元素在屏幕上的大小
+ * @param {Object} element 精灵元素
+ * @param {Object} viewState 当前视图状态
+ * @returns {Number} 精灵在屏幕上的大小
+ */
+const calculateSpriteScreenSize = (element, viewState) => {
+  // 获取精灵的宽度和高度，如果未指定则使用默认值
+  const width = element.config.width || 10;
+  const height = element.config.height || 10;
+  
+  // 使用精灵的宽高中的较大值作为其屏幕尺寸
+  return Math.max(width, height) * viewState.scale;
+};
+
+/**
+ * 计算自定义元素在屏幕上的大小
+ * @param {Object} element 自定义元素
+ * @param {Object} viewState 当前视图状态
+ * @param {Object} props 组件属性
+ * @returns {Number} 自定义元素在屏幕上的大小
+ */
+const calculateCustomScreenSize = (element, viewState, props) => {
+  // 检查元素是否提供了自定义的屏幕大小计算方法
+  if (element.getScreenSize) {
+    // 使用元素提供的方法计算屏幕大小
+    return element.getScreenSize(viewState.scale);
+  }
+  // 如果没有提供计算方法，则回退到默认计算方式
+  return calculateDefaultScreenSize(element, viewState, props);
+};
+
+/**
+ * 计算默认元素在屏幕上的大小
+ * @param {Object} element 默认元素
+ * @param {Object} viewState 当前视图状态
+ * @param {Object} props 组件属性
+ * @returns {Number} 默认元素在屏幕上的大小
+ */
+const calculateDefaultScreenSize = (element, viewState, props) => {
+  // 从多个可能的来源获取宽度，优先使用config中的宽度
+  const width = element.config.width || element.width || 10;
+  // 从多个可能的来源获取高度，优先使用config中的高度
+  const height = element.config.height || element.height || 10;
+  
+  // 使用宽高中的较大值作为元素尺寸的基准
+  const size = Math.max(width, height) * viewState.scale;
+  
+  // 确保返回有限数值，如果计算结果无效则返回默认阈值
   return isFinite(size) ? size : props.lodThreshold;
 };
