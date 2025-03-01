@@ -48,48 +48,55 @@ export const calculateLodLevel = (viewState, props) => {
  * @param {Object} element 要检查的元素
  * @param {Object} viewState 当前视图状态
  * @param {Object} props 组件属性
- * @returns {Object} 包含可见性和透明度信息的对象 {visible: Boolean, opacity: Number}
+ * @returns {Object} 包含可见性和透明度信息的对象 {visible: Boolean, opacity: Number, reason: String}
  */
 export const shouldElementBeVisible = (element, viewState, props) => {
   // 初始化返回值对象，默认元素原始透明度或1.0
   const result = {
     visible: false,
-    opacity: element.config?.opacity !== undefined ? element.config.opacity : 1.0
+    opacity: element.opacity !== undefined ? element.opacity : 1.0,
+    reason: '未评估'
   };
   
-  // 如果禁用了LOD功能，则所有元素都应该显示
+  // 情况1：如果禁用了LOD功能，则所有元素都应该显示
   if (!props.enableLod) {
     result.visible = true;
+    result.reason = 'LOD已禁用';
+    console.log(`元素 ${element.id || '未知ID'} (${element.type}): 可见 - LOD已禁用`);
     return result;
   }
   
-  // 如果元素被手动设置为不可见，则直接返回false
-  if (element.visible === false) {
+  // 情况2：如果元素被手动隐藏，则隐藏它
+  if (element.manuallyHidden === true) {
+    result.reason = '手动隐藏';
+    console.log(`元素 ${element.id || '未知ID'} (${element.type}): 不可见 - 手动隐藏`);
     return result;
   }
   
-  // 如果元素是系统元素(isSystemElement=true)，则总是显示
+  // 情况3：如果元素是系统元素，则总是显示
   if (element.isSystemElement === true) {
     result.visible = true;
+    result.reason = '系统元素';
+    console.log(`元素 ${element.id || '未知ID'} (${element.type}): 可见 - 系统元素`);
     return result;
   }
   
-  // 处理元素自定义LOD范围 - 直接基于缩放值
-  if (element.config.lodRange || element.lodMinScale !== undefined || element.config.lodMinScale !== undefined) {
-    // 获取缩放范围，优先使用直接属性，然后是config中的属性，最后是lodRange
+  // 情况4：处理元素自定义LOD范围 - 直接基于缩放值
+  if (element.lodRange || element.lodMinScale !== undefined) {
+    // 获取缩放范围，直接从元素或lodRange中获取
     const minScale = element.lodMinScale !== undefined ? element.lodMinScale : 
-                    (element.config.lodMinScale !== undefined ? element.config.lodMinScale : 
-                     (element.config.lodRange?.minScale === -Infinity ? 0 : element.config.lodRange?.minScale));
+                    (element.lodRange?.minScale === -Infinity ? 0 : element.lodRange?.minScale);
     
     const maxScale = element.lodMaxScale !== undefined ? element.lodMaxScale : 
-                    (element.config.lodMaxScale !== undefined ? element.config.lodMaxScale : 
-                     (element.config.lodRange?.maxScale === Infinity ? Number.MAX_VALUE : element.config.lodRange?.maxScale));
+                    (element.lodRange?.maxScale === Infinity ? Number.MAX_VALUE : element.lodRange?.maxScale);
     
-    // 直接比较缩放值，而不是转换为LOD级别
+    // 直接比较缩放值
     const currentScale = viewState.scale;
     
+    console.log(`元素 ${element.id || '未知ID'} (${element.type}) LOD范围检查: 当前缩放=${currentScale.toExponential(4)}, 最小=${minScale}, 最大=${maxScale}`);
+    
     // 检查是否启用渐进渐出效果
-    const transitionType = element.lodTransitionType || element.config.lodTransitionType;
+    const transitionType = element.lodTransitionType;
     
     if (transitionType === 'fade') {
       // 计算缩放边界过渡区域的透明度
@@ -99,30 +106,66 @@ export const shouldElementBeVisible = (element, viewState, props) => {
       result.visible = scaleOpacity > 0;
       // 将缩放透明度与元素自身透明度相乘
       result.opacity *= scaleOpacity;
+      
+      if (result.visible) {
+        result.reason = '在LOD范围内(渐变)';
+        console.log(`元素 ${element.id || '未知ID'} (${element.type}): 可见(透明度=${result.opacity.toFixed(2)}) - LOD范围内渐变`);
+      } else {
+        result.reason = '超出LOD范围(渐变)';
+        console.log(`元素 ${element.id || '未知ID'} (${element.type}): 不可见 - 超出LOD范围(渐变)`);
+      }
+      
       return result;
     } else {
       // 没有过渡效果的情况 - 简单的范围检查
       result.visible = currentScale >= minScale && currentScale <= maxScale;
+      
+      if (result.visible) {
+        result.reason = '在LOD范围内';
+        console.log(`元素 ${element.id || '未知ID'} (${element.type}): 可见 - 在LOD范围内`);
+      } else {
+        result.reason = '超出LOD范围';
+        console.log(`元素 ${element.id || '未知ID'} (${element.type}): 不可见 - 超出LOD范围(最小=${minScale}, 最大=${maxScale}, 当前=${currentScale.toExponential(4)})`);
+      }
+      
       return result;
     }
   }
   
-  // 针对极端缩放值的特殊处理
+  // 情况5：针对极端缩放值的特殊处理
   if (viewState.scale < 1e-10 || viewState.scale > 1e10) {
     // 根据LOD级别而非直接尺寸计算来判断可见性
     const elementLod = calculateElementLodLevel(element);
     const currentLod = calculateLodLevel(viewState, props);
     // 在当前LOD级别或相邻级别可见
     result.visible = Math.abs(elementLod - currentLod) <= 1;
+    
+    if (result.visible) {
+      result.reason = '极端缩放值LOD级别匹配';
+      console.log(`元素 ${element.id || '未知ID'} (${element.type}): 可见 - 极端缩放值LOD级别匹配(元素LOD=${elementLod}, 当前LOD=${currentLod})`);
+    } else {
+      result.reason = '极端缩放值LOD级别不匹配';
+      console.log(`元素 ${element.id || '未知ID'} (${element.type}): 不可见 - 极端缩放值LOD级别不匹配(元素LOD=${elementLod}, 当前LOD=${currentLod})`);
+    }
+    
     return result;
   }
   
-  // 计算元素在屏幕上的大小
+  // 情况6：基于元素屏幕大小的常规LOD处理
   const elementSize = calculateElementScreenSize(element, viewState, props);
   
   // 根据元素屏幕尺寸判断可见性
   // 如果元素尺寸大于或等于阈值，则显示它
   result.visible = elementSize >= props.lodThreshold;
+  
+  if (result.visible) {
+    result.reason = '尺寸足够大';
+    console.log(`元素 ${element.id || '未知ID'} (${element.type}): 可见 - 尺寸足够大(${elementSize.toFixed(2)} >= ${props.lodThreshold})`);
+  } else {
+    result.reason = '尺寸太小';
+    console.log(`元素 ${element.id || '未知ID'} (${element.type}): 不可见 - 尺寸太小(${elementSize.toFixed(2)} < ${props.lodThreshold})`);
+  }
+  
   return result;
 };
 
@@ -304,8 +347,8 @@ const calculateLineScreenSize = (element, viewState, props) => {
  * @returns {Number} 圆形在屏幕上的大小
  */
 const calculateCircleScreenSize = (element, viewState) => {
-  // 获取圆的半径，如果未指定则默认为1
-  const radius = element.config.radius || 1;
+  // 直接从元素获取半径，如果不存在则尝试从config获取，如果都不存在则默认为1
+  const radius = element.radius || (element.config?.radius) || 1;
   // 将半径转换为屏幕像素大小（半径乘以当前缩放比例）
   return radius * viewState.scale;
 };
@@ -317,8 +360,8 @@ const calculateCircleScreenSize = (element, viewState) => {
  * @returns {Number} 文本在屏幕上的大小
  */
 const calculateTextScreenSize = (element, viewState) => {
-  // 获取文本的字体大小，如果未指定则默认为12
-  const fontSize = element.config.fontSize || 12;
+  // 直接从元素获取字体大小，如果不存在则尝试从config获取，如果都不存在则默认为12
+  const fontSize = element.fontSize || (element.config?.fontSize) || 12;
   // 将字体大小转换为屏幕像素大小
   return fontSize * viewState.scale;
 };
@@ -330,9 +373,9 @@ const calculateTextScreenSize = (element, viewState) => {
  * @returns {Number} 矩形在屏幕上的大小
  */
 const calculateRectScreenSize = (element, viewState) => {
-  // 获取矩形的宽度和高度，如果未指定则使用默认值
-  const width = element.config.width || 10;
-  const height = element.config.height || 10;
+  // 直接从元素获取宽度和高度，如果不存在则尝试从config获取，如果都不存在则使用默认值
+  const width = element.width || (element.config?.width) || 10;
+  const height = element.height || (element.config?.height) || 10;
   
   // 使用矩形的宽高中的较大值作为其屏幕尺寸
   return Math.max(width, height) * viewState.scale;
@@ -345,9 +388,9 @@ const calculateRectScreenSize = (element, viewState) => {
  * @returns {Number} 椭圆在屏幕上的大小
  */
 const calculateEllipseScreenSize = (element, viewState) => {
-  // 获取椭圆的主轴和次轴半径，如果未指定则使用默认值
-  const radiusX = element.config.radiusX || 10;
-  const radiusY = element.config.radiusY || 10;
+  // 直接从元素获取主轴和次轴半径，如果不存在则尝试从config获取，如果都不存在则使用默认值
+  const radiusX = element.radiusX || (element.config?.radiusX) || 10;
+  const radiusY = element.radiusY || (element.config?.radiusY) || 10;
   
   // 使用椭圆主轴和次轴半径中的较大值乘以2作为其屏幕尺寸
   return Math.max(radiusX * 2, radiusY * 2) * viewState.scale;
@@ -360,9 +403,9 @@ const calculateEllipseScreenSize = (element, viewState) => {
  * @returns {Number} 图像在屏幕上的大小
  */
 const calculateImageScreenSize = (element, viewState) => {
-  // 获取图像的宽度和高度，如果未指定则使用默认值
-  const width = element.config.width || element.width || 10;
-  const height = element.config.height || element.height || 10;
+  // 直接从元素获取宽度和高度，如果不存在则尝试从config获取，如果都不存在则使用默认值
+  const width = element.width || (element.config?.width) || 10;
+  const height = element.height || (element.config?.height) || 10;
   
   // 使用图像的宽高中的较大值作为其屏幕尺寸
   return Math.max(width, height) * viewState.scale;
@@ -376,16 +419,22 @@ const calculateImageScreenSize = (element, viewState) => {
  * @returns {Number} 路径在屏幕上的大小
  */
 const calculatePathScreenSize = (element, viewState, props) => {
+  // 直接从元素获取边界框宽度和高度，如果不存在则尝试从config获取
+  const bboxWidth = element.bboxWidth || (element.config?.bboxWidth);
+  const bboxHeight = element.bboxHeight || (element.config?.bboxHeight);
+  
   // 检查路径是否有定义的边界框
-  if (element.config.bboxWidth && element.config.bboxHeight) {
+  if (bboxWidth && bboxHeight) {
     // 使用路径边界框的宽高中的较大值作为其屏幕尺寸
-    return Math.max(element.config.bboxWidth, element.config.bboxHeight) * viewState.scale;
+    return Math.max(bboxWidth, bboxHeight) * viewState.scale;
   }
   
-  // 获取路径的线宽，如果未指定则默认为1
-  const strokeWidth = element.config.strokeWidth || 1;
+  // 直接从元素获取线宽，如果不存在则尝试从config获取，如果都不存在则默认为1
+  const strokeWidth = element.strokeWidth || (element.config?.strokeWidth) || 1;
+  // 直接从元素获取路径数据，如果不存在则尝试从config获取
+  const pathData = element.data || (element.config?.data);
   // 如果路径没有边界框信息，则基于线宽和路径数据估算大小
-  const pathComplexity = element.config.data ? element.config.data.length / 2 : 1;
+  const pathComplexity = pathData ? pathData.length / 2 : 1;
   
   // 根据路径的复杂度（数据点数量）和线宽来估算其屏幕尺寸
   return Math.max(strokeWidth, 10 * pathComplexity) * viewState.scale;
@@ -402,16 +451,21 @@ const calculatePolygonScreenSize = (element, viewState) => {
   
   // 处理正多边形类型
   if (element.type === 'regularPolygon') {
+    // 直接从元素获取半径，如果不存在则尝试从config获取，如果都不存在则默认为10
+    const radius = element.radius || (element.config?.radius) || 10;
     // 正多边形使用其半径作为大小基准
-    return (element.config.radius || 10) * 2 * viewState.scale;
+    return radius * 2 * viewState.scale;
   }
   
+  // 直接从元素获取点集合，如果不存在则尝试从config获取
+  const points = element.points || (element.config?.points);
+  
   // 处理一般多边形
-  if (element.config.points && element.config.points.length >= 4) {
+  if (points && points.length >= 4) {
     // 计算多边形每个点到原点的最大距离，作为多边形的"半径"
-    for (let i = 0; i < element.config.points.length; i += 2) {
-      const x = element.config.points[i];
-      const y = element.config.points[i + 1];
+    for (let i = 0; i < points.length; i += 2) {
+      const x = points[i];
+      const y = points[i + 1];
       const distance = Math.sqrt(x * x + y * y);
       maxDistance = Math.max(maxDistance, distance);
     }
@@ -431,8 +485,8 @@ const calculatePolygonScreenSize = (element, viewState) => {
  * @returns {Number} 星形在屏幕上的大小
  */
 const calculateStarScreenSize = (element, viewState) => {
-  // 获取星形的外半径，如果未指定则使用默认值
-  const outerRadius = element.config.outerRadius || 10;
+  // 直接从元素获取外半径，如果不存在则尝试从config获取，如果都不存在则默认为10
+  const outerRadius = element.outerRadius || (element.config?.outerRadius) || 10;
   
   // 使用星形的外半径乘以2作为其屏幕尺寸
   return outerRadius * 2 * viewState.scale;
@@ -445,8 +499,8 @@ const calculateStarScreenSize = (element, viewState) => {
  * @returns {Number} 弧形/楔形在屏幕上的大小
  */
 const calculateArcScreenSize = (element, viewState) => {
-  // 获取弧形/楔形的半径，如果未指定则使用默认值
-  const radius = element.config.radius || 10;
+  // 直接从元素获取半径，如果不存在则尝试从config获取，如果都不存在则默认为10
+  const radius = element.radius || (element.config?.radius) || 10;
   
   // 使用弧形/楔形的半径乘以2作为其屏幕尺寸
   return radius * 2 * viewState.scale;
@@ -459,8 +513,8 @@ const calculateArcScreenSize = (element, viewState) => {
  * @returns {Number} 环形在屏幕上的大小
  */
 const calculateRingScreenSize = (element, viewState) => {
-  // 获取环形的外半径，如果未指定则使用默认值
-  const outerRadius = element.config.outerRadius || 10;
+  // 直接从元素获取外半径，如果不存在则尝试从config获取，如果都不存在则默认为10
+  const outerRadius = element.outerRadius || (element.config?.outerRadius) || 10;
   
   // 使用环形的外半径乘以2作为其屏幕尺寸
   return outerRadius * 2 * viewState.scale;
@@ -473,9 +527,10 @@ const calculateRingScreenSize = (element, viewState) => {
  * @returns {Number} 标签在屏幕上的大小
  */
 const calculateLabelScreenSize = (element, viewState) => {
-  // 获取标签的文本内容和字体大小
-  const text = element.config.text || '';
-  const fontSize = element.config.fontSize || 12;
+  // 直接从元素获取文本内容，如果不存在则尝试从config获取，如果都不存在则默认为空字符串
+  const text = element.text || (element.config?.text) || '';
+  // 直接从元素获取字体大小，如果不存在则尝试从config获取，如果都不存在则默认为12
+  const fontSize = element.fontSize || (element.config?.fontSize) || 12;
   
   // 标签尺寸基于文本长度和字体大小
   const textLength = text.length * fontSize * 0.6; // 估算文本宽度
@@ -489,8 +544,8 @@ const calculateLabelScreenSize = (element, viewState) => {
  * @returns {Number} 箭头在屏幕上的大小
  */
 const calculateArrowScreenSize = (element, viewState) => {
-  // 获取箭头的点集合
-  const points = element.config.points;
+  // 直接从元素获取点集合，如果不存在则尝试从config获取
+  const points = element.points || (element.config?.points);
   let arrowLength = 0;
   
   // 计算箭头总长度
@@ -505,8 +560,8 @@ const calculateArrowScreenSize = (element, viewState) => {
     arrowLength = 10;
   }
   
-  // 获取箭头的线宽，如果未指定则默认为1
-  const strokeWidth = element.config.strokeWidth || 1;
+  // 直接从元素获取线宽，如果不存在则尝试从config获取，如果都不存在则默认为1
+  const strokeWidth = element.strokeWidth || (element.config?.strokeWidth) || 1;
   
   // 使用箭头长度和线宽中的较大值作为其屏幕尺寸
   return Math.max(arrowLength, strokeWidth) * viewState.scale;
@@ -520,16 +575,23 @@ const calculateArrowScreenSize = (element, viewState) => {
  * @returns {Number} 组在屏幕上的大小
  */
 const calculateGroupScreenSize = (element, viewState, props) => {
+  // 直接从元素获取宽度和高度，如果不存在则尝试从config获取
+  const width = element.width || (element.config?.width);
+  const height = element.height || (element.config?.height);
+  
   // 如果组有明确定义的宽高，直接使用
-  if (element.config.width && element.config.height) {
-    return Math.max(element.config.width, element.config.height) * viewState.scale;
+  if (width && height) {
+    return Math.max(width, height) * viewState.scale;
   }
   
+  // 直接从元素获取子元素集合
+  const children = element.children || [];
+  
   // 如果组包含子元素，计算所有子元素的最大尺寸
-  if (element.children && element.children.length > 0) {
+  if (children.length > 0) {
     let maxChildSize = 0;
     
-    for (const child of element.children) {
+    for (const child of children) {
       // 递归计算每个子元素的屏幕尺寸
       const childSize = calculateElementScreenSize(child, viewState, props);
       maxChildSize = Math.max(maxChildSize, childSize);
@@ -549,9 +611,9 @@ const calculateGroupScreenSize = (element, viewState, props) => {
  * @returns {Number} 精灵在屏幕上的大小
  */
 const calculateSpriteScreenSize = (element, viewState) => {
-  // 获取精灵的宽度和高度，如果未指定则使用默认值
-  const width = element.config.width || 10;
-  const height = element.config.height || 10;
+  // 直接从元素获取宽度和高度，如果不存在则尝试从config获取，如果都不存在则默认为10
+  const width = element.width || (element.config?.width) || 10;
+  const height = element.height || (element.config?.height) || 10;
   
   // 使用精灵的宽高中的较大值作为其屏幕尺寸
   return Math.max(width, height) * viewState.scale;
@@ -582,10 +644,9 @@ const calculateCustomScreenSize = (element, viewState, props) => {
  * @returns {Number} 默认元素在屏幕上的大小
  */
 const calculateDefaultScreenSize = (element, viewState, props) => {
-  // 从多个可能的来源获取宽度，优先使用config中的宽度
-  const width = element.config.width || element.width || 10;
-  // 从多个可能的来源获取高度，优先使用config中的高度
-  const height = element.config.height || element.height || 10;
+  // 直接从元素获取宽度和高度，如果不存在则尝试从config获取，如果都不存在则默认为10
+  const width = element.width || (element.config?.width) || 10;
+  const height = element.height || (element.config?.height) || 10;
   
   // 使用宽高中的较大值作为元素尺寸的基准
   const size = Math.max(width, height) * viewState.scale;

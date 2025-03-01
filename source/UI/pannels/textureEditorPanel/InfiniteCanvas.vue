@@ -26,10 +26,20 @@
         />
       </v-layer>
 
-      <!-- 主要内容层 -->
-      <v-layer ref="mainLayer">
+      <!-- 主要内容层 - 使用拆分后的组件，但现在传递已经过滤好的可见元素 -->
+      <main-layer
+        ref="mainLayer"
+        :elements="visibleElements"
+        :drawingElement="viewState.drawingElement"
+        :scale="viewState.scale"
+        :viewport="viewportBounds"
+        :viewState="viewState"
+        @element-updated="handleElementUpdate"
+        @element-selected="selectElement"
+      >
+        <!-- 传递自定义内容 -->
         <slot></slot>
-      </v-layer>
+      </main-layer>
 
       <!-- UI层（坐标轴、鼠标指示器等） -->
       <v-layer ref="uiLayer">
@@ -122,13 +132,10 @@
 import { ref, computed, onMounted, reactive, watch, onUnmounted } from 'vue';
 import { getViewportBounds, calculateLodLevel } from './utils/canvasUtils.js';
 import { shouldElementBeVisible } from './utils/LODUtils/index.js';
-import { processElementVisibility } from './utils/LODUtils/elementVisibility.js';
 import GridSystem from './components/GridSystem.vue';
 import CanvasStatusPanel from './components/CanvasStatusPanel.vue';
 import AxisSystem from './components/AxisSystem.vue';
-// 导入元素工厂函数
-import { createKonvaElement, attachElementEvents } from './utils/elementFactory.js';
-// 导入全屏工具函数
+import MainLayer from './components/MainLayer.vue'; // 导入新组件
 import { 
   toggleFullscreen as toggleFullscreenUtil,
   isInFullscreenMode,
@@ -137,99 +144,10 @@ import {
 } from './utils/fullscreenUtils.js';
 import { handlePanMovement, canPan } from './utils/panUtils.js';
 import { exportCanvasAsImage as exportCanvasAsImageUtil, exportSelectedArea as exportSelectedAreaUtil } from './utils/exportUtils.js';
+import { canvasProps } from './utils/canvasProps.js'; // 导入Props定义
 
 // 定义props
-const props = defineProps({
-  // 单位配置，例如 1单位 = 多少像素
-  unitRatio: {
-    type: Number,
-    default: 1
-  },
-  // 初始缩放级别
-  initialScale: {
-    type: Number,
-    default: 1
-  },
-  // 初始位置
-  initialPosition: {
-    type: Object,
-    default: () => ({ x: 0, y: 0 })
-  },
-  // 网格大小（单位）
-  gridSize: {
-    type: Number,
-    default: 50
-  },
-  // 是否显示鼠标指示器
-  showMouseIndicator: {
-    type: Boolean,
-    default: true
-  },
-  // 最大缩放级别 - 修改为接近JS数值上限
-  maxScale: {
-    type: Number,
-    default: 1e15
-  },
-  // 最小缩放级别 - 修改为接近JS数值下限但保持正值
-  minScale: {
-    type: Number,
-    default: 1e-15
-  },
-  // LOD配置
-  lodThreshold: {
-    type: Number,
-    default: 5 // 元素小于这个像素值时隐藏
-  },
-  // 是否启用LOD
-  enableLod: {
-    type: Boolean,
-    default: true
-  },
-  // 添加modelValue prop用于v-model绑定
-  modelValue: {
-    type: Array,
-    default: () => []
-  },
-  // 允许的绘制元素类型
-  allowedElementTypes: {
-    type: Array,
-    default: () => ['line', 'circle', 'rect', 'text', 'image', 'path']
-  },
-  // 最大LOD级别
-  maxLodLevel: {
-    type: Number,
-    default: 5
-  },
-  // 最小LOD级别
-  minLodLevel: {
-    type: Number,
-    default: 0
-  },
-  // 最大平移距离（从原点算起）
-  maxPanDistance: {
-    type: Number,
-    default: Infinity // 默认无限制
-  },
-  // 是否启用平移约束
-  constrainPan: {
-    type: Boolean,
-    default: false
-  },
-  // 自定义按钮配置
-  customButtons: {
-    type: Array,
-    default: () => [],
-    // 每个按钮对象的结构：
-    // {
-    //   id: string,          // 按钮唯一标识
-    //   icon: string,        // 按钮图标类名
-    //   title: string,       // 按钮提示文本
-    //   onClick: Function,   // 点击回调函数
-    //   active: boolean,     // 是否激活状态（可选）
-    //   position: 'start' | 'end' // 按钮位置，开始或结束（可选，默认end）
-    // }
-  }
-});
+const props = defineProps(canvasProps);
 
 // 定义emit
 const emit = defineEmits([
@@ -238,7 +156,9 @@ const emit = defineEmits([
   'element-added',
   'element-removed',
   'element-updated',
-  'mounted'
+  'mounted',
+  'element-selected',
+  'elements-cleared'
 ]);
 
 // DOM和舞台引用
@@ -436,10 +356,12 @@ const updateTransform = () => {
   const konvaStage = stage.value.getNode();
 
   // 更新主要图层的变换
-  const mainKonvaLayer = mainLayer.value.getNode();
-  mainKonvaLayer.x(viewState.position.x);
-  mainKonvaLayer.y(viewState.position.y);
-  mainKonvaLayer.scale({ x: viewState.scale, y: viewState.scale });
+  const mainKonvaLayer = mainLayer.value.getLayer();
+  if (mainKonvaLayer) {
+    mainKonvaLayer.x(viewState.position.x);
+    mainKonvaLayer.y(viewState.position.y);
+    mainKonvaLayer.scale({ x: viewState.scale, y: viewState.scale });
+  }
 
   // 更新背景图层（网格）的变换
   const bgKonvaLayer = backgroundLayer.value.getNode();
@@ -458,8 +380,6 @@ const updateTransform = () => {
 
   // 绘制所有图层
   konvaStage.batchDraw();
-
-  // 网格系统无需额外调用，由组件内部监听处理
 };
 
 // 获取相对于容器的鼠标位置
@@ -531,8 +451,8 @@ const startDrawingLine = (event) => {
   });
 
   // 添加到主图层
-  mainLayer.value.getNode().add(konvaLine);
-  mainLayer.value.getNode().batchDraw();
+  mainLayer.value.getLayer().add(konvaLine);
+  mainLayer.value.getLayer().batchDraw();
 };
 
 // 正在绘制线条
@@ -550,10 +470,10 @@ const continueDrawingLine = (event) => {
   viewState.drawingElement.points[3] = worldPos.y;
 
   // 更新Konva线条
-  const line = mainLayer.value.getNode().findOne('#' + viewState.drawingElement.id);
+  const line = mainLayer.value.getLayer().findOne('#' + viewState.drawingElement.id);
   if (line) {
     line.points(viewState.drawingElement.points);
-    mainLayer.value.getNode().batchDraw();
+    mainLayer.value.getLayer().batchDraw();
   }
 };
 
@@ -862,149 +782,56 @@ onUnmounted(() => {
 watch(() => props.gridSize, updateTransform);
 watch(() => props.unitRatio, updateTransform);
 
-// 2. 选中元素函数
+// 处理元素更新
+const handleElementUpdate = (element) => {
+  const elementIndex = viewState.elements.findIndex(el => el.id === element.id);
+  if (elementIndex !== -1) {
+    const newElements = [...viewState.elements];
+    newElements[elementIndex] = {...element};
+    viewState.elements = newElements;
+    emit('update:modelValue', newElements);
+    emit('element-updated', element);
+  }
+};
+
+// 选择元素
 const selectElement = (element) => {
   viewState.selectedElement = element;
+  emit('element-selected', element);
 };
 
-// 3. 更新元素位置函数
-const updateElementPosition = (id, konvaNode) => {
-  const elementIndex = viewState.elements.findIndex(el => el.id === id);
-  if (elementIndex === -1) return;
-
-  const element = viewState.elements[elementIndex];
-
-  // 更新位置属性
-  if (element.type === 'line') {
-    element.points = konvaNode.points();
-  } else {
-    element.x = konvaNode.x();
-    element.y = konvaNode.y();
-  }
-
-  // 更新内部状态并触发外部更新
-  const newElements = [...viewState.elements];
-  newElements[elementIndex] = element;
-  viewState.elements = newElements;
-  emit('update:modelValue', newElements);
-  emit('element-updated', element);
+// 更新元素统计信息
+const updateElementStats = (stats) => {
+  viewState.elementStats = stats;
+  
+  // 触发LOD更新事件
+  emit('lod-update', {
+    lodLevel: viewState.lodLevel,
+    scale: viewState.scale,
+    visibleElements: stats.visibleElementIds || [], // 使用stats中传递的可见元素ID列表
+    statistics: viewState.elementStats
+  });
 };
 
-// 4. 定义更新Konva元素函数
-const updateKonvaElements = () => {
-  if (!mainLayer.value || !mainLayer.value.getNode()) return;
-
-  const layer = mainLayer.value.getNode();
-  layer.listening(false); // 暂时禁用事件监听
-
-  // 创建当前元素ID的映射，用于快速查找
-  const existingElements = new Map();
-  layer.getChildren().forEach(child => {
-    if (child.attrs && child.attrs._isCanvasElement && child.attrs.id) {
-      existingElements.set(child.attrs.id, child);
-    }
-  });
-
-  // 要添加的新元素
-  const elementsToAdd = [];
-  // 要更新的元素
-  const elementsToUpdate = [];
-  // 要保留的元素ID集合
-  const elementIdsToKeep = new Set();
-
-  // 分类处理元素
-  viewState.elements.forEach(element => {
-    if (!element.id) return;
-
-    elementIdsToKeep.add(element.id);
-
-    if (existingElements.has(element.id)) {
-      // 现有元素，可能需要更新
-      elementsToUpdate.push({ element, node: existingElements.get(element.id) });
-    } else {
-      // 新元素，需要添加
-      elementsToAdd.push(element);
-    }
-  });
-
-  // 删除不再需要的元素
-  existingElements.forEach((node, id) => {
-    if (!elementIdsToKeep.has(id)) {
-      node.destroy();
-    }
-  });
-
-  // 批量处理添加操作
-  const processBatch = (elements, index = 0, batchSize = 200) => {
-    const endIndex = Math.min(index + batchSize, elements.length);
-    const currentBatch = elements.slice(index, endIndex);
-
-    // 处理当前批次
-    currentBatch.forEach(element => {
-      // 添加图像加载完成后的回调
-      if (element.type === 'image' && element.imageUrl) {
-        element.onImageLoad = (konvaElement) => {
-          layer.batchDraw();
-        };
-      }
-      
-      const konvaElement = createKonvaElement(element);
-      if (konvaElement) {
-        konvaElement.setAttr('_isCanvasElement', true);
-        // 为需要事件的元素添加事件处理
-        attachElementEvents(konvaElement, element, selectElement, updateElementPosition);
-        layer.add(konvaElement);
-      }
+// 更新LOD状态
+const updateLodState = () => {
+  if (props.enableLod) {
+    // 基于当前缩放计算LOD级别
+    viewState.lodLevel = calculateLodLevel({
+      scale: viewState.scale
+    }, {
+      minLodLevel: props.minLodLevel,
+      maxLodLevel: props.maxLodLevel,
+      useLodLog: props.useLodLog
     });
-
-    // 继续处理下一批或完成
-    if (endIndex < elements.length) {
-      requestAnimationFrame(() => processBatch(elements, endIndex, batchSize));
-    } else {
-      // 恢复事件监听并重绘
-      layer.listening(true);
-      layer.batchDraw();
-      updateLodState();
-    }
-  };
-
-  // 处理更新操作
-  elementsToUpdate.forEach(({ element, node }) => {
-    // 根据元素类型更新属性
-    if (element.type === 'line' && element.points) {
-      node.points(element.points);
-    } else {
-      // 更新常见属性
-      if (element.x !== undefined) node.x(element.x);
-      if (element.y !== undefined) node.y(element.y);
-      if (element.fill !== undefined) node.fill(element.fill);
-      if (element.stroke !== undefined) node.stroke(element.stroke);
-      if (element.strokeWidth !== undefined) node.strokeWidth(element.strokeWidth);
-      // 更新其他特定属性...
-    }
-  });
-
-  // 开始批量添加新元素
-  if (elementsToAdd.length > 0) {
-    processBatch(elementsToAdd);
-  } else {
-    // 没有新元素时，直接恢复事件监听和重绘
-    layer.listening(true);
-    layer.batchDraw();
-    updateLodState();
   }
 };
 
-// 5. 现在可以安全地设置watch
-watch(() => props.modelValue, (newValue) => {
-  viewState.elements = JSON.parse(JSON.stringify(newValue));
-  updateKonvaElements();
-}, { deep: true, immediate: true });
-
-// 添加元素
+// 添加元素函数
 const addElement = (element) => {
   if (!element.id) {
-    element.id = element.type + '_' + Date.now();
+    // 使用时间戳 + 随机字符串确保ID唯一
+    element.id = element.type + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
   }
 
   const newElements = [...viewState.elements, element];
@@ -1013,74 +840,47 @@ const addElement = (element) => {
   // 更新v-model并通知父组件
   emit('update:modelValue', newElements);
   emit('element-added', element);
-
-  // 更新Konva图层
-  updateKonvaElements();
+  
+  // 添加元素后更新LOD状态
   updateLodState();
 
   return element;
 };
 
-// 添加批量高性能添加元素方法
+// 添加批量元素函数
 const addElements = (elements) => {
   if (!Array.isArray(elements) || elements.length === 0) {
     return [];
   }
-  // 批量处理：禁用自动重绘
-  if (mainLayer.value && mainLayer.value.getNode()) {
-    mainLayer.value.getNode().listening(false); // 暂时禁用事件监听以提高性能
-  }
-  // 为没有ID的元素生成ID
+  
+  // 为没有ID的元素添加ID
   const processedElements = elements.map(element => {
     if (!element.id) {
-      return { ...element, id: element.type + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9) };
+      // 确保每个ID都是唯一的
+      element.id = element.type + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
     }
     return element;
   });
-  viewState.elements.push(...processedElements);
-  // 只触发一次更新事件
-  emit('update:modelValue', viewState.elements);
-  // 分批创建Konva元素以避免长时间阻塞UI
-  const batchSize = 500; // 每批处理的元素数量
-  const totalElements = processedElements.length;
-  const processBatch = (startIndex) => {
-    const endIndex = Math.min(startIndex + batchSize, totalElements);
-    const currentBatch = processedElements.slice(startIndex, endIndex);
-    // 批量添加Konva元素
-    if (mainLayer.value && mainLayer.value.getNode()) {
-      const layer = mainLayer.value.getNode();
-      // 添加当前批次的元素
-      currentBatch.forEach(element => {
-        const konvaElement = createKonvaElement(element);
-        if (konvaElement) {
-          konvaElement.setAttr('_isCanvasElement', true);
-          layer.add(konvaElement);
-        }
-      });
-      // 处理下一批，或完成所有批次处理
-      if (endIndex < totalElements) {
-        // 使用requestAnimationFrame允许浏览器在批次之间更新UI
-        requestAnimationFrame(() => processBatch(endIndex));
-      } else {
-        // 所有批次处理完成，恢复事件监听并重绘
-        layer.listening(true);
-        layer.batchDraw();
-        updateLodState();
-        // 单独触发每个元素的added事件（如果需要的话）
-        processedElements.forEach(element => {
-          emit('element-added', element);
-        });
-      }
-    }
-  };
-  // 开始批处理
-  if (totalElements > 0) {
-    processBatch(0);
-  }
+  
+  // 添加到现有元素数组
+  const newElements = [...viewState.elements, ...processedElements];
+  viewState.elements = newElements;
+  
+  // 更新v-model并通知父组件
+  emit('update:modelValue', newElements);
+  
+  // 对每个元素触发element-added事件
+  processedElements.forEach(element => {
+    emit('element-added', element);
+  });
+  
+  // 更新LOD状态
+  updateLodState();
+  
   return processedElements;
 };
 
-// 移除元素
+// 移除元素函数
 const removeElement = (elementId) => {
   const elementIndex = viewState.elements.findIndex(el => el.id === elementId);
   if (elementIndex === -1) return false;
@@ -1092,15 +892,14 @@ const removeElement = (elementId) => {
   // 更新v-model并通知父组件
   emit('update:modelValue', newElements);
   emit('element-removed', element);
-
-  // 更新Konva图层
-  updateKonvaElements();
+  
+  // 移除元素后更新LOD状态
   updateLodState();
 
   return true;
 };
 
-// 更新元素
+// 更新元素函数
 const updateElement = (elementId, properties) => {
   const elementIndex = viewState.elements.findIndex(el => el.id === elementId);
   if (elementIndex === -1) return false;
@@ -1117,110 +916,8 @@ const updateElement = (elementId, properties) => {
   // 更新v-model并通知父组件
   emit('update:modelValue', newElements);
   emit('element-updated', updatedElement);
-  // 更新Konva图层
-  updateKonvaElements();
-  updateLodState();
+  
   return true;
-};
-
-// 更新LOD状态和可见性
-const updateLodState = () => {
-  if (!props.enableLod) return;
-
-  // 更新当前LOD级别
-  viewState.lodLevel = calculateLodLevel(viewState, props);
-
-  // 更新元素可见性
-  const newVisibleElements = new Set();
-
-  // 重置统计信息
-  viewState.elementStats = {
-    total: 0,
-    visible: 0,
-    hidden: 0,
-    hideReasons: {
-      lodScale: 0,
-      lodRange: 0,
-      manual: 0,
-      other: 0
-    }
-  };
-
-  // 获取可见区域边界，用于视口剪裁
-  const bounds = getViewportBounds(viewState);
-
-  // 添加缓冲区以避免边缘抖动
-  const bufferedBounds = {
-    left: bounds.left - (bounds.right - bounds.left) * 0.1,
-    right: bounds.right + (bounds.right - bounds.left) * 0.1,
-    top: bounds.top - (bounds.bottom - bounds.top) * 0.1,
-    bottom: bounds.bottom + (bounds.bottom - bounds.top) * 0.1
-  };
-
-  // 获取主图层引用
-  const konvaLayer = mainLayer.value?.getNode();
-
-  // 提前准备处理选项
-  const processOptions = {
-    viewState,
-    props,
-    bufferedBounds,
-    newVisibleElements,
-    layer: konvaLayer
-  };
-
-  // 如果元素数量超过阈值，使用批处理
-  const BATCH_THRESHOLD = 1000;
-  const BATCH_SIZE = 500;
-
-  if (viewState.elements.length > BATCH_THRESHOLD) {
-    // 批量处理元素可见性
-    const processLodBatch = (startIndex = 0) => {
-      const endIndex = Math.min(startIndex + BATCH_SIZE, viewState.elements.length);
-      const batchElements = viewState.elements.slice(startIndex, endIndex);
-
-      // 处理当前批次
-      batchElements.forEach(element => {
-        viewState.elementStats = processElementVisibility(element, processOptions);
-      });
-
-      // 处理下一批或完成
-      if (endIndex < viewState.elements.length) {
-        setTimeout(() => processLodBatch(endIndex), 0);
-      } else {
-        // 完成所有批次处理
-        updateVisibilityStatistics();
-      }
-    };
-
-    // 开始批处理
-    processLodBatch(0);
-  } else {
-    // 直接处理所有元素
-    viewState.elements.forEach(element => {
-      viewState.elementStats = processElementVisibility(element, processOptions);
-    });
-    updateVisibilityStatistics();
-  }
-
-  // 更新可见性统计并触发事件
-  function updateVisibilityStatistics() {
-    // 更新可见元素集合
-    viewState.visibleElements = newVisibleElements;
-
-    // 重绘主图层
-    if (mainLayer.value && mainLayer.value.getNode()) {
-      mainLayer.value.getNode().batchDraw();
-    }
-
-    // 触发可见性变更事件
-    emit('lod-update', {
-      lodLevel: viewState.lodLevel,
-      scale: viewState.scale,
-      visibleElements: Array.from(viewState.visibleElements),
-      statistics: viewState.elementStats
-    });
-  }
 };
 
 // 向父组件暴露方法和变量
@@ -1253,6 +950,20 @@ defineExpose({
   updateElement,
   getElements: () => viewState.elements,
   getSelectedElement: () => viewState.selectedElement,
+  
+  // 添加清除所有元素的方法
+  clearElements: () => {
+    // 保存当前元素数组的引用，用于触发事件
+    const oldElements = [...viewState.elements];
+    // 清空元素数组
+    viewState.elements = [];
+    // 更新v-model
+    emit('update:modelValue', []);
+    // 发出所有元素被移除的事件
+    emit('elements-cleared', oldElements);
+    // 返回被清除的元素数量
+    return oldElements.length;
+  },
 
   // 绘制模式切换
   setDrawMode: (mode) => {
@@ -1277,6 +988,12 @@ defineExpose({
   // 设置全局LOD阈值
   setLodThreshold: (threshold) => {
     props.lodThreshold = threshold;
+    updateLodState();
+  },
+
+  // 启用或禁用LOD
+  setEnableLod: (enable) => {
+    props.enableLod = enable;
     updateLodState();
   },
 
@@ -1332,6 +1049,124 @@ defineExpose({
     Object.assign(gridTheme, theme);
   },
 });
+
+// 计算哪些元素应该可见
+const visibleElements = computed(() => {
+  // 重置所有元素的LOD隐藏状态
+  const elements = viewState.elements || [];
+  elements.forEach(element => {
+    // 重要：在每次计算前，移除之前的LOD隐藏标记
+    element._hiddenByLod = false;
+  });
+
+  const filteredElements = elements.filter(element => {
+    // 检查元素是否被手动隐藏
+    if (element.manuallyHidden === true) return false;
+    
+    // 如果是系统元素，总是显示
+    if (element.isSystemElement) return true;
+    
+    // 应用LOD规则
+    if (props.enableLod) {
+      // 检查自定义LOD范围
+      if (element.lodRange) {
+        const { minScale, maxScale } = element.lodRange;
+        if ((minScale !== undefined && viewState.scale < minScale) || 
+            (maxScale !== undefined && viewState.scale > maxScale)) {
+          element._hiddenByLod = true;
+          return false;
+        }
+      }
+      
+      // 检查元素是否足够大以显示
+      const visibility = shouldElementBeVisible(element, viewState, props);
+      console.log(visibility)
+      // 关键：只依赖当前计算结果
+      if (!visibility.visible) {
+        element._hiddenByLod = true;
+        return false;
+      }
+      
+      // 更新元素的不透明度
+      element.opacity = visibility.opacity;
+    }
+    
+    // 处理图像特殊情况
+    if (element.type === 'image' && !element.imageReady && element.imageUrl) {
+      // 如果图像未加载，先加载图像
+      loadImage(element);
+      return false;
+    }
+    
+    return true;
+  });
+  
+  // 更新元素统计信息
+  updateElementStatistics(filteredElements);
+  
+  return filteredElements;
+});
+
+// 图像加载函数 - 从MainLayer移到这里
+const loadImage = (element) => {
+  if (!element.imageUrl || element.imageLoading) return;
+  
+  element.imageLoading = true;
+  const imageObj = new Image();
+  
+  imageObj.onload = () => {
+    element.image = imageObj;
+    element.imageReady = true;
+    element.imageLoading = false;
+  };
+  
+  imageObj.onerror = () => {
+    element.imageLoading = false;
+    console.error('无法加载图像:', element.imageUrl);
+  };
+  
+  imageObj.src = element.imageUrl;
+};
+
+// 更新元素统计信息
+const updateElementStatistics = (visibleList) => {
+  // 初始化统计信息
+  const stats = {
+    total: viewState.elements?.length || 0,
+    visible: visibleList.length,
+    hidden: (viewState.elements?.length || 0) - visibleList.length,
+    visibleElementIds: visibleList.map(el => el.id),
+    hideReasons: {
+      lodScale: 0,
+      lodRange: 0,
+      manual: 0,
+      other: 0
+    }
+  };
+  
+  // 计算不可见元素的原因
+  (viewState.elements || []).forEach(element => {
+    // 跳过系统元素和可见元素
+    if (element.isSystemElement || visibleList.some(e => e.id === element.id)) return;
+    
+    // 确定隐藏原因
+    if (element.manuallyHidden === true) {
+      stats.hideReasons.manual++;
+    } else if (element.lodRange && (
+        (element.lodRange.minScale !== undefined && viewState.scale < element.lodRange.minScale) || 
+        (element.lodRange.maxScale !== undefined && viewState.scale > element.lodRange.maxScale)
+    )) {
+      stats.hideReasons.lodRange++;
+    } else if (props.enableLod && element._hiddenByLod) {
+      stats.hideReasons.lodScale++;
+    } else {
+      stats.hideReasons.other++;
+    }
+  });
+  
+  // 更新状态
+  viewState.elementStats = stats;
+};
 </script>
 
 <style scoped>
