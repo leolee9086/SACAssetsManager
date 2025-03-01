@@ -1,6 +1,6 @@
 import { 欧几里得聚类, CIEDE2000聚类 } from '../../../utils/color/Kmeans.js'
 import { 找到文件颜色, 添加到颜色索引 } from '../color/colorIndex.js'
-import { awaitForEach } from '../../../utils/array/walk.js'
+import { awaitForEach } from '../../../utils/useEcma/array/walk.js'
 import { 缩放图像到32 } from './utils/sharp.js'
 import { isValidImageBuffer } from '../../../utils/image/isImage.js'
 /**

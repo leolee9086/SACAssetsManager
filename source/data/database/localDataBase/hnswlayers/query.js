@@ -2,7 +2,7 @@ import { 计算归一化向量余弦相似度 } from "../../../../utils/vector/s
 import { hnsw索引元设置 } from "../config.js";
 import { 获取数据项向量字段值, 获取数据项特定hnsw索引邻接表 } from "../utils/item.js";
 import { 获取数据项所在hnsw层级, 重建数据集的层级映射 } from "./utils.js";
-import { MinHeap } from "../../../../utils/Array/minHeap.js";
+import { MinHeap } from "../../../../utils/useEcma/arrayma/arrayma/array/minHeap.js";
 import { 选择入口点 } from "./entry.js";
 import { withPerformanceLogging } from "../../../../utils/functionAndClass/performanceRun.js";
 function 贪心搜索当前层级(数据集, 当前点, 查询向量, hnsw索引名称, 当前层级, 模型名称, 已遍历点=new Set(),hnsw层级映射) {

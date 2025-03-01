@@ -44,7 +44,7 @@
 import { getStatu, 状态注册表 } from '../../../globalStatus/index.js';
 import ApiPortItem from './ApiPortItem.vue';
 import { ref } from 'vue'
-import { 多级分组 } from '../../../utils/array/groupBy.js';
+import { 多级分组 } from '../../../utils/useEcma/array/groupBy.js';
 import { useFoldableTree } from '../../../data/composeAbles/useFoldableTree.js';
 const apiList = getStatu(状态注册表.本地文件搜索接口)
 const groupedApiList = ref(多级分组(apiList, ['type', 'host']));

@@ -1,5 +1,5 @@
 import { createCluster } from "./utils/createCluster.js";
-import { ArrayBufferDataStream } from "./utils/ArrayBufferDataStream.js";
+import { ArrayBufferDataStream } from "./utils/useEcma/arrayBufferDataStream.js";
 import { BlobBuffer } from "./utils/blobBuffer.js";
 import { createEbmlHeader } from "./utils/ebml/ebmlHeader.js";
 import { createEmblTracksInfo } from "./utils/ebml/emblTracksInfo.js";

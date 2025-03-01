@@ -61,7 +61,7 @@
 import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef, defineComponent } from 'vue';
 import errorContainer from './errorContainer.vue';
 import { ErrorBoundary } from '../../common/wraper/utilsComponent.js';
-import { 按指定值分组 } from '../../../../utils/array/groupBy.js';
+import { 按指定值分组 } from '../../../../utils/useEcma/array/groupBy.js';
 import { validateSize, validatePosition } from '../geometry/validatGeometry.js';
 import { getAnchorStyle } from './nodeDefineParser/controllers/anchorConfig.js';
 import * as 向量 from '../geometry/geometryCalculate/vector.js';

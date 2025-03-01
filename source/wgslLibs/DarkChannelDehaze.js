@@ -4,7 +4,7 @@
 
 
 import { FeatureExtractor,estimateAtmosphericLight } from "../utils/image/analyze/features.js";
-import { MinHeap } from '../utils/array/minHeap.js';
+import { MinHeap } from '../utils/useEcma/array/minHeap.js';
 import { webGpuDevice as device } from "../utils/browser/gpu.js";
 // 特征系统
 

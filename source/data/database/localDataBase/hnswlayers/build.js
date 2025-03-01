@@ -1,4 +1,4 @@
-import { 最小堆 } from "../../../../utils/Array/minHeap.js";
+import { 最小堆 } from "../../../../utils/useEcma/array/minHeap.js";
 import { hnsw索引元设置, 计算层级预期邻居数量 } from "../config.js";
 import { 计算数据项距离 } from "../utils/distance.js";
 import { 获取数据项特定hnsw索引邻接表 } from "../utils/item.js";

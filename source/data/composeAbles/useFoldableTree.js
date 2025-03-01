@@ -1,4 +1,4 @@
-import { ref } from "../../../static/vue.esm-browser.js";
+import { ref } from "../../fromDeps/useVue/index.js"
 
 export function useFoldableTree(levels = []) {
     // 添加初始状态参数
@@ -14,18 +14,15 @@ export function useFoldableTree(levels = []) {
             return acc;
         }, {});
     }
-
     // 添加重置特定层级状态的方法
     const resetFoldState = (level) => {
         foldStates[level].value = {};
     }
-
     // 切换指定路径的折叠状态
     const toggleFold = (level, ...path) => {
         if (!foldStates[level].value) {
             foldStates[level].value = {}
         }
-        
         let current = foldStates[level].value
         for (let i = 0; i < path.length - 1; i++) {
             if (!current[path[i]]) {
@@ -33,7 +30,6 @@ export function useFoldableTree(levels = []) {
             }
             current = current[path[i]]
         }
-        
         const lastKey = path[path.length - 1]
         current[lastKey] = !current[lastKey]
     }
@@ -54,7 +50,6 @@ export function useFoldableTree(levels = []) {
     const getAllFoldStates = (level) => {
         return foldStates[level].value || {};
     }
-
     // 添加检查是否所有节点都已折叠的方法
     const isAllFolded = (level) => {
         const states = foldStates[level].value;
