@@ -39,11 +39,10 @@ import {
     nextTick,
     defineEmits,
     shallowRef,
-    onUnmounted,
     defineExpose,
     computed
 } from 'vue'
-import { 从数据源定量加载数据, 创建瀑布流布局, getColumnNextSiblingByIndex } from "../../utils/layoutComputer/masonry/layout.js";
+import {  创建瀑布流布局, getColumnNextSiblingByIndex } from "../../utils/layoutComputer/masonry/layout.js";
 import assetsThumbnailCard from "../common/assetsThumbnailCard.vue";
 /**
  * 计算样式的部分
@@ -72,7 +71,7 @@ const props = defineProps({
 
 
     assetsSource: {
-        type: Array,
+        type: Object,
         required: true
     },
     tableViewAttributes: {

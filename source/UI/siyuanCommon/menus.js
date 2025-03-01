@@ -1,4 +1,4 @@
-import { plugin, clientApi, kernelApi } from '../../asyncModules.js'
+import { plugin, clientApi } from '../../asyncModules.js'
 import { applyStmt } from '../../data/galleryDefine.js'
 import { tabEvents } from './tabs/events.js'
 import { 打开附件面板 } from './tabs/assetsTab.js'

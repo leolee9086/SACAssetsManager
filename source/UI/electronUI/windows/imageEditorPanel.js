@@ -56,4 +56,3 @@ export async function 打开xbel窗口(imagePath) {
     await createEditorWindow(imagePath, './xbel/index.js');
 }
 
-打开xbel窗口()
