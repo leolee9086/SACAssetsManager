@@ -60,6 +60,40 @@ const layerIcons = `
 </symbol>
 `;
 
+// 添加面板操作相关图标
+const canvasIcons = `
+<symbol id="iconReset" viewBox="0 0 24 24">
+  <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-8 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+</symbol>
+
+<symbol id="iconExport" viewBox="0 0 24 24">
+  <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
+</symbol>
+
+<symbol id="iconZoomIn" viewBox="0 0 24 24">
+  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+  <path d="M12 10h-2v-2H9v2H7v1h2v2h1v-2h2z"/>
+</symbol>
+
+<symbol id="iconZoomOut" viewBox="0 0 24 24">
+  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+  <path d="M7 9h5v1H7z"/>
+</symbol>
+
+<symbol id="iconLine" viewBox="0 0 24 24">
+  <path d="M19 13H5v-2h14v2z"/>
+</symbol>
+
+<symbol id="iconFullscreen" viewBox="0 0 24 24">
+  <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+</symbol>
+
+<symbol id="iconFullscreenExit" viewBox="0 0 24 24">
+  <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+</symbol>
+`;
+
 // 添加到插件
 plugin.addIcons(colorIcon);
 plugin.addIcons(layerIcons);
+plugin.addIcons(canvasIcons);

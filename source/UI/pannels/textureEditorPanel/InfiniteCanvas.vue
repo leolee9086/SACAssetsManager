@@ -88,35 +88,51 @@
       <!-- 添加前置自定义按钮 -->
       <template v-for="button in customButtons.filter(b => b.position === 'start')" :key="button.id">
         <button @click="button.onClick" :title="button.title" :class="{ active: button.active }">
-          <i :class="button.icon"></i>
+          <svg>
+            <use :xlink:href="'#' + button.icon"></use>
+          </svg>
         </button>
       </template>
 
       <!-- 原有的默认按钮 -->
       <button @click="resetView" title="重置视图">
-        <i class="icon-reset"></i>
+        <svg>
+          <use xlink:href="#iconReset"></use>
+        </svg>
       </button>
       <button @click="zoomIn" title="放大">
-        <i class="icon-zoom-in"></i>
+        <svg>
+          <use xlink:href="#iconZoomIn"></use>
+        </svg>
       </button>
       <button @click="zoomOut" title="缩小">
-        <i class="icon-zoom-out"></i>
+        <svg>
+          <use xlink:href="#iconZoomOut"></use>
+        </svg>
       </button>
       <button @click="toggleDrawMode" :class="{ active: viewState.drawMode === 'line' }" title="绘制直线">
-        <i class="icon-line"></i>
+        <svg>
+          <use xlink:href="#iconLine"></use>
+        </svg>
       </button>
       <button @click="exportCanvasAsImage" title="导出为图片">
-        <i class="icon-export"></i>
+        <svg>
+          <use xlink:href="#iconExport"></use>
+        </svg>
       </button>
       <!-- 添加全屏按钮 -->
       <button @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏'">
-        <i :class="isFullscreen ? 'icon-fullscreen-exit' : 'icon-fullscreen'"></i>
+        <svg>
+          <use :xlink:href="isFullscreen ? '#iconFullscreenExit' : '#iconFullscreen'"></use>
+        </svg>
       </button>
 
       <!-- 添加后置自定义按钮 -->
       <template v-for="button in customButtons.filter(b => b.position !== 'start')" :key="button.id">
         <button @click="button.onClick" :title="button.title" :class="{ active: button.active }">
-          <i :class="button.icon"></i>
+          <svg>
+            <use :xlink:href="'#' + button.icon"></use>
+          </svg>
         </button>
       </template>
     </div>
@@ -1186,11 +1202,10 @@ const updateElementStatistics = (visibleList) => {
 }
 
 /* 全屏按钮样式 */
-.canvas-controls button i.icon-fullscreen,
-.canvas-controls button i.icon-fullscreen-exit {
-  font-style: normal;
-  font-size: 18px;
-  line-height: 1;
+.canvas-controls button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 
 /* 全屏时的样式 */
