@@ -1,5 +1,5 @@
 import { IEventEmitterSimple } from "../events/emitter.js";
-import { MinHeap } from "../array/minHeap.js";
+import { MinHeap } from "../useEcma/useArray/minHeap.js";
 export class 串行任务控制器 extends IEventEmitterSimple {
     constructor(options={
         destroyOnComplete : false,
