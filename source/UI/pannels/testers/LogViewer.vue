@@ -61,6 +61,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, shallowRef, onBeforeUnmount, reactive } from 'vue';
+import { useDebounce, useThrottle } from './useEventModifiers.js';
+import { useVirtualScroll } from './useVirtualScroll.js'; // 导入虚拟滚动组合式API
 
 const props = defineProps({
   logs: {
@@ -167,72 +169,18 @@ const formattedContentCache = reactive(new Map());
 const cacheTimestamps = reactive(new Map()); // 跟踪缓存条目创建时间
 const resizeObserver = ref(null);
 const visibleLogCount = ref(props.maxVisibleLogs);
-const isScrolling = ref(false);
-const scrollTimeout = ref(null);
 const errorCount = ref(0);
-const lastScrollPosition = ref(0);
-const isScrolledToBottom = ref(true);
 const logItemRefs = shallowRef({}); // 使用shallowRef优化引用类型
 const activeLogIndex = ref(-1);
 const virtualScrollEnabled = ref(props.virtualScrolling);
 const cacheCleanupTimer = ref(null);
 const viewportHeight = ref(0);
-const lastRenderTime = ref(Date.now());
 const isPerformingBatchUpdate = ref(false);
 
 // 改进的防抖函数，增加立即执行选项并优化节流性能
-function debounce(fn, delay = 300, immediate = false) {
-  let timer = null;
-  let lastArgs = null;
-  let lastThis = null;
-  
-  return function(...args) {
-    lastArgs = args;
-    lastThis = this;
-    const callNow = immediate && !timer;
-    
-    if (timer) clearTimeout(timer);
-    
-    if (callNow) {
-      fn.apply(this, args);
-    }
-    
-    timer = setTimeout(() => {
-      if (!immediate && lastArgs) fn.apply(lastThis, lastArgs);
-      timer = null;
-      lastArgs = null;
-      lastThis = null;
-    }, delay);
-  };
-}
-
-// 节流函数，用于高频率事件如滚动
-function throttle(fn, delay = 16) {
-  let lastCall = 0;
-  let timeout = null;
-  
-  return function(...args) {
-    const now = Date.now();
-    const context = this;
-    
-    if (now - lastCall >= delay) {
-      lastCall = now;
-      fn.apply(context, args);
-    } else {
-      // 确保最后一次调用也能执行
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        lastCall = now;
-        fn.apply(context, args);
-      }, delay - (now - lastCall));
-    }
-  };
-}
-
-// 延迟更新过滤文本
-const updateFilterTextDebounced = debounce(() => {
+const updateFilterTextDebounced = useDebounce(() => {
   debouncedFilterText.value = filterText.value;
-}, 300);
+}, { delay: 300 });
 
 // 监听过滤文本变化
 watch(filterText, () => {
@@ -337,93 +285,60 @@ const filteredLogs = computed(() => {
   }
 });
 
-// 计算当前可见的日志数量
-const totalFilteredLogs = computed(() => filteredLogs.value.length);
-
-// 优化的虚拟滚动实现
-const visibleLogs = computed(() => {
-  try {
-    if (!virtualScrollEnabled.value) return filteredLogs.value;
-    
-    const logs = filteredLogs.value;
-    const count = Math.min(visibleLogCount.value, logs.length);
-    
-    // 估算当前应该显示的日志范围
-    if (logContainer.value && props.renderOptimization) {
-      const { scrollTop, clientHeight } = logContainer.value;
-      const { itemHeight, overscan } = props.virtualScrollOptions;
-      
-      const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
-      const endIndex = Math.min(
-        logs.length,
-        Math.ceil((scrollTop + clientHeight) / itemHeight) + overscan
-      );
-      
-      // 如果启用了自动滚动并且不在手动滚动中，则显示最后的日志
-      if (props.autoScroll && isScrolledToBottom.value && !isScrolling.value) {
-        return logs.slice(Math.max(0, logs.length - count));
-      }
-      
-      return logs.slice(startIndex, endIndex);
-    }
-    
-    // 回退到基本实现
-    if (props.autoScroll && isScrolledToBottom.value && !isScrolling.value) {
-      return logs.slice(Math.max(0, logs.length - count));
-    }
-    
-    // 从可视区域开始显示
-    const visibleStartIndex = Math.floor(lastScrollPosition.value / 30);
-    return logs.slice(
-      Math.max(0, visibleStartIndex), 
-      Math.min(logs.length, visibleStartIndex + count)
-    );
-  } catch (error) {
-    console.error('计算可见日志时出错:', error);
-    errorCount.value++;
-    
-    // 发生错误时回退到非虚拟滚动模式
-    if (props.fallbackToStandardScroll && virtualScrollEnabled.value) {
-      console.warn('虚拟滚动发生错误，回退到标准滚动模式');
-      virtualScrollEnabled.value = false;
-    }
-    
-    // 返回部分日志以确保界面不空白
-    return filteredLogs.value.slice(0, props.maxVisibleLogs);
-  }
+// 应用虚拟滚动
+const virtualScroll = useVirtualScroll({
+  items: filteredLogs, // 使用过滤后的日志作为数据源
+  itemHeight: props.virtualScrollOptions.itemHeight,
+  maxVisibleItems: props.maxVisibleLogs,
+  autoScroll: props.autoScroll,
+  buffer: props.virtualScrollOptions.buffer,
+  overscan: props.virtualScrollOptions.overscan,
+  throttleMs: props.virtualScrollOptions.throttleMs,
+  fallbackToStandard: props.fallbackToStandardScroll,
+  stabilityThreshold: props.errorRetryCount
 });
 
-// 是否有更多未显示的日志
-const hasMoreLogs = computed(() => {
-  return filteredLogs.value.length > visibleLogs.value.length;
-});
+// 使用虚拟滚动提供的计算属性和方法替代原有实现
+const visibleLogs = computed(() => virtualScroll.visibleItems.value);
+const isScrolling = computed(() => virtualScroll.isScrolling.value);
+const isScrolledToBottom = computed(() => virtualScroll.isScrolledToBottom.value);
+const hasMoreLogs = computed(() => virtualScroll.hasMoreItems.value);
+const totalFilteredLogs = computed(() => virtualScroll.totalItems.value);
 
-// 为日志生成唯一键
-function getLogKey(log, index) {
-  if (props.idField && log && log[props.idField]) {
-    return log[props.idField];
-  }
-  // 如果日志有时间戳和内容，可以组合成相对唯一的键
-  if (log && log.time && log.content) {
-    const contentStr = typeof log.content === 'object' 
-      ? JSON.stringify(log.content)
-      : String(log.content);
-    return `${log.time}-${log.type || ''}-${contentStr.substring(0, 20)}`;
-  }
-  // 回退到索引
-  return index;
+// 替换原有的滚动到底部功能
+function scrollToBottom() {
+  virtualScroll.scrollToBottom();
 }
+
+// 替换原有的检查是否滚动到底部功能
+function checkScrolledToBottom() {
+  return virtualScroll.checkScrolledToBottom();
+}
+
+// 处理日志项目点击
+function handleLogClick(log) {
+  emit('select-log', log);
+  
+  // 获取日志索引，使用虚拟滚动的scrollToItem功能保持在视图中
+  const index = filteredLogs.value.indexOf(log);
+  if (index !== -1) {
+    activeLogIndex.value = index;
+    virtualScroll.scrollToItem(index, 'smooth', 'center');
+  }
+}
+
+// 绑定容器引用
+watch(() => logContainer.value, (container) => {
+  if (container) {
+    virtualScroll.containerRef.value = container;
+  }
+});
 
 // 清空日志
 function clearLogs() {
   emit('clear');
   // 清除缓存
   formattedContentCache.clear();
-}
-
-// 处理日志点击
-function handleLogClick(log) {
-  emit('select-log', log);
 }
 
 // 改进的缓存管理，包含过期清理机制
@@ -538,51 +453,21 @@ function customClassForLog(log) {
   return props.customTypes[log.type];
 }
 
-// 自动滚动到底部
-function scrollToBottom() {
-  if (props.autoScroll && logContainer.value && !isScrolling.value) {
-    logContainer.value.scrollTop = logContainer.value.scrollHeight;
+// 为日志生成唯一键
+function getLogKey(log, index) {
+  if (props.idField && log && log[props.idField]) {
+    return log[props.idField];
   }
-}
-
-// 检测是否滚动到底部的函数
-function checkScrolledToBottom() {
-  if (!logContainer.value) return false;
-  
-  const { scrollTop, scrollHeight, clientHeight } = logContainer.value;
-  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10;
-  isScrolledToBottom.value = isAtBottom;
-  return isAtBottom;
-}
-
-// 优化的滚动处理，使用节流优化性能
-const throttledHandleScroll = throttle(function() {
-  const wasAtBottom = isScrolledToBottom.value;
-  
-  if (!logContainer.value) return;
-  
-  lastScrollPosition.value = logContainer.value.scrollTop;
-  
-  // 更新滚动状态
-  checkScrolledToBottom();
-  
-  isScrolling.value = true;
-  
-  // 清除之前的定时器
-  if (scrollTimeout.value) {
-    clearTimeout(scrollTimeout.value);
+  // 如果日志有时间戳和内容，可以组合成相对唯一的键
+  if (log && log.time && log.content) {
+    const contentStr = typeof log.content === 'object' 
+      ? JSON.stringify(log.content)
+      : String(log.content);
+    return `${log.time}-${log.type || ''}-${contentStr.substring(0, 20)}`;
   }
-  
-  // 设置新的定时器，滚动停止后恢复自动滚动
-  scrollTimeout.value = setTimeout(() => {
-    isScrolling.value = false;
-    
-    // 如果之前位于底部且启用了自动滚动，则滚动到底部
-    if (props.autoScroll && wasAtBottom) {
-      scrollToBottom();
-    }
-  }, 200); // 减少延迟提高响应性
-}, props.virtualScrollOptions.throttleMs);
+  // 回退到索引
+  return index;
+}
 
 // 定期清理缓存的函数
 function setupCacheCleanup() {
@@ -618,18 +503,14 @@ onMounted(() => {
     scrollToBottom();
   });
   
-  // 添加滚动和键盘事件监听
+  // 只保留键盘事件监听
   if (logContainer.value) {
-    logContainer.value.addEventListener('scroll', throttledHandleScroll, { passive: true });
     logContainer.value.addEventListener('keydown', handleKeyDown);
     
     // 记录视口高度
     viewportHeight.value = logContainer.value.clientHeight;
   }
   
-  // 设置大小观察器
-  setupResizeObserver();
-
   // 初始状态检查
   checkScrolledToBottom();
   
@@ -653,11 +534,6 @@ onMounted(() => {
 // 添加 beforeUnmount 钩子确保清理
 onBeforeUnmount(() => {
   // 确保清理所有计时器
-  if (scrollTimeout.value) {
-    clearTimeout(scrollTimeout.value);
-    scrollTimeout.value = null;
-  }
-  
   if (cacheCleanupTimer.value) {
     clearInterval(cacheCleanupTimer.value);
     cacheCleanupTimer.value = null;
@@ -665,32 +541,16 @@ onBeforeUnmount(() => {
 });
 
 onUnmounted(() => {
-  // 清理事件监听
+  // 清理事件监听 - 只需要清理键盘事件，滚动事件由virtualScroll处理
   if (logContainer.value) {
-    logContainer.value.removeEventListener('scroll', throttledHandleScroll);
     logContainer.value.removeEventListener('keydown', handleKeyDown);
-  }
-  
-  // 清理大小观察器
-  if (resizeObserver.value) {
-    resizeObserver.value.disconnect();
-    resizeObserver.value = null;
-  }
-  
-  // 清理任何定时器 (双重保险)
-  if (scrollTimeout.value) {
-    clearTimeout(scrollTimeout.value);
-    scrollTimeout.value = null;
-  }
-  
-  if (cacheCleanupTimer.value) {
-    clearInterval(cacheCleanupTimer.value);
-    cacheCleanupTimer.value = null;
   }
   
   // 清理缓存
   formattedContentCache.clear();
   cacheTimestamps.clear();
+  
+  // 虚拟滚动在内部会自动清理资源
 });
 
 // 键盘导航支持
@@ -780,26 +640,6 @@ watch([debouncedFilterText, selectedTypes], () => {
     }
   });
 });
-
-// 监听窗口大小变化以调整性能
-function setupResizeObserver() {
-  if (window.ResizeObserver && logContainer.value) {
-    resizeObserver.value = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        const { height } = entry.contentRect;
-        // 根据容器高度动态调整可见日志数量
-        const estimatedLogHeight = 30; // 估计每条日志的高度
-        const newVisibleCount = Math.max(
-          props.maxVisibleLogs, 
-          Math.ceil(height / estimatedLogHeight) * 2
-        );
-        visibleLogCount.value = newVisibleCount;
-      }
-    });
-    
-    resizeObserver.value.observe(logContainer.value);
-  }
-}
 </script>
 
 <style scoped>
