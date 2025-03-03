@@ -265,6 +265,55 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = `${siyua
             ...moduleCache
         },
         async getFile(url) {
+            // 处理来自CDN的请求
+            if (url.includes('esm.sh') || url.includes('cdn')) {
+                try {
+                    // 尝试从缓存获取
+                    const cached = await cacheManager.get(url);
+                    if (cached) {
+                        console.log(`从缓存加载模块: ${url}`);
+                        let module;
+                        if (!asyncModules[url]) {
+                            module = await import(url);
+                            asyncModules[url] = module;
+                        } else {
+                            module = asyncModules[url];
+                        }
+                        
+                        return {
+                            getContentData: asBinary => asBinary ? 
+                                new TextEncoder().encode(cached.content).buffer : 
+                                cached.content,
+                        };
+                    }
+
+                    // 如果没有缓存，则从网络获取
+                    console.log(`从网络加载模块: ${url}`);
+                    const res = await fetch(fixURL(url));
+                    const content = await res.text();
+                    
+                    try {
+                        let module = await import(url);
+                        asyncModules[url] = module;
+                        
+                        // 存储到缓存
+                        await cacheManager.set(url, content, module);
+                        console.log(`模块已缓存: ${url}`);
+                    } catch (error) {
+                        console.warn(`导入模块失败，但已获取内容: ${url}`, error);
+                    }
+
+                    return {
+                        getContentData: asBinary => asBinary ? 
+                            new TextEncoder().encode(content).buffer : 
+                            content,
+                    };
+                } catch (error) {
+                    console.error(`加载模块失败: ${url}`, error);
+                    throw error;
+                }
+            }
+            
             const res = await fetch(fixURL(url));
             if (!res.ok) {
                 throw Object.assign(new Error(res.statusText + ' ' + url), { res });
@@ -289,6 +338,11 @@ export const initVueApp = (appURL, name, mixinOptions = {}, directory = `${siyua
             if(type==='.svg'){
                 console.log(type, source, path, options)
                 return get
+            }
+            // 添加对.1等未明确定义的文件类型的支持
+            if (path.includes('esm.sh') || path.includes('cdn')) {
+                // 对于CDN加载的文件，尝试返回已加载的模块
+                return asyncModules[path]
             }
         },
 

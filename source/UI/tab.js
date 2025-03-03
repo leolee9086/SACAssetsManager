@@ -1,6 +1,5 @@
 import { initVueApp } from './utils/componentsLoader.js';
 import VueKonva from '../../static/vue-konva.mjs'
-import { plugin } from '../pluginSymbolRegistry.js';
 
 // 直接定义 AppWrapper 组件
 const AppWrapper = {

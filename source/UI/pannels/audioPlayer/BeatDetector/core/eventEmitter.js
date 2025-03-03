@@ -60,6 +60,9 @@ export function createEventBus() {
   const eventHistory = [];
   const MAX_HISTORY = 100;
   
+  // 中间件系统
+  const middlewares = [];
+  
   // 预先声明公共对象，避免重复创建新对象
   const eventBus = {
     on,
@@ -77,7 +80,21 @@ export function createEventBus() {
     debug,
     getDebugInfo,
     emitNamespaced,
-    createNamespace
+    createNamespace,
+    subscribe,
+    waitFor,
+    throttle,
+    debounce,
+    createEventState,
+    createEventChannel,
+    use,
+    applyMiddleware,
+    connectWorker,
+    connectWindow,
+    connectBroadcastChannel,
+    filter,
+    map,
+    pipe
   };
   
   /**
@@ -680,6 +697,560 @@ export function createEventBus() {
         count: listenerCount(event)
       }))
     };
+  }
+  
+  /**
+   * 监听器订阅管理（允许批量订阅多个事件）
+   * @param {Object} subscriptions - 事件和回调的映射对象
+   * @param {Object} [options] - 配置选项
+   * @returns {Function} 批量取消订阅函数
+   */
+  function subscribe(subscriptions, options = {}) {
+    if (!subscriptions || typeof subscriptions !== 'object') {
+      throw new TypeError('订阅参数必须是事件/回调的映射对象');
+    }
+    
+    const removers = [];
+    for (const [event, callback] of Object.entries(subscriptions)) {
+      if (typeof callback === 'function') {
+        if (options.priority !== undefined) {
+          removers.push(priority(event, callback, { priority: options.priority }));
+        } else if (options.once) {
+          removers.push(once(event, callback));
+        } else {
+          removers.push(on(event, callback));
+        }
+      }
+    }
+    
+    // 返回批量取消订阅函数
+    return function unsubscribeAll() {
+      let count = 0;
+      for (const remover of removers) {
+        if (remover()) count++;
+      }
+      return count;
+    };
+  }
+  
+  /**
+   * 等待某个事件触发一次
+   * @param {string} event - 事件名称
+   * @param {Object} [options] - 配置选项
+   * @param {number} [options.timeout] - 超时时间(毫秒)
+   * @returns {Promise} 解析为事件数据的Promise
+   */
+  function waitFor(event, options = {}) {
+    return new Promise((resolve, reject) => {
+      let timeoutId;
+      
+      // 创建一次性事件监听
+      const unsubscribe = once(event, (data) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        resolve(data);
+      });
+      
+      // 设置超时
+      if (options.timeout) {
+        timeoutId = setTimeout(() => {
+          unsubscribe();
+          reject(new Error(`等待事件'${event}'超时(${options.timeout}ms)`));
+        }, options.timeout);
+      }
+    });
+  }
+  
+  /**
+   * 限制事件触发频率
+   * @param {string} event - 事件名称
+   * @param {Function} callback - 回调函数
+   * @param {number} wait - 等待时间(毫秒)
+   * @param {Object} [options] - 配置选项
+   * @returns {Function} 取消订阅函数
+   */
+  function throttle(event, callback, wait, options = {}) {
+    if (typeof callback !== 'function') {
+      throw new TypeError('回调必须是函数');
+    }
+    
+    let lastExecuted = 0;
+    let timeout = null;
+    let lastArgs = null;
+    const leading = options.leading !== false;
+    const trailing = options.trailing !== false;
+    
+    function throttled(data) {
+      const now = Date.now();
+      if (!lastExecuted && !leading) lastExecuted = now;
+      
+      const remaining = wait - (now - lastExecuted);
+      lastArgs = data;
+      
+      if (remaining <= 0 || remaining > wait) {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        lastExecuted = now;
+        callback(data);
+      } else if (!timeout && trailing) {
+        timeout = setTimeout(() => {
+          lastExecuted = leading ? Date.now() : 0;
+          timeout = null;
+          callback(lastArgs);
+        }, remaining);
+      }
+    }
+    
+    // 存储元数据
+    metadata.set(throttled, {
+      event,
+      originalCallback: callback,
+      isThrottled: true
+    });
+    
+    return on(event, throttled);
+  }
+  
+  /**
+   * 防抖动事件监听
+   * @param {string} event - 事件名称
+   * @param {Function} callback - 回调函数
+   * @param {number} wait - 等待时间(毫秒)
+   * @param {Object} [options] - 配置选项
+   * @returns {Function} 取消订阅函数
+   */
+  function debounce(event, callback, wait, options = {}) {
+    if (typeof callback !== 'function') {
+      throw new TypeError('回调必须是函数');
+    }
+    
+    let timeout = null;
+    const immediate = !!options.immediate;
+    
+    function debounced(data) {
+      const callNow = immediate && !timeout;
+      
+      if (timeout) clearTimeout(timeout);
+      
+      timeout = setTimeout(() => {
+        timeout = null;
+        if (!immediate) callback(data);
+      }, wait);
+      
+      if (callNow) callback(data);
+    }
+    
+    // 存储元数据
+    metadata.set(debounced, {
+      event,
+      originalCallback: callback,
+      isDebounced: true
+    });
+    
+    return on(event, debounced);
+  }
+  
+  /**
+   * 添加事件状态管理 - 保持最新事件值的状态
+   * @param {string} event - 事件名称
+   * @param {*} initialValue - 初始值
+   * @returns {Object} 事件状态对象
+   */
+  function createEventState(event, initialValue) {
+    let currentValue = initialValue;
+    const stateListeners = new Set();
+    
+    function notifyListeners() {
+      stateListeners.forEach(listener => {
+        try {
+          listener(currentValue);
+        } catch (error) {
+          console.error(`事件状态监听器错误 (${event}):`, error);
+        }
+      });
+    }
+    
+    // 监听事件并更新状态
+    const unsubscribe = on(event, data => {
+      currentValue = data;
+      notifyListeners();
+    });
+    
+    return {
+      get value() { return currentValue; },
+      subscribe(listener) {
+        if (typeof listener !== 'function') {
+          throw new TypeError('监听器必须是函数');
+        }
+        stateListeners.add(listener);
+        
+        // 立即用当前值调用监听器
+        listener(currentValue);
+        
+        // 返回取消订阅函数
+        return () => stateListeners.delete(listener);
+      },
+      dispose() {
+        unsubscribe();
+        stateListeners.clear();
+      }
+    };
+  }
+  
+  /**
+   * 创建受控的事件通道（可暂停/恢复）
+   * @param {string|Array<string>} events - 要监听的事件或事件数组
+   * @returns {Object} 事件通道控制对象
+   */
+  function createEventChannel(events) {
+    const targetEvents = Array.isArray(events) ? events : [events];
+    const removers = [];
+    let paused = false;
+    let buffer = [];
+    const maxBufferSize = 1000; // 防止内存泄漏
+    
+    function setupListeners() {
+      // 清除现有监听器
+      removers.forEach(remover => remover());
+      removers.length = 0;
+      
+      // 为每个事件设置监听器
+      targetEvents.forEach(event => {
+        const remover = on(event, data => {
+          if (paused) {
+            // 缓存事件
+            if (buffer.length < maxBufferSize) {
+              buffer.push({event, data});
+            }
+          } else {
+            // 直接触发
+            emit(event, data);
+          }
+        });
+        removers.push(remover);
+      });
+    }
+    
+    setupListeners();
+    
+    return {
+      pause() {
+        paused = true;
+        return this;
+      },
+      resume(emitBuffered = true) {
+        paused = false;
+        if (emitBuffered && buffer.length > 0) {
+          const tempBuffer = [...buffer];
+          buffer = [];
+          
+          // 发送缓冲的事件
+          tempBuffer.forEach(({event, data}) => {
+            emit(event, data);
+          });
+        }
+        return this;
+      },
+      clear() {
+        buffer = [];
+        return this;
+      },
+      dispose() {
+        removers.forEach(remover => remover());
+        removers.length = 0;
+        buffer = [];
+      }
+    };
+  }
+  
+  /**
+   * 注册中间件
+   * @param {Function} middleware - 中间件函数，格式为 (eventName, data, next) => {}
+   * @returns {Function} 移除该中间件的函数
+   */
+  function use(middleware) {
+    if (typeof middleware !== 'function') {
+      throw new TypeError('中间件必须是函数');
+    }
+    
+    middlewares.push(middleware);
+    
+    return function removeMiddleware() {
+      const index = middlewares.indexOf(middleware);
+      if (index !== -1) {
+        middlewares.splice(index, 1);
+        return true;
+      }
+      return false;
+    };
+  }
+  
+  /**
+   * 应用中间件链
+   * @param {string} event - 事件名称
+   * @param {*} data - 事件数据
+   * @param {Function} finalHandler - 最终处理函数
+   * @returns {*} 处理结果
+   */
+  function applyMiddleware(event, data, finalHandler) {
+    let index = 0;
+    
+    function next(currentData) {
+      // 如果数据被修改，使用新数据
+      const dataToUse = currentData !== undefined ? currentData : data;
+      
+      // 如果所有中间件已处理完，调用最终处理函数
+      if (index >= middlewares.length) {
+        return finalHandler(dataToUse);
+      }
+      
+      // 获取当前中间件并增加索引
+      const middleware = middlewares[index++];
+      
+      try {
+        // 调用中间件，传入下一个处理函数
+        return middleware(event, dataToUse, next);
+      } catch (error) {
+        console.error(`中间件错误 (${event}):`, error);
+        return next(dataToUse); // 错误时继续执行
+      }
+    }
+    
+    return next();
+  }
+  
+  // 修改 emit 函数使用中间件
+  const originalEmit = emit;
+  emit = function(event, data, options = {}) {
+    // 如果没有中间件，直接使用原始函数
+    if (middlewares.length === 0) {
+      return originalEmit(event, data, options);
+    }
+    
+    // 应用中间件链
+    return applyMiddleware(event, data, (processedData) => {
+      return originalEmit(event, processedData, options);
+    });
+  };
+  
+  /**
+   * 连接到Worker
+   * @param {Worker} worker - 要连接的Worker
+   * @param {Object} [options] - 连接选项
+   * @param {Array} [options.sendEvents=[]] - 要发送到Worker的事件列表
+   * @param {Array} [options.receiveEvents=[]] - 要从Worker接收的事件列表
+   * @returns {Function} 断开连接的函数
+   */
+  function connectWorker(worker, options = {}) {
+    if (!worker || typeof worker.postMessage !== 'function') {
+      throw new TypeError('无效的Worker对象');
+    }
+    
+    const sendEvents = options.sendEvents || [];
+    const receiveEvents = options.receiveEvents || [];
+    const connId = `worker_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    
+    // 为发送事件添加监听器
+    const removers = sendEvents.map(event => 
+      on(event, data => {
+        worker.postMessage({
+          type: '_eventbus_event',
+          connId,
+          event,
+          data
+        });
+      })
+    );
+    
+    // 处理从Worker接收的消息
+    const messageHandler = (e) => {
+      const message = e.data;
+      if (message && message.type === '_eventbus_event' && 
+          message.connId === connId && 
+          receiveEvents.includes(message.event)) {
+        emit(message.event, message.data);
+      }
+    };
+    
+    worker.addEventListener('message', messageHandler);
+    
+    // 返回断开连接的函数
+    return function disconnect() {
+      removers.forEach(remove => remove());
+      worker.removeEventListener('message', messageHandler);
+      return true;
+    };
+  }
+  
+  /**
+   * 连接到另一个窗口
+   * @param {Window} targetWindow - 目标窗口
+   * @param {string} targetOrigin - 目标源
+   * @param {Object} [options] - 连接选项
+   * @returns {Function} 断开连接的函数
+   */
+  function connectWindow(targetWindow, targetOrigin, options = {}) {
+    if (!targetWindow || typeof targetWindow.postMessage !== 'function') {
+      throw new TypeError('无效的Window对象');
+    }
+    
+    const sendEvents = options.sendEvents || [];
+    const receiveEvents = options.receiveEvents || [];
+    const connId = `window_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    
+    // 为发送事件添加监听器
+    const removers = sendEvents.map(event => 
+      on(event, data => {
+        targetWindow.postMessage({
+          type: '_eventbus_event',
+          connId,
+          event,
+          data
+        }, targetOrigin);
+      })
+    );
+    
+    // 处理从目标窗口接收的消息
+    const messageHandler = (e) => {
+      if (e.source !== targetWindow) return;
+      
+      const message = e.data;
+      if (message && message.type === '_eventbus_event' && 
+          message.connId === connId && 
+          receiveEvents.includes(message.event)) {
+        emit(message.event, message.data);
+      }
+    };
+    
+    window.addEventListener('message', messageHandler);
+    
+    // 返回断开连接的函数
+    return function disconnect() {
+      removers.forEach(remove => remove());
+      window.removeEventListener('message', messageHandler);
+      return true;
+    };
+  }
+  
+  /**
+   * 使用BroadcastChannel连接多个标签页
+   * @param {string} channelName - 频道名称
+   * @param {Object} [options] - 连接选项
+   * @returns {Function} 断开连接的函数
+   */
+  function connectBroadcastChannel(channelName, options = {}) {
+    if (typeof BroadcastChannel === 'undefined') {
+      throw new Error('此环境不支持BroadcastChannel');
+    }
+    
+    const channel = new BroadcastChannel(channelName);
+    const sendEvents = options.sendEvents || [];
+    const receiveEvents = options.receiveEvents || [];
+    
+    // 为发送事件添加监听器
+    const removers = sendEvents.map(event => 
+      on(event, data => {
+        channel.postMessage({
+          type: '_eventbus_event',
+          event,
+          data
+        });
+      })
+    );
+    
+    // 处理从频道接收的消息
+    const messageHandler = (e) => {
+      const message = e.data;
+      if (message && message.type === '_eventbus_event' && 
+          receiveEvents.includes(message.event)) {
+        emit(message.event, message.data);
+      }
+    };
+    
+    channel.addEventListener('message', messageHandler);
+    
+    // 返回断开连接的函数
+    return function disconnect() {
+      removers.forEach(remove => remove());
+      channel.removeEventListener('message', messageHandler);
+      channel.close();
+      return true;
+    };
+  }
+  
+  /**
+   * 创建过滤后的事件流
+   * @param {string} sourceEvent - 源事件名称
+   * @param {Function} filterFn - 过滤函数，返回true表示保留
+   * @param {string} [targetEvent] - 目标事件名称，默认与源事件相同
+   * @returns {Function} 取消订阅函数
+   */
+  function filter(sourceEvent, filterFn, targetEvent) {
+    if (typeof filterFn !== 'function') {
+      throw new TypeError('过滤函数必须是函数');
+    }
+    
+    const destEvent = targetEvent || sourceEvent;
+    
+    return on(sourceEvent, data => {
+      // 只有通过过滤器的数据才触发目标事件
+      if (filterFn(data)) {
+        emit(destEvent, data);
+      }
+    });
+  }
+  
+  /**
+   * 创建映射后的事件流
+   * @param {string} sourceEvent - 源事件名称
+   * @param {Function} mapFn - 映射函数，转换数据
+   * @param {string} [targetEvent] - 目标事件名称，默认与源事件相同
+   * @returns {Function} 取消订阅函数
+   */
+  function map(sourceEvent, mapFn, targetEvent) {
+    if (typeof mapFn !== 'function') {
+      throw new TypeError('映射函数必须是函数');
+    }
+    
+    const destEvent = targetEvent || sourceEvent;
+    
+    return on(sourceEvent, data => {
+      // 使用映射函数转换数据
+      const transformedData = mapFn(data);
+      // 触发目标事件
+      emit(destEvent, transformedData);
+    });
+  }
+  
+  /**
+   * 创建事件处理管道
+   * @param {string} sourceEvent - 源事件名称
+   * @param {Array<Function>} operators - 操作符函数数组
+   * @param {string} [targetEvent] - 目标事件名称，默认与源事件相同
+   * @returns {Function} 取消订阅函数
+   */
+  function pipe(sourceEvent, operators, targetEvent) {
+    if (!Array.isArray(operators)) {
+      throw new TypeError('操作符必须是函数数组');
+    }
+    
+    const destEvent = targetEvent || sourceEvent;
+    
+    return on(sourceEvent, data => {
+      // 依次应用所有操作符
+      let result = data;
+      for (const op of operators) {
+        if (typeof op !== 'function') continue;
+        
+        // 如果操作符返回 null 或 undefined，中断管道
+        result = op(result);
+        if (result === null || result === undefined) return;
+      }
+      
+      // 触发目标事件
+      emit(destEvent, result);
+    });
   }
   
   return eventBus;
