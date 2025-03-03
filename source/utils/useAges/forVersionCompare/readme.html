@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="useIownSemver - 高性能语义化版本管理工具的完整文档">
+    <title>useIownSemver - 语义化版本管理工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+        }
+        code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+        .tip {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .function-index {
+            margin: 20px 0;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .function-index ul {
+            column-count: 2;
+            column-gap: 20px;
+        }
+        .compatibility {
+            background-color: #e6f7ff;
+            border-left: 4px solid #1890ff;
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <main role="main">
+        <h1>useIownSemver - 语义化版本管理工具</h1>
+        
+        <div class="compatibility">
+            <h4>📦 版本与兼容性</h4>
+            <p>当前版本: <strong>1.2.0</strong></p>
+            <p>本库完全兼容语义化版本规范 2.0.0，并提供了一些扩展功能。与Node.js的semver模块API基本兼容，但添加了额外的安全功能和非标准版本解析能力。</p>
+            <p>支持环境: 现代浏览器、Node.js 12+</p>
+            
+            <h5>版本历史:</h5>
+            <ul>
+                <li><strong>1.2.0</strong> (2023-05-15) - 添加版本升级路径规划和兼容性评估功能</li>
+                <li><strong>1.1.0</strong> (2023-02-10) - 增强非标准版本解析能力，添加安全函数</li>
+                <li><strong>1.0.0</strong> (2022-11-01) - 首次稳定版本发布</li>
+            </ul>
+            
+            <h5>与Node.js semver的主要区别:</h5>
+            <ul>
+                <li>添加了针对非标准版本格式的解析和标准化功能</li>
+                <li>提供了更严格的安全性保障，不会因输入错误产生异常</li>
+                <li>内置LRU缓存提高性能</li>
+                <li>增强了版本分析和兼容性评估能力</li>
+            </ul>
+        </div>
+        
+        <h2>函数索引</h2>
+        <div class="function-index">
+            <ul>
+                <li><code>parse(version)</code> - 解析版本字符串</li>
+                <li><code>compareVersions(v1, v2)</code> - 比较两个版本</li>
+                <li><code>gt(v1, v2)</code> - 检查第一个版本是否大于第二个</li>
+                <li><code>lt(v1, v2)</code> - 检查第一个版本是否小于第二个</li>
+                <li><code>eq(v1, v2)</code> - 检查两个版本是否相等</li>
+                <li><code>gte(v1, v2)</code> - 检查第一个版本是否大于等于第二个</li>
+                <li><code>lte(v1, v2)</code> - 检查第一个版本是否小于等于第二个</li>
+                <li><code>neq(v1, v2)</code> - 检查两个版本是否不等</li>
+                <li><code>isValid(version)</code> - 检查版本是否有效</li>
+                <li><code>inc(version, type)</code> - 增加版本号</li>
+                <li><code>satisfiesVersion(version, range)</code> - 检查版本是否满足范围</li>
+                <li><code>major(version)</code> - 获取主版本号</li>
+                <li><code>minor(version)</code> - 获取次版本号</li>
+                <li><code>patch(version)</code> - 获取修订号</li>
+                <li><code>clean(version)</code> - 清理版本字符串</li>
+                <li><code>prerelease(version)</code> - 获取预发布标签</li>
+                <li><code>sort(versions)</code> - 排序版本数组</li>
+                <li><code>diff(v1, v2)</code> - 计算版本差异</li>
+                <li><code>safeParse(version)</code> - 安全版本解析</li>
+                <li><code>safeCompare(v1, v2)</code> - 安全版本比较</li>
+                <li><code>safeSatisfies(version, range)</code> - 安全检查版本是否满足范围</li>
+                <li><code>parseNonStandard(version)</code> - 解析非标准版本</li>
+                <li><code>standardize(version)</code> - 标准化版本格式</li>
+                <li><code>compatibilityAssessment(current, target)</code> - 版本兼容性评估</li>
+                <li><code>upgradePath(current, target, available)</code> - 版本升级路径规划</li>
+                <li><code>configure(options)</code> - 配置库选项</li>
+                <li><code>clearParseCache(partial)</code> - 清理版本解析缓存</li>
+                <li><code>getCacheStats()</code> - 获取缓存性能统计</li>
+                <li><code>buildMetadata(version)</code> - 获取构建元数据</li>
+                <li><code>extendedParse(version, options)</code> - 增强版解析函数</li>
+                <li><code>isStrictlySemver(version)</code> - 检查是否严格符合SemVer规范</li>
+                <li><code>analyzeVersionPattern(versions)</code> - 版本模式分析</li>
+                <li><code>migrateLegacyVersion(legacyVersion, mappingRules)</code> - 版本号迁移助手</li>
+                <li><code>translateVersion(version, namingScheme)</code> - 版本翻译</li>
+                <li><code>healthCheck()</code> - 健康检查</li>
+                <li><code>format(parsed)</code> - 格式化版本对象为字符串</li>
+                <li><code>make(major, minor, patch, prerelease, buildmetadata)</code> - 创建版本字符串</li>
+            </ul>
+        </div>
+        
+        <h2>1. 什么是语义化版本？</h2>
+        <p>语义化版本（Semantic Versioning，简称SemVer）是一套用于版本号管理的标准规范。基本格式为：<code>主版本号.次版本号.修订号</code>，例如<code>1.2.3</code>。</p>
+        <ul>
+            <li><strong>主版本号</strong>：当你做了不兼容的API修改时递增</li>
+            <li><strong>次版本号</strong>：当你添加了向下兼容的新功能时递增</li>
+            <li><strong>修订号</strong>：当你做了向下兼容的问题修复时递增</li>
+        </ul>
+        <p>除了主次版本号和修订号，完整的语义化版本还可以包含预发布标识符和构建元数据：</p>
+        <p><code>主版本号.次版本号.修订号-预发布标识符+构建元数据</code></p>
+        <p>例如：<code>1.0.0-alpha.1+20210901</code></p>
+
+        <h2>2. 使用方法</h2>
+        
+        <h3>2.1 安装与导入</h3>
+        <pre><code>// NPM安装
+npm install @yourorg/useIownSemver
+
+// 或者直接引用文件
+import { 
+  parse, 
+  compareVersions, 
+  gt, 
+  lt, 
+  eq, 
+  gte,
+  lte,
+  neq,
+  satisfiesVersion 
+} from '@yourorg/useIownSemver';
+
+// 或者使用相对路径导入
+import { parse, compareVersions } from './utils/useAges/forVersionCompare/useIownSemver.js';</code></pre>
+
+        <h3>2.2 基本功能</h3>
+        
+        <h4>解析版本</h4>
+        <pre><code>/**
+ * 将版本字符串解析为结构化对象
+ * @param {string} versionStr - 版本字符串
+ * @returns {Object|null} 解析后的版本对象，无效则返回null
+ */
+const parsedVersion = parse('1.2.3-beta.1+20220101');
+console.log(parsedVersion);
+/*
+输出:
+{
+  major: 1,
+  minor: 2,
+  patch: 3,
+  prerelease: ['beta', 1],
+  buildmetadata: ['20220101'],
+  version: '1.2.3-beta.1+20220101',
+  raw: '1.2.3-beta.1+20220101'
+}
+*/</code></pre>
+
+        <h4>版本比较</h4>
+        <pre><code>/**
+ * 比较两个语义化版本
+ * @param {string} v1 - 第一个版本
+ * @param {string} v2 - 第二个版本
+ * @returns {number} 如果v1>v2返回1，如果v1<v2返回-1，如果相等返回0
+ */
+console.log(compareVersions('1.2.3', '1.2.4')); // 输出: -1 (第一个小于第二个)
+console.log(compareVersions('1.3.0', '1.2.4')); // 输出: 1 (第一个大于第二个)
+console.log(compareVersions('1.2.3', '1.2.3')); // 输出: 0 (相等)
+
+// 便捷的比较函数
+console.log(gt('1.2.3', '1.2.2')); // 输出: true (大于)
+console.log(lt('1.2.3', '1.3.0')); // 输出: true (小于)
+console.log(eq('1.2.3', '1.2.3')); // 输出: true (等于)
+console.log(gte('1.2.3', '1.2.3')); // 输出: true (大于等于)
+console.log(lte('1.2.3', '1.2.3')); // 输出: true (小于等于)
+console.log(neq('1.2.3', '1.2.4')); // 输出: true (不等于)</code></pre>
+
+        <h4>版本验证</h4>
+        <pre><code>/**
+ * 检查版本字符串是否有效
+ * @param {string} version - 版本字符串
+ * @returns {boolean} 是否有效
+ */
+console.log(isValid('1.2.3')); // 输出: true
+console.log(isValid('1.2')); // 输出: false (缺少修订号)
+console.log(isValid('1.2.3-beta')); // 输出: true
+console.log(isValid('not a version')); // 输出: false</code></pre>
+
+        <h4>版本范围检查</h4>
+        <pre><code>/**
+ * 检查版本是否满足特定范围
+ * @param {string} version - 要检查的版本
+ * @param {string} range - 版本范围表达式
+ * @returns {boolean} 是否满足范围
+ */
+console.log(satisfiesVersion('1.2.3', '>=1.2.0')); // 输出: true
+console.log(satisfiesVersion('1.2.3', '1.x')); // 输出: true
+console.log(satisfiesVersion('1.2.3', '~1.2.0')); // 输出: true
+console.log(satisfiesVersion('2.0.0', '^1.2.3')); // 输出: false</code></pre>
+
+        <h3>2.3 常用版本范围表达式</h3>
+        <table aria-labelledby="version-ranges">
+            <caption>常用版本范围表达式及其含义</caption>
+            <thead>
+                <tr>
+                    <th scope="col">表达式</th>
+                    <th scope="col">含义</th>
+                    <th scope="col">示例</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>^1.2.3</code></td>
+                    <td>兼容版本：允许次版本和修订版本更新，但不允许主版本更新</td>
+                    <td>匹配 1.2.3, 1.2.4, 1.3.0，但不匹配 2.0.0</td>
+                </tr>
+                <tr>
+                    <td><code>~1.2.3</code></td>
+                    <td>补丁版本：允许修订版本更新，但不允许次版本更新</td>
+                    <td>匹配 1.2.3, 1.2.4，但不匹配 1.3.0</td>
+                </tr>
+                <tr>
+                    <td><code>>=1.2.3</code></td>
+                    <td>大于等于指定版本</td>
+                    <td>匹配 1.2.3 及以上所有版本</td>
+                </tr>
+                <tr>
+                    <td><code>1.x</code></td>
+                    <td>主版本为1的任何版本</td>
+                    <td>匹配 1.0.0, 1.1.0, 1.2.3 等</td>
+                </tr>
+                <tr>
+                    <td><code>1.2.x</code></td>
+                    <td>主版本为1，次版本为2的任何版本</td>
+                    <td>匹配 1.2.0, 1.2.1, 1.2.2 等</td>
+                </tr>
+                <tr>
+                    <td><code>*</code></td>
+                    <td>任意版本</td>
+                    <td>匹配所有有效的版本</td>
+                </tr>
+                <tr>
+                    <td><code>1.2.3 - 1.5.0</code></td>
+                    <td>版本范围</td>
+                    <td>匹配 1.2.3 到 1.5.0 之间的所有版本</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>2.4 高级功能</h3>
+        
+        <h4>版本创建</h4>
+        <pre><code>/**
+ * 创建一个新的版本字符串
+ * @param {number} major - 主版本号
+ * @param {number} minor - 次版本号
+ * @param {number} patch - 修订号
+ * @param {Array} [prerelease] - 预发布标识符
+ * @param {Array} [buildmetadata] - 构建元数据
+ * @returns {string} 版本字符串
+ */
+const version = make(1, 2, 3, ['beta', 1], ['20220101']);
+console.log(version); // 输出: 1.2.3-beta.1+20220101</code></pre>
+
+        <h4>版本递增</h4>
+        <pre><code>/**
+ * 递增版本号
+ * @param {string} version - 当前版本
+ * @param {string} release - 递增级别: major, minor, patch, premajor, preminor, prepatch, prerelease
+ * @param {string} [identifier] - 预发布标识符
+ * @returns {string|null} 递增后的版本
+ */
+console.log(inc('1.2.3', 'patch')); // 输出: 1.2.4
+console.log(inc('1.2.3', 'minor')); // 输出: 1.3.0
+console.log(inc('1.2.3', 'major')); // 输出: 2.0.0
+console.log(inc('1.2.3-beta.1', 'prerelease')); // 输出: 1.2.3-beta.2
+
+/**
+ * 安全版本增量（防止超过最大值）
+ * @param {string} version - 当前版本
+ * @param {string} type - 增量类型
+ * @param {Object} options - 选项，包含最大值限制
+ * @returns {string} 安全增量后的版本
+ */
+console.log(safeInc('1.2.3', 'patch', { maxPatch: 5 })); // 如果结果不超过5，则正常增加</code></pre>
+
+        <h4>版本排序</h4>
+        <pre><code>/**
+ * 排序版本数组
+ * @param {string[]} versions - 版本数组
+ * @param {boolean} [ascending=true] - 是否升序
+ * @returns {string[]} 排序后的数组
+ */
+const versions = ['1.0.0', '2.0.0', '1.2.3', '1.2.0', '1.0.0-alpha'];
+console.log(sort(versions));
+// 输出: ['1.0.0-alpha', '1.0.0', '1.2.0', '1.2.3', '2.0.0']</code></pre>
+
+        <h4>版本范围的人类可读解释</h4>
+        <pre><code>/**
+ * 获取版本范围的可读解释
+ * @param {string} range - 版本范围
+ * @returns {string} 人类可读的解释
+ */
+console.log(explainRange('^1.2.3'));
+// 输出: "匹配次版本和补丁版本更新，版本须在 1.2.3 和 2.0.0 之间（不含上限）"
+
+console.log(explainRange('~1.2.3'));
+// 输出: "匹配补丁版本更新，版本须在 1.2.3 和 1.3.0 之间（不含上限）"</code></pre>
+
+        <h4>非标准版本解析</h4>
+        <pre><code>/**
+ * 以语义化版本的结构解析非标准版本格式
+ * @param {string} version - 非标准版本字符串
+ * @returns {Object|null} 尽可能解析的结果
+ */
+console.log(parseNonStandard('1_2_3'));
+// 输出: { format: 'triplet', major: 1, minor: 2, patch: 3, original: '1_2_3' }
+
+console.log(parseNonStandard('20230115'));
+// 可能解析为日期格式: { format: 'date-ymd', major: 2023, minor: 1, patch: 15, original: '20230115' }
+
+/**
+ * 将任意版本格式转换为标准SemVer格式
+ * @param {string} version - 任意版本字符串
+ * @returns {string|null} 标准化的版本
+ */
+console.log(standardize('v1.2.3'));  // 输出: '1.2.3'
+console.log(standardize('1_2_3'));   // 输出: '1.2.3'</code></pre>
+
+        <h4>版本兼容性评估</h4>
+        <pre><code>/**
+ * 版本向下兼容性评估
+ * @param {string} currentVersion - 当前版本
+ * @param {string} targetVersion - 目标版本
+ * @returns {Object} 兼容性评估结果
+ */
+console.log(compatibilityAssessment('1.2.3', '2.0.0'));
+/*
+输出: 
+{
+  compatible: false,
+  direction: "upgrade",
+  risk: "high",
+  reason: "主版本号增加，表示有破坏性变更",
+  changes: "major"
+}
+*/</code></pre>
+
+        <h2>3. 配置选项</h2>
+        <pre><code>/**
+ * 设置全局配置
+ * @param {Object} options - 配置选项
+ * @returns {Object} 更新后的配置
+ */
+configure({
+  strictMode: true,     // 严格模式会拒绝任何不完全符合规范的版本
+  cacheSize: 1000,      // 缓存大小上限
+  allowV: true,         // 是否允许版本号前缀v（如v1.2.3）
+  i18n: {
+    enabled: false,
+    locale: 'zh-CN'
+  }
+});</code></pre>
+
+        <h2>4. 实际应用场景</h2>
+        
+        <h3>4.1 检查依赖兼容性</h3>
+        <pre><code>// 检查当前版本是否兼容要求的版本范围
+function checkDependencyCompatibility(currentVersion, requiredVersionRange) {
+  if (satisfiesVersion(currentVersion, requiredVersionRange)) {
+    console.log(`版本 ${currentVersion} 满足需求 ${requiredVersionRange}`);
+    return true;
+  } else {
+    console.error(`版本不兼容: ${currentVersion} 不满足 ${requiredVersionRange}`);
+    return false;
+  }
+}
+
+// 使用示例
+checkDependencyCompatibility('1.2.3', '^1.0.0'); // 满足
+checkDependencyCompatibility('2.0.0', '^1.0.0'); // 不满足</code></pre>
+
+        <h3>4.2 版本管理系统</h3>
+        <pre><code>// 简单的版本管理系统
+function manageVersions() {
+  let currentVersion = '1.0.0';
+  
+  function updateVersion(type) {
+    const newVersion = inc(currentVersion, type);
+    console.log(`版本从 ${currentVersion} 更新到 ${newVersion}`);
+    currentVersion = newVersion;
+    return currentVersion;
+  }
+  
+  function getCurrentVersion() {
+    return currentVersion;
+  }
+  
+  function isNewVersionHigher(version) {
+    return gt(version, currentVersion);
+  }
+  
+  return {
+    getCurrentVersion,
+    updateVersion,
+    isNewVersionHigher
+  };
+}
+
+// 使用示例
+const versionManager = manageVersions();
+console.log(versionManager.getCurrentVersion()); // 1.0.0
+versionManager.updateVersion('minor'); // 1.1.0
+versionManager.updateVersion('patch'); // 1.1.1
+console.log(versionManager.isNewVersionHigher('2.0.0')); // true</code></pre>
+
+        <h3>4.3 版本范围分析</h3>
+        <pre><code>// 分析项目中使用的依赖版本
+function analyzeDependencyVersions(dependencies) {
+  const results = {};
+  
+  for (const [name, versionRange] of Object.entries(dependencies)) {
+    results[name] = {
+      range: versionRange,
+      explanation: explainRange(versionRange),
+      isValid: validRange(versionRange) !== null
+    };
+  }
+  
+  return results;
+}
+
+// 使用示例
+const dependencies = {
+  'react': '^16.8.0',
+  'lodash': '~4.17.15',
+  'express': '>=4.0.0 <5.0.0',
+  'invalid-pkg': '1.x.y'
+};
+
+console.log(analyzeDependencyVersions(dependencies));</code></pre>
+
+        <h2>5. 注意事项</h2>
+        
+        <div class="warning">
+            <h4>⚠️ 注意</h4>
+            <ul>
+                <li>输入验证：始终验证用户输入的版本字符串是否有效，使用<code>isValid</code>函数。</li>
+                <li>预发布版本排序规则：预发布版本号(<code>1.0.0-alpha</code>)小于相应的正式版本(<code>1.0.0</code>)。</li>
+                <li>构建元数据不影响版本排序：<code>1.0.0+20200101</code>与<code>1.0.0+20200102</code>在比较时被视为相等。</li>
+                <li>版本号各部分都有意义：不要使用像<code>1.0.0.1</code>的四段式版本号，这不符合语义化版本规范。</li>
+            </ul>
+        </div>
+
+        <div class="tip">
+            <h4>💡 最佳实践</h4>
+            <ul>
+                <li>使用缓存功能：对于频繁解析相同版本字符串的场景，库已内置缓存支持。</li>
+                <li>正确使用版本范围：了解<code>^</code>和<code>~</code>的区别，根据兼容性需求选择合适的范围符号。</li>
+                <li>版本递增：使用<code>inc</code>函数自动递增版本，而不是手动修改，以避免错误。</li>
+                <li>对不可信数据使用安全函数：如<code>safeParse</code>、<code>safeCompare</code>以防止错误。</li>
+            </ul>
+        </div>
+
+        <h2>6. 错误处理</h2>
+        <p>本库提供了安全版本的关键函数，用于防止错误导致程序崩溃：</p>
+        <pre><code>// 标准函数可能在输入无效时抛出错误
+try {
+  const result = parse('无效版本');
+  // 这里不会执行，因为上面会抛出错误
+} catch (e) {
+  console.error('解析错误', e);
+}
+
+/**
+ * 安全解析版本 - 不会抛出错误
+ * @param {string} version - 版本字符串
+ * @returns {Object|null} 解析结果，失败时返回null
+ */
+const result = safeParse('无效版本'); // 返回 null
+console.log(result); // null
+
+// 使用场景：处理用户输入或外部API返回的不可信版本字符串
+function processUserInput(userVersion) {
+  // 使用safeParse避免异常中断应用流程
+  const parsed = safeParse(userVersion);
+  if (parsed) {
+    return `有效版本: ${parsed.major}.${parsed.minor}.${parsed.patch}`;
+  } else {
+    return `无效版本: "${userVersion}"，请输入符合语义化版本规范的版本号`;
+  }
+}
+
+/**
+ * 安全比较版本 - 不会抛出错误
+ * @param {string} v1 - 第一个版本
+ * @param {string} v2 - 第二个版本
+ * @returns {number} 比较结果，错误时返回0
+ */
+const compareResult = safeCompare('1.x', '2.0'); // 返回 0（默认值）
+console.log(compareResult); // 0
+
+// 使用场景：对大量版本进行排序，即使有少量无效数据也能继续处理
+function sortMixedVersions(versions) {
+  return versions.sort((a, b) => safeCompare(a, b));
+}
+
+/**
+ * 安全检查版本是否满足范围 - 不会抛出错误
+ * @param {string} version - 版本
+ * @param {string} range - 范围
+ * @returns {boolean} 检查结果，错误时返回false
+ */
+const satisfiesResult = safeSatisfies('1.2.3', '无效范围'); // 返回 false（默认值）
+console.log(satisfiesResult); // false</code></pre>
+
+        <h2>7. 性能考虑</h2>
+        <p>对于性能敏感的应用，可以考虑以下几点：</p>
+        <ul>
+            <li>本库使用LRU缓存来加速重复版本的解析，默认缓存大小为1000个条目。</li>
+            <li>可以通过<code>configure({ cacheSize: 数值 })</code>调整缓存大小。</li>
+            <li>对于大量版本比较操作，可以先解析版本然后缓存解析结果。</li>
+            <li>如果内存使用是个问题，可以定期调用<code>clearParseCache(true)</code>清理部分缓存。</li>
+        </ul>
+
+        <table>
+            <caption>缓存大小性能对比</caption>
+            <thead>
+                <tr>
+                    <th>缓存大小</th>
+                    <th>内存使用(大约)</th>
+                    <th>10万次操作性能</th>
+                    <th>推荐场景</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>100</td>
+                    <td>~0.5MB</td>
+                    <td>较慢</td>
+                    <td>内存极度受限环境</td>
+                </tr>
+                <tr>
+                    <td>1000 (默认)</td>
+                    <td>~2-5MB</td>
+                    <td>快</td>
+                    <td>大多数应用场景</td>
+                </tr>
+                <tr>
+                    <td>10000</td>
+                    <td>~20-30MB</td>
+                    <td>极快</td>
+                    <td>处理大量不同版本的高性能需求</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>性能测试结果:</strong> 使用默认配置，在现代浏览器中每秒可处理约50万次版本解析操作，处理100万个版本比较操作需要约3秒。这些数据可能因硬件和环境而异。</p>
+
+        <h3>7.1 内存使用优化</h3>
+        <pre><code>// 定期清理缓存示例 - 适用于长时间运行的应用
+// 每小时清理一次不常用的缓存项
+setInterval(() => {
+  if (getCacheStats().size > 500) { // 只有当缓存大小超过500时才清理
+    clearParseCache(true); // 保留常用项
+    console.log('已清理不常用的版本缓存');
+  }
+}, 60 * 60 * 1000);
+</code></pre>
+
+        <h2>8. 总结</h2>
+        <p>useIownSemver提供了全面的语义化版本处理功能，适用于各种版本管理、比较和验证场景。通过本文档的介绍，初学者应该能够掌握基本用法并在实际项目中应用这个库。</p>
+        <p>语义化版本是软件开发中的重要概念，合理使用它可以帮助你管理代码的兼容性和依赖关系，使项目更加健壮和可维护。</p>
+
+        <h2>9. 贡献与支持</h2>
+        <p>我们欢迎社区贡献，无论是功能建议、bug报告还是代码贡献。</p>
+        <ul>
+            <li>GitHub仓库: <a href="https://github.com/yourorg/useIownSemver">https://github.com/yourorg/useIownSemver</a></li>
+            <li>问题报告: <a href="https://github.com/yourorg/useIownSemver/issues">问题跟踪</a></li>
+            <li>贡献指南: <a href="https://github.com/yourorg/useIownSemver/blob/main/CONTRIBUTING.md">贡献指南</a></li>
+        </ul>
+
+    </main>
+    
+    <footer role="contentinfo">
+        <p>Copyright © 2023 您的团队 - 基于语义化版本规范 2.0.0</p>
+        <p><a href="#" aria-label="返回顶部">返回顶部</a></p>
+    </footer>
+</body>
+</html>

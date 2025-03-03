@@ -1,5 +1,5 @@
 import * as radix from "../../../../static/radix3.mjs";
-import { pathToRegexp, compile } from "../../../../static/path-to-regexp.mjs";
+import { pathToRegexp, compile } from "../../../../static/path-to-regexp.js";
 
 class Layer {
   constructor(path, methods, middleware, opts = {}) {
@@ -477,6 +477,6 @@ class Router {
   }
 }
 
-export default function createRouter(opts) {
+export  function createKoaRouter(opts) {
   return new Router(opts);
 }
