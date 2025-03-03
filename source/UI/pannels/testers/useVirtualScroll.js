@@ -1,5 +1,6 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from '../../../../static/vue.esm-browser.js';
 import { useThrottle, useDebounce } from './useEventModifiers.js';
+import { usePerformanceMonitor } from './usePerformanceMonitor.js';
 
 /**
  * 提供虚拟滚动功能的组合式API
@@ -62,12 +63,27 @@ export function useVirtualScroll(options = {}) {
   const itemsCache = new Map(); // 非响应式缓存 - 减少响应性开销
   let isInitialized = false; // 非响应式
   let lastScrollPosition = 0; // 记录最后的滚动位置
-  // 性能监控 - 使用非响应式对象
-  const performanceData = {
-    renderTime: [],
-    scrollEvents: 0,
-    lastRenderTimestamp: 0
-  };
+  
+  // 使用抽离出的性能监控工具
+  const performanceMonitor = usePerformanceMonitor({
+    enableAdaptiveSettings: opts.adaptiveUpdate,
+    onPerformanceIssue: (issue) => {
+      // 处理性能问题
+      if (issue.type === 'longTask' && issue.duration > 200) {
+        console.warn('检测到严重性能问题，调整虚拟滚动参数');
+      }
+    },
+    onSettingsChange: (newSettings) => {
+      // 根据性能监控建议更新设置
+      if (newSettings.throttleMs) {
+        opts.throttleMs = newSettings.throttleMs;
+      }
+      if (typeof newSettings.batchSize !== 'undefined') {
+        opts.buffer = Math.max(3, Math.min(30, newSettings.batchSize));
+        opts.overscan = Math.max(1, Math.min(20, Math.floor(newSettings.batchSize / 2)));
+      }
+    }
+  });
   
   // 创建局部滚动位置缓存，而不是全局的
   const scrollPositionCache = new Map();
@@ -363,19 +379,11 @@ export function useVirtualScroll(options = {}) {
     }
   });
   
-  // 性能跟踪帮助函数
+  // 替换原始性能相关函数
   function trackPerformance(startTime) {
-    const renderDuration = performance.now() - startTime;
-    performanceData.renderTime.push(renderDuration);
-    
-    // 限制性能历史记录长度
-    if (performanceData.renderTime.length > 100) {
-      performanceData.renderTime.shift();
-    }
-    
-    performanceData.lastRenderTimestamp = Date.now();
+    performanceMonitor.trackOperation(startTime);
   }
-
+  
   // 检测是否滚动到底部 - 增强版
   function checkScrolledToBottom() {
     if (!containerRef.value || !document.body.contains(containerRef.value)) return false;
@@ -399,15 +407,173 @@ export function useVirtualScroll(options = {}) {
     }
   }
   
+  // 检测设备能力 - 新增函数
+  function detectDeviceCapabilities() {
+    try {
+      // 获取设备信息
+      if (navigator && 'deviceMemory' in navigator) {
+        performanceMonitor.getRawData().deviceMemory = navigator.deviceMemory;
+      }
+      
+      if (navigator && 'hardwareConcurrency' in navigator) {
+        performanceMonitor.getRawData().hardwareConcurrency = navigator.hardwareConcurrency;
+      }
+      
+      // 根据设备能力初始化配置
+      if (performanceMonitor.getRawData().deviceMemory && performanceMonitor.getRawData().deviceMemory <= 2) {
+        // 低内存设备调整
+        opts.buffer = Math.max(5, Math.floor(opts.buffer * 0.7));
+        opts.overscan = Math.max(2, Math.floor(opts.overscan * 0.7));
+        opts.throttleMs = Math.min(50, opts.throttleMs * 1.5);
+      }
+      
+      if (performanceMonitor.getRawData().hardwareConcurrency && performanceMonitor.getRawData().hardwareConcurrency <= 2) {
+        // 低CPU能力设备调整
+        opts.throttleMs = Math.min(60, opts.throttleMs * 1.8);
+      }
+    } catch (error) {
+      console.error('检测设备能力时出错:', error);
+    }
+  }
+  
+  // 初始化性能监控 - 新增函数
+  function initPerformanceMonitoring() {
+    try {
+      // 检测设备能力
+      detectDeviceCapabilities();
+      
+      // 初始化性能观察器 (如果支持)
+      if (typeof PerformanceObserver === 'function') {
+        // 监控长任务
+        try {
+          const longTaskObserver = new PerformanceObserver(entries => {
+            entries.getEntries().forEach(entry => {
+              performanceMonitor.getRawData().longTaskCount++;
+              performanceMonitor.getRawData().longTaskDuration += entry.duration;
+              
+              // 如果长任务过多，自动调整缓冲区和节流
+              if (performanceMonitor.getRawData().longTaskCount > 5 && opts.adaptiveUpdate) {
+                opts.buffer = Math.max(5, opts.buffer - 1);
+                opts.throttleMs = Math.min(100, opts.throttleMs + 5);
+              }
+              
+              if (entry.duration > 100) {
+                performanceMonitor.getRawData().jankCount++;
+              }
+            });
+          });
+          
+          longTaskObserver.observe({ entryTypes: ['longtask'] });
+          
+          // 保存引用以便清理
+          performanceMonitor.getRawData().longTaskObserver = longTaskObserver;
+        } catch (error) {
+          console.error('监控长任务时出错:', error);
+        }
+        
+        // 监控帧率
+        if ('requestAnimationFrame' in window) {
+          let lastFrameTime = performance.now();
+          let frameTimes = [];
+          
+          const checkFrameRate = () => {
+            const now = performance.now();
+            const frameTime = now - lastFrameTime;
+            lastFrameTime = now;
+            
+            // 收集帧时间
+            frameTimes.push(frameTime);
+            if (frameTimes.length > 60) frameTimes.shift();
+            
+            // 检测帧率下降
+            if (frameTime > 50) { // 低于20fps
+              performanceMonitor.getRawData().frameDrops++;
+              
+              // 自动调整
+              if (opts.adaptiveUpdate && performanceMonitor.getRawData().frameDrops > 3) {
+                opts.buffer = Math.max(3, opts.buffer - 1);
+                opts.overscan = Math.max(2, opts.overscan - 1);
+              }
+            }
+            
+            // 继续检测
+            if (isInitialized) {
+              requestAnimationFrame(checkFrameRate);
+            }
+          };
+          
+          requestAnimationFrame(checkFrameRate);
+        }
+      }
+    } catch (error) {
+      console.error('初始化性能监控时出错:', error);
+    }
+  }
+  
+  // 替换原始跟踪滚动性能函数
+  function trackScrollPerformance() {
+    try {
+      performanceMonitor.trackEvent('scroll');
+      // 其余实现可以保留
+      const now = performance.now();
+      
+      // 计算滚动速度
+      if (performanceMonitor.getRawData().lastEventTimestamp > 0) {
+        const timeDelta = now - performanceMonitor.getRawData().lastEventTimestamp;
+        if (timeDelta > 0 && containerRef.value) {
+          const posDelta = Math.abs(containerRef.value.scrollTop - lastScrollPosition);
+          const velocity = posDelta / timeDelta; // px/ms
+          
+          // 根据滚动速度动态调整
+          const rawData = performanceMonitor.getRawData();
+          const avgVelocity = rawData.eventVelocity.length ? 
+            rawData.eventVelocity.reduce((sum, item) => sum + item.velocity, 0) / rawData.eventVelocity.length : 0;
+          
+          // 高速滚动时自动调整以提高性能
+          if (avgVelocity > 0.7 && opts.adaptiveUpdate) { // 快速滚动
+            if (!rawData.fastScrollMode) {
+              rawData.fastScrollMode = true;
+              rawData.previousOverscan = opts.overscan;
+              rawData.previousBuffer = opts.buffer;
+              
+              // 高速滚动时减少渲染项目
+              opts.overscan = Math.max(1, Math.floor(opts.overscan * 0.5));
+              opts.buffer = Math.max(3, Math.floor(opts.buffer * 0.7));
+            }
+          } else if (rawData.fastScrollMode && avgVelocity < 0.3) {
+            // 恢复正常滚动模式
+            rawData.fastScrollMode = false;
+            if (typeof rawData.previousOverscan === 'number') {
+              opts.overscan = rawData.previousOverscan;
+            }
+            if (typeof rawData.previousBuffer === 'number') {
+              opts.buffer = rawData.previousBuffer;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('跟踪滚动性能时出错:', error);
+    }
+  }
+  
+  // 使用抽离出的scheduleIdleWork函数
+  function scheduleIdleWork(callback) {
+    return performanceMonitor.scheduleIdleWork(callback);
+  }
+  
   // 优化的滚动处理函数
   const handleScroll = useThrottle(function() {
     try {
       if (!containerRef.value || !document.body.contains(containerRef.value)) return;
       
-      performanceData.scrollEvents++;
+      performanceMonitor.getRawData().scrollEvents++;
       const wasAtBottom = isScrolledToBottom.value;
       
       lastScrollPosition = containerRef.value.scrollTop;
+      
+      // 跟踪滚动性能 - 新增调用
+      trackScrollPerformance();
       
       // 更新滚动状态
       checkScrolledToBottom();
@@ -430,6 +596,14 @@ export function useVirtualScroll(options = {}) {
         if (opts.autoScroll && wasAtBottom) {
           scrollToBottom();
         }
+        
+        // 滚动停止后，在空闲时间执行缓存管理和性能调整
+        scheduleIdleWork(() => {
+          manageCache();
+          if (opts.adaptiveUpdate) {
+            adaptPerformanceSettings();
+          }
+        });
         
         scrollTimeout = null;
       }, 200);
@@ -525,9 +699,9 @@ export function useVirtualScroll(options = {}) {
       virtualScrollEnabled.value = true;
       
       // 重置性能监控
-      performanceData.renderTime = [];
-      performanceData.scrollEvents = 0;
-      performanceData.lastRenderTimestamp = 0;
+      performanceMonitor.getRawData().renderTime = [];
+      performanceMonitor.getRawData().scrollEvents = 0;
+      performanceMonitor.getRawData().lastRenderTimestamp = 0;
       
       nextTick(() => {
         if (opts.autoScroll && containerRef.value) {
@@ -720,52 +894,44 @@ export function useVirtualScroll(options = {}) {
     nextTick(() => {
       if (containerRef.value && document.body.contains(containerRef.value)) {
         initialize(containerRef.value);
+        
+        // 启动性能监控
+        performanceMonitor.startMonitoring();
       }
     });
   });
   
   onUnmounted(() => {
     cleanup();
+    // 停止性能监控
+    performanceMonitor.stopMonitoring();
   });
   
-  // 计算平均渲染时间
-  const averageRenderTime = computed(() => {
-    const times = performanceData.renderTime;
-    if (!times.length) return 0;
-    return times.reduce((a, b) => a + b, 0) / times.length;
-  });
-  
-  // 是否有更多未显示的项目
-  const hasMoreItems = computed(() => {
-    const items = getItems();
-    return items.length > visibleItems.value.length;
-  });
-  
-  // 总项目数
-  const totalItems = computed(() => getItems().length);
-  
-  // 自适应性能调整 - 移至函数内部
+  // 替换原始adaptPerformanceSettings函数
   function adaptPerformanceSettings() {
     if (!opts.adaptiveUpdate) return;
     
-    try {
-      const avgRenderTime = performanceData.renderTime.length > 0 ? 
-        performanceData.renderTime.reduce((a, b) => a + b, 0) / performanceData.renderTime.length : 0;
-      
-      // 自适应调整节流时间和缓冲区大小
-      if (avgRenderTime > 16) {
-        // 性能较差，增加节流延迟，减少缓冲区
-        opts.throttleMs = Math.min(100, opts.throttleMs + 8);
-        opts.buffer = Math.max(5, opts.buffer - 2);
-        opts.overscan = Math.max(2, opts.overscan - 1);
-      } else if (avgRenderTime < 8) {
-        // 性能良好，减少节流延迟，增加缓冲区
-        opts.throttleMs = Math.max(8, opts.throttleMs - 4);
-        opts.buffer = Math.min(30, opts.buffer + 1);
-        opts.overscan = Math.min(20, opts.overscan + 1);
-      }
-    } catch (error) {
-      console.error('自适应性能调整出错:', error);
+    const currentSettings = {
+      throttleMs: opts.throttleMs,
+      batchSize: opts.buffer,
+      overscan: opts.overscan,
+      dynamicItemHeight: opts.dynamicItemHeight
+    };
+    
+    const newSettings = performanceMonitor.adaptSettings(currentSettings);
+    
+    // 应用新设置
+    if (newSettings.throttleMs) opts.throttleMs = newSettings.throttleMs;
+    if (newSettings.batchSize) opts.buffer = newSettings.batchSize;
+    if (newSettings.overscan) opts.overscan = newSettings.overscan;
+    
+    // 处理动态高度计算
+    if (newSettings.performanceScore < 20 && opts.dynamicItemHeight) {
+      console.warn('严重性能问题，暂时禁用动态高度计算');
+      opts._originalDynamicHeight = opts.dynamicItemHeight;
+      opts.dynamicItemHeight = false;
+    } else if (newSettings.performanceScore > 70 && opts._originalDynamicHeight && !opts.dynamicItemHeight) {
+      opts.dynamicItemHeight = true;
     }
   }
   
@@ -927,39 +1093,15 @@ export function useVirtualScroll(options = {}) {
   const preloadObserver = setupPreloadStrategy();
   const recycling = setupDOMRecycling();
   
-  // 定期调整性能设置
-  const performanceInterval = setInterval(() => {
-    if (isInitialized && opts.adaptiveUpdate) {
-      adaptPerformanceSettings();
-    }
-  }, 5000);
-  
-  // 增强清理函数
-  function enhancedCleanup() {
-    cleanup(); // 调用原始清理函数
-    
-    // 清理新增的资源
-    if (preloadObserver) {
-      preloadObserver.disconnect();
-    }
-    
-    clearInterval(performanceInterval);
-    
-    // 清理滚动位置缓存
-    scrollPositionCache.clear();
-  }
-  
-  // 在onUnmounted中使用增强的清理函数
-  onUnmounted(() => {
-    enhancedCleanup();
-  });
-  
   // 返回扩展的API
   return {
     containerRef,
     visibleItems,
-    hasMoreItems,
-    totalItems,
+    hasMoreItems: computed(() => {
+      const items = getItems();
+      return items.length > visibleItems.value.length;
+    }),
+    totalItems: computed(() => getItems().length),
     isScrolling,
     isScrolledToBottom,
     viewportHeight,
@@ -976,11 +1118,16 @@ export function useVirtualScroll(options = {}) {
       virtualScrollEnabled.value = enabled;
     },
     
-    // 性能监控
+    // 用性能监控替换原始性能API
     performance: {
-      averageRenderTime,
-      scrollEvents: computed(() => performanceData.scrollEvents),
-      lastRenderTime: computed(() => performanceData.lastRenderTimestamp)
+      averageRenderTime: performanceMonitor.averageRenderTime,
+      scrollEvents: computed(() => performanceMonitor.getRawData().scrollEvents),
+      lastRenderTime: computed(() => performanceMonitor.getRawData().lastRenderTimestamp),
+      frameDrops: computed(() => performanceMonitor.frameDrops.value),
+      jankScore: computed(() => performanceMonitor.jankCount.value),
+      longTasks: performanceMonitor.longTasks,
+      deviceCapabilities: performanceMonitor.deviceCapabilities,
+      performanceScore: performanceMonitor.performanceScore
     },
     
     // 调试信息
