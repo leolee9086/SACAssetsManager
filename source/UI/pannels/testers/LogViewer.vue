@@ -51,8 +51,12 @@
           <span class="log-content">{{ getFormattedContent(log) }}</span>
           <slot name="log-item-extra" :log="log"></slot>
         </div>
-        <div v-if="virtualScrolling && hasMoreLogs" class="virtual-scroll-info" aria-live="polite">
+        <div v-if="virtualScrolling && hasMoreLogs && !isLoadingMore.value" class="virtual-scroll-info" aria-live="polite">
           还有 {{ totalFilteredLogs - visibleLogs.length }} 条日志
+          <button @click="loadMoreLogs" class="load-more-button">加载更多</button>
+        </div>
+        <div v-if="virtualScrolling && hasMoreLogs && isLoadingMore.value" class="virtual-scroll-loading" aria-live="polite">
+          正在加载更多日志...
         </div>
       </template>
     </div>
@@ -177,6 +181,12 @@ const cacheCleanupTimer = ref(null);
 const viewportHeight = ref(0);
 const isPerformingBatchUpdate = ref(false);
 
+// 引入虚拟滚动加载状态
+const isLoadingMore = computed(() => virtualScroll.isLoadingMore);
+
+// 添加一个标志来跟踪是否是通过加载更多触发的日志变化
+const isLoadingMoreTriggered = ref(false);
+
 // 改进的防抖函数，增加立即执行选项并优化节流性能
 const updateFilterTextDebounced = useDebounce(() => {
   debouncedFilterText.value = filterText.value;
@@ -300,8 +310,6 @@ const virtualScroll = useVirtualScroll({
 
 // 使用虚拟滚动提供的计算属性和方法替代原有实现
 const visibleLogs = computed(() => virtualScroll.visibleItems.value);
-const isScrolling = computed(() => virtualScroll.isScrolling.value);
-const isScrolledToBottom = computed(() => virtualScroll.isScrolledToBottom.value);
 const hasMoreLogs = computed(() => virtualScroll.hasMoreItems.value);
 const totalFilteredLogs = computed(() => virtualScroll.totalItems.value);
 
@@ -507,6 +515,9 @@ onMounted(() => {
   if (logContainer.value) {
     logContainer.value.addEventListener('keydown', handleKeyDown);
     
+    // 添加滚动事件监听，用于触底加载
+    logContainer.value.addEventListener('scroll', handleScroll);
+    
     // 记录视口高度
     viewportHeight.value = logContainer.value.clientHeight;
   }
@@ -544,6 +555,7 @@ onUnmounted(() => {
   // 清理事件监听 - 只需要清理键盘事件，滚动事件由virtualScroll处理
   if (logContainer.value) {
     logContainer.value.removeEventListener('keydown', handleKeyDown);
+    logContainer.value.removeEventListener('scroll', handleScroll);
   }
   
   // 清理缓存
@@ -593,10 +605,10 @@ function handleKeyDown(event) {
   }
 }
 
-// 监听日志变化，自动滚动
+// 修改日志变化的监听，只在非加载更多时自动滚动
 watch(() => props.logs.length, (newLength, oldLength) => {
-  // 只有在有新日志添加时才滚动
-  if (newLength > oldLength) {
+  // 只有在有新日志添加时且不是加载更多触发的情况下才滚动
+  if (newLength > oldLength && !isLoadingMoreTriggered.value && !loadMoreInProgress) {
     // 使用nextTick确保DOM更新后再滚动
     nextTick(() => {
       scrollToBottom();
@@ -640,6 +652,71 @@ watch([debouncedFilterText, selectedTypes], () => {
     }
   });
 });
+
+// 修改handleScroll函数，添加额外检查
+const handleScroll = useThrottle(() => {
+  // 如果当前正在通过加载更多触发变化，则不处理滚动事件
+  if (isLoadingMoreTriggered.value || isLoadingMore.value) {
+    return;
+  }
+  
+  // 检查是否滚动到底部或接近底部
+  if (logContainer.value && hasMoreLogs.value) {
+    const { scrollTop, scrollHeight, clientHeight } = logContainer.value;
+    // 修改触发阈值，防止过于敏感
+    const scrollBottom = scrollHeight - scrollTop - clientHeight;
+    
+    if (scrollBottom < 50) {
+      loadMoreLogs();
+    }
+  }
+}, { delay: 300 }); // 增加节流延迟
+
+// 添加加载更多方法，增强防跳动保护
+let loadMoreInProgress = false;
+let loadMoreLastTime = 0;
+
+function loadMoreLogs() {
+  // 组件级别的防重复保护
+  const now = Date.now();
+  if (loadMoreInProgress || now - loadMoreLastTime < 1000) {
+    return;
+  }
+  
+  loadMoreInProgress = true;
+  loadMoreLastTime = now;
+  
+  // 设置标志，指示当前是由加载更多触发的变化
+  isLoadingMoreTriggered.value = true;
+  
+  // 记住当前滚动位置
+  const previousScrollTop = logContainer.value ? logContainer.value.scrollTop : 0;
+  const previousScrollHeight = logContainer.value ? logContainer.value.scrollHeight : 0;
+  
+  // 调用虚拟滚动的加载方法
+  const loaded = virtualScroll.loadMoreItems();
+  
+  // 使用nextTick确保内容已渲染后再重置状态
+  nextTick(() => {
+    // 防止滚动位置跳变
+    if (logContainer.value) {
+      // 计算滚动位置差值，保持相对位置
+      const newScrollHeight = logContainer.value.scrollHeight;
+      const heightDiff = newScrollHeight - previousScrollHeight;
+      
+      // 只有在有新内容添加时才调整滚动位置
+      if (heightDiff > 0) {
+        logContainer.value.scrollTop = previousScrollTop + heightDiff;
+      }
+    }
+    
+    // 延迟更长时间再重置标志，确保渲染和滚动已完成
+    setTimeout(() => {
+      loadMoreInProgress = false;
+      isLoadingMoreTriggered.value = false;
+    }, 1000);
+  });
+}
 </script>
 
 <style scoped>
@@ -755,14 +832,38 @@ watch([debouncedFilterText, selectedTypes], () => {
 }
 
 .virtual-scroll-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 15px;
+  background: #f5f5f5;
+  margin: 10px 0;
+  border-radius: 4px;
+  transition: opacity 0.3s;
+}
+
+.virtual-scroll-loading {
   text-align: center;
   padding: 8px;
-  font-size: 0.85em;
-  color: #888;
-  font-style: italic;
-  background: #f5f5f5;
-  margin-top: 10px;
+  color: #666;
+  background: #f8f8f8;
+  margin: 10px 0;
   border-radius: 4px;
+  transition: opacity 0.3s;
+}
+
+.load-more-button {
+  background: #4a89dc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.load-more-button:hover {
+  background: #3a78cb;
 }
 
 /* 默认日志类型颜色 */

@@ -1,296 +1,182 @@
 /**
- * 引入api等
+ * SACAssetsManager 插件入口
+ * 实现轻量级扩展加载系统
+ * 
+ * 架构设计:插件本体层只是一个适配层,它需要非常"瘦"
+ * - 模块(Services): 
+ *    核心系统级别组件，为扩展提供基础能力，可动态修改扩展可获取的API
+ *    最核心的模块只有一个"模块加载器",它将加载所有模块,包括扩展加载模块
+ *    我们需要处理的最大问题是最精炼而丰富的核心模块提供
+ * - 扩展(Extensions): 
+ *    "插件的插件"，通过路由调用模块功能，通过事件总线模块进行相互通信
+ *    扩展本身是通过插件的编译模块和编译工具箱实时编译的,所以我们需要一个极其高效的编译模块
+ *    编译模块需要能够支持在浏览器端运行,并且保证扩展代码书写看起来与原生代码尽可能小
+ * - 工具箱(ToolBox): 
+ *    几乎所有外部依赖和环境能力都会被工具箱包裹而不是直接调用,
+ *    扩展在引入外部依赖时会警告,以尽可能充分利用外部依赖,并简化扩展发开体验
+ * 
+ * 主体命名风格必须保持中文,英文仅仅用于:
+ * 1.外界提供的接口
+ * 2.对外部接口
+ * 3.原生环境(js,node,浏览器,宿主软件)提供的功能
  */
-const { Plugin } = require("siyuan");
-const clientApi = require("siyuan");
+
+
+// 导入核心模块
 /**
- * 将api暴露到全局空间
+ * @AI 主体插件会被
+ * const runCode = (code: string, sourceURL: string) => {
+    return window.eval("(function anonymous(require, module, exports){".concat(code, "\n})\n//# sourceURL=").concat(sourceURL, "\n"));
+  };
+  这样的方式加载，所以**在本文件中**请不要使用静态import，并且尽可能减少初始化时动态加载的数量
  */
-let eventBus
-globalThis[Symbol.for(`clientApi`)] = globalThis[Symbol.for(`clientApi`)] || clientApi
-
-function 同步获取文件夹列表(路径) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', `/api/file/readDir`, false); // 使用 POST 方法
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.send(JSON.stringify({ path: 路径 }));
-
-  if (xhr.status === 200) {
-    const response = JSON.parse(xhr.responseText);
-    if (response.code === 0) {
-      return response.data;
-    }
-  }
-  return [];
-}
-
-function 构建TAB配置() {
-  const TAB_CONFIGS = {};
-  // 使用插件工作空间的完整路径
-  const 基础路径 = `/data/plugins/SACAssetsManager/source/UI/pannels`;
-  try {
-    const 文件列表 = 同步获取文件夹列表(基础路径);
-
-    文件列表.forEach(文件信息 => {
-      if (文件信息.isDir) {
-        const 文件夹名 = 文件信息.name;
-        const tabName = `${文件夹名}Tab`;
-
-        TAB_CONFIGS[tabName] = {
-          // 注意这里使用的是前端访问路径
-          component: `/plugins/SACAssetsManager/source/UI/pannels/${文件夹名}/index.vue`,
-          containerId: `${文件夹名}`
-        };
-      }
-    });
-
-  } catch (错误) {
-    console.error('构建TAB配置时出错:', 错误);
-  }
-
-  return TAB_CONFIGS;
-}
-
-
-
 
 /**
- * tab注册
+ * 思源笔记的前端API通过它的插件以require('siyuan')的形式提供给插件
+ * 我们需要将它以更加零散灵活的形式提供给扩展
  */
-const TAB_CONFIGS = {
-  AssetsTab: {
-    component: '/plugins/SACAssetsManager/source/UI/components/assetGalleryPanel.vue',
-    containerId: 'assetsColumn'
-  },
-  EditorTab: {
-    component: '/plugins/SACAssetsManager/source/UI/components/editors/image.vue',
-    containerId: 'assetsColumn'
-  },
+const siyuanClientApi = require("siyuan");
+const { Plugin } = siyuanClientApi;
 
-  ...构建TAB配置()
-}
-const DOCK_CONFIGS = {
-  AssetsPanel: {
-    icon: "iconInfo",
-    position: "LeftBottom",
-    component: '/plugins/SACAssetsManager/source/UI/pannels/assetInfoPanel/assestInfoPanel.vue',
-    title: "SACAssetsPanel",
-    propertyName: "assetsPanelDock"
-  },
-  CollectionPanel: {
-    icon: "iconDatabase",
-    position: "RightBottom",
-    component: '/plugins/SACAssetsManager/source/UI/components/collectionPanel.vue',
-    title: "SACAssetsCollectionPanel",
-    propertyName: "collectionPanelDock"
-  },
-  PannelListPanel: {
-    icon: "iconPanel",
-    position: "RightBottom",
-    component: '/plugins/SACAssetsManager/source/UI/pannels/pannelList/index.vue',
-    title: "面板列表",
-    propertyName: "pannelListDock"
-  }
-}
-let pluginInstance = {}
+// 预先缓存常用API引用，避免重复属性查找
+const {
+  confirm, showMessage, adaptHotkey,
+  fetchPost, fetchGet, fetchSyncPost,
+  getFrontend, getBackend,
+  openTab, Dialog, Menu,
+  Constants, Protyle, Setting
+} = siyuanClientApi;
 
-/**
- * 创建停靠面板
- * @param {Plugin} plugin 插件实例
- * @param {string} dockType 面板类型
- * @returns {Object} dock实例
- */
-function createDock(plugin, dockType) {
-  const config = DOCK_CONFIGS[dockType];
-  const dock = plugin.addDock({
-    config: {
-      icon: config.icon,
-      position: config.position,
-      size: { width: 200, height: 0 },
-      title: config.title
-    },
-    data: { text: "" },
-    type: dockType,
-    init() {
-      const container = 插入UI面板容器(this.element);
-      import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-        module => {
-          console.log(module)
-          const app = module.initVueApp(config.component)
-          app.mount(container)
-        }
-      )
-    }
-  });
-  return dock;
-}
+class SACAssetsManager extends Plugin {
+  async onload() {
+    console.info("SACAssetsManager 插件加载中...");
 
-module.exports = class SACAssetsManager extends Plugin {
-  onload() {
-    this.初始化插件同步状态()
-    this.初始化后台服务()
-    this.初始化插件异步状态()
-    this.创建web服务()
-    this.创建资源Tab类型()
-    this.添加菜单()
-    this.加载i18n工具()
-  }
-  async 初始化后台服务(){
-    await import(`${this.插件自身伺服地址}/source/servicies/index.js`)
-  }
-  初始化插件同步状态() {
-    pluginInstance = this
-    eventBus = this.eventBus
-    this.stayAlive = true
+    try {
+      // 初始化环境变量 - 提前初始化以避免多次访问
+      this.初始化环境变量();
 
-    this.插件自身工作空间路径 = `/data/plugins/${this.name}`
-    this.工作空间根路径 = window.siyuan.config.system.workspaceDir
-    this.插件自身伺服地址 = `/plugins/${this.name}`
-    this.selfURL = this.插件自身伺服地址
+      // 使用变量缓存 this 引用，减少作用域链查找
+      const self = this;
 
-    this.最近打开本地文件夹列表 = new Set()
-    Object.entries(DOCK_CONFIGS).forEach(([dockType, config]) => {
-      this[config.propertyName] = createDock(this, dockType);
-    });
-  }
-  初始化插件异步状态() {
-    import(`${this.插件自身伺服地址}/source/index.js`)
-  }
+      // 预先准备宿主层API对象引用，减少对象创建开销
+      const 插件方法 = {
+        loadData: self.loadData.bind(self),
+        saveData: self.saveData.bind(self),
+        removeData: self.removeData.bind(self),
+        addTopBar: self.addTopBar.bind(self),
+        addStatusBar: self.addStatusBar.bind(self),
+        addTab: self.addTab.bind(self),
+        addDock: self.addDock.bind(self),
+        addFloatLayer: self.addFloatLayer.bind(self),
+        addCommand: self.addCommand.bind(self),
+        addIcons: self.addIcons.bind(self),
+        getOpenedTab: self.getOpenedTab.bind(self),
+        openSetting: self.openSetting.bind(self)
+      };
 
-  async 写入i18n(lang, content) {
-    let targetPath = this.插件自身工作空间路径 + '/i18n/' + `${lang}.json`
-    let workspace = await import(`${this.插件自身伺服地址}/source/polyfills/fs.js`)
-    await workspace.writeFile(targetPath, JSON.stringify(content, undefined, 2))
-  }
-  加载i18n工具() {
-    this.$翻译 = function (字符串数组, ...插值) {
-      // 直接使用原始的模板字符串
-      return 字符串数组.reduce((结果, 字符串, 索引) =>
-        结果 + 字符串 + (插值[索引] || ''), '');
-    };
-    import(`${this.插件自身伺服地址}/source/utils/i18n/aiI18n.js`).then(
-      module => {
-        this.翻译 = (字符串数组, ...插值) => {
-          let 完整模板 = '';
-          字符串数组.forEach((字符串, 索引) => {
-            完整模板 += 字符串;
-            if (索引 < 插值.length) {
-              完整模板 += `__VAR_${索引}__`;
-            }
-          });
-          if (!this.启用AI翻译) {
-            let 翻译结果 = this.i18n[完整模板] || 完整模板
-            插值.forEach((值, 索引) => {
-              翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
-            });
-            return 翻译结果
-          }
-          if (this.i18n[完整模板] && this.i18n[完整模板] !== 完整模板) {
-            let 翻译结果 = this.i18n[完整模板]
-            插值.forEach((值, 索引) => {
-              翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
-            });
-            return 翻译结果
-          } else {
-            if (siyuan.config.lang === 'zh_CN') {
-              this.i18n[完整模板] = 完整模板
-              this.写入i18n(siyuan.config.lang, this.i18n)
-              let 翻译结果 = this.i18n[完整模板]
-              插值.forEach((值, 索引) => {
-                翻译结果 = 翻译结果.replace(`__VAR_${索引}__`, 值);
-              });
-              return 翻译结果
-            }
-            setTimeout(async () => {
-              let result = (module.创建可选AI翻译标签函数(() => { return true }))(字符串数组, ...插值)
-              this.i18n[完整模板] = result.template
-              await this.写入i18n(siyuan.config.lang, this.i18n)
-            })
-            return this.$翻译(字符串数组, ...插值)
-          }
-        }
+      // 客户端API对象复用已缓存的引用
+      const 客户端API = {
+        confirm, showMessage, adaptHotkey,
+        fetchPost, fetchGet, fetchSyncPost,
+        getFrontend, getBackend,
+        openTab, Dialog, Menu,
+        Constants, Protyle, Setting
+      };
+
+      // 创建宿主层API对象
+      const 宿主层API = {
+        插件名称: self.name,
+        环境变量: self.环境变量,
+        解析路径: self.解析路径.bind(self),
+        客户端API,
+        插件方法,
+        eventBus: self.eventBus,
+        注册卸载回调: (回调) => { self.卸载回调 = 回调; }
+      };
+
+      // 初始化模块加载器模块 - 根据注释要求，避免静态import，使用动态导入
+      // 使用缓存变量存储模块引用，避免重复加载
+      if (!self.模块加载器模块) {
+        // 修复模块加载器路径，使用插件URL作为基础路径，避免404错误
+        const 模块加载器路径 = self.解析路径('core/servicesLoader.js');
+        self.模块加载器模块 = await import(模块加载器路径);
       }
-    )
-
-  }
-
-  /**
-   * 只有getter,避免被不小心改掉
-   */
-  get events() {
-    return {
-      打开附件: 'open-asset',
-      资源界面项目右键: 'rightclick-galleryitem',
-      打开附件所在路径: 'open-asset-folder'
-    }
-  }
-
-
-  emitEvent(eventName, detail, options) {
-    if (!Object.values(this.events).includes(eventName)) {
-      throw new Error(`事件名不存在: ${eventName}`);
-    } else {
-      if (options && options.stack) {
-        this.eventBus.emit(eventName, {
-          stack: (new Error()).stack,
-          ...detail
-        })
-        return
-      }
-      this.eventBus.emit(eventName, detail)
-    }
-  }
-
-  async 创建web服务() {
-    const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
-    this.http服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_http", 6992)
-    this.https服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_https", 6993)
-    await import(`${this.插件自身伺服地址}/source/server/main.js`)
-  }
-  /**
-   * 移动到menus.js中
-   */
-  添加菜单() {
-    import(`/plugins/${this.name}/source/UI/siyuanCommon/index.js`)
-
-  }
-  创建资源Tab类型() {
-    // 统一的tab创建函数
-    const createTab = (tabType) => {
-      const config = TAB_CONFIGS[tabType];
-      return this.addTab({
-        type: tabType,
-        init() {
-          this.element.innerHTML = `<div class="plugin-sample__${tabType.toLowerCase()}">${this.data.text}</div>`;
-          import('/plugins/SACAssetsManager/source/UI/tab.js').then(module => {
-            module.创建Vue组件界面(this, config.component, config.containerId);
-          });
-        },
-        beforeDestroy() {
-          this.element.innerHTML = "";
-          this.controllers?.forEach(controller => controller.abort());
-        }
+      
+      
+      // 将宿主层API传递给模块加载器
+      await self.模块加载器模块.初始化({
+        ...宿主层API,
       });
+
+      // 由模块加载器接管后续所有操作
+      await self.模块加载器模块.启动();
+
+      console.info("SACAssetsManager 插件加载完成");
+    } catch (错误) {
+      console.error("SACAssetsManager 插件加载失败:", 错误);
     }
-    // 为每种类型创建tab
-    Object.keys(TAB_CONFIGS).forEach(tabType => {
-      this[`${tabType}Define`] = createTab(tabType);
-    });
+  }
+
+  async onunload() {
+    console.info("SACAssetsManager 插件卸载中...");
+
+    // 由模块加载器处理所有卸载工作
+    if (this.模块加载器模块) {
+      await this.模块加载器模块.销毁();
+      this.模块加载器模块 = null;
+    }
+
+    // 执行注册的卸载回调（如果有）
+    if (this.卸载回调) {
+      await this.卸载回调();
+    }
+
+    console.info("SACAssetsManager 插件卸载完成");
+  }
+
+  // 优化环境变量初始化方法
+  初始化环境变量() {
+    const { protocol, hostname, port } = window.location;
+    const portStr = port ? `:${port}` : '';
+    const name = this.name;
+
+    // 一次性设置所有路径变量
+    this.插件URL = `${protocol}//${hostname}${portStr}/plugins/${name}/`;
+    this.数据路径 = `/data/storage/petal/${name}`;
+    this.临时路径 = `/temp/${name}/`;
+    this.公共路径 = `/data/public`;
+    this.插件路径 = `/data/plugins/${name}`;
+
+    // 条件判断提前，避免每次都检查
+    if (window.require) {
+      const path = window.require('path');
+      this.本地路径 = path.join(window.siyuan.config.system.workspaceDir, 'data', 'plugins', name);
+    } else {
+      this.本地路径 = null;
+    }
+
+    // 使用对象字面量一次性创建环境变量
+    this.环境变量 = {
+      插件名称: name,
+      插件URL: this.插件URL,
+      数据路径: this.数据路径,
+      临时路径: this.临时路径,
+      公共路径: this.公共路径,
+      插件路径: this.插件路径,
+      本地路径: this.本地路径
+    };
+  }
+
+  // 优化路径解析方法
+  解析路径(路径) {
+    // 使用字符串方法代替正则表达式
+    if (路径.startsWith('/') || 路径.startsWith('http://') || 路径.startsWith('https://')) {
+      return 路径;
+    }
+    // 避免创建完整URL对象，仅在必要时使用
+    return decodeURIComponent(new URL(路径, this.插件URL).toString());
   }
 }
 
-
-
-
-
-function 插入UI面板容器(UI容器父元素) {
-  UI容器父元素.innerHTML = `<div class="fn__flex-1 fn__flex-column cc_ui-container"></div>`
-  return UI容器父元素.querySelector(".fn__flex-1.fn__flex-column")
-}
-
-
-/***
- * 引入这个模块只是为了测试
- */
-import('/plugins/SACAssetsManager/source/utils/test.js')
-
+// 导出插件类
+module.exports = SACAssetsManager;
