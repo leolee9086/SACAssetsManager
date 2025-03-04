@@ -83,12 +83,17 @@ const 创建串链器 = () => {
         return 定义器代理;
       },
 
-      // 转换态射
-      _(目标上下文, 目标名称, 转换实现, 匹配器) {
-        const 转换态射名 = `_${目标名称}_`;
-        this.态射(转换态射名, (源值, ...参数) => {
-          const 转换结果 = 转换实现(源值, ...参数);
-          return 目标上下文(转换结果);
+      // 自然变换
+      _(目标上下文, 目标名称, 变换实现, 匹配器) {
+        // 检查目标上下文是否是合法的串链器
+        if (!目标上下文?.[Symbol.for('串链器标记')]) {
+          throw new Error('自然变换的目标上下文必须是一个串链器');
+        }
+
+        const 自然变换名 = `_${目标名称}_`;
+        this.态射(自然变换名, (源值, ...参数) => {
+          const 变换结果 = 变换实现(源值, ...参数);
+          return 目标上下文(变换结果);
         }, 匹配器);
 
         return 定义器代理;
@@ -153,13 +158,26 @@ const 创建串链器 = () => {
     return 代理执行接口;
   };
 
-  // 创建主函数和定义接口
+  // 创建主函数
   const 主函数 = (初始值) => 创建执行接口(初始值);
+  
+  // 添加串链器标记
+  Object.defineProperty(主函数, Symbol.for('串链器标记'), {
+    value: true,
+    writable: false,
+    enumerable: false,
+    configurable: false
+  });
+
   const 定义接口 = 创建定义接口();
   
   // 返回代理包装的主函数
   return new Proxy(主函数, {
     get(目标, 属性) {
+      // 确保标记可以被访问
+      if (属性 === Symbol.for('串链器标记')) {
+        return true;
+      }
       if (属性 === 'prototype' || 属性 === 'length' || 属性 === 'name') {
         return 目标[属性];
       }
