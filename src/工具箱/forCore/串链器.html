@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>串链器系统文档</title>
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4 {
+            color: #1a73e8;
+            margin-top: 1.5em;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 1em;
+            border-bottom: 2px solid #1a73e8;
+            padding-bottom: 0.5em;
+        }
+        h2 {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.3em;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        .note {
+            background-color: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .warning {
+            background-color: #fff9e6;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .toc {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 15px;
+        }
+        .toc li {
+            margin-bottom: 5px;
+        }
+        .example {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .api-section {
+            margin-top: 30px;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        .api-name {
+            font-weight: bold;
+            color: #1a73e8;
+        }
+        .api-signature {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>串链器系统文档</h1>
+    
+    <div class="toc">
+        <h2>目录</h2>
+        <ul>
+            <li><a href="#overview">1. 概述</a></li>
+            <li><a href="#features">2. 核心功能与特性</a></li>
+            <li><a href="#getting-started">3. 快速入门</a></li>
+            <li>
+                <a href="#api-reference">4. API参考</a>
+                <ul>
+                    <li><a href="#api-core">4.1 核心API</a></li>
+                    <li><a href="#api-chaining">4.2 链式方法</a></li>
+                    <li><a href="#api-extensions">4.3 扩展系统</a></li>
+                    <li><a href="#api-hooks">4.4 钩子系统</a></li>
+                </ul>
+            </li>
+            <li><a href="#extension-dev">5. 扩展开发指南</a></li>
+            <li><a href="#examples">6. 示例代码</a></li>
+            <li><a href="#best-practices">7. 最佳实践</a></li>
+            <li><a href="#advanced-features">8. 高级功能</a></li>
+            <li><a href="#extension-implementation">9. 扩展实现指南</a></li>
+            <li><a href="#performance-tips">10. 性能优化指南</a></li>
+        </ul>
+    </div>
+
+    <section id="overview">
+        <h2>1. 概述</h2>
+        <p>串链器是一个灵活的函数式链式API构建工具，它提供了一种优雅的方式来创建流畅的编程接口。串链器的设计目标是简化复杂操作的表达，使代码更具可读性和可维护性。</p>
+        
+        <p>通过串链器，开发者可以：</p>
+        <ul>
+            <li>创建流畅的链式API</li>
+            <li>构建领域特定语言(DSL)</li>
+            <li>实现函数式数据处理管道</li>
+            <li>通过扩展机制自定义功能</li>
+        </ul>
+        
+        <div class="note">
+            <p><strong>核心理念：</strong>串链器基于函数式编程思想，强调数据流与转换，而非传统的面向对象方法调用链。</p>
+        </div>
+    </section>
+
+    <section id="features">
+        <h2>2. 核心功能与特性</h2>
+        
+        <h3>2.1 基础链式调用</h3>
+        <ul>
+            <li><strong>方法注册与调用</strong>：动态注册方法并保持链式调用</li>
+            <li><strong>值传递管理</strong>：控制链中数据的流动和转换</li>
+            <li><strong>上下文隔离</strong>：为不同链提供独立上下文</li>
+            <li><strong>终止器支持</strong>：允许链式调用终止并返回值</li>
+        </ul>
+        
+        <h3>2.2 基础编程模型</h3>
+        <ul>
+            <li><strong>条件链</strong>：基于条件执行不同链路分支</li>
+            <li><strong>管道转换</strong>：支持函数式编程的管道模式</li>
+            <li><strong>基础上下文切换</strong>：在链中切换执行环境</li>
+        </ul>
+        
+        <h3>2.3 基础错误处理</h3>
+        <ul>
+            <li><strong>链内错误传播</strong>：简单的错误处理机制</li>
+        </ul>
+        
+        <h3>2.4 高级功能（通过扩展实现）</h3>
+        <ul>
+            <li><strong>高级链式模式</strong>：分支合并、异步链、链路监听</li>
+            <li><strong>高级DSL构建</strong>：方法分组、复杂上下文管理、链式体验优化</li>
+            <li><strong>调试与维护工具</strong>：链路追踪、高级错误处理、性能优化、可序列化</li>
+            <li><strong>互操作性</strong>：外部链整合、适配器模式、组合复用</li>
+        </ul>
+    </section>
+
+    <section id="getting-started">
+        <h2>3. 快速入门</h2>
+        
+        <h3>3.1 基本安装与引入</h3>
+        <pre><code>// 引入串链器
+import { 创建串链器, 创建扩展定义 } from './工具箱/forCore/串链器.js';</code></pre>
+        
+        <h3>3.2 创建基本串链器</h3>
+        <div class="example">
+            <pre><code>// 创建一个基本串链器
+const 数字链 = 创建串链器();
+
+// 定义链式方法
+数字链
+  .加(数值 => 数值 + 1)
+  .减(数值 => 数值 - 1)
+  .乘(数值 => 数值 * 2)
+  .除(数值 => 数值 / 2)
+  .平方(数值 => 数值 * 数值);
+
+// 使用串链器
+const 结果 = 数字链(5)
+  .加()
+  .乘()
+  .平方()
+  .值;  // 结果: 144</code></pre>
+        </div>
+        
+        <h3>3.3 使用命名空间</h3>
+        <div class="example">
+            <pre><code>const 数学工具 = 创建串链器();
+
+数学工具
+  .命名空间('基础运算')
+    .加(数值 => 数值 + 1)
+    .减(数值 => 数值 - 1)
+  .退出命名空间()
+  .命名空间('高级运算')
+    .平方(数值 => 数值 * 数值)
+    .开方(数值 => Math.sqrt(数值))
+  .退出命名空间();
+
+// 使用命名空间
+const 结果 = 数学工具(4)
+  .使用命名空间('基础运算')
+    .加()
+  .退出命名空间()
+  .使用命名空间('高级运算')
+    .平方()
+  .退出命名空间()
+  .值;  // 结果: 25</code></pre>
+        </div>
+        
+        <h3>3.4 条件分支</h3>
+        <div class="example">
+            <pre><code>const 数据处理 = 创建串链器();
+
+数据处理
+  .检查正负(数值 => 数值)
+  .处理正数(数值 => 数值 * 2)
+  .处理负数(数值 => 数值 * -1)
+  .处理零(数值 => 0);
+
+// 使用条件分支
+const 结果 = 数据处理(-5)
+  .分支([
+    [数值 => 数值 > 0, 处理 => 处理.处理正数()],
+    [数值 => 数值 < 0, 处理 => 处理.处理负数()],
+    [数值 => 数值 === 0, 处理 => 处理.处理零()]
+  ])
+  .值;  // 结果: 5</code></pre>
+        </div>
+    </section>
+
+    <section id="api-reference">
+        <h2>4. API参考</h2>
+        
+        <section id="api-core">
+            <h3>4.1 核心API</h3>
+            
+            <div class="api-section">
+                <p class="api-name">创建串链器</p>
+                <p class="api-signature">const 链 = 创建串链器(配置);</p>
+                <p>创建一个新的串链器实例。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>配置</code> (可选) - 串链器的配置对象</li>
+                </ul>
+                <p><strong>返回：</strong> 新的串链器函数</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>const 数字链 = 创建串链器();</code></pre>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">串链器调用</p>
+                <p class="api-signature">const 执行接口 = 链(初始值);</p>
+                <p>使用初始值创建一个执行接口，开始链式调用。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>初始值</code> - 链式调用的起始值</li>
+                </ul>
+                <p><strong>返回：</strong> 执行接口对象</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>const 处理 = 数字链(5);</code></pre>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">获取值</p>
+                <p class="api-signature">执行接口.值</p>
+                <p>获取链式调用的当前结果值。</p>
+                <p><strong>返回：</strong> 当前值</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>const 结果 = 数字链(5).加().值;  // 获取处理后的值</code></pre>
+            </div>
+        </section>
+        
+        <section id="api-chaining">
+            <h3>4.2 链式方法</h3>
+            
+            <div class="api-section">
+                <p class="api-name">定义态射</p>
+                <p class="api-signature">链.态射(名称, 实现或对象, 匹配器);</p>
+                <p>定义一个链式方法（态射）。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>名称</code> - 态射名称</li>
+                    <li><code>实现或对象</code> - 处理函数或对象</li>
+                    <li><code>匹配器</code> (可选) - 参数匹配函数</li>
+                </ul>
+                <p><strong>返回：</strong> 定义接口</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>链.态射('加', (数值, 增量 = 1) => 数值 + 增量);</code></pre>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">快捷定义</p>
+                <p class="api-signature">链.方法名(实现, 匹配器);</p>
+                <p>快捷方式定义态射。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>实现</code> - 处理函数或对象</li>
+                    <li><code>匹配器</code> (可选) - 参数匹配函数</li>
+                </ul>
+                <p><strong>返回：</strong> 定义接口</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>链.加(数值 => 数值 + 1);</code></pre>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">$方法与方法$</p>
+                <p class="api-signature">链.$方法().方法名(实现);
+链.方法名(实现).方法$();</p>
+                <p>控制态射是否直接返回结果。</p>
+                <p><strong>返回：</strong> 定义接口</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>链.$方法().获取平方(数值 => 数值 * 数值).方法$();</code></pre>
+            </div>
+        </section>
+        
+        <section id="api-extensions">
+            <h3>4.3 扩展系统</h3>
+            
+            <div class="api-section">
+                <p class="api-name">创建扩展定义</p>
+                <p class="api-signature">const 扩展 = 创建扩展定义(配置);</p>
+                <p>创建一个扩展定义。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>配置</code> - 包含ID和初始化函数的对象，或ID字符串</li>
+                </ul>
+                <p><strong>返回：</strong> 扩展定义对象</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>const 异步扩展 = 创建扩展定义({
+  ID: '异步支持',
+  版本: '1.0.0',
+  描述: '为串链器添加异步操作支持',
+  初始化: (扩展管理器, 定义接口) => {
+    // 扩展实现
+  }
+});</code></pre>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">安装扩展</p>
+                <p class="api-signature">链.扩展.安装(扩展定义, 配置);</p>
+                <p>在串链器上安装扩展。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>扩展定义</code> - 扩展定义对象</li>
+                    <li><code>配置</code> (可选) - 扩展配置</li>
+                </ul>
+                <p><strong>返回：</strong> 串链器实例</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>数字链.扩展.安装(异步扩展);</code></pre>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">卸载扩展</p>
+                <p class="api-signature">链.扩展.卸载(扩展ID);</p>
+                <p>从串链器卸载扩展。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>扩展ID</code> - 要卸载的扩展ID</li>
+                </ul>
+                <p><strong>返回：</strong> 串链器实例</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>数字链.扩展.卸载('异步支持');</code></pre>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">扩展列表</p>
+                <p class="api-signature">链.扩展.列表();</p>
+                <p>获取已安装的扩展列表。</p>
+                <p><strong>返回：</strong> 扩展ID数组</p>
+                <p><strong>示例：</strong></p>
+                <pre><code>const 已安装扩展 = 数字链.扩展.列表();</code></pre>
+            </div>
+        </section>
+        
+        <section id="api-hooks">
+            <h3>4.4 钩子系统</h3>
+            
+            <div class="api-section">
+                <p class="api-name">内置钩子</p>
+                <p>串链器包含以下内置钩子点：</p>
+                <ul>
+                    <li><code>前置处理</code> - 处理初始值</li>
+                    <li><code>后置处理</code> - 处理最终结果</li>
+                    <li><code>态射执行前</code> - 在执行态射前触发</li>
+                    <li><code>态射执行后</code> - 在执行态射后触发</li>
+                    <li><code>错误处理</code> - 处理链式调用中的错误</li>
+                    <li><code>分支决策</code> - 用于决定分支路径</li>
+                    <li><code>分支合并</code> - 合并分支结果</li>
+                </ul>
+            </div>
+            
+            <div class="api-section">
+                <p class="api-name">注册钩子处理器</p>
+                <p class="api-signature">// 在扩展初始化中：
+扩展管理器.注册扩展处理器(扩展ID, 钩子名称, 处理器函数);</p>
+                <p>注册一个钩子处理函数。</p>
+                <p><strong>参数：</strong></p>
+                <ul>
+                    <li><code>扩展ID</code> - 扩展ID</li>
+                    <li><code>钩子名称</code> - 钩子点名称</li>
+                    <li><code>处理器函数</code> - 钩子处理函数</li>
+                </ul>
+                <p><strong>示例：</strong></p>
+                <pre><code>扩展管理器.注册扩展处理器('日志扩展', '态射执行前', 
+  (态射名, 当前值, 参数) => {
+    console.log(`执行: ${态射名}，当前值: ${当前值}`);
+    return { 态射名, 当前值, 参数 };
+  }
+);</code></pre>
+            </div>
+        </section>
+    </section>
+
+    <section id="extension-dev">
+        <h2>5. 扩展开发指南</h2>
+        
+        <h3>5.1 扩展结构</h3>
+        <p>串链器扩展是一个包含ID和初始化函数的对象。初始化函数接收下列参数：</p>
+        <ul>
+            <li><code>扩展管理器</code> - 管理钩子和扩展的接口</li>
+            <li><code>定义接口</code> - 用于定义态射的接口</li>
+            <li><code>全局态射表</code> - 全局态射的存储</li>
+            <li><code>命名空间态射表</code> - 命名空间态射的存储</li>
+            <li><code>配置</code> - 扩展配置对象</li>
+        </ul>
+        
+        <h3>5.2 创建扩展的基本步骤</h3>
+        <ol>
+            <li>定义扩展ID和初始化函数</li>
+            <li>在初始化函数中实现功能</li>
+            <li>注册钩子处理器扩展行为</li>
+            <li>添加新的态射方法</li>
+        </ol>
+        
+        <h3>5.3 扩展示例</h3>
+        <div class="example">
+            <pre><code>// 日志扩展示例
+const 日志扩展 = 创建扩展定义({
+  ID: '日志扩展',
+  描述: '记录串链器操作',
+  初始化: (扩展管理器, 定义接口) => {
+    // 注册钩子处理器
+    扩展管理器.注册扩展处理器('日志扩展', '态射执行前', 
+      (态射名, 当前值, 参数) => {
+        console.log(`开始执行: ${态射名}`);
+        return { 态射名, 当前值, 参数 };
+      }
+    );
+    
+    扩展管理器.注册扩展处理器('日志扩展', '态射执行后', 
+      (态射名, 执行结果) => {
+        console.log(`执行完成: ${态射名}, 结果:`, 执行结果);
+        return 执行结果;
+      }
+    );
+    
+    // 添加日志相关态射
+    定义接口
+      .记录(值 => {
+        console.log('当前值:', 值);
+        return 值;
+      })
+      .$方法()
+      .调试信息(值 => {
+        console.dir(值, { depth: null });
+        return 值;
+      })
+      .方法$();
+  }
+});</code></pre>
+        </div>
+    </section>
+
+    <section id="examples">
+        <h2>6. 示例代码</h2>
+        
+        <h3>6.1 基础数据处理</h3>
+        <div class="example">
+            <pre><code>const 数组处理 = 创建串链器();
+
+数组处理
+  .过滤((数组, 条件) => 数组.filter(条件))
+  .映射((数组, 变换) => 数组.map(变换))
+  .归约((数组, 归约函数, 初始值) => 数组.reduce(归约函数, 初始值))
+  .排序((数组, 比较函数) => [...数组].sort(比较函数))
+  .连接((数组, 其他数组) => 数组.concat(其他数组));
+
+// 使用示例
+const 数据 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const 结果 = 数组处理(数据)
+  .过滤(数字 => 数字 % 2 === 0)
+  .映射(数字 => 数字 * 2)
+  .排序((a, b) => b - a)
+  .值;  // [20, 16, 12, 8, 4]</code></pre>
+        </div>
+        
+        <h3>6.2 异步操作</h3>
+        <div class="example">
+            <pre><code>// 假设已安装了异步扩展
+const 异步处理 = 创建串链器();
+
+异步处理
+  .延迟((值, 毫秒 = 1000) => 
+    new Promise(resolve => setTimeout(() => resolve(值), 毫秒))
+  )
+  .获取数据(async (参数) => {
+    const 响应 = await fetch(`https://api.example.com/data?id=${参数}`);
+    return await 响应.json();
+  })
+  .处理结果(数据 => ({
+    状态: '成功',
+    数据: 数据,
+    时间戳: Date.now()
+  }));
+
+// 使用示例
+异步处理(123)
+  .延迟(2000)
+  .获取数据()
+  .处理结果()
+  .then(结果 => {
+    console.log(结果);
+  });</code></pre>
+        </div>
+        
+        <h3>6.3 构建DSL</h3>
+        <div class="example">
+            <pre><code>const SQL构建器 = 创建串链器();
+
+SQL构建器
+  .命名空间('查询')
+    .SELECT((上下文, 字段列表 = '*') => ({
+      ...上下文,
+      类型: 'SELECT',
+      字段列表
+    }))
+    .FROM((上下文, 表名) => ({
+      ...上下文,
+      表名
+    }))
+    .WHERE((上下文, 条件) => ({
+      ...上下文,
+      条件: 条件
+    }))
+    .ORDER_BY((上下文, 排序字段, 排序方向 = 'ASC') => ({
+      ...上下文,
+      排序: { 字段: 排序字段, 方向: 排序方向 }
+    }))
+    .LIMIT((上下文, 限制数) => ({
+      ...上下文,
+      限制: 限制数
+    }))
+  .退出命名空间()
+  .$方法()
+  .生成SQL(查询配置 => {
+    let sql = `SELECT ${查询配置.字段列表} FROM ${查询配置.表名}`;
+    
+    if (查询配置.条件) {
+      sql += ` WHERE ${查询配置.条件}`;
+    }
+    
+    if (查询配置.排序) {
+      sql += ` ORDER BY ${查询配置.排序.字段} ${查询配置.排序.方向}`;
+    }
+    
+    if (查询配置.限制) {
+      sql += ` LIMIT ${查询配置.限制}`;
+    }
+    
+    return sql;
+  })
+  .方法$();
+
+// 使用示例
+const sql = SQL构建器({})
+  .使用命名空间('查询')
+    .SELECT('id, name, email')
+    .FROM('users')
+    .WHERE('status = "active"')
+    .ORDER_BY('created_at', 'DESC')
+    .LIMIT(10)
+  .退出命名空间()
+  .生成SQL();
+
+console.log(sql);
+// 输出: SELECT id, name, email FROM users WHERE status = "active" ORDER BY created_at DESC LIMIT 10</code></pre>
+        </div>
+    </section>
+
+    <section id="best-practices">
+        <h2>7. 最佳实践</h2>
+        
+        <h3>7.1 设计原则</h3>
+        <ul>
+            <li><strong>保持简单</strong>：每个态射应该专注于单一功能</li>
+            <li><strong>命名一致</strong>：为态射选择描述性且一致的命名</li>
+            <li><strong>函数式设计</strong>：尽量使用纯函数，避免副作用</li>
+            <li><strong>灵活匹配</strong>：使用匹配器增强态射的适用性</li>
+        </ul>
+        
+        <h3>7.2 性能考虑</h3>
+        <ul>
+            <li>对于大量数据，尽量降低中间态射的数量</li>
+            <li>合理使用命名空间避免搜索开销</li>
+            <li>考虑使用缓存扩展对重复计算进行优化</li>
+        </ul>
+        
+        <h3>7.3 调试技巧</h3>
+        <ul>
+            <li>使用日志扩展跟踪链式调用</li>
+            <li>使用中间的<code>.值</code>检查处理过程</li>
+            <li>为复杂链路添加适当的错误处理</li>
+        </ul>
+        
+        <div class="note">
+            <p><strong>提示：</strong>使用串链器构建复杂系统时，考虑将相关功能组织到命名空间中，并使用适当的扩展来增强系统的能力。</p>
+        </div>
+    </section>
+    
+    <section id="advanced-features">
+        <h2>8. 高级功能</h2>
+        
+        <h3>8.1 自然变换</h3>
+        <div class="api-section">
+            <p class="api-name">自然变换</p>
+            <p class="api-signature">链._(目标上下文, 目标名称, 变换实现, 匹配器);</p>
+            <p>在不同串链器上下文间创建转换桥梁，实现函数式编程中的自然变换概念。</p>
+            <p><strong>参数：</strong></p>
+            <ul>
+                <li><code>目标上下文</code> - 目标串链器</li>
+                <li><code>目标名称</code> - 变换名称</li>
+                <li><code>变换实现</code> - 转换函数</li>
+                <li><code>匹配器</code> (可选) - 参数匹配函数</li>
+            </ul>
+            <p><strong>返回：</strong> 定义接口</p>
+            <p><strong>示例：</strong></p>
+            <pre><code>// 定义两个串链器
+const 数字链 = 创建串链器();
+const 字符串链 = 创建串链器();
+
+// 在数字链上定义方法
+数字链.加(数值 => 数值 + 1);
+
+// 在字符串链上定义方法
+字符串链.附加((字符串, 后缀) => 字符串 + 后缀);
+
+// 创建从数字链到字符串链的自然变换
+数字链._(字符串链, '转字符串', 数值 => String(数值));
+
+// 使用自然变换
+const 结果 = 数字链(42)
+  .加()
+  ._转字符串_()
+  .附加('!')
+  .值;  // 结果: "43!"</code></pre>
+        </div>
+        
+        <h3>8.2 钩子系统详解</h3>
+        <p>串链器的钩子系统允许扩展在关键点插入自定义逻辑，而不需要修改核心代码。</p>
+        
+        <div class="api-section">
+            <p class="api-name">钩子执行流程</p>
+            <p>当触发钩子时，系统按以下流程处理：</p>
+            <ol>
+                <li>执行钩子的默认处理器</li>
+                <li>按注册顺序串联执行所有扩展处理器</li>
+                <li>返回最终处理结果</li>
+            </ol>
+            <p><strong>钩子处理器签名：</strong></p>
+            <pre><code>// 一般钩子处理器格式
+(当前值, 上下文, ...额外参数) => 处理结果
+
+// 例如：态射执行前钩子
+(态射名, 当前值, 参数) => ({ 态射名, 当前值, 参数 })</code></pre>
+        </div>
+        
+        <div class="api-section">
+            <p class="api-name">自定义钩子点</p>
+            <p>除了系统内置的钩子点外，扩展可以注册自定义钩子点。</p>
+            <p><strong>示例：</strong></p>
+            <pre><code>// 在扩展初始化中：
+扩展管理器.注册钩子点('自定义钩子', 默认处理器);
+
+// 注册自定义钩子处理器
+扩展管理器.注册扩展处理器('我的扩展', '自定义钩子', 
+  (值, 上下文) => {
+    // 自定义处理逻辑
+    return 处理后的值;
+  }
+);
+
+// 执行自定义钩子
+扩展管理器.执行钩子('自定义钩子', 初始值, 上下文参数);</code></pre>
+        </div>
+        
+        <div class="api-section">
+            <p class="api-name">修改钩子行为</p>
+            <p class="api-signature">扩展管理器.修改钩子(钩子名称, 处理器);</p>
+            <p>动态添加或修改钩子处理逻辑。</p>
+            <p><strong>参数：</strong></p>
+            <ul>
+                <li><code>钩子名称</code> - 要修改的钩子点名称</li>
+                <li><code>处理器</code> - 新的处理器函数</li>
+            </ul>
+            <p><strong>示例：</strong></p>
+            <pre><code>// 添加全局日志功能
+扩展管理器.修改钩子('态射执行前', (原始结果) => {
+  console.log(`执行态射: ${原始结果.态射名}`);
+  return 原始结果;
+});</code></pre>
+        </div>
+        
+        <h3>8.3 条件分支高级用法</h3>
+        <div class="example">
+            <pre><code>const 数据处理器 = 创建串链器();
+
+// 设置自定义分支路径选择器
+数据处理器.分支路径选择 = 值 => {
+  if (Array.isArray(值)) return '数组';
+  if (typeof 值 === 'object' && 值 !== null) return '对象';
+  if (typeof 值 === 'string') return '字符串';
+  if (typeof 值 === 'number') return '数字';
+  return '默认';
+};
+
+数据处理器
+  .处理数组(数组 => 数组.length)
+  .处理对象(对象 => Object.keys(对象).length)
+  .处理字符串(字符串 => 字符串.toUpperCase())
+  .处理数字(数字 => 数字 * 2)
+  .处理其他(值 => `未知类型: ${typeof 值}`);
+
+// 使用对象形式的分支条件
+const 结果1 = 数据处理器([1, 2, 3])
+  .分支({
+    '数组': 处理 => 处理.处理数组(),
+    '对象': 处理 => 处理.处理对象(),
+    '字符串': 处理 => 处理.处理字符串(),
+    '数字': 处理 => 处理.处理数字(),
+    '默认': 处理 => 处理.处理其他()
+  })
+  .值;  // 结果: 3</code></pre>
+        </div>
+        
+        <h3>8.4 内置类型支持</h3>
+        <p>串链器支持原生值和对象的方法调用，使得链式调用可以无缝使用内置方法。</p>
+        <div class="example">
+            <pre><code>const 字符串链 = 创建串链器();
+
+字符串链.大写(字符串 => 字符串.toUpperCase());
+
+// 混合使用自定义态射和内置方法
+const 结果 = 字符串链("hello")
+  .大写()          // 自定义态射
+  .concat(" world") // 原生String.prototype.concat方法
+  .replace("O", "o") // 原生String.prototype.replace方法
+  .值;  // 结果: "HELLO world"</code></pre>
+        </div>
+    </section>
+
+    <section id="extension-implementation">
+        <h2>9. 扩展实现指南</h2>
+        
+        <h3>9.1 异步扩展实现</h3>
+        <p>下面展示如何实现一个完整的异步支持扩展：</p>
+        <div class="example">
+            <pre><code>const 异步扩展 = 创建扩展定义({
+  ID: '异步支持',
+  版本: '1.0.0',
+  描述: '为串链器添加完整的异步操作支持',
+  初始化: (扩展管理器, 定义接口) => {
+    // 添加异步流程控制方法
+    定义接口
+      .等待(async (值, 毫秒 = 0) => {
+        await new Promise(resolve => setTimeout(resolve, 毫秒));
+        return 值;
+      })
+      .全部执行(async (值, 任务数组) => {
+        if (!Array.isArray(任务数组)) {
+          throw new Error('任务必须是数组');
+        }
+        const 异步执行函数 = [];
+        for (const 任务 of 任务数组) {
+          异步执行函数.push(typeof 任务 === 'function' ? 任务(值) : 任务);
+        }
+        return await Promise.all(异步执行函数);
+      })
+      .顺序执行(async (初始值, 任务数组) => {
+        if (!Array.isArray(任务数组)) {
+          throw new Error('任务必须是数组');
+        }
+        let 当前值 = 初始值;
+        for (const 任务 of 任务数组) {
+          当前值 = await (typeof 任务 === 'function' ? 任务(当前值) : 任务);
+        }
+        return 当前值;
+      })
+      .捕获错误((值, 处理函数) => {
+        return Promise.resolve(值).catch(错误 => {
+          return 处理函数(错误, 值);
+        });
+      });
+      
+    // 修改态射执行前钩子，支持async/await上下文传递
+    扩展管理器.注册扩展处理器('异步支持', '态射执行前', 
+      (态射名, 当前值, 参数) => {
+        // 如果当前值是Promise，等待其解析
+        if (当前值 && typeof 当前值.then === 'function') {
+          return {
+            态射名,
+            当前值: 当前值.then(解析值 => 解析值),
+            参数
+          };
+        }
+        return { 态射名, 当前值, 参数 };
+      }
+    );
+  }
+});
+
+// 使用异步扩展
+const 异步链 = 创建串链器();
+异步链.扩展.安装(异步扩展);
+
+// 定义异步方法
+异步链
+  .获取数据(async (url) => {
+    const 响应 = await fetch(url);
+    return await 响应.json();
+  })
+  .处理结果(数据 => {
+    return { 
+      成功: true, 
+      数据: 数据.map(项 => 项.name) 
+    };
+  });
+
+// 异步使用示例
+异步链('https://api.example.com/users')
+  .获取数据()
+  .等待(1000)  // 等待1秒
+  .处理结果()
+  .捕获错误((err, 原始值) => {
+    console.error('出错了:', err);
+    return { 成功: false, 错误: err.message, 原始值 };
+  })
+  .then(结果 => {
+    console.log('最终结果:', 结果);
+  });</code></pre>
+        </div>
+        
+        <h3>9.2 日志与调试扩展</h3>
+        <div class="example">
+            <pre><code>const 日志扩展 = 创建扩展定义({
+  ID: '日志工具',
+  描述: '增强串链器的日志与调试能力',
+  初始化: (扩展管理器, 定义接口) => {
+    // 添加日志与调试方法
+    定义接口
+      .$方法()
+      .日志((值, 标签 = '日志') => {
+        console.log(`[${标签}]`, 值);
+        return 值;
+      })
+      .调试((值, 配置 = {}) => {
+        const 选项 = {
+          深度: null,
+          颜色: true,
+          ...配置
+        };
+        console.dir(值, 选项);
+        return 值;
+      })
+      .计时开始((值, 标签 = '默认') => {
+        console.time(标签);
+        return 值;
+      })
+      .计时结束((值, 标签 = '默认') => {
+        console.timeEnd(标签);
+        return 值;
+      })
+      .跟踪((值, 消息 = '跟踪点') => {
+        console.trace(消息);
+        return 值;
+      })
+      .方法$();
+    
+    // 注册全局态射执行跟踪
+    扩展管理器.注册扩展处理器('日志工具', '态射执行前',
+      (态射名, 当前值, 参数) => {
+        if (定义接口.配置?.详细日志) {
+          console.log(`执行态射: ${态射名}`);
+          console.log(`当前值:`, 当前值);
+          if (参数.length > 0) {
+            console.log(`参数:`, 参数);
+          }
+        }
+        return { 态射名, 当前值, 参数 };
+      }
+    );
+    
+    // 允许开关日志功能的配置接口
+    定义接口.配置 = {
+      详细日志: false,
+      跟踪所有态射: false
+    };
+  }
+});</code></pre>
+        </div>
+        
+        <h3>9.3 状态与持久化扩展</h3>
+        <div class="example">
+            <pre><code>const 状态扩展 = 创建扩展定义({
+  ID: '状态管理',
+  描述: '为串链器添加状态管理和持久化能力',
+  初始化: (扩展管理器, 定义接口) => {
+    // 内部状态存储
+    const 状态存储 = new Map();
+    
+    // 添加状态管理方法
+    定义接口
+      .$方法()
+      .保存状态((值, 键 = '默认') => {
+        状态存储.set(键, 值);
+        return 值;
+      })
+      .获取状态((_, 键 = '默认') => {
+        if (!状态存储.has(键)) {
+          throw new Error(`未找到状态键: ${键}`);
+        }
+        return 状态存储.get(键);
+      })
+      .方法$()
+      .清除状态((值, 键) => {
+        if (键) {
+          状态存储.delete(键);
+        } else {
+          状态存储.clear();
+        }
+        return 值;
+      })
+      .列出状态(值 => {
+        return {
+          原始值: 值,
+          状态列表: Array.from(状态存储.keys())
+        };
+      })
+      .$方法()
+      .序列化((值, 选项 = {}) => {
+        const 序列化数据 = {
+          当前值: 值,
+          状态: Object.fromEntries(状态存储)
+        };
+        
+        if (选项.格式 === 'string') {
+          return JSON.stringify(序列化数据);
+        }
+        return 序列化数据;
+      })
+      .反序列化((_, 数据, 选项 = {}) => {
+        let 解析数据;
+        
+        if (typeof 数据 === 'string') {
+          解析数据 = JSON.parse(数据);
+        } else {
+          解析数据 = 数据;
+        }
+        
+        // 恢复状态存储
+        状态存储.clear();
+        if (解析数据.状态) {
+          Object.entries(解析数据.状态).forEach(([键, 值]) => {
+            状态存储.set(键, 值);
+          });
+        }
+        
+        return 解析数据.当前值;
+      })
+      .方法$();
+  }
+});</code></pre>
+        </div>
+    </section>
+
+    <section id="performance-tips">
+        <h2>10. 性能优化指南</h2>
+        
+        <h3>10.1 减少中间态射</h3>
+        <p>每个态射调用都会创建新的代理对象，对于大量数据处理应减少不必要的中间态射。</p>
+        <div class="example">
+            <pre><code>// 低效方式
+const 结果 = 数组链([1, 2, 3, 4, 5])
+  .过滤(项 => 项 % 2 === 0)
+  .映射(项 => 项 * 2)
+  .排序((a, b) => a - b)
+  .值;
+
+// 高效方式
+const 结果 = 数组链([1, 2, 3, 4, 5])
+  .批处理(数组 => {
+    return 数组
+      .filter(项 => 项 % 2 === 0)
+      .map(项 => 项 * 2)
+      .sort((a, b) => a - b);
+  })
+  .值;</code></pre>
+        </div>
+        
+        <h3>10.2 态射缓存</h3>
+        <p>对于复杂计算可以实现缓存扩展避免重复计算。</p>
+        <div class="example">
+            <pre><code>const 缓存扩展 = 创建扩展定义({
+  ID: '计算缓存',
+  初始化: (扩展管理器, 定义接口) => {
+    const 缓存 = new Map();
+    
+    // 添加缓存控制接口
+    定义接口
+      .启用缓存((值, 选项 = {}) => {
+        return { ...值, __启用缓存: true, __缓存选项: 选项 };
+      })
+      .禁用缓存(值 => {
+        const 新值 = { ...值 };
+        delete 新值.__启用缓存;
+        delete 新值.__缓存选项;
+        return 新值;
+      });
+    
+    // 增加态射缓存支持
+    扩展管理器.注册扩展处理器('计算缓存', '态射执行前',
+      (态射名, 当前值, 参数) => {
+        if (当前值?.__启用缓存) {
+          const 缓存键 = JSON.stringify({ 态射名, 当前值, 参数 });
+          if (缓存.has(缓存键)) {
+            console.log(`[缓存] 命中: ${态射名}`);
+            return { 
+              态射名,
+              当前值: 缓存.get(缓存键),
+              参数,
+              __跳过执行: true
+            };
+          }
+        }
+        return { 态射名, 当前值, 参数 };
+      }
+    );
+    
+    扩展管理器.注册扩展处理器('计算缓存', '态射执行后',
+      (态射名, 执行结果, 原始值) => {
+        if (原始值?.__启用缓存 && !原始值?.__跳过执行) {
+          const 缓存键 = JSON.stringify({ 态射名, 当前值: 原始值, 参数: [] });
+          缓存.set(缓存键, 执行结果);
+        }
+        return 执行结果;
+      }
+    );
+  }
+});</code></pre>
+        </div>
+        
+        <h3>10.3 延迟求值</h3>
+        <p>在处理大量数据时，可以使用延迟求值技术推迟计算。</p>
+        <div class="example">
+            <pre><code>const 延迟求值扩展 = 创建扩展定义({
+  ID: '延迟求值',
+  初始化: (扩展管理器, 定义接口) => {
+    // 添加延迟求值支持
+    定义接口
+      .$方法()
+      .延迟((初始数据) => {
+        return {
+          __延迟: true,
+          __数据: 初始数据,
+          __操作: []
+        };
+      })
+      .方法$()
+      .添加操作((延迟对象, 操作) => {
+        if (!延迟对象.__延迟) {
+          throw new Error('不是有效的延迟对象');
+        }
+        return {
+          ...延迟对象,
+          __操作: [...延迟对象.__操作, 操作]
+        };
+      })
+      .$方法()
+      .强制求值((延迟对象) => {
+        if (!延迟对象.__延迟) {
+          return 延迟对象;
+        }
+        
+        let 结果 = 延迟对象.__数据;
+        for (const 操作 of 延迟对象.__操作) {
+          结果 = 操作(结果);
+        }
+        return 结果;
+      })
+      .方法$();
+  }
+});</code></pre>
+        </div>
+    </section>
+    
+    <footer style="margin-top: 50px; text-align: center; color: #777; border-top: 1px solid #eee; padding-top: 20px;">
+        <p>串链器系统文档 &copy; 2023</p>
+    </footer>
+</body>
+</html>
