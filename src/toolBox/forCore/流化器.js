@@ -6,17 +6,28 @@
  * @returns {Function|null} - 处理函数或null
  */
 const 处理Promise方法 = (属性, 接收者, 当前Promise) => {
+  // 处理Promise.prototype方法
   if (属性 === 'then') {
-    return (解决函数, 拒绝函数) => 当前Promise.then(
-      (值) => 解决函数 ? 解决函数(值) : 值,
-      拒绝函数
-    );
+    return (解决函数, 拒绝函数) => {
+      // 确保返回值被正确流化
+      return 流化(当前Promise.then(
+        解决函数 ? 值 => Promise.resolve(解决函数(值)) : 值 => 值,
+        拒绝函数 ? 错误 => Promise.reject(拒绝函数(错误)) : 错误 => Promise.reject(错误)
+      ));
+    };
   }
   
-  if (属性 === 'catch' || 属性 === 'finally') {
+  if (属性 === 'catch') {
+    return (拒绝函数) => {
+      return 流化(当前Promise.catch(
+        拒绝函数 ? 错误 => Promise.resolve(拒绝函数(错误)) : 错误 => Promise.reject(错误)
+      ));
+    };
+  }
+  
+  if (属性 === 'finally') {
     return (回调函数) => {
-      // 更新当前Promise并创建新的链化对象
-      return 链化(当前Promise[属性](回调函数));
+      return 流化(当前Promise.finally(回调函数));
     };
   }
   
@@ -32,16 +43,16 @@ const 处理Promise方法 = (属性, 接收者, 当前Promise) => {
 };
 
 /**
- * 创建代理对象
+ * 创建流式转换的代理对象
  * @param {Promise} 当前Promise - 当前Promise状态
  * @returns {Proxy} - 代理对象
  */
-const 创建代理 = (当前Promise) => {
+const 创建流化代理 = (当前Promise) => {
   return new Proxy(function(){}, {
     // 处理函数调用
     apply(目标, 上下文, 参数) {
       // 当代理被作为函数调用时，直接返回Promise的值
-      return 链化(当前Promise);
+      return 流化(当前Promise);
     },
     
     // 处理属性访问
@@ -57,6 +68,11 @@ const 创建代理 = (当前Promise) => {
             // 如果当前值是数组且包含Promise，先解析它们
             if (Array.isArray(当前值) && 当前值.some(项 => 项 instanceof Promise)) {
               当前值 = await Promise.all(当前值);
+            }
+            
+            // 如果当前值是Promise，解析它
+            if (当前值 instanceof Promise) {
+              当前值 = await 当前值;
             }
             
             // 如果尝试访问不存在的属性或方法
@@ -94,23 +110,22 @@ const 创建代理 = (当前Promise) => {
           }
         });
         
-        // 递归链化结果
-        return 链化(新Promise);
+        // 递归流化结果
+        return 创建流化代理(新Promise);
       };
     }
   });
 };
 
 /**
- * 链化器 - 将任何对象或值转换为支持链式调用的代理
- * @param {any} 目标 - 要链化的目标
- * @returns {Proxy} - 返回链化后的代理
+ * 流化器 - 将值转换为支持流式调用的代理（自动切换上下文）
+ * @param {any} 目标 - 要流化的目标
+ * @returns {Proxy} - 返回流化后的代理
  */
-export function 链化(目标) {
+export function 流化(目标) {
   // 如果已经是Promise，直接使用
   const 当前Promise = 目标 instanceof Promise ? 目标 : Promise.resolve(目标);
   
   // 创建并返回代理
-  return 创建代理(当前Promise);
-}
-
+  return 创建流化代理(当前Promise);
+} 
