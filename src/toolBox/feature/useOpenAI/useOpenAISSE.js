@@ -1,6 +1,5 @@
-import { 分割缓冲区, 解析SSE事件 } from '../../../../utils/netWork/sse.js'
-import { 标准化openAI兼容配置  } from './openAIUtils.js'
-
+import { 分割缓冲区, 解析SSE事件 } from '../../base/forNetWork/forSSE.js'
+import { 标准化openAI兼容配置 } from './forOpenAIConfig.js'
 
 
 export class AISSEProvider {
@@ -15,75 +14,88 @@ export class AISSEProvider {
     const msgId = `chatcmpl-${Date.now()}`
     let response
     let reader = null
-    const CHUNK_DELIMITER = '\n\n'
-    const TEXT_DECODER = new TextDecoder()
     
     try {
-      response = await fetch(this.config.endpoint, {
-        method: 'POST',
-        headers: this.config.headers,
-        body: JSON.stringify({
-          model: this.config.model,
-          messages,
-          temperature: this.config.temperature,
-          max_tokens: this.config.max_tokens,
-          stream: true
-        }),
-        signal: this.abortController.signal
-      })
-
-      if (!response.ok) {
-        const errorBody = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorBody.slice(0, 200)}`)
-      }
-
-      reader = response.body.getReader()
-      let buffer = ''
-      let pendingYield = Promise.resolve()
-
-      do {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += TEXT_DECODER.decode(value, { stream: true })
-        
-        // 高效分割处理块
-        let chunks
-        [chunks, buffer] = 分割缓冲区(buffer, CHUNK_DELIMITER)
-
-        // 批量处理避免频繁yield
-        const events = []
-        for (const chunk of chunks) {
-          if (chunk.startsWith('data: ')) {
-            const event = this._processChunk(chunk, msgId)
-            event && events.push(event)
-          }
-        }
-
-        // 批量yield并添加调度间隙
-        if (events.length) {
-          await pendingYield
-          for (const event of events) {
-            yield event
-            pendingYield = new Promise(resolve => 
-              setTimeout(resolve, this.config.chunkInterval || 0)
-            )
-          }
-        }
-      } while (true)
-
-      // 处理最终残留数据
-      if (buffer) {
-        const event = this._processChunk(buffer, msgId)
-        event && (yield event)
-      }
-
+      [response, reader] = await this._发送请求(messages)
+      yield* this._处理响应流(reader, msgId)
     } catch (e) {
       yield this._generateErrorEvent(e, msgId)
       throw e
     } finally {
       reader?.releaseLock()
     }
+  }
+
+  async _发送请求(messages) {
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: this.config.headers,
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: this.config.temperature,
+        max_tokens: this.config.max_tokens,
+        stream: true
+      }),
+      signal: this.abortController.signal
+    })
+
+    if (!response.ok) {
+      const errorBody = await response.text()
+      throw new Error(`HTTP ${response.status}: ${errorBody.slice(0, 200)}`)
+    }
+
+    const reader = response.body.getReader()
+    return [response, reader]
+  }
+
+  async *_处理响应流(reader, msgId) {
+    const CHUNK_DELIMITER = '\n\n'
+    const TEXT_DECODER = new TextDecoder()
+    let buffer = ''
+    let pendingYield = Promise.resolve()
+
+    do {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += TEXT_DECODER.decode(value, { stream: true })
+      
+      // 高效分割处理块
+      let chunks
+      [chunks, buffer] = 分割缓冲区(buffer, CHUNK_DELIMITER)
+
+      // 批量处理并生成事件
+      const events = this._批量处理数据块(chunks, msgId)
+
+      // 批量yield并添加调度间隙
+      if (events.length) {
+        await pendingYield
+        for (const event of events) {
+          yield event
+          pendingYield = new Promise(resolve => 
+            setTimeout(resolve, this.config.chunkInterval || 0)
+          )
+        }
+      }
+    } while (true)
+
+    // 处理最终残留数据
+    if (buffer) {
+      const event = this._processChunk(buffer, msgId)
+      event && (yield event)
+    }
+  }
+
+  _批量处理数据块(chunks, msgId) {
+    const events = []
+    for (const chunk of chunks) {
+      if (chunk.startsWith('data: ')) {
+        const event = this._processChunk(chunk, msgId)
+        event && events.push(event)
+      }
+    }
+    return events
   }
 
   _processChunk(chunk, msgId) {
@@ -101,60 +113,75 @@ export class AISSEProvider {
       system_fingerprint: 'ai_service_1'
     }
 
-    // 优化DeepSeek响应格式适配
+    // 使用专门函数处理不同类型的响应
     if (data.choices?.[0]?.delta) {
-      const choice = data.choices[0]
-      const formattedChoice = {
-        index: 0,
-        finish_reason: choice.finish_reason
-      }
-
-      console.log('Delta:', choice.delta) // 调试日志
-
-      // 处理 reasoning_content
-      if (choice.delta.reasoning_content !== undefined&&choice.delta.reasoning_content !== null) {
-        // 第一个 reasoning_content 前添加 <think>
-        let content = choice.delta.reasoning_content || ''
-        if (content && !this._hasSeenReasoningContent) {
-          content = `<think>${content}`
-          this._hasSeenReasoningContent = true
-        }
-        formattedChoice.delta = { content }
-        console.log('Reasoning content:', content) // 调试日志
-      } 
-      // 处理普通 content
-      else if (choice.delta.content !== undefined) {
-        let content = choice.delta.content || ''
-        // 在第一个普通 content 前添加 </think> 和换行
-        if (this._hasSeenReasoningContent) {
-          content = `</think>\n${content}`
-          this._hasSeenReasoningContent = false
-        }
-        formattedChoice.delta = { content }
-        console.log('Normal content:', content) // 调试日志
-      }
-
-      return {
-        ...baseEvent,
-        object: 'chat.completion.chunk',
-        choices: [formattedChoice]
-      }
+      return this._处理增量Delta响应(data, baseEvent)
     }
 
     // 处理其他格式
     if (data.choices) {
-      return {
-        ...baseEvent,
-        object: 'chat.completion.chunk',
-        choices: data.choices.map(choice => ({
-          delta: choice.message ? { content: choice.message.content } : {},
-          index: choice.index || 0,
-          finish_reason: choice.finish_reason
-        }))
-      }
+      return this._处理标准响应(data, baseEvent)
     }
 
     return null
+  }
+
+  _处理增量Delta响应(data, baseEvent) {
+    const choice = data.choices[0]
+    const formattedChoice = {
+      index: 0,
+      finish_reason: choice.finish_reason
+    }
+
+    console.log('Delta:', choice.delta) // 调试日志
+
+    // 处理 reasoning_content
+    if (choice.delta.reasoning_content !== undefined && choice.delta.reasoning_content !== null) {
+      formattedChoice.delta = this._处理思考内容(choice.delta.reasoning_content)
+    } 
+    // 处理普通 content
+    else if (choice.delta.content !== undefined) {
+      formattedChoice.delta = this._处理普通内容(choice.delta.content)
+    }
+
+    return {
+      ...baseEvent,
+      object: 'chat.completion.chunk',
+      choices: [formattedChoice]
+    }
+  }
+
+  _处理思考内容(content) {
+    content = content || ''
+    if (content && !this._hasSeenReasoningContent) {
+      content = `<think>${content}`
+      this._hasSeenReasoningContent = true
+    }
+    console.log('Reasoning content:', content) // 调试日志
+    return { content }
+  }
+
+  _处理普通内容(content) {
+    content = content || ''
+    // 在第一个普通 content 前添加 </think> 和换行
+    if (this._hasSeenReasoningContent) {
+      content = `</think>\n${content}`
+      this._hasSeenReasoningContent = false
+    }
+    console.log('Normal content:', content) // 调试日志
+    return { content }
+  }
+
+  _处理标准响应(data, baseEvent) {
+    return {
+      ...baseEvent,
+      object: 'chat.completion.chunk',
+      choices: data.choices.map(choice => ({
+        delta: choice.message ? { content: choice.message.content } : {},
+        index: choice.index || 0,
+        finish_reason: choice.finish_reason
+      }))
+    }
   }
 
   _generateErrorEvent(error, msgId) {
@@ -252,6 +279,10 @@ export class AISSEConversation {
     this.messages.push({ role: 'user', content: message });
     
     let fullResponse = '';
+    yield* this._处理聊天响应流(fullResponse);
+  }
+
+  async *_处理聊天响应流(fullResponse) {
     for await (const chunk of this.provider.createChatCompletion(this.messages)) {
       if (chunk.error) throw new Error(chunk.error.message);
       
@@ -311,36 +342,42 @@ export class AISSEConversation {
   async *getSSECompletion({ messages }) {
     try {
       this.messages = [...messages];
-      
-      let buffer = [];
-      const flushBuffer = () => {
-        if (buffer.length > 0) {
-          const content = buffer.join('');
-          buffer = [];
-          return { content };
-        }
-        return null;
-      };
-
-      for await (const chunk of this.provider.createChatCompletion(this.messages)) {
-        if (chunk.error) throw new Error(chunk.error.message);
-        
-        const content = chunk.choices[0]?.delta?.content || '';
-        buffer.push(content);
-        
-        if (content.includes('\n') || buffer.length > 3) {
-          const flushed = flushBuffer();
-          if (flushed) yield flushed;
-        }
-      }
-
-      const finalContent = flushBuffer();
-      if (finalContent) yield finalContent;
-
+      yield* this._处理SSE完成流();
     } catch (error) {
       console.error('SSE completion error:', error);
       throw error;
     }
+  }
+
+  async *_处理SSE完成流() {
+    let buffer = [];
+    
+    for await (const chunk of this.provider.createChatCompletion(this.messages)) {
+      if (chunk.error) throw new Error(chunk.error.message);
+      
+      const content = chunk.choices[0]?.delta?.content || '';
+      buffer.push(content);
+      
+      if (content.includes('\n') || buffer.length > 3) {
+        const flushed = this._刷新缓冲区(buffer);
+        buffer = [];
+        if (flushed) yield flushed;
+      }
+    }
+
+    // 处理剩余内容
+    if (buffer.length > 0) {
+      const finalContent = this._刷新缓冲区(buffer);
+      if (finalContent) yield finalContent;
+    }
+  }
+
+  _刷新缓冲区(buffer) {
+    if (buffer.length > 0) {
+      const content = buffer.join('');
+      return { content };
+    }
+    return null;
   }
 }
 

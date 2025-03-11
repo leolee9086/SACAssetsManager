@@ -7,7 +7,6 @@ import { 添加抖动效果到点集 } from './geometryCalculate/path.js';
 import { getPointOnArc } from './geometryCalculate/arc.js';
 import { 计算三次贝塞尔曲线上的点 } from './geometryCalculate/path.js';
 import { calculateArcEndPoints } from './geometryCalculate/arc.js';
-import { 柯里化, 反向柯里化 } from '../../../../utils/functions/currying.js';
 // 配置常量
 const CONFIG = {
     colors: {

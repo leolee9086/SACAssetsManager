@@ -1,5 +1,5 @@
 // 三贤人模拟模块（增强版）
-import { createAISSEProvider, createPromptStreamer } from './openAISSEAPI.js'
+import { createAISSEProvider, createPromptStreamer } from '../../../../../src/toolBox/feature/useOpenAI/useOpenAISSE.js'
 import { 
   MELCHIOR特征集, 
   BALTHAZAR特征集, 
