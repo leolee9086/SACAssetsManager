@@ -10,7 +10,6 @@ export const 创建缩略图生成上下文 = async (imagePath, loaderID = null)
     imagePath = imagePath.replace(/\\/g, '/')
     const extension = getFileExtension(imagePath)
     let useExtension = 是否不需要单独缩略图(extension)
-
     let loader = await getLoader(imagePath, loaderID, 内置缩略图生成器序列)
     if (!loader) {
         loader = await getCommonLoader()

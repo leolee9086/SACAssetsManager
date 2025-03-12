@@ -13,11 +13,11 @@ import { 打开本地资源视图 } from "../tabs/assetsTab.js";
 import { isImage } from "../../../utils/image/isImage.js";
 import { 根据背景色获取黑白前景色 } from "../../../utils/color/processColor.js";
 import { fetchSync } from "../../../utils/netWork/fetchSync.js";
-import { 构建菜单 } from "../../../utils/siyuanUI/menu.js";
-//import { checkClipboardForFilePath } from "../../../utils/browser/clipBoard.js";
+import { 向菜单批量添加项目 } from "../../../utils/siyuanUI/menu.js";
 import { checkClipboardForFilePath } from "../../../../src/toolBox/base/useBrowser/useClipBoard.js";
 import { rgbaArrayToHexString } from "../../../utils/color/colorSpace.js";
 import { h, f } from "../../../utils/DOM/builder.js";
+import { 创建链式思源菜单 } from "../../../../src/toolBox/useAge/forSiyuan/useSiyuanMenu.js";
 const { eventBus } = plugin
 function 添加批处理菜单组(menu, options) {
     const menuItems = [
@@ -36,7 +36,7 @@ function 添加批处理菜单组(menu, options) {
         { action: 文件批处理菜单组.复制文档树结构, separator: true },
         { action: 文件批处理菜单组.批量打包文件 }
     ];
-    构建菜单(menu, menuItems, options);
+    向菜单批量添加项目(menu, menuItems, options);
 }
 function 添加颜色操作菜单(menu, asset) {
     const colorUrl = thumbnail.getColor(asset.type, asset.path, false);
@@ -82,7 +82,7 @@ function 创建颜色菜单项(colorHex, colorInfo) {
                 backgroundColor: colorHex,
                 marginRight: '5px',
                 color: 根据背景色获取黑白前景色(colorHex)
-            },    
+            },
         }, `颜色操作: ${colorHex}`)
     );
 }
@@ -115,7 +115,17 @@ function 添加附件选中信息(menu, assets) {
         }
     )
 }
-
+function 添加移动菜单(menu, assets, event, panelController) {
+    menu.addSeparator();
+    menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
+    menu.addItem(文件移动菜单组.移动到回收站(assets, panelController))
+    menu.addItem(文件移动菜单组.创建文件夹并移动(assets, panelController))
+    文件移动菜单组.移动到最近目录菜单组(assets, event).forEach(
+        item => {
+            menu.addItem(item)
+        }
+    )
+}
 export const 打开附件组菜单 = (event, assets, options) => {
     const { position, panelController } = options
     plugin.附件编辑模式 = plugin.附件编辑模式 || {
@@ -123,9 +133,10 @@ export const 打开附件组菜单 = (event, assets, options) => {
         value: "常规"
     }
     const menu = new clientApi.Menu('sac-galleryitem-menu')
+    const 链式菜单 = 创建链式思源菜单(menu)
     添加附件选中信息(menu, assets)
-    menu.addSeparator()
-    menu.addItem(模式切换菜单项(event, assets, options))
+    链式菜单.addSeparator()
+        .addItem(模式切换菜单项(event, assets, options))
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '批处理') {
         添加批处理菜单组(menu, options)
     }
@@ -137,15 +148,7 @@ export const 打开附件组菜单 = (event, assets, options) => {
         添加插件菜单内容(menu, assets)
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '移动') {
-        menu.addSeparator();
-        menu.addItem(文件移动菜单组.以file链接形式添加到最近笔记本日记(assets))
-        menu.addItem(文件移动菜单组.移动到回收站(assets, panelController))
-        menu.addItem(文件移动菜单组.创建文件夹并移动(assets, panelController))
-        文件移动菜单组.移动到最近目录菜单组(assets, event).forEach(
-            item => {
-                menu.addItem(item)
-            }
-        )
+        添加移动菜单(menu, assets, event, panelController)
     }
     if (plugin.附件编辑模式 && plugin.附件编辑模式.value === '编辑') {
         menu.addSeparator();
@@ -249,29 +252,29 @@ function 添加通用菜单内容(menu, assets) {
         menu.addItem(menuItems.在文件管理器打开附件(assets))
         menu.addItem(menuItems.在新页签打开文件所在路径(assets))
         menu.addItem(menuItems.打开efu文件视图(assets))
-        
+
         // 添加图片预览器菜单项
         if (assets.find(item => isImage(item.path))) {
             menu.addItem({
                 label: "在预览器中打开",
                 click: () => {
                     clientApi.openTab({
-                        app:plugin.app,
-                        custom:{
+                        app: plugin.app,
+                        custom: {
                             icon: "iconImage",
                             title: "图片预览器",
-                            id:plugin.name+'imagePreviewerTab',
+                            id: plugin.name + 'imagePreviewerTab',
                             data: {
                                 text: '图片预览器',
                                 assets: assets
                             }
                         },
-                     
+
                     });
                 }
             });
         }
-        
+
         menu.addSeparator();
         menu.addItem(menuItems.复制文件地址(assets))
         menu.addItem(menuItems.复制文件链接(assets))

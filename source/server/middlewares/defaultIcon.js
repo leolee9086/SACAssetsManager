@@ -1,10 +1,9 @@
-import { sendFileWithCacheSet } from "../handlers/utils/responseType.js"
 import { getCachePath } from "../processors/fs/cached/fs.js"
 import { buildCache } from "../processors/cache/cache.js"
 import { statWithCatch } from "../processors/fs/stat.js"
 import { 获取哈希并写入数据库 } from "../processors/fs/stat.js"
 import { globalTaskQueue } from "./runtime_queue.js"
-import { 生成缩略图 } from "../processors/thumbnail/loader.js"
+import { 生成文件缩略图 } from "../processors/thumbnail/loader.js"
 export const sendDefaultIcon = (req, res) => {
     const iconPath = process.execPath.replace('SiYuan.exe', 'resources\\stage\\icon-large.png')
     res.sendFile(iconPath)
@@ -71,7 +70,7 @@ export async function genThumbnail(req, res, next) {
     let result = null
     let type = null
     try {
-        result = await 生成缩略图(源文件地址, loaderID)
+        result = await 生成文件缩略图(源文件地址, loaderID)
         if (result) {
             type = result.type
             if (type) {

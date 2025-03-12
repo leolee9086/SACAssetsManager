@@ -235,3 +235,54 @@ export function 移除插件事件总线监听(插件, 事件名称, 事件细�
     事件总线.off(事件类型, 事件细节);
     return true;
 }
+
+
+
+/**
+ * 用于封装思源的原生菜单为可链式调用
+ */
+export const 创建链式思源菜单 = (思源原生菜单实例) => {
+    return {
+        addItem: (菜单项) => {
+            思源原生菜单实例.addItem(菜单项)
+            return 思源原生菜单实例
+        },
+        addSeparator: () => {
+               思源原生菜单实例.addSeparator()
+            return 思源原生菜单实例
+        },
+     
+    }
+}
+
+
+/**
+ * 通用菜单构建函数
+ * @param {Menu} menu - 菜单对象
+ * @param {Array<{
+*   action: Function,
+*   separator?: boolean,
+*   args?: Array<any>
+* }>} menuItems - 菜单项配置数组
+* @param {Object} args - 传递给菜单项action的参数
+*/
+export function 向菜单批量添加项目(menu, menuItems, args = {}) {
+   menuItems.forEach(item => {
+       if (item.separator) {
+           menu.addSeparator();
+       }
+       menu.addItem(item.action(args, ...(item.args || [])));
+   });
+}
+
+/**
+ * 用于创建并打开思源的原生菜单
+ */
+export const 创建并打开思源原生菜单 = (思源前端API,menuId,position,菜单构建函数)=>{
+    const 菜单 = new 思源前端API.Menu(menuId)
+    菜单构建函数(菜单)
+    菜单.open(position)
+    document.addEventListener('mousedown', () => { 菜单.close }, { once: true });
+    return 菜单
+}
+

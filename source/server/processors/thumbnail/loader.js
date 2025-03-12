@@ -41,7 +41,7 @@ async function 执行带队列控制的任务(task) {
     }
 }
 
-export const 生成缩略图 = async (imagePath, loaderID = null) => {
+export const 生成文件缩略图 = async (imagePath, loaderID = null) => {
     const ctx = await 创建缩略图生成上下文(imagePath, loaderID)
     return 执行带队列控制的任务(async () => {
         const cacheResult = await 从缓存获取缩略图(ctx)
@@ -93,7 +93,7 @@ export const 准备缩略图 = async (imagePath, loaderID = null) => {
     添加后进先出后台任务(缩略图任务函数)
 }
 export async function genThumbnailColor(filePath, loaderID = null) {
-    const thumbnailBuffer = await 生成缩略图(filePath, loaderID)
+    const thumbnailBuffer = await 生成文件缩略图(filePath, loaderID)
     if (!thumbnailBuffer) {
         return null
     }
