@@ -7,7 +7,7 @@ const clientApi = require("siyuan");
  * 将api暴露到全局空间
  */
 let eventBus
-globalThis[Symbol.for(`clientApi`)] = globalThis[Symbol.for(`clientApi`)] || clientApi
+globalThis[Symbol.for(`siyuanClientApi`)] = globalThis[Symbol.for(`siyuanClientApi`)] || clientApi
 
 function 同步获取文件夹列表(路径) {
   const xhr = new XMLHttpRequest();

@@ -1,3 +1,9 @@
+export const checkClipboardForFilePath = async () => {
+    const text = await readFromClipboard()
+    const lines = text.split('\n')
+    const filePaths = lines.filter(line => line.trim().startsWith('file://'))
+    return filePaths
+}
 /**
  * 从剪贴板读取文本内容，并根据指定的选项处理和筛选数据
  * 
@@ -25,7 +31,7 @@
  *   dataType: 'url'
  * });
  */
-export const checkClipboardForRegex = async (options = {}) => {
+ const checkClipboardForRegex = async (options = {}) => {
     const defaultOptions = {
         regex: /./g,
         trim: true,

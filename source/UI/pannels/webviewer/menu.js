@@ -2,7 +2,7 @@ import { clientApi, plugin } from '../../../asyncModules.js';
 import { showStreamingChatDialog } from '../../dialogs/streamingChatDialog.js'
 import { 刷新页面菜单项 } from './menuItems/main.js';
 import { 提取店铺信息菜单项, 查找五家推荐店铺菜单项 } from './menuItems/大众点评专属.js';
-import { 创建网页浏览器上下文 } from './webviewContext/index.js';
+import {创建网页浏览器上下文} from '../../../../src/toolBox/useAge/forWebviewContextMenu.js'
 const remote = require('@electron/remote')
 const 实例化网页electron菜单项 = (网页浏览器上下文, 原始菜单项) => {
   return new remote.MenuItem({
@@ -16,40 +16,7 @@ const 实例化网页electron菜单项 = (网页浏览器上下文, 原始菜单
     }
   })
 }
-const 过滤网页electron菜单项 = async (菜单项数组, 网页浏览器上下文) => {
-  const 超时时间 = 10; // 设置100ms的超时时间
-  
-  const 过滤单个菜单项 = async (菜单项) => {
-    // 如果没有filter函数，默认显示
-    if (!菜单项.filter) return true;
 
-    try {
-      // 创建一个Promise，包含超时控制
-      const 结果 = await Promise.race([
-        // 将同步函数也封装为异步函数
-        Promise.resolve().then(() => 菜单项.filter(网页浏览器上下文)),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('过滤函数执行超时')), 超时时间)
-        )
-      ]);
-      
-      return 结果;
-    } catch (错误) {
-      console.warn(`菜单项 "${菜单项.label}" 的过滤函数执行失败: ${错误.message}`);
-      return false; // 发生错误时不显示该菜单项
-    }
-  };
-
-  const 过滤后的菜单项 = await Promise.all(
-    菜单项数组.map(async (菜单项) => {
-      const 应该显示 = await 过滤单个菜单项(菜单项);
-      return 应该显示 ? 菜单项 : null;
-    })
-  );
-
-  // 移除null值并返回结果
-  return 过滤后的菜单项.filter(项 => 项 !== null);
-};
 
 
 

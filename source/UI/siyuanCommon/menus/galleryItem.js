@@ -14,7 +14,8 @@ import { isImage } from "../../../utils/image/isImage.js";
 import { 根据背景色获取黑白前景色 } from "../../../utils/color/processColor.js";
 import { fetchSync } from "../../../utils/netWork/fetchSync.js";
 import { 构建菜单 } from "../../../utils/siyuanUI/menu.js";
-import { checkClipboardForFilePath } from "../../../utils/browser/clipBoard.js";
+//import { checkClipboardForFilePath } from "../../../utils/browser/clipBoard.js";
+import { checkClipboardForFilePath } from "../../../../src/toolBox/base/useBrowser/useClipBoard.js";
 import { rgbaArrayToHexString } from "../../../utils/color/colorSpace.js";
 import { h, f } from "../../../utils/DOM/builder.js";
 const { eventBus } = plugin
