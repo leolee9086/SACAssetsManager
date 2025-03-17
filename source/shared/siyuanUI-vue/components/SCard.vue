@@ -4,7 +4,8 @@
     :class="{
       'b3-card--wrap': wrap,
       'b3-card--current': current,
-      'b3-card--disabled': disabled
+      'b3-card--disabled': disabled,
+      'b3-card--hoverable': hoverable
     }"
   >
     <div v-if="$slots.image" class="b3-card__img">
@@ -32,6 +33,10 @@ defineProps({
     default: false
   },
   disabled: {
+    type: Boolean,
+    default: false
+  },
+  hoverable: {
     type: Boolean,
     default: false
   }

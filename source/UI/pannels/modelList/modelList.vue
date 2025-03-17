@@ -21,32 +21,45 @@
         </span>
       </div>
     </div>
-    <div class="model-card" v-for="model in filteredModels" :key="model.id">
-      <div class="card-header">
+    
+    <SCard 
+      v-for="model in filteredModels" 
+      :key="model.id"
+      class="model-card-container"
+      hoverable
+    >
+      <template #image>
         <div class="model-avatar">
           <img :src="model.avatar" :alt="model.name">
         </div>
+      </template>
+      
+      <div class="card-content">
         <div class="model-info">
           <div class="model-name">{{ model.name }}</div>
           <div class="model-creator">{{ model.creator }} · {{ model.type }}</div>
         </div>
+        <div class="model-description">{{ model.description }}</div>
       </div>
-      <div class="model-description">{{ model.description }}</div>
-      <div class="card-footer">
-        <div class="tags">
-          <span class="tag" v-for="tag in model.tags" :key="tag">{{ tag }}</span>
+      
+      <template #actions>
+        <div class="card-footer">
+          <div class="tags">
+            <span class="tag" v-for="tag in model.tags" :key="tag">{{ tag }}</span>
+          </div>
+          <div class="stats">
+            <span class="stat-item">{{ model.likes }}K</span>
+            <span class="stat-item">{{ model.downloads }}K</span>
+          </div>
         </div>
-        <div class="stats">
-          <span class="stat-item">{{ model.likes }}K</span>
-          <span class="stat-item">{{ model.downloads }}K</span>
-        </div>
-      </div>
-    </div>
+      </template>
+    </SCard>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import SCard from '../../../shared/siyuanUI-vue/components/SCard.vue'
 import { modelList as 硅基流动模型列表 } from '../../../../assets/modelProviders/modelCards/硅基流动.js'
 import { providerList } from '../../../../assets/modelProviders/index.js'
 
@@ -135,35 +148,29 @@ onMounted(() => {
   padding: 16px;
 }
 
-.model-card {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
+.model-card-container {
   margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.card-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
+.card-content {
+  padding: 0 16px;
 }
 
 .model-avatar {
-  width: 40px;
-  height: 40px;
-  margin-right: 12px;
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
 }
 
 .model-avatar img {
   width: 100%;
   height: 100%;
-  border-radius: 4px;
   object-fit: cover;
 }
 
 .model-info {
-  flex: 1;
+  margin-top: 12px;
+  margin-bottom: 8px;
 }
 
 .model-name {
@@ -188,6 +195,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 8px 16px;
 }
 
 .tags {
