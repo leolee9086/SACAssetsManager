@@ -3,34 +3,20 @@
     <!-- 左侧供应商列表 -->
     <div class="provider-list">
       <div class="search-container">
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          class="search-input"
-          placeholder="搜索供应商..."
-        >
+        <input type="text" v-model="searchQuery" class="search-input" placeholder="搜索供应商...">
       </div>
       <div class="tags-filter">
         <div class="tags-title">服务类型：</div>
         <div class="filter-tags">
-          <span 
-            v-for="tag in availableTags" 
-            :key="tag"
-            :class="['filter-tag', { active: selectedTags.includes(tag) }]"
-            @click="toggleTag(tag)"
-          >
+          <span v-for="tag in availableTags" :key="tag" :class="['filter-tag', { active: selectedTags.includes(tag) }]"
+            @click="toggleTag(tag)">
             {{ tag }}
           </span>
         </div>
       </div>
       <div class="providers-wrapper">
-        <div 
-          class="provider-card" 
-          v-for="provider in filteredProviders" 
-          :key="provider.id" 
-          @click="selectProvider(provider.id)"
-          :class="{ 'provider-card-active': selectedProviderId === provider.id }"
-        >
+        <div class="provider-card" v-for="provider in filteredProviders" :key="provider.id"
+          @click="selectProvider(provider.id)" :class="{ 'provider-card-active': selectedProviderId === provider.id }">
           <div class="card-header">
             <div class="provider-logo">
               <img :src="provider.logo" :alt="provider.name">
@@ -44,7 +30,7 @@
             </div>
           </div>
           <div class="provider-description">{{ provider.description }}</div>
-          
+
           <div class="provider-features">
             <span class="feature-item" v-for="feature in provider.features" :key="feature">
               <i class="icon-check"></i>{{ feature }}
@@ -52,12 +38,7 @@
           </div>
 
           <div class="provider-links">
-            <a v-for="(url, type) in provider.links" 
-              :key="type" 
-              :href="url" 
-              target="_blank"
-              class="link-item"
-            >
+            <a v-for="(url, type) in provider.links" :key="type" :href="url" target="_blank" class="link-item">
               <i :class="`icon-${type}`"></i>
               {{ getLinkText(type) }}
             </a>
@@ -73,11 +54,14 @@
     </div>
 
     <!-- 右侧模型列表 -->
-    <div class="model-container" v-if="selectedProviderId">
-      <model-list
-        :provider-id="selectedProviderId"
-        class="provider-models"
-      />
+    <div class="model-container fn__flex-column" v-if="selectedProviderId">
+      <div class="model-header">
+        <h2>{{ getSelectedProviderName() }}</h2>
+
+      </div>
+      <div class="fn__flex-column">
+        <model-list :provider-id="selectedProviderId" class="provider-models" />
+      </div>
     </div>
   </div>
 </template>
@@ -105,13 +89,13 @@ const availableTags = computed(() => {
 const filteredProviders = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   return providers.value.filter(provider => {
-    const matchesSearch = !query || 
+    const matchesSearch = !query ||
       provider.name.toLowerCase().includes(query) ||
       provider.description.toLowerCase().includes(query)
-    
-    const matchesTags = selectedTags.value.length === 0 || 
+
+    const matchesTags = selectedTags.value.length === 0 ||
       selectedTags.value.every(tag => provider.services.includes(tag))
-    
+
     return matchesSearch && matchesTags
   })
 })
@@ -140,6 +124,14 @@ const getLinkText = (type) => {
 const selectProvider = (providerId) => {
   selectedProviderId.value = selectedProviderId.value === providerId ? '' : providerId
 }
+
+// 获取当前选中供应商的名称
+const getSelectedProviderName = () => {
+  const provider = providers.value.find(p => p.id === selectedProviderId.value)
+  return provider ? provider.name : ''
+}
+
+
 </script>
 
 <style scoped>
@@ -153,7 +145,6 @@ const selectProvider = (providerId) => {
 .provider-list {
   width: 40%;
   height: 100%;
-  padding: 16px;
   border-right: 1px solid #eee;
   display: flex;
   flex-direction: column;
@@ -168,7 +159,6 @@ const selectProvider = (providerId) => {
   width: 60%;
   height: 100%;
   overflow-y: auto;
-  padding: 16px;
 }
 
 .provider-card {
@@ -293,25 +283,26 @@ const selectProvider = (providerId) => {
   font-size: 16px;
 }
 
-.icon-homepage { color: #1890ff; }
-.icon-console { color: #722ed1; }
-.icon-docs { color: #13c2c2; }
-.icon-pricing { color: #52c41a; }
-.icon-github { color: #333; }
-
-.search-container,
-.search-input,
-.tags-filter,
-.tags-title,
-.filter-tags,
-.filter-tag,
-.card-footer,
-.tags,
-.tag,
-.stats,
-.stat-item {
-  /* 与 modelList.vue 相同的样式 */
+.icon-homepage {
+  color: #1890ff;
 }
+
+.icon-console {
+  color: #722ed1;
+}
+
+.icon-docs {
+  color: #13c2c2;
+}
+
+.icon-pricing {
+  color: #52c41a;
+}
+
+.icon-github {
+  color: #333;
+}
+
 
 .filter-tag:hover {
   background: #e0e0e0;
@@ -329,5 +320,41 @@ const selectProvider = (providerId) => {
 /* 移除不需要的展开动画 */
 .expand-indicator {
   display: none;
+}
+
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.model-header h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.view-models-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.view-models-btn:hover {
+  background: #40a9ff;
+}
+
+.icon-list {
+  font-size: 16px;
 }
 </style>

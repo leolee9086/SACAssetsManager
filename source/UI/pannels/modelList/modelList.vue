@@ -1,59 +1,68 @@
 <template>
   <div class="model-list">
-    <div class="search-container">
-      <input 
-        type="text" 
-        v-model="searchQuery" 
-        class="search-input"
-        placeholder="搜索模型..."
-      >
-    </div>
-    <div class="tags-filter">
-      <div class="tags-title">标签筛选：</div>
-      <div class="filter-tags">
-        <span 
-          v-for="tag in availableTags" 
-          :key="tag"
-          :class="['filter-tag', { active: selectedTags.includes(tag) }]"
-          @click="toggleTag(tag)"
+    <div class="fixed-header">
+      <div class="search-container">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          class="search-input b3-text-field fn__block b3-form__icon-input"
+          placeholder="搜索模型..."
         >
-          {{ tag }}
-        </span>
+      </div>
+      <div class="tags-filter">
+        <div class="tags-title">标签筛选：</div>
+        <div class="filter-tags">
+          <span 
+            v-for="tag in availableTags" 
+            :key="tag"
+            :class="['filter-tag', { active: selectedTags.includes(tag) }]"
+            @click="toggleTag(tag)"
+          >
+            {{ tag }}
+          </span>
+        </div>
       </div>
     </div>
     
-    <SCard 
-      v-for="model in filteredModels" 
-      :key="model.id"
-      class="model-card-container"
-      hoverable
-    >
-      <template #image>
-        <div class="model-avatar">
-          <img :src="model.avatar" :alt="model.name">
-        </div>
-      </template>
-      
-      <div class="card-content">
-        <div class="model-info">
-          <div class="model-name">{{ model.name }}</div>
-          <div class="model-creator">{{ model.creator }} · {{ model.type }}</div>
-        </div>
-        <div class="model-description">{{ model.description }}</div>
-      </div>
-      
-      <template #actions>
-        <div class="card-footer">
-          <div class="tags">
-            <span class="tag" v-for="tag in model.tags" :key="tag">{{ tag }}</span>
+    <div class="scrollable-content">
+      <SCard 
+        v-for="model in filteredModels" 
+        :key="model.id"
+        class="model-card-container"
+        hoverable
+      >
+        <template #image>
+          <div class="model-avatar">
+            <img 
+              :src="model.avatar" 
+              :alt="model.name"
+              @error="handleImageError($event, model.name)"
+              ref="modelImage"
+            >
           </div>
-          <div class="stats">
-            <span class="stat-item">{{ model.likes }}K</span>
-            <span class="stat-item">{{ model.downloads }}K</span>
+        </template>
+        
+        <div class="card-content">
+          <div class="model-info">
+            <div class="model-name">{{ model.name }}</div>
+            <div class="model-creator">{{ model.creator }} · {{ model.type }}</div>
           </div>
+          <div class="model-description">{{ model.description }}</div>
         </div>
-      </template>
-    </SCard>
+        
+        <template #actions>
+          <div class="card-footer">
+            <div class="tags">
+              <span class="tag" v-for="tag in model.tags" :key="tag">{{ tag }}</span>
+            </div>
+            <div class="stats">
+              <span class="stat-item">{{ model.likes }}K</span>
+              <span class="stat-item">{{ model.downloads }}K</span>
+            </div>
+          </div>
+        </template>
+      </SCard>
+    </div>
   </div>
 </template>
 
@@ -62,6 +71,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import SCard from '../../../shared/siyuanUI-vue/components/SCard.vue'
 import { modelList as 硅基流动模型列表 } from '../../../../assets/modelProviders/modelCards/硅基流动.js'
 import { providerList } from '../../../../assets/modelProviders/index.js'
+import { generateTextAvatar } from '../../../../src/toolBox/feature/useSvg/forSvgGeneration.js'
 
 const props = defineProps({
   providerId: {
@@ -141,11 +151,33 @@ watch(() => props.providerId, () => {
 onMounted(() => {
   loadModels()
 })
+
+// 处理图片加载错误
+const handleImageError = (event, modelName) => {
+  event.target.src = generateTextAvatar(modelName)
+  // 防止循环触发错误
+  event.target.onerror = null
+}
 </script>
 
 <style scoped>
 .model-list {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.fixed-header {
+  padding: 16px 16px 0;
+  background-color: white;
+  z-index: 10;
+}
+
+.scrollable-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 16px;
 }
 
 .model-card-container {
