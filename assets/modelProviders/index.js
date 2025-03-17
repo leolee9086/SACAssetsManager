@@ -15,7 +15,8 @@ export const providerList = [
             docs: "https://docs.siliconflow.com",
             pricing: "https://www.siliconflow.com/pricing"
         },
-        features: ["支持私有化部署", "提供开源模型下载", "低成本推理方案"]
+        features: ["支持私有化部署", "提供开源模型下载", "低成本推理方案"],
+        modelList:'./modelCards/硅基流动.js'
     },
     {
         id: "volcengine",

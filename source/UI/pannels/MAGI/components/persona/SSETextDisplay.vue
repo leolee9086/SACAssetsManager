@@ -35,7 +35,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick, computed } from 'vue';
-import { AISSEConversation } from '../../core/openAISSEAPI.js';
+import { AISSEConversation } from '../../../../../../src/toolBox/feature/useOpenAI/useOpenAISSE.js';
 
 const props = defineProps({
   systemName: {

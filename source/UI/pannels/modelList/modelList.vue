@@ -45,88 +45,89 @@
   </div>
 </template>
 
-<script>
-import { modelList as 硅基流动模型列表 } from '../../../../assets/modelProviders/modelCards/硅基流动.js';
-import { providerList } from '../../../../assets/modelProviders/index.js';
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+import { modelList as 硅基流动模型列表 } from '../../../../assets/modelProviders/modelCards/硅基流动.js'
+import { providerList } from '../../../../assets/modelProviders/index.js'
 
-export default {
-  name: 'ModelList',
-  props: {
-    providerId: {
-      type: String,
-      default: ''
-    }
-  },
-  data() {
-    return {
-      models: [],
-      searchQuery: '',
-      selectedTags: []
-    }
-  },
-  created() {
-    this.loadModels()
-  },
-  watch: {
-    providerId: {
-      handler: 'loadModels',
-      immediate: true
-    }
-  },
-  computed: {
-    availableTags() {
-      const tagsSet = new Set()
-      this.models.forEach(model => {
-        model.tags.forEach(tag => tagsSet.add(tag))
-      })
-      return Array.from(tagsSet)
-    },
-    filteredModels() {
-      const query = this.searchQuery.toLowerCase().trim()
-      return this.models.filter(model => {
-        // 搜索词过滤
-        const matchesSearch = !query || 
-          model.name.toLowerCase().includes(query) ||
-          model.description.toLowerCase().includes(query)
-        
-        // 标签过滤
-        const matchesTags = this.selectedTags.length === 0 || 
-          this.selectedTags.every(tag => model.tags.includes(tag))
-        
-        return matchesSearch && matchesTags
-      })
-    }
-  },
-  methods: {
-    toggleTag(tag) {
-      const index = this.selectedTags.indexOf(tag)
-      if (index === -1) {
-        this.selectedTags.push(tag)
-      } else {
-        this.selectedTags.splice(index, 1)
-      }
-    },
-    loadModels() {
-      if (!this.providerId) {
-        this.models = 硅基流动模型列表 // 默认显示硅基流动的模型
-        return
-      }
-      
-      const provider = providerList.find(p => p.id === this.providerId)
-      if (provider && provider.modelList) {
-        // 动态导入对应供应商的模型列表
-        import(`../../../../assets/modelCards/${provider.modelList}`).then(module => {
-          this.models = module.modelList
-        }).catch(err => {
-          console.error('加载模型列表失败:', err)
-          this.models = []
-        })
-      } else {
-        this.models = []
-      }
-    }
+const props = defineProps({
+  providerId: {
+    type: String,
+    default: ''
+  }
+})
+
+const models = ref([])
+const searchQuery = ref('')
+const selectedTags = ref([])
+
+const availableTags = computed(() => {
+  const tagsSet = new Set()
+  models.value.forEach(model => {
+    model.tags.forEach(tag => tagsSet.add(tag))
+  })
+  return Array.from(tagsSet)
+})
+
+const filteredModels = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim()
+  return models.value.filter(model => {
+    // 搜索词过滤
+    const matchesSearch = !query || 
+      model.name.toLowerCase().includes(query) ||
+      model.description.toLowerCase().includes(query)
+    
+    // 标签过滤
+    const matchesTags = selectedTags.value.length === 0 || 
+      selectedTags.value.every(tag => model.tags.includes(tag))
+    
+    return matchesSearch && matchesTags
+  })
+})
+
+const toggleTag = (tag) => {
+  const index = selectedTags.value.indexOf(tag)
+  if (index === -1) {
+    selectedTags.value.push(tag)
+  } else {
+    selectedTags.value.splice(index, 1)
   }
 }
+
+const loadModels = () => {
+  console.error(props.providerId)
+  if (!props.providerId) {
+    models.value = 硅基流动模型列表 // 默认显示硅基流动的模型
+    return
+  }
+  console.error(models.value,providerList)
+
+  const provider = providerList.find(p => p.id === props.providerId)
+  console.error(models.value,provider)
+
+  if (provider && provider.modelList) {
+    console.error(providerList)
+
+    // 动态导入对应供应商的模型列表
+    import(`../../../../assets/modelProviders/${provider.modelList}`).then(module => {
+      models.value = module.modelList
+      console.error(models.value)
+    }).catch(err => {
+      console.error('加载模型列表失败:', err)
+      models.value = []
+    })
+  } else {
+    models.value = []
+  }
+}
+
+watch(() => props.providerId, () => {
+  loadModels()
+}, { immediate: true })
+
+onMounted(() => {
+  loadModels()
+})
 </script>
 
 <style scoped>

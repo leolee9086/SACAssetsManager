@@ -1,147 +1,173 @@
 <template>
-  <div class="provider-list">
-    <div class="search-container">
-      <input 
-        type="text" 
-        v-model="searchQuery" 
-        class="search-input"
-        placeholder="搜索供应商..."
-      >
-    </div>
-    <div class="tags-filter">
-      <div class="tags-title">服务类型：</div>
-      <div class="filter-tags">
-        <span 
-          v-for="tag in availableTags" 
-          :key="tag"
-          :class="['filter-tag', { active: selectedTags.includes(tag) }]"
-          @click="toggleTag(tag)"
+  <div class="provider-container">
+    <!-- 左侧供应商列表 -->
+    <div class="provider-list">
+      <div class="search-container">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          class="search-input"
+          placeholder="搜索供应商..."
         >
-          {{ tag }}
-        </span>
       </div>
-    </div>
-    <div class="provider-card" v-for="provider in filteredProviders" :key="provider.id" @click="selectProvider(provider.id)">
-      <div class="card-header">
-        <div class="provider-logo">
-          <img :src="provider.logo" :alt="provider.name">
-        </div>
-        <div class="provider-info">
-          <div class="provider-name">{{ provider.name }}</div>
-          <div class="provider-location">{{ provider.location }} · {{ provider.establishedYear }}</div>
-        </div>
-        <div class="model-count">
-          <span>{{ provider.modelCount }}个模型</span>
+      <div class="tags-filter">
+        <div class="tags-title">服务类型：</div>
+        <div class="filter-tags">
+          <span 
+            v-for="tag in availableTags" 
+            :key="tag"
+            :class="['filter-tag', { active: selectedTags.includes(tag) }]"
+            @click="toggleTag(tag)"
+          >
+            {{ tag }}
+          </span>
         </div>
       </div>
-      <div class="provider-description">{{ provider.description }}</div>
-      
-      <div class="provider-features">
-        <span class="feature-item" v-for="feature in provider.features" :key="feature">
-          <i class="icon-check"></i>{{ feature }}
-        </span>
-      </div>
-
-      <div class="provider-links">
-        <a v-for="(url, type) in provider.links" 
-           :key="type" 
-           :href="url" 
-           target="_blank"
-           class="link-item"
+      <div class="providers-wrapper">
+        <div 
+          class="provider-card" 
+          v-for="provider in filteredProviders" 
+          :key="provider.id" 
+          @click="selectProvider(provider.id)"
+          :class="{ 'provider-card-active': selectedProviderId === provider.id }"
         >
-          <i :class="`icon-${type}`"></i>
-          {{ getLinkText(type) }}
-        </a>
-      </div>
+          <div class="card-header">
+            <div class="provider-logo">
+              <img :src="provider.logo" :alt="provider.name">
+            </div>
+            <div class="provider-info">
+              <div class="provider-name">{{ provider.name }}</div>
+              <div class="provider-location">{{ provider.location }} · {{ provider.establishedYear }}</div>
+            </div>
+            <div class="model-count">
+              <span>{{ provider.modelCount }}个模型</span>
+            </div>
+          </div>
+          <div class="provider-description">{{ provider.description }}</div>
+          
+          <div class="provider-features">
+            <span class="feature-item" v-for="feature in provider.features" :key="feature">
+              <i class="icon-check"></i>{{ feature }}
+            </span>
+          </div>
 
-      <div class="card-footer">
-        <div class="tags">
-          <span class="tag" v-for="tag in provider.services" :key="tag">{{ tag }}</span>
+          <div class="provider-links">
+            <a v-for="(url, type) in provider.links" 
+              :key="type" 
+              :href="url" 
+              target="_blank"
+              class="link-item"
+            >
+              <i :class="`icon-${type}`"></i>
+              {{ getLinkText(type) }}
+            </a>
+          </div>
+
+          <div class="card-footer">
+            <div class="tags">
+              <span class="tag" v-for="tag in provider.services" :key="tag">{{ tag }}</span>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div class="expand-indicator" v-if="selectedProviderId === provider.id">
-        <i class="icon-up"></i>
       </div>
     </div>
 
-    <transition name="slide">
+    <!-- 右侧模型列表 -->
+    <div class="model-container" v-if="selectedProviderId">
       <model-list
-        v-if="selectedProviderId"
         :provider-id="selectedProviderId"
         class="provider-models"
       />
-    </transition>
+    </div>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed } from 'vue'
 import { providerList } from '../../../../assets/modelProviders/index.js'
 import ModelList from './modelList.vue'
 
-export default {
-  name: 'ProviderList',
-  components: {
-    ModelList
-  },
-  data() {
-    return {
-      providers: providerList,
-      searchQuery: '',
-      selectedTags: [],
-      selectedProviderId: ''
-    }
-  },
-  computed: {
-    availableTags() {
-      const tagsSet = new Set()
-      this.providers.forEach(provider => {
-        provider.services.forEach(service => tagsSet.add(service))
-      })
-      return Array.from(tagsSet)
-    },
-    filteredProviders() {
-      const query = this.searchQuery.toLowerCase().trim()
-      return this.providers.filter(provider => {
-        const matchesSearch = !query || 
-          provider.name.toLowerCase().includes(query) ||
-          provider.description.toLowerCase().includes(query)
-        
-        const matchesTags = this.selectedTags.length === 0 || 
-          this.selectedTags.every(tag => provider.services.includes(tag))
-        
-        return matchesSearch && matchesTags
-      })
-    }
-  },
-  methods: {
-    toggleTag(tag) {
-      const index = this.selectedTags.indexOf(tag)
-      if (index === -1) {
-        this.selectedTags.push(tag)
-      } else {
-        this.selectedTags.splice(index, 1)
-      }
-    },
-    getLinkText(type) {
-      const textMap = {
-        homepage: '官网',
-        console: '控制台',
-        docs: '文档',
-        pricing: '价格',
-        github: 'GitHub'
-      }
-      return textMap[type] || type
-    },
-    selectProvider(providerId) {
-      this.selectedProviderId = this.selectedProviderId === providerId ? '' : providerId
-    }
+// 响应式状态
+const providers = ref(providerList)
+const searchQuery = ref('')
+const selectedTags = ref([])
+const selectedProviderId = ref('')
+
+// 计算属性
+const availableTags = computed(() => {
+  const tagsSet = new Set()
+  providers.value.forEach(provider => {
+    provider.services.forEach(service => tagsSet.add(service))
+  })
+  return Array.from(tagsSet)
+})
+
+const filteredProviders = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim()
+  return providers.value.filter(provider => {
+    const matchesSearch = !query || 
+      provider.name.toLowerCase().includes(query) ||
+      provider.description.toLowerCase().includes(query)
+    
+    const matchesTags = selectedTags.value.length === 0 || 
+      selectedTags.value.every(tag => provider.services.includes(tag))
+    
+    return matchesSearch && matchesTags
+  })
+})
+
+// 方法
+const toggleTag = (tag) => {
+  const index = selectedTags.value.indexOf(tag)
+  if (index === -1) {
+    selectedTags.value.push(tag)
+  } else {
+    selectedTags.value.splice(index, 1)
   }
+}
+
+const getLinkText = (type) => {
+  const textMap = {
+    homepage: '官网',
+    console: '控制台',
+    docs: '文档',
+    pricing: '价格',
+    github: 'GitHub'
+  }
+  return textMap[type] || type
+}
+
+const selectProvider = (providerId) => {
+  selectedProviderId.value = selectedProviderId.value === providerId ? '' : providerId
 }
 </script>
 
 <style scoped>
+.provider-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
 .provider-list {
+  width: 40%;
+  height: 100%;
+  padding: 16px;
+  border-right: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+}
+
+.providers-wrapper {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.model-container {
+  width: 60%;
+  height: 100%;
+  overflow-y: auto;
   padding: 16px;
 }
 
@@ -158,6 +184,11 @@ export default {
 .provider-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.provider-card-active {
+  border-left: 4px solid #1890ff;
+  background-color: #f0f5ff;
 }
 
 .card-header {
@@ -292,27 +323,11 @@ export default {
 }
 
 .provider-models {
-  margin-top: -16px;
-  margin-bottom: 16px;
-  border: 1px solid #eee;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
+  height: 100%;
 }
 
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-enter-from,
-.slide-leave-to {
-  opacity: 0;
-  transform: translateY(-20px);
-}
-
+/* 移除不需要的展开动画 */
 .expand-indicator {
-  text-align: center;
-  margin-top: 8px;
-  color: #666;
+  display: none;
 }
 </style>
