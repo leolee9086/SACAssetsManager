@@ -1,13 +1,17 @@
 <template>
-  <div 
+  <SCard 
     class="provider-card" 
-    :class="{ 'provider-card-active': isActive }"
+    :current="isActive"
+    :hoverable="true"
     @click="$emit('select', provider.id)"
   >
-    <div class="card-header">
+    <template #image>
       <div class="provider-logo">
         <img :src="provider.logo" :alt="provider.name">
       </div>
+    </template>
+    
+    <div class="card-header">
       <div class="provider-info">
         <div class="provider-name">{{ provider.name }}</div>
         <div class="provider-location">{{ provider.location }} · {{ provider.establishedYear }}</div>
@@ -34,15 +38,18 @@
         {{ getLinkText(type) }}
       </a>
     </div>
-    <div class="card-footer">
+    
+    <template #actions>
       <div class="tags">
         <span class="tag" v-for="tag in provider.services" :key="tag">{{ tag }}</span>
       </div>
-    </div>
-  </div>
+    </template>
+  </SCard>
 </template>
 
 <script setup>
+import SCard from '../../../../shared/siyuanUI-vue/components/SCard.vue'
+
 const props = defineProps({
   provider: {
     type: Object,
@@ -70,23 +77,7 @@ const getLinkText = (type) => {
 
 <style scoped>
 .provider-card {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s;
-  cursor: pointer;
-}
-
-.provider-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.provider-card-active {
-  border-left: 4px solid #1890ff;
-  background-color: #f0f5ff;
 }
 
 .card-header {
@@ -99,7 +90,6 @@ const getLinkText = (type) => {
 .provider-logo {
   width: 48px;
   height: 48px;
-  margin-right: 12px;
 }
 
 .provider-logo img {
@@ -209,5 +199,19 @@ const getLinkText = (type) => {
 
 .icon-github {
   color: #333;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f5f5f5;
+  font-size: 12px;
+  color: #666;
 }
 </style> 

@@ -9,19 +9,11 @@
           placeholder="搜索模型..."
         >
       </div>
-      <div class="tags-filter">
-        <div class="tags-title">标签筛选：</div>
-        <div class="filter-tags">
-          <span 
-            v-for="tag in availableTags" 
-            :key="tag"
-            :class="['filter-tag', { active: selectedTags.includes(tag) }]"
-            @click="toggleTag(tag)"
-          >
-            {{ tag }}
-          </span>
-        </div>
-      </div>
+      <TagsFilter 
+        :tags="availableTags" 
+        v-model:selectedTags="selectedTags" 
+        title="标签筛选："
+      />
     </div>
     
     <div class="scrollable-content">
@@ -69,6 +61,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import SCard from '../../../shared/siyuanUI-vue/components/SCard.vue'
+import TagsFilter from './components/TagsFilter.vue'
 import { modelList as 硅基流动模型列表 } from '../../../../assets/modelProviders/modelCards/硅基流动.js'
 import { providerList } from '../../../../assets/modelProviders/index.js'
 import { generateTextAvatar } from '../../../../src/toolBox/feature/useSvg/forSvgGeneration.js'
@@ -107,15 +100,6 @@ const filteredModels = computed(() => {
     return matchesSearch && matchesTags
   })
 })
-
-const toggleTag = (tag) => {
-  const index = selectedTags.value.indexOf(tag)
-  if (index === -1) {
-    selectedTags.value.push(tag)
-  } else {
-    selectedTags.value.splice(index, 1)
-  }
-}
 
 const loadModels = () => {
   console.error(props.providerId)
