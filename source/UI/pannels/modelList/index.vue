@@ -30,25 +30,28 @@
             </div>
           </div>
           <div class="provider-description">{{ provider.description }}</div>
-
           <div class="provider-features">
             <span class="feature-item" v-for="feature in provider.features" :key="feature">
               <i class="icon-check"></i>{{ feature }}
-            </span>
+            </span>存储
           </div>
-
           <div class="provider-links">
             <a v-for="(url, type) in provider.links" :key="type" :href="url" target="_blank" class="link-item">
               <i :class="`icon-${type}`"></i>
               {{ getLinkText(type) }}
             </a>
           </div>
-
           <div class="card-footer">
             <div class="tags">
               <span class="tag" v-for="tag in provider.services" :key="tag">{{ tag }}</span>
             </div>
           </div>
+        </div>
+        
+        <!-- 添加新供应商按钮 -->
+        <div class="add-provider-button" @click="addProviderAddress">
+          <span class="add-icon">+</span>
+          <span>添加供应商地址</span>
         </div>
       </div>
     </div>
@@ -108,6 +111,12 @@ const toggleTag = (tag) => {
   } else {
     selectedTags.value.splice(index, 1)
   }
+}
+
+// 添加供应商地址的方法
+const addProviderAddress = () => {
+  // 这里实现添加供应商地址的逻辑
+  console.log('添加供应商地址')
 }
 
 const getLinkText = (type) => {
@@ -356,5 +365,31 @@ const getSelectedProviderName = () => {
 
 .icon-list {
   font-size: 16px;
+}
+
+/* 添加供应商按钮样式 */
+.add-provider-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+  gap: 10px;
+}
+
+.add-provider-button:hover {
+  background: #e0e0e0;
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.add-icon {
+  font-size: 20px;
+  font-weight: bold;
 }
 </style>

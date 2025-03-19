@@ -7,8 +7,6 @@ export const modelList = [
         description: "DeepSeek-R1是一款高效智能体模型，具备强大的长文本处理能力和卓越的成本效益，助力企业实现更智能化的应用。",
         avatar: "/assets/images/models/deepseek-r1-32k.png",
         tags: ["文本生成", "32K"],
-        likes: 9.2,
-        downloads: 15
     },
     {
         id: "deepseek-v3-32k",
@@ -18,8 +16,6 @@ export const modelList = [
         description: "DeepSeek-V3 是一款高性能的 AI 语言模型，专为复杂任务设计，具备强大的文本理解和生成能力。",
         avatar: "/assets/images/models/deepseek-v3-32k.png",
         tags: ["文本生成", "32K"],
-        likes: 9.0,
-        downloads: 14
     },
     {
         id: "deepseek-r1-16k",
@@ -29,8 +25,6 @@ export const modelList = [
         description: "DeepSeek-R1是一款高效智能体模型，具备强大的长文本处理能力和卓越的成本效益，助力企业实现更智能化的应用。",
         avatar: "/assets/images/models/deepseek-r1-16k.png",
         tags: ["文本生成", "16K"],
-        likes: 8.8,
-        downloads: 12
     },
     {
         id: "deepseek-v3-16k",
@@ -40,8 +34,6 @@ export const modelList = [
         description: "DeepSeek-V3 是一款高性能的 AI 语言模型，专为复杂任务设计，具备强大的文本理解和生成能力。",
         avatar: "/assets/images/models/deepseek-v3-16k.png",
         tags: ["文本生成", "16K"],
-        likes: 8.7,
-        downloads: 11
     },
     {
         id: "deepseek-r1-8k",
@@ -51,8 +43,6 @@ export const modelList = [
         description: "DeepSeek-R1是一款高效智能体模型，具备强大的长文本处理能力和卓越的成本效益，助力企业实现更智能化的应用。",
         avatar: "/assets/images/models/deepseek-r1-8k.png",
         tags: ["文本生成", "8K"],
-        likes: 8.5,
-        downloads: 10
     },
     {
         id: "deepseek-v3-8k",
@@ -62,8 +52,6 @@ export const modelList = [
         description: "DeepSeek-V3 是一款高性能的 AI 语言模型，专为复杂任务设计，具备强大的文本理解和生成能力。",
         avatar: "/assets/images/models/deepseek-v3-8k.png",
         tags: ["文本生成", "8K"],
-        likes: 8.4,
-        downloads: 9
     },
     {
         id: "deepseek-r1-distill-qwen-32b-32k",
@@ -73,8 +61,6 @@ export const modelList = [
         description: "通过 DeepSeek-R1 的输出，蒸馏了Qwen-32B，使得模型在多项能力上实现了对标 OpenAI o1-mini 的效果。",
         avatar: "/assets/images/models/deepseek-r1-distill-qwen-32b-32k.png",
         tags: ["文本生成", "32K", "蒸馏"],
-        likes: 8.0,
-        downloads: 8
     },
     {
         id: "deepseek-r1-distill-qwen-32b-8k",
@@ -84,8 +70,6 @@ export const modelList = [
         description: "通过 DeepSeek-R1 的输出，蒸馏了Qwen-32B，使得模型在多项能力上实现了对标 OpenAI o1-mini 的效果。",
         avatar: "/assets/images/models/deepseek-r1-distill-qwen-32b-8k.png",
         tags: ["文本生成", "8K", "蒸馏"],
-        likes: 7.8,
-        downloads: 7
     },
     {
         id: "qwen2-vl-7b",
@@ -95,8 +79,6 @@ export const modelList = [
         description: "通义千问2-VL-7B是阿里云推出的具有70亿参数的大型视觉语言模型，专注于图像和文本的多模态理解和生成任务。",
         avatar: "/assets/images/models/qwen2-vl-7b.png",
         tags: ["图像理解", "多模态", "7B"],
-        likes: 8.6,
-        downloads: 13
     },
     {
         id: "qwen2.5-72b",
@@ -106,8 +88,6 @@ export const modelList = [
         description: "通义千问2.5-72B是阿里云研发的通义千问Qwen2.5大模型系列的720亿参数规模的模型。",
         avatar: "/assets/images/models/qwen2.5-72b.png",
         tags: ["文本生成", "72B"],
-        likes: 9.4,
-        downloads: 18
     },
     {
         id: "qwen2.5-32b",
@@ -117,8 +97,6 @@ export const modelList = [
         description: "通义千问2.5-32B是阿里云研发的通义千问Qwen2.5大模型系列的320亿参数规模的模型。",
         avatar: "/assets/images/models/qwen2.5-32b.png",
         tags: ["文本生成", "32B"],
-        likes: 9.2,
-        downloads: 16
     },
     {
         id: "qwen2.5-14b",
@@ -128,8 +106,6 @@ export const modelList = [
         description: "通义千问2.5-14B是阿里云研发的通义千问Qwen2.5大模型系列的140亿参数规模的模型。",
         avatar: "/assets/images/models/qwen2.5-14b.png",
         tags: ["文本生成", "14B"],
-        likes: 9.0,
-        downloads: 14
     },
     {
         id: "qwen2.5-7b",
@@ -139,8 +115,6 @@ export const modelList = [
         description: "通义千问2.5-7B是阿里云研发的通义千问Qwen2.5大模型系列的70亿参数规模的模型。",
         avatar: "/assets/images/models/qwen2.5-7b.png",
         tags: ["文本生成", "7B"],
-        likes: 8.8,
-        downloads: 15
     },
     {
         id: "qwen2.5-1.5b",
@@ -150,8 +124,6 @@ export const modelList = [
         description: "通义千问2.5-1.5B是阿里云研发的Qwen2.5系列中参数为15亿的模型。",
         avatar: "/assets/images/models/qwen2.5-1.5b.png",
         tags: ["文本生成", "轻量化"],
-        likes: 7.5,
-        downloads: 20
     },
     {
         id: "qwen2.5-0.5b",
@@ -161,8 +133,6 @@ export const modelList = [
         description: "通义千问2.5-0.5B是阿里云研发的Qwen2.5大模型系列中，参数规模为5亿的模型。",
         avatar: "/assets/images/models/qwen2.5-0.5b.png",
         tags: ["文本生成", "超轻量化"],
-        likes: 7.2,
-        downloads: 22
     },
     {
         id: "glm-4-9b",
@@ -172,8 +142,6 @@ export const modelList = [
         description: "GLM-4-9B 是智谱 AI 推出的最新一代预训练模型 GLM-4 系列中的开源版本。",
         avatar: "/assets/images/models/glm-4-9b.png",
         tags: ["文本生成", "9B"],
-        likes: 8.3,
-        downloads: 12
     },
     {
         id: "deepseek-coder-33b",
@@ -183,8 +151,6 @@ export const modelList = [
         description: "Deepseek Coder 由一系列代码语言模型组成，每个模型都从头开始在 2T 标记上进行训练，其中 87% 为代码，13% 为英文和中文的自然语言。",
         avatar: "/assets/images/models/deepseek-coder-33b.png",
         tags: ["文本生成", "代码", "33B"],
-        likes: 8.9,
-        downloads: 14
     },
     {
         id: "yi-34b",
@@ -194,8 +160,6 @@ export const modelList = [
         description: "Yi-34B是由零一万物开发并开源的双语大语言模型，在 Hugging Face Open LLM Leaderboard（预训练）与 C-Eval 基准测试中荣登榜首，在中文和英文语言能力方面均超过了其它开源模型。",
         avatar: "/assets/images/models/yi-34b.png",
         tags: ["文本生成", "34B"],
-        likes: 8.7,
-        downloads: 11
     },
     {
         id: "yi-6b",
@@ -205,7 +169,5 @@ export const modelList = [
         description: "Yi-6B是由零一万物首次公开发布的开源的双语大语言模型，以 4K 序列长度进行训练，在推理时可扩展至 32K。",
         avatar: "/assets/images/models/yi-6b.png",
         tags: ["文本生成", "6B"],
-        likes: 7.9,
-        downloads: 13
     }
 ]
