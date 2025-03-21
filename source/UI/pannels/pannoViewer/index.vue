@@ -361,7 +361,7 @@ import * as THREE from '../../../../static/three/three.mjs';
 import { ref, onMounted, onBeforeUnmount, shallowRef, computed, watch, nextTick } from 'vue';
 import CCDialog from '../../components/CCDialog.vue';
 import { worldToScreen, createSmoothAnimation, fullscreenUtils } from './utils.js';
-import { mirrorPanorama, saveImageData } from './panoramaMirror.js';
+import { mirrorImageData, saveImageData } from './panoramaMirror.js';
 import { PanoramaVideoGenerator, saveVideoBlob } from './panoramaToVideo.js';
 
 
@@ -973,7 +973,7 @@ const handleMirror = async (axis) => {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     
     // 执行镜像变换
-    const mirroredData = await mirrorPanorama(imageData, axis);
+    const mirroredData = await mirrorImageData(imageData, axis);
     
     // 保存镜像后的图片数据以供后续保存
     lastMirroredImageData.value = mirroredData;
