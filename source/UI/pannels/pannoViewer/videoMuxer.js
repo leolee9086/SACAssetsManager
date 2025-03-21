@@ -1,6 +1,4 @@
-import { Muxer, ArrayBufferTarget } from '../../../../static/webm-muxer.mjs';
-import { Muxer as MP4Muxer, ArrayBufferTarget as MP4ArrayBufferTarget } from '../../../../static/mp4-muxer.mjs';
-
+import {MP4ArrayBufferTarget,MP4Muxer,Muxer,ArrayBufferTarget} from '../../../../src/toolBox/base/useDeps/useMuxer/useVideoMuxer.js';
 // 从 Constants 移动相关配置
 export const ENCODER_CONFIG = {
   MP4_BITRATE: 8_000_000,

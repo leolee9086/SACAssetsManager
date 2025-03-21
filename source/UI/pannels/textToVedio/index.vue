@@ -2,52 +2,60 @@
     <div class="text-to-video-container">
       <h2>文本转视频测试</h2>
       
-      <div class="input-area">
-        <textarea 
-          v-model="textInput" 
-          placeholder="请输入要转换为视频的文本，每句用'；'分隔" 
-          rows="6"
-        ></textarea>
-      </div>
-      
-      <div class="controls">
-        <button 
-          @click="generateVideo" 
-          :disabled="isGenerating || !textInput" 
-          class="primary-btn"
-        >
-          {{ isGenerating ? '生成中...' : '生成视频' }}
-        </button>
+      <div class="layout-container">
+        <!-- 左侧输入区域 -->
+        <div class="left-panel">
+          <div class="input-area">
+            <textarea 
+              v-model="textInput" 
+              placeholder="请输入要转换为视频的文本，每句用'；'分隔" 
+              rows="12"
+            ></textarea>
+          </div>
+          
+          <div class="controls">
+            <button 
+              @click="generateVideo" 
+              :disabled="isGenerating || !textInput" 
+              class="primary-btn"
+            >
+              {{ isGenerating ? '生成中...' : '生成视频' }}
+            </button>
+            
+            <div class="options">
+              <label>
+                每句显示时间(秒): 
+                <input type="number" v-model.number="durationPerText" min="1" max="10" step="0.5" />
+              </label>
+            </div>
+          </div>
+        </div>
         
-        <div class="options">
-          <label>
-            每句显示时间(秒): 
-            <input type="number" v-model.number="durationPerText" min="1" max="10" step="0.5" />
-          </label>
+        <!-- 右侧预览区域 -->
+        <div class="right-panel">
+          <div v-if="generationProgress > 0 && generationProgress < 100" class="progress">
+            <div class="progress-bar" :style="{width: `${generationProgress}%`}"></div>
+            <span>{{Math.floor(generationProgress)}}%</span>
+          </div>
+          
+          <div v-if="videoUrl" class="result">
+            <video controls :src="videoUrl" class="video-preview"></video>
+            <div class="download-area">
+              <button @click="downloadVideo" class="download-btn">下载视频</button>
+              <span class="filename">{{ videoFilename }}</span>
+            </div>
+          </div>
+          
+          <div v-if="errorMessage" class="error-message">
+            {{ errorMessage }}
+          </div>
         </div>
-      </div>
-      
-      <div v-if="generationProgress > 0 && generationProgress < 100" class="progress">
-        <div class="progress-bar" :style="{width: `${generationProgress}%`}"></div>
-        <span>{{Math.floor(generationProgress)}}%</span>
-      </div>
-      
-      <div v-if="videoUrl" class="result">
-        <video controls :src="videoUrl" class="video-preview"></video>
-        <div class="download-area">
-          <button @click="downloadVideo" class="download-btn">下载视频</button>
-          <span class="filename">{{ videoFilename }}</span>
-        </div>
-      </div>
-      
-      <div v-if="errorMessage" class="error-message">
-        {{ errorMessage }}
       </div>
     </div>
   </template>
   
   <script setup>
-  import { ref, computed,onUnmounted } from 'vue';
+  import { ref,onUnmounted } from 'vue';
   import { createTextVideo } from './textToVideo.js';
   
   // 响应式状态
@@ -129,10 +137,32 @@
   
   <style scoped>
   .text-to-video-container {
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
     font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  
+  .layout-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+  }
+  
+  .left-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .input-area {
+    margin-bottom: 20px;
   }
   
   .input-area textarea {
@@ -142,13 +172,14 @@
     border-radius: 4px;
     resize: vertical;
     font-size: 16px;
+    height: 100%;
+    min-height: 200px;
   }
   
   .controls {
-    margin: 20px 0;
     display: flex;
-    align-items: center;
-    gap: 20px;
+    flex-direction: column;
+    gap: 15px;
   }
   
   .primary-btn {
@@ -181,7 +212,7 @@
     height: 20px;
     background-color: #f3f3f3;
     border-radius: 10px;
-    margin: 20px 0;
+    margin-bottom: 20px;
     position: relative;
     overflow: hidden;
   }
@@ -203,14 +234,18 @@
   }
   
   .result {
-    margin-top: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
   }
   
   .video-preview {
     width: 100%;
-    max-height: 500px;
+    height: 100%;
+    min-height: 300px;
     border-radius: 4px;
     background-color: black;
+    object-fit: contain;
   }
   
   .download-area {
