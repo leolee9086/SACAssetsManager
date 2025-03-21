@@ -70,7 +70,7 @@
   // 处理文本分割
   const processText = (text) => {
     if (!text) return [];
-    return text.split('；').filter(line => line.trim());
+    return text.split('\n\n').filter(line => line.trim());
   };
   
   // 生成视频处理函数
@@ -85,7 +85,7 @@
       }
       
       // 修改视频文件名基于文本内容
-      const firstLine = textInput.value.split('；')[0].slice(0, 10);
+      const firstLine = processText(textInput.value)[0]
       videoFilename.value = `${firstLine || '文本视频'}.mp4`;
       
       // 进度更新函数
