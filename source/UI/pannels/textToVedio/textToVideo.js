@@ -1,6 +1,7 @@
 import {VideoEncoderManager} from '../pannoViewer/videoEncoderManager.js';
 import Konva from '../../../../static/konva.js';
-
+import { positions, origins } from './presets/positions.js';
+import { easings } from './presets/easings.js';
 // 配置常量
 const CONFIG = {
   video: {
@@ -74,71 +75,9 @@ const CONFIG = {
     blurIn: {type: 'blur', from: 10, to: 0},
     blurOut: {type: 'blur', from: 0, to: 10}
   },
-  easings: {
-    linear: t => t,
-    easeIn: t => t * t,
-    easeOut: t => t * (2 - t),
-    easeInOut: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
-    elastic: t => {
-      const p = 0.3;
-      return Math.pow(2, -10 * t) * Math.sin((t - p / 4) * (2 * Math.PI) / p) + 1;
-    },
-    bounce: t => {
-      if (t < 1 / 2.75) {
-        return 7.5625 * t * t;
-      } else if (t < 2 / 2.75) {
-        t -= 1.5 / 2.75;
-        return 7.5625 * t * t + 0.75;
-      } else if (t < 2.5 / 2.75) {
-        t -= 2.25 / 2.75;
-        return 7.5625 * t * t + 0.9375;
-      } else {
-        t -= 2.625 / 2.75;
-        return 7.5625 * t * t + 0.984375;
-      }
-    }
-  },
-  positions: {
-    center: {x: 0.5, y: 0.5},
-    top: {x: 0.5, y: 0.1},
-    bottom: {x: 0.5, y: 0.9},
-    left: {x: 0.1, y: 0.5},
-    right: {x: 0.9, y: 0.5},
-    topLeft: {x: 0.1, y: 0.1},
-    topRight: {x: 0.9, y: 0.1},
-    bottomLeft: {x: 0.1, y: 0.9},
-    bottomRight: {x: 0.9, y: 0.9},
-    middle: {x: 0.5, y: 0.5},
-    中间: {x: 0.5, y: 0.5},
-    顶部: {x: 0.5, y: 0.1},
-    底部: {x: 0.5, y: 0.9},
-    左侧: {x: 0.1, y: 0.5},
-    右侧: {x: 0.9, y: 0.5},
-    左上: {x: 0.1, y: 0.1},
-    右上: {x: 0.9, y: 0.1},
-    左下: {x: 0.1, y: 0.9},
-    右下: {x: 0.9, y: 0.9},
-    上方: {x: 0.5, y: 0.3},
-    下方: {x: 0.5, y: 0.7},
-    中上: {x: 0.5, y: 0.3},
-    中下: {x: 0.5, y: 0.7},
-    顶部中央: {x: 0.5, y: 0.05},
-    底部中央: {x: 0.5, y: 0.95},
-    左侧中央: {x: 0.05, y: 0.5},
-    右侧中央: {x: 0.95, y: 0.5}
-  },
-  origins: {
-    center: {x: 0.5, y: 0.5},
-    topLeft: {x: 0, y: 0},
-    topRight: {x: 1, y: 0},
-    bottomLeft: {x: 0, y: 1},
-    bottomRight: {x: 1, y: 1},
-    左上角: {x: 0, y: 0},
-    右上角: {x: 1, y: 0},
-    左下角: {x: 0, y: 1},
-    右下角: {x: 1, y: 1},
-    中心: {x: 0.5, y: 0.5}
-  }
+  easings: easings,
+  positions,
+  origins
 };
 
 // 辅助函数：将Blob转换为DataURL
@@ -393,39 +332,6 @@ const calculateAnimationProgress = (frameIndex, startFrame, endFrame, attributes
   };
 };
 
-// 辅助函数：解析位置字符串
-const parsePositionString = (posStr) => {
-  if (!posStr) return null;
-  
-  // 处理预定义位置
-  if (CONFIG.positions[posStr]) {
-    const pos = CONFIG.positions[posStr];
-    return {
-      x: pos.x * CONFIG.video.width,
-      y: pos.y * CONFIG.video.height
-    };
-  }
-  
-  // 处理坐标形式 "x,y"
-  if (posStr.includes(',')) {
-    const [x, y] = posStr.split(',').map(parseFloat);
-    return {
-      x: x * CONFIG.video.width,
-      y: y * CONFIG.video.height
-    };
-  }
-  
-  // 处理百分比形式
-  if (posStr.includes('%')) {
-    const [xPercent, yPercent] = posStr.split('%,').map(v => parseFloat(v) / 100);
-    return {
-      x: xPercent * CONFIG.video.width,
-      y: yPercent * CONFIG.video.height
-    };
-  }
-  
-  return null;
-};
 
 // 辅助函数：解析路径
 const parsePath = (pathStr) => {
