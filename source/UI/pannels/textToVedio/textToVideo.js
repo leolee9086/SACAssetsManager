@@ -26,10 +26,77 @@ const CONFIG = {
   animations: {
     fadeIn: {type: 'opacity', from: 0, to: 1},
     fadeOut: {type: 'opacity', from: 1, to: 0},
-    slideIn: {type: 'position', from: {x: -100, y: 0}, to: {x: 0, y: 0}},
-    slideOut: {type: 'position', from: {x: 0, y: 0}, to: {x: 100, y: 0}},
+    slideIn: {type: 'positionOffset', fromX: -0.3, fromY: 0, toX: 0, toY: 0},
+    slideOut: {type: 'positionOffset', fromX: 0, fromY: 0, toX: 0.3, toY: 0},
     zoomIn: {type: 'scale', from: 0.5, to: 1},
-    zoomOut: {type: 'scale', from: 1, to: 0.5}
+    zoomOut: {type: 'scale', from: 1, to: 0.5},
+    slideFromTop: {type: 'positionOffset', fromX: 0, fromY: -0.3, toX: 0, toY: 0},
+    slideToTop: {type: 'positionOffset', fromX: 0, fromY: 0, toX: 0, toY: -0.3},
+    slideFromBottom: {type: 'positionOffset', fromX: 0, fromY: 0.3, toX: 0, toY: 0},
+    slideToBottom: {type: 'positionOffset', fromX: 0, fromY: 0, toX: 0, toY: 0.3},
+    slideFromLeft: {type: 'positionOffset', fromX: -0.3, fromY: 0, toX: 0, toY: 0},
+    slideToLeft: {type: 'positionOffset', fromX: 0, fromY: 0, toX: -0.3, toY: 0},
+    slideFromRight: {type: 'positionOffset', fromX: 0.3, fromY: 0, toX: 0, toY: 0},
+    slideToRight: {type: 'positionOffset', fromX: 0, fromY: 0, toX: 0.3, toY: 0},
+    bounce: {type: 'positionOffset', fromX: 0, fromY: -0.05, toX: 0, toY: 0, easing: 'elastic'},
+    rotateIn: {type: 'rotation', from: -180, to: 0},
+    rotateOut: {type: 'rotation', from: 0, to: 180},
+    spin: {type: 'rotation', from: 0, to: 360, cycle: true},
+    spinReverse: {type: 'rotation', from: 0, to: -360, cycle: true},
+    blink: {type: 'opacity', from: 1, to: 0, cycle: true, cycleDuration: 0.5},
+    flash: {type: 'opacity', values: [1, 0, 1, 0, 1], keyTimes: [0, 0.25, 0.5, 0.75, 1]},
+    shake: {type: 'positionOffsetPattern', 
+           xPattern: [0, -10, 10, -10, 10, -5, 5, -2, 2, 0], 
+           yPattern: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+           relative: true},
+    wave: {type: 'positionOffsetPattern',
+           xPattern: [0, 0, 0, 0, 0],
+           yPattern: [0, -10, 0, 10, 0],
+           cycle: true,
+           relative: true},
+    flipX: {type: 'scale', scaleXFrom: 1, scaleXTo: -1, scaleYFrom: 1, scaleYTo: 1},
+    flipY: {type: 'scale', scaleXFrom: 1, scaleXTo: 1, scaleYFrom: 1, scaleYTo: -1},
+    popIn: {
+      compositions: [
+        {type: 'scale', from: 0.5, to: 1.1, duration: 0.7},
+        {type: 'scale', from: 1.1, to: 1, startAt: 0.7},
+        {type: 'opacity', from: 0, to: 1, duration: 0.5}
+      ]
+    },
+    bounceIn: {
+      compositions: [
+        {type: 'scale', from: 0.3, to: 1, easing: 'bounce'},
+        {type: 'opacity', from: 0, to: 1, duration: 0.3}
+      ]
+    },
+    typewriter: {type: 'special', effect: 'typewriter', speed: 0.1},
+    fadeColor: {type: 'color', from: '#ff0000', to: '#0000ff'},
+    blurIn: {type: 'blur', from: 10, to: 0},
+    blurOut: {type: 'blur', from: 0, to: 10}
+  },
+  easings: {
+    linear: t => t,
+    easeIn: t => t * t,
+    easeOut: t => t * (2 - t),
+    easeInOut: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+    elastic: t => {
+      const p = 0.3;
+      return Math.pow(2, -10 * t) * Math.sin((t - p / 4) * (2 * Math.PI) / p) + 1;
+    },
+    bounce: t => {
+      if (t < 1 / 2.75) {
+        return 7.5625 * t * t;
+      } else if (t < 2 / 2.75) {
+        t -= 1.5 / 2.75;
+        return 7.5625 * t * t + 0.75;
+      } else if (t < 2.5 / 2.75) {
+        t -= 2.25 / 2.75;
+        return 7.5625 * t * t + 0.9375;
+      } else {
+        t -= 2.625 / 2.75;
+        return 7.5625 * t * t + 0.984375;
+      }
+    }
   },
   positions: {
     center: {x: 0.5, y: 0.5},
@@ -221,7 +288,7 @@ const attributesToKonvaProps = (attributes, config) => {
   return props;
 };
 
-// 计算动画进度
+// 计算动画进度 - 增强版
 const calculateAnimationProgress = (frameIndex, startFrame, endFrame, attributes) => {
   const totalFrames = endFrame - startFrame + 1;
   const elapsedFrames = frameIndex - startFrame;
@@ -245,23 +312,76 @@ const calculateAnimationProgress = (frameIndex, startFrame, endFrame, attributes
     fadeOutProgress = (totalFrames - elapsedFrames) / fadeOutFrames;
   }
   
+  // 动画效果处理
   const animationEffects = {};
+  
+  // 处理复合动画
   if (attributes.animation && CONFIG.animations[attributes.animation]) {
     const animation = CONFIG.animations[attributes.animation];
-    const animationProgress = Math.min(1, Math.max(0, progress));
     
-    switch (animation.type) {
-      case 'opacity':
-        animationEffects.opacity = animation.from + (animation.to - animation.from) * animationProgress;
-        break;
-      case 'position':
-        animationEffects.x = animation.from.x + (animation.to.x - animation.from.x) * animationProgress;
-        animationEffects.y = animation.from.y + (animation.to.y - animation.from.y) * animationProgress;
-        break;
-      case 'scale':
-        animationEffects.scaleX = animation.from + (animation.to - animation.from) * animationProgress;
-        animationEffects.scaleY = animation.from + (animation.to - animation.from) * animationProgress;
-        break;
+    // 处理组合动画
+    if (animation.compositions) {
+      for (const comp of animation.compositions) {
+        // 计算该动画组件的有效时间范围
+        const startAt = comp.startAt || 0;
+        const duration = comp.duration || (1 - startAt);
+        const endAt = startAt + duration;
+        
+        // 如果当前进度在该动画范围内
+        if (progress >= startAt && progress <= endAt) {
+          // 计算在该动画内的相对进度
+          const compProgress = (progress - startAt) / duration;
+          
+          // 使用缓动函数
+          const easingName = comp.easing || 'linear';
+          const easingFn = CONFIG.easings[easingName] || CONFIG.easings.linear;
+          const easedProgress = easingFn(compProgress);
+          
+          // 根据类型应用动画效果
+          applyAnimationByType(comp, easedProgress, animationEffects);
+        }
+      }
+    } 
+    // 处理单一动画
+    else {
+      const easingName = animation.easing || attributes.easing || 'linear';
+      const easingFn = CONFIG.easings[easingName] || CONFIG.easings.linear;
+      
+      // 循环动画特殊处理
+      if (animation.cycle) {
+        const cycleDuration = animation.cycleDuration || 1;
+        const cycleProgress = (progress % cycleDuration) / cycleDuration;
+        const easedProgress = easingFn(cycleProgress);
+        applyAnimationByType(animation, easedProgress, animationEffects);
+      }
+      // 关键帧动画特殊处理
+      else if (animation.values && animation.keyTimes) {
+        const value = getValueAtProgress(animation.values, animation.keyTimes, progress);
+        switch (animation.type) {
+          case 'opacity':
+            animationEffects.opacity = value;
+            break;
+          // 可以根据需要添加其他类型
+        }
+      }
+      // 普通动画
+      else {
+        const easedProgress = easingFn(progress);
+        applyAnimationByType(animation, easedProgress, animationEffects);
+      }
+    }
+  }
+  
+  // 处理自定义运动路径
+  if (attributes.path) {
+    try {
+      // 解析SVG路径或关键点
+      const path = parsePath(attributes.path);
+      const pathPoint = getPointOnPath(path, progress);
+      animationEffects.x = pathPoint.x;
+      animationEffects.y = pathPoint.y;
+    } catch (e) {
+      console.error('路径解析错误:', e);
     }
   }
   
@@ -271,6 +391,179 @@ const calculateAnimationProgress = (frameIndex, startFrame, endFrame, attributes
     animationEffects,
     progress
   };
+};
+
+// 辅助函数：解析位置字符串
+const parsePositionString = (posStr) => {
+  if (!posStr) return null;
+  
+  // 处理预定义位置
+  if (CONFIG.positions[posStr]) {
+    const pos = CONFIG.positions[posStr];
+    return {
+      x: pos.x * CONFIG.video.width,
+      y: pos.y * CONFIG.video.height
+    };
+  }
+  
+  // 处理坐标形式 "x,y"
+  if (posStr.includes(',')) {
+    const [x, y] = posStr.split(',').map(parseFloat);
+    return {
+      x: x * CONFIG.video.width,
+      y: y * CONFIG.video.height
+    };
+  }
+  
+  // 处理百分比形式
+  if (posStr.includes('%')) {
+    const [xPercent, yPercent] = posStr.split('%,').map(v => parseFloat(v) / 100);
+    return {
+      x: xPercent * CONFIG.video.width,
+      y: yPercent * CONFIG.video.height
+    };
+  }
+  
+  return null;
+};
+
+// 辅助函数：解析路径
+const parsePath = (pathStr) => {
+  // 简单路径解析 - 格式: "x1,y1 x2,y2 x3,y3..."
+  if (pathStr.includes(' ')) {
+    return pathStr.split(' ').map(point => {
+      const [x, y] = point.split(',').map(parseFloat);
+      return {
+        x: x * CONFIG.video.width,
+        y: y * CONFIG.video.height
+      };
+    });
+  }
+  
+  // 更复杂的路径可以实现SVG路径解析
+  return [];
+};
+
+// 辅助函数：根据进度获取路径上的点
+const getPointOnPath = (path, progress) => {
+  if (!path.length) return {x: 0, y: 0};
+  
+  // 线性插值计算路径上的点
+  const pathLength = path.length - 1;
+  const exactIndex = progress * pathLength;
+  const index1 = Math.floor(exactIndex);
+  const index2 = Math.min(index1 + 1, pathLength);
+  const localProgress = exactIndex - index1;
+  
+  const point1 = path[index1];
+  const point2 = path[index2];
+  
+  return {
+    x: point1.x + (point2.x - point1.x) * localProgress,
+    y: point1.y + (point2.y - point1.y) * localProgress
+  };
+};
+
+// 辅助函数：根据动画类型应用效果
+const applyAnimationByType = (animation, progress, effects) => {
+  switch (animation.type) {
+    case 'opacity':
+      effects.opacity = animation.from + (animation.to - animation.from) * progress;
+      break;
+      
+    case 'position':
+      effects.x = animation.from.x + (animation.to.x - animation.from.x) * progress;
+      effects.y = animation.from.y + (animation.to.y - animation.from.y) * progress;
+      break;
+      
+    case 'positionOffset':
+      effects.xOffset = (animation.fromX + (animation.toX - animation.fromX) * progress) * CONFIG.video.width;
+      effects.yOffset = (animation.fromY + (animation.toY - animation.fromY) * progress) * CONFIG.video.height;
+      break;
+      
+    case 'positionOffsetPattern':
+      const xPatternIdx = Math.floor(progress * (animation.xPattern.length - 1));
+      const yPatternIdx = Math.floor(progress * (animation.yPattern.length - 1));
+      
+      const xOffset = animation.xPattern[xPatternIdx];
+      const yOffset = animation.yPattern[yPatternIdx];
+      
+      effects.xOffset = animation.relative ? xOffset : xOffset * CONFIG.video.width;
+      effects.yOffset = animation.relative ? yOffset : yOffset * CONFIG.video.height;
+      break;
+      
+    case 'scale':
+      if (animation.scaleXFrom !== undefined) {
+        effects.scaleX = animation.scaleXFrom + (animation.scaleXTo - animation.scaleXFrom) * progress;
+        effects.scaleY = animation.scaleYFrom + (animation.scaleYTo - animation.scaleYFrom) * progress;
+      } else {
+        effects.scaleX = animation.from + (animation.to - animation.from) * progress;
+        effects.scaleY = animation.from + (animation.to - animation.from) * progress;
+      }
+      break;
+      
+    case 'rotation':
+      effects.rotation = animation.from + (animation.to - animation.from) * progress;
+      break;
+      
+    case 'color':
+      effects.color = interpolateColor(animation.from, animation.to, progress);
+      break;
+      
+    case 'blur':
+      effects.blur = animation.from + (animation.to - animation.from) * progress;
+      break;
+      
+    case 'special':
+      if (animation.effect === 'typewriter') {
+        effects.typewriter = {
+          progress: progress, 
+          speed: animation.speed || 0.1
+        };
+      }
+      break;
+  }
+};
+
+// 辅助函数：在关键帧之间插值
+const getValueAtProgress = (values, keyTimes, progress) => {
+  // 找到当前进度所在的关键帧区间
+  let startIdx = 0;
+  while (startIdx < keyTimes.length - 1 && progress > keyTimes[startIdx + 1]) {
+    startIdx++;
+  }
+  
+  const endIdx = Math.min(startIdx + 1, keyTimes.length - 1);
+  
+  // 计算区间内的相对进度
+  const startTime = keyTimes[startIdx];
+  const endTime = keyTimes[endIdx];
+  const intervalProgress = (progress - startTime) / (endTime - startTime || 1);
+  
+  // 线性插值计算当前值
+  return values[startIdx] + (values[endIdx] - values[startIdx]) * intervalProgress;
+};
+
+// 辅助函数：颜色插值 (十六进制颜色之间的插值)
+const interpolateColor = (color1, color2, progress) => {
+  // 解析十六进制颜色
+  const r1 = parseInt(color1.slice(1, 3), 16);
+  const g1 = parseInt(color1.slice(3, 5), 16);
+  const b1 = parseInt(color1.slice(5, 7), 16);
+  
+  const r2 = parseInt(color2.slice(1, 3), 16);
+  const g2 = parseInt(color2.slice(3, 5), 16);
+  const b2 = parseInt(color2.slice(5, 7), 16);
+  
+  // 插值计算
+  const r = Math.round(r1 + (r2 - r1) * progress);
+  const g = Math.round(g1 + (g2 - g1) * progress);
+  const b = Math.round(b1 + (b2 - b1) * progress);
+  
+  // 转回十六进制
+  return `#${(r).toString(16).padStart(2, '0')}${
+    (g).toString(16).padStart(2, '0')}${
+    (b).toString(16).padStart(2, '0')}`;
 };
 
 // 使用Konva渲染文本到画布
@@ -323,46 +616,105 @@ const renderTextToCanvas = (canvas, textData, frameProgress, config) => {
   if (animation.animationEffects.opacity) {
     konvaProps.opacity *= animation.animationEffects.opacity;
   }
-  if (animation.animationEffects.x) {
+  
+  // 应用新增动画效果
+  if (animation.animationEffects.xOffset !== undefined) {
+    konvaProps.x += animation.animationEffects.xOffset;
+  } else if (animation.animationEffects.x) {
     konvaProps.x += animation.animationEffects.x;
   }
-  if (animation.animationEffects.y) {
+  
+  if (animation.animationEffects.yOffset !== undefined) {
+    konvaProps.y += animation.animationEffects.yOffset;
+  } else if (animation.animationEffects.y) {
     konvaProps.y += animation.animationEffects.y;
   }
+  
   if (animation.animationEffects.scaleX) {
     konvaProps.scaleX = animation.animationEffects.scaleX;
     konvaProps.scaleY = animation.animationEffects.scaleY;
+  }
+  
+  // 应用旋转动画
+  if (animation.animationEffects.rotation !== undefined) {
+    konvaProps.rotation = animation.animationEffects.rotation;
+  }
+  
+  // 应用颜色动画
+  if (animation.animationEffects.color) {
+    konvaProps.fill = animation.animationEffects.color;
+  }
+  
+  // 应用模糊效果
+  if (animation.animationEffects.blur !== undefined) {
+    konvaProps.blurRadius = animation.animationEffects.blur;
   }
   
   const lines = text.split('，');
   const lineSpacing = parseInt(attributes.lineSpacing) || CONFIG.rendering.lineSpacing;
   const totalHeight = (lines.length - 1) * lineSpacing;
   
-  lines.forEach((line, i) => {
-    const textNode = new Konva.Text({
-      ...konvaProps,
-      text: line,
-      y: konvaProps.y - totalHeight / 2 + i * lineSpacing,
-    });
-    
-    textNode.offsetX(textNode.width() / 2);
-    
-    if (attributes.bgColor) {
-      const padding = parseInt(attributes.padding) || 10;
-      const textBg = new Konva.Rect({
-        x: textNode.x() - textNode.offsetX() - padding,
-        y: textNode.y() - textNode.offsetY() - padding,
-        width: textNode.width() + padding * 2,
-        height: textNode.height() + padding * 2,
-        fill: attributes.bgColor,
-        opacity: parseFloat(attributes.bgOpacity) || 0.5,
-        cornerRadius: parseInt(attributes.cornerRadius) || 0,
+  // 特殊处理打字机效果
+  const typewriterEffect = animation.animationEffects.typewriter;
+  if (typewriterEffect) {
+    // 将每一行处理为打字机效果
+    lines.forEach((line, i) => {
+      const charCount = line.length;
+      const charsToShow = Math.ceil(charCount * typewriterEffect.progress / typewriterEffect.speed);
+      const displayText = line.substring(0, charsToShow);
+      
+      const textNode = new Konva.Text({
+        ...konvaProps,
+        text: displayText,
+        y: konvaProps.y - totalHeight / 2 + i * lineSpacing,
       });
-      layer.add(textBg);
-    }
-    
-    layer.add(textNode);
-  });
+      
+      textNode.offsetX(textNode.width() / 2);
+      
+      if (attributes.bgColor) {
+        const padding = parseInt(attributes.padding) || 10;
+        const textBg = new Konva.Rect({
+          x: textNode.x() - textNode.offsetX() - padding,
+          y: textNode.y() - textNode.offsetY() - padding,
+          width: textNode.width() + padding * 2,
+          height: textNode.height() + padding * 2,
+          fill: attributes.bgColor,
+          opacity: parseFloat(attributes.bgOpacity) || 0.5,
+          cornerRadius: parseInt(attributes.cornerRadius) || 0,
+        });
+        layer.add(textBg);
+      }
+      
+      layer.add(textNode);
+    });
+  } else {
+    // 常规文本处理
+  lines.forEach((line, i) => {
+      const textNode = new Konva.Text({
+        ...konvaProps,
+        text: line,
+        y: konvaProps.y - totalHeight / 2 + i * lineSpacing,
+      });
+      
+      textNode.offsetX(textNode.width() / 2);
+      
+      if (attributes.bgColor) {
+        const padding = parseInt(attributes.padding) || 10;
+        const textBg = new Konva.Rect({
+          x: textNode.x() - textNode.offsetX() - padding,
+          y: textNode.y() - textNode.offsetY() - padding,
+          width: textNode.width() + padding * 2,
+          height: textNode.height() + padding * 2,
+          fill: attributes.bgColor,
+          opacity: parseFloat(attributes.bgOpacity) || 0.5,
+          cornerRadius: parseInt(attributes.cornerRadius) || 0,
+        });
+        layer.add(textBg);
+      }
+      
+      layer.add(textNode);
+    });
+  }
   
   layer.draw();
   const ctx = canvas.getContext('2d');
@@ -443,10 +795,10 @@ const createFrameGenerator = (textContents, config) => {
       currentFrame: frameIndex
     };
     
-    const canvas = createCanvas(config.width, config.height);
+  const canvas = createCanvas(config.width, config.height);
     await renderTextToCanvas(canvas, textData, frameProgress, config);
-    
-    const thumbnailDataURL = await createThumbnail(canvas);
+  
+  const thumbnailDataURL = await createThumbnail(canvas);
 
     return { imageData: canvas, thumbnailDataURL, totalFrames };
   };
@@ -473,7 +825,7 @@ export async function createTextVideo(textToProcess, options = {}) {
   const encoder = new VideoEncoderManager(config);
   
   const frameGenerator = createFrameGenerator(processedTextContents, config);
-  
+
   const firstFrame = await frameGenerator(0);
   const totalFrames = firstFrame.totalFrames;
   
