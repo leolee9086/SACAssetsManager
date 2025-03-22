@@ -2,8 +2,10 @@ import { confirmAsPromise } from '../../../../../utils/siyuanUI/confirm.js'
 import { kernelApi, plugin } from '../../../../../asyncModules.js'
 import { 修改d5a缩略图, 获取常规D5a缩略图路径 } from '../../../../../utils/thirdParty/d5/index.js'
 const { 翻译 } = plugin
-const 处理单个D5A文件 = async (asset, 单次确认 = false, 预览图 = false) => {
+const 处理单个D5A文件缩略图 = async (options = {}) => {
   const fs = require('fs')
+  const { asset, 单次确认 = false, 预览图 = false } = options
+  
   if (!asset || !asset.path.endsWith('.d5a')) return { success: false, 已处理: false }
   const iconPath = 获取常规D5a缩略图路径(asset.path)
   if (!fs.existsSync(iconPath)) return { success: false, 已处理: false }
@@ -42,39 +44,64 @@ const 执行缩略图写入 = async (文件路径, 图标路径) => {
 const 批量处理D5a文件缩略图 = async (options = { 
   单次确认: false, 
   d5a文件列表: [], 
-  处理完成回调: () => { } ,
-  处理开始回调:()=>true,
-  处理单个文件回调:()=>true
+  处理完成回调: () => { },
+  处理开始回调: () => true,
+  单个文件开始回调: () => true,
+  单个文件完成回调: () => true
 }) => {
   const { 单次确认, d5a文件列表, 处理完成回调, 处理开始回调, 单个文件完成回调, 单个文件开始回调 } = options
-  const 内部处理完成回调 = (处理结果) => {
-    try {
-      if (处理完成回调) 处理完成回调(处理结果)
-    } catch (error) {
-      kernelApi.pushErrMsg({ 'msg': `处理完成回调失败:${error}` })
-    }
-  }
-  console.log(单次确认, d5a文件列表)
+  
   if (!d5a文件列表.length) return
+  
+  // 执行处理开始回调
+  const 继续处理 = await 处理开始回调(d5a文件列表)
+  if (!继续处理) return
+  
+  const 处理结果 = []
+  
   if (单次确认) {
-    
-    const 继续处理 = await confirmAsPromise(
+    // 单次确认模式：统一进行确认后批量处理
+    const 用户确认 = await confirmAsPromise(
       翻译`确定修改?`,
       翻译`确认后将尝试为${d5a文件列表.length}个d5a文件内置缩略图。此操作不可撤销，是否继续？`
     )
-    if (!继续处理) return
-    const 处理结果 = await Promise.all(
-      d5a文件列表.map(asset => 处理单个D5A文件(asset, true))
-    )
-    await 内部处理完成回调(处理结果)
-  } else {
-    const 处理结果 = []
-    for await (const asset of d5a文件列表) {
-      const 结果 = await 处理单个D5A文件(asset, false, true)
-      if (结果.已处理) 处理结果.push(结果)
+    
+    if (!用户确认) return
+    
+    // 并行处理所有文件
+    for (const asset of d5a文件列表) {
+      // 执行单个文件开始回调
+      if (!(await 单个文件开始回调(asset, d5a文件列表))) continue
+      
+      // 处理文件
+      const 结果 = await 处理单个D5A文件缩略图({ asset, 单次确认: true })
+      处理结果.push(结果)
+      
+      // 执行单个文件完成回调
+      await 单个文件完成回调(结果, 处理结果, asset)
     }
-    if (处理结果.length > 0) {
-      await 内部处理完成回调(处理结果)
+  } else {
+    // 逐个确认模式：每个文件分别确认并处理
+    for (const asset of d5a文件列表) {
+      // 执行单个文件开始回调
+      if (!(await 单个文件开始回调(asset, d5a文件列表))) continue
+      
+      // 处理文件并带预览
+      const 结果 = await 处理单个D5A文件缩略图({ asset, 单次确认: false, 预览图: true })
+      
+      if (结果.已处理) 处理结果.push(结果)
+      
+      // 执行单个文件完成回调
+      await 单个文件完成回调(结果, 处理结果, asset)
+    }
+  }
+  
+  // 执行处理完成回调
+  if (处理结果.length > 0) {
+    try {
+      await 处理完成回调(处理结果, d5a文件列表)
+    } catch (error) {
+      kernelApi.pushErrMsg({ 'msg': `处理完成回调失败:${error}` })
     }
   }
 }
@@ -86,16 +113,28 @@ const 创建D5A菜单项 = (单次确认 = false) => (assets) => {
   const 标签文本 = 单次确认
     ? 翻译`尝试寻找并内置缩略图(${d5aCount}个d5a文件，单次确认)`
     : 翻译`尝试寻找并内置缩略图(${d5aCount}个d5a文件)`
-  const 处理开始回调 = 单次确认 ? () => confirmAsPromise(翻译`确定修改?`, 翻译`确认后将尝试为${d5aCount}个d5a文件内置缩略图。此操作不可撤销，是否继续？`) : () => true
-  const 单个文件开始回调 = !单次确认 ? (asset) => confirmAsPromise(翻译`确定修改?`, 翻译`确认后将尝试为${asset.path}内置缩略图。此操作不可撤销，是否继续？`) : () => true
-  const 单个文件完成回调 = !单次确认 ? (处理结果,上一个文件处理结果) => {
-    const successCount = 处理结果.filter(r => r.success).length
-    const failCount = 处理结果.filter(r => r.已处理 && !r.success).length
-    confirmAsPromise(翻译`处理完成`, 翻译`处理完成！成功：${successCount}个，失败：${failCount}个。`)
-  } : () => true
+
+  // 定义回调函数
+  const 处理开始回调 = () => true
+  const 单个文件开始回调 = !单次确认 
+    ? (asset) => confirmAsPromise(
+        翻译`确定修改?`, 
+        翻译`确认后将尝试为${asset.path}内置缩略图。此操作不可撤销，是否继续？`
+      )
+    : () => true
+    
+  const 单个文件完成回调 = () => true
+
   return {
     label: 标签文本,
-    click: async () => 批量处理D5a文件缩略图({ 单次确认, d5a文件列表, 处理完成回调: 显示处理结果统计 ,处理开始回调,单个文件开始回调,单个文件完成回调})
+    click: async () => 批量处理D5a文件缩略图({ 
+      单次确认, 
+      d5a文件列表, 
+      处理完成回调: 显示处理结果统计,
+      处理开始回调,
+      单个文件开始回调,
+      单个文件完成回调
+    })
   }
 }
 
