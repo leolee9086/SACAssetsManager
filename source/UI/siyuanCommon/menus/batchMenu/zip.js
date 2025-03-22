@@ -70,7 +70,6 @@ export async function 执行批量打包文件(localPath, taskController) {
         taskController.on('allTasksCompleted', () => {
             kernelApi.pushMsg({ msg: `批量打包完成，共创建 ${fileGroups.length} 个zip文件。` });
             taskController.close();
-
         });
     } catch (error) {
         console.error('批量打包文件时发生错误:', error);
