@@ -1,13 +1,5 @@
 let path = require("path");
 let fs = require("fs");
-/*let remote = require(path.join(
-    process.resourcesPath,
-    "/app/node_modules",
-    "@electron/remote"
-));
-let { app } = remote;
-window.appDir = path.dirname(app.getAppPath());
-const confDir = path.join(app.getPath("home"), ".config", "siyuan");*/
 let re = null;
 let realRequire = null;
 if (window.require) {

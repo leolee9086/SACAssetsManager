@@ -1,7 +1,7 @@
-/*import { requirePluginBased } from '../module/createRequire.js';
+import { requirePluginBased } from "../../../../../source/utils/module/createRequire.js";
 const JSZip = requirePluginBased('jszip')
 const fs = require('fs').promises
-export  {JSZip}
+export { JSZip }
 export async function addFileToZip(zipFilePath, fileToAddPath, fileNameInZip) {
     try {
         // 读取现有的zip文件
@@ -25,6 +25,4 @@ export async function addFileToZip(zipFilePath, fileToAddPath, fileNameInZip) {
         console.error(`向zip文件添加文件时出错:`, error);
         throw error; // 将错误抛出,以便调用者可以处理
     }
-}*/
-import { JSZip, addFileToZip } from '../../../src/toolBox/useAge/forFileManage/forZipLike/useJsZip.js'
-export { JSZip, addFileToZip }
+}
