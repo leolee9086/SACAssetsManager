@@ -28,6 +28,26 @@
         }
     </script>
     <script>
+        const modifyWebview = async () => {
+            const webview = document.querySelector('webview')
+            if (webview.src !== 'about:blank') {
+                return
+            }
+            if (window.externalBase) {
+                try {
+
+                webview.src = `./imageStaticService.html?externalBase=${window.externalBase.replace(/\\/g, '/')}&port=${window.port + 1}`
+                webview.openDevTools();
+            } catch (e) {
+                    console.error('启用静态图片服务器失败:', e);
+                }
+            } else {
+                setTimeout(() => {
+                    modifyWebview()
+                }, 100)
+            }
+        }
+
         window.onload = () => {
             const logAppContainer = document.getElementById('logApp')
             logAppContainer.innerHTML = '<button id="forceButton">强制取得数据库控制</button>'
@@ -67,20 +87,7 @@
                 }
             }
             const webview = document.querySelector('webview')
-            webview.addEventListener('dom-ready', async () => {
-                console.log(webview.src)
-                if (webview.src !== 'about:blank') {
-                    return
-                }
-               
-
-                try {
-                    webview.src = `./imageStaticService.html?externalBase=${window.externalBase.replace(/\\/g,'/')}&port=${window.port+1}`
-                    webview.openDevTools();
-                } catch (e) {
-                    console.error('启用静态图片服务器失败:', e);
-                }
-            });
+            webview.addEventListener('dom-ready', modifyWebview);
         }
     </script>
     <style>

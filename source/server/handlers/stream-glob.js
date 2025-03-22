@@ -170,7 +170,9 @@ const 创建流过滤器 = (_filter, signal, walkController) => {
             if (walkController.signal.aborted) {
                 return false
             }
-            return statProxy.type !== 'file' || _filter.test(statProxy)
+            //这里疑似错误地将文件夹也包含了
+            //return statProxy.type !== 'file' || _filter.test(statProxy)
+            return _filter.test(statProxy)
         }
     }
 }
@@ -213,6 +215,7 @@ export const fileListStream = async (req, res) => {
     if (req.query && req.query.setting) {
         scheme = JSON.parse(req.query.setting)
     }
+    console.log(scheme)
     req.on('close', () => {
         controller.abort();
     });

@@ -14,6 +14,7 @@ export const 创建缩略图生成上下文 = async (imagePath, loaderID = null)
     if (!loader) {
         loader = await getCommonLoader()
     }
+    console.log('imagePath',imagePath)
     const stat = await statWithCatch(imagePath)
     if (!stat) {
         throw new Error(`获取文件属性失败,不能为${imagePath}创建缩略图上下文`)
