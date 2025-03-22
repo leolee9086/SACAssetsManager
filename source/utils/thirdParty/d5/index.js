@@ -1,4 +1,4 @@
-import { addFileToZip } from '../../zip/modify.js'
+import { addFileToZip } from '../../../../src/toolBox/useAge/forFileManage/forZipLike/useJsZip.js'
 export async function 修改d5a缩略图(d5aFilePath, thumbnailPath, callbacks = {}) {
     const fs = require('fs')
     if (d5aFilePath.endsWith('.d5a') && fs.existsSync(thumbnailPath)) {
