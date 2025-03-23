@@ -115,3 +115,88 @@ const 保存数据到文件 = async (数据, 文件路径) => {
     return null
   }
 }
+
+/**
+ * 处理单个D5A文件缩略图
+ * @param {Object} options 选项对象
+ * @param {Object} options.asset 资源对象
+ * @param {string} options.asset.path 资源路径
+ * @param {boolean} options.跳过确认 是否跳过确认
+ * @param {Object} options.回调函数 回调函数集合
+ * @returns {Promise<Object>} 处理结果
+ */
+export const 处理单个D5A文件缩略图 = async (options = {}) => {
+  const fs = require('fs')
+  const { asset, 跳过确认 = false, 回调函数 = {} } = options
+  
+  if (!asset || !asset.path.endsWith('.d5a')) return { success: false, 已处理: false }
+  
+  const iconPath = 获取常规D5a缩略图路径(asset.path)
+  if (!fs.existsSync(iconPath)) return { success: false, 已处理: false }
+
+  if (!跳过确认) {
+    // 这里返回待确认信息，由UI层处理确认逻辑
+    return { 
+      success: false, 
+      已处理: false, 
+      需要确认: true, 
+      d5a路径: asset.path,
+      缩略图路径: iconPath 
+    }
+  }
+
+  return await 执行缩略图写入(asset.path, iconPath, 回调函数)
+}
+
+/**
+ * 执行D5A缩略图写入
+ * @param {string} 文件路径 D5A文件路径
+ * @param {string} 图标路径 缩略图路径
+ * @param {Object} 回调函数 回调函数集合
+ * @returns {Promise<Object>} 处理结果
+ */
+export const 执行缩略图写入 = async (文件路径, 图标路径, 回调函数 = {}) => {
+  try {
+    const success = await 修改d5a缩略图(文件路径, 图标路径, 回调函数)
+    return { success, 已处理: true }
+  } catch (error) {
+    if (回调函数.onError) {
+      await 回调函数.onError(`写入缩略图到 ${文件路径} 失败:${error}`)
+    }
+    console.error(`写入缩略图到 ${文件路径} 失败:`, error)
+    return { success: false, 已处理: true }
+  }
+}
+
+/**
+ * 批量处理D5A文件缩略图
+ * @param {Object} options 选项对象
+ * @param {Array} options.d5a文件列表 D5A文件列表
+ * @param {boolean} options.跳过单个确认 是否跳过单个确认
+ * @param {Object} options.缩略图回调函数 缩略图处理回调函数
+ * @returns {Promise<Array>} 处理结果列表
+ */
+export const 批量处理D5A文件缩略图数据 = async (options = {}) => {
+  const { 
+    d5a文件列表 = [], 
+    跳过单个确认 = false,
+    缩略图回调函数 = {}
+  } = options
+  
+  if (!d5a文件列表.length) return []
+  
+  const 处理结果 = []
+  
+  // 并行处理所有文件
+  for (const asset of d5a文件列表) {
+    // 处理文件
+    const 结果 = await 处理单个D5A文件缩略图({ 
+      asset, 
+      跳过确认: 跳过单个确认,
+      回调函数: 缩略图回调函数 
+    })
+    处理结果.push(结果)
+  }
+  
+  return 处理结果
+}

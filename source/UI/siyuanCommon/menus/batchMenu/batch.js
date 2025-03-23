@@ -3,48 +3,74 @@ import { 打开任务控制对话框 } from '../../dialog/tasks.js'
 import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
 import { showInputDialogPromise } from '../../dialog/inputDialog.js'
 import { 执行删除所有ThumbsDB } from './removeThumbsDb.js'
-export const 删除所有ThumbsDB = (options) => {
-    return {
-        label: '删除所有Thumbs.db',
-        click: async () => {
-            const localPath = options.data.localPath;
-            if (!localPath) {
-                console.error('无法获取本地路径');
-                return;
-            }
-            let confirm = await confirmAsPromise(
-                `确认开始删除?`,
-                `开始后所有${localPath}中的Thumbs.db文件将会被永久删除,无法恢复`
-            )
-            if (!confirm) {
-                return
-            }
-            await 执行删除所有ThumbsDB(localPath)
+import { 执行按扩展名分组 as 执行展平并按扩展名分组 } from './flatWithExtend.js'
+import { artTemplate as template } from '../../../../../src/toolBox/useAge/forText/useArtTemplate.js'
+// 渲染模板函数
+const 渲染模板 = async (templateStr, data) => {
+    try {
+        const renderFunc = template.compile(templateStr);
+        return renderFunc(data);
+    } catch (error) {
+        console.error('模板渲染错误:', error);
+        // 如果模板渲染失败，进行简单的变量替换
+        return Object.entries(data).reduce(
+            (str, [key, value]) => str.replace(new RegExp(`{{\\s*${key}\\s*}}`, 'g'), value),
+            templateStr
+        );
+    }
+};
+
+const 构建UI执行函数 = (options={执行函数:null,用户确认提示:null}) => {
+    const {执行函数,用户确认提示} = options
+    return async (options = { path: null }) => {
+        const { path } = options
+        if (!path) {
+            console.error('无法获取本地路径');
+            return;
         }
+        
+        // 准备模板数据对象
+        const 模板数据 = {
+            path,
+            执行函数名: 执行函数.name,
+            // 可以添加更多需要在模板中使用的数据
+        };
+        
+        // 处理用户确认提示，使用模板引擎渲染
+        const 默认提示 = `开始后所有{{path}}中的文件将会被{{执行函数名}}执行,无法恢复`;
+        const 提示模板 = 用户确认提示 || 默认提示;
+        const 处理后的提示 = await 渲染模板(提示模板, 模板数据);
+            
+        let confirm = await confirmAsPromise(
+            `确认开始执行?`,
+            处理后的提示
+        )
+        if (!confirm) {
+            return
+        }
+        await 执行函数(options)
     }
 }
 
-import { 执行按扩展名分组 } from './flatWithExtend.js'
-export const 展平并按扩展名分组 = (options) => {
+const UI执行删除所有ThumbsDB = 构建UI执行函数({执行函数:执行删除所有ThumbsDB,用户确认提示:'开始后所有{{path}}中的Thumbs.db文件将会被永久删除,无法恢复'})
+const UI执行展平并按扩展名分组 = 构建UI执行函数({执行函数:执行展平并按扩展名分组,用户确认提示:'开始后所有{{path}}中的文件将会被展平并按扩展名分组,无法恢复'})
+
+export const 删除所有ThumbsDB = (options) => {
+    const 执行函数 = async () => UI执行删除所有ThumbsDB({ path: options.data.localPath })
     return {
-        label: '按扩展名展平并分组到子文件夹',
-        click: async () => {
-            const localPath = options.data.localPath;
-            if (!localPath) {
-                console.error('无法获取本地路径');
-                return;
-            }
-            let confirm = await confirmAsPromise(
-                `确认开始删除?`,
-                `开始后所有${localPath}中的文件将会被移动按照扩展名移动到对应的文件夹,无法恢复`
-            )
-            if (!confirm) {
-                return
-            }
-            await 执行按扩展名分组(localPath)
-        }
+        label: '删除所有Thumbs.db',
+        click: 执行函数
     }
 }
+
+export const 展平并按扩展名分组 = (options) => {
+    const 执行函数 = async () => UI执行展平并按扩展名分组({ path: options.data.localPath })
+    return {
+        label: '按扩展名展平并分组到子文件夹',
+        click: 执行函数
+    }
+}
+
 import { 执行归集纯色图片 } from './getPureColorImages.js'
 export const 整理纯色和接近纯色的图片 = (options) => {
     return {
@@ -57,7 +83,7 @@ export const 整理纯色和接近纯色的图片 = (options) => {
             }
             let confirm = await confirmAsPromise(
                 `确认开始删除?`,
-                `开始后所有${localPath}中的纯色图片文件将会被移动到"待删除_纯色图片"文件夹,无法恢复`
+                `开始后所有{{localPath}}中的纯色图片文件将会被移动到"待删除_纯色图片"文件夹,无法恢复`
             )
             if (!confirm) {
                 return
@@ -79,7 +105,7 @@ export const 扫描重复文件 = (options) => {
             }
             let confirm = await confirmAsPromise(
                 `确认开始扫描?`,
-                `<p>开始后,将会开始查找${localPath}中的重复文件</p>
+                `<p>开始后,将会开始查找{{localPath}}中的重复文件</p>
                 <p>可能会有大量读取文件操作并需要一定时间执行</p>
                 <p>文件扫描结果将被写入"重复文件扫描结果.json"中,而不是直接删除</p>
                 <p>超过100MB的文件将会被跳过</p>
@@ -102,7 +128,7 @@ export const 快速扫描重复文件 = (options) => {
             }
             let confirm = await confirmAsPromise(
                 `确认开始扫描?`,
-                `<p>开始后,将会开始查找${localPath}中的重复文件</p>
+                `<p>开始后,将会开始查找{{localPath}}中的重复文件</p>
                 <p>可能会有大量读取文件操作并需要一定时间执行</p>
                 <p>文件扫描结果将被写入"重复文件扫描结果.json"中,而不是直接删除</p>
                 `
@@ -125,7 +151,7 @@ export const 扫描空文件夹 = (options) => {
             }
             let confirm = await confirmAsPromise(
                 `确认开始扫描?`,
-                `<p>开始后,将会开始查找${localPath}中的空文件夹</p>
+                `<p>开始后,将会开始查找{{localPath}}中的空文件夹</p>
                 <p>可能会有大量读取文件操作并需要一定时间执行</p>
                 <p>文件扫描结果将被写入"空文件夹扫描结果.txt"中</p>
                 <p>内部仅包含文件夹的文件夹不会被视为空文件夹,可能需要多次执行才能删除它们</p>
@@ -136,7 +162,7 @@ export const 扫描空文件夹 = (options) => {
             }
             let confirm1 = await confirmAsPromise(
                 `是否确认删除?`,
-                `<p>开始后,将会开始删除${localPath}中的空文件夹</p>
+                `<p>开始后,将会开始删除{{localPath}}中的空文件夹</p>
                 <p>可能会有大量读取文件操作并需要一定时间执行</p>
                 <p>内部仅包含文件夹的文件夹不会被视为空文件夹,可能需要多次执行才能删除它们</p>
                 <p>删除操作无法恢复</p>
@@ -161,13 +187,13 @@ export const 处理重复文件 = (options) => {
             }
             let confirm = await confirmAsPromise(
                 `确认处理重复文件?`,
-                `<p>开始后,将会开始查找${localPath}中的重复文件</p>
+                `<p>开始后,将会开始查找{{localPath}}中的重复文件</p>
                 <p>可能会有大量读取文件操作并需要一定时间执行</p>
                 <p>运行之前需要先使用扫描重复文件功能生成重复文件列表</p>
                 <p>重复文件中修改时间最近的结果将会保留在原始位置,其他文件将会被移入"待删除_重复文件"子文件夹</p>
                 `
             )
-            if(!confirm){
+            if (!confirm) {
                 return
             }
             const fs = require('fs').promises;
@@ -246,9 +272,9 @@ export const 处理重复文件 = (options) => {
 };
 
 import { 执行图片去重, 执行图片去重_后处理 } from './duplicateImageScanner.js';
-export const 图片去重 = (options,扫描完成后选择) => {
+export const 图片去重 = (options, 扫描完成后选择) => {
     return {
-        label: 扫描完成后选择?'图片去重(基于粗略的像素比较,扫描完成后选择)':'图片去重(基于粗略的像素比较)',
+        label: 扫描完成后选择 ? '图片去重(基于粗略的像素比较,扫描完成后选择)' : '图片去重(基于粗略的像素比较)',
         click: async () => {
             const localPath = options.data.localPath;
             if (!localPath) {
@@ -257,24 +283,24 @@ export const 图片去重 = (options,扫描完成后选择) => {
             }
             let confirm = await confirmAsPromise(
                 `确认开始图片去重?`,
-                `<p>开始后,将会对${localPath}中的图片文件的缩略图以灰度值计算简单哈希进行比较</p>
+                `<p>开始后,将会对{{localPath}}中的图片文件的缩略图以灰度值计算简单哈希进行比较</p>
                 <p>这个过程可能需要较长时间,具体取决于图片数量和大小</p>
                 <p>识别并非完全准确,建议仅用于大量材质贴图等数量较大但准确性要求不高的场合</p>
                 <p>重复的图片将被移动到"待删除_重复图片"文件夹中</p>
                 `
             )
-            
+
             if (confirm) {
                 const taskController = 打开任务控制对话框('图片去重', '正在比较图片,使用像素哈希...');
-                扫描完成后选择?await 执行图片去重_后处理(localPath, taskController,'simple'):await 执行图片去重(localPath, taskController,'simple');
+                扫描完成后选择 ? await 执行图片去重_后处理(localPath, taskController, 'simple') : await 执行图片去重(localPath, taskController, 'simple');
             }
         }
     }
 };
 
-export const 基于pHash的图片去重 = (options,扫描完成后选择) => {
+export const 基于pHash的图片去重 = (options, 扫描完成后选择) => {
     return {
-        label: 扫描完成后选择?'图片去重(基于phash,扫描完成后选择)':'图片去重(基于phash)',
+        label: 扫描完成后选择 ? '图片去重(基于phash,扫描完成后选择)' : '图片去重(基于phash)',
         click: async () => {
             const localPath = options.data.localPath;
             if (!localPath) {
@@ -283,16 +309,16 @@ export const 基于pHash的图片去重 = (options,扫描完成后选择) => {
             }
             let confirm = await confirmAsPromise(
                 `确认开始图片去重?`,
-                `<p>开始后,将会对${localPath}中的图片文件的缩略图计算pHash进行比较</p>
+                `<p>开始后,将会对{{localPath}}中的图片文件的缩略图计算pHash进行比较</p>
                 <p>这个过程可能需要较长时间,具体取决于图片数量和大小</p>
                 <p>识别并非完全准确,建议仅用于大量材质贴图等数量较大但准确性要求不高的场合</p>
                 <p>重复的图片将被移动到"待删除_重复图片"文件夹中</p>
                 `
             )
-            
+
             if (confirm) {
                 const taskController = 打开任务控制对话框('图片去重', '正在比较图片,使用pahash...');
-                扫描完成后选择?await 执行图片去重_后处理(localPath, taskController,'feature'):await 执行图片去重(localPath, taskController,'feature');
+                扫描完成后选择 ? await 执行图片去重_后处理(localPath, taskController, 'feature') : await 执行图片去重(localPath, taskController, 'feature');
             }
         }
     }
@@ -338,16 +364,16 @@ export const 归集图片文件 = (options) => {
                     for (const entry of entries) {
                         const fullPath = path.join(dir, entry.name);
                         if (entry.isDirectory() && includeSubfolders) {
-                            await taskController.addTask(async()=>{
+                            await taskController.addTask(async () => {
                                 await collectImages(fullPath)
-                            },0)
+                            }, 0)
                         } else if (entry.isFile() && isImage(entry.name)) {
                             await taskController.addTask(async () => {
                                 const newPath = path.join(targetFolder, entry.name);
                                 await fs.rename(fullPath, newPath);
                                 processedFiles++;
                                 return { message: `已移动: ${entry.name}` };
-                            },1);
+                            }, 1);
                         }
                     }
                 };
@@ -437,7 +463,6 @@ export const 复制文档树结构 = (options) => {
         ]
     }
 }
-import { 执行批量打包文件 } from './zip.js'
 export const 批量打包文件 = (options) => {
     const localPath = options.data.localPath;
     const 执行打包 = async (每包文件数) => {
@@ -447,7 +472,7 @@ export const 批量打包文件 = (options) => {
         }
         let confirm = await confirmAsPromise(
             `确认开始批量打包?`,
-            `开始后，${localPath}中的文件将会被每${每包文件数}个打包成一个zip文件。`
+            `开始后，{{localPath}}中的文件将会被每{{每包文件数}}个打包成一个zip文件。`
         )
         if (!confirm) {
             return;
