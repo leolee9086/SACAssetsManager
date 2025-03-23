@@ -26,8 +26,9 @@
   
   <script type="module">
     // 导入Vue基本库
-    import { createApp, defineAsyncComponent, h, ref, reactive, toRefs } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-    
+    import { createApp, defineAsyncComponent, h, ref, reactive, toRefs } from '../../../../static/vue.esm-browser.js';
+    import { initVueApp } from "../../../utils/module/vue/loadVueApp.js";
+
     // 创建窗口应用
     const app = createApp({
       setup() {
@@ -52,7 +53,8 @@
         const { ipcRenderer } = window.require('electron');
         
         /**
-         * 动态加载组件
+         * 动态加载组件, 使用vue3-sfc-loader加载组件
+         * 
          */
         async function loadComponent(path) {
           if (!path) {
