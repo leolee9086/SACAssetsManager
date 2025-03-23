@@ -27,6 +27,7 @@
   <script type="module">
     // 导入Vue基本库
     import { createApp, defineAsyncComponent, h, ref, reactive, toRefs } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+    import { ComponentSerializer } from '../../../src/toolBox/feature/useVue/useSFC/forComponentSerialize';
     
     // 创建窗口应用
     const app = createApp({
@@ -38,7 +39,8 @@
           sourceWindowId: null,
           title: '窗口内容',
           // 组件数据
-          componentPath: '',
+          serializedComponent: null, // 改为存储序列化的组件信息
+          componentPath: '', // 保留向后兼容
           componentProps: {},
           componentData: {},
           // 组件加载状态
@@ -54,17 +56,34 @@
         /**
          * 动态加载组件
          */
-        async function loadComponent(path) {
-          if (!path) {
-            state.loadError = '未提供组件路径';
-            return;
-          }
-          
+        async function loadComponent() {
           try {
-            // 使用动态导入加载组件
-            const module = await import(path);
-            state.dynamicComponent = module.default;
-            state.componentLoaded = true;
+            if (state.serializedComponent) {
+              // 使用ComponentSerializer反序列化组件
+              const context = {
+                vue: { 
+                  createApp, defineAsyncComponent, h, ref, reactive, toRefs
+                },
+                // 如果需要可以添加其他依赖项，如编译器
+                // compiler: ...
+                // 可以通过导入CDN上的vue模板编译器来添加
+              };
+              
+              state.dynamicComponent = await ComponentSerializer.deserialize(
+                state.serializedComponent, 
+                context
+              );
+              state.componentLoaded = true;
+            } 
+            // 向后兼容：支持直接使用componentPath
+            else if (state.componentPath) {
+              // 使用动态导入加载组件
+              const module = await import(state.componentPath);
+              state.dynamicComponent = module.default;
+              state.componentLoaded = true;
+            } else {
+              state.loadError = '未提供组件定义';
+            }
           } catch (error) {
             console.error('加载组件失败:', error);
             state.loadError = `加载组件失败: ${error.message}`;
@@ -141,7 +160,8 @@
             state.title = data.title || '窗口内容';
             
             // 更新组件信息
-            state.componentPath = data.componentPath;
+            state.serializedComponent = data.serializedComponent;
+            state.componentPath = data.componentPath; // 保留向后兼容
             state.componentProps = data.componentProps || {};
             state.componentData = data.componentData || {};
             
@@ -149,7 +169,7 @@
             document.title = state.title;
             
             // 加载组件
-            await loadComponent(state.componentPath);
+            await loadComponent();
           });
           
           // 监听数据更新

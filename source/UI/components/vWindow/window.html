@@ -14,20 +14,25 @@
       <div class="loading-text">加载组件中...</div>
     </div>
     
+    <div class="error-container" v-else-if="loadError">
+      <div class="error-message">{{ loadError }}</div>
+    </div>
+    
     <component 
       v-else
       :is="dynamicComponent" 
       v-bind="componentProps"
-      v-bind="componentData"
-      @update="handleComponentUpdate"
-      @event="handleComponentEvent">
+      v-bind="getEventHandlers()"
+      @update="handleComponentUpdate">
     </component>
   </div>
   
   <script type="module">
     // 导入Vue基本库
     import { createApp, defineAsyncComponent, h, ref, reactive, toRefs } from '../../../../static/vue.esm-browser.js';
+    import * as Vue from '../../../../static/vue.esm-browser.js';
     import { initVueApp } from "../../../utils/module/vue/loadVueApp.js";
+    import { ComponentSerializer } from '../../../../src/toolBox/feature/useVue/useSFC/forComponentSerialize.js';
 
     // 创建窗口应用
     const app = createApp({
@@ -35,38 +40,117 @@
         // 状态定义
         const state = reactive({
           // 窗口数据
-          windowId: null,
-          sourceWindowId: null,
+          channelId: '',
           title: '窗口内容',
           // 组件数据
-          componentPath: '',
+          serializedComponent: null,
           componentProps: {},
-          componentData: {},
           // 组件加载状态
           componentLoaded: false,
           dynamicComponent: null,
           // 错误状态
-          loadError: null
+          loadError: null,
+          // 通信频道
+          channel: null,
+          eventNames: [], // 存储可用的事件名称列表
         });
         
-        // 导入electron模块
-        const { ipcRenderer } = window.require('electron');
+        /**
+         * 从URL获取通信频道ID
+         */
+        function getChannelIdFromUrl() {
+          const urlParams = new URLSearchParams(window.location.search);
+          return urlParams.get('channelId');
+        }
         
         /**
-         * 动态加载组件, 使用vue3-sfc-loader加载组件
-         * 
+         * 设置通信频道
          */
-        async function loadComponent(path) {
-          if (!path) {
-            state.loadError = '未提供组件路径';
+        function setupChannel() {
+          const channelId = getChannelIdFromUrl();
+          if (!channelId) {
+            state.loadError = '无法获取通信频道ID';
             return;
           }
           
+          state.channelId = channelId;
+          state.channel = new BroadcastChannel(`vWindow-${channelId}`);
+          
+          // 设置消息监听
+          state.channel.onmessage = async (event) => {
+            const { type, payload } = event.data;
+            
+            switch (type) {
+              case 'COMPONENT_DATA':
+                // 更新窗口数据
+                state.title = payload.title || '窗口内容';
+                state.serializedComponent = payload.serializedComponent;
+                state.componentProps = payload.componentProps || {};
+                state.eventNames = payload.eventNames || [];
+                
+                // 设置文档标题
+                document.title = state.title;
+                
+                // 加载组件
+                await loadComponent();
+                break;
+                
+              case 'COMPONENT_ERROR':
+                state.loadError = `加载组件失败: ${payload.error}`;
+                break;
+                
+              case 'PARENT_DATA_UPDATE':
+                // 更新组件数据
+                if (state.componentLoaded) {
+                  // 应用数据更新
+                }
+                break;
+                
+              case 'COMPONENT_PROPS_UPDATE':
+                // 更新组件属性
+                if (state.componentLoaded) {
+                  state.componentProps = {...state.componentProps, ...payload.props};
+                }
+                break;
+                
+              case 'PARENT_EVENT':
+                // 触发组件事件
+                if (state.componentLoaded && state.dynamicComponent) {
+                  // 向组件触发事件
+                  state.dynamicComponent.$emit(payload.name, payload.data);
+                }
+                break;
+            }
+          };
+          
+          // 请求组件数据
+          state.channel.postMessage({
+            type: 'REQUEST_COMPONENT',
+            payload: {}
+          });
+        }
+        
+        /**
+         * 动态加载组件
+         */
+        async function loadComponent() {
           try {
-            // 使用动态导入加载组件
-            const module = await import(path);
-            state.dynamicComponent = module.default;
-            state.componentLoaded = true;
+            if (state.serializedComponent) {
+              // 使用ComponentSerializer反序列化组件
+              const context = {
+                vue: Vue,
+                _vue: Vue
+              };
+              
+              state.dynamicComponent = await ComponentSerializer.deserialize(
+                state.serializedComponent, 
+                context
+              );
+              console.log(state.dynamicComponent)
+              state.componentLoaded = true;
+            } else {
+              state.loadError = '未提供组件定义';
+            }
           } catch (error) {
             console.error('加载组件失败:', error);
             state.loadError = `加载组件失败: ${error.message}`;
@@ -77,134 +161,62 @@
          * 处理组件更新事件
          */
         function handleComponentUpdate(data) {
-          // 更新本地数据
-          state.componentData = {...state.componentData, ...data};
-          
-          // 将更新发送给父窗口
-          sendDataToParent(data);
+          if (state.channel) {
+            state.channel.postMessage({
+              type: 'DATA_UPDATED',
+              payload: { data }
+            });
+          }
         }
         
         /**
          * 处理组件事件
          */
         function handleComponentEvent(eventName, eventData) {
-          // 将事件发送给父窗口
-          sendEventToParent(eventName, eventData);
-        }
-        
-        /**
-         * 向父窗口发送数据更新
-         */
-        function sendDataToParent(data) {
-          if (state.windowId && state.sourceWindowId) {
-            ipcRenderer.send('window-data-update', {
-              sourceWindowId: state.windowId,
-              targetWindowId: state.sourceWindowId,
-              updatedData: data
+          // 向主窗口发送事件
+          if (state.channel) {
+            state.channel.postMessage({
+              type: 'COMPONENT_EVENT',
+              payload: { 
+                name: eventName,
+                data: eventData
+              }
             });
           }
         }
         
-        /**
-         * 向父窗口发送事件
-         */
-        function sendEventToParent(eventName, eventData) {
-          if (state.windowId && state.sourceWindowId) {
-            ipcRenderer.send('window-event', {
-              sourceWindowId: state.windowId,
-              targetWindowId: state.sourceWindowId,
-              eventName,
-              eventData
-            });
-          }
-        }
-        
-        /**
-         * 通知父窗口此窗口已关闭
-         */
-        function notifyWindowClosed() {
-          if (state.windowId && state.sourceWindowId) {
-            ipcRenderer.send('window-closed', {
-              sourceWindowId: state.windowId,
-              targetWindowId: state.sourceWindowId
-            });
-          }
-        }
-        
-        /**
-         * 设置IPC监听器
-         */
-        function setupIpcListeners() {
-          // 监听初始化消息
-          ipcRenderer.once('window-init', async (event, data) => {
-            // 更新窗口数据
-            state.windowId = data.windowId;
-            state.sourceWindowId = data.sourceWindowId;
-            state.title = data.title || '窗口内容';
-            
-            // 更新组件信息
-            state.componentPath = data.componentPath;
-            state.componentProps = data.componentProps || {};
-            state.componentData = data.componentData || {};
-            
-            // 设置文档标题
-            document.title = state.title;
-            
-            // 加载组件
-            await loadComponent(state.componentPath);
+        // 返回事件处理函数
+        function getEventHandlers() {
+          const handlers = {};
+          
+          // 为每个事件名称创建处理函数
+          (state.eventNames || []).forEach(name => {
+            handlers[`on${name.charAt(0).toUpperCase() + name.slice(1)}`] = (eventData) => {
+              handleComponentEvent(name, eventData);
+            };
           });
           
-          // 监听数据更新
-          ipcRenderer.on('parent-data-update', (event, data) => {
-            if (data.targetWindowId === state.windowId) {
-              state.componentData = {...state.componentData, ...data.updatedData};
-            }
-          });
-          
-          // 监听属性更新
-          ipcRenderer.on('component-props-update', (event, data) => {
-            if (data.targetWindowId === state.windowId) {
-              state.componentProps = {...state.componentProps, ...data.componentProps};
-            }
-          });
-          
-          // 监听父窗口事件
-          ipcRenderer.on('parent-event', (event, data) => {
-            if (data.targetWindowId === state.windowId && state.dynamicComponent) {
-              // 向组件触发事件
-              state.dynamicComponent.$emit(data.eventName, data.eventData);
-            }
-          });
-          
-          // 监听关闭消息
-          ipcRenderer.on('window-close', () => {
-            notifyWindowClosed();
-          });
+          return handlers;
         }
         
-        /**
-         * 移除IPC监听器
-         */
-        function removeIpcListeners() {
-          ipcRenderer.removeAllListeners('parent-data-update');
-          ipcRenderer.removeAllListeners('component-props-update');
-          ipcRenderer.removeAllListeners('parent-event');
-          ipcRenderer.removeAllListeners('window-close');
-        }
-        
-        // 设置IPC监听器
-        setupIpcListeners();
-        
-        // 组件卸载时清理资源
+        // 窗口关闭前通知主窗口
         window.addEventListener('beforeunload', () => {
-          notifyWindowClosed();
-          removeIpcListeners();
+          if (state.channel) {
+            state.channel.postMessage({
+              type: 'WINDOW_CLOSED',
+              payload: {}
+            });
+            state.channel.close();
+          }
         });
+        
+        // 初始化通信频道
+        setupChannel();
         
         return {
           ...toRefs(state),
-          handleComponentUpdate,
-          handleComponentEvent
+          getEventHandlers, // 暴露给模板
+          handleComponentUpdate
         };
       }
     });

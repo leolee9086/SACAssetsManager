@@ -1,6 +1,11 @@
 <template>
   <!-- 内部内容显示（当不在浮动状态时） -->
   <template v-if="!isFloating">
+    <component 
+      :is="renderedComponent" 
+      v-bind="attrs"
+      v-if="renderedComponent"
+    />
     <slot></slot>
   </template>
   
@@ -14,9 +19,31 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, h, computed, useAttrs } from 'vue';
+import { ComponentSerializer } from '../../../src/toolBox/feature/useVue/useSFC/forComponentSerialize.js';
 const { BrowserWindow, getCurrentWindow } = window.require('@electron/remote');
-const { ipcRenderer } = window.require('electron');
+
+// 不继承属性，我们会手动处理
+defineOptions({ inheritAttrs: false });
+
+// 获取所有未在 props 中声明的属性
+const attrs = useAttrs();
+
+// 生成组件唯一标识符
+const generateId = () => `component-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+// 窗口唯一标识符
+const generateWindowId = () => `window-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+// 组件唯一标识符 - 避免多实例冲突
+const componentInstanceId = ref(generateId());
+// 窗口实例引用
+const windowInstance = ref(null);
+// 当前窗口ID - 用于通信
+const currentWindowId = ref(generateWindowId());
+// 新开窗口ID
+const newWindowId = ref('');
+// 通信频道
+const channel = ref(null);
 
 const props = defineProps({
   // 是否处于浮动状态
@@ -51,47 +78,158 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  // 要传递到新窗口的数据
-  windowData: {
-    type: Object,
-    default: () => ({})
-  },
-  // 组件文件路径（关键修改点：使用文件路径而非组件对象）
-  componentPath: {
-    type: String,
+  // 组件定义(路径、源码、对象或函数)
+  componentDef: {
+    type: [String, Object, Function],
     required: true
   },
-  // 传递给组件的属性
-  componentProps: {
+  // 序列化配置选项
+  serializeOptions: {
     type: Object,
-    default: () => ({})
+    default: () => ({
+      includeStyles: true,
+      serializeFunctions: true
+    })
+  },
+  // 保留componentPath用于向后兼容
+  componentPath: {
+    type: String,
+    default: ''
   }
 });
 
 const emit = defineEmits(['close', 'update:isFloating', 'data-updated', 'event']);
 
-// 窗口实例引用
-const windowInstance = ref(null);
-// 当前窗口ID - 用于通信
-const currentWindowId = ref('');
-// 新开窗口ID - 用于通信
-const newWindowId = ref('');
+// 添加计算属性处理组件定义
+const renderedComponent = computed(() => {
+  try {
+    const def = props.componentDef || props.componentPath;
+    if (!def) return null;
+    
+    // 如果是字符串路径，尝试加载组件
+    if (typeof def === 'string') {
+      return () => import(def);
+    }
+    
+    // 如果是函数或对象，直接返回
+    return def;
+  } catch (error) {
+    console.error('组件渲染失败:', error);
+    return null;
+  }
+});
 
-// 窗口唯一标识符
-const generateWindowId = () => `window-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+/**
+ * 创建通信频道
+ */
+const createChannel = () => {
+  const channelName = `vWindow-${componentInstanceId.value}`;
+  channel.value = new BroadcastChannel(channelName);
+  
+  // 设置消息监听
+  channel.value.onmessage = (event) => {
+    const { type, payload } = event.data;
+    
+    switch (type) {
+      case 'REQUEST_COMPONENT':
+        sendComponentData();
+        break;
+      case 'WINDOW_CLOSED':
+        closeWindow();
+        break;
+      case 'COMPONENT_EVENT':
+        handleChildEvent(payload);
+        break;
+      case 'DATA_UPDATED':
+        emit('data-updated', payload.data);
+        break;
+    }
+  };
+};
+
+/**
+ * 发送组件数据到新窗口
+ */
+const sendComponentData = () => {
+  try {
+    // 序列化组件定义
+    const def = props.componentDef || props.componentPath;
+    
+    // 处理 attrs 中的事件处理函数
+    const processedAttrs = {};
+    const events = {};
+    
+    // 分离普通属性和事件处理函数
+    for (const key in attrs) {
+      // Vue事件属性通常以'on'开头并且第三个字符是大写字母 (例如 onClick, onUpdate)
+      if (key.startsWith('on') && key.length > 2 && key[2] === key[2].toUpperCase()) {
+        // 记录事件名称，供后续触发
+        const eventName = key[2].toLowerCase() + key.slice(3); // 转换 onClick -> click
+        events[eventName] = true;
+      } else {
+        // 普通属性直接复制
+        processedAttrs[key] = attrs[key];
+      }
+    }
+    
+    // 标准化组件定义选项
+    const serializationOptions = {
+      ...props.serializeOptions,
+      baseUrl: window.location.origin,
+      // 确保序列化函数
+      serializeFunctions: true
+    };
+    
+    const serializedComponent = ComponentSerializer.serialize(def, serializationOptions);
+    
+    channel.value.postMessage({
+      type: 'COMPONENT_DATA',
+      payload: {
+        sourceWindowId: currentWindowId.value,
+        title: props.title,
+        serializedComponent,
+        componentProps: processedAttrs,
+        eventNames: Object.keys(events) // 只传递事件名称清单
+      }
+    });
+  } catch (error) {
+    console.error('组件序列化失败:', error);
+    channel.value.postMessage({
+      type: 'COMPONENT_ERROR',
+      payload: { error: error.message }
+    });
+  }
+};
+
+/**
+ * 处理从新窗口触发的事件
+ */
+const handleChildEvent = (eventData) => {
+  const { name, data } = eventData;
+  
+  // 查找对应的事件处理函数
+  const handlerPropName = 'on' + name.charAt(0).toUpperCase() + name.slice(1);
+  
+  if (attrs[handlerPropName] && typeof attrs[handlerPropName] === 'function') {
+    // 调用原始处理函数
+    attrs[handlerPropName](data);
+  }
+  
+  // 同时触发通用事件
+  emit('event', { name, data });
+};
 
 /**
  * 创建新窗口并加载内容
  */
 const createWindow = async () => {
   try {
+    // 创建通信频道
+    createChannel();
+    
     // 获取当前窗口，用于设置新窗口的相对位置
     const currentWin = getCurrentWindow();
     const [x, y] = currentWin.getPosition();
-    
-    // 为了通信，给每个窗口分配一个唯一ID
-    currentWindowId.value = generateWindowId();
-    newWindowId.value = generateWindowId();
     
     // 创建新的浏览器窗口
     const newWindow = new BrowserWindow({
@@ -106,7 +244,6 @@ const createWindow = async () => {
         contextIsolation: false,
         enableRemoteModule: true,
         preload: window.electron?.preload,
-        // 允许文件系统访问，用于动态加载组件
         webSecurity: false
       },
       title: props.title,
@@ -117,32 +254,17 @@ const createWindow = async () => {
     // 移除默认菜单
     newWindow.setMenu(null);
     
-    // 准备组件信息和初始化数据
-    const initData = {
-      sourceWindowId: currentWindowId.value,
-      windowId: newWindowId.value,
-      title: props.title,
-      // 使用组件路径而不是组件对象
-      componentPath: props.componentPath,
-      componentProps: props.componentProps,
-      componentData: props.windowData,
-      // 传递应用根路径，用于解析相对路径
-      appRoot: window.location.origin
-    };
+    // 传递组件实例ID作为查询参数
+    const url = `${window.location.origin}/plugins/SACAssetsManager/source/UI/components/vWindow/window.html?channelId=${componentInstanceId.value}`;
     
-    // 设置窗口加载完成后要执行的操作
-    newWindow.webContents.on('did-finish-load', () => {
-      // 发送初始化数据到新窗口
-      newWindow.webContents.send('window-init', initData);
-    });
+    // 加载通用窗口HTML
+    await newWindow.loadURL(url);
     
     // 监听窗口关闭事件
     newWindow.on('closed', () => {
       closeWindow();
     });
-    const url = window.location.origin + '/plugins/SACAssetsManager/source/UI/components/vWindow/window.html';
-    // 加载通用窗口HTML
-    await newWindow.loadURL(url);
+    
     newWindow.webContents.openDevTools();
   } catch (error) {
     console.error('创建窗口失败:', error);
@@ -156,18 +278,22 @@ const createWindow = async () => {
 const closeWindow = () => {
   if (windowInstance.value) {
     try {
-      // 清理前向新窗口发送关闭信号
-      windowInstance.value.webContents.send('window-close');
-      windowInstance.value.close();
+      // 检查窗口是否已经被销毁
+      if (!windowInstance.value.isDestroyed() && !windowInstance.value.isClosing()) {
+        windowInstance.value.close();
+      }
     } catch (error) {
       console.error('关闭窗口失败:', error);
+    } finally {
+      windowInstance.value = null;
     }
-    windowInstance.value = null;
   }
   
-  // 清理通信ID
-  currentWindowId.value = '';
-  newWindowId.value = '';
+  // 关闭通信频道
+  if (channel.value) {
+    channel.value.close();
+    channel.value = null;
+  }
   
   // 通知父组件状态变化
   emit('close');
@@ -175,53 +301,13 @@ const closeWindow = () => {
 };
 
 /**
- * 设置数据同步的IPC通信监听器
- */
-const setupIpcListeners = () => {
-  // 处理从新窗口发回的数据更新
-  ipcRenderer.on('window-data-update', (event, data) => {
-    if (data.targetWindowId === currentWindowId.value) {
-      // 将数据变更传递给父组件
-      emit('data-updated', data.updatedData);
-    }
-  });
-  
-  // 处理从新窗口发回的通用事件
-  ipcRenderer.on('window-event', (event, data) => {
-    if (data.targetWindowId === currentWindowId.value) {
-      // 触发事件
-      emit('event', {
-        name: data.eventName,
-        data: data.eventData
-      });
-    }
-  });
-  
-  // 处理窗口关闭事件
-  ipcRenderer.on('window-closed', (event, data) => {
-    if (data.sourceWindowId === newWindowId.value) {
-      closeWindow();
-    }
-  });
-};
-
-/**
- * 移除IPC监听器
- */
-const removeIpcListeners = () => {
-  ipcRenderer.removeAllListeners('window-data-update');
-  ipcRenderer.removeAllListeners('window-event');
-  ipcRenderer.removeAllListeners('window-closed');
-};
-
-/**
  * 向新窗口发送数据更新
  */
 const sendDataToWindow = (data) => {
-  if (windowInstance.value && newWindowId.value) {
-    windowInstance.value.webContents.send('parent-data-update', {
-      targetWindowId: newWindowId.value,
-      updatedData: data
+  if (channel.value) {
+    channel.value.postMessage({
+      type: 'PARENT_DATA_UPDATE',
+      payload: { data }
     });
   }
 };
@@ -230,10 +316,10 @@ const sendDataToWindow = (data) => {
  * 向新窗口发送组件属性更新
  */
 const updateComponentProps = (newProps) => {
-  if (windowInstance.value && newWindowId.value) {
-    windowInstance.value.webContents.send('component-props-update', {
-      targetWindowId: newWindowId.value,
-      componentProps: newProps
+  if (channel.value) {
+    channel.value.postMessage({
+      type: 'COMPONENT_PROPS_UPDATE',
+      payload: { props: newProps }
     });
   }
 };
@@ -242,11 +328,10 @@ const updateComponentProps = (newProps) => {
  * 向新窗口发送事件
  */
 const sendEventToWindow = (eventName, eventData) => {
-  if (windowInstance.value && newWindowId.value) {
-    windowInstance.value.webContents.send('parent-event', {
-      targetWindowId: newWindowId.value,
-      eventName,
-      eventData
+  if (channel.value) {
+    channel.value.postMessage({
+      type: 'PARENT_EVENT',
+      payload: { name: eventName, data: eventData }
     });
   }
 };
@@ -270,29 +355,14 @@ watch(() => props.isFloating, async (newValue) => {
   }
 }, { immediate: true });
 
-// 监听windowData变化，同步到新窗口
-watch(() => props.windowData, (newData) => {
-  if (windowInstance.value && newWindowId.value) {
-    sendDataToWindow(newData);
-  }
+// 监听attrs变化，同步到新窗口
+watch(attrs, (newAttrs) => {
+  updateComponentProps({ ...newAttrs });
 }, { deep: true });
-
-// 监听componentProps变化，同步到新窗口
-watch(() => props.componentProps, (newProps) => {
-  if (windowInstance.value && newWindowId.value) {
-    updateComponentProps(newProps);
-  }
-}, { deep: true });
-
-// 组件挂载时设置通信
-onMounted(() => {
-  setupIpcListeners();
-});
 
 // 组件卸载时清理资源
 onUnmounted(() => {
   closeWindow();
-  removeIpcListeners();
 });
 </script>
 
