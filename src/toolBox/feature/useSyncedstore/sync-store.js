@@ -229,12 +229,17 @@ export async function useSyncStore(options = {}) {
       initialDelay: 1000, 
       maxDelay: 30000 
     },
-    // 添加自动同步配置选项
+    // 修改自动同步配置选项，增加智能调整参数
     autoSync = {
-      enabled: false,          // 是否启用自动同步
-      interval: 5000,          // 定时同步间隔（毫秒）
-      syncOnChange: true,      // 数据变更时是否同步
-      heartbeatField: '_lastSyncTime'  // 用于心跳同步的字段名
+      enabled: false,                // 是否启用自动同步
+      interval: 5000,                // 基准同步间隔（毫秒）
+      minInterval: 1000,             // 最小同步间隔
+      maxInterval: 30000,            // 最大同步间隔
+      adaptiveMode: true,            // 是否启用智能自适应
+      syncOnChange: true,            // 数据变更时是否同步
+      heartbeatField: '_lastSyncTime',  // 用于心跳同步的字段名
+      batteryAware: true,            // 是否考虑电池状态
+      networkAware: true             // 是否考虑网络状态
     }
   } = options
   
@@ -293,9 +298,177 @@ export async function useSyncStore(options = {}) {
   // 添加自动同步相关变量
   let autoSyncTimer = null
   let lastStateSnapshot = null
+  let lastSyncTime = Date.now()
+  let changeFrequency = 0    // 文档变更频率
+  let lastNetworkCheck = {   // 上次网络检查结果
+    time: Date.now(),
+    latency: 200,  // 默认假设200ms延迟
+    type: 'unknown'
+  }
+  let adaptiveInterval = autoSync.interval  // 当前自适应间隔
+  
+  // 存储文档变更历史，用于计算变更频率
+  const changeHistory = []
+  const MAX_CHANGE_HISTORY = 10
+  
+  // 检测网络状况
+  const checkNetworkCondition = async () => {
+    try {
+      // 如果浏览器支持Network Information API
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+      
+      // 获取网络类型
+      const networkType = connection ? connection.effectiveType : 'unknown'
+      
+      // 测试延迟
+      let latency = 200 // 默认值
+      if (provider && provider.signalingUrls && provider.signalingUrls.length > 0) {
+        const testUrl = provider.signalingUrls[0].replace('wss://', 'https://')
+        const start = Date.now()
+        try {
+          await fetch(testUrl, { 
+            method: 'HEAD',
+            cache: 'no-store',
+            signal: AbortSignal.timeout(2000)
+          })
+          latency = Date.now() - start
+        } catch (e) {
+          // 使用上次测量的延迟
+          latency = lastNetworkCheck.latency
+        }
+      }
+      
+      // 更新网络检查结果
+      lastNetworkCheck = {
+        time: Date.now(),
+        latency,
+        type: networkType
+      }
+      
+      return lastNetworkCheck
+    } catch (e) {
+      console.warn('网络状况检查失败:', e)
+      return lastNetworkCheck
+    }
+  }
+  
+  // 检测电池状态
+  const checkBatteryStatus = async () => {
+    try {
+      if ('getBattery' in navigator) {
+        const battery = await navigator.getBattery()
+        return {
+          charging: battery.charging,
+          level: battery.level,
+          chargingTime: battery.chargingTime,
+          dischargingTime: battery.dischargingTime
+        }
+      }
+      return null
+    } catch (e) {
+      console.warn('电池状态检查失败:', e)
+      return null
+    }
+  }
+  
+  // 记录文档变更
+  const recordDocumentChange = () => {
+    const now = Date.now()
+    changeHistory.push(now)
+    
+    // 保持历史记录在限定范围内
+    if (changeHistory.length > MAX_CHANGE_HISTORY) {
+      changeHistory.shift()
+    }
+    
+    // 计算变更频率 (次数/分钟)
+    if (changeHistory.length >= 2) {
+      const oldestChange = changeHistory[0]
+      const timeSpan = now - oldestChange
+      // 防止除零错误
+      if (timeSpan > 0) {
+        // 转换为每分钟变更次数
+        changeFrequency = (changeHistory.length - 1) / (timeSpan / 60000)
+      }
+    }
+  }
+  
+  // 智能计算最佳同步间隔
+  const calculateOptimalSyncInterval = async () => {
+    // 如果不启用自适应，直接返回设置的间隔
+    if (!autoSync.adaptiveMode) {
+      return autoSync.interval
+    }
+    
+    // 基础间隔
+    let interval = autoSync.interval
+    
+    // 因网络状况调整
+    if (autoSync.networkAware) {
+      // 每30秒检查一次网络
+      if (Date.now() - lastNetworkCheck.time > 30000) {
+        await checkNetworkCondition()
+      }
+      
+      // 根据延迟调整
+      if (lastNetworkCheck.latency > 500) {
+        // 高延迟时增加间隔，减少网络负载
+        interval *= 1.5
+      } else if (lastNetworkCheck.latency < 100) {
+        // 低延迟时可以更频繁同步
+        interval *= 0.8
+      }
+      
+      // 根据网络类型调整
+      if (lastNetworkCheck.type === '4g') {
+        // 良好网络，可以更频繁同步
+        interval *= 0.9
+      } else if (lastNetworkCheck.type === '3g') {
+        // 普通网络，保持默认
+      } else if (lastNetworkCheck.type === '2g' || lastNetworkCheck.type === 'slow-2g') {
+        // 差网络，减少同步频率
+        interval *= 2
+      }
+    }
+    
+    // 根据文档变更频率调整
+    if (changeFrequency > 10) {
+      // 变更频繁，增加同步频率
+      interval *= 0.7
+    } else if (changeFrequency < 1) {
+      // 变更不频繁，减少同步频率
+      interval *= 1.3
+    }
+    
+    // 考虑电池状态（移动设备）
+    if (autoSync.batteryAware) {
+      const batteryStatus = await checkBatteryStatus()
+      if (batteryStatus) {
+        if (!batteryStatus.charging && batteryStatus.level < 0.3) {
+          // 电池电量低且未充电，减少同步频率
+          interval *= 1.5
+        } else if (batteryStatus.charging || batteryStatus.level > 0.7) {
+          // 充电中或电量充足，可以更频繁同步
+          interval *= 0.9
+        }
+      }
+    }
+    
+    // 时间自适应：根据上次同步到现在的时间
+    const timeSinceLastSync = Date.now() - lastSyncTime
+    if (timeSinceLastSync > 60000) {
+      // 如果长时间未同步，可能用户不活跃，延长间隔
+      interval *= 1.2
+    }
+    
+    // 限制在配置的最小/最大范围内
+    interval = Math.max(autoSync.minInterval, Math.min(autoSync.maxInterval, interval))
+    
+    return Math.round(interval)
+  }
   
   // 实现自动同步功能
-  const setupAutoSync = () => {
+  const setupAutoSync = async () => {
     // 清理现有定时器
     if (autoSyncTimer) {
       clearInterval(autoSyncTimer)
@@ -305,6 +478,9 @@ export async function useSyncStore(options = {}) {
     // 如果不启用自动同步，直接返回
     if (!autoSync.enabled) return
     
+    // 计算最佳同步间隔
+    adaptiveInterval = await calculateOptimalSyncInterval()
+    
     // 创建初始状态快照
     try {
       lastStateSnapshot = JSON.stringify(store.state)
@@ -313,32 +489,62 @@ export async function useSyncStore(options = {}) {
       lastStateSnapshot = '{}'
     }
     
-    // 设置定时同步
-    if (autoSync.interval > 0) {
-      autoSyncTimer = setInterval(() => {
-        // 执行心跳同步
-        if (provider && provider.connected) {
-          // 更新心跳字段触发同步
-          store.state[autoSync.heartbeatField] = Date.now()
-          console.log(`[自动同步] 房间 ${roomName} 执行定时同步`)
-        }
-      }, autoSync.interval)
+    // 设置定时同步，使用自适应间隔
+    autoSyncTimer = setInterval(async () => {
+      // 执行心跳同步
+      if (provider && provider.connected) {
+        // 更新心跳字段触发同步
+        store.state[autoSync.heartbeatField] = Date.now()
+        lastSyncTime = Date.now()
+        
+        // 重新计算并应用新的间隔（异步）
+        calculateOptimalSyncInterval().then(newInterval => {
+          // 如果间隔变化超过20%，重新设置定时器
+          if (Math.abs(newInterval - adaptiveInterval) / adaptiveInterval > 0.2) {
+            adaptiveInterval = newInterval
+            console.log(`[自适应同步] 房间 ${roomName} 调整同步间隔为: ${adaptiveInterval}ms`)
+            
+            // 重新设置定时器
+            clearInterval(autoSyncTimer)
+            
+            autoSyncTimer = setInterval(async () => {
+              if (provider && provider.connected) {
+                store.state[autoSync.heartbeatField] = Date.now()
+                lastSyncTime = Date.now()
+                console.log(`[自动同步] 房间 ${roomName} 执行定时同步`)
+              }
+            }, adaptiveInterval)
+          }
+        })
+        
+        console.log(`[自动同步] 房间 ${roomName} 执行定时同步`)
+      }
+    }, adaptiveInterval)
+    
+    console.log(`[自适应同步] 房间 ${roomName} 初始同步间隔: ${adaptiveInterval}ms`)
+    
+    // 监听文档变更，用于计算变更频率
+    const unobserveDoc = observeDocChanges(ydoc, recordDocumentChange)
+    
+    // 返回清理函数
+    return () => {
+      if (unobserveDoc) unobserveDoc()
     }
   }
   
-  // 添加一个执行同步的方法
-  const triggerSync = () => {
-    if (!provider || !provider.connected) return false
+  // 监听Y.Doc变更
+  const observeDocChanges = (doc, callback) => {
+    if (!doc) return null
     
-    const syncTimestamp = Date.now()
-    store.state[autoSync.heartbeatField] = syncTimestamp
+    // 设置更新观察者
+    doc.on('update', (update, origin) => {
+      callback(update, origin)
+    })
     
-    // 额外向awareness发送更新
-    if (provider.awareness) {
-      provider.awareness.setLocalStateField('_sync', syncTimestamp)
+    // 返回清理函数
+    return () => {
+      doc.off('update', callback)
     }
-    
-    return true
   }
   
   // 选择最佳服务器
@@ -643,7 +849,25 @@ export async function useSyncStore(options = {}) {
       diagnosticMessage: generateDiagnosticMessage(connectionInfo)
     }
   }
-  
+    
+  // 添加一个执行同步的方法
+  const triggerSync = () => {
+    if (!provider || !provider.connected) return false
+    
+    const syncTimestamp = Date.now()
+    store.state[autoSync.heartbeatField] = syncTimestamp
+    lastSyncTime = syncTimestamp
+    
+    // 记录变更
+    recordDocumentChange()
+    
+    // 额外向awareness发送更新
+    if (provider.awareness) {
+      provider.awareness.setLocalStateField('_sync', syncTimestamp)
+    }
+    
+    return true
+  }
   const result = {
     store: store.state,
     status,
@@ -666,7 +890,14 @@ export async function useSyncStore(options = {}) {
       setupAutoSync()
       return autoSync
     },
-    getAutoSyncStatus: () => ({...autoSync, active: !!autoSyncTimer})
+    getAutoSyncStatus: () => ({
+      ...autoSync, 
+      active: !!autoSyncTimer,
+      currentInterval: adaptiveInterval,
+      changeFrequency: Math.round(changeFrequency * 100) / 100,
+      networkStatus: lastNetworkCheck,
+      lastSyncTime
+    })
   }
   
   // 将连接存储在缓存中

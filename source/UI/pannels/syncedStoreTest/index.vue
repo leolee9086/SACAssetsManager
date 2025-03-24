@@ -10,19 +10,35 @@
         </label>
         
         <div v-if="autoSyncEnabled" class="sync-settings">
-          <label>同步间隔: 
-            <select v-model="syncInterval" @change="updateSyncInterval">
+          <label>智能同步: 
+            <select v-model="adaptiveMode" @change="updateSyncSettings">
+              <option :value="true">启用</option>
+              <option :value="false">禁用</option>
+            </select>
+          </label>
+          
+          <label v-if="!adaptiveMode">同步间隔: 
+            <select v-model="syncInterval" @change="updateSyncSettings">
               <option :value="2000">2秒</option>
               <option :value="5000">5秒</option>
               <option :value="10000">10秒</option>
               <option :value="30000">30秒</option>
             </select>
           </label>
+          
+          <div v-if="adaptiveMode && autoSyncStatus && autoSyncStatus.currentInterval" class="adaptive-info">
+            <span>当前间隔: {{ Math.round(autoSyncStatus.currentInterval / 1000) }}秒</span>
+            <span v-if="autoSyncStatus.changeFrequency">变更频率: {{ autoSyncStatus.changeFrequency }}/分钟</span>
+            <span v-if="autoSyncStatus.networkStatus">网络延迟: {{ autoSyncStatus.networkStatus.latency }}ms</span>
+          </div>
         </div>
         
         <div class="sync-status" v-if="autoSyncStatus">
           <span :class="{'sync-active': autoSyncStatus.active}">
             {{ autoSyncStatus.active ? '同步活跃中' : '同步未活跃' }}
+          </span>
+          <span v-if="autoSyncStatus.lastSyncTime" class="last-sync-time">
+            上次同步: {{ getTimeAgo(autoSyncStatus.lastSyncTime) }}
           </span>
         </div>
       </div>
@@ -156,6 +172,7 @@ let sharedSyncStore = null
 // 添加自动同步控制变量
 const autoSyncEnabled = ref(false)
 const syncInterval = ref(5000)
+const adaptiveMode = ref(true) // 默认启用智能同步
 const autoSyncStatus = ref(null)
 
 // 修改连接逻辑
@@ -204,7 +221,7 @@ const connectBoth = async () => {
     // 等待清理完成
     await new Promise(resolve => setTimeout(resolve, 800))
     
-    // 创建单个共享连接
+    // 创建单个共享连接，修改自动同步配置
     const result = await useSyncStore({
       roomName: currentRoomName,
       initialState: {
@@ -221,8 +238,13 @@ const connectBoth = async () => {
       autoSync: {
         enabled: autoSyncEnabled.value,
         interval: syncInterval.value,
+        adaptiveMode: adaptiveMode.value,
+        minInterval: 1000,
+        maxInterval: 30000,
         syncOnChange: true,
-        heartbeatField: '_lastSyncTime'
+        heartbeatField: '_lastSyncTime',
+        batteryAware: true,
+        networkAware: true
       }
     })
     
@@ -445,28 +467,39 @@ const toggleAutoSync = async (value) => {
   }
 }
 
-// 更新同步间隔
-const updateSyncInterval = async () => {
+// 更新自动同步设置
+const updateSyncSettings = async () => {
   try {
     if (sharedSyncStore && autoSyncEnabled.value) {
-      await setRoomAutoSync(sharedRoomId.value, {
-        enabled: true,
-        interval: syncInterval.value
+      const result = await setRoomAutoSync(sharedRoomId.value, {
+        enabled: autoSyncEnabled.value,
+        interval: syncInterval.value,
+        adaptiveMode: adaptiveMode.value
       })
       
       updateAutoSyncStatus()
-      console.log(`自动同步间隔已更新: ${syncInterval.value}ms`)
+      console.log(`同步设置已更新: ${adaptiveMode.value ? '智能同步' : '固定间隔'}, 基准间隔: ${syncInterval.value}ms`)
     }
   } catch (e) {
-    errorMessage.value = `更新同步间隔时出错: ${e.message || '未知错误'}`
+    errorMessage.value = `更新同步设置时出错: ${e.message || '未知错误'}`
   }
 }
 
 // 获取自动同步状态
-const updateAutoSyncStatus = () => {
+const updateAutoSyncStatus = async () => {
   if (sharedSyncStore) {
-    autoSyncStatus.value = getRoomAutoSyncStatus(sharedRoomId.value)
+    autoSyncStatus.value = await getRoomAutoSyncStatus(sharedRoomId.value)
   }
+}
+
+// 获取时间间隔的友好显示
+const getTimeAgo = (timestamp) => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000)
+  
+  if (seconds < 60) return `${seconds}秒前`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟前`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}小时前`
+  return `${Math.floor(seconds / 86400)}天前`
 }
 
 // 监听房间ID变更
@@ -520,7 +553,7 @@ onMounted(async () => {
     if (sharedSyncStore) {
       updateAutoSyncStatus()
     }
-  }, 10000)
+  }, 5000) // 更频繁地检查自动同步状态
   
   // 组件卸载时清理
   onUnmounted(() => {
@@ -811,5 +844,22 @@ input:checked + .switch-slider:before {
 
 .auto-sync-btn:hover {
   background-color: #7cb342;
+}
+
+/* 添加智能同步相关样式 */
+.adaptive-info {
+  display: flex;
+  flex-direction: column;
+  background-color: #f0f4ff;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-left: 10px;
+}
+
+.last-sync-time {
+  font-size: 11px;
+  color: #666;
+  margin-left: 8px;
 }
 </style>
