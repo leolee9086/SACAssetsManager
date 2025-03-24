@@ -3,21 +3,12 @@ import { syncedStore, getYjsValue } from '../../../../static/@syncedstore/core.j
 import { WebrtcProvider } from '../../../../static/y-webrtc.mjs'
 import { IndexeddbPersistence } from '../../../../static/y-indexeddb.mjs'
 import * as Y from '../../../../static/yjs.js'
+import { GLOBAL_SIGNALING_SERVERS } from './useYjsSignalServers.js'
 
 // 用于跟踪房间连接和Y.Doc的全局缓存
 const roomConnections = new Map()
 const roomDocs = new Map()
 
-// 全球信令服务器列表
-const GLOBAL_SIGNALING_SERVERS = [
-    'wss://y-webrtc-signaling.onrender.com',
-
-  'wss://signaling.yjs.dev',
-  'wss://y-webrtc-signaling-us.herokuapp.com', 
-  'wss://y-webrtc-signaling-eu.herokuapp.com',
-  'wss://signaling.meething.space',
-  'wss://webrtc-signaling.glitch.me',
-]
 
 // 亚太地区及中国大陆可能更稳定的信令服务器
 const ASIA_PACIFIC_SIGNALING_SERVERS = [
@@ -936,48 +927,7 @@ export function getRoomAutoSyncStatus(roomName) {
   return connection.getAutoSyncStatus()
 }
 
-/**
- * 部署自己的信令服务器指南
- * 
- * 要在中国大陆获得最佳连接性能，强烈建议部署自己的信令和TURN服务器。
- * 
- * 1. 部署信令服务器:
- *    - 使用y-webrtc-signaling: https://github.com/yjs/y-webrtc-signaling
- *    - 在阿里云、腾讯云等部署一个Node.js实例
- *    - 然后配置你的应用使用这个私有服务器
- * 
- * 2. 部署TURN服务器:
- *    - 使用coturn: https://github.com/coturn/coturn
- *    - 在云服务器上安装并配置
- *    - 配置认证凭据
- * 
- * 3. 在你的应用中使用:
- *    useSyncStore({
- *      webrtcOptions: {
- *        signaling: ['wss://your-signaling-server.com'],
- *        iceServers: [
- *          { urls: 'stun:your-stun-server.com:3478' },
- *          {
- *            urls: 'turn:your-turn-server.com:3478',
- *            username: 'your-username',
- *            credential: 'your-password'
- *          }
- *        ]
- *      }
- *    })
- */
 
-// 使用缓存和连接检测优化数据加载
-const initializeStore = (store, initialState, isLocalDataLoaded) => {
-  // 仅当本地没有数据时初始化
-  if (!isLocalDataLoaded && Object.keys(store.state).length === 0) {
-    Object.entries(initialState).forEach(([key, value]) => {
-      store.state[key] = value
-    })
-    return true
-  }
-  return false
-}
 
 // 添加网络诊断工具
 const diagnoseConnection = async (provider) => {
