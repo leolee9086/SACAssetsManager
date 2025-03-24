@@ -1,20 +1,20 @@
 <template>
-  <!-- 内部内容显示（当不在浮动状态时） -->
-  <template v-if="!isFloating">
+  <!-- 内部内容显示（始终在主窗口显示，不再判断isFloating） -->
+  <div class="v-window-container">
     <component 
       :is="renderedComponent" 
       v-bind="attrs"
       v-if="renderedComponent"
     />
     <slot></slot>
-  </template>
-  
-  <!-- 占位符（当内容在新窗口中显示时） -->
-  <div v-else-if="!floatElement" class="v-window-placeholder">
-    <button class="v-window-anchor" @click="closeWindow">
-      <span>{{ anchorText }}</span>
-      <span class="v-window-close-icon">×</span>
-    </button>
+    
+    <!-- 当内容在新窗口中显示时，显示指示器 -->
+    <div v-if="isFloating" class="v-window-floating-indicator">
+      <button class="v-window-indicator" @click="closeWindow">
+        <span>{{ anchorText }}</span>
+        <span class="v-window-close-icon">×</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -44,6 +44,12 @@ const currentWindowId = ref(generateWindowId());
 const newWindowId = ref('');
 // 通信频道
 const channel = ref(null);
+
+// 添加一个引用来存储浮动窗口的最新状态
+const latestFloatingState = ref(null);
+
+// 添加一个计时器来定期同步状态
+const syncInterval = ref(null);
 
 const props = defineProps({
   // 是否处于浮动状态
@@ -143,6 +149,18 @@ const createChannel = () => {
       case 'DATA_UPDATED':
         emit('data-updated', payload.data);
         break;
+      case 'WINDOW_STATE_SYNC':
+        // 保存浮动窗口的状态，以便在收回时使用
+        if (props.isFloating) {
+          latestFloatingState.value = payload.props;
+        }
+        break;
+      case 'COMPONENT_LOADED':
+        console.log('浮动组件已加载完成');
+        break;
+      case 'PROPS_UPDATE_CONFIRMED':
+        console.log('浮动窗口已确认属性更新');
+        break;
     }
   };
 };
@@ -155,20 +173,25 @@ const sendComponentData = () => {
     // 序列化组件定义
     const def = props.componentDef || props.componentPath;
     
-    // 处理 attrs 中的事件处理函数
-    const processedAttrs = {};
-    const events = {};
-    
-    // 分离普通属性和事件处理函数
+    // 深度克隆属性以解除响应式代理
+    const clonedProps = {};
     for (const key in attrs) {
-      // Vue事件属性通常以'on'开头并且第三个字符是大写字母 (例如 onClick, onUpdate)
+      if (!key.startsWith('on')) {  // 排除事件处理函数
+        try {
+          clonedProps[key] = JSON.parse(JSON.stringify(attrs[key]));
+        } catch (e) {
+          console.warn(`属性 ${key} 无法序列化，使用原始值`);
+          clonedProps[key] = attrs[key];
+        }
+      }
+    }
+    
+    // 处理事件处理函数
+    const events = {};
+    for (const key in attrs) {
       if (key.startsWith('on') && key.length > 2 && key[2] === key[2].toUpperCase()) {
-        // 记录事件名称，供后续触发
-        const eventName = key[2].toLowerCase() + key.slice(3); // 转换 onClick -> click
+        const eventName = key[2].toLowerCase() + key.slice(3);
         events[eventName] = true;
-      } else {
-        // 普通属性直接复制
-        processedAttrs[key] = attrs[key];
       }
     }
     
@@ -188,8 +211,8 @@ const sendComponentData = () => {
         sourceWindowId: currentWindowId.value,
         title: props.title,
         serializedComponent,
-        componentProps: processedAttrs,
-        eventNames: Object.keys(events) // 只传递事件名称清单
+        componentProps: clonedProps,
+        eventNames: Object.keys(events)
       }
     });
   } catch (error) {
@@ -217,6 +240,69 @@ const handleChildEvent = (eventData) => {
   
   // 同时触发通用事件
   emit('event', { name, data });
+};
+
+/**
+ * 向新窗口发送组件属性更新
+ */
+const updateComponentProps = (newProps) => {
+  if (channel.value) {
+    try {
+      // 深度克隆以解除响应式代理
+      const clonedProps = {};
+      for (const key in newProps) {
+        if (!key.startsWith('on')) {  // 排除事件处理函数
+          try {
+            clonedProps[key] = JSON.parse(JSON.stringify(newProps[key]));
+          } catch (e) {
+            console.warn(`属性 ${key} 无法序列化，使用原始值`);
+            clonedProps[key] = newProps[key];
+          }
+        }
+      }
+      
+      channel.value.postMessage({
+        type: 'COMPONENT_PROPS_UPDATE',
+        payload: { props: clonedProps }
+      });
+    } catch (error) {
+      console.error('发送属性更新失败:', error);
+    }
+  }
+};
+
+/**
+ * 启动定期状态同步
+ */
+const startPeriodicSync = () => {
+  // 清除可能存在的定时器
+  if (syncInterval.value) {
+    clearInterval(syncInterval.value);
+  }
+  
+  // 每秒同步一次状态，确保两边保持一致
+  syncInterval.value = setInterval(() => {
+    if (props.isFloating && channel.value) {
+      // 发送完整的组件属性状态
+      updateComponentProps(attrs);
+      
+      // 请求浮动窗口的最新状态
+      channel.value.postMessage({
+        type: 'REQUEST_STATE_SYNC',
+        payload: { timestamp: Date.now() }
+      });
+    }
+  }, 1000);
+};
+
+/**
+ * 停止定期状态同步
+ */
+const stopPeriodicSync = () => {
+  if (syncInterval.value) {
+    clearInterval(syncInterval.value);
+    syncInterval.value = null;
+  }
 };
 
 /**
@@ -265,6 +351,10 @@ const createWindow = async () => {
       closeWindow();
     });
     
+    // 启动定期状态同步
+    startPeriodicSync();
+    
+    // 开发模式使用
     newWindow.webContents.openDevTools();
   } catch (error) {
     console.error('创建窗口失败:', error);
@@ -276,6 +366,9 @@ const createWindow = async () => {
  * 关闭窗口并清理资源
  */
 const closeWindow = () => {
+  // 停止定期同步
+  stopPeriodicSync();
+  
   if (windowInstance.value) {
     try {
       // 检查窗口是否已经被销毁
@@ -298,6 +391,14 @@ const closeWindow = () => {
   // 通知父组件状态变化
   emit('close');
   emit('update:isFloating', false);
+  
+  // 应用从浮动窗口同步回来的最新状态
+  if (latestFloatingState.value) {
+    // 向父组件发送最终数据更新事件
+    emit('data-updated', latestFloatingState.value);
+    // 重置状态存储
+    latestFloatingState.value = null;
+  }
 };
 
 /**
@@ -308,18 +409,6 @@ const sendDataToWindow = (data) => {
     channel.value.postMessage({
       type: 'PARENT_DATA_UPDATE',
       payload: { data }
-    });
-  }
-};
-
-/**
- * 向新窗口发送组件属性更新
- */
-const updateComponentProps = (newProps) => {
-  if (channel.value) {
-    channel.value.postMessage({
-      type: 'COMPONENT_PROPS_UPDATE',
-      payload: { props: newProps }
     });
   }
 };
@@ -355,10 +444,12 @@ watch(() => props.isFloating, async (newValue) => {
   }
 }, { immediate: true });
 
-// 监听attrs变化，同步到新窗口
+// 自动属性同步
 watch(attrs, (newAttrs) => {
-  updateComponentProps({ ...newAttrs });
-}, { deep: true });
+  if (props.isFloating && channel.value) {
+    updateComponentProps(newAttrs);
+  }
+}, { deep: true, immediate: false });
 
 // 组件卸载时清理资源
 onUnmounted(() => {
@@ -367,7 +458,43 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 样式部分保持不变 */
+/* 样式部分添加新样式 */
+.v-window-container {
+  position: relative;
+  width: 100%;
+}
+
+.v-window-floating-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 0 0 0 6px;
+  padding: 5px 10px;
+  z-index: 1000;
+}
+
+.v-window-indicator {
+  padding: 5px 10px;
+  background-color: #e8f4fc;
+  color: #0078d7;
+  border: 1px dashed #0078d7;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 12px;
+}
+
+.v-window-indicator:hover {
+  background-color: #d0e8f8;
+}
+
+/* 保留原有样式 */
 .v-window-placeholder {
   background-color: #f5f5f5;
   border-radius: 6px;

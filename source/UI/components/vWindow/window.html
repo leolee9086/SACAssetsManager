@@ -18,18 +18,23 @@
       <div class="error-message">{{ loadError }}</div>
     </div>
     
-    <component 
-      v-else
-      :is="dynamicComponent" 
-      v-bind="componentProps"
-      v-bind="getEventHandlers()"
-      @update="handleComponentUpdate">
-    </component>
+    <div v-else class="component-container">
+      <!-- 添加状态同步指示器 -->
+      <div class="sync-indicator" :class="{ 'syncing': isSyncing }">
+        {{ isSyncing ? '同步中...' : '已同步' }}
+      </div>
+      
+      <component 
+        :is="dynamicComponent" 
+        v-bind="componentProps"
+        v-on="eventHandlers"
+      ></component>
+    </div>
   </div>
   
   <script type="module">
     // 导入Vue基本库
-    import { createApp, defineAsyncComponent, h, ref, reactive, toRefs } from '../../../../static/vue.esm-browser.js';
+    import { createApp, defineAsyncComponent, h, ref, reactive, toRefs, computed, watch } from '../../../../static/vue.esm-browser.js';
     import * as Vue from '../../../../static/vue.esm-browser.js';
     import { initVueApp } from "../../../utils/module/vue/loadVueApp.js";
     import { ComponentSerializer } from '../../../../src/toolBox/feature/useVue/useSFC/forComponentSerialize.js';
@@ -53,7 +58,66 @@
           // 通信频道
           channel: null,
           eventNames: [], // 存储可用的事件名称列表
+          // 同步状态
+          isSyncing: false,
+          lastSyncTime: Date.now(),
+          // 状态变更跟踪
+          stateChangeHistory: [],
         });
+        
+        // 计算属性：事件处理器映射
+        const eventHandlers = computed(() => {
+          const handlers = {};
+          
+          // 为每个事件名称创建处理函数
+          state.eventNames.forEach(name => {
+            handlers[name] = (eventData) => {
+              // 发送事件到主窗口
+              if (state.channel) {
+                state.channel.postMessage({
+                  type: 'COMPONENT_EVENT',
+                  payload: { 
+                    name: name,
+                    data: eventData
+                  }
+                });
+              }
+              
+              // 记录事件发生
+              recordStateChange({ 
+                type: 'event', 
+                name, 
+                timestamp: Date.now() 
+              });
+            };
+          });
+          
+          return handlers;
+        });
+        
+        /**
+         * 记录状态变更
+         */
+        function recordStateChange(change) {
+          state.stateChangeHistory.push(change);
+          // 限制历史记录长度
+          if (state.stateChangeHistory.length > 50) {
+            state.stateChangeHistory.shift();
+          }
+          
+          // 标记正在同步
+          showSyncIndicator();
+        }
+        
+        /**
+         * 显示同步指示器
+         */
+        function showSyncIndicator() {
+          state.isSyncing = true;
+          setTimeout(() => {
+            state.isSyncing = false;
+          }, 1000);
+        }
         
         /**
          * 从URL获取通信频道ID
@@ -100,24 +164,70 @@
                 break;
                 
               case 'PARENT_DATA_UPDATE':
-                // 更新组件数据
-                if (state.componentLoaded) {
-                  // 应用数据更新
+                // 处理来自父窗口的数据更新
+                if (state.componentLoaded && payload.data) {
+                  showSyncIndicator();
+                  // 记录更新
+                  recordStateChange({ 
+                    type: 'parentUpdate', 
+                    timestamp: Date.now() 
+                  });
+                  
+                  // 合并更新数据到组件属性
+                  state.componentProps = {
+                    ...state.componentProps,
+                    ...payload.data
+                  };
                 }
                 break;
                 
               case 'COMPONENT_PROPS_UPDATE':
-                // 更新组件属性
-                if (state.componentLoaded) {
-                  state.componentProps = {...state.componentProps, ...payload.props};
+                // 更新组件属性 - 完全替换以确保所有变化都被捕获
+                if (state.componentLoaded && payload.props) {
+                  showSyncIndicator();
+                  // 记录更新
+                  recordStateChange({ 
+                    type: 'propsUpdate', 
+                    timestamp: Date.now() 
+                  });
+                  
+                  // 深度克隆以解除响应式代理
+                  const clonedProps = {};
+                  for (const key in state.componentProps) {
+                    try {
+                      clonedProps[key] = JSON.parse(JSON.stringify(state.componentProps[key]));
+                    } catch (e) {
+                      console.warn(`属性 ${key} 无法序列化，使用原始值`);
+                      clonedProps[key] = state.componentProps[key];
+                    }
+                  }
+                  
+                  // 使用克隆后的属性发送消息
+                  state.channel.postMessage({
+                    type: 'PROPS_UPDATE_CONFIRMED',
+                    payload: { 
+                      props: clonedProps,
+                      timestamp: Date.now() 
+                    }
+                  });
                 }
+                break;
+              
+              case 'REQUEST_STATE_SYNC':
+                // 主窗口请求状态同步
+                showSyncIndicator();
+                sendStateSyncToParent();
                 break;
                 
               case 'PARENT_EVENT':
-                // 触发组件事件
-                if (state.componentLoaded && state.dynamicComponent) {
-                  // 向组件触发事件
-                  state.dynamicComponent.$emit(payload.name, payload.data);
+                // 触发组件事件 (例如父窗口调用子窗口中组件的方法)
+                if (state.componentLoaded && payload.name) {
+                  showSyncIndicator();
+                  // 如果组件实例存在并且有该事件，则触发它
+                  const compInstance = document.querySelector('#app').__vue_app__.unmount;
+                  if (compInstance && typeof compInstance.$emit === 'function') {
+                    compInstance.$emit(payload.name, payload.data);
+                  }
                 }
                 break;
             }
@@ -128,6 +238,40 @@
             type: 'REQUEST_COMPONENT',
             payload: {}
           });
+        }
+        
+        /**
+         * 向父窗口发送状态同步
+         */
+        function sendStateSyncToParent() {
+          if (state.channel && state.componentLoaded) {
+            try {
+              // 深度克隆以解除响应式代理
+              const clonedProps = {};
+              for (const key in state.componentProps) {
+                try {
+                  clonedProps[key] = JSON.parse(JSON.stringify(state.componentProps[key]));
+                } catch (e) {
+                  console.warn(`属性 ${key} 无法序列化，使用原始值`);
+                  clonedProps[key] = state.componentProps[key];
+                }
+              }
+              const payload = {
+                props: clonedProps,
+                timestamp: Date.now(),
+                changeHistory:JSON.parse(JSON.stringify(state.stateChangeHistory))
+              }
+              console.log(payload)
+              state.channel.postMessage({
+                type: 'WINDOW_STATE_SYNC',
+                payload: payload
+              });
+              
+              state.lastSyncTime = Date.now();
+            } catch (error) {
+              console.error('状态同步失败:', error);
+            }
+          }
         }
         
         /**
@@ -146,8 +290,17 @@
                 state.serializedComponent, 
                 context
               );
-              console.log(state.dynamicComponent)
+              
+              // 标记组件已加载
               state.componentLoaded = true;
+              
+              // 通知父窗口组件已加载
+              state.channel.postMessage({
+                type: 'COMPONENT_LOADED',
+                payload: { timestamp: Date.now() }
+              });
+              
+              console.log('组件已加载完成', state.dynamicComponent);
             } else {
               state.loadError = '未提供组件定义';
             }
@@ -157,54 +310,34 @@
           }
         }
         
-        /**
-         * 处理组件更新事件
-         */
-        function handleComponentUpdate(data) {
-          if (state.channel) {
-            state.channel.postMessage({
-              type: 'DATA_UPDATED',
-              payload: { data }
-            });
-          }
-        }
-        
-        /**
-         * 处理组件事件
-         */
-        function handleComponentEvent(eventName, eventData) {
-          // 向主窗口发送事件
-          if (state.channel) {
-            state.channel.postMessage({
-              type: 'COMPONENT_EVENT',
-              payload: { 
-                name: eventName,
-                data: eventData
-              }
-            });
-          }
-        }
-        
-        // 返回事件处理函数
-        function getEventHandlers() {
-          const handlers = {};
+        // 监听属性变化，确保vue组件响应式系统正常工作
+        watch(() => state.componentProps, (newProps, oldProps) => {
+          console.log('组件属性已更新，将自动反映在UI上');
           
-          // 为每个事件名称创建处理函数
-          (state.eventNames || []).forEach(name => {
-            handlers[`on${name.charAt(0).toUpperCase() + name.slice(1)}`] = (eventData) => {
-              handleComponentEvent(name, eventData);
-            };
-          });
+          // 检测是否有内部变化并同步回主窗口
+          // 深度检查更复杂的差异需要递归比较对象
+          const hasChanges = JSON.stringify(newProps) !== JSON.stringify(oldProps);
           
-          return handlers;
-        }
+          if (hasChanges) {
+            recordStateChange({ 
+              type: 'internalChange', 
+              timestamp: Date.now() 
+            });
+            
+            // 向主窗口同步状态
+            sendStateSyncToParent();
+          }
+        }, { deep: true });
         
         // 窗口关闭前通知主窗口
         window.addEventListener('beforeunload', () => {
           if (state.channel) {
+            // 发送最终状态同步
+            sendStateSyncToParent();
+            
             state.channel.postMessage({
               type: 'WINDOW_CLOSED',
-              payload: {}
+              payload: { finalState: state.componentProps }
             });
             state.channel.close();
           }
@@ -213,10 +346,34 @@
         // 初始化通信频道
         setupChannel();
         
+        // 周期性状态同步
+        const syncTimer = setInterval(() => {
+          if (state.componentLoaded && 
+              state.channel &&
+              Date.now() - state.lastSyncTime > 2000) {
+            sendStateSyncToParent();
+          }
+        }, 3000);
+        
+        // 清理定时器
+        window.addEventListener('beforeunload', () => {
+          clearInterval(syncTimer);
+        });
+        
+        // 调试辅助函数
+        window.debugComponent = () => {
+          console.log({
+            component: state.dynamicComponent,
+            props: state.componentProps,
+            events: state.eventNames,
+            eventHandlers: eventHandlers.value,
+            stateChangeHistory: state.stateChangeHistory
+          });
+        };
+        
         return {
           ...toRefs(state),
-          getEventHandlers, // 暴露给模板
-          handleComponentUpdate
+          eventHandlers
         };
       }
     });
@@ -238,6 +395,31 @@
     #app {
       height: 100%;
       width: 100%;
+    }
+    
+    .component-container {
+      position: relative;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .sync-indicator {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: rgba(0, 150, 0, 0.7);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .sync-indicator.syncing {
+      opacity: 1;
+      background-color: rgba(255, 165, 0, 0.7);
     }
     
     .loading-container {
@@ -266,6 +448,15 @@
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+    
+    .error-container {
+      padding: 20px;
+      margin: 20px;
+      background-color: #fff3f3;
+      border: 1px solid #ffcaca;
+      color: #e53935;
+      border-radius: 4px;
     }
   </style>
 </body>

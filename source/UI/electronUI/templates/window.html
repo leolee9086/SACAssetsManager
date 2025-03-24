@@ -1,278 +1,247 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>窗口内容</title>
-  <link rel="stylesheet" href="./styles.css">
-  <!-- 导入应用的主要样式 -->
+    <link id="baseStyle" href="" rel="stylesheet">
+    <meta charset="UTF-8">
+    <title>图片编辑器</title>
+    <link id="pluginBaseStyle" href="/plugins/SACAssetsManager/index.css" rel="stylesheet">
+    <link id="themeDefaultStyle" rel="stylesheet" type="text/css" href="/appearance/themes/midnight/theme.css?v=3.1.12">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            min-height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            max-height: 100%;
+        }
+
+        .dock {
+            height: 42px;
+            display: flex;
+            padding: 0 42px;
+            user-select: none;
+            background-color: var(--b3-theme-surface);
+            box-sizing: border-box;
+            -webkit-user-select: none;
+        }
+
+        .dock--vertical {
+            width: 42px;
+            flex-direction: column;
+            height: 100%;
+            padding: 0;
+        }
+
+        .dock#dockLeft {
+            border-right: .5px solid var(--b3-border-color);
+        }
+
+        .dock__item:hover,
+        .dock__item--active {
+            background-color: var(--b3-theme-background-light);
+        }
+
+        .dock__item {
+            padding: 6px;
+            color: var(--b3-theme-on-surface-light);
+            display: flex;
+            border-radius: var(--b3-border-radius);
+            margin: 7px;
+            cursor: pointer;
+        }
+
+        #app {
+            flex: 1;
+            min-width: .1px;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            min-height: .1px;
+            display: flex;
+            background-color: var(--b3-theme-background);
+        }
+
+        #toolbar {
+            display: flex;
+            justify-content: space-between;
+            background-color: #333;
+            color: white;
+            -webkit-app-region: drag;
+        }
+
+        .title-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar__item {
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+        }
+
+        /* 添加工具提示相关样式 */
+        .toolbar__item {
+            position: relative;
+        }
+
+        .toolbar__item::after {
+            content: attr(aria-label);
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 8px;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            font-size: 12px;
+            border-radius: 4px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .toolbar__item:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
 </head>
-<body>
-  <div id="app">
-    <div class="loading-container" v-if="!componentLoaded">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">加载组件中...</div>
+
+<body class="fn__flex-column body--win32">
+    <div id="toolbar" class="toolbar fn__flex">
+        <div class="title-group left" id="title-group-left">
+        </div>
+        <div class="title-group right" id="title-group-right">
+            <div class="fn__flex" id="windowControls">
+                <div class="toolbar__item ariaLabel toolbar__item--win" aria-label="开发者工具" id="devTools">
+                    <svg>
+                        <use xlink:href="#iconCode"></use>
+                    </svg>
+                </div>
+                <div class="toolbar__item ariaLabel toolbar__item--win" aria-label="最小化" id="minWindow">
+                    <svg>
+                        <use xlink:href="#iconMin"></use>
+                    </svg>
+                </div>
+                <div aria-label="最大化" class="ariaLabel toolbar__item toolbar__item--win" id="maxWindow"
+                    style="display: none;">
+                    <svg>
+                        <use xlink:href="#iconMax"></use>
+                    </svg>
+                </div>
+                <div aria-label="向下还原" class="ariaLabel toolbar__item toolbar__item--win" id="restoreWindow"
+                    style="display: flex;">
+                    <svg>
+                        <use xlink:href="#iconRestore"></use>
+                    </svg>
+                </div>
+                <div aria-label="关闭" class="ariaLabel toolbar__item toolbar__item--close" id="closeWindow">
+                    <svg>
+                        <use xlink:href="#iconClose"></use>
+                    </svg>
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <component 
-      v-else
-      :is="dynamicComponent" 
-      v-bind="componentProps"
-      v-bind="componentData"
-      @update="handleComponentUpdate"
-      @event="handleComponentEvent">
-    </component>
-  </div>
-  
-  <script type="module">
-    // 导入Vue基本库
-    import { createApp, defineAsyncComponent, h, ref, reactive, toRefs } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-    import { ComponentSerializer } from '../../../src/toolBox/feature/useVue/useSFC/forComponentSerialize';
-    
-    // 创建窗口应用
-    const app = createApp({
-      setup() {
-        // 状态定义
-        const state = reactive({
-          // 窗口数据
-          windowId: null,
-          sourceWindowId: null,
-          title: '窗口内容',
-          // 组件数据
-          serializedComponent: null, // 改为存储序列化的组件信息
-          componentPath: '', // 保留向后兼容
-          componentProps: {},
-          componentData: {},
-          // 组件加载状态
-          componentLoaded: false,
-          dynamicComponent: null,
-          // 错误状态
-          loadError: null
+    <div id="app"></div>
+
+    <script>
+        // 在 panelStyleEditor.html 的脚本中
+        window.params = new Proxy(new URLSearchParams(window.location.search), {
+            get(target, prop) {
+                return target.get(prop);
+            }
         });
-        
-        // 导入electron模块
-        const { ipcRenderer } = window.require('electron');
-        
-        /**
-         * 动态加载组件
-         */
-        async function loadComponent() {
-          try {
-            if (state.serializedComponent) {
-              // 使用ComponentSerializer反序列化组件
-              const context = {
-                vue: { 
-                  createApp, defineAsyncComponent, h, ref, reactive, toRefs
-                },
-                // 如果需要可以添加其他依赖项，如编译器
-                // compiler: ...
-                // 可以通过导入CDN上的vue模板编译器来添加
-              };
-              
-              state.dynamicComponent = await ComponentSerializer.deserialize(
-                state.serializedComponent, 
-                context
-              );
-              state.componentLoaded = true;
-            } 
-            // 向后兼容：支持直接使用componentPath
-            else if (state.componentPath) {
-              // 使用动态导入加载组件
-              const module = await import(state.componentPath);
-              state.dynamicComponent = module.default;
-              state.componentLoaded = true;
-            } else {
-              state.loadError = '未提供组件定义';
+
+        // 现在可以直接这样访问参数
+        window.workspaceDir = window.params.workspaceDir;
+        window.pluginName = window.params.pluginName;
+        window.imagePath = window.params.imagePath;
+        // 设置基础样式
+        try {
+            document.getElementById('baseStyle').setAttribute('href', window.params.baseStyleSrc);
+        } catch (e) {
+            console.warn(e);
+        }
+
+        // 确保在 DOMContentLoaded 之后执行
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // 初始化 remote 模块
+                const remote = window.require('@electron/remote');
+                if (!remote) {
+                    console.error('无法加载 @electron/remote 模块');
+                    return;
+                }
+                const currentWindow = remote.getCurrentWindow();
+                currentWindow.webContents.openDevTools();
+
+                // 开发者工具
+                const devToolsBtn = document.getElementById('devTools');
+                if (devToolsBtn) {
+                    devToolsBtn.addEventListener('click', () => {
+                        if (currentWindow.webContents.isDevToolsOpened()) {
+                            currentWindow.webContents.closeDevTools();
+                        } else {
+                            currentWindow.webContents.openDevTools();
+                        }
+                    });
+                }
+
+                // 最小化
+                const minBtn = document.getElementById('minWindow');
+                if (minBtn) {
+                    minBtn.addEventListener('click', () => {
+                        currentWindow.minimize();
+                    });
+                }
+
+                // 最大化
+                const maxBtn = document.getElementById('maxWindow');
+                if (maxBtn) {
+                    maxBtn.addEventListener('click', () => {
+                        if (currentWindow.isMaximized()) {
+                            currentWindow.unmaximize();
+                            maxBtn.style.display = 'none';
+                            document.getElementById('restoreWindow').style.display = 'flex';
+                        }
+                    });
+                }
+
+                // 还原
+                const restoreBtn = document.getElementById('restoreWindow');
+                if (restoreBtn) {
+                    restoreBtn.addEventListener('click', () => {
+                        if (!currentWindow.isMaximized()) {
+                            currentWindow.maximize();
+                            restoreBtn.style.display = 'none';
+                            document.getElementById('maxWindow').style.display = 'flex';
+                        }
+                    });
+                }
+
+                // 关闭
+                const closeBtn = document.getElementById('closeWindow');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        currentWindow.close();
+                    });
+                }
+            } catch (error) {
+                console.error('初始化窗口控制时出错:', error);
             }
-          } catch (error) {
-            console.error('加载组件失败:', error);
-            state.loadError = `加载组件失败: ${error.message}`;
-          }
-        }
-        
-        /**
-         * 处理组件更新事件
-         */
-        function handleComponentUpdate(data) {
-          // 更新本地数据
-          state.componentData = {...state.componentData, ...data};
-          
-          // 将更新发送给父窗口
-          sendDataToParent(data);
-        }
-        
-        /**
-         * 处理组件事件
-         */
-        function handleComponentEvent(eventName, eventData) {
-          // 将事件发送给父窗口
-          sendEventToParent(eventName, eventData);
-        }
-        
-        /**
-         * 向父窗口发送数据更新
-         */
-        function sendDataToParent(data) {
-          if (state.windowId && state.sourceWindowId) {
-            ipcRenderer.send('window-data-update', {
-              sourceWindowId: state.windowId,
-              targetWindowId: state.sourceWindowId,
-              updatedData: data
-            });
-          }
-        }
-        
-        /**
-         * 向父窗口发送事件
-         */
-        function sendEventToParent(eventName, eventData) {
-          if (state.windowId && state.sourceWindowId) {
-            ipcRenderer.send('window-event', {
-              sourceWindowId: state.windowId,
-              targetWindowId: state.sourceWindowId,
-              eventName,
-              eventData
-            });
-          }
-        }
-        
-        /**
-         * 通知父窗口此窗口已关闭
-         */
-        function notifyWindowClosed() {
-          if (state.windowId && state.sourceWindowId) {
-            ipcRenderer.send('window-closed', {
-              sourceWindowId: state.windowId,
-              targetWindowId: state.sourceWindowId
-            });
-          }
-        }
-        
-        /**
-         * 设置IPC监听器
-         */
-        function setupIpcListeners() {
-          // 监听初始化消息
-          ipcRenderer.once('window-init', async (event, data) => {
-            // 更新窗口数据
-            state.windowId = data.windowId;
-            state.sourceWindowId = data.sourceWindowId;
-            state.title = data.title || '窗口内容';
-            
-            // 更新组件信息
-            state.serializedComponent = data.serializedComponent;
-            state.componentPath = data.componentPath; // 保留向后兼容
-            state.componentProps = data.componentProps || {};
-            state.componentData = data.componentData || {};
-            
-            // 设置文档标题
-            document.title = state.title;
-            
-            // 加载组件
-            await loadComponent();
-          });
-          
-          // 监听数据更新
-          ipcRenderer.on('parent-data-update', (event, data) => {
-            if (data.targetWindowId === state.windowId) {
-              state.componentData = {...state.componentData, ...data.updatedData};
-            }
-          });
-          
-          // 监听属性更新
-          ipcRenderer.on('component-props-update', (event, data) => {
-            if (data.targetWindowId === state.windowId) {
-              state.componentProps = {...state.componentProps, ...data.componentProps};
-            }
-          });
-          
-          // 监听父窗口事件
-          ipcRenderer.on('parent-event', (event, data) => {
-            if (data.targetWindowId === state.windowId && state.dynamicComponent) {
-              // 向组件触发事件
-              state.dynamicComponent.$emit(data.eventName, data.eventData);
-            }
-          });
-          
-          // 监听关闭消息
-          ipcRenderer.on('window-close', () => {
-            notifyWindowClosed();
-          });
-        }
-        
-        /**
-         * 移除IPC监听器
-         */
-        function removeIpcListeners() {
-          ipcRenderer.removeAllListeners('parent-data-update');
-          ipcRenderer.removeAllListeners('component-props-update');
-          ipcRenderer.removeAllListeners('parent-event');
-          ipcRenderer.removeAllListeners('window-close');
-        }
-        
-        // 设置IPC监听器
-        setupIpcListeners();
-        
-        // 组件卸载时清理资源
-        window.addEventListener('beforeunload', () => {
-          notifyWindowClosed();
-          removeIpcListeners();
         });
-        
-        return {
-          ...toRefs(state),
-          handleComponentUpdate,
-          handleComponentEvent
-        };
-      }
-    });
     
-    // 挂载应用
-    app.mount('#app');
-  </script>
-  
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, sans-serif;
-      background-color: #f9f9f9;
-      height: 100vh;
-      overflow: hidden;
-    }
-    
-    #app {
-      height: 100%;
-      width: 100%;
-    }
-    
-    .loading-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-    }
-    
-    .loading-spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #3498db;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-bottom: 20px;
-    }
-    
-    .loading-text {
-      color: #666;
-      font-size: 16px;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
+    </script>
+    <script type="module">
+        import { addScriptSync } from "../../../utils/DOM/addScript.js";
+        addScriptSync('/appearance/icons/material/icon.js', 'iconDefaultScript')
+        await import('./index.js')
+    </script>
 </body>
+
 </html>
