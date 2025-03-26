@@ -2,176 +2,184 @@
   <div class="lcs-tester">
     <h1>最长公共子序列(LCS)算法测试</h1>
     
-    <div class="settings">
-      <div class="algorithm-selector">
-        <span>算法选择：</span>
-        <label>
-          <input type="radio" v-model="algorithm" value="auto" />
-          自动
-        </label>
-        <label>
-          <input type="radio" v-model="algorithm" value="myers" />
-          Myers算法
-        </label>
-        <label>
-          <input type="radio" v-model="algorithm" value="dp" />
-          动态规划
-        </label>
-      </div>
-      
-      <div class="input-mode">
-        <label>
-          <input type="radio" v-model="inputMode" value="text" />
-          文本模式
-        </label>
-        <label>
-          <input type="radio" v-model="inputMode" value="array" />
-          数组模式
-        </label>
-      </div>
-    </div>
-    
-    <div class="input-area">
-      <div class="sequence-input">
-        <h3>序列A</h3>
-        <textarea v-model="sequenceAInput" placeholder="输入第一个序列..."></textarea>
-      </div>
-      
-      <div class="sequence-input">
-        <h3>序列B</h3>
-        <textarea v-model="sequenceBInput" placeholder="输入第二个序列..."></textarea>
-      </div>
-    </div>
-    
-    <button @click="compareLCS" class="compare-btn">比较序列</button>
-    
-    <div class="performance-testing">
-      <button @click="showPerformanceOptions = !showPerformanceOptions" class="toggle-btn">
-        {{ showPerformanceOptions ? '隐藏' : '显示' }}性能测试选项
-      </button>
-      
-      <div v-if="showPerformanceOptions" class="performance-options">
-        <div class="option-group">
-          <label>数据类型：</label>
-          <select v-model="dataType">
-            <option value="text">文本</option>
-            <option value="number">数字</option>
-            <option value="mixed">混合</option>
-          </select>
-        </div>
-        
-        <div class="option-group">
-          <label>数据量：</label>
-          <input type="range" v-model.number="dataSize" min="100" max="10000" step="100" />
-          <span>{{ dataSize }}项</span>
-        </div>
-        
-        <div class="option-group">
-          <label>相似度：</label>
-          <input type="range" v-model.number="similarityLevel" min="0" max="100" />
-          <span>{{ similarityLevel }}%</span>
-        </div>
-        
-        <button @click="generateTestData" class="generate-btn">生成测试数据</button>
-      </div>
-    </div>
-    
-    <div v-if="result" class="result-section">
-      <h2>比较结果</h2>
-      
-      <div class="result-cards">
-        <div class="result-card algorithm">
-          <h3>算法信息</h3>
-          <p>使用算法: <strong>{{ result.algorithm }}</strong></p>
-          <p>执行时间: <strong>{{ result.executionTime ? result.executionTime.toFixed(2) + ' ms' : '未测量' }}</strong></p>
-          <p v-if="result.error" class="error">错误: {{ result.error }}</p>
-        </div>
-        
-        <div class="result-card statistics">
-          <h3>序列统计</h3>
-          <p>序列A长度: <strong>{{ parseInput(sequenceAInput, inputMode).length }}</strong></p>
-          <p>序列B长度: <strong>{{ parseInput(sequenceBInput, inputMode).length }}</strong></p>
-          <p>LCS长度: <strong>{{ result.length }}</strong></p>
-          <p>相似度: <strong>{{ calculateSimilarity(result).toFixed(2) }}%</strong></p>
-        </div>
-        
-        <div class="result-card edits-stat">
-          <h3>编辑统计</h3>
-          <div class="stat-item">
-            <span class="stat-label equal">相同</span>
-            <div class="stat-bar">
-              <div class="stat-value equal" 
-                   :style="{width: `${calculatePercentage(result.stats.equal, getTotalEdits(result.stats))}%`}">
-              </div>
-            </div>
-            <span class="stat-number">{{ result.stats.equal }}</span>
+    <div class="main-container">
+      <!-- 左侧输入区域 -->
+      <div class="left-panel">
+        <div class="settings">
+          <div class="algorithm-selector">
+            <span>算法选择：</span>
+            <label>
+              <input type="radio" v-model="algorithm" value="auto" />
+              自动
+            </label>
+            <label>
+              <input type="radio" v-model="algorithm" value="myers" />
+              Myers算法
+            </label>
+            <label>
+              <input type="radio" v-model="algorithm" value="dp" />
+              动态规划
+            </label>
           </div>
           
-          <div class="stat-item">
-            <span class="stat-label add">添加</span>
-            <div class="stat-bar">
-              <div class="stat-value add" 
-                   :style="{width: `${calculatePercentage(result.stats.add, getTotalEdits(result.stats))}%`}">
-              </div>
-            </div>
-            <span class="stat-number">{{ result.stats.add }}</span>
-          </div>
-          
-          <div class="stat-item">
-            <span class="stat-label del">删除</span>
-            <div class="stat-bar">
-              <div class="stat-value del" 
-                   :style="{width: `${calculatePercentage(result.stats.del, getTotalEdits(result.stats))}%`}">
-              </div>
-            </div>
-            <span class="stat-number">{{ result.stats.del }}</span>
-          </div>
-        </div>
-      </div>
-      
-      <div class="performance-warning" v-if="parseInput(sequenceAInput, inputMode).length > 1000 || parseInput(sequenceBInput, inputMode).length > 1000">
-        <p>⚠️ 注意：大数据量比较可能会影响性能，请耐心等待结果</p>
-      </div>
-      
-      <div class="visualization">
-        <div class="sequence-display">
-          <h3>序列A</h3>
-          <div class="items">
-            <div 
-              v-for="(edit, index) in result.edits.filter(e => e.type !== 'add')" 
-              :key="`a-${index}`"
-              :class="['item', edit.type]"
-            >
-              {{ edit.text }}
-            </div>
+          <div class="input-mode">
+            <label>
+              <input type="radio" v-model="inputMode" value="text" />
+              文本模式
+            </label>
+            <label>
+              <input type="radio" v-model="inputMode" value="array" />
+              数组模式
+            </label>
           </div>
         </div>
         
-        <div class="sequence-display">
-          <h3>序列B</h3>
-          <div class="items">
-            <div 
-              v-for="(edit, index) in result.edits.filter(e => e.type !== 'del')" 
-              :key="`b-${index}`"
-              :class="['item', edit.type]"
-            >
-              {{ edit.text }}
+        <div class="input-area">
+          <div class="sequence-input">
+            <h3>序列A</h3>
+            <textarea v-model="sequenceAInput" placeholder="输入第一个序列..."></textarea>
+          </div>
+          
+          <div class="sequence-input">
+            <h3>序列B</h3>
+            <textarea v-model="sequenceBInput" placeholder="输入第二个序列..."></textarea>
+          </div>
+        </div>
+        
+        <button @click="compareLCS" class="compare-btn">比较序列</button>
+        
+        <div class="performance-testing">
+          <button @click="showPerformanceOptions = !showPerformanceOptions" class="toggle-btn">
+            {{ showPerformanceOptions ? '隐藏' : '显示' }}性能测试选项
+          </button>
+          
+          <div v-if="showPerformanceOptions" class="performance-options">
+            <div class="option-group">
+              <label>数据类型：</label>
+              <select v-model="dataType">
+                <option value="text">文本</option>
+                <option value="number">数字</option>
+                <option value="mixed">混合</option>
+              </select>
             </div>
+            
+            <div class="option-group">
+              <label>数据量：</label>
+              <input type="range" v-model.number="dataSize" min="100" max="10000" step="100" />
+              <span>{{ dataSize }}项</span>
+            </div>
+            
+            <div class="option-group">
+              <label>相似度：</label>
+              <input type="range" v-model.number="similarityLevel" min="0" max="100" />
+              <span>{{ similarityLevel }}%</span>
+            </div>
+            
+            <button @click="generateTestData" class="generate-btn">生成测试数据</button>
           </div>
         </div>
       </div>
       
-      <div class="edits-list">
-        <h3>编辑详情</h3>
-        <div class="edit-item" v-for="(edit, index) in result.edits" :key="`edit-${index}`">
-          <span :class="['edit-type', edit.type]">{{ getEditTypeName(edit.type) }}</span>
-          <span class="edit-content">{{ edit.text }}</span>
-          <span class="edit-position" v-if="edit.type !== 'add'">
-            A[{{ edit.oldIndex }}]
-          </span>
-          <span class="edit-position" v-if="edit.type !== 'del'">
-            B[{{ edit.newIndex }}]
-          </span>
+      <!-- 右侧结果区域 -->
+      <div class="right-panel" v-if="result">
+        <div class="result-section">
+          <h2>比较结果</h2>
+          
+          <div class="result-cards">
+            <div class="result-card algorithm">
+              <h3>算法信息</h3>
+              <p>使用算法: <strong>{{ result.algorithm }}</strong></p>
+              <p>执行时间: <strong>{{ result.executionTime ? result.executionTime.toFixed(2) + ' ms' : '未测量' }}</strong></p>
+              <p v-if="result.error" class="error">错误: {{ result.error }}</p>
+            </div>
+            
+            <div class="result-card statistics">
+              <h3>序列统计</h3>
+              <p>序列A长度: <strong>{{ parseInput(sequenceAInput, inputMode).length }}</strong></p>
+              <p>序列B长度: <strong>{{ parseInput(sequenceBInput, inputMode).length }}</strong></p>
+              <p>LCS长度: <strong>{{ result.length }}</strong></p>
+              <p>相似度: <strong>{{ calculateSimilarity(result).toFixed(2) }}%</strong></p>
+            </div>
+            
+            <div class="result-card edits-stat">
+              <h3>编辑统计</h3>
+              <div class="stat-item">
+                <span class="stat-label equal">相同</span>
+                <div class="stat-bar">
+                  <div class="stat-value equal" 
+                       :style="{width: `${calculatePercentage(result.stats.equal, getTotalEdits(result.stats))}%`}">
+                  </div>
+                </div>
+                <span class="stat-number">{{ result.stats.equal }}</span>
+              </div>
+              
+              <div class="stat-item">
+                <span class="stat-label add">添加</span>
+                <div class="stat-bar">
+                  <div class="stat-value add" 
+                       :style="{width: `${calculatePercentage(result.stats.add, getTotalEdits(result.stats))}%`}">
+                  </div>
+                </div>
+                <span class="stat-number">{{ result.stats.add }}</span>
+              </div>
+              
+              <div class="stat-item">
+                <span class="stat-label del">删除</span>
+                <div class="stat-bar">
+                  <div class="stat-value del" 
+                       :style="{width: `${calculatePercentage(result.stats.del, getTotalEdits(result.stats))}%`}">
+                  </div>
+                </div>
+                <span class="stat-number">{{ result.stats.del }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="performance-warning" v-if="parseInput(sequenceAInput, inputMode).length > 1000 || parseInput(sequenceBInput, inputMode).length > 1000">
+            <p>⚠️ 注意：大数据量比较可能会影响性能，请耐心等待结果</p>
+          </div>
+          
+          <div class="visualization">
+            <div class="sequence-display">
+              <h3>序列A</h3>
+              <div class="items">
+                <div 
+                  v-for="(edit, index) in result.edits.filter(e => e.type !== 'add')" 
+                  :key="`a-${index}`"
+                  :class="['item', edit.type]"
+                >
+                  {{ edit.text }}
+                </div>
+              </div>
+            </div>
+            
+            <div class="sequence-display">
+              <h3>序列B</h3>
+              <div class="items">
+                <div 
+                  v-for="(edit, index) in result.edits.filter(e => e.type !== 'del')" 
+                  :key="`b-${index}`"
+                  :class="['item', edit.type]"
+                >
+                  {{ edit.text }}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="edits-list">
+            <h3>编辑详情</h3>
+            <div class="edit-item" v-for="(edit, index) in result.edits" :key="`edit-${index}`">
+              <span :class="['edit-type', edit.type]">{{ getEditTypeName(edit.type) }}</span>
+              <span class="edit-content">{{ edit.text }}</span>
+              <span class="edit-position" v-if="edit.type !== 'add'">
+                A[{{ edit.oldIndex }}]
+              </span>
+              <span class="edit-position" v-if="edit.type !== 'del'">
+                B[{{ edit.newIndex }}]
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -372,31 +380,54 @@ const getTotalEdits = (stats) => {
 
 <style scoped>
 .lcs-tester {
-  max-width: 1000px;
   margin: 0 auto;
   padding: 20px;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.settings {
+.main-container {
   display: flex;
   gap: 20px;
+  height: calc(100vh - 100px);
+  overflow: hidden;
+}
+
+.left-panel {
+  width: 40%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.right-panel {
+  width: 60%;
+  overflow-y: auto;
+  border-left: 1px solid #eee;
+  padding-left: 20px;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 20px;
 }
 
 .input-area {
   display: flex;
+  flex-direction: column;
   gap: 20px;
   margin-bottom: 20px;
 }
 
 .sequence-input {
-  flex: 1;
+  width: 100%;
 }
 
 textarea {
   width: 100%;
-  height: 200px;
+  height: 150px;
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -419,8 +450,7 @@ textarea {
 }
 
 .result-section {
-  border-top: 1px solid #eee;
-  padding-top: 20px;
+  padding-top: 10px;
 }
 
 .result-cards {
