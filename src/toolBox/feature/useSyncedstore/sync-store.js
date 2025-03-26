@@ -3,66 +3,28 @@ import { syncedStore, getYjsValue } from '../../../../static/@syncedstore/core.j
 import { WebrtcProvider } from '../../../../static/y-webrtc.mjs'
 import { IndexeddbPersistence } from '../../../../static/y-indexeddb.mjs'
 import * as Y from '../../../../static/yjs.js'
-import { GLOBAL_SIGNALING_SERVERS } from './useYjsSignalServers.js'
-
+import { 
+  GLOBAL_SIGNALING_SERVERS, 
+  ASIA_PACIFIC_SIGNALING_SERVERS,
+  checkAllServers, 
+  getBestAvailableServer, 
+  getOptimalServer ,
+  testSignalingServer
+} from './useYjsSignalServers.js'
+import { GLOBAL_STUN_SERVERS,ASIA_PACIFIC_STUN_TURN_SERVERS } from './useStunServers.js'
 // 用于跟踪房间连接和Y.Doc的全局缓存
 const roomConnections = new Map()
 const roomDocs = new Map()
 
 
-// 亚太地区及中国大陆可能更稳定的信令服务器
-const ASIA_PACIFIC_SIGNALING_SERVERS = [
-]
 
 // 默认信令服务器列表 - 中国用户优先尝试亚太服务器
 const DEFAULT_SIGNALING_SERVERS = [
   ...GLOBAL_SIGNALING_SERVERS
 ]
 
-// 全球STUN服务器列表
-const GLOBAL_STUN_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:stun.ekiga.net' },
-  { urls: 'stun:stun.ideasip.com' },
-  { urls: 'stun:stun.schlund.de' },
-  { urls: 'stun:stun.stunprotocol.org:3478' },
-  { urls: 'stun:stun.voiparound.com' },
-  { urls: 'stun:stun.voipbuster.com' },
-  { urls: 'stun:openrelay.metered.ca:80' },
-  { urls: 'stun:stun.services.mozilla.com' },
-  { urls: 'stun:stun.counterpath.com:3478' },
-  { urls: 'stun:stun.sipgate.net' },
-  { urls: 'stun:stun.internetcalls.com' },
-  { urls: 'stun:stun.voxgratia.org' }
-]
 
-// 亚太地区及中国大陆可能更稳定的STUN/TURN服务器
-const ASIA_PACIFIC_STUN_TURN_SERVERS = [
-  // 阿里云STUN服务器
-  { urls: 'stun:stun.aliyun.com:3478' },
-  
-  // 腾讯云STUN服务器
-  { urls: 'stun:stun.qq.com:3478' },
-  
-  // 百度云STUN服务器
-  { urls: 'stun:stun.baidu.com:3478' },
-  
-  // TURN服务器示例 (需填入你的实际账号信息)
-  {
-    urls: 'turn:turn.aliyun.com:3478',
-    username: '请替换为你的账号',
-    credential: '请替换为你的密码'
-  },
-  {
-    urls: 'turn:turn.tencent.com:3478',
-    username: '请替换为你的账号',
-    credential: '请替换为你的密码'
-  }
-]
+
 
 // 默认STUN/TURN服务器列表 - 中国用户优先尝试亚太服务器
 const DEFAULT_ICE_SERVERS = [
@@ -70,34 +32,47 @@ const DEFAULT_ICE_SERVERS = [
   ...GLOBAL_STUN_SERVERS
 ]
 
-/**
- * 根据网络环境选择最佳服务器
- * 这个简单实现基于访问时间来评估最快的服务器
- */
-const testSignalingServer = async (url) => {
-  const start = Date.now()
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000) // 缩短超时时间提高响应速度
-    
-    const testUrl = url.replace('wss://', 'https://')
-    const response = await fetch(testUrl, {
-      method: 'HEAD',
-      signal: controller.signal,
-      cache: 'no-store' // 避免缓存影响测试结果
-    })
-    
-    clearTimeout(timeoutId)
-    return { url, time: Date.now() - start, success: response.ok }
-  } catch (e) {
-    return { url, time: Infinity, success: false }
-  }
-}
+
 
 /**
  * 使用分批测试策略，避免并发请求过多
  */
 const selectBestServers = async () => {
+  // 利用新开发的服务器检测功能获取最佳服务器
+  try {
+    console.log('正在使用优化后的连通性检查选择最佳信令服务器...')
+    const bestServer = await getOptimalServer(true) // 强制检查所有服务器
+    
+    if (bestServer) {
+      console.log('已获取最佳信令服务器:', bestServer)
+      const servers = [bestServer]
+      
+      // 作为备用，获取所有可用服务器
+      const allResults = await checkAllServers()
+      const availableServers = allResults
+        .filter(server => server.available)
+        .map(server => server.url)
+        .filter(url => url !== bestServer) // 移除已选的最佳服务器
+      
+      // 将剩余可用服务器添加到列表中
+      servers.push(...availableServers)
+      
+      // 如果没有足够的服务器，添加默认服务器
+      if (servers.length < 3) {
+        const remainingServers = GLOBAL_SIGNALING_SERVERS.filter(url => !servers.includes(url))
+        servers.push(...remainingServers)
+      }
+      
+      return {
+        signalingServers: servers,
+        iceServers: DEFAULT_ICE_SERVERS
+      }
+    }
+  } catch (error) {
+    console.warn('优化的服务器检测失败，回退到传统方法:', error)
+  }
+  
+  // 如果优化方法失败，回退到原有方法
   // 分批测试函数
   const batchTest = async (servers, batchSize = 5) => {
     const results = []
@@ -204,6 +179,58 @@ export function resetRoomConnection(roomName) {
 }
 
 /**
+ * 创建清理函数，用于清理现有连接资源
+ * @param {string} roomName 房间名称
+ * @param {Object} options 配置选项
+ * @returns {void}
+ */
+function createCleanupFunction(roomName, options = {}) {
+  // 获取现有连接
+  const existingConnection = roomConnections.get(roomName)
+  if (existingConnection) {
+    try {
+      existingConnection.disconnect()
+      
+      // 清理重连计时器
+      if (existingConnection.reconnectTimer) {
+        clearTimeout(existingConnection.reconnectTimer)
+      }
+    } catch (e) {
+      console.error('断开连接时出错:', e)
+    }
+    roomConnections.delete(roomName)
+  }
+  
+  // 最关键修复：确保在切换房间时清除旧文档
+  // 这里对复用逻辑进行修改，因为房间ID变更时需要清除文档
+  const forceNewDoc = options.forceNewDoc === true
+  
+  // 仅当指定强制创建新文档或文档不存在时才创建新文档
+  if (forceNewDoc && roomDocs.has(roomName)) {
+    roomDocs.delete(roomName)
+    console.log(`为房间 ${roomName} 强制创建新文档`)
+  }
+}
+
+/**
+ * 准备Y.Doc文档，从缓存获取或创建新文档
+ * @param {string} roomName 房间名称
+ * @returns {Object} Y.Doc文档
+ */
+function prepareYDoc(roomName) {
+  let ydoc
+  if (roomDocs.has(roomName)) {
+    ydoc = roomDocs.get(roomName)
+    console.log(`复用房间 ${roomName} 的现有Yjs文档`)
+  } else {
+    ydoc = new Y.Doc()
+    roomDocs.set(roomName, ydoc)
+    console.log(`为房间 ${roomName} 创建新的Yjs文档`)
+  }
+  return ydoc
+}
+
+/**
  * 创建与Vue集成的同步状态
  * @param {Object} options 配置选项
  * @returns {Object} 同步状态和方法
@@ -235,51 +262,14 @@ export async function useSyncStore(options = {}) {
   } = options
   
   // 清理并创建资源
-  const cleanup = () => {
-    // 获取现有连接
-    const existingConnection = roomConnections.get(roomName)
-    if (existingConnection) {
-      try {
-        existingConnection.disconnect()
-        
-        // 清理重连计时器
-        if (existingConnection.reconnectTimer) {
-          clearTimeout(existingConnection.reconnectTimer)
-        }
-      } catch (e) {
-        console.error('断开连接时出错:', e)
-      }
-      roomConnections.delete(roomName)
-    }
-    
-    // 最关键修复：确保在切换房间时清除旧文档
-    // 这里对复用逻辑进行修改，因为房间ID变更时需要清除文档
-    const forceNewDoc = options.forceNewDoc === true
-    
-    // 仅当指定强制创建新文档或文档不存在时才创建新文档
-    if (forceNewDoc && roomDocs.has(roomName)) {
-      roomDocs.delete(roomName)
-      console.log(`为房间 ${roomName} 强制创建新文档`)
-    }
-  }
-  
-  // 确保清理任何现有资源
-  cleanup()
+  createCleanupFunction(roomName, options)
   
   // 响应式状态
   const isConnected = ref(false)
   const status = ref('初始化中')
   
-  // 获取或创建Y.Doc (关键改动：复用Y.Doc)
-  let ydoc
-  if (roomDocs.has(roomName)) {
-    ydoc = roomDocs.get(roomName)
-    console.log(`复用房间 ${roomName} 的现有Yjs文档`)
-  } else {
-    ydoc = new Y.Doc()
-    roomDocs.set(roomName, ydoc)
-    console.log(`为房间 ${roomName} 创建新的Yjs文档`)
-  }
+  // 获取或创建Y.Doc
+  const ydoc = prepareYDoc(roomName)
   
   // 创建同步存储
   const store = syncedStore({
@@ -288,7 +278,6 @@ export async function useSyncStore(options = {}) {
   
   // 添加自动同步相关变量
   let autoSyncTimer = null
-  let lastStateSnapshot = null
   let lastSyncTime = Date.now()
   let changeFrequency = 0    // 文档变更频率
   let lastNetworkCheck = {   // 上次网络检查结果
@@ -572,9 +561,25 @@ export async function useSyncStore(options = {}) {
   
   const createProvider = async () => {
     try {
-      // 重新选择最佳服务器如果必要
+      // 重新选择最佳服务器
+      // 改进：在多次重连失败后使用优化的服务器检测功能
       const servers = reconnectAttempts > 2 
-        ? await selectBestServers() 
+        ? await (async () => {
+            try {
+              // 尝试使用优化的服务器检测功能
+              const bestServer = await getOptimalServer(true)
+              if (bestServer) {
+                return { 
+                  signalingServers: [bestServer, ...GLOBAL_SIGNALING_SERVERS.filter(s => s !== bestServer)],
+                  iceServers: mergedWebRtcOptions.iceServers 
+                }
+              }
+            } catch (e) {
+              console.warn('重连时优化的服务器检测失败:', e)
+            }
+            // 如果优化方法失败，回退到原有方法
+            return await selectBestServers()
+          })() 
         : { signalingServers: mergedWebRtcOptions.signaling, iceServers: mergedWebRtcOptions.iceServers }
         
       // 更新选项
@@ -687,6 +692,19 @@ export async function useSyncStore(options = {}) {
         } catch (e) {
           console.warn('断开现有连接时出错', e)
         }
+      }
+      
+      // 改进：在重连时进行服务器健康检查
+      if (reconnectAttempts > 2) {
+        console.log(`重连尝试 ${reconnectAttempts}，执行全面服务器健康检查...`)
+        // 在后台刷新服务器健康状态，不阻塞重连过程
+        checkAllServers().then(results => {
+          console.log('服务器健康检查结果:', 
+            results.map(r => `${r.url}: ${r.available ? '可用' : '不可用'} (${r.latency}ms)`).join(', ')
+          )
+        }).catch(e => {
+          console.warn('服务器健康检查失败:', e)
+        })
       }
       
       provider = await createProvider()
@@ -809,10 +827,20 @@ export async function useSyncStore(options = {}) {
       }
     }
     
-    // 不删除文档，而是保留现有文档数据
-    // 避免使用 roomDocs.delete(roomName)
-    
     // 重新创建提供者但保持相同的Y.Doc
+    // 改进：在重连前检查最佳服务器
+    if (reconnectAttempts > 1) {
+      try {
+        console.log('重新连接前检查服务器状态...')
+        const bestServer = await getOptimalServer(true)
+        if (bestServer) {
+          console.log('发现更优服务器:', bestServer)
+        }
+      } catch (e) {
+        console.warn('检查服务器状态失败:', e)
+      }
+    }
+    
     provider = await createProvider()
     if (provider) {
       connect()
@@ -1195,68 +1223,6 @@ export async function checkAndFixRoomConnection(roomName) {
       status: 'error',
       error: e.message,
       message: `检查房间连接时出错: ${e.message}`
-    }
-  }
-}
-
-/**
- * 对比两个房间的文档状态
- * @param {string} roomName1 第一个房间名称
- * @param {string} roomName2 第二个房间名称
- * @returns {Object} 对比结果
- */
-export function compareRoomDocuments(roomName1, roomName2) {
-  const connection1 = roomConnections.get(roomName1)
-  const connection2 = roomConnections.get(roomName2)
-  
-  if (!connection1 || !connection2) {
-    return {
-      status: 'error',
-      message: '找不到指定的房间连接'
-    }
-  }
-  
-  try {
-    const store1 = connection1.store
-    const store2 = connection2.store
-    
-    // 检查存储对象的键是否一致
-    const keys1 = Object.keys(store1)
-    const keys2 = Object.keys(store2)
-    const allKeys = [...new Set([...keys1, ...keys2])]
-    
-    const comparison = {}
-    let inSync = true
-    
-    // 对比每个键的值
-    for (const key of allKeys) {
-      const value1 = JSON.stringify(store1[key])
-      const value2 = JSON.stringify(store2[key])
-      const keyInSync = value1 === value2
-      
-      comparison[key] = {
-        inSync: keyInSync,
-        // 只在不同步时提供值信息
-        values: keyInSync ? undefined : {
-          [roomName1]: store1[key],
-          [roomName2]: store2[key]
-        }
-      }
-      
-      if (!keyInSync) inSync = false
-    }
-    
-    return {
-      status: 'success',
-      inSync,
-      details: comparison
-    }
-  } catch (e) {
-    console.error(`对比房间文档时出错:`, e)
-    return {
-      status: 'error',
-      error: e.message,
-      message: `对比房间文档时出错: ${e.message}`
     }
   }
 }
