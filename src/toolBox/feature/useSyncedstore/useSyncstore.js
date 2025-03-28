@@ -332,8 +332,85 @@ export async function useSyncStore(options = {}) {
   // 创建响应式状态
   const isConnected = ref(false)
   const status = ref('初始化中')
+  const isLocalDataLoaded = ref(false)  // 添加本地数据加载状态
 
-  // 选择最佳服务器
+  // 配置本地持久化 - 移到前面优先加载本地数据
+  let persistence = null
+  if (persist) {
+    try {
+      console.log(`[本地优先] 开始从本地加载房间 ${roomName} 数据...`)
+      persistence = new IndexeddbPersistence(roomName, ydoc)
+      
+      // 创建一个Promise来等待本地数据加载
+      await new Promise((resolve) => {
+        // 检查是否已经加载完毕(防止永久等待)
+        const checkLoaded = () => {
+          // IndexedDB已加载完成的标志，可以通过属性检测
+          if (persistence.synced) {
+            console.log(`[本地优先] 房间 ${roomName} 本地数据已加载`)
+            return true
+          }
+          return false
+        }
+        
+        // 如果已加载，直接解析
+        if (checkLoaded()) {
+          resolve()
+          return
+        }
+        
+        // 设置超时，避免永久等待
+        const timeout = setTimeout(() => {
+          console.warn(`[本地优先] 等待本地数据超时，继续初始化`)
+          resolve()
+        }, 2000)
+        
+        // 监听同步事件
+        persistence.once('synced', () => {
+          clearTimeout(timeout)
+          console.log(`[本地优先] 房间 ${roomName} 本地数据同步完成`)
+          
+          // 在同步完成后，初始化数据（如果本地没有数据）
+          const isEmpty = Object.keys(store.state).length === 0
+          if (isEmpty) {
+            // 将初始状态填充到同步存储中
+            Object.entries(initialState).forEach(([key, value]) => {
+              store.state[key] = value
+            })
+          }
+          
+          status.value = '已从本地加载'
+          isLocalDataLoaded.value = true
+          resolve()
+        })
+      })
+      
+      // 确保状态正确反映
+      isLocalDataLoaded.value = true
+      
+    } catch (e) {
+      console.error(`创建持久化存储时出错:`, e)
+      // 如果本地加载失败，仍然需要标记为已加载，使用初始状态
+      isLocalDataLoaded.value = true
+      
+      // 使用初始状态
+      Object.entries(initialState).forEach(([key, value]) => {
+        if (!(key in store.state)) {
+          store.state[key] = value
+        }
+      })
+    }
+  } else {
+    // 如果不使用持久化，直接填充初始状态
+    Object.entries(initialState).forEach(([key, value]) => {
+      if (!(key in store.state)) {
+        store.state[key] = value
+      }
+    })
+    isLocalDataLoaded.value = true // 无本地存储，视为已加载
+  }
+
+  // 选择最佳服务器 - 在本地数据加载后进行
   status.value = '正在选择最佳服务器...'
   const bestServers = await selectBestServers()
   
@@ -609,33 +686,6 @@ export async function useSyncStore(options = {}) {
     setTimeout(connect, 100)
   }
   
-  // 配置本地持久化
-  let persistence = null
-  if (persist) {
-    try {
-      persistence = new IndexeddbPersistence(roomName, ydoc)
-      persistence.on('synced', () => {
-        // 在同步完成后，初始化数据（如果本地没有数据）
-        const isEmpty = Object.keys(store.state).length === 0
-        if (isEmpty) {
-          // 将初始状态填充到同步存储中
-          Object.entries(initialState).forEach(([key, value]) => {
-            store.state[key] = value
-          })
-        }
-        status.value = '已同步到本地'
-        console.log(`房间 ${roomName} 已同步到本地存储`)
-      })
-    } catch (e) {
-      console.error(`创建持久化存储时出错:`, e)
-    }
-  } else {
-    // 如果不使用持久化，直接填充初始状态
-    Object.entries(initialState).forEach(([key, value]) => {
-      store.state[key] = value
-    })
-  }
-  
   // 设置自动同步（连接后启动）
   provider.on('status', event => {
     if (event.status === 'connected') {
@@ -779,15 +829,15 @@ export async function useSyncStore(options = {}) {
     store: store.state,
     status,
     isConnected,
+    isLocalDataLoaded,  // 添加本地数据加载状态
     disconnect,
     reconnect,
     connect,
     ydoc,
     provider,
-    getDiagnostics, // 添加诊断功能
-    reconnectTimer, // 存储计时器引用以便清理
-    triggerSync,  // 导出触发同步的方法
-    // 添加控制自动同步的方法
+    getDiagnostics,
+    reconnectTimer,
+    triggerSync,
     setAutoSync: (config) => {
       Object.assign(autoSync, updateAutoSyncConfig(autoSync, config))
       setupAutoSync()
