@@ -22,6 +22,10 @@ import {
   getConnectionQualityRating,
   generateDiagnosticMessage
 } from './networkDiagnostics.js'
+import {
+  createDocumentChangeRecorderWithContext,
+  setupDocumentChangeMonitoringWithContext
+} from './forDocumentChanges.js'
 const roomConnections = new Map()
 const roomDocs = new Map()
 
@@ -171,9 +175,14 @@ export async function useSyncStore(options = {}) {
     MAX_CHANGE_HISTORY
   }
 
-  // 记录文档变更,使用recordDocumentChangeWithContext进行处理
+  // 创建文档变更记录器
+  const changeRecorder = createDocumentChangeRecorderWithContext({
+    maxHistory: MAX_CHANGE_HISTORY
+  })
+  
+  // 替换原有的变更记录逻辑
   const recordDocumentChange = () => {
-    changeFrequency = recordDocumentChangeWithContext(changeHistory,DocmentChangeRecordOptions)
+    changeFrequency = changeRecorder.recordChange()
     return changeFrequency
   }
 
@@ -234,12 +243,12 @@ export async function useSyncStore(options = {}) {
     
     console.log(`[自适应同步] 房间 ${roomName} 初始同步间隔: ${adaptiveInterval}ms`)
     
-    // 监听文档变更，用于计算变更频率
-    const unobserveDoc = observeDocChanges(ydoc, recordDocumentChange)
+    // 监听文档变更，使用新的监控设置
+    const cleanup = setupDocumentChangeMonitoringWithContext(ydoc, changeRecorder)
     
     // 返回清理函数
     return () => {
-      if (unobserveDoc) unobserveDoc()
+      if (cleanup) cleanup()
     }
   }
   
