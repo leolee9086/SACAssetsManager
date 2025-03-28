@@ -78,7 +78,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useSyncStore, resetRoomConnection, setRoomAutoSync, getRoomAutoSyncStatus } from '../../../../src/toolBox/feature/useSyncedstore/sync-store.js'
+import { useSyncStore, resetRoomConnection, setRoomAutoSync, getRoomAutoSyncStatus } from '../../../../src/toolBox/feature/useSyncedstore/useSyncstore.js'
 
 // 基础状态
 const generateRoomId = () => `room-${Math.random().toString(36).substring(2, 9)}`
