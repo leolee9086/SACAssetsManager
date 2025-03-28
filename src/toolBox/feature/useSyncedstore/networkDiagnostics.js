@@ -106,9 +106,11 @@ export const diagnoseConnection = async (provider) => {
   const peers = provider.awareness?.getStates()?.size || 0
   let latency = -1
   
-  // 信令服务器测试结果
-  const signalingTests = await testSignalingServers(provider)
-  latency = calculateOverallLatency(signalingTests)
+  // 只在未连接时才测试信令服务器
+  const signalingTests = provider.connected ? [] : await testSignalingServers(provider)
+  latency = provider.connected ? 
+    (provider._lastMessageReceived ? Date.now() - provider._lastMessageReceived : -1) :
+    calculateOverallLatency(signalingTests)
   
   // 获取连接状态信息
   const connectionInfo = {
