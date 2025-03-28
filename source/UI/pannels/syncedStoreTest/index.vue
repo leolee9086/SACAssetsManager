@@ -320,6 +320,54 @@ const cursorList = computed(() => {
     })
 })
 
+// 添加getNodeAndOffset函数定义
+const getNodeAndOffset = (container, position) => {
+  // 处理边界情况
+  if (!container || position < 0) return null;
+  if (container.textContent.length < position) {
+    position = container.textContent.length;
+  }
+  
+  let currentPos = 0;
+  let targetNode = null;
+  let targetOffset = 0;
+  
+  // 遍历文本节点找到目标位置
+  const treeWalker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+  
+  let node = treeWalker.nextNode();
+  while (node) {
+    const length = node.textContent.length;
+    if (currentPos + length >= position) {
+      targetNode = node;
+      targetOffset = position - currentPos;
+      break;
+    }
+    currentPos += length;
+    node = treeWalker.nextNode();
+  }
+  
+  // 如果没有文本节点，返回容器本身
+  if (!targetNode && position === 0) {
+    // 创建一个新的文本节点，如果没有
+    const textNode = document.createTextNode('');
+    container.appendChild(textNode);
+    return { node: textNode, offset: 0 };
+  }
+  
+  // 如果找到目标节点，返回节点和偏移
+  if (targetNode) {
+    return { node: targetNode, offset: targetOffset };
+  }
+  
+  return null;
+};
+
 // 初始化同步存储
 const initSyncStore = async () => {
   try {
@@ -330,7 +378,7 @@ const initSyncStore = async () => {
     syncManager = await useSyncStore({
       roomName: roomName.value,
       initialState: {
-        text: '',
+        text: '欢迎使用协同编辑器！',
         counter: 0,
         array: [],
         todos: [],
@@ -559,35 +607,130 @@ const getCursorPosition = (position) => {
   }
 }
 
-// 修改文本内容同步监听
+// 修改监听器，移除immediate选项，它可能导致初始化时机不正确
 watch(() => sharedState.value?.text, (newText, oldText) => {
-  if (!editor.value || newText === editor.value.textContent) return
+  if (!editor.value) return;
+  if (newText === editor.value.textContent) return;
   
   try {
-    // 保存当前选区
-    const selection = window.getSelection()
-    const currentRange = selection.getRangeAt(0)
-    const start = getTextPosition(editor.value, currentRange.startContainer, currentRange.startOffset)
-    const end = getTextPosition(editor.value, currentRange.endContainer, currentRange.endOffset)
+    console.log('同步更新编辑器文本:', newText);
     
-    // 更新文本内容
-    editor.value.textContent = newText || ''
-    
-    // 如果是本地更新，恢复光标位置
-    if (localSelection.value) {
-      const range = document.createRange()
-      const pos = getNodeAndOffset(editor.value, start)
-      if (pos) {
-        range.setStart(pos.node, pos.offset)
-        range.setEnd(pos.node, pos.offset)
-        selection.removeAllRanges()
-        selection.addRange(range)
-      }
-    }
+    // 更新文本内容 - 无需尝试保存选区
+    editor.value.textContent = newText || '';
   } catch (err) {
-    console.error('Error in text sync:', err)
+    console.error('文本同步错误:', err);
   }
-}, { immediate: true }) // 添加 immediate: true 确保初始化时同步
+}); // 移除immediate选项
+
+// 添加完全独立的初始化函数
+const initializeEditor = () => {
+  if (!editor.value || !sharedState.value) return;
+  
+  console.log('直接初始化编辑器文本:', sharedState.value.text);
+  // 初始化编辑器文本
+  editor.value.textContent = sharedState.value.text || '';
+  
+  // 强制触发一次输入事件以确保状态正确同步
+  const event = new Event('input', { bubbles: true });
+  editor.value.dispatchEvent(event);
+};
+
+// 生命周期
+onMounted(async () => {
+  await initSyncStore();
+  
+  // 使用setTimeout确保在下一个事件循环执行初始化
+  // 这样可以确保sharedState已经完全准备好
+  setTimeout(() => {
+    initializeEditor();
+    
+    // 再次检查并同步，以防有新的更新
+    if (editor.value && 
+        sharedState.value && 
+        editor.value.textContent !== sharedState.value.text) {
+      editor.value.textContent = sharedState.value.text || '';
+    }
+  }, 100);
+  
+  if (syncManager?.provider?.awareness) {
+    console.log('Initializing awareness system')
+    
+    // 初始化本地光标位置
+    updateLocalSelection(0, 0, syncManager.provider.awareness)
+    
+    // 设置光标监听
+    const cleanup = setupAwarenessHandlers(syncManager.provider.awareness)
+    
+    onUnmounted(() => {
+      console.log('Cleaning up awareness system')
+      cleanup()
+      syncManager?.disconnect()
+    })
+  } else {
+    console.warn('No awareness provider available')
+  }
+})
+
+// 添加监视器以检查光标更新
+watch(cursors, (newCursors) => {
+  console.log('Cursors updated:', Array.from(newCursors.entries()))
+}, { deep: true })
+
+// 添加调试信息显示
+const debugInfo = computed(() => ({
+  cursorsCount: cursors.value.size,
+  localSelection: localSelection.value,
+  awarenessConnected: !!syncManager?.provider?.awareness,
+  currentStates: syncManager?.provider?.awareness 
+    ? Array.from(syncManager.provider.awareness.getStates().entries())
+    : []
+}))
+
+// 在组件卸载时清理
+onUnmounted(() => {
+  if (measureContainer.value) {
+    document.body.removeChild(measureContainer.value)
+  }
+})
+
+// 添加防抖函数来优化文本更新
+const debounce = (fn, delay) => {
+  let timeoutId
+  return (...args) => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(...args), delay)
+  }
+}
+
+// 使用防抖优化文本更新
+const debouncedTextUpdate = debounce((text) => {
+  if (sharedState.value) {
+    sharedState.value.text = text
+  }
+}, 100)
+
+// 修改handleTextChange函数，添加显式比较
+const handleTextChange = (event) => {
+  if (!syncManager?.provider?.awareness || !editor.value) return;
+  
+  try {
+    // 只有当内容真正改变时才更新共享状态
+    if (sharedState.value && sharedState.value.text !== editor.value.textContent) {
+      console.log('编辑器内容变更:', editor.value.textContent);
+      // 直接更新而不是用防抖（可能导致延迟问题）
+      sharedState.value.text = editor.value.textContent;
+    }
+    
+    const selection = window.getSelection();
+    const range = selection.getRangeAt(0);
+    const start = getTextPosition(editor.value, range.startContainer, range.startOffset);
+    
+    // 立即更新光标位置
+    updateLocalSelection(start, start, syncManager.provider.awareness);
+  } catch (err) {
+    console.error('Error in handleTextChange:', err);
+  }
+};
 
 // 计数器操作
 const increment = () => {
@@ -657,91 +800,6 @@ const logOperation = (message) => {
   conflictLogs.value.unshift(`${time} - ${message}`)
   if (conflictLogs.value.length > 10) {
     conflictLogs.value.pop()
-  }
-}
-
-// 生命周期
-onMounted(async () => {
-  await initSyncStore()
-  
-  // 初始化编辑器文本
-  if (editor.value && sharedState.value?.text) {
-    editor.value.textContent = sharedState.value.text
-  }
-  
-  if (syncManager?.provider?.awareness) {
-    console.log('Initializing awareness system')
-    
-    // 初始化本地光标位置
-    updateLocalSelection(0, 0, syncManager.provider.awareness)
-    
-    // 设置光标监听
-    const cleanup = setupAwarenessHandlers(syncManager.provider.awareness)
-    
-    onUnmounted(() => {
-      console.log('Cleaning up awareness system')
-      cleanup()
-      syncManager?.disconnect()
-    })
-  } else {
-    console.warn('No awareness provider available')
-  }
-})
-
-// 添加监视器以检查光标更新
-watch(cursors, (newCursors) => {
-  console.log('Cursors updated:', Array.from(newCursors.entries()))
-}, { deep: true })
-
-// 添加调试信息显示
-const debugInfo = computed(() => ({
-  cursorsCount: cursors.value.size,
-  localSelection: localSelection.value,
-  awarenessConnected: !!syncManager?.provider?.awareness,
-  currentStates: syncManager?.provider?.awareness 
-    ? Array.from(syncManager.provider.awareness.getStates().entries())
-    : []
-}))
-
-// 在组件卸载时清理
-onUnmounted(() => {
-  if (measureContainer.value) {
-    document.body.removeChild(measureContainer.value)
-  }
-})
-
-// 添加防抖函数来优化文本更新
-const debounce = (fn, delay) => {
-  let timeoutId
-  return (...args) => {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(...args), delay)
-  }
-}
-
-// 使用防抖优化文本更新
-const debouncedTextUpdate = debounce((text) => {
-  if (sharedState.value) {
-    sharedState.value.text = text
-  }
-}, 100)
-
-// 保留这个使用防抖的handleTextChange定义
-const handleTextChange = (event) => {
-  if (!syncManager?.provider?.awareness || !editor.value) return
-  
-  try {
-    const selection = window.getSelection()
-    const range = selection.getRangeAt(0)
-    const start = getTextPosition(editor.value, range.startContainer, range.startOffset)
-    
-    // 使用防抖更新文本
-    debouncedTextUpdate(editor.value.textContent)
-    
-    // 立即更新光标位置
-    updateLocalSelection(start, start, syncManager.provider.awareness)
-  } catch (err) {
-    console.error('Error in handleTextChange:', err)
   }
 }
 </script>
