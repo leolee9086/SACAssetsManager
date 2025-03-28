@@ -120,10 +120,7 @@
       <button @click="handleRoomChange">进入房间</button>
     </div>
 
-    <!-- 如果还没有初始化完成，显示加载状态 -->
-    <div v-else class="loading-state">
-      正在初始化同步存储...
-    </div>
+
 
     <!-- 同步配置 -->
     <div class="sync-config">
@@ -168,6 +165,7 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useSyncStore } from '../../../../src/toolBox/feature/useSyncedstore/useSyncstore.js'
 import { useYText } from './useYText.js'
 import { useAwareness } from './useAwareness.js'
+import { useCursor } from './useCursor.js'
 
 // 状态
 const roomName = ref('test-room')
@@ -217,6 +215,21 @@ const measureContainer = ref(null)
 // 添加本地数据加载状态
 const localDataLoaded = ref(false)
 
+// 使用光标管理模块
+const { 
+  localSelection: cursorLocalSelection,
+  selections: cursorSelections,
+  saveSelection,
+  restoreSelection,
+  updateRemoteSelection,
+  getCursorCoordinates,
+  getTextPosition,
+  getNodeAndOffset
+} = useCursor({ 
+  containerRef: editor, 
+  lineHeight 
+});
+
 // 添加颜色生成函数
 const generateColor = (id) => {
   // 使用简单的哈希算法
@@ -233,7 +246,7 @@ const generateColor = (id) => {
   return `hsl(${h}, ${s}%, ${l}%)`
 }
 
-// 更新 cursorList 计算属性
+// 更新 cursorList 计算属性使用新的光标模块
 const cursorList = computed(() => {
   if (!cursors.value || !(cursors.value instanceof Map)) {
     return []
@@ -242,8 +255,9 @@ const cursorList = computed(() => {
   return Array.from(cursors.value.entries())
     .filter(([id]) => id !== clientId.value) // 过滤掉本地光标
     .map(([id, data]) => {
-      const { left, top } = getCursorPosition(data?.start || 0)
-      const color = generateColor(id) // 使用生成的颜色
+      // 使用新的光标坐标计算
+      const { left, top } = getCursorCoordinates(data?.start || 0)
+      const color = generateColor(id)
       return {
         id,
         left,
@@ -253,54 +267,6 @@ const cursorList = computed(() => {
       }
     })
 })
-
-// 添加getNodeAndOffset函数定义
-const getNodeAndOffset = (container, position) => {
-  // 处理边界情况
-  if (!container || position < 0) return null;
-  if (container.textContent.length < position) {
-    position = container.textContent.length;
-  }
-  
-  let currentPos = 0;
-  let targetNode = null;
-  let targetOffset = 0;
-  
-  // 遍历文本节点找到目标位置
-  const treeWalker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false
-  );
-  
-  let node = treeWalker.nextNode();
-  while (node) {
-    const length = node.textContent.length;
-    if (currentPos + length >= position) {
-      targetNode = node;
-      targetOffset = position - currentPos;
-      break;
-    }
-    currentPos += length;
-    node = treeWalker.nextNode();
-  }
-  
-  // 如果没有文本节点，返回容器本身
-  if (!targetNode && position === 0) {
-    // 创建一个新的文本节点，如果没有
-    const textNode = document.createTextNode('');
-    container.appendChild(textNode);
-    return { node: textNode, offset: 0 };
-  }
-  
-  // 如果找到目标节点，返回节点和偏移
-  if (targetNode) {
-    return { node: targetNode, offset: targetOffset };
-  }
-  
-  return null;
-};
 
 // 初始化同步存储
 const initSyncStore = async () => {
@@ -313,7 +279,8 @@ const initSyncStore = async () => {
       roomName: roomName.value,
       initialState: {
         text: '欢迎使用协同编辑器！',
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
+        cursors: {}
       },
       autoSync: {
         enabled: autoSyncEnabled.value,
@@ -421,132 +388,72 @@ const handleKeyDown = (event) => {
 
 // 修改选区变化处理函数
 const handleSelection = () => {
-  if (!syncManager?.provider?.awareness || !editor.value) return
+  if (!syncManager?.provider?.awareness || !editor.value) return;
   
   try {
-    const selection = window.getSelection()
-    if (!selection.rangeCount) return
+    // 使用新的保存选区函数，它会返回序列化的选区信息
+    const selection = saveSelection();
+    if (!selection) return;
     
-    const range = selection.getRangeAt(0)
-    const container = editor.value
-    
-    const start = getTextPosition(container, range.startContainer, range.startOffset)
-    const end = getTextPosition(container, range.endContainer, range.endOffset)
-    
-    console.log('选区变化:', { start, end }) // 调试日志
-    updateLocalSelection(start, end, syncManager.provider.awareness)
-  } catch (err) {
-    console.error('Error in handleSelection:', err)
-  }
-}
-
-// 重写获取文本位置的函数
-const getTextPosition = (container, node, offset) => {
-  // 如果节点是文本节点，直接计算
-  if (node.nodeType === Node.TEXT_NODE) {
-    let position = offset
-    let currentNode = node
-    
-    // 向前遍历所有文本节点
-    while (currentNode.previousSibling || currentNode.parentNode !== container) {
-      if (currentNode.previousSibling) {
-        currentNode = currentNode.previousSibling
-        position += currentNode.textContent?.length || 0
-      } else {
-        currentNode = currentNode.parentNode
+    // 使用awareness API更新选区
+    updateLocalSelection(
+      selection.start,
+      selection.end,
+      syncManager.provider.awareness,
+      {
+        username: clientId.value,
+        timestamp: selection.timestamp,
+        text: editor.value.textContent // 添加文本内容以确保一致性
       }
-    }
-    
-    return position
-  }
-  
-  // 如果节点是元素节点
-  let position = 0
-  const treeWalker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false
-  )
-  
-  let currentNode = treeWalker.nextNode()
-  while (currentNode && currentNode !== node) {
-    position += currentNode.textContent.length
-    currentNode = treeWalker.nextNode()
-  }
-  
-  return position + offset
-}
-
-// 完全重写光标位置计算函数，保持原有逻辑但提高稳定性
-const getCursorPosition = (position) => {
-  try {
-    if (!editor.value) return { left: 0, top: 0 }
-    
-    // 处理边界情况
-    if (position < 0) position = 0
-    const maxLength = editor.value.textContent.length
-    if (position > maxLength) position = maxLength
-    
-    // 获取节点和偏移
-    const nodeInfo = getNodeAndOffset(editor.value, position)
-    if (!nodeInfo || !nodeInfo.node) {
-      return { left: 8, top: 8 } // 默认位置（内边距）
-    }
-    
-    // 创建范围来定位光标
-    const range = document.createRange()
-    range.setStart(nodeInfo.node, nodeInfo.offset)
-    range.setEnd(nodeInfo.node, nodeInfo.offset)
-    
-    // 获取光标位置
-    const rect = range.getBoundingClientRect()
-    const editorRect = editor.value.getBoundingClientRect()
-    
-    return {
-      left: rect.left - editorRect.left + editor.value.scrollLeft,
-      top: rect.top - editorRect.top + editor.value.scrollTop
-    }
+    );
   } catch (err) {
-    console.error('计算光标位置出错:', err)
-    return { left: 0, top: 0 }
+    console.error('处理选区变化错误:', err);
   }
-}
+};
 
-// 简化handleTextChange函数，确保文本同步正常工作
+
+
+// 替换原有的handleTextChange函数
 const handleTextChange = (event) => {
   if (!syncManager?.provider?.awareness || !editor.value) return;
   
   try {
+    // 保存当前的选区，这将同时更新cursorLocalSelection
+    const selection = saveSelection();
+    
     // 只有当内容真正改变时才更新共享状态
     if (sharedState.value && sharedState.value.text !== editor.value.textContent) {
       console.log(`本地编辑器内容变更:`, editor.value.textContent);
       
-      // 简单直接地更新共享状态，确保同步
+      // 同时更新文本和光标位置
       sharedState.value.text = editor.value.textContent;
       sharedState.value.lastUpdate = Date.now();
+      
+      // 如果有选区，就同步到awareness
+      if (selection) {
+        updateLocalSelection(
+          selection.start,
+          selection.end,
+          syncManager.provider.awareness,
+          {
+            username: clientId.value,
+            timestamp: selection.timestamp,
+            text: editor.value.textContent // 包含当前文本确保一致性
+          }
+        );
+      }
       
       // 主动触发同步
       if (typeof syncManager.triggerSync === 'function') {
         syncManager.triggerSync();
       }
     }
-    
-    // 更新光标位置，添加安全检查
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const start = getTextPosition(editor.value, range.startContainer, range.startOffset);
-      const end = getTextPosition(editor.value, range.endContainer, range.endOffset);
-      
-      updateLocalSelection(start, end, syncManager.provider.awareness);
-    }
   } catch (err) {
     console.error('处理文本变更错误:', err);
   }
 };
 
-// 修改文本监听器，确保远程更新能正确应用到编辑器
+// 修改远程文本更新处理逻辑
 watch(() => sharedState.value?.text, (newText, oldText) => {
   if (!editor.value) return;
   if (newText === editor.value.textContent) return;
@@ -554,95 +461,69 @@ watch(() => sharedState.value?.text, (newText, oldText) => {
   try {
     console.log('接收到远端文本更新:', newText);
     
-    // 保存当前选区位置，以便稍后恢复
-    let savedSelection = null;
-    const selection = window.getSelection();
-    let editorHasFocus = document.activeElement === editor.value;
+    // 保存当前选区
+    const savedSelection = saveSelection();
     
-    if (editorHasFocus && selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      savedSelection = {
-        start: getTextPosition(editor.value, range.startContainer, range.startOffset),
-        end: getTextPosition(editor.value, range.endContainer, range.endOffset)
-      };
-    }
-    
-    // 直接更新编辑器内容
+    // 更新编辑器内容
     editor.value.textContent = newText || '';
     
-    // 如果编辑器曾经有焦点，尝试恢复选区
-    if (editorHasFocus && savedSelection) {
-      setTimeout(() => {
-        try {
-          // 恢复焦点
-          editor.value.focus();
+    // 异步恢复选区，给DOM有时间更新
+    setTimeout(() => {
+      // 优先尝试应用本地选区
+      if (savedSelection && editor.value === document.activeElement) {
+        restoreSelection(savedSelection);
+      } else if (syncManager?.provider?.awareness) {
+        // 尝试应用远程选区
+        const states = syncManager.provider.awareness.getStates();
+        const remoteUsers = Array.from(states.entries())
+          .filter(([id]) => id !== syncManager.provider.awareness.clientID);
+        
+        if (remoteUsers.length > 0) {
+          // 使用最近更新的选区
+          const latestUser = remoteUsers.sort((a, b) => 
+            (b[1].timestamp || 0) - (a[1].timestamp || 0)
+          )[0];
           
-          // 尝试恢复选区
-          const newNodeStart = getNodeAndOffset(editor.value, savedSelection.start);
-          const newNodeEnd = getNodeAndOffset(editor.value, savedSelection.end);
-          
-          if (newNodeStart && newNodeEnd) {
-            const range = document.createRange();
-            range.setStart(newNodeStart.node, newNodeStart.offset);
-            range.setEnd(newNodeEnd.node, newNodeEnd.offset);
+          if (latestUser && latestUser[1].cursor) {
+            // 创建一个选区对象并尝试应用
+            const remoteSelection = {
+              start: latestUser[1].cursor.start || 0,
+              end: latestUser[1].cursor.end || 0
+            };
             
-            selection.removeAllRanges();
-            selection.addRange(range);
+            // 如果是当前文本对应的选区则应用
+            if (latestUser[1].text === newText) {
+              restoreSelection(remoteSelection);
+            }
           }
-        } catch (e) {
-          console.warn('恢复选区失败:', e);
         }
-      }, 0);
-    }
+      }
+    }, 10);
   } catch (err) {
     console.error('远端文本同步错误:', err);
   }
 }, { deep: true });
 
-// 优化初始化编辑器函数，确保内容正确加载
-const initializeEditor = () => {
-  if (!editor.value || !sharedState.value) return;
-  
-  console.log('初始化编辑器文本:', sharedState.value.text);
-  
-  // 设置编辑器内容
-  editor.value.textContent = sharedState.value.text || '';
-  
-  // 不再触发input事件，避免循环更新
-  // 仅当内容为空时设置默认内容
-  if (!editor.value.textContent && sharedState.value) {
-    sharedState.value.text = '欢迎使用协同编辑器！';
-    editor.value.textContent = sharedState.value.text;
-  }
-};
-
-// 添加周期性同步检查，确保内容始终同步
+// 集成周期性同步检查，确保文本和光标一致性
 const startSyncCheck = () => {
   const syncCheckInterval = setInterval(() => {
-    // 只在活跃状态下检查
     if (sharedState.value && editor.value && document.visibilityState === 'visible') {
-      // 如果编辑器内容与共享状态不同，进行同步
       const editorText = editor.value.textContent || '';
       const sharedText = sharedState.value.text || '';
       
       if (editorText !== sharedText) {
-        // 检查是哪个方向需要同步
-        if (editorText === '') {
-          // 编辑器为空但共享状态有内容，更新编辑器
-          console.log('编辑器为空，从共享状态同步:', sharedText);
-          editor.value.textContent = sharedText;
-        } else if (sharedText === '') {
-          // 共享状态为空但编辑器有内容，更新共享状态
-          console.log('共享状态为空，从编辑器同步:', editorText);
-          sharedState.value.text = editorText;
-        } else {
-          // 两者都有内容但不同，优先使用共享状态
-          console.log('内容不同步，使用共享状态:', sharedText);
-          editor.value.textContent = sharedText;
+        // 编辑器和共享状态不同步，优先使用共享状态文本
+        console.log('检测到不同步，修正编辑器内容');
+        editor.value.textContent = sharedText;
+        
+        // 同时更新光标位置，保持一致性
+        if (syncManager?.provider?.awareness) {
+          // 尝试获取共享文本对应的光标位置
+          // 实现光标位置恢复逻辑...
         }
       }
     }
-  }, 5000); // 每5秒检查一次
+  }, 3000); // 每3秒检查一次
   
   onUnmounted(() => {
     clearInterval(syncCheckInterval);
@@ -668,23 +549,39 @@ onMounted(async () => {
   }, 100);
   
   if (syncManager?.provider?.awareness) {
-    console.log('Initializing awareness system')
-    
-    // 初始化本地光标位置
-    updateLocalSelection(0, 0, syncManager.provider.awareness)
+    console.log('初始化awareness系统');
     
     // 设置光标监听
-    const cleanup = setupAwarenessHandlers(syncManager.provider.awareness)
+    const cleanup = setupAwarenessHandlers(syncManager.provider.awareness);
+    
+    // 监听远程光标更新
+    syncManager.provider.awareness.on('change', debounce(() => {
+      const states = syncManager.provider.awareness.getStates();
+      
+      // 更新所有远程用户的选区
+      Array.from(states.entries())
+        .filter(([id]) => id !== syncManager.provider.awareness.clientID)
+        .forEach(([id, state]) => {
+          if (state.cursor) {
+            updateRemoteSelection(id, {
+              start: state.cursor.start,
+              end: state.cursor.end,
+              username: state.cursor.username || `用户-${id}`,
+              timestamp: state.cursor.timestamp || Date.now()
+            });
+          }
+        });
+    }, 50));
     
     onUnmounted(() => {
-      console.log('Cleaning up awareness system')
-      cleanup()
-      syncManager?.disconnect()
-    })
+      console.log('清理awareness系统');
+      cleanup();
+      syncManager?.disconnect();
+    });
   } else {
-    console.warn('No awareness provider available')
+    console.warn('No awareness provider available');
   }
-})
+});
 
 // 添加监视器以检查光标更新
 watch(cursors, (newCursors) => {
@@ -737,38 +634,52 @@ const ensureEditorSync = () => {
   // 强制编辑器内容与共享状态同步
   if (editor.value.textContent !== sharedState.value.text) {
     console.log('强制同步编辑器文本:', sharedState.value.text);
+    
+    // 保存当前选区
+    const savedSelection = saveSelection();
+    
+    // 更新内容
     editor.value.textContent = sharedState.value.text || '';
     
-    // 尝试设置光标到末尾
-    try {
-      const selection = window.getSelection();
-      const range = document.createRange();
-      const textLength = editor.value.textContent.length;
-      
-      // 获取最后一个文本节点
-      const treeWalker = document.createTreeWalker(
-        editor.value, 
-        NodeFilter.SHOW_TEXT, 
-        null, 
-        false
-      );
-      
-      let lastNode = null;
-      let node;
-      while (node = treeWalker.nextNode()) {
-        lastNode = node;
+    // 尝试恢复选区
+    setTimeout(() => {
+      if (savedSelection && document.activeElement === editor.value) {
+        restoreSelection(savedSelection);
+      } else {
+        // 如果没有保存的选区，就将光标设置到末尾
+        const length = editor.value.textContent.length;
+        restoreSelection({
+          start: length,
+          end: length
+        });
       }
-      
-      // 如果有文本节点，将光标设置到末尾
-      if (lastNode) {
-        range.setStart(lastNode, lastNode.textContent.length);
-        range.setEnd(lastNode, lastNode.textContent.length);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-    } catch (e) {
-      console.warn('设置光标位置失败:', e);
-    }
+    }, 0);
+  }
+};
+
+// 优化初始化编辑器函数
+const initializeEditor = () => {
+  if (!editor.value || !sharedState.value) return;
+  
+  console.log('初始化编辑器文本:', sharedState.value.text);
+  
+  // 设置编辑器内容
+  editor.value.textContent = sharedState.value.text || '';
+  
+  // 仅当内容为空时设置默认内容
+  if (!editor.value.textContent && sharedState.value) {
+    sharedState.value.text = '欢迎使用协同编辑器！';
+    editor.value.textContent = sharedState.value.text;
+    
+    // 当设置了初始内容后，将光标放在末尾
+    setTimeout(() => {
+      const length = editor.value.textContent.length;
+      const endSelection = {
+        start: length,
+        end: length
+      };
+      restoreSelection(endSelection);
+    }, 0);
   }
 };
 </script>
