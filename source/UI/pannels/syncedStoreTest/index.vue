@@ -434,30 +434,6 @@ const refreshDiagnostics = async () => {
   }
 }
 
-// 修改文本变更处理函数
-const handleTextChange = (event) => {
-  if (!syncManager?.provider?.awareness || !editor.value) return
-  
-  try {
-    // 获取当前选区位置
-    const selection = window.getSelection()
-    const range = selection.getRangeAt(0)
-    const start = getTextPosition(editor.value, range.startContainer, range.startOffset)
-    
-    // 更新共享状态的文本
-    const newText = editor.value.textContent
-    if (sharedState.value.text !== newText) {
-      sharedState.value.text = newText
-      console.log('文本更新:', newText)
-    }
-    
-    // 更新光标位置
-    updateLocalSelection(start, start, syncManager.provider.awareness)
-  } catch (err) {
-    console.error('Error in handleTextChange:', err)
-  }
-}
-
 // 处理键盘事件,主要是为了处理回车键
 const handleKeyDown = (event) => {
   if (event.key === 'Enter') {
@@ -750,7 +726,7 @@ const debouncedTextUpdate = debounce((text) => {
   }
 }, 100)
 
-// 修改 handleTextChange 使用防抖
+// 保留这个使用防抖的handleTextChange定义
 const handleTextChange = (event) => {
   if (!syncManager?.provider?.awareness || !editor.value) return
   

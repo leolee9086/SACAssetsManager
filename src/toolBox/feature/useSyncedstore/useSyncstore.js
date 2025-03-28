@@ -275,63 +275,6 @@ export const resetRoomConnection = async (roomName) => {
 }
 
 /**
- * 记录文档变更并计算变更频率
- * @param {Array<number>} changeHistory - 变更历史时间戳数组
- * @param {Object} options - 配置选项
- * @param {number} options.MAX_CHANGE_HISTORY - 最大历史记录数量
- * @returns {number} 每分钟的变更频率
- */
-const recordDocumentChangeWithContext = (changeHistory,options = {}) => {
-  let changeFrequency=0
-  const {  MAX_CHANGE_HISTORY } = options
-  const now = Date.now()
-  changeHistory.push(now)
-  // 保持历史记录在限定范围内
-  if (changeHistory.length > MAX_CHANGE_HISTORY) {
-    changeHistory.shift()
-  }
-  
-  // 计算变更频率 (次数/分钟)
-  if (changeHistory.length >= 2) {
-    const oldestChange = changeHistory[0]
-    const timeSpan = now - oldestChange
-    // 防止除零错误
-    if (timeSpan > 0) {
-      // 转换为每分钟变更次数
-      changeFrequency = (changeHistory.length - 1) / (timeSpan / 60000)
-    }
-  }
-  return changeFrequency
-}
-
-/**
- * 创建清理函数，用于清理现有连接资源
- * @param {string} roomName - 房间名称
- * @param {Object} options - 配置选项
- * @param {boolean} [options.forceNewDoc=false] - 是否强制创建新文档
- * @returns {void}
- */
-async function createCleanupFunction(roomName, options = {}) {
-  const existingConnection = documentManager.connections.get(roomName)
-  if (existingConnection) {
-    try {
-      await existingConnection.disconnect()
-      if (existingConnection.reconnectTimer) {
-        clearTimeout(existingConnection.reconnectTimer)
-      }
-    } catch (e) {
-      console.error('断开连接时出错:', e)
-    }
-    documentManager.connections.delete(roomName)
-    // 等待资源清理
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-  
-  // 清理文档管理器中的房间
-  await documentManager.cleanupRoom(roomName)
-}
-
-/**
  * 创建与Vue集成的同步状态管理器
  * @param {Object} options - 配置选项
  * @param {string} [options.roomName='default-room'] - 房间名称
