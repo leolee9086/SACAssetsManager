@@ -1,3 +1,5 @@
+import { GLOBAL_STUN_SERVERS,ASIA_PACIFIC_STUN_TURN_SERVERS } from './useStunServers.js'
+
 export const GLOBAL_SIGNALING_SERVERS = [
     'wss://y-webrtc-signaling.onrender.com',
     'wss://signaling.yjs.dev',
@@ -116,4 +118,100 @@ export const testSignalingServer = async (url) => {
     return { url, time: Infinity, success: false }
   }
 }
- 
+
+// 默认信令服务器列表 - 中国用户优先尝试亚太服务器
+const DEFAULT_SIGNALING_SERVERS = [
+  ...GLOBAL_SIGNALING_SERVERS
+]
+
+
+
+
+// 默认STUN/TURN服务器列表 - 中国用户优先尝试亚太服务器
+const DEFAULT_ICE_SERVERS = [
+  ...ASIA_PACIFIC_STUN_TURN_SERVERS,
+  ...GLOBAL_STUN_SERVERS
+]
+
+
+export const selectBestServers = async () => {
+  // 利用新开发的服务器检测功能获取最佳服务器
+  try {
+    console.log('正在使用优化后的连通性检查选择最佳信令服务器...')
+    const bestServer = await getOptimalServer(true) // 强制检查所有服务器
+    
+    if (bestServer) {
+      console.log('已获取最佳信令服务器:', bestServer)
+      const servers = [bestServer]
+      
+      // 作为备用，获取所有可用服务器
+      const allResults = await checkAllServers()
+      const availableServers = allResults
+        .filter(server => server.available)
+        .map(server => server.url)
+        .filter(url => url !== bestServer) // 移除已选的最佳服务器
+      
+      // 将剩余可用服务器添加到列表中
+      servers.push(...availableServers)
+      
+      // 如果没有足够的服务器，添加默认服务器
+      if (servers.length < 3) {
+        const remainingServers = GLOBAL_SIGNALING_SERVERS.filter(url => !servers.includes(url))
+        servers.push(...remainingServers)
+      }
+      
+      return {
+        signalingServers: servers,
+        iceServers: DEFAULT_ICE_SERVERS
+      }
+    }
+  } catch (error) {
+    console.warn('优化的服务器检测失败，回退到传统方法:', error)
+  }
+  
+  // 如果优化方法失败，回退到原有方法
+  // 分批测试函数
+  const batchTest = async (servers, batchSize = 5) => {
+    const results = []
+    for (let i = 0; i < servers.length; i += batchSize) {
+      const batch = servers.slice(i, i + batchSize)
+      const batchResults = await Promise.all(batch.map(url => testSignalingServer(url)))
+      results.push(...batchResults)
+      
+      // 如果已经找到足够快的服务器，可以提前结束测试
+      const fastServers = results.filter(r => r.success && r.time < 300)
+      if (fastServers.length >= 3) break
+    }
+    return results
+  }
+  
+  // 优先测试亚太服务器
+  const asiaResults = await batchTest(ASIA_PACIFIC_SIGNALING_SERVERS)
+  let fastAsiaServers = asiaResults
+    .filter(result => result.success && result.time < 500)
+    .sort((a, b) => a.time - b.time)
+    .map(result => result.url)
+  
+  // 如果亚太地区服务器不够，再测试全球服务器
+  if (fastAsiaServers.length < 3) {
+    const globalResults = await batchTest(GLOBAL_SIGNALING_SERVERS)
+    const fastGlobalServers = globalResults
+      .filter(result => result.success)
+      .sort((a, b) => a.time - b.time)
+      .map(result => result.url)
+    
+    fastAsiaServers = [...fastAsiaServers, ...fastGlobalServers]
+  }
+  
+  // 如果没有成功的服务器，使用默认列表
+  const bestSignalingServers = fastAsiaServers.length > 0 
+    ? fastAsiaServers 
+    : DEFAULT_SIGNALING_SERVERS
+  
+  console.log('已选择最佳信令服务器:', bestSignalingServers.slice(0, 3))
+  
+  return {
+    signalingServers: bestSignalingServers,
+    iceServers: DEFAULT_ICE_SERVERS 
+  }
+}

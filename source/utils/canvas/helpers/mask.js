@@ -1,3 +1,8 @@
+/**
+ * 初始化画布并设置基本参数
+ * @param {number} size - 画布的宽度和高度
+ * @returns {CanvasRenderingContext2D} 初始化后的2D渲染上下文
+ */
 const initCanvas = (size) => {
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = size;
@@ -8,6 +13,16 @@ const initCanvas = (size) => {
   return ctx;
 };
   
+/**
+ * 创建形状遮罩
+ * @param {string|Object} shape - 形状类型或形状对象
+ * @param {number} size - 画布尺寸
+ * @param {boolean} [forClipping=false] - 是否用于裁剪
+ * @param {number} nodeStrokeWidth - 描边宽度
+ * @param {string} nodeStrokeColor - 描边颜色
+ * @param {Object} nodeTransform - 包含缩放比例的对象
+ * @returns {HTMLCanvasElement} 包含形状的canvas元素
+ */
 export const createShapeMask = (
   shape,
   size,
@@ -23,6 +38,13 @@ export const createShapeMask = (
   return ctx.canvas;
 };
   
+/**
+ * 绘制指定形状
+ * @param {CanvasRenderingContext2D} ctx - 2D渲染上下文
+ * @param {string|Object} shape - 形状类型或形状对象
+ * @param {number} size - 画布尺寸
+ * @param {number} scaledStrokeWidth - 缩放后的描边宽度
+ */
 const drawShape = (ctx, shape, size, scaledStrokeWidth) => {
   ctx.beginPath();
   switch (typeof shape === 'object' ? shape.type : shape) {
@@ -73,6 +95,12 @@ const drawShape = (ctx, shape, size, scaledStrokeWidth) => {
   }
 };
   
+/**
+ * 绘制圆形
+ * @param {CanvasRenderingContext2D} ctx - 2D渲染上下文
+ * @param {number} size - 画布尺寸
+ * @param {number} strokeWidth - 描边宽度
+ */
 const drawCircle = (ctx, size, strokeWidth) => {
   ctx.arc(0, 0, size / 2 - strokeWidth / 2, 0, Math.PI * 2);
 };
@@ -214,6 +242,14 @@ const drawCloud = (ctx, size, strokeWidth) => {
   ctx.arc(0, radius * 1.2, radius * 1.1, 0, Math.PI * 2);
 };
   
+/**
+ * 应用样式到画布
+ * @param {CanvasRenderingContext2D} ctx - 2D渲染上下文
+ * @param {boolean} forClipping - 是否用于裁剪
+ * @param {number} nodeStrokeWidth - 描边宽度
+ * @param {string} nodeStrokeColor - 描边颜色
+ * @param {number} scaledStrokeWidth - 缩放后的描边宽度
+ */
 const applyStyle = (ctx, forClipping, nodeStrokeWidth, nodeStrokeColor, scaledStrokeWidth) => {
   if (forClipping) {
     ctx.fillStyle = '#ffffff';
@@ -230,6 +266,13 @@ const applyStyle = (ctx, forClipping, nodeStrokeWidth, nodeStrokeColor, scaledSt
   }
 };
   
+/**
+ * 绘制正多边形
+ * @param {CanvasRenderingContext2D} ctx - 2D渲染上下文
+ * @param {number} size - 画布尺寸
+ * @param {number} strokeWidth - 描边宽度
+ * @param {number} sides - 边数
+ */
 const drawRegularPolygon = (ctx, size, strokeWidth, sides) => {
   const radius = size / 2 - strokeWidth / 2;
   ctx.beginPath();
