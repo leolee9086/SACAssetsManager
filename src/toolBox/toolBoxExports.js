@@ -55,6 +55,22 @@ export * from './feature/useImage/imageToolBox.js';
 // 思源笔记环境工具
 export * from './useAge/useSiyuan.js';
 
+// Canvas工具
+export {
+    CanvasProcessor,
+    从Blob创建图像,
+    加载图像,
+    从SVG创建图像,
+    从二进制数据创建图像,
+    创建Canvas处理器,
+    // 英文别名
+    createImageFromBlob,
+    loadImage,
+    createImageFromSVG,
+    createImageFromBinaryData,
+    createProcessor
+} from './base/useBrowser/useCanvas/index.js';
+
 /**
  * 创建一个默认的事件总线实例
  */

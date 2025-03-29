@@ -1,60 +1,17 @@
 /**
- * @fileoverview 已弃用 - Canvas工具
- * @deprecated 请使用toolBox目录下的Canvas工具:
- * - src/toolBox/base/useBrowser/useCanvas/
- * - 或通过 src/toolBox/toolBoxExports.js 统一导入
+ * Canvas图像处理链式调用类
+ * 提供链式操作Canvas元素的功能
  */
-
-// 从新模块导入所有内容
-import {
-    CanvasProcessor,
-    从Blob创建图像,
-    加载图像,
-    从SVG创建图像,
-    从二进制数据创建图像,
-    创建Canvas处理器,
-    createImageFromBlob,
-    loadImage,
-    createImageFromSVG,
-    createImageFromBinaryData,
-    createProcessor
-} from '../../../src/toolBox/base/useBrowser/useCanvas/index.js';
-
-// 重新导出
-export {
-    CanvasProcessor,
-    从Blob创建图像,
-    加载图像,
-    从SVG创建图像,
-    从二进制数据创建图像,
-    创建Canvas处理器,
-    createImageFromBlob,
-    loadImage,
-    createImageFromSVG,
-    createImageFromBinaryData,
-    createProcessor
-};
-
-// 为保持向后兼容，导出一些原来直接声明在这个文件中的函数
-export { createImageFromBlob as createImageFromBlob };
-export { loadImage as loadImage };
-export { createProcessor as createProcessor };
-
-// 默认导出
-export default {
-    CanvasProcessor,
-    createImageFromBlob,
-    loadImage,
-    createProcessor
-};
-
-// 弃用警告
-console.warn('source/utils/canvas/index.js 已弃用，请直接从 src/toolBox 导入 Canvas 工具函数');
 
 /**
- * Canvas图像处理链式调用类
+ * Canvas处理器类
+ * 支持链式调用的Canvas图像处理器
  */
 export class CanvasProcessor {
+    /**
+     * 创建Canvas处理器实例
+     * @param {HTMLCanvasElement} canvas - 要处理的canvas元素
+     */
     constructor(canvas) {
         if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
             throw new Error('需要提供有效的canvas元素');
@@ -66,6 +23,11 @@ export class CanvasProcessor {
 
     /**
      * 提取指定区域
+     * @param {number} x - 起始X坐标
+     * @param {number} y - 起始Y坐标
+     * @param {number} width - 宽度
+     * @param {number} height - 高度
+     * @returns {CanvasProcessor} 当前处理器实例
      */
     extract(x, y, width, height) {
         this.operations.push(() => {
@@ -81,6 +43,12 @@ export class CanvasProcessor {
 
     /**
      * 调整大小
+     * @param {number} width - 目标宽度
+     * @param {number} height - 目标高度
+     * @param {Object} options - 选项
+     * @param {string} [options.fit='contain'] - 适应方式
+     * @param {string} [options.position='center'] - 位置
+     * @returns {CanvasProcessor} 当前处理器实例
      */
     resize(width, height, options = {}) {
         if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
@@ -125,6 +93,8 @@ export class CanvasProcessor {
 
     /**
      * 旋转图像
+     * @param {number} angle - 旋转角度（度）
+     * @returns {CanvasProcessor} 当前处理器实例
      */
     rotate(angle) {
         this.operations.push(() => {
@@ -143,7 +113,11 @@ export class CanvasProcessor {
     }
 
     /**
-     * 执行处理并输出结果
+     * 执行处理并转换为Image对象
+     * @param {Object} options - 选项
+     * @param {string} [options.type='image/png'] - 图像类型
+     * @param {number} [options.quality=1] - 图像质量
+     * @returns {Promise<HTMLImageElement>} 图像元素
      */
     async toImage(options = {}) {
         const { type = 'image/png', quality = 1 } = options;
@@ -156,11 +130,22 @@ export class CanvasProcessor {
         });
     }
 
+    /**
+     * 执行处理并返回Canvas元素
+     * @returns {Promise<HTMLCanvasElement>} Canvas元素
+     */
     async toCanvas() {
         await this._process();
         return this.canvas;
     }
 
+    /**
+     * 执行处理并转换为Blob对象
+     * @param {Object} options - 选项
+     * @param {string} [options.type='image/png'] - 图像类型
+     * @param {number} [options.quality=1] - 图像质量
+     * @returns {Promise<Blob>} Blob对象
+     */
     async toBlob(options = {}) {
         const { type = 'image/png', quality = 1 } = options;
         await this._process();
@@ -171,6 +156,7 @@ export class CanvasProcessor {
 
     /**
      * 执行所有操作
+     * @private
      */
     async _process() {
         if (this.hasError) {
@@ -189,6 +175,9 @@ export class CanvasProcessor {
         }
     }
 
+    /**
+     * 释放资源
+     */
     dispose() {
         this.operations = [];
         this.canvas = null;
@@ -196,6 +185,11 @@ export class CanvasProcessor {
 
     /**
      * 导出为图片文件
+     * @param {string} [filename='image.png'] - 文件名
+     * @param {Object} options - 选项
+     * @param {string} [options.type='image/png'] - 图像类型
+     * @param {number} [options.quality=1] - 图像质量
+     * @returns {Promise<File>} 文件对象
      */
     async toFile(filename = 'image.png', options = {}) {
         const { type = 'image/png', quality = 1 } = options;
@@ -205,6 +199,10 @@ export class CanvasProcessor {
 
     /**
      * 导出为 base64 字符串
+     * @param {Object} options - 选项
+     * @param {string} [options.type='image/png'] - 图像类型
+     * @param {number} [options.quality=1] - 图像质量
+     * @returns {Promise<string>} base64 字符串
      */
     async toDataURL(options = {}) {
         const { type = 'image/png', quality = 1 } = options;
@@ -214,6 +212,11 @@ export class CanvasProcessor {
 
     /**
      * 下载图片到本地
+     * @param {string} [filename='image.png'] - 文件名
+     * @param {Object} options - 选项
+     * @param {string} [options.type='image/png'] - 图像类型
+     * @param {number} [options.quality=1] - 图像质量
+     * @returns {Promise<void>}
      */
     async download(filename = 'image.png', options = {}) {
         const file = await this.toFile(filename, options);
@@ -224,90 +227,4 @@ export class CanvasProcessor {
         link.click();
         URL.revokeObjectURL(url);
     }
-}
-
-/**
- * 工厂函数
- */
-export async function createProcessor(input) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    if (input instanceof HTMLCanvasElement) {
-        canvas.width = input.width;
-        canvas.height = input.height;
-        ctx.drawImage(input, 0, 0);
-    } else if (input instanceof HTMLImageElement) {
-        canvas.width = input.naturalWidth;
-        canvas.height = input.naturalHeight;
-        ctx.drawImage(input, 0, 0);
-    } else if (input instanceof Blob || input instanceof File) {
-        const image = await createImageFromBlob(input);
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-        ctx.drawImage(image, 0, 0);
-    } else if (input instanceof ImageData) {
-        // 支持 ImageData
-        canvas.width = input.width;
-        canvas.height = input.height;
-        ctx.putImageData(input, 0, 0);
-    } else if (input instanceof ArrayBuffer || input instanceof Uint8Array) {
-        // 支持二进制数据
-        const blob = new Blob([input], { type: 'image/png' });
-        const image = await createImageFromBlob(blob);
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-        ctx.drawImage(image, 0, 0);
-    } else if (typeof input === 'string') {
-        // 处理 URL、base64 或 SVG 字符串
-        if (input.startsWith('<svg')) {
-            // 处理 SVG 字符串
-            const blob = new Blob([input], { type: 'image/svg+xml' });
-            const image = await createImageFromBlob(blob);
-            canvas.width = image.naturalWidth || 300; // 设置默认宽度
-            canvas.height = image.naturalHeight || 150; // 设置默认高度
-            ctx.drawImage(image, 0, 0);
-        } else {
-            const image = await loadImage(input);
-            canvas.width = image.naturalWidth;
-            canvas.height = image.naturalHeight;
-            ctx.drawImage(image, 0, 0);
-        }
-    } else {
-        throw new TypeError('不支持的输入类型');
-    }
-
-    return new CanvasProcessor(canvas);
-}
-
-/**
- * 从 Blob 创建图像
- */
-function createImageFromBlob(blob) {
-    return new Promise((resolve, reject) => {
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-            URL.revokeObjectURL(url);
-            resolve(img);
-        };
-        img.onerror = () => {
-            URL.revokeObjectURL(url);
-            reject(new Error('图像加载失败'));
-        };
-        img.src = url;
-    });
-}
-
-/**
- * 加载图像
- */
-function loadImage(src) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('图像加载失败'));
-        img.src = src;
-    });
-}
-
+} 
