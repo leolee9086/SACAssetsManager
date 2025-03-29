@@ -29,7 +29,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import fs from '../../../polyfills/fs.js'
+import fs from '../../../../polyfills/fs.js'
 import { clientApi } from '../../../asyncModules.js'
 import { plugin } from '../../../pluginSymbolRegistry.js'
 

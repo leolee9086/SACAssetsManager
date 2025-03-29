@@ -95,7 +95,10 @@ export function 创建组件加载器(组件路径, 配置项 = {}) {
         app.mount(容器元素);
         return app;
       } else if (模块.initVueApp) {
-        const app = 模块.initVueApp(组件路径, 配置项);
+        const app = await 模块.initVueApp(组件路径, 配置项);
+        if (!app || typeof app.mount !== 'function') {
+          throw new Error(`组件初始化失败，无法挂载到容器`);
+        }
         app.mount(容器元素);
         return app;
       } else {

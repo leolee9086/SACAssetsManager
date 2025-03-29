@@ -71,7 +71,7 @@
 import { ref, computed } from 'vue';
 import { tasks, runPipeline as executePipeline } from './pipelineManager.js';
 import { createEmbeddingIterator, queryEmbeddings } from './glob.js';
-import kernelApi from '../../../polyfills/kernelApi.js'
+import kernelApi from '../../../../polyfills/kernelApi.js'
 import { enrichResultsWithContent } from './blockUtils.js';
 
 const ORT_SYMBOL = Symbol.for('onnxruntime');

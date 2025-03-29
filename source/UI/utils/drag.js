@@ -1,7 +1,7 @@
 import { imgeWithConut } from './decorations/iconGenerator.js'
 import { plugin } from '../../asyncModules.js'
 import { queryTags, saveTags } from '../../data/tags.js'
-import path from '../../polyfills/path.js'
+import path from '../../../polyfills/path.js'
 
 const 开始原生文件拖拽事件=async(event,files)=>{
     event.preventDefault();

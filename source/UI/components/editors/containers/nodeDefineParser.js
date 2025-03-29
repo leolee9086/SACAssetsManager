@@ -1,4 +1,4 @@
-import { loadVueComponentAsNodeSync } from "../../../utils/componentsLoader.js";
+import { loadVueComponentAsNodeSync } from "../../../../../src/toolBox/useVue/vueComponentLoader.js";
 import { shallowRef } from "../../../../../static/vue.esm-browser.js";
 import { checkInputs, checkOutputs } from "./nodeDefineParser/validators.js";
 import { AnchorTypes, Sides, LogTypes, TYPE_MAP, NodeError } from "./nodeDefineParser/types.js";

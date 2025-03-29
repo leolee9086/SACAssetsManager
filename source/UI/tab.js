@@ -1,4 +1,4 @@
-import { initVueApp } from './utils/componentsLoader.js';
+import { createVueInterface, initVueApp } from '../../src/toolBox/useVue/vueComponentLoader.js';
 import VueKonva from '../../static/vue-konva.mjs'
 
 // 直接定义 AppWrapper 组件
@@ -51,51 +51,45 @@ const AppWrapper = {
  * @param {string} 组件路径 - Vue组件的绝对路径
  * @param {string} [容器ID=''] - 组件的容器ID
  * @param {Object} [额外数据={}] - 要传递给组件的额外数据
- * @param {boolean} [子应用模式=false] - 是否以子应用模式运行
+ * @returns {Promise<Vue.App>} Vue应用实例
  */
-export function 创建Vue组件界面(tab, 组件路径, 容器ID = '', 额外数据 = {}) {
-  if (!组件路径.startsWith('/')) {
-    throw new Error('组件路径必须是绝对路径，以/开头');
-  }
-  const wndElements = document.querySelectorAll('[data-type="wnd"]');
-  if(wndElements.length===1){
-    document.body.setAttribute('data-subapp', 'true');
-
-  }
-  const app = initVueApp(
-    组件路径,
-    容器ID,
-    {
-      AppWrapper
-    },
-    undefined,
-    {
-      ...tab.data,
-      ...额外数据,
-      tab,
-      getApp: () => app,
-      appData: {
-        appMode: true
-      }
-    }
-  );
-
-  app.use(VueKonva)
-
-  app.mount(tab.element);
-
-
-  return app;
+export async function 创建Vue组件界面(tab, 组件路径, 容器ID = '', 额外数据 = {}) {
+  return await createVueInterface(tab, 组件路径, 容器ID, 额外数据);
 }
 
-export { initVueApp }
+export { initVueApp };
 
-export function 创建资源信息面板(UI容器) {
-  const 资源信息面板 = initVueApp(import.meta.resolve('./pannels/assetInfoPanel/assestInfoPanel.vue'))
-  资源信息面板.mount(UI容器);
+/**
+ * 创建资源信息面板
+ * @param {Element} UI容器 - 挂载容器
+ * @returns {Promise<Vue.App>} Vue应用实例
+ */
+export async function 创建资源信息面板(UI容器) {
+  try {
+    const 组件路径 = import.meta.resolve('./pannels/assetInfoPanel/assestInfoPanel.vue');
+    const 资源信息面板 = await initVueApp(组件路径);
+    资源信息面板.mount(UI容器);
+    return 资源信息面板;
+  } catch (error) {
+    console.error('创建资源信息面板失败:', error);
+    throw error;
+  }
 }
-export function 创建收藏夹面板(UI容器) {
-  const 收藏夹面板 = initVueApp(import.meta.resolve('./components/collectionPanel.vue'));
-  收藏夹面板.mount(UI容器);
+
+/**
+ * 创建收藏夹面板
+ * @param {Element} UI容器 - 挂载容器
+ * @returns {Promise<Vue.App>} Vue应用实例
+ */
+export async function 创建收藏夹面板(UI容器) {
+  try {
+    const 组件路径 = import.meta.resolve('./components/collectionPanel.vue');
+    const 收藏夹面板 = await initVueApp(组件路径);
+    收藏夹面板.mount(UI容器);
+    return 收藏夹面板;
+  } catch (error) {
+    console.error('创建收藏夹面板失败:', error);
+    throw error;
+  }
 }
 

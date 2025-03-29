@@ -1,4 +1,4 @@
-import kernelApi from '../../polyfills/kernelApi.js'
+import kernelApi from '../../../polyfills/kernelApi.js'
 let typeAbbrMap = {
   // 块级元素
   "NodeDocument": "d",

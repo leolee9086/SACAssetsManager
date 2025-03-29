@@ -73,7 +73,7 @@ const DOCK_CONFIGS = {
   AssetsPanel: {
     icon: "iconInfo",
     position: "LeftBottom",
-    component: '/plugins/SACAssetsManager/source/UI/pannels/assetInfoPanel/assestInfoPanel.vue',
+    component: '/plugins/SACAssetsManager/source/UI/pannels/assetInfoPanel/index.vue',
     title: "SACAssetsPanel",
     propertyName: "assetsPanelDock"
   },
@@ -113,13 +113,22 @@ function createDock(plugin, dockType) {
     type: dockType,
     init() {
       const container = 插入UI面板容器(this.element);
-      import('/plugins/SACAssetsManager/source/UI/tab.js').then(
-        module => {
-          console.log(module)
-          const app = module.initVueApp(config.component)
-          app.mount(container)
+      import('/plugins/SACAssetsManager/src/toolBox/useVue/vueComponentLoader.js').then(
+        async module => {
+          try {
+            // 使用await等待异步函数完成
+            const app = await module.initVueApp(config.component);
+            // 确保app存在且mount函数可用
+            if (app && typeof app.mount === 'function') {
+              app.mount(container);
+            } else {
+              console.error('Vue应用创建失败', app);
+            }
+          } catch (error) {
+            console.error('加载Vue组件失败:', error);
+          }
         }
-      )
+      );
     }
   });
   return dock;
@@ -263,9 +272,16 @@ module.exports = class SACAssetsManager extends Plugin {
         type: tabType,
         init() {
           this.element.innerHTML = `<div class="plugin-sample__${tabType.toLowerCase()}">${this.data.text}</div>`;
-          import('/plugins/SACAssetsManager/source/UI/tab.js').then(module => {
-            module.创建Vue组件界面(this, config.component, config.containerId);
-          });
+          import('/plugins/SACAssetsManager/src/toolBox/useVue/vueComponentLoader.js').then(
+            async module => {
+              try {
+                // 使用await等待异步函数完成
+                await module.createVueInterface(this, config.component, config.containerId);
+              } catch (error) {
+                console.error(`加载Tab组件(${tabType})失败:`, error);
+              }
+            }
+          );
         },
         beforeDestroy() {
           this.element.innerHTML = "";

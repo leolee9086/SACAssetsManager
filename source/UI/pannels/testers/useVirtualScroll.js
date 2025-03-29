@@ -10,7 +10,7 @@ import { useEmergencyRecovery } from './useEmergencyRecovery.js';
 import { useSmoothScroll } from './useSmoothScroll.js';
 import { useVirtualScrollPerformance } from './useVirtualScrollPerformance.js';
 import { createPluginSystem, createStandardPlugin } from './useVirtualScrollPluginSystem.js';
-import { createEventBus } from '../../../utils/base/forEvent/useEventBus.js';
+import { createEventBus } from '../../../../src/toolBox/forEvent/useEventBus.js';
 
 /**
  * 优化参数验证和类型安全

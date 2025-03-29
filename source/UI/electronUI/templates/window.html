@@ -240,7 +240,23 @@
     <script type="module">
         import { addScriptSync } from "../../../utils/DOM/addScript.js";
         addScriptSync('/appearance/icons/material/icon.js', 'iconDefaultScript')
-        await import('./index.js')
+        
+        // 获取从URL参数中传递的模块路径
+        const modulePath = window.params.modulePath;
+        if (modulePath) {
+            try {
+                // 动态导入指定的模块
+                await import(modulePath);
+                console.log(`成功加载模块: ${modulePath}`);
+            } catch (error) {
+                console.error(`加载模块失败: ${modulePath}`, error);
+                // 如果加载失败，回退到默认模块
+                await import('./index.js');
+            }
+        } else {
+            console.warn('未指定模块路径，加载默认模块');
+            await import('./index.js');
+        }
     </script>
 </body>
 

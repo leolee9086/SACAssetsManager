@@ -1,4 +1,4 @@
-import { default as workspace } from "../polyfills/fs.js";
+import { default as workspace } from "../../polyfills/fs.js";
 import { kernelApi, plugin } from "../asyncModules.js";
 function 递归解析标签数据(tags, callback) {
     tags.forEach(tag => {

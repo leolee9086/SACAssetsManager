@@ -86,7 +86,7 @@ import { ref, inject, computed, nextTick, watch, toRef, onMounted, onUnmounted }
 import assetsGridRbush from './galleryPanel/assetsGridRbush.vue';
 import apiIcon from './galleryPanel/apiIcon.vue';
 import { plugin } from 'runtime'
-import _path from '../../polyfills/path.js'
+import _path from '../../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
 import { addUniquePalletColors } from '../../utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
@@ -101,6 +101,7 @@ import ColorPicker from './galleryPanel/colorPicker.vue'
 import Slider from './galleryPanel/toolbar/slider.vue'
 import { useAppData } from './galleryPanel/useAppData.js';
 import GalleryToolbarButton from './galleryPanel/toolbar/galleryToolbarButton.vue'
+import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 
 const { appData, tagLabel } = useAppData({
     data: inject('appData'), controller: {
@@ -467,7 +468,6 @@ const sorter = ref({
         return -(a.data.mtimeMs - b.data.mtimeMs)
     }
 })
-import { 打开附件组菜单 } from '../siyuanCommon/menus/galleryItem.js';
 import { 根据宽度和尺寸计算列数和边距 } from '../utils/layoutComputer/masonry/columnAndPadding.js';
 const openMenu = (event) => {
     let assets = currentLayout.value.layout.filter(item => item.selected).map(item => item.data).filter(item => item)

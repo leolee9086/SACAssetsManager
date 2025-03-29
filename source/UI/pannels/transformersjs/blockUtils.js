@@ -1,4 +1,4 @@
-import kernelApi from '../../../polyfills/kernelApi.js'
+import kernelApi from '../../../../polyfills/kernelApi.js'
 
 /**
  * 获取块的详细内容

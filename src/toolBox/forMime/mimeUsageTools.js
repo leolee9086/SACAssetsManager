@@ -5,7 +5,7 @@
 /**
  * MIME类型与用途的映射表
  */
-import { getMimeUsageTable } from './useMimeUsageTable';
+import { getMimeUsageTable } from './mimeUsageTable.js';
 
 // 修改MIME用途映射为从新模块获取
 const MIME用途映射 = getMimeUsageTable();

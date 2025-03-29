@@ -1,6 +1,6 @@
 // 马杜克机关 - SEEL核心管理系统
 import { plugin } from '../asyncModules.js'
-import { readDir, readFile } from '../polyfills/fs.js'
+import { readDir, readFile } from '../../../../polyfills/fs.js'
 
 const CONFIG_DIR = 'petal/SACKeyManager'
 const CONFIG_PREFIX = '_'

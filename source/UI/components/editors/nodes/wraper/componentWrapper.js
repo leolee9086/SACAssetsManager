@@ -1,5 +1,6 @@
 import { parse } from '@babel/parser';
-import * as Vue from 'vue';
+import * as Vue from '../../../../../../static/vue.esm-browser.js';
+import { loadVueComponentAsNodeSync } from '../../../../../../src/toolBox/useVue/vueComponentLoader.js';
 const { ref, reactive, computed } = Vue;
 
 /**

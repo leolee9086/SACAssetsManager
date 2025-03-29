@@ -29,13 +29,17 @@ async function createEditorWindow(imagePath, modulePath) {
     const baseStyle = document.querySelector('link[href^="base"]');
     const baseStyleSrc = baseStyle.getAttribute('href');
     
+    // 解析模块的完整路径
+    const fullModulePath = import.meta.resolve(modulePath);
+    console.log('加载模块路径:', fullModulePath);
+    
     // 构建URL参数
     const params = new URLSearchParams({
         workspaceDir: siyuan.config.system.workspaceDir.replace(/\\/g, '/'),
         pluginName: plugin.name,
-        imagePath: imagePath,
+        imagePath: imagePath || '',
         baseStyleSrc: '/stage/build/app/' + baseStyleSrc,
-        modulePath: import.meta.resolve(modulePath)
+        modulePath: fullModulePath
     });
 
     // 加载窗口
@@ -44,15 +48,16 @@ async function createEditorWindow(imagePath, modulePath) {
 
 // 打开图片编辑器窗口
 export async function 打开图片编辑器窗口(imagePath) {
-    await createEditorWindow(imagePath, './imageAdjuster/index.js');
+    await createEditorWindow(imagePath, '../windows/imageAdjuster/index.js');
 }
 
 // 打开图片画板窗口
 export async function 打开图片画板窗口(imagePath) {
-    await createEditorWindow(imagePath, './draw/app.js');
+    await createEditorWindow(imagePath, '../windows/draw/index.js');
 }
-// 打开图片画板窗口
+
+// 打开xbel窗口
 export async function 打开xbel窗口(imagePath) {
-    await createEditorWindow(imagePath, './xbel/index.js');
+    await createEditorWindow(imagePath, '../windows/xbel/index.js');
 }
 
