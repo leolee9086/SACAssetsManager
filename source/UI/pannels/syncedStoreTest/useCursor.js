@@ -15,6 +15,14 @@ export const useCursor = (options = {}) => {
     containerRef = null,      // 容器引用
     lineHeight = 20,          // 行高
     debounceTime = 50,        // 防抖时间
+    // 新增缓存配置选项
+    enableCache = true,
+    cacheTimeout = 2000,
+    // 添加虚拟光标配置
+    useVirtualCursor = true,      // 是否使用虚拟光标
+    cursorColor = '#1a73e8',      // 本地光标颜色
+    cursorWidth = 2,              // 光标宽度
+    blinkInterval = 530,          // 闪烁间隔，与系统默认值接近
   } = options;
   
   // 内部状态
@@ -33,6 +41,28 @@ export const useCursor = (options = {}) => {
   // 外部可用状态
   const selections = computed(() => cursorState.selections);
   const localSelection = computed(() => cursorState.localSelection);
+  
+  // 添加缓存系统
+  const cache = {
+    nodeTextLengths: new WeakMap(), // 节点文本长度缓存
+    textPositions: new Map(),        // 文本位置索引缓存
+    contentVersion: 0,              // 内容版本号，用于检测变化
+    lastCacheCleanup: Date.now(),   // 上次缓存清理时间
+  };
+  
+  /**
+   * 增加内容版本号，表示内容已变化
+   */
+  const incrementContentVersion = () => {
+    cache.contentVersion++;
+    
+    // 清理过期缓存
+    if (Date.now() - cache.lastCacheCleanup > cacheTimeout) {
+      cache.nodeTextLengths = new WeakMap();
+      cache.textPositions.clear();
+      cache.lastCacheCleanup = Date.now();
+    }
+  };
   
   /**
    * 获取编辑器容器元素
@@ -148,65 +178,126 @@ export const useCursor = (options = {}) => {
    */
   const getTextPosition = (container, node, offset) => {
     if (!container) return 0;
-    
-    // 处理空容器
     if (!container.hasChildNodes()) return 0;
+    
+    // 生成缓存键
+    const cacheKey = `${cache.contentVersion}-${node.nodeType}-${getNodeIdentifier(node)}-${offset}`;
+    
+    // 检查缓存
+    if (enableCache && cache.textPositions.has(cacheKey)) {
+      return cache.textPositions.get(cacheKey);
+    }
     
     let position = 0;
     
-    // 如果是文本节点，计算路径上之前的文本长度
+    // 优化文本节点处理流程
     if (node.nodeType === Node.TEXT_NODE) {
-      // 添加当前节点内的偏移
       position = offset;
       
-      // 向上遍历DOM树计算之前的文本
+      // 使用迭代替代递归，提高深层DOM树性能
       let current = node;
+      let parent = null;
+      
       while (current !== container) {
-        // 计算前面兄弟节点的文本长度
         let sibling = current.previousSibling;
         while (sibling) {
+          // 利用缓存加速计算
           position += getNodeTextLength(sibling);
           sibling = sibling.previousSibling;
         }
         
-        // 向上移动到父节点
-        current = current.parentNode;
-        if (!current) break;
+        parent = current.parentNode;
+        if (!parent || parent === container) break;
+        current = parent;
       }
+    } else {
+      // 元素节点处理优化 - 避免创建TreeWalker
+      // 使用累积算法计算位置
+      let currentNode = container.firstChild;
+      let currentPos = 0;
+      let targetFound = false;
       
-      return position;
+      const collectTextUpTo = (n, targetNode, targetOffset) => {
+        if (!n) return { pos: 0, found: false };
+        
+        // 目标找到了
+        if (n === targetNode) {
+          return { pos: targetOffset, found: true };
+        }
+        
+        // 文本节点直接计数
+        if (n.nodeType === Node.TEXT_NODE) {
+          return { pos: n.textContent.length, found: false };
+        }
+        
+        // 元素节点递归遍历
+        let totalPos = 0;
+        let found = false;
+        
+        for (const child of Array.from(n.childNodes)) {
+          const result = collectTextUpTo(child, targetNode, targetOffset);
+          totalPos += result.pos;
+          if (result.found) {
+            found = true;
+            break;
+          }
+        }
+        
+        return { pos: totalPos, found };
+      };
+      
+      const result = collectTextUpTo(container, node, offset);
+      position = result.found ? result.pos : 0;
     }
     
-    // 如果是元素节点
-    // 遍历所有文本节点直到目标位置
-    const walker = document.createTreeWalker(
-      container,
-      NodeFilter.SHOW_TEXT,
-      null,
-      false
-    );
-    
-    let currentNode = walker.nextNode();
-    let nodeCount = 0;
-    
-    while (currentNode) {
-      // 如果已经遍历到了目标位置
-      if (currentNode === node) {
-        return position + offset;
-      }
-      
-      // 如果当前节点在目标节点之前
-      if (nodeCount < offset && currentNode.parentNode === node.parentNode) {
-        position += currentNode.textContent.length;
-        nodeCount++;
-      } else {
-        position += currentNode.textContent.length;
-      }
-      
-      currentNode = walker.nextNode();
+    // 缓存结果
+    if (enableCache) {
+      cache.textPositions.set(cacheKey, position);
     }
     
     return position;
+  };
+  
+  /**
+   * 获取节点的唯一标识 - 用于缓存键生成
+   * @param {Node} node - DOM节点
+   * @returns {string} 节点标识
+   */
+  const getNodeIdentifier = (node) => {
+    if (!node) return 'null';
+    
+    // 对于文本节点使用其内容的哈希作为标识
+    if (node.nodeType === Node.TEXT_NODE) {
+      return hashString(node.textContent).toString();
+    }
+    
+    // 对于元素节点使用标签名和属性组合
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const attrs = Array.from(node.attributes || [])
+        .map(attr => `${attr.name}="${attr.value}"`)
+        .join(' ');
+      return `${node.tagName}:${attrs}`;
+    }
+    
+    return node.nodeName;
+  };
+  
+  /**
+   * 简单的字符串哈希函数
+   * @param {string} str - 输入字符串
+   * @returns {number} 哈希值
+   */
+  const hashString = (str) => {
+    let hash = 0;
+    if (!str) return hash;
+    
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // 转换为32位整数
+    }
+    
+    return Math.abs(hash);
   };
   
   /**
@@ -217,31 +308,49 @@ export const useCursor = (options = {}) => {
   const getNodeTextLength = (node) => {
     if (!node) return 0;
     
+    // 检查缓存
+    if (enableCache && cache.nodeTextLengths.has(node)) {
+      return cache.nodeTextLengths.get(node);
+    }
+    
+    let length = 0;
+    
     // 文本节点直接返回长度
     if (node.nodeType === Node.TEXT_NODE) {
-      return node.textContent.length;
+      length = node.textContent.length;
+    }
+    // 元素节点使用优化的遍历方法
+    else if (node.nodeType === Node.ELEMENT_NODE) {
+      // 使用更高效的递归遍历而非TreeWalker
+      const processNode = (n) => {
+        if (!n) return 0;
+        if (n.nodeType === Node.TEXT_NODE) {
+          return n.textContent.length;
+        }
+        
+        let childLength = 0;
+        // 使用childNodes直接循环比TreeWalker高效
+        Array.from(n.childNodes).forEach(child => {
+          childLength += processNode(child);
+        });
+        
+        // 缓存子节点结果
+        if (enableCache && n !== node) {
+          cache.nodeTextLengths.set(n, childLength);
+        }
+        
+        return childLength;
+      };
+      
+      length = processNode(node);
     }
     
-    // 元素节点递归计算所有文本子节点的长度
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      let length = 0;
-      const walker = document.createTreeWalker(
-        node,
-        NodeFilter.SHOW_TEXT,
-        null,
-        false
-      );
-      
-      let textNode = walker.nextNode();
-      while (textNode) {
-        length += textNode.textContent.length;
-        textNode = walker.nextNode();
-      }
-      
-      return length;
+    // 缓存结果
+    if (enableCache) {
+      cache.nodeTextLengths.set(node, length);
     }
     
-    return 0;
+    return length;
   };
   
   /**
@@ -372,6 +481,44 @@ export const useCursor = (options = {}) => {
     }
   };
   
+  // 创建光标闪烁状态
+  const isVisible = ref(true);
+  let blinkTimer = null;
+  
+  /**
+   * 开始光标闪烁
+   */
+  const startCursorBlink = () => {
+    if (blinkTimer) clearInterval(blinkTimer);
+    
+    isVisible.value = true;
+    blinkTimer = setInterval(() => {
+      isVisible.value = !isVisible.value;
+    }, blinkInterval);
+  };
+  
+  /**
+   * 停止光标闪烁
+   * @param {boolean} finalState - 停止时光标的最终状态
+   */
+  const stopCursorBlink = (finalState = true) => {
+    if (blinkTimer) {
+      clearInterval(blinkTimer);
+      blinkTimer = null;
+    }
+    isVisible.value = finalState;
+  };
+  
+  /**
+   * 重置光标闪烁（在用户输入时）
+   */
+  const resetCursorBlink = () => {
+    if (useVirtualCursor) {
+      stopCursorBlink(true);
+      startCursorBlink();
+    }
+  };
+  
   /**
    * 保存当前选区状态
    * @returns {Object} 保存的选区状态
@@ -414,6 +561,9 @@ export const useCursor = (options = {}) => {
       timestamp: Date.now()
     };
     
+    // 重置闪烁状态
+    resetCursorBlink();
+    
     return cursorState.localSelection;
   };
   
@@ -430,34 +580,59 @@ export const useCursor = (options = {}) => {
       const selection = window.getSelection();
       if (!selection) return false;
       
-      // 清除现有选区
       selection.removeAllRanges();
-      
-      // 使用保存的描述符创建新的范围
       const range = document.createRange();
       
       // 解析起点和终点
-      const { node: startNode, offset: startOffset } = resolvePositionDescriptor(
+      let startResult = resolvePositionDescriptor(
         container, 
         savedSelection.startDesc || { index: savedSelection.start }
       );
       
-      const { node: endNode, offset: endOffset } = resolvePositionDescriptor(
+      let endResult = resolvePositionDescriptor(
         container, 
         savedSelection.endDesc || { index: savedSelection.end }
       );
       
-      if (!startNode || !endNode) return false;
+      // 位置解析失败时使用备用策略
+      if (!startResult.node || !endResult.node) {
+        // 后备策略：直接使用文本索引
+        startResult = getNodeAndOffset(container, savedSelection.start);
+        endResult = getNodeAndOffset(container, savedSelection.end);
+        
+        // 仍然失败时，回退到容器的起始位置
+        if (!startResult.node || !endResult.node) {
+          if (container.firstChild && container.firstChild.nodeType === Node.TEXT_NODE) {
+            range.setStart(container.firstChild, 0);
+            range.setEnd(container.firstChild, 0);
+          } else {
+            range.setStart(container, 0);
+            range.setEnd(container, 0);
+          }
+          selection.addRange(range);
+          return false;
+        }
+      }
       
       // 设置范围
-      range.setStart(startNode, startOffset);
-      range.setEnd(endNode, endOffset);
+      range.setStart(startResult.node, startResult.offset);
+      range.setEnd(endResult.node, endResult.offset);
       
-      // 应用选区
       selection.addRange(range);
       return true;
     } catch (err) {
       console.error('恢复选区失败:', err);
+      
+      // 最终后备：恢复到容器开始
+      try {
+        const range = document.createRange();
+        range.setStart(container, 0);
+        range.setEnd(container, 0);
+        selection.addRange(range);
+      } catch (e) {
+        // 忽略最终回退的错误
+      }
+      
       return false;
     }
   };
@@ -505,21 +680,144 @@ export const useCursor = (options = {}) => {
     selectionTimeout = setTimeout(handleSelectionChange, debounceTime);
   };
   
-  // 设置事件监听
+  // 处理编辑操作的函数 - 用于检测内容变化
+  const handleContentChange = () => {
+    incrementContentVersion();
+  };
+  
+  /**
+   * 创建选区高亮样式
+   */
+  const createSelectionStyle = () => {
+    if (!useVirtualCursor) return '';
+    
+    // 创建一个样式元素以隐藏浏览器默认光标并修改选区样式
+    const styleId = 'virtual-cursor-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .virtual-cursor-enabled {
+          caret-color: transparent !important; /* 隐藏真实光标 */
+        }
+        .virtual-cursor-enabled::selection {
+          background-color: rgba(26, 115, 232, 0.3) !important; /* 选区背景颜色 */
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  };
+  
+  // 添加获取本地光标坐标的方法
+  const getLocalCursorCoordinates = () => {
+    if (!cursorState.localSelection) return { left: 0, top: 0 };
+    
+    // 使用当前光标位置获取坐标
+    // 对于文本选区，使用结束位置作为光标位置
+    const position = cursorState.localSelection.end;
+    return getCursorCoordinates(position);
+  };
+  
+  /**
+   * 根据点击位置找到最接近的文本位置
+   * @param {HTMLElement} container - 编辑器容器
+   * @param {number} x - 点击的X坐标（相对于容器）
+   * @param {number} y - 点击的Y坐标（相对于容器）
+   * @returns {Object} 包含节点和偏移量
+   */
+  const getPositionFromPoint = (container, x, y) => {
+    if (!container) return { node: null, offset: 0 };
+    
+    try {
+      // 使用document.caretPositionFromPoint或caretRangeFromPoint API
+      let node, offset;
+      
+      // 标准方法 - Firefox支持
+      if (document.caretPositionFromPoint) {
+        const position = document.caretPositionFromPoint(x, y);
+        if (position) {
+          node = position.offsetNode;
+          offset = position.offset;
+        }
+      } 
+      // 替代方法 - Chrome/Safari支持
+      else if (document.caretRangeFromPoint) {
+        const range = document.caretRangeFromPoint(x, y);
+        if (range) {
+          node = range.startContainer;
+          offset = range.startOffset;
+        }
+      }
+      
+      // 检查节点是否在容器内
+      if (node && container.contains(node)) {
+        return { node, offset };
+      }
+      
+      return { node: container, offset: 0 };
+    } catch (err) {
+      console.error('从点击位置获取文本位置失败:', err);
+      return { node: container, offset: 0 };
+    }
+  };
+  
+  // 生命周期钩子增强
   onMounted(() => {
     document.addEventListener('selectionchange', debouncedSelectionChange);
+    
+    const container = getContainer();
+    if (container) {
+      // 监听可能导致内容变化的事件
+      container.addEventListener('input', handleContentChange);
+      container.addEventListener('paste', handleContentChange);
+      container.addEventListener('drop', handleContentChange);
+      
+      // 为容器添加虚拟光标样式
+      if (useVirtualCursor) {
+        createSelectionStyle();
+        container.classList.add('virtual-cursor-enabled');
+        startCursorBlink();
+        
+        // 监听容器焦点事件
+        container.addEventListener('focus', () => {
+          startCursorBlink();
+        });
+        
+        container.addEventListener('blur', () => {
+          stopCursorBlink(false);
+        });
+      }
+    }
   });
   
-  // 清理事件监听
   onUnmounted(() => {
     document.removeEventListener('selectionchange', debouncedSelectionChange);
     clearTimeout(selectionTimeout);
+    
+    const container = getContainer();
+    if (container) {
+      container.removeEventListener('input', handleContentChange);
+      container.removeEventListener('paste', handleContentChange);
+      container.removeEventListener('drop', handleContentChange);
+      
+      if (useVirtualCursor) {
+        container.removeEventListener('focus', startCursorBlink);
+        container.removeEventListener('blur', () => stopCursorBlink(false));
+        
+        // 移除样式类
+        container.classList.remove('virtual-cursor-enabled');
+      }
+    }
+    
+    // 停止闪烁
+    stopCursorBlink(false);
   });
   
   return {
     // 状态
     selections,
     localSelection,
+    isVisible,   // 光标是否可见（用于闪烁）
     
     // 方法
     saveSelection,
@@ -527,7 +825,16 @@ export const useCursor = (options = {}) => {
     updateRemoteSelection,
     removeRemoteSelection,
     getCursorCoordinates,
+    getLocalCursorCoordinates,  // 新增：获取本地光标坐标
     getTextPosition,
     getNodeAndOffset,
+    clearCache: () => {
+      cache.nodeTextLengths = new WeakMap();
+      cache.textPositions.clear();
+      cache.lastCacheCleanup = Date.now();
+    },
+    incrementContentVersion,
+    resetCursorBlink,           // 新增：重置光标闪烁
+    getPositionFromPoint,  // 新增点击位置计算
   };
 }; 
