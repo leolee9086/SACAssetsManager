@@ -37,6 +37,7 @@ export * from './base/forNetWork/forPort/forPortAvailability.js';
 export * from './base/forNetWork/forPort/forPortValidation.js';
 export * from './base/forNetWork/forPort/forPortRecord.js';
 export * from './base/forNetWork/forPort/forSiyuanPort.js';
+export * from './base/forNetWork/forSiyuanApi/index.js';
 
 // 基础文本工具
 export * from './base/useEcma/textTools.js';
