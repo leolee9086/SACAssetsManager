@@ -10,7 +10,7 @@
  */
 
 // 从工具箱导入所需功能
-import { 格式化为时间 } from '../../../../../src/toolBox/base/useEcma/forTime/timeFormatters.js';
+import { 格式化时间戳 } from '../../../../../src/toolBox/base/useEcma/forTime/timeFormatters.js';
 import { 转义HTML, 反转义HTML } from '../../../../../src/toolBox/base/useEcma/forString/forHtmlProcessing.js';
 import { 解析思考内容, 处理三贤人响应并转换Think标签 } from '../../../../../src/toolBox/feature/useChat/forMessageFormatting.js';
 import { 更新元素高度 } from '../../../../../src/toolBox/base/useBrowser/forDOMInteraction/styleManipulation.js';
@@ -25,7 +25,7 @@ console.warn('MAGI/utils/messageUtils.js 已弃用，请尽快将导入切换到
 
 // 导出所有工具函数
 export {
-  格式化为时间 as 格式化时间戳,
+  格式化时间戳,
   转义HTML,
   反转义HTML,
   解析思考内容,
