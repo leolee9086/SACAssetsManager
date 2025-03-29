@@ -1,5 +1,5 @@
 /**
- * 光标计算与恢复管理模块
+ * 高效率光标计算与恢复管理模块
  * 处理富文本环境下的光标位置计算、序列化、反序列化和恢复
  */
 import { ref, reactive, computed, onMounted, onUnmounted } from '../../../../static/vue.esm-browser.js';
@@ -14,33 +14,31 @@ export const useCursor = (options = {}) => {
     containerSelector = null, // 容器选择器
     containerRef = null,      // 容器引用
     lineHeight = 20,          // 行高
-    debounceTime = 50,        // 防抖时间
-    // 新增缓存配置选项
+    // 缓存配置选项
     enableCache = true,
     cacheTimeout = 2000,
-    // 添加虚拟光标配置
-    useVirtualCursor = true,      // 是否使用虚拟光标
-    cursorColor = '#1a73e8',      // 本地光标颜色
-    cursorWidth = 2,              // 光标宽度
-    blinkInterval = 530,          // 闪烁间隔，与系统默认值接近
+    // 虚拟光标配置
+    useVirtualCursor = true,  // 是否使用虚拟光标
+    cursorColor = '#1a73e8',  // 本地光标颜色
+    cursorWidth = 2,          // 光标宽度
+    blinkInterval = 530,      // 闪烁间隔
   } = options;
   
   // 内部状态
   const cursorState = reactive({
-    selections: new Map(),      // 存储所有用户的选区信息
-    localSelection: {           // 本地选区
+    selections: new Map(),     // 存储所有用户的选区信息
+    localSelection: {          // 本地选区
       start: 0,
       end: 0,
-      text: '',                 // 选区文本
-      timestamp: Date.now(),    // 时间戳
+      text: '',
+      timestamp: Date.now(),
     },
-    isProcessing: false,        // 是否正在处理选区变化
-    container: null,            // 编辑器容器DOM引用
+    container: null,           // 编辑器容器DOM引用
   });
   
-  // 外部可用状态
-  const selections = computed(() => cursorState.selections);
-  const localSelection = computed(() => cursorState.localSelection);
+  // 光标闪烁状态
+  const isVisible = ref(true);
+  let blinkTimer = null;
   
   // 添加缓存系统
   const cache = {
@@ -49,6 +47,15 @@ export const useCursor = (options = {}) => {
     contentVersion: 0,              // 内容版本号，用于检测变化
     lastCacheCleanup: Date.now(),   // 上次缓存清理时间
   };
+  
+  // 外部可用状态
+  const selections = computed(() => cursorState.selections);
+  const localSelection = computed(() => cursorState.localSelection);
+  
+  // 在组件卸载时清理资源
+  onUnmounted(() => {
+    stopCursorBlink();
+  });
   
   /**
    * 增加内容版本号，表示内容已变化
@@ -88,258 +95,66 @@ export const useCursor = (options = {}) => {
   };
   
   /**
-   * 创建一个文本位置描述符
-   * @param {HTMLElement} container - 编辑器容器
-   * @param {Node} node - 当前节点
-   * @param {number} offset - 节点内偏移量
-   * @returns {Object} 位置描述符
-   */
-  const createPositionDescriptor = (container, node, offset) => {
-    // 处理边界情况
-    if (!container || !node) {
-      return { index: 0, node: null, offset: 0 };
-    }
-    
-    try {
-      // 计算文本偏移量
-      const index = getTextPosition(container, node, offset);
-      
-      // 创建路径描述 (用于恢复位置)
-      const path = [];
-      let current = node;
-      while (current && current !== container) {
-        const parent = current.parentNode;
-        if (!parent) break;
-        
-        // 找出当前节点在父节点中的索引
-        const childNodes = Array.from(parent.childNodes);
-        const childIndex = childNodes.indexOf(current);
-        
-        path.unshift(childIndex);
-        current = parent;
-      }
-      
-      return {
-        index,            // 文本位置索引
-        path,             // DOM路径
-        nodeType: node.nodeType,
-        offset,           // 节点内偏移量
-        textContent: node.textContent,
-      };
-    } catch (err) {
-      console.error('创建位置描述符失败:', err);
-      return { index: 0, node: null, offset: 0 };
-    }
-  };
-  
-  /**
-   * 从位置描述符恢复节点引用和偏移量
-   * @param {HTMLElement} container - 编辑器容器
-   * @param {Object} descriptor - 位置描述符
-   * @returns {Object} 包含节点和偏移量
-   */
-  const resolvePositionDescriptor = (container, descriptor) => {
-    if (!container || !descriptor) {
-      return { node: container, offset: 0 };
-    }
-    
-    try {
-      // 先尝试使用路径恢复
-      if (descriptor.path && descriptor.path.length) {
-        let current = container;
-        for (const index of descriptor.path) {
-          if (!current.childNodes || index >= current.childNodes.length) {
-            break;
-          }
-          current = current.childNodes[index];
-        }
-        
-        // 如果恢复到了文本节点且偏移量有效
-        if (current && current.nodeType === Node.TEXT_NODE && 
-            descriptor.offset <= current.textContent.length) {
-          return { node: current, offset: descriptor.offset };
-        }
-      }
-      
-      // 备用：使用文本位置
-      return getNodeAndOffset(container, descriptor.index);
-    } catch (err) {
-      console.error('解析位置描述符失败:', err);
-      return { node: container, offset: 0 };
-    }
-  };
-  
-  /**
-   * 获取准确的文本位置索引
-   * @param {HTMLElement} container - 编辑器容器
-   * @param {Node} node - 当前节点
-   * @param {number} offset - 节点内偏移量
-   * @returns {number} 文本位置索引
-   */
-  const getTextPosition = (container, node, offset) => {
-    if (!container) return 0;
-    if (!container.hasChildNodes()) return 0;
-    
-    // 生成缓存键
-    const cacheKey = `${cache.contentVersion}-${node.nodeType}-${getNodeIdentifier(node)}-${offset}`;
-    
-    // 检查缓存
-    if (enableCache && cache.textPositions.has(cacheKey)) {
-      return cache.textPositions.get(cacheKey);
-    }
-    
-    let position = 0;
-    
-    // 优化文本节点处理流程
-    if (node.nodeType === Node.TEXT_NODE) {
-      position = offset;
-      
-      // 使用迭代替代递归，提高深层DOM树性能
-      let current = node;
-      let parent = null;
-      
-      while (current !== container) {
-        let sibling = current.previousSibling;
-        while (sibling) {
-          // 利用缓存加速计算
-          position += getNodeTextLength(sibling);
-          sibling = sibling.previousSibling;
-        }
-        
-        parent = current.parentNode;
-        if (!parent || parent === container) break;
-        current = parent;
-      }
-    } else {
-      // 元素节点处理优化 - 避免创建TreeWalker
-      // 使用累积算法计算位置
-      let currentNode = container.firstChild;
-      let currentPos = 0;
-      let targetFound = false;
-      
-      const collectTextUpTo = (n, targetNode, targetOffset) => {
-        if (!n) return { pos: 0, found: false };
-        
-        // 目标找到了
-        if (n === targetNode) {
-          return { pos: targetOffset, found: true };
-        }
-        
-        // 文本节点直接计数
-        if (n.nodeType === Node.TEXT_NODE) {
-          return { pos: n.textContent.length, found: false };
-        }
-        
-        // 元素节点递归遍历
-        let totalPos = 0;
-        let found = false;
-        
-        for (const child of Array.from(n.childNodes)) {
-          const result = collectTextUpTo(child, targetNode, targetOffset);
-          totalPos += result.pos;
-          if (result.found) {
-            found = true;
-            break;
-          }
-        }
-        
-        return { pos: totalPos, found };
-      };
-      
-      const result = collectTextUpTo(container, node, offset);
-      position = result.found ? result.pos : 0;
-    }
-    
-    // 缓存结果
-    if (enableCache) {
-      cache.textPositions.set(cacheKey, position);
-    }
-    
-    return position;
-  };
-  
-  /**
-   * 获取节点的唯一标识 - 用于缓存键生成
-   * @param {Node} node - DOM节点
-   * @returns {string} 节点标识
+   * 获取节点的唯一标识符（用于缓存）
    */
   const getNodeIdentifier = (node) => {
-    if (!node) return 'null';
+    if (!node) return '';
     
-    // 对于文本节点使用其内容的哈希作为标识
+    // 使用节点属性和内容创建简单的标识符
     if (node.nodeType === Node.TEXT_NODE) {
-      return hashString(node.textContent).toString();
+      return `t:${node.textContent.length}`;
     }
     
-    // 对于元素节点使用标签名和属性组合
     if (node.nodeType === Node.ELEMENT_NODE) {
-      const attrs = Array.from(node.attributes || [])
-        .map(attr => `${attr.name}="${attr.value}"`)
-        .join(' ');
-      return `${node.tagName}:${attrs}`;
+      const tagName = node.tagName.toLowerCase();
+      const classNames = node.className ? `-${node.className}` : '';
+      const childCount = node.childNodes.length;
+      return `e:${tagName}${classNames}:${childCount}`;
     }
     
-    return node.nodeName;
+    return `n:${node.nodeType}`;
   };
   
   /**
-   * 简单的字符串哈希函数
-   * @param {string} str - 输入字符串
-   * @returns {number} 哈希值
-   */
-  const hashString = (str) => {
-    let hash = 0;
-    if (!str) return hash;
-    
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // 转换为32位整数
-    }
-    
-    return Math.abs(hash);
-  };
-  
-  /**
-   * 获取节点的文本长度
-   * @param {Node} node - DOM节点
+   * 计算节点及其子节点的文本长度
+   * @param {Node} node - 节点
    * @returns {number} 文本长度
    */
   const getNodeTextLength = (node) => {
     if (!node) return 0;
     
-    // 检查缓存
+    // 使用缓存加速计算
     if (enableCache && cache.nodeTextLengths.has(node)) {
       return cache.nodeTextLengths.get(node);
     }
     
     let length = 0;
     
-    // 文本节点直接返回长度
+    // 文本节点直接返回文本长度
     if (node.nodeType === Node.TEXT_NODE) {
       length = node.textContent.length;
-    }
-    // 元素节点使用优化的遍历方法
+    } 
+    // 元素节点递归计算子节点
     else if (node.nodeType === Node.ELEMENT_NODE) {
-      // 使用更高效的递归遍历而非TreeWalker
+      // 优化：使用递归处理而不是TreeWalker
       const processNode = (n) => {
         if (!n) return 0;
+        
         if (n.nodeType === Node.TEXT_NODE) {
           return n.textContent.length;
         }
         
-        let childLength = 0;
-        // 使用childNodes直接循环比TreeWalker高效
-        Array.from(n.childNodes).forEach(child => {
-          childLength += processNode(child);
-        });
+        let sum = 0;
+        for (const child of Array.from(n.childNodes)) {
+          sum += processNode(child);
+        }
         
         // 缓存子节点结果
         if (enableCache && n !== node) {
-          cache.nodeTextLengths.set(n, childLength);
+          cache.nodeTextLengths.set(n, sum);
         }
         
-        return childLength;
+        return sum;
       };
       
       length = processNode(node);
@@ -354,6 +169,77 @@ export const useCursor = (options = {}) => {
   };
   
   /**
+   * 获取准确的文本位置索引
+   * @param {HTMLElement} container - 编辑器容器
+   * @param {Node} node - 当前节点
+   * @param {number} offset - 节点内偏移量
+   * @returns {number} 文本位置索引
+   */
+  const getTextPosition = (container, node, offset) => {
+    if (!container) return 0;
+    if (!container.hasChildNodes()) return 0;
+    
+    try {
+      // 生成缓存键
+      const cacheKey = `${cache.contentVersion}-${node.nodeType}-${getNodeIdentifier(node)}-${offset}`;
+      
+      // 检查缓存
+      if (enableCache && cache.textPositions.has(cacheKey)) {
+        return cache.textPositions.get(cacheKey);
+      }
+      
+      let position = 0;
+      
+      // 文本节点处理优化
+      if (node.nodeType === Node.TEXT_NODE) {
+        position = offset;
+        
+        // 向上遍历计算前面节点的文本长度
+        let current = node;
+        
+        while (current !== container && current.parentNode) {
+          // 计算同级前面节点的文本长度
+          let sibling = current.previousSibling;
+          while (sibling) {
+            position += getNodeTextLength(sibling);
+            sibling = sibling.previousSibling;
+          }
+          
+          current = current.parentNode;
+        }
+      }
+      // 元素节点处理
+      else if (node.nodeType === Node.ELEMENT_NODE) {
+        // 计算此元素前面所有节点的文本长度
+        let current = node;
+        let childOffset = offset; // 保存子节点偏移量
+        
+        // 计算前面兄弟节点的长度
+        let sibling = current.previousSibling;
+        while (sibling) {
+          position += getNodeTextLength(sibling);
+          sibling = sibling.previousSibling;
+        }
+        
+        // 加上当前节点中，指定偏移量之前的子节点长度
+        for (let i = 0; i < childOffset && i < current.childNodes.length; i++) {
+          position += getNodeTextLength(current.childNodes[i]);
+        }
+      }
+      
+      // 缓存结果
+      if (enableCache) {
+        cache.textPositions.set(cacheKey, position);
+      }
+      
+      return position;
+    } catch (error) {
+      console.error('计算文本位置出错:', error);
+      return 0;
+    }
+  };
+  
+  /**
    * 根据文本索引找到对应的节点和偏移量
    * @param {HTMLElement} container - 编辑器容器
    * @param {number} position - 文本位置索引
@@ -363,26 +249,85 @@ export const useCursor = (options = {}) => {
     if (!container) return { node: null, offset: 0 };
     
     // 处理边界情况
-    if (position < 0) position = 0;
-    
-    // 如果容器没有子节点，创建一个空文本节点
-    if (!container.hasChildNodes()) {
-      const textNode = document.createTextNode('');
-      container.appendChild(textNode);
-      return { node: textNode, offset: 0 };
+    if (position <= 0) {
+      // 返回容器的第一个文本节点或容器本身
+      const firstTextNode = findFirstTextNode(container);
+      return firstTextNode 
+        ? { node: firstTextNode, offset: 0 }
+        : { node: container, offset: 0 };
     }
     
     // 处理容器内容长度超出的情况
     const totalLength = getNodeTextLength(container);
-    if (position > totalLength) {
-      position = totalLength;
+    if (position >= totalLength) {
+      // 返回容器的最后一个文本节点或容器本身
+      const lastTextNode = findLastTextNode(container);
+      return lastTextNode
+        ? { node: lastTextNode, offset: lastTextNode.textContent.length }
+        : { node: container, offset: container.childNodes.length };
     }
     
-    // 遍历文本节点查找位置
-    let currentPos = 0;
-    let targetNode = null;
-    let targetOffset = 0;
+    try {
+      // 遍历文本节点查找位置
+      let currentPos = 0;
+      let targetNode = null;
+      let targetOffset = 0;
+      
+      // 使用TreeWalker遍历文本节点（性能优于递归）
+      const walker = document.createTreeWalker(
+        container,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+      
+      let node = walker.nextNode();
+      while (node) {
+        const nodeLength = node.textContent.length;
+        
+        // 找到包含目标位置的节点
+        if (currentPos + nodeLength >= position) {
+          targetNode = node;
+          targetOffset = position - currentPos;
+          break;
+        }
+        
+        currentPos += nodeLength;
+        node = walker.nextNode();
+      }
+      
+      // 如果没找到但位置有效，使用最后一个文本节点
+      if (!targetNode && currentPos > 0) {
+        const lastTextNode = findLastTextNode(container);
+        if (lastTextNode) {
+          return { 
+            node: lastTextNode, 
+            offset: lastTextNode.textContent.length 
+          };
+        }
+      }
+      
+      return targetNode
+        ? { node: targetNode, offset: targetOffset }
+        : { node: container, offset: 0 };
+    } catch (error) {
+      console.error('获取节点和偏移量出错:', error);
+      return { node: container, offset: 0 };
+    }
+  };
+  
+  /**
+   * 找到容器中的第一个文本节点
+   */
+  const findFirstTextNode = (container) => {
+    if (!container) return null;
     
+    // 如果自身就是文本节点
+    if (container.nodeType === Node.TEXT_NODE) {
+      return container;
+    }
+    
+    // 使用TreeWalker查找第一个文本节点
     const walker = document.createTreeWalker(
       container,
       NodeFilter.SHOW_TEXT,
@@ -390,100 +335,103 @@ export const useCursor = (options = {}) => {
       false
     );
     
-    let node = walker.nextNode();
-    while (node) {
-      const nodeLength = node.textContent.length;
-      
-      // 找到包含目标位置的节点
-      if (currentPos + nodeLength >= position) {
-        targetNode = node;
-        targetOffset = position - currentPos;
-        break;
-      }
-      
-      currentPos += nodeLength;
-      node = walker.nextNode();
-    }
-    
-    // 如果没找到但位置有效，使用最后一个文本节点
-    if (!targetNode && currentPos > 0) {
-      // 回到最后一个文本节点
-      const lastWalker = document.createTreeWalker(
-        container,
-        NodeFilter.SHOW_TEXT,
-        null,
-        false
-      );
-      
-      let lastNode = null;
-      let tempNode;
-      while (tempNode = lastWalker.nextNode()) {
-        lastNode = tempNode;
-      }
-      
-      if (lastNode) {
-        targetNode = lastNode;
-        targetOffset = lastNode.textContent.length;
-      }
-    }
-    
-    // 如果还是没找到，使用容器本身
-    if (!targetNode) {
-      const textNode = document.createTextNode('');
-      container.appendChild(textNode);
-      return { node: textNode, offset: 0 };
-    }
-    
-    return { node: targetNode, offset: targetOffset };
+    return walker.nextNode();
   };
   
   /**
-   * 获取光标在UI中的坐标位置
+   * 找到容器中的最后一个文本节点
+   */
+  const findLastTextNode = (container) => {
+    if (!container) return null;
+    
+    // 如果自身就是文本节点
+    if (container.nodeType === Node.TEXT_NODE) {
+      return container;
+    }
+    
+    // 使用TreeWalker查找所有文本节点，并返回最后一个
+    const walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    let lastNode = null;
+    let node = null;
+    
+    while (node = walker.nextNode()) {
+      lastNode = node;
+    }
+    
+    return lastNode;
+  };
+  
+  /**
+   * 获取光标坐标
    * @param {number} position - 文本位置索引
-   * @returns {Object} 包含left和top坐标的对象
+   * @returns {Object} 光标坐标 { left, top }
    */
   const getCursorCoordinates = (position) => {
     const container = getContainer();
     if (!container) return { left: 0, top: 0 };
     
     try {
-      // 获取位置对应的节点和偏移量
+      // 获取包含此位置的节点和偏移量
       const { node, offset } = getNodeAndOffset(container, position);
       if (!node) return { left: 0, top: 0 };
       
-      // 创建一个范围来测量位置
+      // 创建一个临时范围来获取位置
       const range = document.createRange();
-      range.setStart(node, offset);
-      range.setEnd(node, offset);
       
-      // 获取范围的边界矩形
-      const rects = range.getClientRects();
-      const containerRect = container.getBoundingClientRect();
-      
-      // 优先使用范围的第一个矩形
-      if (rects.length > 0) {
-        const rect = rects[0];
-        return {
-          left: rect.left - containerRect.left + container.scrollLeft,
-          top: rect.top - containerRect.top + container.scrollTop
-        };
+      try {
+        // 设置范围开始位置
+        range.setStart(node, offset);
+        range.setEnd(node, offset);
+        
+        // 获取范围的客户端矩形
+        const rects = range.getClientRects();
+        if (rects.length > 0) {
+          const rect = rects[0];
+          const containerRect = container.getBoundingClientRect();
+          
+          // 计算相对于容器的坐标
+          return {
+            left: rect.left - containerRect.left + container.scrollLeft,
+            top: rect.top - containerRect.top + container.scrollTop
+          };
+        }
+        
+        // 备用: 如果没有rect，使用节点的位置（适用于空节点）
+        if (node.parentNode) {
+          const parentRect = node.parentNode.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          
+          return {
+            left: parentRect.left - containerRect.left + container.scrollLeft,
+            top: parentRect.top - containerRect.top + container.scrollTop
+          };
+        }
+      } catch (error) {
+        console.warn('计算光标坐标出错，使用备用方法:', error);
       }
       
-      // 后备：使用边界矩形
-      const rect = range.getBoundingClientRect();
+      // 如果上述方法都失败，使用更简单的估计
+      // 基于文本位置，估算大致行数和位置
+      const content = container.textContent || '';
+      const charPerLine = Math.max(40, Math.floor(container.clientWidth / 8)); // 假设平均字符宽度为8px
+      const lines = Math.floor(position / charPerLine);
+      const column = position % charPerLine;
+      
       return {
-        left: rect.left - containerRect.left + container.scrollLeft,
-        top: rect.top - containerRect.top + container.scrollTop
+        left: column * 8 + 8, // 假设每个字符8px宽
+        top: lines * lineHeight + 8 // 行高 + 上边距
       };
-    } catch (err) {
-      console.error('计算光标坐标失败:', err);
+    } catch (error) {
+      console.error('获取光标坐标失败:', error);
       return { left: 0, top: 0 };
     }
   };
-  
-  // 创建光标闪烁状态
-  const isVisible = ref(true);
-  let blinkTimer = null;
   
   /**
    * 开始光标闪烁
@@ -527,44 +475,49 @@ export const useCursor = (options = {}) => {
     const container = getContainer();
     if (!container) return null;
     
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return null;
-    
-    const range = selection.getRangeAt(0);
-    
-    // 检查选区是否在容器内
-    if (!container.contains(range.startContainer) || 
-        !container.contains(range.endContainer)) {
+    try {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return null;
+      
+      const range = selection.getRangeAt(0);
+      
+      // 检查选区是否在容器内
+      if (!container.contains(range.startContainer) || 
+          !container.contains(range.endContainer)) {
+        return null;
+      }
+      
+      // 计算起点和终点的文本位置
+      const startIndex = getTextPosition(
+        container, 
+        range.startContainer, 
+        range.startOffset
+      );
+      
+      const endIndex = getTextPosition(
+        container, 
+        range.endContainer, 
+        range.endOffset
+      );
+      
+      // 更新本地选区
+      const savedSelection = {
+        start: startIndex,
+        end: endIndex,
+        text: range.toString(),
+        timestamp: Date.now()
+      };
+      
+      cursorState.localSelection = savedSelection;
+      
+      // 重置闪烁状态
+      resetCursorBlink();
+      
+      return savedSelection;
+    } catch (error) {
+      console.error('保存选区失败:', error);
       return null;
     }
-    
-    // 创建起点和终点的描述符
-    const startDesc = createPositionDescriptor(
-      container, 
-      range.startContainer, 
-      range.startOffset
-    );
-    
-    const endDesc = createPositionDescriptor(
-      container, 
-      range.endContainer, 
-      range.endOffset
-    );
-    
-    // 更新本地选区
-    cursorState.localSelection = {
-      start: startDesc.index,
-      end: endDesc.index,
-      startDesc,
-      endDesc,
-      text: range.toString(),
-      timestamp: Date.now()
-    };
-    
-    // 重置闪烁状态
-    resetCursorBlink();
-    
-    return cursorState.localSelection;
   };
   
   /**
@@ -577,152 +530,70 @@ export const useCursor = (options = {}) => {
     if (!container || !savedSelection) return false;
     
     try {
-      const selection = window.getSelection();
-      if (!selection) return false;
+      // 确保有合法的位置
+      const start = Math.max(0, savedSelection.start || 0);
+      const end = Math.max(start, savedSelection.end || start);
       
-      selection.removeAllRanges();
-      const range = document.createRange();
+      // 获取起点和终点的节点和偏移量
+      const startResult = getNodeAndOffset(container, start);
+      const endResult = getNodeAndOffset(container, end);
       
-      // 解析起点和终点
-      let startResult = resolvePositionDescriptor(
-        container, 
-        savedSelection.startDesc || { index: savedSelection.start }
-      );
-      
-      let endResult = resolvePositionDescriptor(
-        container, 
-        savedSelection.endDesc || { index: savedSelection.end }
-      );
-      
-      // 位置解析失败时使用备用策略
+      // 确保找到了有效的节点
       if (!startResult.node || !endResult.node) {
-        // 后备策略：直接使用文本索引
-        startResult = getNodeAndOffset(container, savedSelection.start);
-        endResult = getNodeAndOffset(container, savedSelection.end);
-        
-        // 仍然失败时，回退到容器的起始位置
-        if (!startResult.node || !endResult.node) {
-          if (container.firstChild && container.firstChild.nodeType === Node.TEXT_NODE) {
-            range.setStart(container.firstChild, 0);
-            range.setEnd(container.firstChild, 0);
-          } else {
-            range.setStart(container, 0);
-            range.setEnd(container, 0);
-          }
-          selection.addRange(range);
-          return false;
-        }
+        console.warn('恢复选区失败: 未找到有效节点', startResult, endResult);
+        return false;
       }
       
-      // 设置范围
+      // 设置选区
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      
+      const range = document.createRange();
       range.setStart(startResult.node, startResult.offset);
       range.setEnd(endResult.node, endResult.offset);
       
       selection.addRange(range);
+      
+      // 更新本地选区
+      cursorState.localSelection = {
+        start,
+        end,
+        text: range.toString(),
+        timestamp: Date.now()
+      };
+      
       return true;
-    } catch (err) {
-      console.error('恢复选区失败:', err);
-      
-      // 最终后备：恢复到容器开始
-      try {
-        const range = document.createRange();
-        range.setStart(container, 0);
-        range.setEnd(container, 0);
-        selection.addRange(range);
-      } catch (e) {
-        // 忽略最终回退的错误
-      }
-      
+    } catch (error) {
+      console.error('恢复选区失败:', error);
       return false;
     }
   };
   
   /**
-   * 更新远程用户的选区
+   * 更新远程用户选区
    * @param {string} userId - 用户ID
    * @param {Object} selection - 选区信息
    */
   const updateRemoteSelection = (userId, selection) => {
-    if (!userId || !selection) return;
-    
     cursorState.selections.set(userId, {
       ...selection,
-      timestamp: Date.now(),
-      userId
+      timestamp: Date.now()
     });
   };
   
   /**
-   * 删除远程用户的选区
+   * 移除远程用户选区
    * @param {string} userId - 用户ID
    */
   const removeRemoteSelection = (userId) => {
-    if (cursorState.selections.has(userId)) {
-      cursorState.selections.delete(userId);
-    }
-  };
-  
-  /**
-   * 处理选区变化事件
-   */
-  const handleSelectionChange = () => {
-    if (cursorState.isProcessing) return;
-    
-    cursorState.isProcessing = true;
-    saveSelection();
-    cursorState.isProcessing = false;
-  };
-  
-  // 防抖处理选区变化
-  let selectionTimeout = null;
-  const debouncedSelectionChange = () => {
-    clearTimeout(selectionTimeout);
-    selectionTimeout = setTimeout(handleSelectionChange, debounceTime);
-  };
-  
-  // 处理编辑操作的函数 - 用于检测内容变化
-  const handleContentChange = () => {
-    incrementContentVersion();
-  };
-  
-  /**
-   * 创建选区高亮样式
-   */
-  const createSelectionStyle = () => {
-    if (!useVirtualCursor) return '';
-    
-    // 创建一个样式元素以隐藏浏览器默认光标并修改选区样式
-    const styleId = 'virtual-cursor-style';
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.textContent = `
-        .virtual-cursor-enabled {
-          caret-color: transparent !important; /* 隐藏真实光标 */
-        }
-        .virtual-cursor-enabled::selection {
-          background-color: rgba(26, 115, 232, 0.3) !important; /* 选区背景颜色 */
-        }
-      `;
-      document.head.appendChild(style);
-    }
-  };
-  
-  // 添加获取本地光标坐标的方法
-  const getLocalCursorCoordinates = () => {
-    if (!cursorState.localSelection) return { left: 0, top: 0 };
-    
-    // 使用当前光标位置获取坐标
-    // 对于文本选区，使用结束位置作为光标位置
-    const position = cursorState.localSelection.end;
-    return getCursorCoordinates(position);
+    cursorState.selections.delete(userId);
   };
   
   /**
    * 根据点击位置找到最接近的文本位置
    * @param {HTMLElement} container - 编辑器容器
-   * @param {number} x - 点击的X坐标（相对于容器）
-   * @param {number} y - 点击的Y坐标（相对于容器）
+   * @param {number} x - 点击的X坐标
+   * @param {number} y - 点击的Y坐标
    * @returns {Object} 包含节点和偏移量
    */
   const getPositionFromPoint = (container, x, y) => {
@@ -761,57 +632,10 @@ export const useCursor = (options = {}) => {
     }
   };
   
-  // 生命周期钩子增强
-  onMounted(() => {
-    document.addEventListener('selectionchange', debouncedSelectionChange);
-    
-    const container = getContainer();
-    if (container) {
-      // 监听可能导致内容变化的事件
-      container.addEventListener('input', handleContentChange);
-      container.addEventListener('paste', handleContentChange);
-      container.addEventListener('drop', handleContentChange);
-      
-      // 为容器添加虚拟光标样式
-      if (useVirtualCursor) {
-        createSelectionStyle();
-        container.classList.add('virtual-cursor-enabled');
-        startCursorBlink();
-        
-        // 监听容器焦点事件
-        container.addEventListener('focus', () => {
-          startCursorBlink();
-        });
-        
-        container.addEventListener('blur', () => {
-          stopCursorBlink(false);
-        });
-      }
-    }
-  });
-  
-  onUnmounted(() => {
-    document.removeEventListener('selectionchange', debouncedSelectionChange);
-    clearTimeout(selectionTimeout);
-    
-    const container = getContainer();
-    if (container) {
-      container.removeEventListener('input', handleContentChange);
-      container.removeEventListener('paste', handleContentChange);
-      container.removeEventListener('drop', handleContentChange);
-      
-      if (useVirtualCursor) {
-        container.removeEventListener('focus', startCursorBlink);
-        container.removeEventListener('blur', () => stopCursorBlink(false));
-        
-        // 移除样式类
-        container.classList.remove('virtual-cursor-enabled');
-      }
-    }
-    
-    // 停止闪烁
-    stopCursorBlink(false);
-  });
+  // 初始化闪烁状态
+  if (useVirtualCursor) {
+    startCursorBlink();
+  }
   
   return {
     // 状态
@@ -825,7 +649,6 @@ export const useCursor = (options = {}) => {
     updateRemoteSelection,
     removeRemoteSelection,
     getCursorCoordinates,
-    getLocalCursorCoordinates,  // 新增：获取本地光标坐标
     getTextPosition,
     getNodeAndOffset,
     clearCache: () => {
@@ -834,7 +657,7 @@ export const useCursor = (options = {}) => {
       cache.lastCacheCleanup = Date.now();
     },
     incrementContentVersion,
-    resetCursorBlink,           // 新增：重置光标闪烁
-    getPositionFromPoint,  // 新增点击位置计算
+    resetCursorBlink,
+    getPositionFromPoint,
   };
 }; 
