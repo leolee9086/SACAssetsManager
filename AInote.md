@@ -120,3 +120,53 @@ SACAssetsManager 是一个思源笔记插件，其架构设计如下：
 - 现有的index.js: 当前插件实现
 - index new.js: 未来插件架构参考
 - src/toolBox/AInote.md: 工具箱重构详细笔记 
+
+## 常见问题记录
+
+### 相对路径层级问题
+
+在开发过程中发现的重要问题：相对路径计算错误导致模块无法正确加载。
+
+1. **错误现象**:
+   - 控制台出现404错误：无法找到js模块文件
+   - 典型错误路径如：`http://127.0.0.1:5977/plugins/SACAssetsManager/src/base/useEcma/forString/forHtmlProcessing.js`
+   - 动态导入模块失败：`Failed to fetch dynamically imported module`
+   - 常见失败模块包括：
+     - `src/base/useEcma/forString/forHtmlProcessing.js` (404)
+     - `src/base/forNetWork/forSSE/validateStream.js` (404)
+     - `src/base/forNetWork/forSSE/parseEvents.js` (404)
+     - `source/UI/pannels/MAGI/composables/useMagi.js` (导入失败)
+     - `source/UI/pannels/MAGI/utils/messageFormatUtils.js` (导入失败)
+
+2. **原因分析**:
+   - 相对路径层级计算错误，通常是`../`数量不足
+   - 从`source/UI/pannels/MAGI/utils/`到`src/toolBox/`需要五级返回(`../../../../../`)而不是四级
+   - 路径格式不一致，部分代码使用了错误的目录结构：
+     - 使用`src/base/...`而实际是`src/toolBox/base/...`
+     - 缺少必要的相对路径前缀`../`
+   - 动态导入使用的路径与实际文件系统路径不匹配
+
+3. **解决方案**:
+   - 仔细计算目录层级深度，确保相对路径正确
+   - 考虑使用路径别名（如webpack配置alias）减少出错可能
+   - 可考虑使用绝对路径导入或导入路径前缀变量
+   - 对引用路径进行单元测试验证
+   - 特定解决方案：
+     - 修正导入路径：确保使用`src/toolBox/base/`而非`src/base/`
+     - 创建路径映射助手函数，集中管理常用导入路径
+     - 为动态导入添加错误处理和路径回退机制
+
+4. **预防措施**:
+   - 建立统一的模块导入规范
+   - 减少深层次的目录嵌套
+   - 考虑引入类型检查工具，可及早发现路径错误
+   - 为重要模块提供导入助手函数
+   - 实现一个路径验证工具，在构建或开发时检查所有导入路径
+   - 考虑使用bundler管理前端模块依赖，而非直接使用ES模块
+
+5. **临时解决方案**:
+   - 为主要组件创建路径映射表，集中管理路径
+   - 为关键模块创建备用加载机制（当主路径失败时使用）
+   - 使用条件编译标记区分开发和生产环境的路径
+
+路径问题可能导致界面不可用或功能缺失，应当引起足够重视。 

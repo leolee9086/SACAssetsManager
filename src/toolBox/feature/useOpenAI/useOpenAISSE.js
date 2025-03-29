@@ -1,4 +1,12 @@
-import { 分割缓冲区, 解析SSE事件 } from '../../base/forNetWork/forSSE.js'
+/**
+ * @fileoverview OpenAI SSE 流式处理工具
+ * @description 提供对OpenAI和兼容API的SSE流式处理功能
+ */
+
+import { 解析SSE事件 } from '../../base/forNetWork/forSSE/parseEvents.js'
+import { 是有效流 } from '../../base/forNetWork/forSSE/validateStream.js'
+import { 分割缓冲区 } from '../../base/forNetWork/forSSE.js'
+import { 查找差异索引 } from '../../base/useEcma/forString/forDiff.js'
 import { 标准化openAI兼容配置 } from './forOpenAIConfig.js'
 
 
@@ -7,6 +15,7 @@ export class AISSEProvider {
     this.config = 标准化openAI兼容配置(config)
     this.abortController = new AbortController()
     this._hasSeenReasoningContent = false
+    this._lastFullContent = null
   }
 
   async *createChatCompletion(messages) {
@@ -17,6 +26,9 @@ export class AISSEProvider {
     
     try {
       [response, reader] = await this._发送请求(messages)
+      if (!是有效流(response.body)) {
+        throw new Error('无效的响应流')
+      }
       yield* this._处理响应流(reader, msgId)
     } catch (e) {
       yield this._generateErrorEvent(e, msgId)
@@ -133,7 +145,14 @@ export class AISSEProvider {
       finish_reason: choice.finish_reason
     }
 
-    console.log('Delta:', choice.delta) // 调试日志
+    if (choice.delta._isFull && this._lastFullContent && choice.delta.content) {
+      const diffStartIndex = 查找差异索引(this._lastFullContent, choice.delta.content)
+      const newContent = choice.delta.content.slice(diffStartIndex)
+      choice.delta.content = newContent
+      this._lastFullContent = choice.delta.content
+    } else if (choice.delta._isFull) {
+      this._lastFullContent = choice.delta.content || ''
+    }
 
     // 处理 reasoning_content
     if (choice.delta.reasoning_content !== undefined && choice.delta.reasoning_content !== null) {

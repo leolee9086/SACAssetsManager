@@ -34,7 +34,7 @@ const HTML反转义映射表 = {
  * @returns {string} 转义后的字符串
  */
 export function 转义HTML(文本) {
-  if (!文本) return '';
+  if (!文本 || typeof 文本 !== 'string') return '';
   
   return 文本.replace(/[&<>"']/g, 字符 => HTML转义映射表[字符] || 字符);
 }
@@ -58,7 +58,7 @@ export function 转义HTML属性(文本) {
  * @returns {string} 反转义后的字符串
  */
 export function 反转义HTML(文本) {
-  if (!文本) return '';
+  if (!文本 || typeof 文本 !== 'string') return '';
   
   return 文本.replace(/&amp;|&lt;|&gt;|&quot;|&#039;/g, 实体 => HTML反转义映射表[实体] || 实体);
 }
@@ -106,6 +106,54 @@ export function 文本转HTML段落(文本, 转义 = true) {
     .join('');
 }
 
+/**
+ * 安全地转义HTML，但保留指定的HTML标签
+ * @param {string} 文本 - 需要转义的文本
+ * @param {Array<string>} 保留标签 - 要保留的HTML标签名数组
+ * @returns {string} 部分转义后的文本
+ */
+export function 部分转义HTML(文本, 保留标签 = []) {
+  if (!文本 || typeof 文本 !== 'string') return '';
+  if (!保留标签.length) return 转义HTML(文本);
+  
+  // 构建保留标签的正则表达式
+  const 标签列表 = 保留标签.join('|');
+  const 标签正则 = new RegExp(`<(\/?(${标签列表})(?:\\s[^>]*)?)>`, 'g');
+  
+  // 临时替换保留标签为特殊标记
+  const 占位符前缀 = `__HTML_TAG_${Date.now()}_`;
+  let 替换计数 = 0;
+  const 标签映射 = {};
+  
+  const 替换后文本 = 文本.replace(标签正则, (匹配, 内容) => {
+    const 占位符 = `${占位符前缀}${替换计数++}__`;
+    标签映射[占位符] = 匹配;
+    return 占位符;
+  });
+  
+  // 转义中间文本
+  const 转义后文本 = 转义HTML(替换后文本);
+  
+  // 还原保留的标签
+  return 转义后文本.replace(new RegExp(`${占位符前缀}\\d+__`, 'g'), 占位符 => {
+    return 标签映射[占位符] || 占位符;
+  });
+}
+
+/**
+ * 将纯文本转换为HTML，保留换行符和空格
+ * @param {string} 文本 - 要转换的纯文本
+ * @returns {string} 转换后的HTML
+ */
+export function 文本转HTML(文本) {
+  if (!文本 || typeof 文本 !== 'string') return '';
+  
+  return 转义HTML(文本)
+    .replace(/\n/g, '<br>')
+    .replace(/  /g, '&nbsp;&nbsp;')
+    .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+}
+
 // 添加英文别名以提高兼容性
 export const escapeHTML = 转义HTML;
 export const escapeHTMLAttr = 转义HTML属性;
@@ -113,6 +161,8 @@ export const unescapeHTML = 反转义HTML;
 export const sanitizeText = 清理文本;
 export const stripHTMLTags = 移除HTML标签;
 export const textToParagraphs = 文本转HTML段落;
+export const partialEscapeHTML = 部分转义HTML;
+export const textToHTML = 文本转HTML;
 
 // 默认导出
 export default {
@@ -127,5 +177,7 @@ export default {
   unescapeHTML,
   sanitizeText,
   stripHTMLTags,
-  textToParagraphs
+  textToParagraphs,
+  partialEscapeHTML,
+  textToHTML
 }; 

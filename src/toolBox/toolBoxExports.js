@@ -71,6 +71,48 @@ export {
     createProcessor
 } from './base/useBrowser/useCanvas/index.js';
 
+// 聊天工具
+export {
+  // 消息创建工具
+  创建消息,
+  创建用户消息,
+  创建助手消息,
+  创建系统消息,
+  创建错误消息,
+  创建流式消息,
+  创建投票消息,
+  创建共识消息,
+  // 英文别名
+  createMessage,
+  createUserMessage,
+  createSystemMessage,
+  createAssistantMessage,
+  createErrorMessage,
+  createStreamMessage,
+  createVoteMessage,
+  createConsensusMessage
+} from './feature/useChat/forMessageCreation.js';
+
+export {
+  // 消息格式化工具
+  解析思考内容,
+  格式化富文本消息,
+  处理三贤人响应并转换Think标签,
+  // 英文别名
+  parseThinkContent,
+  formatRichTextMessage,
+  processSagesResponsesAndConvertThink
+} from './feature/useChat/forMessageFormatting.js';
+
+export {
+  // 流处理工具
+  处理流式消息,
+  简易流处理,
+  // 英文别名
+  processStreamMessage,
+  simpleStreamProcess
+} from './feature/useChat/forStreamProcessing.js';
+
 /**
  * 创建一个默认的事件总线实例
  */

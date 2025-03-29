@@ -1,6 +1,8 @@
 import { ref, reactive, watch } from '../../../../../static/vue.esm-browser.js'
 import { initMagi, MockTrinity } from '../core/mockMagi.js'
 import { 处理流式消息 ,创建消息} from '../utils/messageUtils.js'
+import { AISSEConversation } from '../../../../../src/toolBox/feature/useOpenAI/useOpenAISSE.js'
+
 export function useMagi() {
     const seels = reactive([])
     const connectionStatus = ref('disconnected')
