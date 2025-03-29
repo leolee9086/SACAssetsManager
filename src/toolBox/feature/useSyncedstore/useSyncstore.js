@@ -17,43 +17,41 @@
  */
 
 import { ref, watch } from '../../../../static/vue.esm-browser.js'
-import { syncedStore, getYjsValue } from '../../../../static/@syncedstore/core.js'
-import { WebrtcProvider } from '../../../../static/y-webrtc.js'
-import { IndexeddbPersistence } from '../../../../static/y-indexeddb.js'
-import * as Y from '../../../../static/yjs.js'
-import { 
-  GLOBAL_SIGNALING_SERVERS, 
-  checkAllServers, 
-  getOptimalServer,
-  selectBestServers
-} from './useYjsSignalServers.js'
-// 用于跟踪房间连接和Y.Doc的全局缓存
-import { resetRoomConnectionWithContext } from './forRoomConnection.js'
-import {
-  calculateOptimalSyncIntervalWithOptions,
-  createDefaultAutoSyncConfig,
-  updateAutoSyncConfig,
-  getAutoSyncStatus
-} from './forAutoSync.js'
+import { selectBestServers } from './useYjsSignalServers.js'
+import { createDefaultAutoSyncConfig } from './forAutoSync.js'
 import {
   diagnoseConnection,
   getConnectionQualityRating,
   generateDiagnosticMessage
-} from './networkDiagnostics.js'
-import {
-  createDocumentChangeRecorderWithContext,
-  setupDocumentChangeMonitoringWithContext
-} from './forDocumentChanges.js'
-// 导入思源WebSocket管理器
-import siyuanManager from './siyuanManager.js'
-// 导入文档管理器
-import documentManager, { resetRoomConnection } from './documentManager.js'
-// 导入连接管理器
-import { createConnectionManager } from './connectionManager.js'
+} from './useNetworkDiagnostics.js'
 
-// 移除思源配置，使用从模块导入的配置
-// 添加思源 WebSocket 相关配置
-const siyuanConfig = siyuanManager.config
+// 导入管理器模块
+import siyuanManager from './useSiyuanIntegration.js'
+import documentManager, { resetRoomConnection } from './useDocumentManager.js'
+import { createConnectionManager } from './useConnectionManager.js'
+import { createPersistenceManager } from './usePersistenceManager.js'
+import { createSyncManager } from './useSyncManager.js'
+
+// 配置常量
+const DEFAULT_ROOM_NAME = 'default-room'
+const CONNECT_DELAY = 100
+const DEFAULT_WEBRTC_CONFIG = {
+  peerOpts: {
+    config: {
+      iceTransportPolicy: 'all',
+      iceCandidatePoolSize: 10,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      sdpSemantics: 'unified-plan'
+    },
+    trickle: true
+  },
+  pingInterval: 3000,
+  maxConns: 20,
+  connect: false,
+  filterBcConns: true,
+  maxRetries: 10
+}
 
 /**
  * 创建与Vue集成的同步状态管理器
@@ -74,7 +72,7 @@ const siyuanConfig = siyuanManager.config
  */
 export async function createSyncStore(options = {}) {
   const {
-    roomName = 'default-room',
+    roomName = DEFAULT_ROOM_NAME,
     initialState = {},
     persist = true,
     webrtcOptions = {},
@@ -89,160 +87,44 @@ export async function createSyncStore(options = {}) {
       ...options.autoSync
     },
     forceNewDoc = false,
-    // 添加思源相关配置
+    // 思源相关配置
     siyuan = {
       enabled: false,
-      ...siyuanConfig,
+      ...siyuanManager.config,
       ...options.siyuan
     }
   } = options
+
+  // 创建响应式状态
+  const isConnected = ref(false)
+  const status = ref('初始化中')
+  const isLocalDataLoaded = ref(false)
 
   // 获取或创建文档
   const docState = await documentManager.getDocument(roomName, { forceNewDoc })
   const { doc: ydoc, store, isExisting } = docState
 
-  // 初始化状态
+  // 初始化状态（如果是新文档）
   if (!isExisting && Object.keys(initialState).length > 0) {
-    Object.entries(initialState).forEach(([key, value]) => {
-      if (!(key in store.state)) {
-        store.state[key] = value
-      }
-    })
+    initializeState(store, initialState)
   }
 
-  // 创建响应式状态
-  const isConnected = ref(false)
-  const status = ref('初始化中')
-  const isLocalDataLoaded = ref(false)  // 添加本地数据加载状态
+  // 使用持久化管理器处理本地数据
+  const persistenceManager = persist 
+    ? await setupPersistence(roomName, ydoc, initialState, store, status, isLocalDataLoaded)
+    : handleNoPersistence(initialState, store, isLocalDataLoaded);
 
-  // 配置本地持久化 - 移到前面优先加载本地数据
-  let persistence = null
-  if (persist) {
-    try {
-      console.log(`[本地优先] 开始从本地加载房间 ${roomName} 数据...`)
-      persistence = new IndexeddbPersistence(roomName, ydoc)
-      
-      // 创建一个Promise来等待本地数据加载
-      await new Promise((resolve) => {
-        // 检查是否已经加载完毕(防止永久等待)
-        const checkLoaded = () => {
-          // IndexedDB已加载完成的标志，可以通过属性检测
-          if (persistence.synced) {
-            console.log(`[本地优先] 房间 ${roomName} 本地数据已加载`)
-            return true
-          }
-          return false
-        }
-        
-        // 如果已加载，直接解析
-        if (checkLoaded()) {
-          resolve()
-          return
-        }
-        
-        // 设置超时，避免永久等待
-        const timeout = setTimeout(() => {
-          console.warn(`[本地优先] 等待本地数据超时，继续初始化`)
-          resolve()
-        }, 2000)
-        
-        // 监听同步事件
-        persistence.once('synced', () => {
-          clearTimeout(timeout)
-          console.log(`[本地优先] 房间 ${roomName} 本地数据同步完成`)
-          
-          // 在同步完成后，初始化数据（如果本地没有数据）
-          const isEmpty = Object.keys(store.state).length === 0
-          if (isEmpty) {
-            // 将初始状态填充到同步存储中
-            Object.entries(initialState).forEach(([key, value]) => {
-              store.state[key] = value
-            })
-          }
-          
-          status.value = '已从本地加载'
-          isLocalDataLoaded.value = true
-          resolve()
-        })
-      })
-      
-      // 确保状态正确反映
-      isLocalDataLoaded.value = true
-      
-    } catch (e) {
-      console.error(`创建持久化存储时出错:`, e)
-      // 如果本地加载失败，仍然需要标记为已加载，使用初始状态
-      isLocalDataLoaded.value = true
-      
-      // 使用初始状态
-      Object.entries(initialState).forEach(([key, value]) => {
-        if (!(key in store.state)) {
-          store.state[key] = value
-        }
-      })
-    }
-  } else {
-    // 如果不使用持久化，直接填充初始状态
-    Object.entries(initialState).forEach(([key, value]) => {
-      if (!(key in store.state)) {
-        store.state[key] = value
-      }
-    })
-    isLocalDataLoaded.value = true // 无本地存储，视为已加载
-  }
-
-  // 选择最佳服务器 - 在本地数据加载后进行
+  // 选择最佳服务器
   status.value = '正在选择最佳服务器...'
   const bestServers = await selectBestServers()
   
   // 合并WebRTC选项
-  const mergedWebRtcOptions = {
-    signaling: webrtcOptions.signaling || bestServers.signalingServers,
-    iceServers: webrtcOptions.iceServers || bestServers.iceServers,
-    peerOpts: webrtcOptions.peerOpts || {
-      config: {
-        iceTransportPolicy: 'all',
-        iceCandidatePoolSize: 10,
-        bundlePolicy: 'max-bundle',
-        rtcpMuxPolicy: 'require',
-        sdpSemantics: 'unified-plan'
-      },
-      trickle: true
-    },
-    pingInterval: webrtcOptions.pingInterval || 3000,
-    maxConns: webrtcOptions.maxConns || 20,
-    connect: false,
-    filterBcConns: webrtcOptions.filterBcConns !== undefined ? webrtcOptions.filterBcConns : true,
-    maxRetries: webrtcOptions.maxRetries || 10
-  }
+  const mergedWebRtcOptions = mergeWebRtcOptions(webrtcOptions, bestServers)
 
-  // 在创建 WebRTC 提供者之前尝试连接思源 WebSocket
-  let siyuanSocket = null
-  if (siyuan.enabled) {
-    try {
-      siyuanSocket = await siyuanManager.connect(roomName, siyuan)
-      
-      if (siyuanSocket) {
-        // 添加思源 WebSocket 消息处理
-        siyuanSocket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data)
-            // 处理来自思源的同步消息
-            if (data.type === 'sync' && data.room === roomName) {
-              // 将数据更新到 YJS 文档
-              Object.entries(data.state).forEach(([key, value]) => {
-                store.state[key] = value
-              })
-            }
-          } catch (error) {
-            console.warn('[思源同步] 处理消息失败:', error)
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('[思源同步] 连接失败，将仅使用 WebRTC:', error)
-    }
-  }
+  // 连接思源
+  const siyuanSocket = siyuan.enabled 
+    ? await connectToSiyuan(roomName, siyuan, store)
+    : null;
 
   // 获取或创建连接
   let provider = await documentManager.getConnection(
@@ -265,199 +147,318 @@ export async function createSyncStore(options = {}) {
 
   // 如果设置了自动连接，则立即连接
   if (autoConnect) {
-    setTimeout(() => connectionManager.connect(), 100)
+    setTimeout(() => connectionManager.connect(), CONNECT_DELAY)
   }
 
-  // 添加自动同步相关变量
-  let autoSyncTimer = null
-  let lastSyncTime = Date.now()
-  let changeFrequency = 0    // 文档变更频率
-  let lastNetworkCheck = {   // 上次网络检查结果
-    time: Date.now(),
-    latency: 200,  // 默认假设200ms延迟
-    type: 'unknown'
-  }
-  let adaptiveInterval = autoSync.interval  // 当前自适应间隔
-  const MAX_CHANGE_HISTORY = 10
-  
-  
-  // 创建文档变更记录器
-  const changeRecorder = createDocumentChangeRecorderWithContext({
-    maxHistory: MAX_CHANGE_HISTORY
+  // 创建同步管理器
+  const syncManager = createSyncManager({
+    ydoc,
+    store,
+    roomName,
+    autoSync,
+    getProvider: connectionManager.getProvider,
+    siyuanSocket
   })
-  
-  // 替换原有的变更记录逻辑
-  const recordDocumentChange = () => {
-    changeFrequency = changeRecorder.recordChange()
-    return changeFrequency
-  }
 
-  // 实现自动同步功能
-  const setupAutoSync = async () => {
-    if (autoSyncTimer) {
-      clearInterval(autoSyncTimer)
-      autoSyncTimer = null
-    }
-    
-    if (!autoSync.enabled) return
-    
-    const IntervalOptions = {
-      autoSync,
-      lastNetworkCheck,
-      lastSyncTime,
-      changeFrequency,
-      adaptiveInterval
-    }
-    adaptiveInterval = calculateOptimalSyncIntervalWithOptions(IntervalOptions)
-    
-    // 设置定时同步，使用自适应间隔
-    autoSyncTimer = setInterval(async () => {
-      // 执行心跳同步
-      const provider = connectionManager.getProvider()
-      if (provider && provider.connected) {
-        // 更新心跳字段触发同步
-        store.state[autoSync.heartbeatField] = Date.now()
-        lastSyncTime = Date.now()
-        
-        // 重新计算并应用新的间隔（异步）
-        const newInterval = calculateOptimalSyncIntervalWithOptions({
-          autoSync,
-          lastNetworkCheck,
-          lastSyncTime,
-          changeFrequency,
-          adaptiveInterval
-        })
-        
-        // 如果间隔变化超过20%，重新设置定时器
-        if (Math.abs(newInterval - adaptiveInterval) / adaptiveInterval > 0.2) {
-          adaptiveInterval = newInterval
-          console.log(`[自适应同步] 房间 ${roomName} 调整同步间隔为: ${adaptiveInterval}ms`)
-          
-          // 重新设置定时器
-          clearInterval(autoSyncTimer)
-          
-          autoSyncTimer = setInterval(async () => {
-            const provider = connectionManager.getProvider()
-            if (provider && provider.connected) {
-              store.state[autoSync.heartbeatField] = Date.now()
-              lastSyncTime = Date.now()
-              console.log(`[自动同步] 房间 ${roomName} 执行定时同步`)
-            }
-          }, adaptiveInterval)
-        }
-        
-        console.log(`[自动同步] 房间 ${roomName} 执行定时同步`)
-      }
-    }, adaptiveInterval)
-    
-    console.log(`[自适应同步] 房间 ${roomName} 初始同步间隔: ${adaptiveInterval}ms`)
-    
-    // 监听文档变更，使用新的监控设置
-    const cleanup = setupDocumentChangeMonitoringWithContext(ydoc, changeRecorder)
-    
-    // 返回清理函数
-    return () => {
-      if (cleanup) cleanup()
-    }
-  }
-  
   // 获取连接管理器中的provider
   provider = connectionManager.getProvider()
   
-  // 设置自动同步（连接后启动）
+  // 设置连接和同步事件监听
+  setupEventListeners(provider, isConnected, syncManager)
+  
+  // 创建断开连接函数
+  const disconnect = createDisconnectFunction(
+    connectionManager, 
+    syncManager, 
+    persistenceManager, 
+    documentManager, 
+    roomName, 
+    siyuanManager, 
+    siyuanSocket
+  )
+  
+  // 添加诊断功能
+  const getDiagnostics = createDiagnosticsFunction(
+    connectionManager, 
+    syncManager, 
+    persistenceManager, 
+    roomName, 
+    store
+  )
+
+  // 添加清除本地数据的功能
+  const clearLocalData = async () => {
+    return persistenceManager ? await persistenceManager.clearLocalData() : false
+  }
+
+  // 创建结果对象
+  const result = createResultObject(
+    store,
+    ydoc,
+    status,
+    isConnected,
+    isLocalDataLoaded,
+    connectionManager,
+    disconnect,
+    syncManager,
+    persistenceManager,
+    clearLocalData,
+    getDiagnostics,
+    siyuanSocket
+  )
+  
+  // 将连接存储在缓存中
+  documentManager.connections.set(roomName, result)
+  
+  return result
+}
+
+/**
+ * 初始化状态对象
+ * @param {Object} store - 存储对象
+ * @param {Object} initialState - 初始状态
+ */
+function initializeState(store, initialState) {
+  Object.entries(initialState).forEach(([key, value]) => {
+    if (!(key in store.state)) {
+      store.state[key] = value
+    }
+  })
+}
+
+/**
+ * 设置持久化管理器
+ * @param {string} roomName - 房间名
+ * @param {Object} ydoc - Y.Doc实例
+ * @param {Object} initialState - 初始状态
+ * @param {Object} store - 存储对象
+ * @param {Object} status - 状态引用
+ * @param {Object} isLocalDataLoaded - 本地数据加载状态引用
+ * @returns {Object} 持久化管理器实例
+ */
+async function setupPersistence(roomName, ydoc, initialState, store, status, isLocalDataLoaded) {
+  // 创建持久化管理器
+  const persistenceManager = await createPersistenceManager({
+    roomName,
+    ydoc,
+    initialState,
+    store,
+    status,
+    isLocalDataLoaded
+  })
+  
+  // 初始化并加载本地数据
+  await persistenceManager.initAndLoad()
+  return persistenceManager
+}
+
+/**
+ * 处理不使用持久化的情况
+ * @param {Object} initialState - 初始状态
+ * @param {Object} store - 存储对象
+ * @param {Object} isLocalDataLoaded - 本地数据加载状态引用
+ * @returns {null} 无持久化管理器
+ */
+function handleNoPersistence(initialState, store, isLocalDataLoaded) {
+  // 如果不使用持久化，直接填充初始状态
+  Object.entries(initialState).forEach(([key, value]) => {
+    if (!(key in store.state)) {
+      store.state[key] = value
+    }
+  })
+  isLocalDataLoaded.value = true // 无本地存储，视为已加载
+  return null
+}
+
+/**
+ * 合并WebRTC选项
+ * @param {Object} userOptions - 用户提供的选项
+ * @param {Object} bestServers - 最佳服务器信息
+ * @returns {Object} 合并后的选项
+ */
+function mergeWebRtcOptions(userOptions, bestServers) {
+  return {
+    ...DEFAULT_WEBRTC_CONFIG,
+    signaling: userOptions.signaling || bestServers.signalingServers,
+    iceServers: userOptions.iceServers || bestServers.iceServers,
+    peerOpts: userOptions.peerOpts || DEFAULT_WEBRTC_CONFIG.peerOpts,
+    pingInterval: userOptions.pingInterval || DEFAULT_WEBRTC_CONFIG.pingInterval,
+    maxConns: userOptions.maxConns || DEFAULT_WEBRTC_CONFIG.maxConns,
+    filterBcConns: userOptions.filterBcConns !== undefined ? userOptions.filterBcConns : DEFAULT_WEBRTC_CONFIG.filterBcConns,
+    maxRetries: userOptions.maxRetries || DEFAULT_WEBRTC_CONFIG.maxRetries
+  }
+}
+
+/**
+ * 连接到思源笔记
+ * @param {string} roomName - 房间名
+ * @param {Object} config - 思源配置
+ * @param {Object} store - 存储对象
+ * @returns {Object|null} 思源Socket或null
+ */
+async function connectToSiyuan(roomName, config, store) {
+  try {
+    const socket = await siyuanManager.connect(roomName, config)
+    
+    if (socket) {
+      // 添加思源 WebSocket 消息处理
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          // 处理来自思源的同步消息
+          if (data.type === 'sync' && data.room === roomName) {
+            // 将数据更新到 YJS 文档
+            Object.entries(data.state).forEach(([key, value]) => {
+              store.state[key] = value
+            })
+          }
+        } catch (error) {
+          console.warn('[思源同步] 处理消息失败:', error)
+        }
+      }
+      return socket
+    }
+  } catch (error) {
+    console.warn('[思源同步] 连接失败，将仅使用 WebRTC:', error)
+  }
+  return null
+}
+
+/**
+ * 设置事件监听器
+ * @param {Object} provider - WebRTC提供者
+ * @param {Object} isConnected - 连接状态引用
+ * @param {Object} syncManager - 同步管理器
+ */
+function setupEventListeners(provider, isConnected, syncManager) {
+  // 当连接状态改变时，启动或停止同步
   provider.on('status', event => {
     if (event.status === 'connected') {
-      setupAutoSync()
+      syncManager.setupAutoSync()
     }
   })
   
   // 监视连接状态变化以启动自动同步
   watch(isConnected, (newValue) => {
     if (newValue === true) {
-      setupAutoSync()
-    } else if (autoSyncTimer) {
-      clearInterval(autoSyncTimer)
-      autoSyncTimer = null
+      syncManager.setupAutoSync()
+    } else {
+      syncManager.stopSync()
     }
   })
-  
-  // 扩展断开连接函数，处理持久化和思源连接
-  const disconnect = () => {
+}
+
+/**
+ * 创建断开连接函数
+ * @param {Object} connectionManager - 连接管理器
+ * @param {Object} syncManager - 同步管理器
+ * @param {Object} persistenceManager - 持久化管理器
+ * @param {Object} documentManager - 文档管理器
+ * @param {string} roomName - 房间名
+ * @param {Object} siyuanManager - 思源管理器
+ * @param {Object} siyuanSocket - 思源Socket
+ * @returns {Function} 断开连接函数
+ */
+function createDisconnectFunction(
+  connectionManager, 
+  syncManager, 
+  persistenceManager, 
+  documentManager, 
+  roomName, 
+  siyuanManager, 
+  siyuanSocket
+) {
+  return () => {
     // 使用连接管理器断开WebRTC连接
     connectionManager.disconnect()
     
-    if (persistence) {
-      try {
-        persistence.destroy()
-        console.log(`房间 ${roomName} 持久化存储已销毁`)
-      } catch (e) {
-        console.error(`销毁房间 ${roomName} 持久化存储时出错:`, e)
-      }
-      persistence = null
-    }
+    // 停止同步
+    syncManager.stopSync()
     
-    // 清理自动同步计时器
-    if (autoSyncTimer) {
-      clearInterval(autoSyncTimer)
-      autoSyncTimer = null
+    // 销毁持久化实例
+    if (persistenceManager) {
+      persistenceManager.destroy()
     }
 
+    // 清理文档
     documentManager.cleanupRoom(roomName)
 
     // 断开思源 WebSocket 连接
     if (siyuanSocket) {
       siyuanManager.disconnect(roomName)
-      siyuanSocket = null
     }
   }
-  
-  // 添加诊断功能
-  const getDiagnostics = async () => {
+}
+
+/**
+ * 创建诊断函数
+ * @param {Object} connectionManager - 连接管理器
+ * @param {Object} syncManager - 同步管理器
+ * @param {Object} persistenceManager - 持久化管理器
+ * @param {string} roomName - 房间名
+ * @param {Object} store - 存储对象
+ * @returns {Function} 诊断函数
+ */
+function createDiagnosticsFunction(
+  connectionManager, 
+  syncManager, 
+  persistenceManager, 
+  roomName, 
+  store
+) {
+  return async () => {
     const connectionInfo = await diagnoseConnection(connectionManager.getProvider())
     const { reconnectAttempts } = connectionManager.getReconnectInfo()
+    const syncState = syncManager.getInternalState()
     
     return {
       ...connectionInfo,
       roomName,
       reconnectAttempts,
-      persistenceEnabled: !!persistence,
+      persistenceEnabled: !!persistenceManager,
+      persistenceSynced: persistenceManager ? persistenceManager.isSynced() : false,
       localData: Object.keys(store.state).length > 0,
       connectionQuality: getConnectionQualityRating(connectionInfo),
-      diagnosticMessage: generateDiagnosticMessage(connectionInfo)
+      diagnosticMessage: generateDiagnosticMessage(connectionInfo),
+      syncState
     }
   }
-    
-  // 修改 triggerSync 函数以支持思源同步
-  const triggerSync = () => {
-    let synced = false
-    const provider = connectionManager.getProvider()
-    
-    if (provider?.connected) {
-      const syncTimestamp = Date.now()
-      store.state[autoSync.heartbeatField] = syncTimestamp
-      lastSyncTime = syncTimestamp
-      recordDocumentChange()
-      synced = true
-    }
+}
 
-    // 通过思源 WebSocket 同步
-    if (siyuanSocket) {
-      try {
-        siyuanSocket.send(JSON.stringify({
-          type: 'sync',
-          room: roomName,
-          state: store.state
-        }))
-        synced = true
-      } catch (error) {
-        console.warn('[思源同步] 发送同步消息失败:', error)
-      }
-    }
-
-    return synced
-  }
-
-  // 改进返回结果的结构
+/**
+ * 创建结果对象
+ * @param {Object} store - 存储对象
+ * @param {Object} ydoc - Y.Doc实例
+ * @param {Object} status - 状态引用
+ * @param {Object} isConnected - 连接状态引用
+ * @param {Object} isLocalDataLoaded - 本地数据加载状态引用
+ * @param {Object} connectionManager - 连接管理器
+ * @param {Function} disconnect - 断开连接函数
+ * @param {Object} syncManager - 同步管理器
+ * @param {Object} persistenceManager - 持久化管理器
+ * @param {Function} clearLocalData - 清除本地数据函数
+ * @param {Function} getDiagnostics - 诊断函数
+ * @param {Object} siyuanSocket - 思源Socket
+ * @returns {Object} 结果对象
+ */
+function createResultObject(
+  store,
+  ydoc,
+  status,
+  isConnected,
+  isLocalDataLoaded,
+  connectionManager,
+  disconnect,
+  syncManager,
+  persistenceManager,
+  clearLocalData,
+  getDiagnostics,
+  siyuanSocket
+) {
+  const provider = connectionManager.getProvider()
+  const { reconnectTimer } = connectionManager.getReconnectInfo()
+  
+  // 创建结构化结果
   const result = {
     // 数据
     store: store.state,
@@ -478,21 +479,18 @@ export async function createSyncStore(options = {}) {
     
     // 同步管理
     sync: {
-      triggerSync,
-      setConfig: (config) => {
-        Object.assign(autoSync, updateAutoSyncConfig(autoSync, config))
-        setupAutoSync()
-        return autoSync
-      },
-      getStatus: () => getAutoSyncStatus({
-        autoSync,
-        autoSyncTimer,
-        adaptiveInterval,
-        changeFrequency,
-        lastNetworkCheck,
-        lastSyncTime
-      })
+      triggerSync: syncManager.triggerSync,
+      setConfig: syncManager.setConfig,
+      getStatus: syncManager.getStatus,
+      stopSync: syncManager.stopSync
     },
+    
+    // 持久化
+    persistence: persistenceManager ? {
+      clearLocalData,
+      isSynced: persistenceManager.isSynced,
+      sync: persistenceManager.sync
+    } : null,
     
     // 诊断
     diagnostics: {
@@ -513,16 +511,13 @@ export async function createSyncStore(options = {}) {
   result.reconnect = connectionManager.reconnect
   result.connect = connectionManager.connect
   result.getDiagnostics = getDiagnostics
-  const { reconnectTimer } = connectionManager.getReconnectInfo()
+  result.clearLocalData = clearLocalData
   result.reconnectTimer = reconnectTimer
-  result.triggerSync = triggerSync
-  result.setAutoSync = result.sync.setConfig
-  result.getAutoSyncStatus = result.sync.getStatus
+  result.triggerSync = syncManager.triggerSync
+  result.setAutoSync = syncManager.setConfig
+  result.getAutoSyncStatus = syncManager.getStatus
   result.siyuanSocket = siyuanSocket
   result.siyuanEnabled = !!siyuanSocket
-  
-  // 将连接存储在缓存中
-  documentManager.connections.set(roomName, result)
   
   return result
 }
