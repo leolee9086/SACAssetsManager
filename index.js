@@ -159,7 +159,7 @@ module.exports = class SACAssetsManager extends Plugin {
 
   async 写入i18n(lang, content) {
     let targetPath = this.插件自身工作空间路径 + '/i18n/' + `${lang}.json`
-    let workspace = await import(`${this.插件自身伺服地址}/source/polyfills/fs.js`)
+    let workspace = await import(`${this.插件自身伺服地址}/polyfills/fs.js`)
     await workspace.writeFile(targetPath, JSON.stringify(content, undefined, 2))
   }
   加载i18n工具() {
@@ -242,10 +242,11 @@ module.exports = class SACAssetsManager extends Plugin {
   }
 
   async 创建web服务() {
-    const 端口工具箱 = await import(`${this.插件自身伺服地址}/source/utils/port.js`)
-    this.http服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_http", 6992)
-    this.https服务端口号 = await 端口工具箱.获取插件服务端口号(this.name + "_https", 6993)
-    await import(`${this.插件自身伺服地址}/source/server/main.js`)
+    // 从toolBox直接导入端口管理函数
+    const { 获取插件服务端口号 } = await import(`${this.插件自身伺服地址}/src/toolBox/base/forNetWork/forPort/forSiyuanPort.js`);
+    this.http服务端口号 = await 获取插件服务端口号(this.name + "_http", 6992);
+    this.https服务端口号 = await 获取插件服务端口号(this.name + "_https", 6993);
+    await import(`${this.插件自身伺服地址}/source/server/main.js`);
   }
   /**
    * 移动到menus.js中

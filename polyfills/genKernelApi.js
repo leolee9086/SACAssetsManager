@@ -177,6 +177,6 @@ try{
 console.warn("生成的内容似乎有点问题",e)
 }
 let kernelApi = _module['default'];
-import fs from  '../../polyfills/fs.js'
+import fs from  './fs.js'
 await fs.writeFile('/data'+import.meta.url.replace(globalThis.location.origin,'').replace("genKernelApi.js", "") + "kernelApi.js",jsContent)
-export default kernelApi;
+export default kernelApi; 

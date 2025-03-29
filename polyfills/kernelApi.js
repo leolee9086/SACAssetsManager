@@ -1,20 +1,3 @@
-/**
- * @fileoverview 实现思源API的多环境支持，此文件已移动到根目录
- * @deprecated 请更新导入路径为 polyfills/kernelApi.js
- */
-
-// 导入新位置的模块
-import * as kernelApiModule from '../../polyfills/kernelApi.js';
-
-// 显示废弃警告
-console.warn('source/polyfills/kernelApi.js 已移动到根目录，请更新导入路径为 polyfills/kernelApi.js');
-
-// 重新导出所有导出项
-export * from '../../polyfills/kernelApi.js';
-
-// 我们不能有多个默认导出，所以这里直接导出默认导出
-export default kernelApiModule.default;
-
 export class  kernelApiList{
     constructor(option={
         思源伺服ip:globalThis.location.hostname,
@@ -525,6 +508,13 @@ async set(方法, 路径, 英文名, 中文名) {
     }
 }
 }
+
+export default new kernelApiList({        
+思源伺服ip:globalThis.location.hostname,
+思源伺服端口:globalThis.location.port,
+思源伺服协议:"http",
+apitoken:""
+})
 
 // 从思源的后端接口文件计算而来
 //

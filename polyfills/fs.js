@@ -1,20 +1,3 @@
-/**
- * @fileoverview 实现文件系统操作的多环境支持，此文件已移动到根目录
- * @deprecated 请更新导入路径为 polyfills/fs.js
- */
-
-// 导入新位置的模块
-import * as fsFunctions from '../../polyfills/fs.js';
-
-// 显示废弃警告
-console.warn('source/polyfills/fs.js 已移动到根目录，请更新导入路径为 polyfills/fs.js');
-
-// 重新导出所有导出项
-export * from '../../polyfills/fs.js';
-
-// 我们不能有多个默认导出，所以这里直接导出默认导出
-export default fsFunctions.default;
-
 import mimes from "./mimeDb.js";
 import path from "./path.js";
 import kernelApi from "./kernelApi.js";
@@ -203,3 +186,5 @@ let fs = {
   copyFile,
   initFile
 };
+
+export default fs;

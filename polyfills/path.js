@@ -1,8 +1,3 @@
-/**
- * @fileoverview 实现路径操作的多环境支持，此文件已移动到根目录
- * @deprecated 请更新导入路径为 polyfills/path.js
- */
-
 // 'path' module extracted from Node.js v8.11.1 (only the posix part)
 // transplited with Babel
 
@@ -28,12 +23,6 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-
-// 导入新位置的模块
-import * as pathModule from '../../polyfills/path.js';
-
-// 显示废弃警告
-console.warn('source/polyfills/path.js 已移动到根目录，请更新导入路径为 polyfills/path.js');
 
 function assertPath(path) {
   if (typeof path !== 'string') {
@@ -537,8 +526,4 @@ var posix = {
 
 posix.posix = posix;
 
-// 重新导出所有导出项
-export * from '../../polyfills/path.js';
-
-// 我们不能有多个默认导出，所以这里直接导出默认导出
-export default pathModule.default;
+export default posix;

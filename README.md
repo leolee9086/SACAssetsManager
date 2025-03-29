@@ -12,7 +12,7 @@
 
 建议同一台计算机只安装一个SACAssetsManager 插件的实例，当多个工作空间安装时，后启动的工作空间对文件列表数据库没有写入权限仅能查询和读取（其余功能不受影响）
 
-可以使用后台窗口的“强制取得数据库控制”按钮获取当前打开的磁盘数据库的写入权限 
+可以使用后台窗口的"强制取得数据库控制"按钮获取当前打开的磁盘数据库的写入权限 
 
 # 功能
 
@@ -70,5 +70,52 @@
 #### 如何破解
 
 这个插件仅仅使用了非常简单的加密机制,找到所有类似"加载加密代码"的函数名,然后将它们改为对应的加载明码函数就可以,明码在加密代码的同一个文件夹下,例如"systemLoader.encryted"对应的明码是"systemLoader.js"或者"systemLoader.cs"
+
+# Polyfills 目录迁移说明
+
+## 迁移概述
+
+为了优化项目结构并统一引用路径，我们将 `source/polyfills` 目录下的文件迁移到了根目录的 `polyfills` 文件夹中。
+
+## 迁移内容
+
+以下文件已从 `source/polyfills` 迁移到根目录的 `polyfills` 目录：
+
+- `kernelApi.js` - 思源笔记内核API
+- `fs.js` - 文件系统操作工具
+- `path.js` - 路径处理工具
+- `mimeDb.js` - MIME类型数据库
+- `genKernelApi.js` - 内核API生成工具
+- `kernelApiDefine.js` - 内核API定义
+- `router.go` - 路由定义文件
+
+## 引用更新
+
+所有引用这些文件的地方都已更新，包括：
+
+1. 静态文件中的导入：
+   - `static/content-disposition.js`
+   - `static/type-is.js`
+   - `static/accepts.js`
+   - `static/cache-content-type.js`
+
+2. 内部引用：
+   - `source/asyncModules.js` 中的 `kernelApi` 导入路径已更新
+
+## 兼容处理
+
+为保持向后兼容性，原目录中的文件添加了废弃警告，并引导用户使用新的导入路径。如果您在代码中看到类似以下警告：
+
+```
+source/polyfills/fs.js 已移动到根目录，请更新导入路径为 polyfills/fs.js
+```
+
+请按照提示更新您的导入路径。
+
+## 注意事项
+
+1. 所有新代码应该使用根目录下的 `polyfills` 路径
+2. 原目录下的文件将在未来版本中移除
+3. 如果您发现任何引用路径问题，请更新为新路径
 
 
