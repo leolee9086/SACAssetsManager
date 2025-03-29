@@ -1,12 +1,65 @@
 /**
- * 辅助功能管理模块
- * 用于处理富文本编辑器的无障碍支持
+ * 富文本编辑器辅助功能管理模块
+ * 
+ * 提供完整的无障碍(A11Y)支持，包括：
+ * - 屏幕阅读器支持
+ * - 键盘导航
+ * - 高对比度模式
+ * - 减少动画模式
+ * - ARIA属性管理
+ * - 实时状态宣告
+ * 
+ * @module AccessibilityManager
+ * @version 1.0.0
+ * @license MIT
+ * @example
+ * // 基本用法
+ * const a11yManager = createAccessibilityManager({
+ *   getContainer: () => document.getElementById('editor'),
+ *   announceChanges: true,
+ *   screenReaderSupport: true
+ * });
+ * 
+ * a11yManager.setupAccessibility();
+ * a11yManager.bindA11yEvents();
+ * 
+ * @example
+ * // 自定义宣告
+ * createAccessibilityManager({
+ *   customAnnouncer: (message, options) => {
+ *     console.log('[屏幕阅读器]:', message);
+ *   }
+ * });
  */
 
 /**
  * 创建辅助功能管理器
  * @param {Object} options - 配置项
+ * @param {Function} [options.dispatch=()=>{}] - 事件派发函数
+ * @param {Function} [options.getContainer=()=>null] - 获取容器元素的函数
+ * @param {boolean} [options.announceChanges=true] - 是否自动宣告内容变化
+ * @param {boolean} [options.screenReaderSupport=true] - 是否启用屏幕阅读器支持
+ * @param {boolean} [options.highContrastSupport=false] - 是否启用高对比度支持
+ * @param {boolean} [options.keyboardNavigation=true] - 是否启用键盘导航
+ * @param {boolean} [options.reducedMotion=false] - 是否默认减少动画
+ * @param {string|null} [options.labelledBy=null] - 关联的aria-labelledby ID
+ * @param {string|null} [options.describedBy=null] - 关联的aria-describedby ID
+ * @param {string} [options.ariaRole='textbox'] - 容器的ARIA角色
+ * @param {Function|null} [options.customAnnouncer=null] - 自定义宣告函数
  * @returns {Object} 辅助功能管理器API
+ * 
+ * @typedef {Object} A11yManagerAPI
+ * @property {Function} setupAccessibility - 初始化容器的无障碍支持
+ * @property {Function} bindA11yEvents - 绑定无障碍事件监听
+ * @property {Function} unbindA11yEvents - 解绑无障碍事件
+ * @property {Function} announce - 向屏幕阅读器宣告消息
+ * @property {Function} setAriaAttributes - 设置ARIA属性
+ * @property {Function} setRole - 设置元素角色
+ * @property {Function} enableKeyboardTrap - 启用键盘焦点陷阱
+ * @property {Function} disableKeyboardTrap - 禁用键盘焦点陷阱
+ * @property {Function} getA11yState - 获取当前无障碍状态
+ * @property {Function} cleanup - 清理资源
+ * @property {Map} boundHandlers - 已绑定的事件处理器映射
  */
 export const createAccessibilityManager = (options = {}) => {
   const {
@@ -278,7 +331,7 @@ export const createAccessibilityManager = (options = {}) => {
       // 如果不是Tab键或陷阱未激活，不处理
       if (e.key !== 'Tab' || !a11yState.keyboardTrapActive) return;
       
-      // 重新查找可聚焦元素以确保是最新的
+      // 重新查找可聚焦元素以确保是最最新的
       const focusableElements = findFocusableElements();
       if (focusableElements.length === 0) return;
       
@@ -592,4 +645,4 @@ export const createAccessibilityManager = (options = {}) => {
     cleanup,
     boundHandlers
   };
-}; 
+};

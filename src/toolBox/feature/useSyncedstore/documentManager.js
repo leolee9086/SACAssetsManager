@@ -1,4 +1,17 @@
+/**
+ * @fileoverview 文档管理器模块 - 管理YJS文档和房间连接
+ * 
+ * 该模块负责创建和管理YJS文档实例、房间连接和映射关系。
+ * 提供文档和连接的复用机制，优化资源利用并简化状态管理。
+ * 
+ * @module documentManager
+ * @requires yjs
+ * @requires y-webrtc
+ * @requires @syncedstore/core
+ */
+
 import * as Y from '../../../../static/yjs.js'
+import { WebrtcProvider } from '../../../../static/y-webrtc.js'
 import { syncedStore } from '../../../../static/@syncedstore/core.js'
 
 /**
@@ -18,169 +31,188 @@ import { syncedStore } from '../../../../static/@syncedstore/core.js'
  * @property {string} [viewId] - 视图ID
  */
 
-class DocumentManager {
-  constructor() {
-    this.docs = new Map() // docId -> DocState
-    this.roomToDoc = new Map() // roomName -> docId
-    this.cleanupTimer = null
-    this.CLEANUP_INTERVAL = 30 * 60 * 1000 // 30分钟清理一次
-    this.DOC_EXPIRE_TIME = 60 * 60 * 1000 // 1小时后过期
-    
-    this._startCleanupTimer()
-  }
+// 文档和连接管理器
+const documentManager = {
+  // 存储文档实例
+  docs: new Map(), // docId -> { ydoc, store, refCount, lastAccess }
+  // 存储房间到文档的映射
+  roomToDoc: new Map(), // roomName -> docId
+  // 存储文档到房间的映射  
+  docToRooms: new Map(), // docId -> Set<roomName>
+  // 存储连接实例
+  connections: new Map(), // roomName -> { provider, refCount, status }
+  
+  // 生成文档ID
+  generateDocId(roomName) {
+    // 可以根据需要自定义文档ID生成规则
+    return roomName.split('/')[0]
+  },
 
-  /**
-   * 解析房间名称获取文档标识符
-   * @param {string} roomName - 房间名称
-   * @returns {DocIdentifier}
-   */
-  parseRoomName(roomName) {
-    const parts = roomName.split('/')
-    return {
-      projectId: parts[0] || 'default',
-      docType: parts[1] || 'doc',
-      docId: parts[2] || 'default',
-      viewId: parts[3]
-    }
-  }
-
-  /**
-   * 生成文档ID
-   * @param {DocIdentifier} identifier - 文档标识符
-   * @returns {string}
-   */
-  generateDocId(identifier) {
-    return `${identifier.projectId}/${identifier.docType}/${identifier.docId}`
-  }
-
-  /**
-   * 获取或创建文档
-   * @param {string} roomName - 房间名称
-   * @param {Object} options - 配置选项
-   * @returns {Promise<{doc: Y.Doc, store: Object, isExisting: boolean}>}
-   */
+  // 获取或创建文档
   async getDocument(roomName, options = {}) {
-    const identifier = this.parseRoomName(roomName)
-    const docId = this.generateDocId(identifier)
+    const docId = this.generateDocId(roomName)
+    let docEntry = this.docs.get(docId)
     
-    // 检查现有文档
-    let docState = this.docs.get(docId)
-    if (docState && !options.forceNewDoc) {
-      docState.lastAccess = Date.now()
-      docState.activeRooms.add(roomName)
-      this.roomToDoc.set(roomName, docId)
+    if (docEntry) {
+      // 如果文档已存在，直接复用
+      docEntry.refCount++
+      docEntry.lastAccess = Date.now()
+      
+      // 添加房间映射
+      this.addRoomMapping(docId, roomName)
+      
       return {
-        doc: docState.doc,
-        store: docState.store,
+        doc: docEntry.ydoc,
+        store: docEntry.store,
         isExisting: true
       }
     }
 
     // 创建新文档
-    const doc = new Y.Doc()
-    const store = syncedStore({ state: {} }, doc)
+    const ydoc = new Y.Doc()
+    const store = syncedStore({ state: {} }, ydoc)
     
-    docState = {
-      doc,
+    docEntry = {
+      ydoc,
       store,
-      activeRooms: new Set([roomName]),
-      lastAccess: Date.now(),
-      metadata: {
-        createdAt: Date.now(),
-        identifier,
-        version: 1
-      }
+      refCount: 1,
+      lastAccess: Date.now()
     }
-
-    this.docs.set(docId, docState)
-    this.roomToDoc.set(roomName, docId)
-
+    
+    this.docs.set(docId, docEntry)
+    this.addRoomMapping(docId, roomName)
+    
     return {
-      doc: doc,
+      doc: ydoc,
       store,
       isExisting: false
     }
-  }
+  },
 
-  /**
-   * 清理房间连接
-   * @param {string} roomName - 房间名称
-   */
-  cleanupRoom(roomName) {
+  // 添加房间映射关系
+  addRoomMapping(docId, roomName) {
+    // 建立双向映射
+    this.roomToDoc.set(roomName, docId)
+    
+    if (!this.docToRooms.has(docId)) {
+      this.docToRooms.set(docId, new Set())
+    }
+    this.docToRooms.get(docId).add(roomName)
+  },
+
+  // 获取或创建连接
+  async getConnection(roomName, ydoc, options = {}) {
+    let conn = this.connections.get(roomName)
+    
+    if (conn) {
+      // 如果连接已存在，增加引用计数并返回现有连接
+      conn.refCount++
+      return conn.provider
+    }
+
+    // 创建新连接
+    const provider = new WebrtcProvider(roomName, ydoc, {
+      ...options,
+      connect: false // 确保初始化时不自动连接
+    })
+    
+    this.connections.set(roomName, {
+      provider,
+      refCount: 1,
+      status: 'initialized'
+    })
+
+    return provider
+  },
+
+  // 清理房间资源
+  async cleanupRoom(roomName) {
     const docId = this.roomToDoc.get(roomName)
     if (!docId) return
 
-    const docState = this.docs.get(docId)
-    if (!docState) return
-
-    docState.activeRooms.delete(roomName)
-    this.roomToDoc.delete(roomName)
-
-    // 如果没有活跃房间，标记最后访问时间
-    if (docState.activeRooms.size === 0) {
-      docState.lastAccess = Date.now()
-    }
-  }
-
-  /**
-   * 获取文档的所有活跃房间
-   * @param {string} docId - 文档ID
-   * @returns {Set<string>} 房间名称集合
-   */
-  getDocumentRooms(docId) {
-    const docState = this.docs.get(docId)
-    return docState ? docState.activeRooms : new Set()
-  }
-
-  /**
-   * 获取房间对应的文档ID
-   * @param {string} roomName - 房间名称
-   * @returns {string|null} 文档ID
-   */
-  getRoomDocument(roomName) {
-    return this.roomToDoc.get(roomName) || null
-  }
-
-  /**
-   * 清理过期文档
-   * @private
-   */
-  _cleanupExpiredDocs() {
-    const now = Date.now()
-    for (const [docId, docState] of this.docs.entries()) {
-      if (docState.activeRooms.size === 0 && 
-          now - docState.lastAccess > this.DOC_EXPIRE_TIME) {
-        this.docs.delete(docId)
+    // 清理连接引用
+    const conn = this.connections.get(roomName)
+    if (conn) {
+      conn.refCount--
+      if (conn.refCount <= 0) {
+        // 只有当没有其他引用时才断开连接
+        try {
+          conn.provider.disconnect()
+          if (conn.provider.statusInterval) {
+            clearInterval(conn.provider.statusInterval)
+          }
+        } catch (e) {
+          console.warn('清理连接时出错:', e)
+        }
+        this.connections.delete(roomName)
       }
     }
-  }
 
-  /**
-   * 启动清理计时器
-   * @private
-   */
-  _startCleanupTimer() {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
+    // 清理文档引用
+    const docEntry = this.docs.get(docId)
+    if (docEntry) {
+      docEntry.refCount--
+      
+      // 从房间映射中移除当前房间
+      this.docToRooms.get(docId).delete(roomName)
+      this.roomToDoc.delete(roomName)
+      
+      // 只有当没有任何房间使用此文档时才清理
+      if (docEntry.refCount <= 0) {
+        this.docs.delete(docId)
+        this.docToRooms.delete(docId)
+      }
     }
-    this.cleanupTimer = setInterval(() => {
-      this._cleanupExpiredDocs()
-    }, this.CLEANUP_INTERVAL)
-  }
+  },
 
-  /**
-   * 销毁管理器
-   */
-  destroy() {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer)
-      this.cleanupTimer = null
+  // 获取文档的所有房间
+  getDocumentRooms(docId) {
+    return this.docToRooms.get(docId) || new Set()
+  },
+
+  // 获取房间对应的文档
+  getRoomDocument(roomName) {
+    const docId = this.roomToDoc.get(roomName)
+    if (!docId) return null
+    return this.docs.get(docId)
+  },
+
+  // 断开所有连接
+  disconnectAll() {
+    // 创建一个房间名称的副本，避免在遍历过程中修改原集合
+    const roomNames = [...this.connections.keys()]
+    roomNames.forEach(roomName => this.cleanupRoom(roomName))
+  },
+
+  // 获取连接统计信息
+  getStats() {
+    return {
+      documentCount: this.docs.size,
+      connectionCount: this.connections.size,
+      roomMappingCount: this.roomToDoc.size
     }
-    this.docs.clear()
-    this.roomToDoc.clear()
   }
 }
 
-// 创建单例实例
-const documentManager = new DocumentManager()
+/**
+ * 重置指定房间的连接状态
+ * @param {string} roomName - 需要重置的房间名称
+ * @returns {Promise<void>}
+ */
+export async function resetRoomConnection(roomName) {
+  const connection = documentManager.connections.get(roomName)
+  if (connection) {
+    try {
+      connection.provider.disconnect()
+    } catch (e) {
+      console.warn(`断开房间 ${roomName} 连接时出错:`, e)
+    }
+    documentManager.connections.delete(roomName)
+    // 等待资源清理
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  await documentManager.cleanupRoom(roomName)
+}
+
+// 导出模块
 export default documentManager 

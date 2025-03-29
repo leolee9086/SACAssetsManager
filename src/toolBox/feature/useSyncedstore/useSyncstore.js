@@ -8,7 +8,7 @@
  * - IndexedDB本地持久化
  * - 网络诊断和性能监控
  * 
- * @module useSyncStore
+ * @module createSyncStore
  * @requires vue
  * @requires @syncedstore/core
  * @requires y-webrtc
@@ -18,13 +18,13 @@
 
 import { ref, watch } from '../../../../static/vue.esm-browser.js'
 import { syncedStore, getYjsValue } from '../../../../static/@syncedstore/core.js'
-import { WebrtcProvider } from '../../../../static/y-webrtc.mjs'
-import { IndexeddbPersistence } from '../../../../static/y-indexeddb.mjs'
+import { WebrtcProvider } from '../../../../static/y-webrtc.js'
+import { IndexeddbPersistence } from '../../../../static/y-indexeddb.js'
 import * as Y from '../../../../static/yjs.js'
 import { 
   GLOBAL_SIGNALING_SERVERS, 
   checkAllServers, 
-  getOptimalServer ,
+  getOptimalServer,
   selectBestServers
 } from './useYjsSignalServers.js'
 // 用于跟踪房间连接和Y.Doc的全局缓存
@@ -44,235 +44,16 @@ import {
   createDocumentChangeRecorderWithContext,
   setupDocumentChangeMonitoringWithContext
 } from './forDocumentChanges.js'
+// 导入思源WebSocket管理器
+import siyuanManager from './siyuanManager.js'
+// 导入文档管理器
+import documentManager, { resetRoomConnection } from './documentManager.js'
+// 导入连接管理器
+import { createConnectionManager } from './connectionManager.js'
 
+// 移除思源配置，使用从模块导入的配置
 // 添加思源 WebSocket 相关配置
-const siyuanConfig = {
-  enabled: false,
-  port: 6806,
-  channel: 'sync',
-  token: 'xqatmtk3jfpchiah',
-  host: '127.0.0.1',
-  autoReconnect: true
-}
-
-// 添加思源 WebSocket 连接管理
-const siyuanManager = {
-  connections: new Map(), // roomName -> { socket, status }
-  
-  async connect(roomName, options = {}) {
-    const {
-      port = siyuanConfig.port,
-      channel = siyuanConfig.channel,
-      token = siyuanConfig.token,
-      host = siyuanConfig.host
-    } = options
-
-    try {
-      const socket = new WebSocket(
-        `ws://${host}:${port}/ws/broadcast?channel=${channel}_${roomName}&token=${token}`
-      )
-      
-      return new Promise((resolve, reject) => {
-        socket.onopen = () => {
-          this.connections.set(roomName, {
-            socket,
-            status: 'connected'
-          })
-          console.log(`[思源同步] 房间 ${roomName} WebSocket 连接成功`)
-          resolve(socket)
-        }
-
-        socket.onerror = (error) => {
-          console.error(`[思源同步] 房间 ${roomName} WebSocket 连接失败:`, error)
-          this.connections.delete(roomName)
-          reject(error)
-        }
-
-        socket.onclose = () => {
-          console.log(`[思源同步] 房间 ${roomName} WebSocket 连接关闭`)
-          this.connections.delete(roomName)
-          if (siyuanConfig.autoReconnect) {
-            setTimeout(() => {
-              this.connect(roomName, options)
-            }, 1000)
-          }
-        }
-      })
-    } catch (error) {
-      console.error(`[思源同步] 创建 WebSocket 连接失败:`, error)
-      return null
-    }
-  },
-
-  disconnect(roomName) {
-    const conn = this.connections.get(roomName)
-    if (conn?.socket) {
-      conn.socket.close()
-      this.connections.delete(roomName)
-    }
-  }
-}
-
-// 添加新的管理器
-const documentManager = {
-  // 存储文档实例
-  docs: new Map(), // docId -> { ydoc, store, refCount, lastAccess }
-  // 存储房间到文档的映射
-  roomToDoc: new Map(), // roomName -> docId
-  // 存储文档到房间的映射  
-  docToRooms: new Map(), // docId -> Set<roomName>
-  // 存储连接实例
-  connections: new Map(), // roomName -> { provider, refCount, status }
-  
-  // 生成文档ID
-  generateDocId(roomName) {
-    // 可以根据需要自定义文档ID生成规则
-    return roomName.split('/')[0]
-  },
-
-  // 获取或创建文档
-  async getDocument(roomName, options = {}) {
-    const docId = this.generateDocId(roomName)
-    let docEntry = this.docs.get(docId)
-    
-    if (docEntry) {
-      // 如果文档已存在，直接复用
-      docEntry.refCount++
-      docEntry.lastAccess = Date.now()
-      
-      // 添加房间映射
-      this.addRoomMapping(docId, roomName)
-      
-      return {
-        doc: docEntry.ydoc,
-        store: docEntry.store,
-        isExisting: true
-      }
-    }
-
-    // 创建新文档
-    const ydoc = new Y.Doc()
-    const store = syncedStore({ state: {} }, ydoc)
-    
-    docEntry = {
-      ydoc,
-      store,
-      refCount: 1,
-      lastAccess: Date.now()
-    }
-    
-    this.docs.set(docId, docEntry)
-    this.addRoomMapping(docId, roomName)
-    
-    return {
-      doc: ydoc,
-      store,
-      isExisting: false
-    }
-  },
-
-  // 添加房间映射关系
-  addRoomMapping(docId, roomName) {
-    // 建立双向映射
-    this.roomToDoc.set(roomName, docId)
-    
-    if (!this.docToRooms.has(docId)) {
-      this.docToRooms.set(docId, new Set())
-    }
-    this.docToRooms.get(docId).add(roomName)
-  },
-
-  // 获取或创建连接
-  async getConnection(roomName, ydoc, options = {}) {
-    let conn = this.connections.get(roomName)
-    
-    if (conn) {
-      // 如果连接已存在，增加引用计数并返回现有连接
-      conn.refCount++
-      return conn.provider
-    }
-
-    // 创建新连接
-    const provider = new WebrtcProvider(roomName, ydoc, {
-      ...options,
-      connect: false // 确保初始化时不自动连接
-    })
-    
-    this.connections.set(roomName, {
-      provider,
-      refCount: 1,
-      status: 'initialized'
-    })
-
-    return provider
-  },
-
-  // 清理房间资源
-  async cleanupRoom(roomName) {
-    const docId = this.roomToDoc.get(roomName)
-    if (!docId) return
-
-    // 清理连接引用
-    const conn = this.connections.get(roomName)
-    if (conn) {
-      conn.refCount--
-      if (conn.refCount <= 0) {
-        // 只有当没有其他引用时才断开连接
-        try {
-          conn.provider.disconnect()
-          if (conn.provider.statusInterval) {
-            clearInterval(conn.provider.statusInterval)
-          }
-        } catch (e) {
-          console.warn('清理连接时出错:', e)
-        }
-        this.connections.delete(roomName)
-      }
-    }
-
-    // 清理文档引用
-    const docEntry = this.docs.get(docId)
-    if (docEntry) {
-      docEntry.refCount--
-      
-      // 从房间映射中移除当前房间
-      this.docToRooms.get(docId).delete(roomName)
-      this.roomToDoc.delete(roomName)
-      
-      // 只有当没有任何房间使用此文档时才清理
-      if (docEntry.refCount <= 0) {
-        this.docs.delete(docId)
-        this.docToRooms.delete(docId)
-      }
-    }
-  },
-
-  // 获取文档的所有房间
-  getDocumentRooms(docId) {
-    return this.docToRooms.get(docId) || new Set()
-  },
-
-  // 获取房间对应的文档
-  getRoomDocument(roomName) {
-    return this.roomToDoc.get(roomName)
-  }
-}
-
-/**
- * 重置指定房间的连接状态
- * @param {string} roomName - 需要重置的房间名称
- * @returns {void}
- */
-export const resetRoomConnection = async (roomName) => {
-  const connection = documentManager.connections.get(roomName)
-  if (connection) {
-    await connection.disconnect()
-    documentManager.connections.delete(roomName)
-    // 等待资源清理
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-  await documentManager.cleanupRoom(roomName)
-}
+const siyuanConfig = siyuanManager.config
 
 /**
  * 创建与Vue集成的同步状态管理器
@@ -291,7 +72,7 @@ export const resetRoomConnection = async (roomName) => {
  * @param {Object} [options.siyuan] - 思源同步配置
  * @returns {Promise<Object>} 同步状态管理器实例
  */
-export async function useSyncStore(options = {}) {
+export async function createSyncStore(options = {}) {
   const {
     roomName = 'default-room',
     initialState = {},
@@ -470,51 +251,22 @@ export async function useSyncStore(options = {}) {
     mergedWebRtcOptions
   )
 
-  // 设置事件监听器
-  const setupProviderEvents = (provider) => {
-    provider.on('status', event => {
-      console.log(`房间 ${roomName} 状态事件:`, event.status)
-      const reallyConnected = provider.connected || event.status === 'connected'
-      isConnected.value = reallyConnected
-      status.value = reallyConnected ? '已连接' : '连接断开'
-      
-      if (reallyConnected) {
-        reconnectAttempts = 0
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer)
-          reconnectTimer = null
-        }
-      }
-    })
+  // 创建连接管理器
+  const connectionManager = createConnectionManager({
+    provider,
+    roomName,
+    retryStrategy,
+    documentManager,
+    ydoc,
+    webrtcOptions: mergedWebRtcOptions,
+    status,
+    isConnected
+  })
 
-    // 添加连接状态检查
-    const checkConnectionStatus = () => {
-      const currentlyConnected = !!provider.connected
-      if (isConnected.value !== currentlyConnected) {
-        isConnected.value = currentlyConnected
-        status.value = currentlyConnected ? '已连接' : '连接断开'
-      }
-    }
-    
-    const statusInterval = setInterval(checkConnectionStatus, 2000)
-    provider.statusInterval = statusInterval
-
-    provider.on('error', error => {
-      console.error(`房间 ${roomName} 连接错误:`, error)
-      status.value = '连接错误'
-    })
-
-    provider.on('connection-error', (error, peer) => {
-      console.warn(`房间 ${roomName} 与对等方 ${peer} 连接失败:`, error)
-    })
-
-    provider.on('peers', peers => {
-      console.log(`房间 ${roomName} 当前对等节点: ${peers.length} 个`)
-    })
+  // 如果设置了自动连接，则立即连接
+  if (autoConnect) {
+    setTimeout(() => connectionManager.connect(), 100)
   }
-
-  // 设置事件监听
-  setupProviderEvents(provider)
 
   // 添加自动同步相关变量
   let autoSyncTimer = null
@@ -540,8 +292,6 @@ export async function useSyncStore(options = {}) {
     return changeFrequency
   }
 
-
-  
   // 实现自动同步功能
   const setupAutoSync = async () => {
     if (autoSyncTimer) {
@@ -563,6 +313,7 @@ export async function useSyncStore(options = {}) {
     // 设置定时同步，使用自适应间隔
     autoSyncTimer = setInterval(async () => {
       // 执行心跳同步
+      const provider = connectionManager.getProvider()
       if (provider && provider.connected) {
         // 更新心跳字段触发同步
         store.state[autoSync.heartbeatField] = Date.now()
@@ -586,6 +337,7 @@ export async function useSyncStore(options = {}) {
           clearInterval(autoSyncTimer)
           
           autoSyncTimer = setInterval(async () => {
+            const provider = connectionManager.getProvider()
             if (provider && provider.connected) {
               store.state[autoSync.heartbeatField] = Date.now()
               lastSyncTime = Date.now()
@@ -609,82 +361,8 @@ export async function useSyncStore(options = {}) {
     }
   }
   
-
-  
-  // 创建并优化WebRTC提供者
-  let reconnectAttempts = 0
-  let reconnectTimer = null
-  
-  const connect = () => {
-    if (provider && !provider.connected) {
-      try {
-        provider.connect()
-        console.log(`房间 ${roomName} 开始连接`)
-      } catch (e) {
-        console.error(`房间 ${roomName} 连接失败:`, e)
-        attemptReconnect()
-      }
-    }
-  }
-  
-  // 智能重连函数
-  const attemptReconnect = () => {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
-    }
-    
-    if (reconnectAttempts >= retryStrategy.maxRetries) {
-      console.error(`房间 ${roomName} 重连超过最大次数，停止尝试`)
-      status.value = '重连失败'
-      isConnected.value = false
-      return
-    }
-    
-    reconnectAttempts++
-    const delay = Math.min(
-      retryStrategy.initialDelay * Math.pow(1.5, reconnectAttempts - 1),
-      retryStrategy.maxDelay
-    )
-    
-    status.value = `重连中 (${reconnectAttempts}/${retryStrategy.maxRetries})...`
-    console.log(`房间 ${roomName} 将在 ${delay}ms 后第 ${reconnectAttempts} 次重连`)
-    
-    reconnectTimer = setTimeout(async () => {
-      if (provider) {
-        try {
-          provider.disconnect()
-        } catch (e) {
-          console.warn('断开现有连接时出错', e)
-        }
-      }
-      
-      // 改进：只在连续失败多次后才进行服务器健康检查
-      if (reconnectAttempts === 3) { // 只在第3次重试时检查一次
-        console.log('执行一次性服务器健康检查...')
-        // 在后台刷新服务器健康状态，不阻塞重连过程
-        checkAllServers().then(results => {
-          console.log('服务器健康检查结果:', 
-            results.map(r => `${r.url}: ${r.available ? '可用' : '不可用'} (${r.latency}ms)`).join(', ')
-          )
-        }).catch(e => {
-          console.warn('服务器健康检查失败:', e)
-        })
-      }
-      
-      provider = await documentManager.getConnection(roomName, ydoc, mergedWebRtcOptions)
-      setupProviderEvents(provider)
-      if (provider) connect()
-    }, delay)
-  }
-  
-  // 创建初始提供者
-  provider = await documentManager.getConnection(roomName, ydoc, mergedWebRtcOptions)
-  
-  // 如果设置了自动连接，则立即连接
-  if (autoConnect && provider) {
-    setTimeout(connect, 100)
-  }
+  // 获取连接管理器中的provider
+  provider = connectionManager.getProvider()
   
   // 设置自动同步（连接后启动）
   provider.on('status', event => {
@@ -703,27 +381,10 @@ export async function useSyncStore(options = {}) {
     }
   })
   
-  // 断开连接
+  // 扩展断开连接函数，处理持久化和思源连接
   const disconnect = () => {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
-    }
-    
-    if (provider) {
-      // 添加：清理状态检查计时器
-      if (provider.statusInterval) {
-        clearInterval(provider.statusInterval)
-        provider.statusInterval = null
-      }
-      
-      try {
-        provider.disconnect()
-        console.log(`房间 ${roomName} 已断开连接`)
-      } catch (e) {
-        console.error(`断开房间 ${roomName} 连接时出错:`, e)
-      }
-    }
+    // 使用连接管理器断开WebRTC连接
+    connectionManager.disconnect()
     
     if (persistence) {
       try {
@@ -734,12 +395,6 @@ export async function useSyncStore(options = {}) {
       }
       persistence = null
     }
-    
-    isConnected.value = false
-    status.value = '已断开连接'
-    
-    // 从连接缓存中移除，但保留文档缓存
-    documentManager.connections.delete(roomName)
     
     // 清理自动同步计时器
     if (autoSyncTimer) {
@@ -756,36 +411,11 @@ export async function useSyncStore(options = {}) {
     }
   }
   
-  // 修改重连函数
-  const reconnect = async () => {
-    status.value = '正在重新连接...'
-    reconnectAttempts = 0
-    
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
-    }
-    
-    if (provider) {
-      try {
-        provider.disconnect()
-      } catch (e) {
-        console.warn('断开现有连接时出错', e)
-      }
-    }
-    
-    // 重新获取连接
-    provider = await documentManager.getConnection(roomName, ydoc, mergedWebRtcOptions)
-    setupProviderEvents(provider)
-    
-    if (provider) {
-      connect()
-    }
-  }
-  
   // 添加诊断功能
   const getDiagnostics = async () => {
-    const connectionInfo = await diagnoseConnection(provider)
+    const connectionInfo = await diagnoseConnection(connectionManager.getProvider())
+    const { reconnectAttempts } = connectionManager.getReconnectInfo()
+    
     return {
       ...connectionInfo,
       roomName,
@@ -800,6 +430,7 @@ export async function useSyncStore(options = {}) {
   // 修改 triggerSync 函数以支持思源同步
   const triggerSync = () => {
     let synced = false
+    const provider = connectionManager.getProvider()
     
     if (provider?.connected) {
       const syncTimestamp = Date.now()
@@ -825,41 +456,79 @@ export async function useSyncStore(options = {}) {
 
     return synced
   }
+
+  // 改进返回结果的结构
   const result = {
+    // 数据
     store: store.state,
+    ydoc,
+    
+    // 状态
     status,
     isConnected,
-    isLocalDataLoaded,  // 添加本地数据加载状态
-    disconnect,
-    reconnect,
-    connect,
-    ydoc,
-    provider,
-    getDiagnostics,
-    reconnectTimer,
-    triggerSync,
-    setAutoSync: (config) => {
-      Object.assign(autoSync, updateAutoSyncConfig(autoSync, config))
-      setupAutoSync()
-      return autoSync
+    isLocalDataLoaded,
+    
+    // 连接管理
+    connection: {
+      connect: connectionManager.connect,
+      disconnect,
+      reconnect: connectionManager.reconnect,
+      provider
     },
-    getAutoSyncStatus: () => getAutoSyncStatus({
-      autoSync,
-      autoSyncTimer,
-      adaptiveInterval,
-      changeFrequency,
-      lastNetworkCheck,
-      lastSyncTime
-    }),
-    siyuanSocket,
-    siyuanEnabled: !!siyuanSocket
+    
+    // 同步管理
+    sync: {
+      triggerSync,
+      setConfig: (config) => {
+        Object.assign(autoSync, updateAutoSyncConfig(autoSync, config))
+        setupAutoSync()
+        return autoSync
+      },
+      getStatus: () => getAutoSyncStatus({
+        autoSync,
+        autoSyncTimer,
+        adaptiveInterval,
+        changeFrequency,
+        lastNetworkCheck,
+        lastSyncTime
+      })
+    },
+    
+    // 诊断
+    diagnostics: {
+      getDiagnostics,
+      reconnectInfo: connectionManager.getReconnectInfo()
+    },
+    
+    // 思源相关
+    siyuan: {
+      socket: siyuanSocket,
+      enabled: !!siyuanSocket
+    }
   }
+  
+  // 兼容旧版API - 使其保持平坦的结构
+  result.provider = provider
+  result.disconnect = disconnect
+  result.reconnect = connectionManager.reconnect
+  result.connect = connectionManager.connect
+  result.getDiagnostics = getDiagnostics
+  const { reconnectTimer } = connectionManager.getReconnectInfo()
+  result.reconnectTimer = reconnectTimer
+  result.triggerSync = triggerSync
+  result.setAutoSync = result.sync.setConfig
+  result.getAutoSyncStatus = result.sync.getStatus
+  result.siyuanSocket = siyuanSocket
+  result.siyuanEnabled = !!siyuanSocket
   
   // 将连接存储在缓存中
   documentManager.connections.set(roomName, result)
   
   return result
 }
+
+// 为向后兼容保留原函数名
+export const useSyncStore = createSyncStore
 
 /**
  * 设置房间的自动同步配置
@@ -870,15 +539,18 @@ export async function useSyncStore(options = {}) {
  * @param {string} [config.heartbeatField] - 心跳字段名称
  * @returns {Object|null} 更新后的配置或失败时返回null
  */
-export function setRoomAutoSync(roomName, config) {
+export function setSyncConfig(roomName, config) {
   const connection = documentManager.connections.get(roomName)
   if (!connection || typeof connection.setAutoSync !== 'function') {
-    console.warn(`无法设置自动同步：找不到房间 ${roomName} 的连接`)
+    console.warn(`无法设置同步配置：找不到房间 ${roomName} 的连接`)
     return null
   }
   
   return connection.setAutoSync(config)
 }
+
+// 为向后兼容保留原函数名
+export const setRoomAutoSync = setSyncConfig
 
 /**
  * 获取房间的自动同步状态
@@ -890,7 +562,7 @@ export function setRoomAutoSync(roomName, config) {
  * @property {Object} lastNetworkCheck - 最近一次网络检查信息
  * @property {number} lastSyncTime - 上次同步时间戳
  */
-export function getRoomAutoSyncStatus(roomName) {
+export function getSyncStatus(roomName) {
   const connection = documentManager.connections.get(roomName)
   if (!connection || typeof connection.getAutoSyncStatus !== 'function') {
     return null
@@ -899,8 +571,17 @@ export function getRoomAutoSyncStatus(roomName) {
   return connection.getAutoSyncStatus()
 }
 
-// 添加思源配置更新函数
+// 为向后兼容保留原函数名
+export const getRoomAutoSyncStatus = getSyncStatus
+
+// 更新思源配置函数，使用siyuanManager模块
 export function updateSiyuanConfig(config = {}) {
-  Object.assign(siyuanConfig, config)
+  return siyuanManager.updateConfig(config)
 }
+
+// 为向后兼容导出思源管理器部分接口
+export const getSiyuanStatus = siyuanManager.getConnectionStatus
+
+// 重新导出resetRoomConnection函数，防止修改前后的接口变化
+export { resetRoomConnection }
 
