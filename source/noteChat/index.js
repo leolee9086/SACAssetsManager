@@ -2,6 +2,12 @@ import { plugin } from "../pluginSymbolRegistry.js"
 import { kernelApi } from "../asyncModules.js"
 import BlockHandler from "../fromThirdParty/siyuanUtils/BlockHandler.js"
 import { 思源sql助手提示词 } from "../../assets/prompts/思源笔记表结构介绍.js";
+/**
+ * 合并用户对话消息，确保对话角色(user/assistant/system)交替出现
+ * @param {Array<{role: string, content: string}>} notechat - 原始对话消息数组
+ * @returns {Array<{role: string, content: string}>} 处理后的对话消息数组
+ * @throws {Error} 如果角色(user/system/assistant)连续出现会抛出错误
+ */
 function mergeUserDialogue(notechat) {
     let mergedDialogue = [];
     let tempContent = '';
@@ -37,6 +43,15 @@ function mergeUserDialogue(notechat) {
 
     return mergedDialogue;
 }
+
+/**
+ * 点击块图标事件处理
+ * @event click-blockicon
+ * @param {Object} e - 事件对象
+ * @param {Object} e.detail - 事件详情
+ * @param {HTMLElement[]} e.detail.blockElements - 点击的块元素数组
+ * @param {Object} e.detail.menu - 菜单对象，用于添加菜单项
+ */
 plugin.eventBus.on(
     'click-blockicon',(e)=>{
         console.log(e)

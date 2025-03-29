@@ -1,281 +1,55 @@
-import { getApiUrl, handleApiError } from './utils/apiConfig';
-import { fetchWithTimeout, getAuthHeaders } from './utils/fetchUtils';
+/**
+ * 思源笔记块操作相关API
+ * 兼容层：重定向到src/toolBox/useAge/forSiyuan/useSiyuanBlock.js
+ */
+
+import {
+  moveBlock as 移动块,
+  insertBlock as 插入块,
+  updateBlock as 更新块,
+  deleteBlock as 删除块,
+  appendBlock as 追加块,
+  prependBlock as 前置块,
+  foldBlock as 折叠块,
+  unfoldBlock as 展开块
+} from '../../../src/toolBox/useAge/forSiyuan/useSiyuanBlock.js';
+
+// 兼容原有API
 
 /**
- * 发送块操作相关请求的通用方法
- * @private
- * @param {string} endpoint - API 端点
- * @param {Object} data - 请求数据
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Object}>}
+ * 导出块操作相关API
  */
-const sendBlockOpRequest = async (endpoint, data, options = {}) => {
-  try {
-    const response = await fetchWithTimeout(getApiUrl(`/api/block/${endpoint}`, options.host), {
-      method: 'POST',
-      headers: {
-        ...getAuthHeaders({ token: options.token }),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    return await response.json();
-  } catch (err) {
-    return handleApiError(err, `块操作${endpoint}`);
-  }
+export const moveBlock = 移动块;
+export const insertBlock = 插入块;
+export const updateBlock = 更新块;
+export const deleteBlock = 删除块;
+export const appendBlock = 追加块;
+export const prependBlock = 前置块;
+export const foldBlock = 折叠块;
+export const unfoldBlock = 展开块;
+
+/**
+ * 以下方法在新版API中暂未实现，使用时会提示
+ */
+const 未实现方法提示 = (方法名) => {
+  console.warn(`${方法名} 方法已迁移到新版API，但尚未实现，请联系开发者`);
+  return Promise.resolve({
+    code: -1,
+    msg: `${方法名} 方法已迁移但尚未实现`,
+    data: null
+  });
 };
 
-/**
- * 移动大纲标题
- * @param {Object} options - 移动选项
- * @param {string} options.id - 块ID
- * @param {string} [options.parentID] - 父块ID
- * @param {string} [options.previousID] - 前一个块ID
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
 export const moveOutlineHeading = (options, apiOptions = {}) => {
-  if (!options?.id) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('moveOutlineHeading', options, apiOptions);
+  return 未实现方法提示('moveOutlineHeading');
 };
 
-/**
- * 在日记中追加块
- * @param {Object} options - 追加选项
- * @param {string} options.data - 块内容
- * @param {string} options.dataType - 数据类型：'markdown' | 'dom'
- * @param {string} options.notebook - 笔记本ID
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
 export const appendDailyNoteBlock = (options, apiOptions = {}) => {
-  if (!options?.notebook || !options?.data) {
-    return Promise.resolve({
-      code: -1,
-      msg: '笔记本ID和块内容不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('appendDailyNoteBlock', options, apiOptions);
+  return 未实现方法提示('appendDailyNoteBlock');
 };
 
-/**
- * 在日记中前置块
- * @param {Object} options - 前置选项
- * @param {string} options.data - 块内容
- * @param {string} options.dataType - 数据类型：'markdown' | 'dom'
- * @param {string} options.notebook - 笔记本ID
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
 export const prependDailyNoteBlock = (options, apiOptions = {}) => {
-  if (!options?.notebook || !options?.data) {
-    return Promise.resolve({
-      code: -1,
-      msg: '笔记本ID和块内容不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('prependDailyNoteBlock', options, apiOptions);
-};
-
-/**
- * 展开块
- * @param {string} id - 块ID
- * @param {Object} [options] - API可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
-export const unfoldBlock = (id, options = {}) => {
-  if (!id) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('unfoldBlock', { id }, options);
-};
-
-/**
- * 折叠块
- * @param {string} id - 块ID
- * @param {Object} [options] - API可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
-export const foldBlock = (id, options = {}) => {
-  if (!id) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('foldBlock', { id }, options);
-};
-
-/**
- * 移动块
- * @param {Object} options - 移动选项
- * @param {string} options.id - 块ID
- * @param {string} [options.parentID] - 父块ID
- * @param {string} [options.previousID] - 前一个块ID
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
-export const moveBlock = (options, apiOptions = {}) => {
-  if (!options?.id) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID不能为空',
-      data: null
-    });
-  }
-  // 检查 previousID 不能是文档块 ID
-  if (options.previousID) {
-    const blockTree = window.siyuan?.blockTree?.[options.previousID];
-    if (!blockTree || blockTree.type === 'd') {
-      return Promise.resolve({
-        code: -1,
-        msg: 'previousID不能是文档块ID',
-        data: null
-      });
-    }
-  }
-  return sendBlockOpRequest('moveBlock', options, apiOptions);
-};
-
-/**
- * 插入块
- * @param {Object} options - 插入选项
- * @param {string} options.data - 块内容
- * @param {string} options.dataType - 数据类型：'markdown' | 'dom'
- * @param {string} options.previousID - 前一个块ID
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
-export const insertBlock = (options, apiOptions = {}) => {
-  if (!options?.data) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块内容不能为空',
-      data: null
-    });
-  }
-  if (options.dataType && !['markdown', 'dom'].includes(options.dataType)) {
-    return Promise.resolve({
-      code: -1,
-      msg: '无效的数据类型，必须是 markdown 或 dom',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('insertBlock', options, apiOptions);
-};
-
-/**
- * 更新块
- * @param {Object} options - 更新选项
- * @param {string} options.id - 块ID
- * @param {string} options.data - 块内容
- * @param {string} options.dataType - 数据类型：'markdown' | 'dom'
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: null}>}
- */
-export const updateBlock = (options, apiOptions = {}) => {
-  if (!options?.id || !options?.data) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID和内容不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('updateBlock', options, apiOptions);
-};
-
-/**
- * 删除块
- * @param {string} id - 块ID
- * @param {Object} [options] - API可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: null}>}
- */
-export const deleteBlock = (id, options = {}) => {
-  if (!id) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('deleteBlock', { id }, options);
-};
-
-/**
- * 前置块
- * @param {Object} options - 前置选项
- * @param {string} options.data - 块内容
- * @param {string} options.dataType - 数据类型：'markdown' | 'dom'
- * @param {string} options.parentID - 父块ID
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
-export const prependBlock = (options, apiOptions = {}) => {
-  if (!options?.data || !options?.parentID) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块内容和父块ID不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('prependBlock', options, apiOptions);
-};
-
-/**
- * 追加块
- * @param {Object} options - 追加选项
- * @param {string} options.data - 块内容
- * @param {string} options.dataType - 数据类型：'markdown' | 'dom'
- * @param {string} options.parentID - 父块ID
- * @param {Object} [apiOptions] - API可选配置
- * @param {string} [apiOptions.host] - API服务器地址
- * @param {string} [apiOptions.token] - 自定义认证令牌
- * @returns {Promise<{code: number, msg: string, data: Array}>}
- */
-export const appendBlock = (options, apiOptions = {}) => {
-  if (!options?.data || !options?.parentID) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块内容和父块ID不能为空',
-      data: null
-    });
-  }
-  return sendBlockOpRequest('appendBlock', options, apiOptions);
+  return 未实现方法提示('prependDailyNoteBlock');
 };
 
 // 用示例：

@@ -1,3 +1,36 @@
+/**
+ * @fileoverview 已弃用 - Web Worker版本的fetch工具
+ * @deprecated 请直接从对应toolBox文件导入函数：
+ * - fetchWorker: src/toolBox/base/forNetWork/forFetch/fetchWorkerTools.js
+ * - terminateWorkers: src/toolBox/base/forNetWork/forFetch/fetchWorkerTools.js
+ */
+
+// 从新路径导入函数
+import {
+    使用Worker发起请求,
+    终止所有Worker,
+    响应类型,
+    fetchWorker,
+    terminateWorkers,
+    RESPONSE_TYPES
+} from '../../src/toolBox/base/forNetWork/forFetch/fetchWorkerTools.js';
+
+// 为向后兼容重新导出所有函数
+export {
+    使用Worker发起请求,
+    终止所有Worker,
+    响应类型,
+    fetchWorker,
+    terminateWorkers,
+    RESPONSE_TYPES
+};
+
+// 优先使用英文命名的函数以保持兼容性
+export default fetchWorker;
+
+// 此文件已弃用，请直接从toolBox导入相应函数
+console.warn('fetchWorker.js 已弃用，请直接从toolBox/base/forNetWork/forFetch/fetchWorkerTools.js导入相应函数');
+
 // 定义支持的响应类型
 const RESPONSE_TYPES = {
   TEXT: 'text',

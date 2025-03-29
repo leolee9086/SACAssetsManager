@@ -1,25 +1,88 @@
 /**
  * 高级绘图支持模块
- * 提供集成到编辑器的绘图能力，支持笔压、倾斜等特性
+ * 
+ * 提供完整的绘图功能支持，包括：
+ * - 多种绘图工具（钢笔、画笔、荧光笔、橡皮擦等）
+ * - 压力敏感和倾斜感知输入
+ * - 撤销/重做历史记录
+ * - 画布大小自适应
+ * - 多种线条样式和效果
+ * 
+ * @module AdvancedDrawingSupport
+ * @version 1.0.0
+ * @license MIT
+ * @example
+ * // 基本用法
+ * const drawingManager = createDrawingManager({
+ *   eventManager: editorEventManager,
+ *   documentModel: docModel,
+ *   container: document.getElementById('drawing-container')
+ * });
+ * 
+ * drawingManager.enable();
+ * drawingManager.setTool(DrawingToolType.PEN);
+ * 
+ * @example
+ * // 自定义工具样式
+ * drawingManager.setToolStyle(DrawingToolType.BRUSH, {
+ *   color: '#ff0000',
+ *   width: 8,
+ *   opacity: 0.7
+ * });
  */
-
-import { DeviceType } from './specialDeviceSupport.js';
 
 /**
- * 绘图工具类型
+ * 绘图工具类型枚举
  * @enum {string}
+ * @property {string} PEN - 钢笔工具，用于精确线条绘制
+ * @property {string} BRUSH - 画笔工具，模拟真实画笔效果
+ * @property {string} HIGHLIGHTER - 荧光笔工具，半透明高亮效果
+ * @property {string} ERASER - 橡皮擦工具，擦除已有内容
+ * @property {string} SHAPE - 形状工具，绘制基本几何形状
+ * @property {string} LINE - 直线工具，绘制直线
+ * @property {string} ARROW - 箭头工具，绘制带箭头的线条
+ * @property {string} TEXT - 文本注释工具，添加文字标注
+ * @property {string} SELECTOR - 选择工具，选择和操作已有绘图元素
  */
-export const DrawingToolType = {
-  PEN: 'pen',           // 钢笔工具
-  BRUSH: 'brush',       // 画笔工具
-  HIGHLIGHTER: 'highlighter', // 荧光笔
-  ERASER: 'eraser',     // 橡皮擦
-  SHAPE: 'shape',       // 形状工具
-  LINE: 'line',         // 直线工具
-  ARROW: 'arrow',       // 箭头工具
-  TEXT: 'text',         // 文本注释
-  SELECTOR: 'selector'  // 选择工具
-};
+
+
+/**
+ * 笔画样式定义
+ * @typedef {Object} StrokeStyle
+ * @property {string} color - 线条颜色，支持CSS颜色值
+ * @property {number} width - 线条宽度(像素)
+ * @property {number} opacity - 不透明度(0-1)
+ * @property {string} lineCap - 线条端点样式('butt', 'round', 'square')
+ * @property {string} lineJoin - 线条连接样式('round', 'bevel', 'miter')
+ * @property {number[]} dashPattern - 虚线模式数组，如[5,3]表示5像素实线3像素空白
+ */
+
+/**
+ * 创建绘图管理器
+ * 
+ * @param {Object} options - 配置选项
+ * @param {Object} options.eventManager - 事件管理器实例，用于处理绘图事件
+ * @param {Object} options.documentModel - 文档模型实例，用于数据持久化
+ * @param {HTMLElement} options.container - 绘图容器元素
+ * @returns {Object} 绘图管理器API
+ * 
+ * @typedef {Object} DrawingManagerAPI
+ * @property {Function} enable - 启用绘图模式
+ * @property {Function} disable - 禁用绘图模式
+ * @property {Function} setTool - 设置当前绘图工具
+ * @property {Function} setToolStyle - 设置工具样式
+ * @property {Function} undo - 撤销上一个操作
+ * @property {Function} redo - 重做上一个撤销的操作
+ * @property {Function} clearCanvas - 清空画布
+ * @property {Function} saveAsImage - 将绘图保存为图像
+ * @property {Function} getCurrentTool - 获取当前工具类型
+ * @property {Function} getToolStyle - 获取指定工具的样式
+ * @property {Function} isEnabled - 检查绘图模式是否启用
+ * @property {Function} isDrawing - 检查是否正在绘制
+ * @property {Function} getStrokeCount - 获取当前笔画数量
+ * @property {Function} cleanup - 清理资源
+ */
+
 
 /**
  * 笔画样式对象

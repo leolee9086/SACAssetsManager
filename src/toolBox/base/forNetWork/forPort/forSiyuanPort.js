@@ -1,9 +1,13 @@
 /**
  * @fileoverview 思源端口相关工具函数
+ * @deprecated 推荐使用集中的思源环境依赖管理模块：src/toolBox/useAge/useSiyuan.js
  */
 
 import { 获取可用端口号 } from './forPortAvailability.js';
 import { 读取端口记录, 写入端口记录 } from './forPortRecord.js';
+
+// 添加警告日志
+console.warn('推荐使用集中的思源环境依赖管理模块：src/toolBox/useAge/useSiyuan.js');
 
 /**
  * 获取思源核心服务端口号

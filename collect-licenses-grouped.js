@@ -1,81 +1,19 @@
-const checker = require(require.resolve('license-checker-rseidelsohn', {
-    paths: [process.env.NODE_PATH || '/usr/local/lib/node_modules']
-}));
-const fs = require('fs').promises;
+/**
+ * @fileoverview 已弃用 - 许可证收集工具
+ * @deprecated 请直接从对应toolBox文件导入函数：
+ * - collectLicenses: src/toolBox/base/useDeps/licensesTools.js
+ */
 
-async function collectLicenses() {
-    return new Promise((resolve, reject) => {
-        checker.init({
-            start: './',
-            production: true,
-            customFormat: {
-                name: true,
-                licenseText: true,
-                version: true,
-                licenses: true
-            }
-        }, async function(err, packages) {
-            if (err) {
-                reject(err);
-                return;
-            }
+// 从新路径导入函数
+const { collectLicenses } = require('./src/toolBox/base/useDeps/licensesTools.js');
 
-            // 按许可证类型分组
-            const licenseGroups = {};
-            
-            for (const [pkgName, info] of Object.entries(packages)) {
-                const licenseName = Array.isArray(info.licenses) 
-                    ? info.licenses.join('/') 
-                    : info.licenses;
-                
-                if (!licenseGroups[licenseName]) {
-                    licenseGroups[licenseName] = {
-                        packages: [],
-                        licenseText: info.licenseText
-                    };
-                }
-                
-                licenseGroups[licenseName].packages.push({
-                    name: pkgName,
-                    version: info.version
-                });
-            }
+// 保持兼容性
+module.exports = {
+  collectLicenses
+};
 
-            // 生成输出
-            let output = '# 项目依赖许可证汇总\n\n';
-            
-            for (const [licenseName, data] of Object.entries(licenseGroups)) {
-                output += `## ${licenseName} 许可证\n\n`;
-                
-                output += '### 使用此许可证的包：\n\n';
-                data.packages.sort((a, b) => a.name.localeCompare(b.name));
-                data.packages.forEach(pkg => {
-                    output += `- ${pkg.name} (${pkg.version})\n`;
-                });
-                output += '\n### 许可证文本：\n\n';
-                
-                if (data.licenseText) {
-                    output += `${data.licenseText}\n\n`;
-                } else {
-                    output += `未找到许可证文本。\n\n`;
-                }
-                output += '---\n\n';
-            }
+// 直接导出主函数
+module.exports.default = collectLicenses;
 
-            try {
-                await fs.writeFile('LICENSES_GROUPED.md', output, 'utf-8');
-                console.log('许可证文件已生成：LICENSES_GROUPED.md');
-                
-                // 输出统计信息
-                console.log('\n许可证统计：');
-                for (const [licenseName, data] of Object.entries(licenseGroups)) {
-                    console.log(`${licenseName}: ${data.packages.length} 个包`);
-                }
-                
-                resolve();
-            } catch (writeErr) {
-                reject(writeErr);
-            }
-        });
-    });
-}
+// 在导入时发出警告
+console.warn('collect-licenses-grouped.js 已弃用，请直接从toolBox导入相应函数');

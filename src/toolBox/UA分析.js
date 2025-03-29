@@ -1,131 +1,54 @@
+/**
+ * @fileoverview 已弃用 - UA分析工具
+ * @deprecated 请直接从对应toolBox文件导入函数：
+ * - 创建设备分析: src/toolBox/usePolyfills/uaAnalysis.js
+ * - 分析基本信息: src/toolBox/usePolyfills/uaAnalysis.js
+ * - 分析设备特征: src/toolBox/usePolyfills/uaAnalysis.js
+ */
+
+// 从新路径导入函数
 import {
-    创建解析器,
-    获取CPU信息,
-    获取浏览器引擎,
-    获取设备信息,
-    获取操作系统,
-    获取浏览器,
-    检测浏览器版本,
-    获取设备指纹,
-    检测设备类型,
-    获取UA字符串,
-    解析UA字符串,
-    批量解析UA
-} from '../base/forPlatformDetection/useUAParser.js'
+    创建基础上下文,
+    添加结果,
+    分析基本信息,
+    分析设备特征,
+    分析兼容性,
+    批量分析UA,
+    结果处理器,
+    管道,
+    创建设备分析,
+    createUAContext,
+    addResult,
+    analyzeBasicInfo,
+    analyzeDeviceFeatures,
+    analyzeCompatibility,
+    batchAnalyzeUA,
+    resultProcessors,
+    pipe,
+    createDeviceAnalyzer
+} from './usePolyfills/uaAnalysis.js';
 
-/**
- * 创建基础分析上下文
- * @param {string} UA字符串 
- */
-const 创建基础上下文 = (UA字符串 = 获取UA字符串()) => ({
-    UA: UA字符串,
-    解析器: 创建解析器(UA字符串),
-    缓存: {},
-    结果集: []
-});
-
-/**
- * 添加分析结果到上下文
- */
-const 添加结果 = (上下文, 结果) => ({
-    ...上下文,
-    结果集: [...上下文.结果集, 结果]
-});
-
-/**
- * 基础信息分析器
- */
-const 分析基本信息 = (上下文) => {
-    const 基本信息 = {
-        设备: 获取设备信息(),
-        系统: 获取操作系统(),
-        浏览器: 获取浏览器(),
-        处理器: 获取CPU信息()
-    };
-    return 添加结果(上下文, 基本信息);
+// 重新导出所有函数，保持兼容性
+export {
+    创建基础上下文,
+    添加结果,
+    分析基本信息,
+    分析设备特征,
+    分析兼容性,
+    批量分析UA,
+    结果处理器,
+    管道,
+    创建设备分析,
+    createUAContext,
+    addResult,
+    analyzeBasicInfo,
+    analyzeDeviceFeatures,
+    analyzeCompatibility,
+    batchAnalyzeUA,
+    resultProcessors,
+    pipe,
+    createDeviceAnalyzer
 };
 
-/**
- * 设备特征分析器
- */
-const 分析设备特征 = (上下文) => {
-    const 特征 = {
-        是移动设备: 检测设备类型('mobile'),
-        是平板: 检测设备类型('tablet'),
-        是桌面设备: 检测设备类型('desktop'),
-        浏览器引擎: 获取浏览器引擎()
-    };
-    return 添加结果(上下文, 特征);
-};
-
-/**
- * 兼容性分析器
- */
-const 分析兼容性 = (要求列表) => (上下文) => {
-    const 兼容性结果 = 要求列表.map(要求 => ({
-        浏览器: 要求.名称,
-        版本要求: 要求.版本,
-        是否兼容: 检测浏览器版本(要求.名称, 要求.版本)
-    }));
-
-    return 添加结果(上下文, {
-        兼容性检查: 兼容性结果,
-        总体兼容: 兼容性结果.every(项 => 项.是否兼容)
-    });
-};
-
-/**
- * 批量UA分析器
- */
-const 批量分析UA = (UA列表) => (上下文) => {
-    const 分析结果 = 批量解析UA(UA列表);
-    return 添加结果(上下文, {
-        批量分析结果: 分析结果,
-        数量统计: {
-            总数: 分析结果.length,
-            移动设备: 分析结果.filter(项 => 项.device.type === 'mobile').length,
-            桌面设备: 分析结果.filter(项 => !项.device.type).length
-        }
-    });
-};
-
-/**
- * 结果处理器
- */
-const 结果处理器 = {
-    筛选: (筛选函数) => (上下文) => ({
-        ...上下文,
-        结果集: 上下文.结果集.filter(筛选函数)
-    }),
-    
-    格式化: (转换函数) => (上下文) => ({
-        ...上下文,
-        结果集: 上下文.结果集.map(转换函数)
-    }),
-    
-    获取结果: (格式 = '对象') => (上下文) => {
-        const 结果 = 上下文.结果集.length === 1 ? 上下文.结果集[0] : 上下文.结果集;
-        return 格式 === 'JSON' ? JSON.stringify(结果, null, 2) : 结果;
-    }
-};
-
-/**
- * 管道函数 - 用于组合多个分析器
- */
-const 管道 = (...函数组) => (初始值) => 
-    函数组.reduce((累积值, 当前函数) => 当前函数(累积值), 初始值);
-
-// 导出分析器工厂函数
-export const 创建设备分析 = (UA字符串) => {
-    const 上下文 = 创建基础上下文(UA字符串);
-    return {
-        基本信息: () => 分析基本信息,
-        设备特征: () => 分析设备特征,
-        兼容性: (要求列表) => 分析兼容性(要求列表),
-        批量: (UA列表) => 批量分析UA(UA列表),
-        筛选: 结果处理器.筛选,
-        格式化: 结果处理器.格式化,
-        获取结果: 结果处理器.获取结果,
-        管道
-    };
-};
+// 此文件已弃用，请直接从toolBox导入相应函数
+console.warn('UA分析.js 已弃用，请直接从toolBox/usePolyfills/uaAnalysis.js导入相应函数'); 

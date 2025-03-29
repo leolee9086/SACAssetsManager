@@ -29,7 +29,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { plugin } from '../../../pluginSymbolRegistry.js';
-import { 打开图片编辑器窗口, 打开图片画板窗口, 打开xbel窗口 } from '../windows/imageEditorPanel.js';
+import { 打开图片编辑器窗口, 打开图片画板窗口, 打开xbel窗口 } from '../windows/electronWindowManager.js';
 import { 以关键词匹配对象 } from '../../../utils/strings/search.js';
 import _pinyin from '../../../../static/pinyin.js';
 

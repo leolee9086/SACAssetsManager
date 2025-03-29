@@ -178,7 +178,6 @@
                     return;
                 }
                 const currentWindow = remote.getCurrentWindow();
-                currentWindow.webContents.openDevTools();
 
                 // 开发者工具
                 const devToolsBtn = document.getElementById('devTools');
@@ -243,20 +242,178 @@
         
         // 获取从URL参数中传递的模块路径
         const modulePath = window.params.modulePath;
-        if (modulePath) {
-            try {
-                // 动态导入指定的模块
-                await import(modulePath);
-                console.log(`成功加载模块: ${modulePath}`);
-            } catch (error) {
-                console.error(`加载模块失败: ${modulePath}`, error);
-                // 如果加载失败，回退到默认模块
-                await import('./index.js');
+        
+        // 路径清理函数
+        function cleanModulePath(path) {
+            // 移除重复的插件路径前缀
+            let cleanPath = path;
+            const pluginPrefix = '/plugins/SACAssetsManager/';
+            
+            // 检测并修复重复路径问题
+            if (path.includes(pluginPrefix + pluginPrefix)) {
+                cleanPath = path.replace(new RegExp(pluginPrefix + pluginPrefix, 'g'), pluginPrefix);
             }
-        } else {
-            console.warn('未指定模块路径，加载默认模块');
-            await import('./index.js');
+            
+            // 移除不必要的HTTP前缀
+            if (cleanPath.startsWith('http:/') && !cleanPath.startsWith('http://')) {
+                cleanPath = cleanPath.replace('http:/', 'http://');
+            }
+            
+            // 如果路径以HTTP开头，尝试转换为相对路径
+            if (cleanPath.includes('://')) {
+                try {
+                    const url = new URL(cleanPath);
+                    const pathParts = url.pathname.split('/plugins/SACAssetsManager/');
+                    if (pathParts.length > 1) {
+                        cleanPath = '/plugins/SACAssetsManager/' + pathParts[pathParts.length - 1];
+                    }
+                } catch (e) {
+                    console.warn('路径解析失败:', e);
+                }
+            }
+            
+            // 确保路径以斜杠开头
+            if (!cleanPath.startsWith('/') && !cleanPath.includes('://')) {
+                cleanPath = '/' + cleanPath;
+            }
+            
+            // 处理双斜杠问题
+            cleanPath = cleanPath.replace(/\/\//g, '/');
+            // 恢复http://中的双斜杠
+            cleanPath = cleanPath.replace(/http:\//g, 'http://');
+            
+            console.log('原始路径:', path);
+            console.log('清理后的路径:', cleanPath);
+            return cleanPath;
         }
+        
+        // 主函数处理模块加载逻辑
+        async function loadModule() {
+            if (!modulePath) {
+                console.warn('未指定模块路径，加载默认模块');
+                // 显示错误提示
+                const appDiv = document.getElementById('app');
+                if (appDiv) {
+                    appDiv.innerHTML = `
+                        <div style="padding: 20px; text-align: center;">
+                            <h2>未指定模块路径</h2>
+                            <p>请确保指定了有效的模块路径</p>
+                            <button id="closeBtn" style="padding: 8px 16px; margin-top: 15px; cursor: pointer; background: #666; color: white; border: none; border-radius: 4px;">关闭窗口</button>
+                        </div>
+                    `;
+                    
+                    // 添加关闭按钮功能
+                    document.getElementById('closeBtn').addEventListener('click', () => {
+                        try {
+                            const remote = window.require('@electron/remote');
+                            if (remote) {
+                                const currentWindow = remote.getCurrentWindow();
+                                currentWindow.close();
+                            }
+                        } catch (e) {
+                            console.error('关闭窗口失败:', e);
+                        }
+                    });
+                }
+                return;
+            }
+            
+            // 尝试加载模块
+            let loadSuccessful = false;
+            let error = null;
+            
+            try {
+                // 清理和修复模块路径
+                const cleanPath = cleanModulePath(modulePath);
+                console.log(`尝试加载模块: ${cleanPath}`);
+                
+                // 动态导入指定的模块
+                const module = await import(cleanPath);
+                console.log(`成功加载模块: ${cleanPath}`, module);
+                loadSuccessful = true;
+            } catch (mainError) {
+                console.error(`主路径加载失败: ${modulePath}`, mainError);
+                error = mainError;
+                
+                // 尝试使用不同的路径重试一次
+                try {
+                    // 使用不同的路径格式尝试加载
+                    const altPath = modulePath.includes('plugins/SACAssetsManager/') 
+                        ? '/plugins/SACAssetsManager/' + modulePath.split('plugins/SACAssetsManager/').pop()
+                        : modulePath;
+                    
+                    console.log(`尝试使用替代路径加载模块: ${altPath}`);
+                    const module = await import(altPath);
+                    console.log(`成功加载模块: ${altPath}`, module);
+                    loadSuccessful = true;
+                } catch (retryError) {
+                    console.error(`替代路径加载失败: ${retryError.message}`);
+                    // 保持原始错误
+                }
+            }
+            
+            // 如果加载失败，显示错误信息
+            if (!loadSuccessful) {
+                const appDiv = document.getElementById('app');
+                if (appDiv) {
+                    appDiv.innerHTML = `
+                        <div style="padding: 20px; color: red; text-align: center;">
+                            <h2>模块加载失败</h2>
+                            <p>${error.message}</p>
+                            <div style="margin: 15px 0;">
+                                <p><strong>原始路径:</strong></p>
+                                <pre style="text-align: left; background: #f5f5f5; padding: 10px; border-radius: 4px; white-space: pre-wrap; overflow-wrap: break-word;">${modulePath}</pre>
+                                <p><strong>尝试加载路径:</strong></p>
+                                <pre style="text-align: left; background: #f5f5f5; padding: 10px; border-radius: 4px; white-space: pre-wrap; overflow-wrap: break-word;">${cleanModulePath(modulePath)}</pre>
+                            </div>
+                            <p>请检查模块路径和文件是否存在</p>
+                            <div style="margin-top: 20px;">
+                                <button id="debugBtn" style="padding: 8px 16px; margin-right: 10px; cursor: pointer; background: #ff9800; color: white; border: none; border-radius: 4px;">打开开发者工具</button>
+                                <button id="retryBtn" style="padding: 8px 16px; margin-right: 10px; cursor: pointer; background: #3370ff; color: white; border: none; border-radius: 4px;">重试加载</button>
+                                <button id="closeBtn" style="padding: 8px 16px; cursor: pointer; background: #666; color: white; border: none; border-radius: 4px;">关闭窗口</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 添加调试按钮功能
+                    document.getElementById('debugBtn').addEventListener('click', () => {
+                        try {
+                            const remote = window.require('@electron/remote');
+                            if (remote) {
+                                const currentWindow = remote.getCurrentWindow();
+                                currentWindow.webContents.openDevTools();
+                            }
+                        } catch (e) {
+                            console.error('打开开发者工具失败:', e);
+                        }
+                    });
+                    
+                    // 添加重试按钮功能
+                    document.getElementById('retryBtn').addEventListener('click', () => {
+                        window.location.reload();
+                    });
+                    
+                    // 添加关闭按钮功能
+                    document.getElementById('closeBtn').addEventListener('click', () => {
+                        try {
+                            const remote = window.require('@electron/remote');
+                            if (remote) {
+                                const currentWindow = remote.getCurrentWindow();
+                                currentWindow.close();
+                            }
+                        } catch (e) {
+                            console.error('关闭窗口失败:', e);
+                        }
+                    });
+                }
+            }
+        }
+        
+        // 执行主函数
+        loadModule().catch(error => {
+            console.error('模块加载函数发生未捕获错误:', error);
+            alert('加载模块时发生严重错误: ' + error.message);
+        });
     </script>
 </body>
 

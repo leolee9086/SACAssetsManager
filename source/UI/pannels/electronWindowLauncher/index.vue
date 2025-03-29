@@ -13,9 +13,11 @@
         :key="window.id" 
         class="window-card"
         @click="openWindow(window)"
+        :class="{'window-card--loading': loadingWindowId === window.id}"
       >
         <div class="window-icon">
-          <svg><use :xlink:href="window.icon"></use></svg>
+          <svg v-if="loadingWindowId !== window.id"><use :xlink:href="window.icon"></use></svg>
+          <div v-else class="loading-spinner"></div>
         </div>
         <div class="window-info">
           <div class="window-title">{{ window.title }}</div>
@@ -29,14 +31,18 @@
         <h3>选择文件（可选）</h3>
         <div class="file-selector-actions">
           <button class="direct-open-btn" @click="directOpen">直接打开</button>
-          <button class="close-btn" @click="showFileSelector = false">关闭</button>
+          <button class="close-btn" @click="closeFileSelector">关闭</button>
         </div>
       </div>
       <div class="file-list">
-        <div v-if="fileList.length === 0" class="empty-list">
+        <div v-if="loadingFiles" class="loading-files">
+          正在加载文件列表...
+        </div>
+        <div v-else-if="fileList.length === 0" class="empty-list">
           没有找到符合条件的文件
         </div>
         <div 
+          v-else
           v-for="file in fileList" 
           :key="file.path" 
           class="file-item"
@@ -54,13 +60,35 @@
         </div>
       </div>
     </div>
+
+    <!-- 错误提示框 -->
+    <div class="error-dialog" v-if="errorMessage">
+      <div class="error-dialog-content">
+        <div class="error-header">
+          <h3>操作失败</h3>
+          <div class="close-btn" @click="errorMessage = ''">✕</div>
+        </div>
+        <div class="error-body">
+          {{ errorMessage }}
+        </div>
+        <div class="error-footer">
+          <button @click="errorMessage = ''">确定</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { plugin } from '../../../pluginSymbolRegistry.js';
-import { 打开图片编辑器窗口, 打开图片画板窗口, 打开xbel窗口 } from '../../electronUI/windows/imageEditorPanel.js';
+import { 
+  openImageEditorWindow, 
+  openDrawBoardWindow, 
+  openXbelWindow, 
+  openZipViewerWindow,
+  openMetadataEditorWindow
+} from '../../electronUI/windows/electronWindowManager.js';
 import { 以关键词匹配对象 } from '../../../utils/strings/search.js';
 
 // 窗口列表
@@ -91,8 +119,31 @@ const windows = ref([
     type: 'xbel',
     requireFile: false,
     fileType: 'xbel'
+  },
+  {
+    id: 'zip-viewer',
+    title: '压缩文件查看器',
+    description: '查看和提取压缩文件内容',
+    icon: '#iconArchive',
+    type: 'zipViewer',
+    requireFile: false,
+    fileType: 'zip'
+  },
+  {
+    id: 'metadata-editor',
+    title: '元数据编辑器',
+    description: '查看和编辑各种文件的元数据信息',
+    icon: '#iconTag',
+    type: 'metadataEditor',
+    requireFile: false,
+    fileType: 'all'
   }
 ]);
+
+// 状态管理
+const loadingWindowId = ref(null);
+const loadingFiles = ref(false);
+const errorMessage = ref('');
 
 // 搜索
 const searchQuery = ref('');
@@ -125,12 +176,29 @@ const formatFileSize = (size) => {
 const isImageFile = (filename) => /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(filename);
 const isXmlFile = (filename) => /\.(xml|xbel)$/i.test(filename);
 
+// 关闭文件选择器
+const closeFileSelector = () => {
+  showFileSelector.value = false;
+  loadingFiles.value = false;
+  selectedWindow.value = null;
+  fileList.value = [];
+};
+
 // 打开窗口
 const openWindow = async (window) => {
-  // 不再强制要求文件，而是显示一个包含"直接打开"选项的文件选择器
-  selectedWindow.value = window;
-  await loadFiles(window.fileType);
-  showFileSelector.value = true;
+  try {
+    loadingWindowId.value = window.id;
+    selectedWindow.value = window;
+    loadingFiles.value = true;
+    await loadFiles(window.fileType);
+    loadingFiles.value = false;
+    showFileSelector.value = true;
+  } catch (error) {
+    console.error('准备打开窗口时出错:', error);
+    errorMessage.value = `准备打开窗口时出错: ${error.message}`;
+    loadingWindowId.value = null;
+    loadingFiles.value = false;
+  }
 };
 
 // 加载文件列表
@@ -168,51 +236,74 @@ const loadFiles = async (fileType) => {
     
     // 按修改时间排序（最新的在前面）
     fileList.value.sort((a, b) => b.mtime - a.mtime);
-    
-    // 如果没有文件，显示提示
-    if (fileList.value.length === 0) {
-      console.warn(`没有找到${fileType}类型的文件`);
-    }
   } catch (error) {
     console.error('加载文件列表失败:', error);
+    errorMessage.value = `加载文件列表失败: ${error.message}`;
     fileList.value = [];
+    throw error;
   }
 };
 
 // 选择文件并启动窗口
-const selectFile = (file) => {
-  // 直接使用完整的文件系统路径
-  launchWindow(selectedWindow.value, file.path);
-  showFileSelector.value = false;
+const selectFile = async (file) => {
+  try {
+    // 直接使用完整的文件系统路径
+    await launchWindow(selectedWindow.value, file.path);
+    closeFileSelector();
+  } catch (error) {
+    errorMessage.value = `打开文件失败: ${error.message}`;
+  }
 };
 
 // 直接打开窗口（不选择文件）
-const directOpen = () => {
-  launchWindow(selectedWindow.value, '');
-  showFileSelector.value = false;
+const directOpen = async () => {
+  try {
+    await launchWindow(selectedWindow.value, '');
+    closeFileSelector();
+  } catch (error) {
+    errorMessage.value = `打开窗口失败: ${error.message}`;
+  }
 };
 
 // 启动指定类型的窗口
-const launchWindow = (window, filePath) => {
+const launchWindow = async (window, filePath) => {
   try {
+    loadingWindowId.value = window.id;
     // 检查是否有文件路径，如果没有则传递空字符串
     const path = filePath || '';
+    let result;
     
     switch (window.type) {
       case 'imageEditor':
-        打开图片编辑器窗口(path);
+        result = await openImageEditorWindow(path);
         break;
       case 'drawBoard':
-        打开图片画板窗口(path);
+        result = await openDrawBoardWindow(path);
         break;
       case 'xbel':
-        打开xbel窗口(path);
+        result = await openXbelWindow(path);
+        break;
+      case 'zipViewer':
+        result = await openZipViewerWindow(path);
+        break;
+      case 'metadataEditor':
+        result = await openMetadataEditorWindow(path);
         break;
       default:
-        console.error('未知的窗口类型:', window.type);
+        throw new Error(`未知的窗口类型: ${window.type}`);
     }
+    
+    if (!result) {
+      throw new Error('无法打开窗口，请检查控制台获取详细错误信息');
+    }
+    
+    return result;
   } catch (error) {
     console.error(`打开窗口失败: ${error.message}`);
+    errorMessage.value = `打开窗口失败: ${error.message}`;
+    throw error;
+  } finally {
+    loadingWindowId.value = null;
   }
 };
 </script>
@@ -394,5 +485,89 @@ const launchWindow = (window, filePath) => {
 .file-size {
   font-size: 12px;
   color: var(--b3-theme-on-surface-light);
+}
+
+/* 加载状态 */
+.window-card--loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top: 2px solid var(--b3-theme-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-files {
+  padding: 20px;
+  text-align: center;
+  color: var(--b3-theme-on-surface);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 错误提示框 */
+.error-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.error-dialog-content {
+  background: var(--b3-theme-surface);
+  border-radius: 4px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.error-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.error-header h3 {
+  margin: 0;
+  color: var(--b3-theme-error);
+}
+
+.error-body {
+  padding: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.error-footer {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--b3-border-color);
+}
+
+.error-footer button {
+  padding: 4px 12px;
+  background: var(--b3-theme-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }
 </style> 

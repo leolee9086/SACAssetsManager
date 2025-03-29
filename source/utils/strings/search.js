@@ -4,9 +4,12 @@
  * @deprecated 请直接从src/toolBox/base/useEcma/forString/forSearch.js导入函数
  */
 
-import pinyin from "../../../static/pinyin.js";
-console.log(pinyin)
-export { pinyin as $pinyin }
+// 从useDeps中导入拼音工具，符合依赖管理规范
+import { 获取拼音工具 } from "../../../src/toolBox/base/useDeps/pinyinTools.js";
+const pinyin = 获取拼音工具();
+
+// 为旧代码保留兼容性
+export { pinyin as $pinyin };
 
 import {
     构建搜索文字组 as 原始构建搜索文字组,

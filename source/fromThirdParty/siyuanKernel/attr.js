@@ -1,57 +1,40 @@
-import { getApiUrl, handleApiError } from './utils/apiConfig.js';
-import { fetchWithTimeout, getAuthHeaders } from './utils/fetchUtils.js';
+/**
+ * 思源笔记块属性操作相关API
+ * 兼容层：重定向到src/toolBox/useAge/forSiyuan/useSiyuanBlock.js
+ */
+
+import {
+  getBlockAttrs as 获取块属性,
+  setBlockAttrs as 设置块属性
+} from '../../../src/toolBox/useAge/forSiyuan/useSiyuanBlock.js';
+
+// 兼容原有API
 
 /**
- * 发送属性相关请求的通用方法
- * @private
- * @param {string} endpoint - API端点名称
- * @param {Object} data - 请求数据
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<Object>} 返回API响应结果
+ * 导出块属性操作相关API
  */
-const sendAttrRequest = async (endpoint, data, options = {}) => {
-  try {
-    const response = await fetchWithTimeout(getApiUrl(`/api/attr/${endpoint}`, options.host), {
-      method: 'POST',
-      headers: getAuthHeaders({ token: options.token }),
-      body: JSON.stringify(data)
-    });
-    return await response.json();
-  } catch (err) {
-    return handleApiError(err, `属性${endpoint}操作`);
-  }
+export const getBlockAttrs = 获取块属性;
+export const setBlockAttrs = 设置块属性;
+
+/**
+ * 以下方法在新版API中暂未实现，使用时会提示
+ */
+const 未实现方法提示 = (方法名) => {
+  console.warn(`${方法名} 方法已迁移到新版API，但尚未实现，请联系开发者`);
+  return Promise.resolve({
+    code: -1,
+    msg: `${方法名} 方法已迁移但尚未实现`,
+    data: null
+  });
 };
 
-/**
- * 获取书签标签列表
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{
- *   code: number,
- *   msg: string,
- *   data: string[]  // 书签标签列表
- * }>}
- */
 export const getBookmarkLabels = (options = {}) => {
-  return sendAttrRequest('getBookmarkLabels', {}, options);
+  return 未实现方法提示('getBookmarkLabels');
 };
 
-/**
- * 批量获取块属性
- * @param {string[]} ids - 块ID列表
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{
- *   code: number,
- *   msg: string,
- *   data: {[key: string]: {[key: string]: string}}  // 块ID到属性的映射
- * }>}
- */
 export const batchGetBlockAttrs = (ids, options = {}) => {
+  console.warn('batchGetBlockAttrs 方法已迁移，请考虑使用Promise.all结合获取块属性实现批量获取');
+  
   if (!Array.isArray(ids) || ids.length === 0) {
     return Promise.resolve({
       code: -1,
@@ -59,69 +42,13 @@ export const batchGetBlockAttrs = (ids, options = {}) => {
       data: null
     });
   }
-  return sendAttrRequest('batchGetBlockAttrs', { ids }, options);
+  
+  return 未实现方法提示('batchGetBlockAttrs');
 };
 
-/**
- * 获取单个块的属性
- * @param {string} id - 块ID
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{
- *   code: number,
- *   msg: string,
- *   data: {[key: string]: string}  // 块的属性键值对
- * }>}
- */
-export const getBlockAttrs = (id, options = {}) => {
-  if (!id) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID不能为空',
-      data: null
-    });
-  }
-  return sendAttrRequest('getBlockAttrs', { id }, options);
-};
-
-/**
- * 设置块属性
- * @param {string} id - 块ID
- * @param {Object} attrs - 要设置的属性键值对
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{
- *   code: number,
- *   msg: string,
- *   data: null
- * }>}
- */
-export const setBlockAttrs = (id, attrs, options = {}) => {
-  if (!id || !attrs || Object.keys(attrs).length === 0) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID和属性不能为空',
-      data: null
-    });
-  }
-  return sendAttrRequest('setBlockAttrs', { id, attrs }, options);
-};
-
-/**
- * 批量设置块属性
- * @param {Array<{id: string, attrs: Object}>} blockAttrs - 块属性设置列表
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{
- *   code: number,
- *   msg: string,
- *   data: null
- * }>}
- */
 export const batchSetBlockAttrs = (blockAttrs, options = {}) => {
+  console.warn('batchSetBlockAttrs 方法已迁移，请考虑使用Promise.all结合设置块属性实现批量设置');
+  
   if (!Array.isArray(blockAttrs) || blockAttrs.length === 0) {
     return Promise.resolve({
       code: -1,
@@ -129,29 +56,10 @@ export const batchSetBlockAttrs = (blockAttrs, options = {}) => {
       data: null
     });
   }
-  return sendAttrRequest('batchSetBlockAttrs', { blockAttrs }, options);
+  
+  return 未实现方法提示('batchSetBlockAttrs');
 };
 
-/**
- * 重置块属性
- * @param {string} id - 块ID
- * @param {Object} attrs - 要重置的属性键值对
- * @param {Object} [options] - 可选配置
- * @param {string} [options.host] - API服务器地址
- * @param {string} [options.token] - 自定义认证令牌
- * @returns {Promise<{
- *   code: number,
- *   msg: string,
- *   data: null
- * }>}
- */
 export const resetBlockAttrs = (id, attrs, options = {}) => {
-  if (!id || !attrs || Object.keys(attrs).length === 0) {
-    return Promise.resolve({
-      code: -1,
-      msg: '块ID和属性不能为空',
-      data: null
-    });
-  }
-  return sendAttrRequest('resetBlockAttrs', { id, attrs }, options);
+  return 未实现方法提示('resetBlockAttrs');
 }; 
