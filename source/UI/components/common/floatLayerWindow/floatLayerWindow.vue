@@ -34,7 +34,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { 防抖 } from '../../../../utils/functionTools.js';
+import { 防抖 } from '../../../../../src/toolBox/base/useEcma/forFunctions/forDebounce.js';
 const props = defineProps({
   visible: {
     type: Boolean,

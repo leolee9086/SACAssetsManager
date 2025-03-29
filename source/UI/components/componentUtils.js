@@ -1,13 +1,18 @@
-import { debounce } from "../../utils/functionTools.js"
-import { rgba数组转字符串, rgb数组转字符串 } from "../../utils/color/convert.js"
-import { 获取素材属性值,计算素材类型角标 } from "../../data/attributies/parseAttributies.js"
-// 获取素材文件名
-const getAssetNames = (asset) => {
-    return asset.path.split('/').pop()
-}
-const toArray = (value) => {
-    return Array.isArray(value) ? value : [value];
-}
+/**
+ * @fileoverview 兼容层 - 组件工具
+ * 此文件作为兼容层保持API兼容性
+ * @deprecated 请直接从相应的toolBox工具库导入函数
+ */
+
+import { debounce } from '../../../src/toolBox/base/useEcma/forFunctions/forDebounce.js';
+import { rgba数组转字符串, rgb数组转字符串 } from '../../utils/color/convert.js';
+import { 获取素材属性值, 计算素材类型角标 } from '../../data/attributies/parseAttributies.js';
+import { 格式化文件大小 as 格式化大小 } from '../../../src/toolBox/base/useEcma/forFile/forFileSize.js';
+import { readFileInChunks } from '../../../src/toolBox/base/useEcma/forFile/forFileRead.js';
+import { toArray } from '../../../src/toolBox/base/useEcma/forObjectManagement/forArray.js';
+import { 空图片base64 } from '../../../src/toolBox/forMime/forImage.js';
+import { 计算标签文件数量 } from '../../../src/toolBox/feature/forAssets/forTags.js';
+
 const 函数工具 = { debounce }
 const 色彩工具 = {rgba数组转字符串,rgb数组转字符串}
 const 素材条目管理工具 ={
@@ -15,95 +20,34 @@ const 素材条目管理工具 ={
     计算素材类型角标
 }
 
-const fs = window.require('fs');
-
-/**
- * 分块读取文件内容
- * @param {string} filePath 文件路径
- * @param {number} chunkSize 每块大小
- * @param {number} maxBytes 最大读取字节数
- * @param {function} callback 回调函数
- */
- const readFileInChunks = (filePath, chunkSize, maxBytes, callback) => {
-    let bytesReadTotal = 0;
-    let position = 0;
-
-    const readNextChunk = () => {
-        if (bytesReadTotal >= maxBytes) {
-            callback(null, null);
-            return;
-        }
-
-        fs.open(filePath, 'r', (err, fd) => {
-            if (err) {
-                callback(err, null);
-                return;
-            }
-            const buffer = Buffer.alloc(chunkSize);
-            fs.read(fd, buffer, 0, chunkSize, position, (err, bytesRead, buffer) => {
-                if (err) {
-                    callback(err, null);
-                    return;
-                }
-                if (bytesRead > 0) {
-                    bytesReadTotal += bytesRead;
-                    position += bytesRead;
-                    callback(null, buffer.toString('utf8', 0, bytesRead));
-                    setTimeout(readNextChunk, 0);
-                } else {
-                    callback(null, null);
-                }
-                fs.close(fd, (err) => {
-                    if (err) console.error(err);
-                });
-            });
-        });
-    };
-    readNextChunk();
-};
-
-
-// 工具函数
+// 格式化文件大小函数兼容层
 const 格式化文件大小 = (bytes) => {
-    if (!bytes) return '未知大小';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex++;
-    }
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
+    return 格式化大小(bytes, 1, '未知大小');
 };
+
 const 文件系统工具={
     格式化文件大小,
     readFileInChunks    
 }
-/**
- * 计算标签计数
- * @param {Array} fileTags 文件标签数组
- * @returns {Object} 标签计数对象
- */
-export function 计算标签文件数量(fileTags) {
-    const counts = {}
-    fileTags.forEach(file => {
-        file.tags.forEach(tag => {
-            counts[tag] = (counts[tag] || 0) + 1
-        })
-    })
-    return counts
-}
+
 const 图片工具 = {
-     空图片base64:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAgAB/ax5LIAAAAAASUVORK5CYII='
+     空图片base64
 }
 
+// 导出函数兼容层
+const getAssetNames = (asset) => {
+    return asset?.name || '';
+}
+
+// 重新导出所有工具，保持API兼容性
 export {
     函数工具,
     色彩工具,
-    素材条目管理工具 ,
+    素材条目管理工具,
     文件系统工具,
     图片工具,
     getAssetNames,
-    toArray
+    toArray,
+    计算标签文件数量
 }
 

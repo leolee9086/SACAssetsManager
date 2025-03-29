@@ -1,21 +1,26 @@
+/**
+ * @fileoverview 兼容层 - 字符串搜索
+ * 此文件作为兼容层保持API兼容性
+ * @deprecated 请直接从src/toolBox/base/useEcma/forString/forSearch.js导入函数
+ */
+
 import pinyin from "../../../static/pinyin.js";
 console.log(pinyin)
 export { pinyin as $pinyin }
+
+import {
+    构建搜索文字组 as 原始构建搜索文字组,
+    以关键词匹配对象 as 原始以关键词匹配对象
+} from "../../../src/toolBox/base/useEcma/forString/forSearch.js";
+
 /**
 * 获取文本的所有可能搜索形式（原文、拼音、首字母）
 * @param {string} text - 要处理的文本
 * @returns {string[]} 返回包含原文、全拼、首字母的数组
 */
 export const 构建搜索文字组 = (text) => {
-    if (!text) return [''];
-    return [
-        text.toLowerCase(),
-        pinyin.getFullChars(text).toLowerCase(),
-        pinyin.getCamelChars(text).toLowerCase()
-    ];
+    return 原始构建搜索文字组(text, pinyin);
 };
-
-
 
 /**
  * 检查文本是否匹配搜索查询
@@ -25,10 +30,5 @@ export const 构建搜索文字组 = (text) => {
  * @returns {boolean} 是否匹配
  */
 export const 以关键词匹配对象 = (query, item, searchFields = ['label', 'description']) => {
-    if (!query) return true;
-    return searchFields.some(field => {
-        if (!item[field]) return false;
-        const searchableTexts = 构建搜索文字组(item[field]);
-        return searchableTexts.some(text => text.includes(query.toLowerCase()));
-    });
+    return 原始以关键词匹配对象(query, item, searchFields, pinyin);
 };

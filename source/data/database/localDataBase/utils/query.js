@@ -1,4 +1,4 @@
-import { 柯里化 } from "../../../../utils/functionTools.js";
+import { 柯里化 } from "../../../../../src/toolBox/base/useEcma/forFunctions/forCurrying.js";
 import { 计算归一化向量余弦相似度, } from "../../../../utils/vector/similarity.js";
 import { 查找最相似点 } from "../vector.js";
 import Mingo from '../../../../../static/mingo.js'
