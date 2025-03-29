@@ -1,4 +1,4 @@
-import kernelApi from './polyfills/kernelApi.js';
+import kernelApi from '../polyfills/kernelApi.js';
 import "./pluginSymbolRegistry.js"
 let clientApiInstance=globalThis[Symbol.for(`siyuanClientApi`)]
 export {clientApiInstance as clientApi}
