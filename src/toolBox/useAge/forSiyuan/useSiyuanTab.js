@@ -17,7 +17,7 @@
  */
 
 import { 检查思源环境 } from '../useSiyuan.js';
-
+import { clientApi } from '../../../../source/asyncModules.js';
 /**
  * 打开附件面板
  * 
@@ -30,14 +30,9 @@ import { 检查思源环境 } from '../useSiyuan.js';
 export function 打开附件面板(custom, options = {}, pluginInstance) {
     检查思源环境();
     
-    const app = window.siyuan?.ws?.app?.plugins?.find(p => p.name === pluginInstance.name)?.data?.app;
-    const clientApi = window.siyuan?.ws?.app?.plugins?.find(p => p.name === pluginInstance.name)?.data?.clientApi;
+    const app = window.siyuan?.ws?.app?.plugins?.find(p => p.name === pluginInstance.name)?.app;
     
-    if (!app || !clientApi) {
-        console.error('无法获取应用实例或客户端API');
-        return;
-    }
-    
+ 
     const assetsTabID = pluginInstance.name + "AssetsTab";
     return clientApi.openTab({
         app: app,
