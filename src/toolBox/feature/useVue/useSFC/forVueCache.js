@@ -176,15 +176,9 @@ export const 数据库缓存管理器 = {
    * @returns {Promise<Array>} 所有缓存项
    */
   async 获取所有() {
-    const 数据库 = await this.初始化();
-    return new Promise((resolve, reject) => {
-      const 事务 = 数据库.transaction(this.存储名, 'readonly');
-      const 存储 = 事务.objectStore(this.存储名);
-      const 请求 = 存储.getAll();
-      
-      请求.onerror = () => reject(请求.error);
-      请求.onsuccess = () => resolve(请求.result);
-    });
+    // 方法未被使用，保留接口但移除实现
+    console.warn('获取所有缓存项方法未被使用');
+    return [];
   }
 };
 
