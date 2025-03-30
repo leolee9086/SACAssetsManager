@@ -25,7 +25,13 @@ export const 资源事件类型 = Object.freeze({
   /** 资源移动到回收站 */
   资源移至回收站: 'asset:trashed',
   /** 资源从回收站恢复 */
-  资源从回收站恢复: 'asset:restored'
+  资源从回收站恢复: 'asset:restored',
+  /** 打开附件 */
+  打开附件: 'open-asset',
+  /** 资源界面项目右键 */
+  资源界面项目右键: 'rightclick-galleryitem',
+  /** 打开附件所在路径 */
+  打开附件所在路径: 'open-asset-folder'
 });
 
 /**
@@ -62,6 +68,16 @@ export const 生命周期事件类型 = Object.freeze({
   数据准备完成: 'lifecycle:data-ready',
   /** 配置加载完成 */
   配置加载完成: 'lifecycle:config-loaded'
+});
+
+/**
+ * 旧版事件类型（向后兼容）
+ * @type {Object}
+ */
+export const events = Object.freeze({
+  打开附件: 'open-asset',
+  资源界面项目右键: 'rightclick-galleryitem',
+  打开附件所在路径: 'open-asset-folder'
 });
 
 /**

@@ -16,14 +16,14 @@ export * from './constants/index.js';
 // 导入枚举
 export * from './enums/index.js';
 
+// 导入配置
+export * from './config/index.js';
+
 /**
- * 后续将添加models、config和i18n的导出
+ * 后续将添加models和i18n的导出
  * 示例:
  * // 导入模型
  * export * from './models/index.js';
- * 
- * // 导入配置
- * export * from './config/index.js';
  * 
  * // 导入国际化资源
  * export * from './i18n/index.js';

@@ -14,7 +14,7 @@
  */
 
 import { 检查思源环境 } from '../useSiyuan.js';
-import { openDialog } from '../../base/useEnv/siyuanDialog.js';
+import { openDialog } from '../../../../source/UI/siyuanCommon/dialog/vueDialog.js';
 import { listLocalDisks, createDiskSelectionPanelHTML } from '../../feature/forFileSystem/diskTools.js';
 
 /**
