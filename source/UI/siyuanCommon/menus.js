@@ -3,7 +3,11 @@ import { applyStmt } from '../../data/galleryDefine.js'
 import { tabEvents } from './tabs/events.js'
 import { 打开附件面板 } from './tabs/assetsTab.js'
 import { 编辑器点击事件表 } from '../../events/editorEvents/click.js'
+import { registerMenus } from '../../../src/toolBox/base/forUI/menus/menuRegister.js'
+
 const { eventBus, events, app } = plugin
+
+// 定义菜单配置
 const menus = {
     [编辑器点击事件表.思源原生事件.点击编辑器图标]: [
         {
@@ -142,36 +146,8 @@ const menus = {
     ]
 }
 
-// 修改 registerMenus 函数以支持 filter
-function registerMenus(menus) {
-    Object.entries(menus).forEach(([eventName, menuItems]) => {
-        eventBus.on(eventName, (event) => {
-            const ctx = {
-                detail: {
-                    ...event.detail,
-                    data: event.detail.data,
-                    menu: event.detail.menu
-                }
-            }
-            
-            menuItems.forEach(item => {
-                // 如果有 filter 且不满足条件则跳过
-                if (item.filter && !item.filter(ctx)) {
-                    return
-                }
-                
-                const menuItem = {
-                    ...item,
-                    click: () => item.click(ctx)
-                }
-                event.detail.menu.addItem(menuItem)
-            })
-        })
-    })
-}
-
-// 注册所有菜单
-registerMenus(menus)
+// 注册菜单项
+registerMenus(eventBus, menus);
 
 // 保留原有的附件相关事件处理
 eventBus.on(events.打开附件, (e) => {

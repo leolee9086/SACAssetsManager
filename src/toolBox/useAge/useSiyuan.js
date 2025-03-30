@@ -15,6 +15,7 @@ import * as blockApi from './forSiyuan/useSiyuanBlock.js';
 import * as workspaceApi from './forSiyuan/useSiyuanWorkspace.js';
 import * as notebookApi from './forSiyuan/useSiyuanNotebook.js';
 import * as assetApi from './forSiyuan/useSiyuanAsset.js';
+import { 检查思源环境, 获取思源环境信息 } from '../base/useEnv/siyuanEnv.js';
 
 /**
  * 系统环境工具，提供访问思源系统环境的方法
@@ -287,13 +288,7 @@ export {
   blockApi,
   workspaceApi,
   notebookApi,
-  assetApi
-};
-
-/**
- * 检查思源环境
- * @returns {boolean} 是否在思源环境中
- */
-export const 检查思源环境 = () => {
-  return typeof window !== 'undefined' && !!window.siyuan;
+  assetApi,
+  检查思源环境,
+  获取思源环境信息
 }; 

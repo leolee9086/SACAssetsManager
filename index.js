@@ -113,7 +113,7 @@ function createDock(plugin, dockType) {
     type: dockType,
     init() {
       const container = 插入UI面板容器(this.element);
-      import('/plugins/SACAssetsManager/src/toolBox/useVue/vueComponentLoader.js').then(
+      import('/plugins/SACAssetsManager/src/toolBox/feature/useVue/vueComponentLoader.js').then(
         async module => {
           try {
             // 使用await等待异步函数完成
@@ -272,7 +272,7 @@ module.exports = class SACAssetsManager extends Plugin {
         type: tabType,
         init() {
           this.element.innerHTML = `<div class="plugin-sample__${tabType.toLowerCase()}">${this.data.text}</div>`;
-          import('/plugins/SACAssetsManager/src/toolBox/useVue/vueComponentLoader.js').then(
+          import('/plugins/SACAssetsManager/src/toolBox/feature/useVue/vueComponentLoader.js').then(
             async module => {
               try {
                 // 使用await等待异步函数完成

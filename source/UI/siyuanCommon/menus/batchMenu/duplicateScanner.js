@@ -59,7 +59,7 @@ export const 执行扫描重复文件 = async(localPath,loose=false)=>{
     const fileHashes = new Map();
     const duplicates = [];
     const skippedFiles = [];
-    const taskController = 打开任务控制对话框('扫描重复文件', '正在扫描重复文件...');
+    const taskController = await 打开任务控制对话框('扫描重复文件', '正在扫描重复文件...');
     const 文件处理函数 = async (fullPath, fileName, controller, 添加任务) => {
         await 添加任务(async () => {
             return await 处理单个文件(fullPath, fileHashes, duplicates, skippedFiles,loose);

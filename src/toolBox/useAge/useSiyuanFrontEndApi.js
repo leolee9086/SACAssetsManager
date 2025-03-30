@@ -4,6 +4,8 @@
  * @module useSiyuanFrontEndApi
  */
 
+import { clientApi } from '../../../source/asyncModules.js'
+
 /**
  * 对话框相关函数
  * @namespace dialog
@@ -16,7 +18,7 @@ export const dialog = {
    * @param {number} [timeout] - 消息显示时间，单位毫秒
    * @returns {void}
    */
-  showMessage: (message, timeout) => window.siyuan.API.showMessage(message, timeout),
+  showMessage: (message, timeout) => clientApi.showMessage(message, timeout),
   
   /**
    * 确认对话框
@@ -28,7 +30,7 @@ export const dialog = {
    * @returns {void}
    */
   confirm: (title, text, confirmCallback, cancelCallback) => 
-    window.siyuan.API.confirm(title, text, confirmCallback, cancelCallback),
+    clientApi.confirm(title, text, confirmCallback, cancelCallback),
   
   /**
    * 创建自定义对话框
@@ -36,7 +38,7 @@ export const dialog = {
    * @param {Object} options - 对话框选项
    * @returns {Dialog} 对话框实例
    */
-  createDialog: (options) => new window.siyuan.API.Dialog(options)
+  createDialog: (options) => new clientApi.Dialog(options)
 };
 
 /**
@@ -68,10 +70,10 @@ export const dialog = {
 export const openSiyuanTab = (options) => {
   // 确保options包含必要的app属性
   const completeOptions = { 
-    app: window.siyuan.app,
+    app: clientApi.app,
     ...options
   };
-  return window.siyuan.API.openTab(completeOptions);
+  return clientApi.openTab(completeOptions);
 };
 
 /**
@@ -87,7 +89,7 @@ export const openSiyuanTab = (options) => {
  * @returns {void}
  */
 export const openSiyuanWindow = (options) => {
-  return window.siyuan.API.openWindow(options);
+  return clientApi.openWindow(options);
 };
 
 /**
@@ -130,7 +132,7 @@ export const document = {
    * @param {string} id - 块ID
    * @returns {void}
    */
-  openInMobile: (id) => window.siyuan.API.openMobileFileById(id)
+  openInMobile: (id) => clientApi.openMobileFileById(id)
 };
 
 /**
@@ -218,14 +220,14 @@ export const layout = {
    * @function getAllEditors
    * @returns {Array<Protyle>} 编辑器实例数组
    */
-  getAllEditors: () => window.siyuan.API.getAllEditor(),
+  getAllEditors: () => clientApi.getAllEditor(),
   
   /**
    * 获取所有模型
    * @function getAllModels
    * @returns {Array<Model>} 模型实例数组
    */
-  getAllModels: () => window.siyuan.API.getAllModels(),
+  getAllModels: () => clientApi.getAllModels(),
   
   /**
    * 根据类型获取模型
@@ -233,7 +235,7 @@ export const layout = {
    * @param {string} type - 停靠类型
    * @returns {Model} 模型实例
    */
-  getModelByDockType: (type) => window.siyuan.API.getModelByDockType(type)
+  getModelByDockType: (type) => clientApi.getModelByDockType(type)
 };
 
 /**
@@ -246,35 +248,35 @@ export const system = {
    * @function lockScreen
    * @returns {void}
    */
-  lockScreen: () => window.siyuan.API.lockScreen(),
+  lockScreen: () => clientApi.lockScreen(),
   
   /**
    * 退出思源笔记
    * @function exit
    * @returns {void}
    */
-  exit: () => window.siyuan.API.exitSiYuan(),
+  exit: () => clientApi.exitSiYuan(),
   
   /**
    * 打开设置
    * @function openSettings
    * @returns {void}
    */
-  openSettings: () => window.siyuan.API.openSetting(),
+  openSettings: () => clientApi.openSetting(),
   
   /**
    * 获取前端环境
    * @function getFrontend
    * @returns {string} 前端环境，如"browser", "desktop", "mobile"等
    */
-  getFrontend: () => window.siyuan.API.getFrontend(),
+  getFrontend: () => clientApi.getFrontend(),
   
   /**
    * 获取后端环境
    * @function getBackend
    * @returns {string} 后端环境，如"windows", "linux", "darwin"等
    */
-  getBackend: () => window.siyuan.API.getBackend()
+  getBackend: () => clientApi.getBackend()
 };
 
 /**
@@ -288,14 +290,14 @@ export const utils = {
    * @param {string} text - 包含快捷键的文本
    * @returns {string} 处理后的文本
    */
-  updateHotkeyTip: (text) => window.siyuan.API.adaptHotkey(text),
+  updateHotkeyTip: (text) => clientApi.adaptHotkey(text),
   
   /**
    * 平台兼容性工具
    * @constant platformUtils
    * @type {Object}
    */
-  platformUtils: window.siyuan.API.platformUtils
+  platformUtils: clientApi.platformUtils
 };
 
 /**
@@ -309,7 +311,7 @@ export const plugin = {
    * @param {Plugin} plugin - 插件实例
    * @returns {Setting} 设置实例
    */
-  createSetting: (plugin) => new window.siyuan.API.Setting(plugin),
+  createSetting: (plugin) => new clientApi.Setting(plugin),
   
   /**
    * 创建菜单
@@ -317,7 +319,7 @@ export const plugin = {
    * @param {string} id - 菜单ID
    * @returns {Menu} 菜单实例
    */
-  createMenu: (id) => new window.siyuan.API.Menu(id)
+  createMenu: (id) => new clientApi.Menu(id)
 };
 
 /**
@@ -325,7 +327,7 @@ export const plugin = {
  * @constant constants
  * @type {Object}
  */
-export const constants = window.siyuan.API.Constants;
+export const constants = clientApi.Constants;
 
 /**
  * 核心API类
@@ -337,33 +339,33 @@ export const coreAPI = {
    * @constant Protyle
    * @type {Class}
    */
-  Protyle: window.siyuan.API.Protyle,
+  Protyle: clientApi.Protyle,
   
   /**
    * 插件类
    * @constant Plugin
    * @type {Class}
    */
-  Plugin: window.siyuan.API.Plugin,
+  Plugin: clientApi.Plugin,
   
   /**
    * 对话框类
    * @constant Dialog
    * @type {Class}
    */
-  Dialog: window.siyuan.API.Dialog,
+  Dialog: clientApi.Dialog,
   
   /**
    * 菜单类
    * @constant Menu
    * @type {Class}
    */
-  Menu: window.siyuan.API.Menu,
+  Menu: clientApi.Menu,
   
   /**
    * 设置类
    * @constant Setting
    * @type {Class}
    */
-  Setting: window.siyuan.API.Setting
+  Setting: clientApi.Setting
 };

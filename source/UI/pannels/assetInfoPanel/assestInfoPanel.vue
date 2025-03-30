@@ -11,12 +11,12 @@
           <label>标签</label>
           <tagsGrid></tagsGrid>
         </div>
-        <div class="folder-info" @dblclick="()=>在资源管理器打开本地文件夹数组(currentFolderArray.value)">
+        <div class="folder-info" @dblclick="()=>在资源管理器打开本地文件夹数组(currentFolderInfo.folderArray)">
           <label>本地文件夹</label>
-          <div @dblclick.stop="()=>在资源管理器打开本地文件夹数组(currentFolderArray.value)" 
+          <div @dblclick.stop="()=>在资源管理器打开本地文件夹数组(currentFolderInfo.folderArray)" 
           @click.right.stop ="openFolderAssetsTab"
           class="input-like ariaLabel" placeholder="文件夹"
-            :aria-label="`双击在资源管理器打开,右键在新页签打开:\n${Array.from(new Set(currentFolderArray)).join('\n')}`">{{ folder }}</div>
+            :aria-label="`双击在资源管理器打开,右键在新页签打开:\n${Array.from(new Set(currentFolderInfo.folderArray)).join('\n')}`">{{ folder }}</div>
         </div>
         <div class="folder-info">
           <label>所在笔记</label>
@@ -45,10 +45,21 @@ import tagsGrid from '../../components/assetInfoPanel/tags.vue';
 import { watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
 import { verticalScrollFirst } from '../../utils/scroll.js';
 import assetsImage from '../../components/assetInfoPanel/assetsImage.vue';
-import { 异步清理重复元素, 打开文件夹数组素材页签,异步映射 } from './assetinfoPanel.js';
+import { 打开文件夹数组素材页签 } from './assetinfoPanel.js';
 import { 搜集eagle元数据 } from '../../../utils/thirdParty/eagle.js';
 import { 在资源管理器打开本地文件夹数组 } from '../../../utils/useRemote/shell.js';
 import { 获取数组中素材所在笔记 } from '../../../utils/sql/siyuanSentence.js';
+
+// 导入新工具函数
+import { 
+  获取资产文件格式, 
+  获取资产本地文件夹, 
+  生成资产描述标签,
+  处理资产路径数组,
+  比较资产路径数组
+} from '../../../../src/toolBox/feature/forAssets/forAssetInfo.js';
+import { 异步清理重复元素, 异步映射 } from '../../../utils/useEcma/useArray/index.js';
+
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);
 const format = ref('无选择');
@@ -69,35 +80,62 @@ const exportImage = () => {
 const eagleMetas = ref([])
 const doc = ref('')
 const lastAssetPaths = ref([]);
+const currentFolderInfo = ref({
+  folderArray: [],
+  displayText: '无选择'
+});
 
-const openFolderAssetsTab =()=>{
-  if (currentFolderArray.value.length > 0) {
-    打开文件夹数组素材页签(currentFolderArray.value)
-
+const openFolderAssetsTab = () => {
+  if (currentFolderInfo.value.folderArray.length > 0) {
+    打开文件夹数组素材页签(currentFolderInfo.value.folderArray)
   } else {
     console.log('没有可打开的文件夹');
   }
-
 }
+
 watchStatu(状态注册表.选中的资源, async (newVal) => {
-  const assets=await 异步清理重复元素(newVal)
-  const assetPaths = await 异步映射(assets,asset => asset?.data?.path);
-  if(!assetPaths[0]){
-        console.log('未获取到选中列表,跳过查询');
-        return
-    }
-  // 检查是否与上次的路径列表相同
-  if (JSON.stringify(assetPaths) === JSON.stringify(lastAssetPaths.value)) {
-    console.log('路径列表未变化，跳过查询');
-    return
+  const assets = await 异步清理重复元素(newVal)
+  const assetPaths = await 异步映射(assets, asset => asset?.data?.path);
+  
+  if (!assetPaths[0]) {
+    console.log('未获取到选中列表,跳过查询');
+    return;
   }
+  
+  // 使用新工具函数比较资产路径数组
+  if (比较资产路径数组(assetPaths, lastAssetPaths.value)) {
+    console.log('路径列表未变化，跳过查询');
+    return;
+  }
+  
   lastAssetPaths.value = assetPaths;
-  assets && (imageSrc.value = getCommonThumbnailsFromAssets(assets.map(item =>item&& item.data).filter(item=>item)))
-  getLabel(assets.map(item => item.data))
-  format.value = 获取文件格式(assets.map(item => item.data))
-  folder.value = 获取本地文件夹(assets.map(item => item.data))
-  eagleMetas.value = await 搜集eagle元数据(assets.map(item => item.data))
-  doc.value = (await 获取数组中素材所在笔记(lastAssetPaths.value)).map(item => item.root_id).join(',')
+  
+  // 处理缩略图
+  if (assets) {
+    imageSrc.value = getCommonThumbnailsFromAssets(
+      assets.map(item => item && item.data).filter(item => item)
+    );
+  }
+  
+  // 使用新工具函数生成资产描述
+  const assetDataList = assets.map(item => item.data);
+  name.value = 生成资产描述标签(assetDataList);
+  
+  // 使用新工具函数获取文件格式
+  format.value = 获取资产文件格式(assetDataList);
+  
+  // 使用新工具函数获取文件夹信息
+  const folderInfo = 获取资产本地文件夹(assetDataList);
+  currentFolderInfo.value = folderInfo;
+  folder.value = folderInfo.displayText;
+  
+  // 获取Eagle元数据
+  eagleMetas.value = await 搜集eagle元数据(assetDataList);
+  
+  // 获取所在笔记
+  doc.value = (await 获取数组中素材所在笔记(lastAssetPaths.value))
+    .map(item => item.root_id)
+    .join(',');
 })
 
 const getNames = (asset) => {

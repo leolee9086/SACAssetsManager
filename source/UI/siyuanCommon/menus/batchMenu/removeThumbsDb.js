@@ -1,8 +1,15 @@
 import { 打开任务控制对话框 } from "../../dialog/tasks.js";
 import { 递归扫描文件夹并执行任务 } from "../../../../utils/fs/batch.js";
 const fs=require('fs').promises
-export const 执行删除所有ThumbsDB=async(localPath)=>{
-    const taskController = 打开任务控制对话框('删除Thumbs.db文件', '正在扫描并删除Thumbs.db文件...');
+
+/**
+ * 执行删除所有Thumbs.db文件
+ * @param {string} localPath 本地路径
+ */
+export const 执行删除所有ThumbsDB = async (localPath) => {
+    // 打开任务控制对话框并等待其返回值
+    const taskController = await 打开任务控制对话框('删除Thumbs.db文件', '正在扫描并删除Thumbs.db文件...');
+    
     const 文件处理函数 = async (fullPath, fileName, controller, 添加任务) => {
         if (fileName.toLowerCase() === "thumbs.db") {
             await 添加任务(async () => {
@@ -11,6 +18,7 @@ export const 执行删除所有ThumbsDB=async(localPath)=>{
             }, `删除失败: ${fullPath}`);
         }
     };
+    
     try {
         await 递归扫描文件夹并执行任务(localPath, taskController, 文件处理函数);
         taskController.start();
@@ -20,4 +28,4 @@ export const 执行删除所有ThumbsDB=async(localPath)=>{
     } catch (error) {
         console.error('删除Thumbs.db文件时发生错误:', error);
     }
-}
+};

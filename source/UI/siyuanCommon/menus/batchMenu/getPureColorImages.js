@@ -9,7 +9,7 @@ export const 执行归集纯色图片 = async(localPath)=>{
     let movedCount = 0;
     const targetFolder = path.join(localPath, '待删除_纯色图片');
 
-    const taskController = 打开任务控制对话框('整理纯色图片', '正在处理图片...');
+    const taskController = await 打开任务控制对话框('整理纯色图片', '正在处理图片...');
 
     const 处理图片 = async (fullPath, fileName, controller, 添加任务) => {
         if (isImage(fileName)) {

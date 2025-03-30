@@ -130,7 +130,7 @@ import {
   loadDefaultLayers
 } from './core/LayerManager.js'
 import { shallowRef } from '../../../../static/vue.esm-browser.js'
-import { renderStageContent } from './core/stageRender.js'
+import { renderStageContent } from './core/stageRenderer.js'
 const Konva = _Konva.default
 const stageRef = ref(null)
 const mainLayerRef = ref(null)
@@ -300,7 +300,7 @@ const handleDeleteLayer = (layer) => {
   removeLayer(list.value, layer.id)
 }
 
-// ���件挂载时确保所有图层都有ID
+// 组件挂载时确保所有图层都有ID
 onMounted(() => {
   ensureLayerIds(list.value)
 })

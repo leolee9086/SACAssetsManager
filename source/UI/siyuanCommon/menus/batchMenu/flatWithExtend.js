@@ -3,7 +3,7 @@ import { 打开任务控制对话框 } from "../../dialog/tasks.js";
 const path = require('path')
 const fs = require('fs').promises
 export const 执行按扩展名分组=async(localPath)=>{
-    const taskController = 打开任务控制对话框('展平并分组文件', '正在按扩展名展平并分组文件...');
+    const taskController = await 打开任务控制对话框('展平并分组文件', '正在按扩展名展平并分组文件...');
     const 文件处理函数 = async (fullPath, fileName, controller, 添加任务) => {
         const ext = path.extname(fileName).toLowerCase().slice(1);
         if (ext) {

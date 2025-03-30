@@ -12,13 +12,19 @@
 
 有关重构的最终目标你可以查看项目根目录的index new.js
 
+**已经完成的重构之后应该有一个倒数计数,每次计数为零时视为完成了一个阶段性重构,此时你应该总结当前的任务进度到history.md,不要让太多的细节干扰这个文件的框架**
+
+**阶段计数是一个倒数进度,每次任务计划完成后需要减一,当减至零时表示完成一个阶段,此时应总结进度到history.md并重置计数**
+
+**详细的历史记录应该只出现在history.md中,AInote.md只需要计数和简单提示,这个文件主要记录的是重构心得和要求而不是历史详情**
+
 **先停止不断扩充工具箱,开始检查功能代码的实现**
 
 # 工具箱重构笔记
 
 ## 工具箱结构概览
 
-工具箱采用模块化设计，按功能域组织为不同子目录:
+工具箱采用三层分类模块化设计，按功能域组织为不同子目录:
 
 ```
 src/toolBox/
@@ -29,9 +35,16 @@ src/toolBox/
 │   │   ├── forString/   - 字符串处理工具 ✅
 │   │   ├── textTools.js - 文本处理工具 ✅
 │   │   └── ...
-│   ├── forNetWork/  - 网络相关工具
+│   ├── forNetwork/  - 网络相关工具
 │   │   ├── forFetch/     - fetch工具 ✅
 │   │   ├── forPort/      - 端口工具 ✅
+│   │   └── ...
+│   ├── forEvent/    - 事件处理工具
+│   ├── forMime/     - MIME类型处理
+│   ├── forCore/     - 核心串链器工具
+│   ├── forUI/       - 通用UI组件工具
+│   ├── usePolyfills/ - 平台兼容性工具
+│   │   ├── uaAnalysis.js - UA分析工具 ✅
 │   │   └── ...
 │   ├── useDeps/    - 依赖管理工具
 │   │   ├── pinyinTools.js - 拼音工具 ✅
@@ -39,11 +52,10 @@ src/toolBox/
 │   └── ...
 ├── feature/        - 特定功能工具
 │   ├── useImage/   - 图像处理工具
+│   ├── useVue/     - Vue框架工具
+│   ├── forFileSystem/ - 文件系统工具
 │   └── ...
-├── forCore/        - 核心串链器工具
-├── forEvent/       - 事件处理工具
-├── forMime/        - MIME类型处理
-├── useAge/         - 使用时间相关工具
+├── useAge/         - 使用场景相关工具
 │   ├── forFileManage/    - 文件管理工具
 │   ├── forSiyuan/        - 思源特定功能工具
 │   │   ├── useSiyuanMenu.js    - 思源菜单工具 ✅
@@ -52,51 +64,17 @@ src/toolBox/
 │   │   └── ...
 │   ├── useSiyuan.js      - 思源环境依赖集中管理 ✅
 │   └── ...
-├── useDeps/        - 依赖管理工具
-├── usePolyfills/   - 平台兼容性工具
-│   ├── uaAnalysis.js - UA分析工具 ✅
-│   └── ...
-├── useVue/         - Vue框架工具
 ├── toolBoxExports.js  - 统一导出接口
 └── README.md       - 工具箱说明
 ```
 
 ## 已完成的重构(建议不要列举太多,隔一段时间总结一下,列出最近的动作就可以了)
 
-1. 从根目录迁移的工具:
-   - `imageToolBox.js` → `feature/useImage/imageToolBox.js` ✅
-   - `collect-licenses-grouped.js` → `base/useDeps/licensesTools.js` ✅
+阶段计数:2
 
-2. 从source/utils迁移的工具:
-   - `globBuilder.js` → `base/useEcma/forFile/globTools.js` ✅
-   - `netWork/fetchWorker.js` → `base/forNetWork/forFetch/fetchWorkerTools.js` ✅
-   - `netWork/fetchSync.js` → `base/forNetWork/forFetch/fetchSyncTools.js` ✅
-   - `strings/search.js` → `base/useEcma/forString/forSearch.js` ✅
+当前正在进行第3阶段重构工作：实现siyuanCommon工具函数重构
 
-3. 从当前toolBox目录迁移的工具:
-   - `基础文本工具.js` → `base/useEcma/textTools.js` ✅
-   - `UA分析.js` → `usePolyfills/uaAnalysis.js` ✅
-
-4. 创建的兼容层:
-   - 根目录保留原文件名，但内容改为导入新位置的模块并重导出 ✅
-   - 添加弃用警告，指导开发者使用新路径 ✅
-
-5. 创建的目录说明文档:
-   - `feature/useImage/README.md` ✅
-   - `base/useDeps/README.md` ✅
-   - `base/useEcma/forFile/README.md` ✅
-   - `base/useEcma/README.md` ✅
-   - `usePolyfills/README.md` ✅
-   - `base/forNetWork/forFetch/README.md` ✅
-   - `base/useEcma/forString/README.md` ✅
-   - `useAge/README.md` ✅
-   - `useAge/forSiyuan/README.md` ✅
-
-6. 新增的依赖管理工具:
-   - `base/useDeps/pinyinTools.js` - 拼音处理第三方依赖的封装 ✅
-   - `useAge/useSiyuan.js` - 思源笔记环境依赖集中管理 ✅
-   - `useAge/forSiyuan/useSiyuanDialog.js` - 思源对话框工具 ✅
-   - `useAge/forSiyuan/useSiyuanSystem.js` - 思源系统API ✅
+详细历史记录请查看src/toolBox/history.md
 
 ## 重构原则
 
@@ -172,97 +150,72 @@ src/toolBox/
 
 ## 最近完成的重构工作
 
-1. **思源环境依赖集中化**:
-   - 创建 `useAge/useSiyuan.js` 作为思源环境依赖的集中管理模块
-   - 整合了已有的思源相关工具，如端口工具、前端API、配置工具等
-   - 提供了 system、plugin、ui 等命名空间下的专用工具函数
-   - 通过函数式接口提供思源环境访问，避免直接访问全局对象
-
-2. **思源API组件化**:
-   - 创建 `useAge/forSiyuan/useSiyuanDialog.js` 为对话框操作提供统一接口
-   - 创建 `useAge/forSiyuan/useSiyuanSystem.js` 封装思源系统API
-   - 创建 `useAge/forSiyuan/useSiyuanBlock.js` 封装思源块操作API
-   - 创建 `useAge/forSiyuan/useSiyuanWorkspace.js` 封装思源工作区操作API ✅
-   - 创建 `useAge/forSiyuan/useSiyuanNotebook.js` 封装思源笔记本操作API ✅
-   - 创建 `useAge/forSiyuan/useSiyuanAsset.js` 封装思源资源文件操作API ✅
-   - 扩展 useSiyuan 模块，提供新的 fs 命名空间，集成文件系统相关操作 ✅
-   - 为所有组件添加了中英文双命名和完整的JSDoc文档
-   - 添加 `useAge/forSiyuan/README.md` 提供详细的使用说明和示例 ✅
-
-3. **网络请求和接口优化**:
-   - 分析发现当前各API模块中存在重复的请求处理代码
-   - 思源官方API文档提供了更多可封装的接口
-   - 可以改进当前网络请求的错误处理和重试机制
-   - 考虑为频繁调用但数据变化不大的API添加缓存机制
-   - 创建 `base/forNetWork/forSiyuanApi/apiBase.js` 模块，提供统一的请求处理 ✅
-   - 实现了请求缓存、重试和超时机制 ✅
-   - 添加 SQL查询、搜索和同步等API支持 ✅
-   - 创建详细的 README.md 文档和使用示例 ✅
-   - 更新 toolBoxExports.js 添加新模块到统一导出接口 ✅
-   - 使用统一请求模块重构 useSiyuanBlock.js 模块 ✅
-   - 使用统一请求模块重构 useSiyuanNotebook.js 模块 ✅
-   - 使用统一请求模块重构 useSiyuanWorkspace.js 模块 ✅
-   - 使用统一请求模块重构 useSiyuanAsset.js 模块 ✅
-   - 为常用API添加缓存支持，如文件树、笔记本列表、资源文件列表等 ✅
+参见src/toolBox/history.md中的历史记录
 
 ## 下一步重构计划
 
-1. **网络请求工具优化**:
-   - ✅ 创建统一的思源API请求基础模块 `src/toolBox/base/forNetWork/forSiyuanApi/apiBase.js`
-   - ✅ 提取当前API模块中的重复请求逻辑到统一工具函数
-   - ✅ 实现请求缓存、超时设置和重试机制
-   - ✅ 根据思源官方API添加更多接口封装，如搜索、SQL查询、数据同步等
-   - ✅ 完善错误处理和日志记录
-   - ✅ 用新的统一请求模块重构现有的API模块（useSiyuanBlock.js、useSiyuanNotebook.js、useSiyuanWorkspace.js、useSiyuanAsset.js 等）
-   - 添加更多思源API封装（模板、挂件等）
-   - 创建更多的高级API，如批量操作、订阅更新等功能
+当前阶段3重点：siyuanCommon工具函数重构
 
-2. **PolyFills模块补充**:
-   - 扩展 `usePolyfills` 目录，添加更多跨环境兼容性工具
-   - 添加Fetch API兼容性封装
-   - 添加Promise polyfill
-   - 添加国际化和日期处理polyfill
-   - 添加可选链操作兼容性处理
-   - 创建浏览器端和Node环境的统一操作接口
+详细重构计划请参考下方的详细计划部分以及history.md中的记录
 
-3. **工具箱统一导出接口改进**:
-   - 重构 `toolBoxExports.js`，提供更清晰的分类和命名空间
-   - 根据功能域对导出工具进行分组
-   - 为所有导出工具添加简洁描述
-   - 添加版本信息和更新日志
-   - 优化导入体验，减少导入路径的复杂度
-   - 添加按需导入的支持，减少包体积
+## siyuanCommon工具函数重构详细计划
 
-4. **更全面的文档和示例**:
-   - 扩展各模块的README.md，提供更多使用场景示例
-   - 创建API参考手册，包含所有工具函数的详细说明
-   - 为每个功能模块添加单元测试
-   - 添加性能优化建议
-   - 创建典型应用场景的代码示例
-   - 提供常见问题解答（FAQ）
+### 1. 斜杠菜单工具函数（useSiyuanSlash.js）
+- 提取`slash.js`中以下函数：
+  - `handleDialogDestroy` - 处理对话框销毁后的操作
+  - `openDialogWithApiConfig` - 使用API配置打开对话框
+  - `openDialogWithLocalPath` - 使用本地路径打开对话框
+  - `openDiskSelectionDialog` - 打开磁盘选择对话框
+  - `openEverythingDialog`和`openAnytxtDialog` - 搜索工具对话框
+- 提供统一的斜杠菜单项注册接口
+- 添加思源环境检查和错误处理
 
-5. **性能优化**:
-   - 对关键路径的函数进行性能分析
-   - 针对高频调用的函数进行优化
-   - 添加懒加载和按需加载机制
-   - 优化缓存策略，减少不必要的计算和网络请求
-   - 添加性能监控和指标收集
+### 2. 对话框工具函数（useSiyuanDialog.js）
+- 整合`dialog/vueDialog.js`中的`openDialog`函数
+- 整合`dialog/inputDialog.js`中的输入对话框功能
+- 整合`dialog/tasks.js`中的任务对话框功能
+- 整合`dialog/fileDiffAndPick.js`中的文件对比和选择功能
+- 提供统一的对话框创建和管理接口
 
-6. **扩展思源特定功能**:
-   - 添加思源模板操作API
-   - 添加思源标签（tag）管理API
-   - 添加思源题库（spaced repetition）功能支持
-   - 添加思源小部件（widget）管理API
-   - 添加思源日记功能支持
-   - 添加对思源属性视图的支持
+### 3. 页签管理工具函数（useSiyuanTab.js）
+- 从`tabs/assetsTab.js`提取以下函数：
+  - `打开附件面板` - 打开资源面板
+  - `打开笔记本资源视图` - 打开笔记本资源
+  - `打开笔记资源视图` - 打开笔记资源
+  - `打开标签资源视图` - 打开标签资源
+  - `打开本地资源视图` - 打开本地资源
+  - `打开efu文件视图页签` - 打开efu文件
+  - `打开颜色资源视图` - 打开颜色资源
+  - `打开everything搜索面板` - 打开搜索面板
+  - `打开anytxt搜索面板` - 打开搜索面板
+- 提供通用的页签创建和管理接口
+- 添加页签状态监控和生命周期管理
 
-7. **工具箱独立性增强**:
-   - 减少对第三方库的直接依赖
-   - 确保核心功能可以独立运行
-   - 将特定环境依赖封装成可选模块
-   - 添加更多平台的支持（移动端、Electron等）
-   - 提供离线工作能力
+### 4. 颜色工具函数（useSiyuanColor.js）
+- 从`menus/galleryItem.js`中提取`颜色操作`相关函数：
+  - `添加颜色操作菜单` - 添加颜色菜单
+  - `创建颜色菜单项` - 创建颜色菜单项
+  - `生成颜色子菜单` - 生成颜色子菜单
+- 提供颜色提取、分析和操作的统一接口
+- 添加颜色转换和调色板功能
 
-这些计划将分阶段进行，优先完成基础功能和高频使用的工具，确保工具箱的稳定性和可用性。随着使用场景的不断扩展，我们将不断丰富工具箱的功能，提高其灵活性和可扩展性。
+### 5. 菜单构建工具函数（useSiyuanMenuBuilder.js）
+- 从`menus/galleryItem.js`中提取`菜单构建`相关函数：
+  - `添加附件选中信息` - 添加附件信息
+  - `添加移动菜单` - 添加移动菜单
+  - `添加批处理菜单组` - 添加批处理菜单
+  - `添加只读菜单内容` - 添加只读菜单
+  - `添加通用菜单内容` - 添加通用菜单
+  - `添加展开的通用菜单` - 添加展开菜单
+  - `添加折叠的通用菜单` - 添加折叠菜单
+- 提供组合式菜单构建接口，支持菜单项的灵活组合
+- 添加菜单项模板和预设
+
+### 实施顺序和优先级
+1. 先从功能相对独立的`useSiyuanSlash.js`和`useSiyuanTab.js`开始重构
+2. 然后处理`useSiyuanDialog.js`的增强，整合对话框相关功能
+3. 最后处理复杂的`useSiyuanMenuBuilder.js`和`useSiyuanColor.js`
+
+这些重构将使思源笔记的环境依赖更加集中，通过`useSiyuan`系列模块提供统一的接口，提高代码的可维护性和可重用性。
 
 

@@ -42,9 +42,28 @@ export function 保存二进制文件(blob, fileName = 'file') {
     throw new Error(`文件保存失败: ${error.message}`, { cause: error });
   }
 }
-export const blobToDataURL = blob =>
-  new Promise(resolve => {
+
+/**
+ * 将Blob对象转换为DataURL(base64编码字符串)
+ * @function blobToDataURL
+ * @param {Blob} blob - 要转换的Blob对象
+ * @returns {Promise<string>} 返回一个Promise，解析为DataURL字符串
+ * @throws {Error} 当blob参数不是有效的Blob对象时抛出错误
+ * @example
+ * // 转换图片Blob为DataURL
+ * const response = await fetch('image.png');
+ * const imageBlob = await response.blob();
+ * const dataUrl = await blobToDataURL(imageBlob);
+ * console.log(dataUrl); // 输出: data:image/png;base64,...
+ */
+export const blobToDataURL = blob => {
+  if (!(blob instanceof Blob)) {
+    throw new Error('无效的Blob数据，请检查输入类型');
+  }
+  
+  return new Promise(resolve => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.readAsDataURL(blob);
   });
+};

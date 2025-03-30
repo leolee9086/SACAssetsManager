@@ -1,64 +1,27 @@
-// ... 现有代码 ...
 import { clientApi } from "../../../asyncModules.js";
-const {Dialog}=clientApi
+import { showInputDialog, showInputDialogPromise } from "../../../../src/toolBox/base/forUI/dialog/inputDialog.js";
 
-const showInputDialog = (title, placeholder, confirm = () => {}, cancel = () => {}) => {
-    const dialog = new Dialog({
-        title,
-        content: `<div class="b3-dialog__content">
-            <input class="b3-text-field fn__block" placeholder="${placeholder}">
-            <div class="fn__space"></div>
-        </div>
-        <div class="b3-dialog__action">
-            <button class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button>
-            <div class="fn__space"></div>
-            <button class="b3-button b3-button--text">${window.siyuan.languages.confirm}</button>
-        </div>`,
-        width: "520px",
-        destroyCallback: () => {
-            cancel();
-        }
-    });
-
-    const input = dialog.element.querySelector('input');
-    const confirmButton = dialog.element.querySelector('.b3-button--text');
-    const cancelButton = dialog.element.querySelector('.b3-button--cancel');
-
-    confirmButton.addEventListener('click', () => {
-        const value = input.value.trim();
-        if (value) {
-            confirm(value);
-            dialog.destroy();
-        }
-    });
-
-    cancelButton.addEventListener('click', () => {
-        dialog.destroy();
-    });
-
-    input.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') {
-            const value = input.value.trim();
-            if (value) {
-                confirm(value);
-                dialog.destroy();
-            }
-        }
-    });
-
-    // 聚焦输入框
-    setTimeout(() => input.focus(), 100);
+/**
+ * 显示输入对话框
+ * @param {string} title 对话框标题
+ * @param {string} placeholder 输入框占位文本
+ * @param {Function} confirm 确认回调函数，参数为输入的文本
+ * @param {Function} cancel 取消回调函数
+ * @returns {Object} 对话框实例
+ */
+const showInput = (title, placeholder, confirm = () => {}, cancel = () => {}) => {
+    return showInputDialog(clientApi, title, placeholder, confirm, cancel);
 };
-const showInputDialogPromise = (title, placeholder) => {
-    return new Promise((resolve, reject) => {
-        showInputDialog(
-            title,
-            placeholder,
-            (value) => resolve(value),
-            () => reject(new Error('用户取消了输入'))
-        );
-    });
+
+/**
+ * 显示输入对话框（Promise方式）
+ * @param {string} title 对话框标题
+ * @param {string} placeholder 输入框占位文本
+ * @returns {Promise<string>} 返回Promise，解析为输入的文本，或在取消时拒绝
+ */
+const showInputPromise = (title, placeholder) => {
+    return showInputDialogPromise(clientApi, title, placeholder);
 };
 
 // 导出函数
-export { showInputDialog ,showInputDialogPromise};
+export { showInput as showInputDialog, showInputPromise as showInputDialogPromise };

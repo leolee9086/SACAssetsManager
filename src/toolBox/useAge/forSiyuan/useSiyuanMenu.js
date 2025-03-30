@@ -2,6 +2,8 @@
  * 用于将思源基于事件的菜单注册方式转换为基于扩展点的菜单注册方式
  * 扩展是插件的插件,由于扩展需要更加声明式和灵活,所以需要将思源的事件注册方式转换为扩展点注册方式
  */
+import { 检查思源环境 } from '../../base/useEnv/siyuanEnv.js';
+
 const 全局思源菜单注册点代理 = globalThis[Symbol.for('思源菜单注册点代理')]
 
 /**
@@ -242,6 +244,12 @@ export function 移除插件事件总线监听(插件, 事件名称, 事件细�
  * 用于封装思源的原生菜单为可链式调用
  */
 export const 创建链式思源菜单 = (思源原生菜单实例) => {
+    // 检查是否在思源环境中
+    if (!检查思源环境()) {
+        console.warn('当前不在思源环境中，菜单功能可能无法正常工作');
+        return null;
+    }
+    
     return {
         addItem: (菜单项) => {
             思源原生菜单实例.addItem(菜单项)
@@ -267,6 +275,12 @@ export const 创建链式思源菜单 = (思源原生菜单实例) => {
 * @param {Object} args - 传递给菜单项action的参数
 */
 export function 向菜单批量添加项目(menu, menuItems, args = {}) {
+   // 检查是否在思源环境中
+   if (!检查思源环境()) {
+       console.warn('当前不在思源环境中，菜单功能可能无法正常工作');
+       return;
+   }
+   
    menuItems.forEach(item => {
        if (item.separator) {
            menu.addSeparator();
@@ -279,6 +293,12 @@ export function 向菜单批量添加项目(menu, menuItems, args = {}) {
  * 用于创建并打开思源的原生菜单
  */
 export const 创建并打开思源原生菜单 = (思源前端API,menuId,position,菜单构建函数)=>{
+    // 检查是否在思源环境中
+    if (!检查思源环境()) {
+        console.warn('当前不在思源环境中，菜单功能可能无法正常工作');
+        return null;
+    }
+    
     const 菜单 = new 思源前端API.Menu(menuId)
     菜单构建函数(菜单)
     菜单.open(position)

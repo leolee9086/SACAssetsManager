@@ -1,99 +1,44 @@
+/**
+ * 兼容层 - 旧版本引用路径保持不变
+ * 
+ * @deprecated 请直接使用 src/toolBox/useAge/forSiyuan/useSiyuanTab.js
+ */
+
 import { clientApi, plugin } from "../../../asyncModules.js"
+
+// 导入新的实现
+import * as TabTools from "../../../../src/toolBox/useAge/forSiyuan/useSiyuanTab.js"
+
+console.warn('弃用警告: 直接从 source/UI/siyuanCommon/tabs/assetsTab.js 导入已弃用，请使用 src/toolBox/useAge/forSiyuan/useSiyuanTab.js')
+
 const assetsTabID = plugin.name + "AssetsTab"
 const app = plugin.app
-export  const 打开附件面板 = (custom,options={}) => {
-    clientApi.openTab({
-        app: app,
-        custom: { ...custom, id: assetsTabID },
-        ...options
-    })
+
+// 保持兼容
+export const 打开附件面板 = (custom,options={}) => {
+    return TabTools.打开附件面板(custom, options, plugin)
 }
 export const 打开笔记本资源视图 = (box) => {
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:笔记本",
-        data: {
-            box
-        },
-    })
+    return TabTools.打开笔记本资源视图(box, plugin)
 }
 export const 打开笔记资源视图 = (block_id) => {
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:笔记",
-        data: {
-            block_id
-        },
-    })
+    return TabTools.打开笔记资源视图(block_id, plugin)
 }
 export const 打开标签资源视图 = (tagLabel) => {
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:标签",
-        data: {
-            tagLabel
-        },
-    })
-
+    return TabTools.打开标签资源视图(tagLabel, plugin)
 }
 export const 打开本地资源视图 = (localPath) => {
-    if(!localPath.endsWith('/')){
-        localPath+='/'
-    }
-    /**
-     * plugin的最近打开文件列表是一个set
-     */
-    plugin.最近打开本地文件夹列表.add(localPath)
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:本地",
-        data: {
-            localPath
-        },
-    })
+    return TabTools.打开本地资源视图(localPath, plugin)
 }
 export const 打开efu文件视图页签 = (efuPath) => {
-    efuPath=efuPath.replace(/\\/g,'/')
-    console.log(efuPath)
-    /**
-     * plugin的最近打开文件列表是一个set
-     */
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:efu文件列表",
-        data: {
-            efuPath
-        },
-    })
+    return TabTools.打开efu文件视图页签(efuPath, plugin)
 }
 export const 打开颜色资源视图 = (color) => {
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:本地",
-        data: {
-            color
-        },
-    })
+    return TabTools.打开颜色资源视图(color, plugin)
 }
 export const 打开everything搜索面板 = (everythingApiLocation) => {
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:everything搜索",
-        data: {
-            type:"thirdParty",
-            provider:'everything',
-            everythingApiLocation
-        },
-    })
+    return TabTools.打开everything搜索面板(everythingApiLocation, plugin)
 }
 export const 打开anytxt搜索面板 = (anytxtApiLocation) => {
-    打开附件面板({
-        icon: "iconAssets",
-        title: "资源:anytxt搜索",
-        data: {
-            type:"thirdParty",
-            provider:'antxt',
-            anytxtApiLocation
-        },
-    })
+    return TabTools.打开anytxt搜索面板(anytxtApiLocation, plugin)
 }

@@ -1,4 +1,4 @@
-import { readDir, readFile } from '../polyfills/fs.js'
+import { readDir, readFile } from '../../../polyfills/fs.js'
 const CONFIG_PREFIX = '_' // 配置文件名前缀
 // 加载最新AI配置
 export async function 从思源工作空间路径加载AI配置(configPath) {

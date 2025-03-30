@@ -4,7 +4,7 @@
  * @description 提供统一的思源API请求处理、缓存和重试机制
  */
 
-import { 检查思源环境 } from '../../../../useAge/useSiyuan.js';
+import { 检查思源环境 } from '../../../useAge/useSiyuan.js';
 
 // 简单的内存缓存
 const apiCache = new Map();

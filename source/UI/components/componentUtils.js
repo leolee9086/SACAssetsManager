@@ -10,7 +10,7 @@ import { 获取素材属性值, 计算素材类型角标 } from '../../data/attr
 import { 格式化文件大小 as 格式化大小 } from '../../../src/toolBox/base/useEcma/forFile/forFileSize.js';
 import { readFileInChunks } from '../../../src/toolBox/base/useEcma/forFile/forFileRead.js';
 import { toArray } from '../../../src/toolBox/base/useEcma/forObjectManagement/forArray.js';
-import { 空图片base64 } from '../../../src/toolBox/forMime/forImage.js';
+import { 空图片base64 } from '../../../src/toolBox/base/forMime/forImage.js';
 import { 计算标签文件数量 } from '../../../src/toolBox/feature/forAssets/forTags.js';
 
 const 函数工具 = { debounce }

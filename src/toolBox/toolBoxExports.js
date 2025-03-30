@@ -11,7 +11,7 @@ export * from './forMime/mimeTypeTools.js';
 export * from './forMime/mimeUsageTools.js';
 
 // 事件相关工具
-export { createEventBus } from './forEvent/eventBusTools.js';
+export { createEventBus } from './base/forEvent/eventBusTools.js';
 
 // 平台检测和文本处理工具
 export * from './usePolyfills/getPlatformInfo.js';
@@ -24,6 +24,18 @@ export * from './usePolyfills/uaAnalysis.js';
 
 // Vue相关工具
 export * from './useVue/vueComponentLoader.js';
+export * from './useVue/dialogTools.js';
+
+// UI相关工具
+export * from './forUI/menus/menuRegister.js';
+export * from './forUI/dialog/imagePickerDialog.js';
+export * from './forUI/dialog/inputDialog.js';
+
+// 任务队列工具
+export * from './base/useEcma/forFunctions/forTaskQueue.js';
+
+// 文件系统工具
+export * from './forFileSystem/diskTools.js';
 
 // 文件处理工具
 export * from './base/useEcma/forFile/globTools.js';
@@ -48,6 +60,10 @@ export * from './base/useEcma/forString/forHtmlProcessing.js';
 // 依赖管理工具
 export * from './base/useDeps/licensesTools.js';
 export * from './base/useDeps/pinyinTools.js';
+
+// 资产管理工具
+export * from './feature/forAssets/forTags.js';
+export * from './feature/forAssets/forAssetInfo.js';
 
 // 图像处理工具
 export * from './feature/useImage/imageToolBox.js';
@@ -113,8 +129,32 @@ export {
   simpleStreamProcess
 } from './feature/useChat/forStreamProcessing.js';
 
+// 思源特定功能工具
+import * as useSiyuanMenu from './useAge/forSiyuan/useSiyuanMenu.js';
+import * as useSiyuanDialog from './useAge/forSiyuan/useSiyuanDialog.js';
+import * as useSiyuanSystem from './useAge/forSiyuan/useSiyuanSystem.js';
+import * as useSiyuanBlock from './useAge/forSiyuan/useSiyuanBlock.js';
+import * as useSiyuanWorkspace from './useAge/forSiyuan/useSiyuanWorkspace.js';
+import * as useSiyuanNotebook from './useAge/forSiyuan/useSiyuanNotebook.js';
+import * as useSiyuanAsset from './useAge/forSiyuan/useSiyuanAsset.js';
+import * as useSiyuanSlash from './useAge/forSiyuan/useSiyuanSlash.js';
+import * as useSiyuanTab from './useAge/forSiyuan/useSiyuanTab.js';
+
+// 导出思源特定功能工具
+export {
+    useSiyuanMenu,
+    useSiyuanDialog,
+    useSiyuanSystem,
+    useSiyuanBlock,
+    useSiyuanWorkspace,
+    useSiyuanNotebook,
+    useSiyuanAsset,
+    useSiyuanSlash,
+    useSiyuanTab
+};
+
 /**
  * 创建一个默认的事件总线实例
  */
-import { createEventBus } from './forEvent/eventBusTools.js';
+import { createEventBus } from './base/forEvent/eventBusTools.js';
 export const defaultEventBus = createEventBus(); 

@@ -201,7 +201,7 @@ export const 处理重复文件 = (options) => {
 
             const duplicateListPath = path.join(localPath, '重复文件扫描结果.json');
             const targetFolder = path.join(localPath, '待删除_重复文件');
-            const taskController = 打开任务控制对话框('处理重复文件', '正在处理重复文件...');
+            const taskController = await 打开任务控制对话框('处理重复文件', '正在处理重复文件...');
             try {
                 // 读取重复文件列表
                 const content = await fs.readFile(duplicateListPath, 'utf-8');
@@ -291,7 +291,7 @@ export const 图片去重 = (options, 扫描完成后选择) => {
             )
 
             if (confirm) {
-                const taskController = 打开任务控制对话框('图片去重', '正在比较图片,使用像素哈希...');
+                const taskController = await 打开任务控制对话框('图片去重', '正在比较图片,使用像素哈希...');
                 扫描完成后选择 ? await 执行图片去重_后处理(localPath, taskController, 'simple') : await 执行图片去重(localPath, taskController, 'simple');
             }
         }
@@ -317,7 +317,7 @@ export const 基于pHash的图片去重 = (options, 扫描完成后选择) => {
             )
 
             if (confirm) {
-                const taskController = 打开任务控制对话框('图片去重', '正在比较图片,使用pahash...');
+                const taskController = await 打开任务控制对话框('图片去重', '正在比较图片,使用pahash...');
                 扫描完成后选择 ? await 执行图片去重_后处理(localPath, taskController, 'feature') : await 执行图片去重(localPath, taskController, 'feature');
             }
         }
@@ -343,7 +343,7 @@ export const 归集图片文件 = (options) => {
 
             const includeSubfolders = confirm;
 
-            const taskController = 打开任务控制对话框('归集图片文件', '正在归集图片文件...');
+            const taskController = await 打开任务控制对话框('归集图片文件', '正在归集图片文件...');
 
             try {
                 const fs = require('fs').promises;
@@ -477,7 +477,7 @@ export const 批量打包文件 = (options) => {
         if (!confirm) {
             return;
         }
-        const taskController = 打开任务控制对话框('批量打包文件', '正在打包文件...');
+        const taskController = await 打开任务控制对话框('批量打包文件', '正在打包文件...');
         await 执行批量打包文件(localPath, taskController, 每包文件数);
     };
 

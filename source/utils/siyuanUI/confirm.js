@@ -6,7 +6,7 @@
  */
 
 // 从新路径导入函数
-import { confirmAsPromise } from '../../../src/toolBox/useAge/forSiyuan/useSiyuanDialog.js';
+import { confirmAsPromise } from '../../../src/toolBox/base/useEnv/siyuanDialog.js';
 
 // 重新导出所有函数，保持兼容性
 export { confirmAsPromise };

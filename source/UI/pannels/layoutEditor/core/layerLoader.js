@@ -6,6 +6,14 @@ import { imageLayer } from '../layers/imageLayer.js'
 import { adjustmentLayer } from '../layers/adjustmentLayer.js'
 import { domTextLayer } from '../layers/domTextLayer.js'
 import { linkedTextLayer } from '../layers/linkedTextLayer.js'
+import { clientApi } from '../../../../../source/asyncModules.js'
+
+// 确保有可用的platformUtils
+const platformUtils = clientApi?.platformUtils || {
+  // 提供基本方法的空实现
+  openExternal: (url) => console.warn('platformUtils.openExternal未实现', url),
+  showItemInFolder: (path) => console.warn('platformUtils.showItemInFolder未实现', path)
+}
 
 // 基础调整参数配置
 const BASE_ADJUSTMENTS = [

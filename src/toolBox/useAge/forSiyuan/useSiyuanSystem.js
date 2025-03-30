@@ -4,7 +4,7 @@
  * @requires 思源环境
  */
 
-import { 检查思源环境 } from '../../useSiyuan.js';
+import { 检查思源环境 } from '../useSiyuan.js';
 
 // 检查环境
 if (!检查思源环境()) {

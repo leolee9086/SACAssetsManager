@@ -102,7 +102,7 @@ export const 构建树结构 = (entries, basePath, sortBy, sortOrder) => {
  * @param {string} type - 生成的Markdown格式类型（'list' 或 'paragraph'）
  */
 export const 执行复制文档树结构 = async (localPath, sortBy = 'name', sortOrder = 'asc', type = 'list') => {
-    const taskController = 打开任务控制对话框('复制文档树结构', '正在扫描文件结构...');
+    const taskController = await 打开任务控制对话框('复制文档树结构', '正在扫描文件结构...');
     let fileList = [];
 
     try {
