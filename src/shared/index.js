@@ -19,6 +19,9 @@ export * from './enums/index.js';
 // 导入配置
 export * from './config/index.js';
 
+// 导入组件
+export * from './components/index.js';
+
 /**
  * 后续将添加models和i18n的导出
  * 示例:

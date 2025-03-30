@@ -99,4 +99,35 @@
 1. 完成models目录的构建
 2. 创建defaultSettings.js和featureFlags.js
 3. 构建i18n国际化资源目录
-4. 迁移source/shared/siyuanUI-vue组件 
+4. 迁移source/shared/siyuanUI-vue组件
+
+## 2024年3月30日 - UI共享组件迁移
+
+### 完成工作
+
+#### 基础UI组件框架搭建
+- 创建`shared/components`目录结构，遵循函数式编程模式
+- 设计纯JavaScript实现的基础组件架构，不依赖任何UI框架
+- 完成组件目录规划和README文件
+
+#### 首批基础组件实现
+- 完成基础组件工具函数 `utils/index.js`，提供DOM操作、防抖等功能
+- 实现按钮组件 `base/button.js`，包含按钮组和基础样式
+- 实现数字输入控件 `controls/numberInput.js`，提供增减数值功能
+- 实现Flex布局容器 `layout/flexContainer.js`，提供行列布局功能
+
+#### 组件导出机制
+- 创建统一的组件索引`components/index.js`
+- 所有组件均提供中文和英文两种命名形式的API
+- 更新`shared/index.js`统一导出
+
+### 待完成工作
+- 继续迁移其他基础UI组件，如输入框、卡片、菜单等
+- 补充组件单元测试
+- 提供组件使用示例
+
+### 迁移思路
+- 只保留最基础、最核心的UI组件
+- 复杂组件放置在`src/components`目录
+- 所有组件使用函数式编程实现，返回DOM元素
+- 提供框架无关的API，便于与任何前端框架集成 
