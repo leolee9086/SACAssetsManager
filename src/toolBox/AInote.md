@@ -218,4 +218,137 @@ src/toolBox/
 
 这些重构将使思源笔记的环境依赖更加集中，通过`useSiyuan`系列模块提供统一的接口，提高代码的可维护性和可重用性。
 
+## 前缀命名规范说明
+
+工具箱中使用的前缀具有明确的语义区分，这些前缀不是随意选择的，而是反映了工具函数的功能定位和使用场景：
+
+1. **for前缀**：针对特定目标领域的工具函数
+   - 表示该工具专为某个特定领域或功能设计
+   - 例如：`forEvent`（事件处理）、`forMime`（MIME类型处理）、`forNetwork`（网络请求）
+
+2. **use前缀**：基于特定技术或环境实现的工具函数
+   - 表示该工具基于某种技术栈或环境API构建
+   - 例如：`useEcma`（基于ECMAScript标准）、`useVue`（基于Vue框架）、`useBrowser`（使用浏览器API）
+
+3. **from前缀**：数据源或转换工具
+   - 表示从某种数据源获取或转换数据
+   - 例如：从Blob创建图像、从SVG创建图像等函数
+
+4. **with前缀**：表示与特定资源结合使用的工具
+   - 表示该工具需要与某种资源配合使用
+   - 通常用于增强或修饰某个操作
+
+### 嵌套目录的命名规范
+
+当出现嵌套目录时（如 `useEcma/forString/`），应理解为：
+- 外层目录（useEcma）表示技术基础
+- 内层目录（forString）表示针对的具体目标
+
+### 统一和调整计划
+
+在后续重构中，需要特别注意：
+1. 严格遵循前缀语义，不要混用
+2. 发现命名不符合规范的目录或文件应进行调整
+3. 消除功能重复的模块，遵循前缀规范重新组织
+
+现有的一些问题需要解决：
+- `forMime` 和 `useMime` 功能重叠，应明确区分或合并
+- `base/forUI` 和 `feature/useUI` 功能可能重叠，需要明确职责
+- `useAge/forImageAndCanvas` 与 `feature/useImage` 功能可能重叠
+
+## Static文件夹依赖分析
+
+经过对`static`文件夹的扫描，发现有多种依赖已经以ESM形式存在，可以通过`useDeps`模块进行更充分的封装和利用。以下是主要依赖分类和优化建议：
+
+### 已发现的依赖类别
+
+1. **网络与MIME相关**:
+   - accepts.js, type-is.js, content-type.js, content-disposition.js, cache-content-type.js
+   - mimeDb.js
+
+2. **数据处理与实用工具**:
+   - dayjs.js (及dayjsPlugins/)
+   - pinyin.js
+   - uuid.mjs
+   - buffer.mjs
+   - rbush.js
+   - mmcq.js (颜色量化)
+
+3. **视觉与UI相关**:
+   - vue.esm-browser.js
+   - konva.js, vue-konva.mjs
+   - pickr-esm2022.js (颜色选择器)
+   - dom-to-image.mjs
+
+4. **协作与同步工具**:
+   - yjs.js, y-websocket.js, y-webrtc.js, y-indexeddb.js
+   - @syncedstore/
+
+5. **多媒体处理**:
+   - mp4-muxer.mjs, webm-muxer.mjs
+   - opencv.js
+
+6. **语言与解析**:
+   - jieba_rs_wasm.js (中文分词)
+   - @babel/, @babel_parser.js
+
+7. **AI与机器学习**:
+   - tf.min.js
+   - @huggingface/
+
+### 优化建议
+
+根据工具箱重构原则，可以在`base/useDeps`目录下创建以下封装模块：
+
+1. **forMimeType**：
+   - 封装mimeDb.js和content-type.js等MIME相关依赖
+   - 提供统一的MIME类型判断和处理接口
+
+2. **forDateManagement**：
+   - 封装dayjs和相关插件
+   - 提供日期格式化、解析和操作功能
+
+3. **forUUID**：
+   - 封装uuid.mjs
+   - 提供UUID生成和解析功能
+
+4. **forPinyin**：
+   - 检查现有的pinyinTools.js是否已充分利用static/pinyin.js
+   - 可能需要增强拼音处理功能
+
+5. **forUI/useVue**：
+   - 封装vue.esm-browser.js的使用
+   - 提供Vue组件加载和管理工具
+
+6. **forVisualProcessing**：
+   - 封装konva.js, pickr-esm2022.js等
+   - 提供画布和颜色处理工具
+
+7. **forCollaboration**：
+   - 封装yjs和syncedstore相关库
+   - 提供实时协作功能接口
+
+8. **forMedia**：
+   - 封装媒体相关工具(mp4-muxer, webm-muxer)
+   - 提供统一的媒体处理接口
+
+9. **forAI**：
+   - 封装AI工具(@huggingface, tf.min.js)
+   - 提供简易的AI功能接口
+
+### 实施优先级
+
+1. 优先封装已有直接引用但未通过useDeps管理的依赖
+2. 优先处理核心功能使用的依赖(MIME, 日期, UI等)
+3. 为复杂依赖创建简化的接口，降低使用门槛
+
+### 注意事项
+
+1. 封装时保持API稳定，提供中英文双命名
+2. 避免将所有依赖捆绑导出，按需加载更为高效
+3. 为每个依赖模块创建清晰的文档和使用示例
+4. 处理版本冲突，确保使用正确的ESM版本
+
+通过系统性地封装static目录下的依赖，可以提高代码可维护性，减少重复引用，并确保依赖的一致性和可控性。
+
 

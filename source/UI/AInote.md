@@ -2,7 +2,7 @@
 
 ## 重构状态
 
-UI组件库正在重构中，计划将组件逐步迁移到`src/components`目录。
+UI组件库正在重构中，计划将组件逐步迁移到`/src/shared/components`目录。
 
 ## 职责范围
 
