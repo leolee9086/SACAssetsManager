@@ -61,24 +61,81 @@ export const 添加到模块缓存 = (键, 值) => {
 };
 
 /**
+ * 样式管理器函数
+ * 为每个应用实例创建独立的样式管理
+ * @returns {Object} 样式管理器
+ */
+export const 创建样式管理器 = () => {
+  // 当前实例的样式元素集合
+  const 元素集合 = new Set();
+  
+  return {
+    /**
+     * 添加样式元素
+     * @param {HTMLElement} 元素 - 样式元素
+     */
+    添加样式(元素) {
+      元素集合.add(元素);
+    },
+    
+    /**
+     * 清空当前实例的样式元素
+     */
+    清空样式() {
+      元素集合.forEach(元素 => {
+        if (元素 && 元素.parentNode) {
+          元素.parentNode.removeChild(元素);
+        }
+      });
+      元素集合.clear();
+    },
+    
+    /**
+     * 获取样式元素数量
+     * @returns {number} 样式元素数量
+     */
+    获取样式数量() {
+      return 元素集合.size;
+    },
+    
+    /**
+     * 获取样式元素列表
+     * @returns {Array} 样式元素列表
+     */
+    获取样式列表() {
+      return Array.from(元素集合);
+    }
+  };
+};
+
+/**
  * 已加载的组件样式元素集合
+ * @deprecated 请使用创建样式管理器代替
  */
 export let 样式元素集合 = [];
 
 /**
  * 添加样式元素
  * @param {HTMLElement} 元素 - 样式元素
+ * @deprecated 请使用创建样式管理器代替
  */
 export const 添加样式元素 = (元素) => {
+  console.warn('添加样式元素方法已废弃，请使用创建样式管理器代替');
   样式元素集合.push(元素);
 };
 
 /**
  * 清空样式元素
  * 移除所有已添加的样式元素
+ * @deprecated 请使用创建样式管理器代替
  */
 export const 清空样式元素 = () => {
-  样式元素集合.forEach(元素 => 元素.remove());
+  console.warn('清空样式元素方法已废弃，请使用创建样式管理器代替');
+  样式元素集合.forEach(元素 => {
+    if (元素 && 元素.parentNode) {
+      元素.parentNode.removeChild(元素);
+    }
+  });
   样式元素集合 = [];
 };
 
@@ -271,6 +328,7 @@ export const clearStyleElements = 清空样式元素;
 export const cacheManager = 数据库缓存管理器;
 export const importAndCacheModule = 导入并缓存模块;
 export const getComponentContent = 获取组件内容;
+export const createStyleManager = 创建样式管理器;
 
 // 默认导出
 export default {
@@ -283,6 +341,7 @@ export default {
   样式元素集合,
   添加样式元素,
   清空样式元素,
+  创建样式管理器,
   数据库缓存管理器,
   导入并缓存模块,
   获取组件内容,
@@ -296,6 +355,7 @@ export default {
   styleElements,
   addStyleElement,
   clearStyleElements,
+  createStyleManager,
   cacheManager,
   importAndCacheModule,
   getComponentContent

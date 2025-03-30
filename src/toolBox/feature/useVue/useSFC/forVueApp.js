@@ -4,7 +4,7 @@
  * 提供Vue应用创建、挂载和热重载功能
  */
 
-import { 获取模块缓存, 清空样式元素, 添加样式元素 } from './forVueCache.js';
+import { 获取模块缓存, 清空样式元素, 添加样式元素, 创建样式管理器 } from './forVueCache.js';
 import { 加载历史记录, 创建错误显示组件, 增强错误信息 } from './forVueError.js';
 import { 获取文件内容, 处理模块 } from './forVueLoader.js';
 
@@ -13,9 +13,10 @@ import { 获取文件内容, 处理模块 } from './forVueLoader.js';
  * @param {Object} 附加选项 - 额外的加载器选项
  * @param {Object} Vue - Vue实例
  * @param {Object} SfcLoader - SFC加载器实例
+ * @param {Object} 样式管理器 - 样式管理器实例
  * @returns {Object} 完整的加载器选项
  */
-export const 创建加载器选项 = (附加选项 = {}, Vue, SfcLoader) => {
+export const 创建加载器选项 = (附加选项 = {}, Vue, SfcLoader, 样式管理器) => {
   const 选项 = {
     moduleCache: {
       vue: Vue, // 确保"vue"指向Vue库
@@ -35,7 +36,14 @@ export const 创建加载器选项 = (附加选项 = {}, Vue, SfcLoader) => {
       const style = Object.assign(document.createElement('style'), { textContent });
       const ref = document.head.getElementsByTagName('style')[0] || null;
       document.head.insertBefore(style, ref);
-      添加样式元素(style);
+      
+      // 使用样式管理器来管理样式
+      if (样式管理器) {
+        样式管理器.添加样式(style);
+      } else {
+        // 向后兼容，使用旧方法
+        添加样式元素(style);
+      }
     },
     
     ...附加选项
@@ -128,7 +136,9 @@ const 创建应用包装器 = () => {
 export const 初始化Vue应用 = async (appURL, name = '', mixinOptions = {}, directory = '', data = {}, Vue, SfcLoader) => {
   let 旧应用;
   let 挂载参数;
-  let 样式元素 = [];
+  
+  // 创建应用专属的样式管理器
+  const 样式管理器 = 创建样式管理器();
   
   // 每次初始化应用时清除加载历史
   加载历史记录.清除();
@@ -140,21 +150,19 @@ export const 初始化Vue应用 = async (appURL, name = '', mixinOptions = {}, d
   try {
     console.log(`初始化Vue应用，组件: ${typeof appURL === 'string' ? appURL : '对象组件'}, 名称: ${name}`);
     
-    // 清理旧样式
-    const 清理样式 = () => {
-      清空样式元素();
-    };
-    
     // 创建Vue应用的内部函数
     const 创建应用 = async () => {
       try {
-        清理样式();
+        // 清理旧样式
+        if (旧应用 && 旧应用.样式管理器) {
+          旧应用.样式管理器.清空样式();
+        }
         
         if (旧应用 && typeof 旧应用.unmount === 'function') {
           旧应用.unmount();
         }
         
-        const 选项 = 创建加载器选项(mixinOptions, Vue, SfcLoader);
+        const 选项 = 创建加载器选项(mixinOptions, Vue, SfcLoader, 样式管理器);
         const 组件缓存 = {};
         const loadModule = 增强加载模块(SfcLoader.loadModule);
         
@@ -206,6 +214,19 @@ export const 初始化Vue应用 = async (appURL, name = '', mixinOptions = {}, d
             return { data: dataReactive };
           }
         });
+        
+        // 保存样式管理器到应用实例
+        app.样式管理器 = 样式管理器;
+        
+        // 添加卸载钩子
+        const 原始卸载 = app.unmount;
+        app.unmount = function() {
+          // 先清理样式，再卸载应用
+          if (app.样式管理器) {
+            app.样式管理器.清空样式();
+          }
+          return 原始卸载.apply(this, arguments);
+        };
         
         return app;
       } catch (错误) {
