@@ -6,14 +6,17 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { shallowRef } from 'vue'
 import { 数据库, 格式化器 } from '../../../source/server/utils/logs/index.js'
+import LogEntry from '../components/logEntry.vue'
+import LogControls from '../components/logControls.vue'
+import ImageViewer from '../components/imageViewer.vue'
 
 // 状态定义
 const 日志列表 = shallowRef([])
-const 最大内存日志数 = ref(1000)
+const 最大内存日志数 = ref(Number(1000))
 const 每页日志数 = ref(100)
 const 自动滚动 = ref(true)
 const 暂停接收 = ref(false)
-const 过滤级别 = ref('')
+const 选中级别 = ref('')
 const 搜索文本 = ref('')
 const 日志容器 = ref(null)
 const 显示时间戳 = ref(true)
@@ -104,23 +107,25 @@ const 初始化数据库 = async () => {
 
 // 计算属性：过滤后的日志
 const 过滤后的日志 = computed(() => {
-    if (过滤级别.value === '' && 搜索文本.value === '' && 选中标签.value === '') {
+    if (选中级别.value === '' && 搜索文本.value === '' && 选中标签.value === '') {
         return 日志列表.value
     }
     
     let 结果 = 日志列表.value
     
-    if (过滤级别.value !== '') {
-        结果 = 结果.filter(日志 => 日志.级别 === 过滤级别.value)
+    if (选中级别.value !== '') {
+        结果 = 结果.filter(日志 => 日志.级别 === 选中级别.value)
     }
     
     if (搜索文本.value) {
         const 搜索词 = 搜索文本.value.toLowerCase()
         结果 = 结果.filter(日志 => {
             try {
-                return (日志.内容 && String(日志.内容).toLowerCase().includes(搜索词)) ||
+                const 内容字段 = 获取内容字段(日志)
+                return (内容字段 && String(内容字段).toLowerCase().includes(搜索词)) ||
                        (日志.来源 && 日志.来源.toLowerCase().includes(搜索词))
             } catch (e) {
+                console.error('搜索过滤时出错:', e)
                 return false
             }
         })
@@ -327,26 +332,41 @@ const 复制日志 = (日志, 事件) => {
             事件.stopPropagation();
         }
         
-        // 确保我们复制的是正确的日志对象
-        console.log('开始复制日志:', 日志.id, 日志.级别, 日志.时间);
+        // 获取日志的元素ID
+        const 元素ID = 获取元素ID(日志);
         
-        // 使用格式化器中的日志转文本函数格式化日志
-        const 文本 = 格式化器.日志转文本(日志);
+        // 调试输出当前复制的日志对象
+        console.log('正在复制日志对象:', 元素ID, 日志.id, 日志.级别, 日志.时间);
+        
+        // 直接构建简单格式避免依赖格式化器
+        let 文本;
+        try {
+            // 使用格式化器中的日志转文本函数格式化日志
+            文本 = 格式化器.日志转文本(日志);
+        } catch (formatError) {
+            console.error('使用格式化器格式化失败:', formatError);
+            // 备用格式化方法
+            const 内容 = 获取内容字段(日志);
+            const 内容文本 = typeof 内容 === 'object' 
+                ? JSON.stringify(内容, null, 2) 
+                : String(内容 || '');
+            文本 = `[${日志.时间 || ''}] ${(日志.级别 || '').toUpperCase()}: [${日志.来源 || ''}] ${内容文本}`;
+        }
         
         // 检查是否有Navigator API
         if (navigator.clipboard) {
             navigator.clipboard.writeText(文本)
                 .then(() => {
-                    显示消息(`已复制日志 (ID: ${日志.id.slice(-6)})`);
+                    显示消息(`已复制日志 #${元素ID}`);
                 })
                 .catch(err => {
                     console.error('复制失败:', err);
                     // 备用复制方法
-                    使用备用复制方法(文本, 日志);
+                    使用备用复制方法(文本, 元素ID);
                 });
         } else {
             // 环境不支持clipboard API时使用备用方法
-            使用备用复制方法(文本, 日志);
+            使用备用复制方法(文本, 元素ID);
         }
     } catch (e) {
         console.error('复制日志失败:', e, '日志对象:', 日志);
@@ -355,7 +375,7 @@ const 复制日志 = (日志, 事件) => {
 };
 
 // 备用复制方法，使用临时textarea元素
-const 使用备用复制方法 = (文本, 日志) => {
+const 使用备用复制方法 = (文本, 操作ID) => {
     try {
         const textarea = document.createElement('textarea');
         textarea.value = 文本;
@@ -368,7 +388,7 @@ const 使用备用复制方法 = (文本, 日志) => {
         document.body.removeChild(textarea);
         
         if (成功) {
-            显示消息(`已复制日志 (ID: ${日志.id.slice(-6)})`);
+            显示消息(`已复制日志 #${操作ID}`);
         } else {
             显示消息('复制失败，请手动复制');
             console.log('需要复制的内容:', 文本);
@@ -380,12 +400,18 @@ const 使用备用复制方法 = (文本, 日志) => {
 };
 
 // 复制日志的部分内容
-const 复制部分内容 = (内容, 标签, 事件) => {
+const 复制部分内容 = (内容, 标识 = '内容', 事件, 日志) => {
     try {
         // 阻止事件冒泡
         if (事件) {
             事件.stopPropagation();
         }
+        
+        // 创建操作ID，优先使用日志元素ID
+        const 操作ID = 日志 ? 获取元素ID(日志) : (Date.now().toString(36).slice(-4) + Math.random().toString(36).substring(2, 4));
+        
+        // 调试信息
+        console.log('复制部分内容:', 操作ID, 标识, typeof 内容);
         
         let 复制文本 = 内容;
         
@@ -410,16 +436,16 @@ const 复制部分内容 = (内容, 标签, 事件) => {
         if (navigator.clipboard) {
             navigator.clipboard.writeText(复制文本)
                 .then(() => {
-                    显示消息(`已复制 ${标签}`);
+                    显示消息(`已复制${标识} #${操作ID}`);
                 })
                 .catch(err => {
                     console.error('复制失败:', err);
                     // 使用备用方法
-                    使用备用复制部分内容(复制文本, 标签);
+                    使用备用复制部分内容(复制文本, 标识, 操作ID);
                 });
         } else {
             // 环境不支持clipboard API时使用备用方法
-            使用备用复制部分内容(复制文本, 标签);
+            使用备用复制部分内容(复制文本, 标识, 操作ID);
         }
     } catch (e) {
         console.error('复制部分内容失败:', e);
@@ -428,7 +454,7 @@ const 复制部分内容 = (内容, 标签, 事件) => {
 };
 
 // 备用复制部分内容方法
-const 使用备用复制部分内容 = (复制文本, 标签) => {
+const 使用备用复制部分内容 = (复制文本, 标识, 操作ID) => {
     try {
         const textarea = document.createElement('textarea');
         textarea.value = 复制文本;
@@ -441,7 +467,7 @@ const 使用备用复制部分内容 = (复制文本, 标签) => {
         document.body.removeChild(textarea);
         
         if (成功) {
-            显示消息(`已复制 ${标签}`);
+            显示消息(`已复制${标识} #${操作ID}`);
         } else {
             显示消息('复制失败，请手动复制');
             console.log('需要复制的内容:', 复制文本);
@@ -525,8 +551,15 @@ const 加载更多日志 = async () => {
             // 更新最早的时间戳
             最早加载的时间戳.value = 较早日志[较早日志.length - 1].时间
             
+            // 确保新加载的日志有唯一的ID
+            const 新日志 = 较早日志.map(日志 => {
+                // 强制重新生成ID
+                日志._elId = undefined
+                return 日志
+            })
+            
             // 将较早的日志添加到列表前面
-            日志列表.value = [...较早日志, ...日志列表.value]
+            日志列表.value = [...新日志, ...日志列表.value]
             
             // 限制内存中的日志总数
             if (日志列表.value.length > 最大内存日志数.value) {
@@ -642,43 +675,61 @@ const 格式化结构化值 = (值) => {
     
     return String(值);
 };
+
+// 获取内容字段
+const 获取内容字段 = (日志) => {
+    // 先检查内容字段
+    if (日志.内容) {
+        if (typeof 日志.内容 === 'object' && 日志.内容 !== null) {
+            return 日志.内容;
+        }
+        return 日志.内容;
+    }
+    
+    // 再检查content字段
+    if (日志.content) {
+        if (typeof 日志.content === 'object' && 日志.content !== null) {
+            return 日志.content;
+        }
+        return 日志.content;
+    }
+    
+    // 都不存在时返回空对象
+    return {};
+};
+
+// 获取唯一的元素ID，用于识别日志元素
+const 获取元素ID = (日志) => {
+    if (!日志._elId) {
+        // 使用时间戳+随机数+递增计数器的组合来确保唯一性
+        const 时间戳 = Date.now()
+        const 随机数 = Math.random().toString(36).substring(2, 8)
+        const 计数器 = (Math.floor(Math.random() * 10000)).toString(36).padStart(4, '0')
+        日志._elId = `${时间戳.toString(36)}${随机数}${计数器}`
+    }
+    return 日志._elId;
+};
 </script>
 
 <template>
     <div class="log-viewer">
-        <div class="log-controls">
-            <select v-model="过滤级别">
-                <option value="">所有级别</option>
-                <option value="info">信息</option>
-                <option value="warn">警告</option>
-                <option value="error">错误</option>
-                <option value="debug">调试</option>
-            </select>
-            
-            <!-- 添加标签过滤 -->
-            <select v-if="可用标签.length > 0" v-model="选中标签">
-                <option value="">所有标签</option>
-                <option v-for="标签 in 可用标签" :key="标签" :value="标签">{{ 标签 }}</option>
-            </select>
-            
-            <input type="number" v-model="最大内存日志数" min="100" max="10000" step="100" @change="应用最大日志数">
-            <input type="text" v-model="搜索文本" placeholder="搜索日志...">
-            <button @click="清空日志">清空</button>
-            <button @click="切换自动滚动">{{ 自动滚动 ? '关闭自动滚动' : '开启自动滚动' }}</button>
-            <button @click="导出日志">导出</button>
-            <button @click="暂停接收 = !暂停接收" :class="{'pause-receiving': 暂停接收}">{{ 暂停接收 ? '恢复接收' : '暂停接收' }}</button>
-            <span class="log-count-info">内存中: {{ 日志列表.length }}/{{ 最大内存日志数 }} | 数据库: {{ 数据库日志计数 }}</span>
-        </div>
-        
-        <div class="log-stats">
-            <span>总数: {{ 日志统计.total }}</span>
-            <span>信息: {{ 日志统计.info }}</span>
-            <span>警告: {{ 日志统计.warn }}</span>
-            <span>错误: {{ 日志统计.error }}</span>
-            <span>调试: {{ 日志统计.debug }}</span>
-            <span v-if="待处理日志.length > 0" style="color: #e3b341;">队列中: {{ 待处理日志.length }}</span>
-            <span v-if="丢弃日志数 > 0" style="color: #f85149;">已丢弃: {{ 丢弃日志数 }}</span>
-        </div>
+        <LogControls :日志列表="日志列表"
+                    :最大内存日志数="最大内存日志数"
+                    :可用标签="可用标签"
+                    :选中标签="选中标签"
+                    :搜索文本="搜索文本"
+                    :自动滚动="自动滚动"
+                    :暂停接收="暂停接收"
+                    :数据库日志计数="数据库日志计数"
+                    :选中级别="选中级别"
+                    @更新最大日志数="最大内存日志数 = $event"
+                    @清空日志="清空日志"
+                    @切换自动滚动="自动滚动 = !自动滚动"
+                    @导出日志="导出日志"
+                    @切换暂停接收="暂停接收 = !暂停接收"
+                    @更新搜索文本="搜索文本 = $event"
+                    @更新选中标签="选中标签 = $event"
+                    @更新选中级别="选中级别 = $event" />
         
         <div class="log-container" ref="日志容器" @scroll="处理滚动事件">
             <div v-if="正在加载更多" class="log-loading">正在加载日志...</div>
@@ -689,123 +740,30 @@ const 格式化结构化值 = (值) => {
             </div>
             
             <!-- 日志列表 -->
-            <div v-for="日志 in 过滤后的日志" 
-                 :key="日志.id || 日志.行号" 
-                 class="log-entry"
-                 :class="[日志.级别, 日志.包含图片 ? 'with-image' : '', 日志.包含结构化数据 ? 'with-structured-data' : '']">
-                
-                <!-- 日志元数据（时间、级别、来源）-->
-                <div class="log-meta">
-                    <span v-if="显示时间戳" class="log-time" @click="复制部分内容(格式化时间(日志.时间), '时间', $event)">
-                        {{ 格式化时间(日志.时间) }}
-                    </span>
-                    <span v-if="显示级别" class="log-level" @click="复制部分内容(日志.级别, '级别', $event)">
-                        {{ 日志.级别.toUpperCase() }}
-                    </span>
-                    <span class="log-source" @click="复制部分内容(日志.来源, '来源', $event)">
-                        {{ 日志.来源 }}
-                    </span>
-                    
-                    <!-- 显示标签 -->
-                    <span v-if="日志.标签 && 日志.标签.length > 0" class="log-tags">
-                        <span v-for="标签 in 日志.标签" 
-                              :key="标签" 
-                              class="log-tag"
-                              @click="设置标签过滤(标签)">
-                            {{ 标签 }}
-                        </span>
-                    </span>
-                    
-                    <span class="log-actions">
-                        <button class="mini-button copy-all" @click="复制日志(日志, $event)" title="复制整条日志">
-                            复制
-                        </button>
-                    </span>
-                </div>
-                
-                <!-- 日志内容 -->
-                <div class="log-content-wrapper">
-                    <!-- 普通文本内容 -->
-                    <div v-if="!日志.包含图片 && !日志.包含结构化数据" class="log-content" @click="复制部分内容(日志.内容, '内容', $event)">
-                        {{ 日志.内容 }}
-                    </div>
-                    
-                    <!-- 图片内容 -->
-                    <div v-else-if="日志.包含图片" class="log-content log-image-content">
-                        <!-- 图片标题和描述 -->
-                        <div class="image-meta" @click="复制部分内容(日志.内容 && 日志.content.描述, '描述', $event)">
-                            <strong>图片</strong>: {{ 日志.content && 日志.content.描述 || '' }}
-                        </div>
-                        
-                        <!-- 图片预览 -->
-                        <div class="image-preview">
-                            <img v-if="日志.content && 日志.content.值" 
-                                loading="lazy" 
-                                :src="日志.content.值" 
-                                alt="日志图片"
-                                @click="打开图片(日志.content.值)"
-                                @error="图片加载失败($event, 日志)" />
-                            <div v-else class="image-error">图片资源不可用</div>
-                        </div>
-                        
-                        <!-- 图片URL（可复制） -->
-                        <div v-if="日志.content && 日志.content.值" 
-                             class="image-url" 
-                             @click="复制部分内容(日志.content.值, '图片URL', $event)">
-                            <small>{{ 截断图片URL(日志.content.值) }}</small>
-                        </div>
-                    </div>
-                    
-                    <!-- 结构化数据内容 -->
-                    <div v-else-if="日志.包含结构化数据" class="log-content log-structured-content">
-                        <!-- 基本内容显示 -->
-                        <div class="structured-basic" @click="复制部分内容(日志.内容, '内容', $event)">
-                            {{ 日志.内容 }}
-                        </div>
-                        
-                        <!-- 元数据展开控制 -->
-                        <div class="structured-meta" @click="切换展开元数据(日志)">
-                            <strong>结构化数据</strong>
-                            <span class="expander-icon">{{ 日志.展开元数据 ? '▼' : '▶' }}</span>
-                        </div>
-                        
-                        <!-- 元数据内容 -->
-                        <div v-if="日志.展开元数据 && 日志.元数据" class="structured-data">
-                            <div v-for="(值, 键) in 日志.元数据" :key="键" class="data-item">
-                                <span class="data-key" @click="复制部分内容(键, '键名', $event)">{{ 键 }}:</span>
-                                <span class="data-value" @click="复制部分内容(值, 键, $event)">
-                                    {{ 格式化结构化值(值) }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 对象内容 (带有格式化显示) -->
-                    <div v-else-if="typeof 日志.内容 === 'object' && 日志.content !== null" class="log-content log-object-content">
-                        <pre @click="复制部分内容(JSON.stringify(日志.content, null, 2), '对象内容', $event)">{{ JSON.stringify(日志.content, null, 2) }}</pre>
-                    </div>
-                </div>
-            </div>
+            <LogEntry v-for="日志 in 过滤后的日志"
+                     :key="获取元素ID(日志)"
+                     :日志="日志"
+                     :显示时间戳="显示时间戳"
+                     :显示级别="显示级别"
+                     @复制内容="复制部分内容"
+                     @设置标签过滤="设置标签过滤"
+                     @打开图片="打开图片"
+                     @图片加载失败="图片加载失败" />
             
             <div v-if="可以加载更多" class="log-more">
                 <button @click="加载更多日志">加载更早的日志</button>
             </div>
         </div>
         
-        <!-- 图片查看器 -->
-        <div v-if="当前查看图片" class="image-viewer" @click="关闭图片查看器">
-            <div class="image-viewer-content" @click.stop>
-                <img :src="当前查看图片" alt="查看大图" />
-                <div class="image-viewer-toolbar">
-                    <button @click="复制部分内容(当前查看图片, '大图URL', $event)">复制URL</button>
-                    <button @click="在新窗口打开图片(当前查看图片)">新窗口打开</button>
-                    <button @click="关闭图片查看器">关闭</button>
-                </div>
-            </div>
-        </div>
+        <ImageViewer :当前查看图片="当前查看图片"
+                    @关闭="关闭图片查看器"
+                    @复制URL="复制部分内容"
+                    @新窗口打开="在新窗口打开图片" />
         
         <!-- 状态消息 -->
-        <div v-if="显示操作消息" class="status-message" :class="{ 'visible': 显示操作消息 }">
+        <div v-if="显示操作消息" 
+             class="status-message" 
+             :class="{ 'visible': 显示操作消息 }">
             {{ 操作消息 }}
         </div>
     </div>
@@ -821,474 +779,61 @@ const 格式化结构化值 = (值) => {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.log-controls {
-    padding: 8px;
-    background-color: #161b22;
-    border-bottom: 1px solid #30363d;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-}
-
-.log-controls select,
-.log-controls input,
-.log-controls button {
-    padding: 4px 8px;
-    background-color: #21262d;
-    border: 1px solid #30363d;
-    border-radius: 4px;
-    color: #c9d1d9;
-    font-size: 14px;
-}
-
-.log-controls select:hover,
-.log-controls input:hover,
-.log-controls button:hover {
-    background-color: #30363d;
-}
-
-.log-controls button {
-    cursor: pointer;
-}
-
-.log-count-info {
-    margin-left: auto;
-    padding: 6px 12px;
-    color: #8b949e;
-    font-size: 14px;
-}
-
-.log-stats {
-    padding: 4px 8px;
-    background-color: #161b22;
-    border-bottom: 1px solid #30363d;
-    display: flex;
-    gap: 16px;
-    font-size: 14px;
-}
-
 .log-container {
     flex: 1;
     overflow-y: auto;
     padding: 8px;
-    font-family: Consolas, monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    position: relative; /* 为虚拟列表定位 */
-}
-
-/* 虚拟列表样式 */
-.virtual-list-container {
     position: relative;
-    width: 100%;
-    will-change: transform; /* 提示浏览器此元素会频繁变化，优化性能 */
 }
 
-.log-entry {
-    padding: 8px;
-    margin-bottom: 4px;
-    border-radius: 4px;
-    background-color: #161b22;
-    transition: background-color 0.1s;
-    will-change: contents; /* 性能优化提示 */
-}
-
-.log-entry:hover {
-    background-color: #1c2128;
-}
-
-.log-entry.with-image {
-    padding: 12px;
-}
-
-.log-entry.with-structured-data {
-    padding: 12px;
-}
-
-.log-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
-    flex-wrap: wrap;
-}
-
-.log-time {
-    color: #8b949e;
-    cursor: pointer;
-}
-
-.log-time:hover {
-    text-decoration: underline;
-}
-
-.log-level {
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.log-level:hover {
-    text-decoration: underline;
-}
-
-.log-source {
-    color: #7ee787;
-    cursor: pointer;
-}
-
-.log-source:hover {
-    text-decoration: underline;
-}
-
-/* 标签样式 */
-.log-tags {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-
-.log-tag {
-    padding: 2px 6px;
-    background-color: #30363d;
-    border-radius: 12px;
-    font-size: 12px;
-    color: #c9d1d9;
-    cursor: pointer;
-}
-
-.log-tag:hover {
-    background-color: #58a6ff;
-    color: #ffffff;
-}
-
-.log-actions {
-    margin-left: auto;
-}
-
-.mini-button {
-    padding: 2px 6px;
-    font-size: 12px;
-    background-color: #21262d;
-    border: 1px solid #30363d;
-    border-radius: 3px;
-    color: #c9d1d9;
-    cursor: pointer;
-}
-
-.mini-button:hover {
-    background-color: #30363d;
-}
-
-.log-content-wrapper {
-    margin-left: 8px;
-    padding-left: 8px;
-    border-left: 2px solid #30363d;
-}
-
-.log-content {
-    white-space: pre-wrap;
-    word-break: break-word;
-    cursor: pointer;
-}
-
-.log-content:hover {
-    background-color: #1c2128;
-}
-
-/* 结构化数据样式 */
-.log-structured-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.structured-basic {
-    cursor: pointer;
-}
-
-.structured-meta {
-    margin-top: 4px;
-    padding: 4px 8px;
-    background-color: #21262d;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-}
-
-.structured-meta:hover {
-    background-color: #30363d;
-}
-
-.structured-data {
-    margin-top: 4px;
-    padding: 8px;
-    background-color: #21262d;
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.data-item {
-    display: flex;
-    gap: 8px;
-    padding: 2px 0;
-    border-bottom: 1px solid #30363d;
-}
-
-.data-key {
-    font-weight: bold;
-    color: #7ee787;
-    cursor: pointer;
-    min-width: 150px;
-}
-
-.data-key:hover {
-    text-decoration: underline;
-}
-
-.data-value {
-    flex: 1;
-    cursor: pointer;
-}
-
-.data-value:hover {
-    background-color: #1c2128;
-}
-
-/* 图片日志样式 */
-.log-image-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.image-meta {
-    cursor: pointer;
-}
-
-.image-meta:hover {
-    text-decoration: underline;
-}
-
-.image-preview {
-    margin: 8px 0;
-}
-
-.image-preview img {
-    max-width: 300px;
-    max-height: 200px;
-    border-radius: 4px;
-    border: 1px solid #30363d;
-    cursor: pointer;
-}
-
-.image-preview img:hover {
-    border-color: #58a6ff;
-}
-
-.image-url {
-    font-family: monospace;
-    padding: 4px;
-    background-color: #21262d;
-    border-radius: 3px;
-    cursor: pointer;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.image-url:hover {
-    background-color: #30363d;
-}
-
-.image-error {
-    padding: 8px;
-    color: #f85149;
-    background-color: rgba(248, 81, 73, 0.1);
-    border-radius: 4px;
-}
-
-/* 对象内容样式 */
-.log-object-content pre {
-    margin: 0;
-    padding: 8px;
-    background-color: #21262d;
-    border-radius: 4px;
-    overflow: auto;
-    max-height: 300px;
-}
-
-/* 图片查看器 */
-.image-viewer {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.image-viewer-content {
-    max-width: 90%;
-    max-height: 90%;
-    display: flex;
-    flex-direction: column;
-    background-color: #161b22;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.image-viewer-content img {
-    max-width: 100%;
-    max-height: calc(90vh - 60px);
-    object-fit: contain;
-}
-
-.image-viewer-toolbar {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    padding: 12px;
-    background-color: #21262d;
-}
-
-.image-viewer-toolbar button {
-    padding: 6px 12px;
-    background-color: #30363d;
-    border: none;
-    border-radius: 4px;
-    color: #c9d1d9;
-    cursor: pointer;
-}
-
-.image-viewer-toolbar button:hover {
-    background-color: #58a6ff;
-    color: #ffffff;
-}
-
-/* 状态消息 */
-.status-message {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    padding: 12px 16px;
-    background-color: #2ea043;
-    color: white;
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 1001;
-    transition: all 0.3s ease;
-    opacity: 0;
-    transform: translateY(20px);
-}
-
-.status-message.visible {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.log-entry.info .log-level {
-    color: #58a6ff;
-}
-
-.log-entry.warn .log-level {
-    color: #e3b341;
-}
-
-.log-entry.error .log-level {
-    color: #f85149;
-}
-
-.log-entry.debug .log-level {
-    color: #8b949e;
-}
-
-/* 加载状态 */
 .log-loading {
-    padding: 12px;
     text-align: center;
+    padding: 16px;
     color: #8b949e;
-    background-color: #21262d;
-    border-radius: 4px;
-    margin-bottom: 8px;
+}
+
+.no-logs-message {
+    text-align: center;
+    padding: 32px;
+    color: #8b949e;
+    font-style: italic;
 }
 
 .log-more {
-    padding: 12px;
     text-align: center;
-    margin-top: 8px;
+    padding: 16px;
 }
 
 .log-more button {
     padding: 8px 16px;
     background-color: #21262d;
-    color: #c9d1d9;
     border: 1px solid #30363d;
     border-radius: 4px;
+    color: #c9d1d9;
     cursor: pointer;
-    font-size: 14px;
 }
 
 .log-more button:hover {
     background-color: #30363d;
 }
 
-/* 暂停接收按钮特殊样式 */
-button.pause-receiving {
-    background-color: #6e7681;
-}
-
-button.pause-receiving:hover {
-    background-color: #8b949e;
-}
-
-/* 图片加载失败样式 */
-.image-load-error {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 200px;
-    height: 150px;
-    background-color: rgba(248, 81, 73, 0.1);
-    color: #f85149;
+.status-message {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background-color: #21262d;
+    border: 1px solid #30363d;
     border-radius: 4px;
-    border: 1px dashed #f85149;
+    padding: 8px 16px;
+    color: #c9d1d9;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s ease;
 }
 
-/* 自定义滚动条样式 */
-.log-container::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-.log-container::-webkit-scrollbar-track {
-    background: #161b22;
-}
-
-.log-container::-webkit-scrollbar-thumb {
-    background: #30363d;
-    border-radius: 4px;
-}
-
-.log-container::-webkit-scrollbar-thumb:hover {
-    background: #484f58;
-}
-
-/* 无日志提示样式 */
-.no-logs-message {
-    padding: 20px;
-    text-align: center;
-    color: #8b949e;
-    font-size: 16px;
-    background-color: #161b22;
-    border-radius: 4px;
-    margin: 20px 0;
+.status-message.visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
 }
 </style> 
