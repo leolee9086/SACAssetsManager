@@ -4,7 +4,7 @@ import { statWithCatch } from "../processors/fs/stat.js"
 import { 获取哈希并写入数据库 } from "../processors/fs/stat.js"
 import { globalTaskQueue } from "./runtime_queue.js"
 import { 生成文件缩略图 } from "../processors/thumbnail/loader.js"
-import { 日志 } from "../utils/logger.js"
+import { 日志 } from "../../../src/toolBox/base/useEcma/forLogs/useLogger.js"
 
 export const sendDefaultIcon = (req, res) => {
     const 请求ID = Date.now().toString(36) + Math.random().toString(36).substr(2);

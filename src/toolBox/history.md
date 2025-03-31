@@ -1,33 +1,61 @@
 # 工具箱重构历史
 
-## 阶段3 (当前)
+## 阶段4 (当前)
 
 ### 重构计划
 
-1. **siyuanCommon工具函数重构实施**
-   - 开始实现之前规划的思源公共工具函数重构
-   - 创建斜杠菜单工具 (useSiyuanSlash.js)
-   - 创建页签管理工具 (useSiyuanTab.js)
-   - 增强对话框工具 (useSiyuanDialog.js)
-   - 创建颜色工具 (useSiyuanColor.js)
-   - 创建菜单构建工具 (useSiyuanMenuBuilder.js)
+1. **siyuanCommon工具函数实现**
+   - 实现斜杠菜单工具 (useSiyuanSlash.js)
+   - 实现页签管理工具 (useSiyuanTab.js)
+   - 完善对话框工具 (useSiyuanDialog.js)
+   - 实现颜色工具 (useSiyuanColor.js)
+   - 实现菜单构建工具 (useSiyuanMenuBuilder.js)
 
-2. **工具箱导出接口优化**
-   - 优化toolBoxExports.js的结构
-   - 按功能域对导出工具进行分组
-   - 添加版本信息和更新记录
-   - 提供按需导入支持
+2. **工具箱性能优化**
+   - 提供按需导入机制
+   - 实现延迟加载策略
+   - 优化大型依赖的处理
+   - 添加性能测试基准
 
-3. **跨环境兼容性增强**
-   - 扩展usePolyfills模块
-   - 添加更多浏览器兼容性工具
-   - 完善Electron环境支持
+3. **工具箱测试与文档完善**
+   - 为核心工具函数添加单元测试
+   - 更新和完善使用文档
+   - 创建API参考指南
+   - 提供更多使用示例
 
 ### 目标成果
 
-- 完成siyuanCommon工具函数的全面重构
-- 提高工具箱的可用性和可维护性
-- 增强跨环境兼容性支持
+- 完成siyuanCommon工具函数的实现
+- 提高工具箱的性能和可靠性
+- 完善工具箱的文档和测试
+
+## 阶段3 (已完成)
+
+### 重构工作
+
+1. **后端服务工具重构**
+   - 将后端日志工具重构到工具箱 (useLogger.js)
+   - 将心跳工具重构到工具箱 (useHeartBeat.js)
+   - 将C#加载工具重构到工具箱 (useCSharpLoader.js)
+   - 移除兼容层，使用直接导入
+   - 完善相关文档
+
+2. **工具箱目录结构优化**
+   - 在base/useEcma下添加forLogs目录
+   - 在base/useElectron下添加forCSharp目录
+   - 完善Electron环境相关工具
+
+3. **功能集成与文档改进**
+   - 优化toolBoxExports.js中的导出
+   - 更新README.md文件
+   - 完善AInote.md中的重构指南
+
+### 成果
+
+- 成功迁移后端服务工具到工具箱
+- 消除了冗余的兼容层代码
+- 保持了与现有代码的兼容性
+- 优化了工具箱的目录结构
 
 ## 阶段2 (已完成)
 
@@ -94,6 +122,8 @@
 src/toolBox/
 ├── base/          - 基础工具函数
 │   ├── useEcma/   - ECMA标准功能封装
+│   │   ├── forLogs/   - 日志处理工具
+│   │   └── ...
 │   ├── forNetwork/ - 网络相关工具
 │   ├── forEvent/  - 事件处理工具
 │   ├── forMime/   - MIME类型处理
@@ -101,6 +131,9 @@ src/toolBox/
 │   ├── forUI/     - 通用UI组件工具
 │   ├── usePolyfills/ - 平台兼容性工具
 │   ├── useDeps/   - 依赖管理工具
+│   ├── useElectron/ - Electron环境工具
+│   │   ├── forCSharp/ - C#交互工具
+│   │   └── ...
 │   └── ...
 ├── feature/       - 特定功能工具
 │   ├── useImage/  - 图像处理工具
@@ -128,7 +161,12 @@ src/toolBox/
    - `usePolyfills` → `base/usePolyfills`
    - `useVue` → `feature/useVue`
 
-2. **目录名称修正**:
+2. **新增的文件夹**:
+   - `base/useEcma/forLogs` - 日志工具
+   - `base/useElectron` - Electron环境工具
+   - `base/useElectron/forCSharp` - C#交互工具
+
+3. **目录名称修正**:
    - `forNetWork` → `forNetwork` (拼写修正)
    - `useAge` 定义明确为"使用场景相关工具"而非"使用时间相关工具"
 

@@ -1,4 +1,4 @@
-import { loadCsharpFunc } from "../../../utils/CSharpLoader.js";
+import { loadCsharpFunc } from "../../../../../src/toolBox/base/useElectron/forCSharp/useCSharpLoader.js";
 import { createInvisibleWebview } from "../../../utils/containers/webview.js";
 
 export const getLargeIcon = loadCsharpFunc(

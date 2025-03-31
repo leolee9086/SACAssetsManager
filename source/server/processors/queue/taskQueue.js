@@ -1,5 +1,5 @@
 import { MinHeap } from '../../../utils/useEcma/useArray/minHeap.js'
-import { reportHeartbeat } from '../../utils/heartBeat.js'
+import { reportHeartbeat } from '../../../../src/toolBox/base/useElectron/useHeartBeat.js'
 
 // 常量配置
 const CONFIG = {

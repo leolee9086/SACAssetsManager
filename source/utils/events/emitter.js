@@ -1,4 +1,4 @@
-import { createEventBus } from '../../../src/toolBox/forEvent/useEventBus.js'
+import { createEventBus } from '../../../src/toolBox/base/forEvent/useEventBus.js'
 
 export class IEventEmitterSimple {
     constructor() {

@@ -52,202 +52,155 @@ function mergeUserDialogue(notechat) {
  * @param {HTMLElement[]} e.detail.blockElements - 点击的块元素数组
  * @param {Object} e.detail.menu - 菜单对象，用于添加菜单项
  */
-plugin.eventBus.on(
-    'click-blockicon',(e)=>{
-        console.log(e)
-        e.detail.menu.addItem({
-            label: '设置为用户角色',
-            click: () => {
-                e.detail.blockElements.forEach(block => {
-                    kernelApi.setBlockAttrs({
-                        id: block.getAttribute('data-node-id'),
-                        attrs: {'custom-chat-role': 'user'}
-                    });
-                });
-            }
-        })
-        e.detail.menu.addItem({
-            label: '设置为助手角色',
-            click: () => {
-                e.detail.blockElements.forEach(block => {
-                    kernelApi.setBlockAttrs({
-                        id: block.getAttribute('data-node-id'),
-                        attrs: {'custom-chat-role': 'assistant'}
-                    });
-                });
-            }
-        })
-        e.detail.menu.addItem({
-            label: '设置为系统角色',
-            click: () => {
-                e.detail.blockElements.forEach(block => {
-                    kernelApi.setBlockAttrs({
-                        id: block.getAttribute('data-node-id'),
-                        attrs: {'custom-chat-role': 'system'}
-                    });
-                });
-            }
-        })
-        e.detail.menu.addItem({
-            label: '清除角色',
-            click: () => {
-                e.detail.blockElements.forEach(block => {
-                    kernelApi.setBlockAttrs({
-                        id: block.getAttribute('data-node-id'),
-                        attrs: {'custom-chat-role': ''}
-                    });
-                });
-            }
-        })
-        
-        // 添加流式对话菜单项
-        e.detail.menu.addItem({
-            label: '流式对话',
-            click: async () => {
-                const noteChat = e.detail.blockElements.map(item => {
-                    return {
-                        role: item.getAttribute('custom-chat-role') || 'user',
-                        content: (new BlockHandler(item.getAttribute('data-node-id'))).markdown
-                    }
-                })
-                const merged = mergeUserDialogue(noteChat)
-                console.log(merged)
-                
-                // 导入并调用流式对话框，传入思源笔记的 OpenAI 配置
-                const { showStreamingChatDialog } = await import('../UI/dialogs/streamingChatDialog.js')
-                const emitter = await showStreamingChatDialog(merged, window.siyuan.config.ai.openAI)
-                
-                let responseContent = ''
-                
-                emitter.on('data', (text) => {
-                    responseContent += text
-                })
-                
-                emitter.on('userAccept', async () => {
-                    if (responseContent) {
-                        console.log(responseContent)
-                        const lastBlock = e.detail.blockElements[e.detail.blockElements.length - 1]
-                        const last = new BlockHandler(lastBlock.getAttribute('data-node-id'))
-                        const data = await last.insertAfter(responseContent)
-                        // 为新插入的块设置助手角色
-                        data.forEach(item => {
-                            item.doOperations.forEach(async op => {
-                                await kernelApi.setBlockAttrs({
-                                    id: op.id,
-                                    attrs: {
-                                        'custom-chat-role': 'assistant',
-                                        'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
-                                        'custom-chat-model': window.siyuan.config.ai.openAI.model
-                                    }
-                                })
-                                // 从data属性中提取所有块的ID
-                                const blockIds = op.data.match(/data-node-id="([^"]+)"/g);
-                                if (blockIds) {
-                                    blockIds.forEach(blockId => {
-                                        const id = blockId.replace('data-node-id="', '').replace('"', '');
-                                        kernelApi.setBlockAttrs({
-                                            id: id,
-                                            attrs: {
-                                                'custom-chat-role': 'assistant',
-                                                'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
-                                                'custom-chat-model': window.siyuan.config.ai.openAI.model
-                                            }
-                                        });
-                                    });
-                                }
-                            })
-                        })
-                    }
-                })
-                
-                emitter.on('error', (error) => {
-                    console.error('对话出错:', error)
-                })
-                emitter.emit('start')
-            },
-            submenu: [
-                {
-                    label: '基于相关内容对话',
-                    click: async () => {
-                        // 获取选中块的内容
-                        const block = e.detail.blockElements[0];
-                        const blockHandler = new BlockHandler(block.getAttribute('data-node-id'));
-                        const content = blockHandler.markdown;
-                        
-                        // 构造系统提示词
-                        const systemPrompt = {
-                            role: 'system',
-                            content: 思源sql助手提示词
-                        };
-                        
-                        // 构造用户查询
-                        const userQuery = {
-                            role: 'user',
-                            content: `请分析以下内容，根据它们的主题和讨论领域，总结关键词,编写合适的SQL嵌入块来查询相关内容，例如如果内容中提到了悉尼歌剧院，你可能需要搜索建筑、澳大利亚等等关键词：\n${content}\n请直接给出嵌入块，不要使用代码块包裹。`
-                        };
-                        
-                        // 合并对话历史
-                        const noteChat = [systemPrompt, userQuery];
-                        const merged = mergeUserDialogue(noteChat);
-                        
-                        // 调用流式对话
-                        const { showStreamingChatDialog } = await import('../UI/dialogs/streamingChatDialog.js');
-                        const emitter = await showStreamingChatDialog(merged, window.siyuan.config.ai.openAI);
-                        
-                        let responseContent = '';
-                        
-                        emitter.on('data', (text) => {
-                            responseContent += text;
-                        });
-                        
-                        emitter.on('userAccept', async () => {
-                            if (responseContent) {
-                                const lastBlock = e.detail.blockElements[e.detail.blockElements.length - 1];
-                                const last = new BlockHandler(lastBlock.getAttribute('data-node-id'));
-                                const data = await last.insertAfter(responseContent);
-                                
-                                // 为新插入的块设置助手角色
-                                data.forEach(item => {
-                                    item.doOperations.forEach(async op => {
-                                        await kernelApi.setBlockAttrs({
-                                            id: op.id,
-                                            attrs: {
-                                                'custom-chat-role': 'assistant',
-                                                'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
-                                                'custom-chat-model': window.siyuan.config.ai.openAI.model
-                                            }
-                                        });
-                                        // 处理子块
-                                        const blockIds = op.data.match(/data-node-id="([^"]+)"/g);
-                                        if (blockIds) {
-                                            blockIds.forEach(blockId => {
-                                                const id = blockId.replace('data-node-id="', '').replace('"', '');
-                                                kernelApi.setBlockAttrs({
-                                                    id: id,
-                                                    attrs: {
-                                                        'custom-chat-role': 'assistant',
-                                                        'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
-                                                        'custom-chat-model': window.siyuan.config.ai.openAI.model
-                                                    }
-                                                });
-                                            });
-                                        }
-                                    });
-                                });
-                            }
-                        });
-                        
-                        emitter.on('error', (error) => {
-                            console.error('对话出错:', error);
-                        });
-                        
-                        emitter.emit('start');
-                    }
+// 新增: 处理角色设置的函数
+function handleRoleSetting(e, role) {
+    e.detail.blockElements.forEach(block => {
+        kernelApi.setBlockAttrs({
+            id: block.getAttribute('data-node-id'),
+            attrs: {'custom-chat-role': role}
+        });
+    });
+}
+
+// 新增: 处理流式对话响应的函数
+async function handleStreamingResponse(e, responseContent) {
+    const lastBlock = e.detail.blockElements[e.detail.blockElements.length - 1];
+    const last = new BlockHandler(lastBlock.getAttribute('data-node-id'));
+    const data = await last.insertAfter(responseContent);
+    
+    data.forEach(item => {
+        item.doOperations.forEach(async op => {
+            await kernelApi.setBlockAttrs({
+                id: op.id,
+                attrs: {
+                    'custom-chat-role': 'assistant',
+                    'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
+                    'custom-chat-model': window.siyuan.config.ai.openAI.model
                 }
-            ]
-        })
-    }
-)
+            });
+            // 处理子块
+            const blockIds = op.data.match(/data-node-id="([^"]+)"/g);
+            if (blockIds) {
+                blockIds.forEach(blockId => {
+                    const id = blockId.replace('data-node-id="', '').replace('"', '');
+                    kernelApi.setBlockAttrs({
+                        id: id,
+                        attrs: {
+                            'custom-chat-role': 'assistant',
+                            'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
+                            'custom-chat-model': window.siyuan.config.ai.openAI.model
+                        }
+                    });
+                });
+            }
+        });
+    });
+}
+
+// 新增: 基于相关内容对话的处理函数
+async function handleContextBasedChat(e) {
+    const block = e.detail.blockElements[0];
+    const blockHandler = new BlockHandler(block.getAttribute('data-node-id'));
+    const content = blockHandler.markdown;
+    
+    const systemPrompt = {
+        role: 'system',
+        content: 思源sql助手提示词
+    };
+    
+    const userQuery = {
+        role: 'user',
+        content: `请分析以下内容，根据它们的主题和讨论领域，总结关键词,编写合适的SQL嵌入块来查询相关内容，例如如果内容中提到了悉尼歌剧院，你可能需要搜索建筑、澳大利亚等等关键词：\n${content}\n请直接给出嵌入块，不要使用代码块包裹。`
+    };
+    
+    const noteChat = [systemPrompt, userQuery];
+    const merged = mergeUserDialogue(noteChat);
+    
+    const { showStreamingChatDialog } = await import('../UI/dialogs/streamingChatDialog.js');
+    const emitter = await showStreamingChatDialog(merged, window.siyuan.config.ai.openAI);
+    
+    let responseContent = '';
+    
+    emitter.on('data', (text) => {
+        responseContent += text;
+    });
+    
+    emitter.on('userAccept', async () => {
+        if (responseContent) {
+            await handleStreamingResponse(e, responseContent);
+        }
+    });
+    
+    emitter.on('error', (error) => {
+        console.error('对话出错:', error);
+    });
+    
+    emitter.emit('start');
+}
+
+// 修改后的click-blockicon事件处理器
+plugin.eventBus.on('click-blockicon', (e) => {
+    console.log(e);
+    
+    // 角色设置菜单项
+    e.detail.menu.addItem({
+        label: '设置为用户角色',
+        click: () => handleRoleSetting(e, 'user')
+    });
+    
+    e.detail.menu.addItem({
+        label: '设置为助手角色',
+        click: () => handleRoleSetting(e, 'assistant')
+    });
+    
+    e.detail.menu.addItem({
+        label: '设置为系统角色',
+        click: () => handleRoleSetting(e, 'system')
+    });
+    
+    e.detail.menu.addItem({
+        label: '清除角色',
+        click: () => handleRoleSetting(e, '')
+    });
+    
+    // 流式对话菜单项
+    e.detail.menu.addItem({
+        label: '流式对话',
+        click: async () => {
+            const noteChat = e.detail.blockElements.map(item => ({
+                role: item.getAttribute('custom-chat-role') || 'user',
+                content: (new BlockHandler(item.getAttribute('data-node-id'))).markdown
+            }));
+            const merged = mergeUserDialogue(noteChat);
+            console.log(merged);
+            
+            const { showStreamingChatDialog } = await import('../UI/dialogs/streamingChatDialog.js');
+            const emitter = await showStreamingChatDialog(merged, window.siyuan.config.ai.openAI);
+            
+            let responseContent = '';
+            
+            emitter.on('data', (text) => {
+                responseContent += text;
+            });
+            
+            emitter.on('userAccept', async () => {
+                if (responseContent) {
+                    await handleStreamingResponse(e, responseContent);
+                }
+            });
+            
+            emitter.on('error', (error) => {
+                console.error('对话出错:', error);
+            });
+            
+            emitter.emit('start');
+        },
+        submenu: [{
+            label: '基于相关内容对话',
+            click: () => handleContextBasedChat(e)
+        }]
+    });
+});
 
 // 在文件末尾添加样式
 const style = document.createElement('style')

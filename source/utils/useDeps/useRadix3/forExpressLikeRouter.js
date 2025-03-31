@@ -6,7 +6,7 @@
 
 import * as radix from "../../../../static/radix3.mjs";
 import { pathToRegexp } from "../../../../static/path-to-regexp.js";
-import { 日志 } from "../../../server/utils/logger.js";
+import { 日志 } from "../../../../src/toolBox/base/useEcma/forLogs/useLogger.js";
 import * as url from "../../../../static/url.js";
 
 const { parseUrl } = url;

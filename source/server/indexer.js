@@ -1,7 +1,7 @@
 import { 根据路径查找并加载颜色索引 } from "./processors/color/colorIndex.js";
 import { listLocalDisks } from "./processors/fs/disk/diskInfo.js";
 import { globalTaskQueue } from "./processors/queue/taskQueue.js";
-import { 日志 } from './utils/logger.js';
+import { 日志 } from '../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 let diskInfos = await listLocalDisks()
 setImmediate(() => {

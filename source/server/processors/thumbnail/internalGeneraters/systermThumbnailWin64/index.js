@@ -1,5 +1,5 @@
 console.log(window.PluginModulePath)
-import { loadCsharpFunc } from "../../../../utils/CSharpLoader.js";
+import { loadCsharpFunc } from "../../../../../../src/toolBox/base/useElectron/forCSharp/useCSharpLoader.js";
 export const getLargeIcon = loadCsharpFunc(
     `
     #r "System.Drawing.dll"

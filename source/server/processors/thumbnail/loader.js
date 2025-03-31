@@ -7,7 +7,7 @@ import { tumbnailCache } from './cache/index.js'
 import { 写入缩略图缓存 } from './cache/writer.js'
 import { 创建缩略图生成上下文 } from './cache/context.js'
 import { 从缓存获取缩略图 } from './cache/reader.js'
-import { 日志 } from "../../utils/logger.js"
+import { 日志 } from "../../../../src/toolBox/base/useEcma/forLogs/useLogger.js"
 
 const fs = require('fs')
 export function listLoaders() {

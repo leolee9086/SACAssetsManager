@@ -1,6 +1,6 @@
 const fs = require('fs');
 const ExifParser = require('exif-reader');
-import { 日志 } from '../utils/logger.js';
+import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 function readExifComment(filePath) {
     // 读取文件

@@ -6,7 +6,7 @@
 import * as 数据库 from './logDB.js';
 import * as 格式化器 from './logFormatter.js';
 import * as 处理器 from './logProcessor.js';
-import { 日志 } from '../logger.js';
+import { 日志 } from '../../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 // 状态标记
 let 已初始化 = false;

@@ -1,5 +1,5 @@
 import {listLocalDisks} from '../processors/fs/disk/diskInfo.js'
-import { 日志 } from '../utils/logger.js';
+import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 export async function listDisk(req,res,next){
     const 请求ID = Date.now().toString(36) + Math.random().toString(36).substr(2);

@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const path = require('path')
 const cors = require('cors'); // 引入 cors 中间件
-import { 日志 } from './utils/logger.js';
+import { 日志 } from '../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 // 引入自定义路由器
 import { createRouter } from '../utils/useDeps/useRadix3/forExpressLikeRouter.js';

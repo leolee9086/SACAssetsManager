@@ -1,5 +1,5 @@
 import { tumbnailCache, 查询所有缓存 } from './index.js'
-import { 日志 } from "../../../utils/logger.js"
+import { 日志 } from "../../../../../src/toolBox/base/useEcma/forLogs/useLogger.js"
 
 async function 从缓存获取缩略图(ctx) {
     const 请求ID = ctx.请求ID || Date.now().toString(36) + Math.random().toString(36).substr(2);

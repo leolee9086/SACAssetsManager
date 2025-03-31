@@ -1,6 +1,6 @@
 import { fdir } from '../processors/fs/fdirModified/index.js';
 import { buildCache } from '../processors/cache/cache.js'
-import { 日志 } from '../utils/logger.js';
+import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 const 遍历缓存 = buildCache('walk')
 

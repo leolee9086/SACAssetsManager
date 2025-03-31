@@ -3,7 +3,7 @@ import { 找到文件颜色, 删除文件颜色记录, 流式根据颜色查找�
 import { statWithCatch } from '../processors/fs/stat.js';
 import { globalTaskQueue } from '../middlewares/runtime_queue.js';
 import { stat2assetsItemStringLine } from './utils/responseType.js';
-import { 日志 } from '../utils/logger.js';
+import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 export async function genColor(ctx, next) {
     globalTaskQueue.paused = true

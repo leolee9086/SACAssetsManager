@@ -1,6 +1,6 @@
 import { listLoaders as listThumbnailLoaders } from '../processors/thumbnail/loader.js '
 import { globalTaskQueue } from '../middlewares/runtime_queue.js'
-import { 日志 } from '../utils/logger.js';
+import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 const express = require('express')
 const router = express.Router()

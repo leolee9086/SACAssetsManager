@@ -42,6 +42,8 @@ export * from './base/useEcma/forFile/globTools.js';
 export * from './base/useEcma/forFile/forFilePath.js';
 export * from './base/useEcma/forFile/forFileSize.js';
 export * from './base/useEcma/forFile/forFileRead.js';
+export * from './base/useEcma/forFile/isImageFile.js';
+export * from './base/useEcma/forFile/forImageFile.js';
 
 // 网络工具
 export * from './base/forNetWork/forFetch/index.js';
@@ -70,6 +72,13 @@ export * from './feature/useImage/imageToolBox.js';
 
 // 思源笔记环境工具
 export * from './useAge/useSiyuan.js';
+
+// 日志工具
+export * from './base/useEcma/forLogs/useLogger.js';
+
+// Electron相关工具
+export * from './base/useElectron/useHeartBeat.js';
+export * from './base/useElectron/forCSharp/useCSharpLoader.js';
 
 // Canvas工具
 export {

@@ -6,10 +6,10 @@ import { parseQuery } from '../middlewares/ctx/parseQuery.js'
 import { globalTaskQueue } from '../middlewares/runtime_queue.js';
 import { statWithCatch } from '../processors/fs/stat.js';
 import { buildCache } from '../processors/cache/cache.js';
-import { reportHeartbeat } from '../utils/heartBeat.js';
+import { reportHeartbeat } from '../../../src/toolBox/base/useElectron/useHeartBeat.js';
 import { 查找子文件夹,流式查找子文件夹 } from '../processors/thumbnail/indexer.js'
 import { 更新目录索引,processWalkResults,调度文件夹索引任务 } from '../processors/fs/walk.js'
-import { 日志 } from '../utils/logger.js';
+import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流

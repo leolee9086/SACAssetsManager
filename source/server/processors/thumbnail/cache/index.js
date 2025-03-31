@@ -1,6 +1,6 @@
 import { buildCache } from '../../cache/cache.js'
 import { asyncReadFile } from '../../fs/utils/withExists.js'
-import { 日志 } from "../../../utils/logger.js"
+import { 日志 } from "../../../../../src/toolBox/base/useEcma/forLogs/useLogger.js"
 
 const tumbnailCache = buildCache('thumbnailCache')
 

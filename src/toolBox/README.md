@@ -5,14 +5,54 @@
 ## 文件夹结构
 
 - `base/` - 基础工具函数，提供核心能力支持
+  - `useEcma/` - ECMA标准相关工具
+    - `forLogs/` - 日志相关工具
+  - `useElectron/` - Electron相关工具
+    - `forCSharp/` - C#加载和调用相关工具
+  - `useNode/` - Node.js环境工具
 - `feature/` - 特定功能领域的工具
 - `forCore/` - 核心功能相关工具，如串链器
 - `forEvent/` - 事件处理相关工具
 - `forMime/` - MIME类型处理工具
+- `siyuanCommon/` - 思源笔记特有功能工具（计划中）
 - `useAge/` - 使用时间/使用期限相关工具
 - `useDeps/` - 依赖管理相关工具
 - `usePolyfills/` - 平台兼容性和检测工具
 - `useVue/` - Vue框架相关工具
+
+## 最近更新
+
+### 重要提示：导入路径变更
+由于已完成后端服务工具重构并删除了兼容层，需要更新以下导入路径：
+
+1. 日志工具：
+   - 旧路径：`import { 日志 } from '../utils/logger.js'`
+   - 新路径：`import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js'`
+
+2. 心跳工具：
+   - 旧路径：`import { reportHeartbeat } from '../utils/heartBeat.js'`
+   - 新路径：`import { reportHeartbeat } from '../../../src/toolBox/base/useElectron/useHeartBeat.js'`
+
+3. C#加载工具：
+   - 旧路径：`import { loadCsharpFunc } from '../utils/CSharpLoader.js'`
+   - 新路径：`import { loadCsharpFunc } from '../../../src/toolBox/base/useElectron/forCSharp/useCSharpLoader.js'`
+
+4. DLL路径修复工具：
+   - 旧路径：`import { setupDllPaths } from '../utils/dllFix/fixPathErrorUnicode.js'`
+   - 新路径：`import { 设置DLL路径 as setupDllPaths } from '../../../src/toolBox/base/useElectron/forCSharp/useCSharpLoader.js'`
+
+### 阶段3完成内容
+- 将后端服务工具重构到工具箱
+  - 日志工具：`base/useEcma/forLogs/useLogger.js`
+  - 心跳工具：`base/useElectron/useHeartBeat.js`
+  - C#加载工具：`base/useElectron/forCSharp/useCSharpLoader.js`
+- 移除了兼容层，使服务代码直接使用工具箱函数
+- 优化了工具箱目录结构
+
+### 阶段4计划内容
+- 实现思源笔记特有功能的工具函数 (siyuanCommon)
+- 优化工具箱性能，提供按需导入和延迟加载机制
+- 完善测试和文档
 
 ## 使用指南
 
