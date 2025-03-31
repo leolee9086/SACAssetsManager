@@ -4,12 +4,13 @@
 -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { shallowRef } from 'vue'
 import { 数据库, 格式化器 } from '../../../source/server/utils/logs/index.js'
 
 // 状态定义
-const 日志列表 = ref([])
+const 日志列表 = shallowRef([])
 const 最大内存日志数 = ref(1000)
-const 每页日志数 = ref(200)
+const 每页日志数 = ref(100)
 const 自动滚动 = ref(true)
 const 暂停接收 = ref(false)
 const 过滤级别 = ref('')
@@ -25,15 +26,21 @@ const 日志统计 = ref({
     debug: 0
 })
 
+// 移除虚拟列表相关代码，改用性能优化的常规列表
+const 分页大小 = 200 // 每次最多显示的日志数量
+
 // 标签过滤功能
 const 选中标签 = ref('')
 const 可用标签 = computed(() => {
     const 标签集合 = new Set()
-    日志列表.value.forEach(日志 => {
+    // 性能优化：限制遍历的数量
+    const 最大遍历数 = Math.min(日志列表.value.length, 200)
+    for (let i = 0; i < 最大遍历数; i++) {
+        const 日志 = 日志列表.value[i]
         if (日志.标签 && Array.isArray(日志.标签)) {
             日志.标签.forEach(标签 => 标签集合.add(标签))
         }
-    })
+    }
     return Array.from(标签集合).sort()
 })
 
@@ -63,7 +70,7 @@ const 初始化数据库 = async () => {
         数据库日志计数.value = await 数据库.获取日志计数()
         
         // 加载最新的日志
-        const 最新日志 = await 数据库.加载日志(0, 最大内存日志数.value)
+        const 最新日志 = await 数据库.加载日志(0, Math.min(分页大小, 最大内存日志数.value))
         
         if (最新日志.length > 0) {
             日志列表.value = 最新日志
@@ -97,6 +104,10 @@ const 初始化数据库 = async () => {
 
 // 计算属性：过滤后的日志
 const 过滤后的日志 = computed(() => {
+    if (过滤级别.value === '' && 搜索文本.value === '' && 选中标签.value === '') {
+        return 日志列表.value
+    }
+    
     let 结果 = 日志列表.value
     
     if (过滤级别.value !== '') {
@@ -107,7 +118,7 @@ const 过滤后的日志 = computed(() => {
         const 搜索词 = 搜索文本.value.toLowerCase()
         结果 = 结果.filter(日志 => {
             try {
-                return (日志.内容 && 日志.内容.toLowerCase().includes(搜索词)) ||
+                return (日志.内容 && String(日志.内容).toLowerCase().includes(搜索词)) ||
                        (日志.来源 && 日志.来源.toLowerCase().includes(搜索词))
             } catch (e) {
                 return false
@@ -115,96 +126,95 @@ const 过滤后的日志 = computed(() => {
         })
     }
     
-    return 结果
-})
-
-// 显示的日志（直接使用过滤后的日志，分页逻辑已移至数据库层面）
-const 显示的日志 = computed(() => {
-    return 过滤后的日志.value
+    if (选中标签.value !== '') {
+        结果 = 结果.filter(日志 => {
+            return 日志.标签 && Array.isArray(日志.标签) && 日志.标签.includes(选中标签.value)
+        })
+    }
+    
+    return 结果.slice(0, 分页大小) // 限制最大显示数量以提高性能
 })
 
 // 批量处理日志
 const 批量处理日志 = async () => {
     正在处理.value = true
     
-    // 每次处理一批日志
-    requestAnimationFrame(async () => {
+    // 使用更高效的批处理方式
+    const 处理批次 = () => {
         const 批次日志 = 待处理日志.value.splice(0, Math.min(20, 待处理日志.value.length))
-        const 处理后日志 = []
+        if (批次日志.length === 0) {
+            正在处理.value = false
+            return
+        }
         
-        if (批次日志.length > 0) {
-            // 准备批量保存到数据库
-            const 数据库日志 = 批次日志.map(日志 => {
-                // 确保日志格式正确
-                const 新日志 = {
-                    id: 日志.id || (Date.now() + Math.random().toString(36).substr(2, 9)),
-                    时间: 日志.时间 || new Date().toISOString(),
-                    级别: 日志.级别 || 'info',
-                    内容: 日志.内容 || '',
-                    来源: 日志.来源 || 'Console'
-                }
-                
-                处理后日志.push(新日志)
-                
-                // 更新统计
-                日志统计.value.total++
-                if (新日志.级别) {
-                    日志统计.value[新日志.级别]++
-                }
-                
-                return 新日志
-            })
-            
-            try {
-                // 保存到数据库
-                await 数据库.保存日志(数据库日志)
-                
-                // 更新数据库日志计数
-                数据库日志计数.value = await 数据库.获取日志计数()
-                
-                // 更新内存中的日志列表（将新日志添加到列表末尾）
-                日志列表.value = [...日志列表.value, ...处理后日志]
-                
-                // 应用最大内存日志数限制
-                if (日志列表.value.length > 最大内存日志数.value) {
-                    日志列表.value = 日志列表.value.slice(日志列表.value.length - 最大内存日志数.value)
-                }
-                
-                // 更新时间戳范围
-                if (处理后日志.length > 0) {
-                    const 最新日志 = 处理后日志[处理后日志.length - 1]
-                    最新加载的时间戳.value = 最新日志.时间
-                    
-                    // 如果尚未设置最早时间戳，同时设置它
-                    if (!最早加载的时间戳.value) {
-                        最早加载的时间戳.value = 最新日志.时间
-                    }
-                }
-                
-                // 如果启用了自动滚动，滚动到底部
-                if (自动滚动.value) {
-                    nextTick(() => {
-                        if (日志容器.value) {
-                            日志容器.value.scrollTop = 日志容器.value.scrollHeight
-                        }
-                    })
-                }
-            } catch (错误) {
-                console.error('保存日志到数据库失败:', 错误)
+        const 处理后日志 = []
+        const 数据库日志 = 批次日志.map(日志 => {
+            // 确保日志格式正确
+            const 新日志 = {
+                id: 日志.id || (Date.now() + Math.random().toString(36).substr(2, 9)),
+                时间: 日志.时间 || new Date().toISOString(),
+                级别: 日志.级别 || 'info',
+                内容: 日志.内容 || '',
+                来源: 日志.来源 || 'Console'
             }
             
-            // 如果还有待处理日志，继续批处理
+            处理后日志.push(新日志)
+            
+            // 更新统计
+            日志统计.value.total++
+            if (新日志.级别) {
+                日志统计.value[新日志.级别]++
+            }
+            
+            return 新日志
+        })
+        
+        // 使用Promise.all更高效地处理保存操作
+        Promise.all([
+            数据库.保存日志(数据库日志),
+            数据库.获取日志计数().then(计数 => 数据库日志计数.value = 计数)
+        ]).then(() => {
+            // 更新内存中的日志列表
+            日志列表.value = [...日志列表.value, ...处理后日志]
+            
+            // 应用最大内存日志数限制
+            if (日志列表.value.length > 最大内存日志数.value) {
+                日志列表.value = 日志列表.value.slice(日志列表.value.length - 最大内存日志数.value)
+            }
+            
+            // 更新时间戳范围
+            if (处理后日志.length > 0) {
+                const 最新日志 = 处理后日志[处理后日志.length - 1]
+                最新加载的时间戳.value = 最新日志.时间
+                
+                if (!最早加载的时间戳.value) {
+                    最早加载的时间戳.value = 最新日志.时间
+                }
+            }
+            
+            // 如果启用了自动滚动，滚动到底部
+            if (自动滚动.value) {
+                nextTick(() => {
+                    if (日志容器.value) {
+                        日志容器.value.scrollTop = 日志容器.value.scrollHeight
+                    }
+                })
+            }
+            
+            // 继续处理队列中的日志
             if (待处理日志.value.length > 0) {
-                setTimeout(() => {
-                    批量处理日志()
-                }, 50)
+                setTimeout(处理批次, 50)
             } else {
                 正在处理.value = false
             }
-        } else {
+        }).catch(错误 => {
+            console.error('保存日志到数据库失败:', 错误)
             正在处理.value = false
-        }
-    })
+        })
+    }
+    
+    // 使用requestAnimationFrame确保UI流畅
+    requestAnimationFrame(处理批次)
 }
 
 // 添加日志到处理队列
@@ -310,40 +320,135 @@ const 导出日志 = async () => {
 }
 
 // 复制日志到剪贴板 (完整日志)
-const 复制日志 = (日志) => {
+const 复制日志 = (日志, 事件) => {
     try {
+        // 阻止事件冒泡
+        if (事件) {
+            事件.stopPropagation();
+        }
+        
+        // 确保我们复制的是正确的日志对象
+        console.log('开始复制日志:', 日志.id, 日志.级别, 日志.时间);
+        
+        // 使用格式化器中的日志转文本函数格式化日志
         const 文本 = 格式化器.日志转文本(日志);
-        navigator.clipboard.writeText(文本).then(() => {
-            显示消息('已复制完整日志');
-        }).catch(err => {
-            console.error('复制失败:', err);
-            显示消息('复制失败');
-        });
+        
+        // 检查是否有Navigator API
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(文本)
+                .then(() => {
+                    显示消息(`已复制日志 (ID: ${日志.id.slice(-6)})`);
+                })
+                .catch(err => {
+                    console.error('复制失败:', err);
+                    // 备用复制方法
+                    使用备用复制方法(文本, 日志);
+                });
+        } else {
+            // 环境不支持clipboard API时使用备用方法
+            使用备用复制方法(文本, 日志);
+        }
     } catch (e) {
-        console.error('复制日志失败:', e);
-        显示消息('复制日志失败');
+        console.error('复制日志失败:', e, '日志对象:', 日志);
+        显示消息('复制日志失败: ' + e.message);
+    }
+};
+
+// 备用复制方法，使用临时textarea元素
+const 使用备用复制方法 = (文本, 日志) => {
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = 文本;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const 成功 = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (成功) {
+            显示消息(`已复制日志 (ID: ${日志.id.slice(-6)})`);
+        } else {
+            显示消息('复制失败，请手动复制');
+            console.log('需要复制的内容:', 文本);
+        }
+    } catch (e) {
+        console.error('备用复制方法失败:', e);
+        显示消息('复制失败: ' + e.message);
     }
 };
 
 // 复制日志的部分内容
-const 复制部分内容 = (内容, 标签) => {
+const 复制部分内容 = (内容, 标签, 事件) => {
     try {
+        // 阻止事件冒泡
+        if (事件) {
+            事件.stopPropagation();
+        }
+        
         let 复制文本 = 内容;
         
         // 处理对象
         if (typeof 内容 === 'object' && 内容 !== null) {
-            复制文本 = JSON.stringify(内容, null, 2);
+            try {
+                复制文本 = JSON.stringify(内容, null, 2);
+            } catch (e) {
+                复制文本 = '[无法序列化的对象]';
+                console.error('序列化对象失败:', e);
+            }
         }
         
-        navigator.clipboard.writeText(复制文本).then(() => {
-            显示消息(`已复制 ${标签}`);
-        }).catch(err => {
-            console.error('复制失败:', err);
-            显示消息('复制失败');
-        });
+        // 处理undefined和null
+        if (内容 === undefined) {
+            复制文本 = 'undefined';
+        } else if (内容 === null) {
+            复制文本 = 'null';
+        }
+        
+        // 检查是否有Navigator API
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(复制文本)
+                .then(() => {
+                    显示消息(`已复制 ${标签}`);
+                })
+                .catch(err => {
+                    console.error('复制失败:', err);
+                    // 使用备用方法
+                    使用备用复制部分内容(复制文本, 标签);
+                });
+        } else {
+            // 环境不支持clipboard API时使用备用方法
+            使用备用复制部分内容(复制文本, 标签);
+        }
     } catch (e) {
         console.error('复制部分内容失败:', e);
-        显示消息('复制失败');
+        显示消息('复制失败: ' + e.message);
+    }
+};
+
+// 备用复制部分内容方法
+const 使用备用复制部分内容 = (复制文本, 标签) => {
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = 复制文本;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const 成功 = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (成功) {
+            显示消息(`已复制 ${标签}`);
+        } else {
+            显示消息('复制失败，请手动复制');
+            console.log('需要复制的内容:', 复制文本);
+        }
+    } catch (e) {
+        console.error('备用复制部分内容方法失败:', e);
+        显示消息('复制失败: ' + e.message);
     }
 };
 
@@ -438,11 +543,11 @@ const 加载更多日志 = async () => {
     }
 }
 
-// 处理滚动事件
+// 处理滚动事件 - 简化版，不再需要计算虚拟列表的可视区域
 const 处理滚动事件 = (事件) => {
     // 节流处理，避免频繁触发
     const 当前时间 = Date.now()
-    if (当前时间 - 最近一次滚动时间.value < 200) return
+    if (当前时间 - 最近一次滚动时间.value < 100) return
     最近一次滚动时间.value = 当前时间
     
     if (!日志容器.value) return
@@ -578,20 +683,26 @@ const 格式化结构化值 = (值) => {
         <div class="log-container" ref="日志容器" @scroll="处理滚动事件">
             <div v-if="正在加载更多" class="log-loading">正在加载日志...</div>
             
-            <div v-for="日志 in 显示的日志" 
+            <!-- 无日志提示 -->
+            <div v-if="过滤后的日志.length === 0" class="no-logs-message">
+                暂无匹配的日志记录
+            </div>
+            
+            <!-- 日志列表 -->
+            <div v-for="日志 in 过滤后的日志" 
                  :key="日志.id || 日志.行号" 
                  class="log-entry"
                  :class="[日志.级别, 日志.包含图片 ? 'with-image' : '', 日志.包含结构化数据 ? 'with-structured-data' : '']">
                 
                 <!-- 日志元数据（时间、级别、来源）-->
                 <div class="log-meta">
-                    <span v-if="显示时间戳" class="log-time" @click="复制部分内容(格式化时间(日志.时间), '时间')">
+                    <span v-if="显示时间戳" class="log-time" @click="复制部分内容(格式化时间(日志.时间), '时间', $event)">
                         {{ 格式化时间(日志.时间) }}
                     </span>
-                    <span v-if="显示级别" class="log-level" @click="复制部分内容(日志.级别, '级别')">
+                    <span v-if="显示级别" class="log-level" @click="复制部分内容(日志.级别, '级别', $event)">
                         {{ 日志.级别.toUpperCase() }}
                     </span>
-                    <span class="log-source" @click="复制部分内容(日志.来源, '来源')">
+                    <span class="log-source" @click="复制部分内容(日志.来源, '来源', $event)">
                         {{ 日志.来源 }}
                     </span>
                     
@@ -606,7 +717,7 @@ const 格式化结构化值 = (值) => {
                     </span>
                     
                     <span class="log-actions">
-                        <button class="mini-button copy-all" @click="复制日志(日志)" title="复制整条日志">
+                        <button class="mini-button copy-all" @click="复制日志(日志, $event)" title="复制整条日志">
                             复制
                         </button>
                     </span>
@@ -615,39 +726,40 @@ const 格式化结构化值 = (值) => {
                 <!-- 日志内容 -->
                 <div class="log-content-wrapper">
                     <!-- 普通文本内容 -->
-                    <div v-if="!日志.包含图片 && !日志.包含结构化数据" class="log-content" @click="复制部分内容(日志.内容, '内容')">
+                    <div v-if="!日志.包含图片 && !日志.包含结构化数据" class="log-content" @click="复制部分内容(日志.内容, '内容', $event)">
                         {{ 日志.内容 }}
                     </div>
                     
                     <!-- 图片内容 -->
                     <div v-else-if="日志.包含图片" class="log-content log-image-content">
                         <!-- 图片标题和描述 -->
-                        <div class="image-meta" @click="复制部分内容(日志.内容.描述, '描述')">
-                            <strong>图片</strong>: {{ 日志.内容.描述 || '' }}
+                        <div class="image-meta" @click="复制部分内容(日志.内容 && 日志.content.描述, '描述', $event)">
+                            <strong>图片</strong>: {{ 日志.content && 日志.content.描述 || '' }}
                         </div>
                         
                         <!-- 图片预览 -->
                         <div class="image-preview">
-                            <img v-if="日志.内容 && 日志.内容.值" 
-                                 :src="日志.内容.值" 
-                                 alt="日志图片"
-                                 @click="打开图片(日志.内容.值)"
-                                 @error="图片加载失败($event, 日志)" />
+                            <img v-if="日志.content && 日志.content.值" 
+                                loading="lazy" 
+                                :src="日志.content.值" 
+                                alt="日志图片"
+                                @click="打开图片(日志.content.值)"
+                                @error="图片加载失败($event, 日志)" />
                             <div v-else class="image-error">图片资源不可用</div>
                         </div>
                         
                         <!-- 图片URL（可复制） -->
-                        <div v-if="日志.内容 && 日志.内容.值" 
+                        <div v-if="日志.content && 日志.content.值" 
                              class="image-url" 
-                             @click="复制部分内容(日志.内容.值, '图片URL')">
-                            <small>{{ 截断图片URL(日志.内容.值) }}</small>
+                             @click="复制部分内容(日志.content.值, '图片URL', $event)">
+                            <small>{{ 截断图片URL(日志.content.值) }}</small>
                         </div>
                     </div>
                     
                     <!-- 结构化数据内容 -->
                     <div v-else-if="日志.包含结构化数据" class="log-content log-structured-content">
                         <!-- 基本内容显示 -->
-                        <div class="structured-basic" @click="复制部分内容(日志.内容, '内容')">
+                        <div class="structured-basic" @click="复制部分内容(日志.内容, '内容', $event)">
                             {{ 日志.内容 }}
                         </div>
                         
@@ -660,8 +772,8 @@ const 格式化结构化值 = (值) => {
                         <!-- 元数据内容 -->
                         <div v-if="日志.展开元数据 && 日志.元数据" class="structured-data">
                             <div v-for="(值, 键) in 日志.元数据" :key="键" class="data-item">
-                                <span class="data-key" @click="复制部分内容(键, '键名')">{{ 键 }}:</span>
-                                <span class="data-value" @click="复制部分内容(值, 键)">
+                                <span class="data-key" @click="复制部分内容(键, '键名', $event)">{{ 键 }}:</span>
+                                <span class="data-value" @click="复制部分内容(值, 键, $event)">
                                     {{ 格式化结构化值(值) }}
                                 </span>
                             </div>
@@ -669,8 +781,8 @@ const 格式化结构化值 = (值) => {
                     </div>
                     
                     <!-- 对象内容 (带有格式化显示) -->
-                    <div v-else-if="typeof 日志.内容 === 'object'" class="log-content log-object-content">
-                        <pre @click="复制部分内容(JSON.stringify(日志.内容, null, 2), '对象内容')">{{ JSON.stringify(日志.内容, null, 2) }}</pre>
+                    <div v-else-if="typeof 日志.内容 === 'object' && 日志.content !== null" class="log-content log-object-content">
+                        <pre @click="复制部分内容(JSON.stringify(日志.content, null, 2), '对象内容', $event)">{{ JSON.stringify(日志.content, null, 2) }}</pre>
                     </div>
                 </div>
             </div>
@@ -685,7 +797,7 @@ const 格式化结构化值 = (值) => {
             <div class="image-viewer-content" @click.stop>
                 <img :src="当前查看图片" alt="查看大图" />
                 <div class="image-viewer-toolbar">
-                    <button @click="复制部分内容(当前查看图片, '大图URL')">复制URL</button>
+                    <button @click="复制部分内容(当前查看图片, '大图URL', $event)">复制URL</button>
                     <button @click="在新窗口打开图片(当前查看图片)">新窗口打开</button>
                     <button @click="关闭图片查看器">关闭</button>
                 </div>
@@ -763,6 +875,14 @@ const 格式化结构化值 = (值) => {
     font-family: Consolas, monospace;
     font-size: 14px;
     line-height: 1.5;
+    position: relative; /* 为虚拟列表定位 */
+}
+
+/* 虚拟列表样式 */
+.virtual-list-container {
+    position: relative;
+    width: 100%;
+    will-change: transform; /* 提示浏览器此元素会频繁变化，优化性能 */
 }
 
 .log-entry {
@@ -771,6 +891,7 @@ const 格式化结构化值 = (值) => {
     border-radius: 4px;
     background-color: #161b22;
     transition: background-color 0.1s;
+    will-change: contents; /* 性能优化提示 */
 }
 
 .log-entry:hover {
@@ -1158,5 +1279,16 @@ button.pause-receiving:hover {
 
 .log-container::-webkit-scrollbar-thumb:hover {
     background: #484f58;
+}
+
+/* 无日志提示样式 */
+.no-logs-message {
+    padding: 20px;
+    text-align: center;
+    color: #8b949e;
+    font-size: 16px;
+    background-color: #161b22;
+    border-radius: 4px;
+    margin: 20px 0;
 }
 </style> 
