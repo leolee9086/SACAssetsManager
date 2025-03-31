@@ -3,6 +3,7 @@
  * 需要支持撤销和重做
  */
 import { 提取所有子目录文件扩展名 } from "../dataBase/mainDb.js";
+import { 日志 } from '../utils/logger.js';
 const path = require('path')
 const 图片扩展名列表 = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
 
@@ -38,16 +39,19 @@ const 读取图片并发送 = async (图片路径, res) => {
     return res.send(图片数据);
 };
 
-export const 响应文件夹扩展名请求 =async (req,res,next)=>{
+export const 响应文件夹扩展名请求 = async (req,res,next) => {
     const { dirPath } = req.query;
     if (!dirPath) {
+        日志.警告('dirPath 参数缺失', 'FSHandler');
         return res.status(400).json({ error: 'dirPath 参数是必须的' });
     }
     try {
+        日志.信息(`开始提取文件夹扩展名: ${dirPath}`, 'FSHandler');
         const extensions = await 提取所有子目录文件扩展名(dirPath);
+        日志.信息(`成功提取文件夹扩展名: ${dirPath}`, 'FSHandler');
         res.json({ extensions });
     } catch (error) {
-        console.error('提取文件扩展名时出错:', error);
+        日志.错误(`提取文件扩展名时出错: ${error}`, 'FSHandler');
         res.status(500).json({ error: '服务器内部错误' });
     }
 }
@@ -55,23 +59,28 @@ export const 响应文件夹扩展名请求 =async (req,res,next)=>{
 export const 获取文件夹第一张图片 = async (req, res, next) => {
     const { dirPath } = req.query;
     if (!dirPath) {
+        日志.警告('dirPath 参数缺失', 'FSHandler');
         return res.status(400).json({ error: 'dirPath 参数是必须的' });
     }
     
     try {
+        日志.信息(`开始查找文件夹第一张图片: ${dirPath}`, 'FSHandler');
         const 找到的图片路径 = await 查找第一个图片(dirPath);
         
         if (!找到的图片路径) {
+            日志.警告(`文件夹为空: ${dirPath}`, 'FSHandler');
             return res.status(404).json({ error: '文件夹为空' });
         }
         
         if (是图片文件(找到的图片路径)) {
+            日志.信息(`找到图片文件: ${找到的图片路径}`, 'FSHandler');
             await 读取图片并发送(找到的图片路径, res);
         } else {
+            日志.信息(`重定向到缩略图: ${找到的图片路径}`, 'FSHandler');
             res.redirect(`/thumbnail?localPath=${encodeURIComponent(找到的图片路径)}`);
         }
     } catch (error) {
-        console.error('获取文件夹第一张图片时出错:', error);
+        日志.错误(`获取文件夹第一张图片时出错: ${error}`, 'FSHandler');
         res.status(500).json({ error: '服务器内部错误' });
     }
 };

@@ -9,6 +9,7 @@ import { buildCache } from '../processors/cache/cache.js';
 import { reportHeartbeat } from '../utils/heartBeat.js';
 import { 查找子文件夹,流式查找子文件夹 } from '../processors/thumbnail/indexer.js'
 import { 更新目录索引,processWalkResults,调度文件夹索引任务 } from '../processors/fs/walk.js'
+import { 日志 } from '../utils/logger.js';
 const { pipeline } = require('stream');
 /**
  * 创建一个walk流
@@ -150,7 +151,7 @@ const parseStreamConfig = (req) => {
         try {
             scheme = JSON.parse(req.query.setting)
         } catch (e) {
-            console.error(e)
+            日志.错误(e, 'StreamGlob');
             throw (e)
         }
     } else if (req.body) {
@@ -180,7 +181,7 @@ export const globStream = (req, res) => {
     let fn = async () => {
         globalTaskQueue.paused = true
         let scheme = parseStreamConfig(req)
-        console.log('globStream', scheme)
+        日志.信息(`开始globStream: ${JSON.stringify(scheme)}`, 'StreamGlob');
         const _filter = parseQuery(req)
         const walkController = new AbortController()
         const controller = new AbortController();
@@ -198,6 +199,7 @@ export const globStream = (req, res) => {
         res.on('close', () => {
             reportHeartbeat()
             globalTaskQueue.paused = false
+            日志.信息('globStream完成', 'StreamGlob');
         });
         return new Promise((resolve, reject) => {
             resolve({
@@ -215,9 +217,10 @@ export const fileListStream = async (req, res) => {
     if (req.query && req.query.setting) {
         scheme = JSON.parse(req.query.setting)
     }
-    console.log(scheme)
+    日志.信息(`开始fileListStream: ${JSON.stringify(scheme)}`, 'StreamGlob');
     req.on('close', () => {
         controller.abort();
+        日志.信息('fileListStream已关闭', 'StreamGlob');
     });
     let walkCount = buildCache('statCache').size
     res.write(`data:${JSON.stringify({ walkCount })}\n`)
@@ -245,10 +248,10 @@ export const fileListStream = async (req, res) => {
         res,
         (err) => {
             if (err) {
-                console.error('Streaming error:', err);
+                日志.错误(`流处理错误: ${err}`, 'StreamGlob');
                 res.destroy(err);
             } else {
-                console.log('Streaming completed');
+                日志.信息('流处理完成', 'StreamGlob');
             }
         }
     );

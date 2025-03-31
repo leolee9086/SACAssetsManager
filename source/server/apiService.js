@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const path = require('path')
 const cors = require('cors'); // 引入 cors 中间件
+import { 日志 } from './utils/logger.js';
 
 // 引入自定义路由器
 import { createRouter } from '../utils/useDeps/useRadix3/forExpressLikeRouter.js';
@@ -20,7 +21,7 @@ import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.j
 import { globalTaskQueue } from './middlewares/runtime_queue.js';
 const siyuanBroadcastChannel = await createSiyuanBroadcastChannel('sacAssetsManager', window.siyuanPort)
 siyuanBroadcastChannel.onmessage = (e) => {
-    console.log(e)
+    日志.信息(e, 'SiyuanChannel');
 }
 /**
  * 启用跨域支持
@@ -73,7 +74,7 @@ router.get('/metaRecords/delete', async (req, res) => {
     } else if (req.query.path) {
         源文件地址 = path.join(siyuanConfig.system.workspaceDir, 'data', req.query.path);
     }
-    console.log(源文件地址)
+    日志.信息(`删除文件颜色记录: ${源文件地址}`, 'MetaRecords');
     删除文件颜色记录(源文件地址)
     buildCache("statCache").delete(源文件地址.replace(/\\/g, '/'))
     buildCache("walk").delete(require('path').dirname(源文件地址.replace(/\\/g, '/')))
@@ -130,9 +131,9 @@ app.use('/', router.routes());
 
 // 启动服务器
 app.listen(port, '127.0.0.1', () => {
-    console.log(`服务器运行在 http://127.0.0.1:${port}`);
+    日志.信息(`服务器运行在 http://127.0.0.1:${port}`, 'Server');
 });
 app.listen(port, 'localhost', () => {
     window.channel.postMessage('serverReady')
-    console.log(`服务器运行在 http://localhost:${port}`);
+    日志.信息(`服务器运行在 http://localhost:${port}`, 'Server');
 });

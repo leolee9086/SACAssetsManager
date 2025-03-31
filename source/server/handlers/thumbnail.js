@@ -1,5 +1,6 @@
 import { listLoaders as listThumbnailLoaders } from '../processors/thumbnail/loader.js '
 import { globalTaskQueue } from '../middlewares/runtime_queue.js'
+import { 日志 } from '../utils/logger.js';
 
 const express = require('express')
 const router = express.Router()
@@ -18,7 +19,7 @@ router.get('/', async (req, res, next) => {
     try {
         await next()
     } catch (e) {
-        console.error(e)
+        日志.错误(e, 'Thumbnail');
     }
     return
 },
@@ -34,6 +35,7 @@ router.post('/upload', upload.single('image'), async (req, res, next) => {
         const file = req.file;
         const { path, localPath } = req.query;
         if (!file) {
+            日志.警告('没有上传文件', 'Thumbnail');
             return res.status(400).json({ error: '没有上传文件' });
         }
         const thumbnailPath = await 生成默认缩略图路径(path || localPath)
@@ -45,10 +47,10 @@ router.post('/upload', upload.single('image'), async (req, res, next) => {
         const rawBuffer = require('fs').readFileSync(thumbnailPath)
         const hash = await 获取哈希并写入数据库(stat)
         tumbnailCache.set(hash,rawBuffer)
-        // 这里可以添加将缩略图路径保存到数据库的逻辑
+        日志.信息(`缩略图生成成功: ${thumbnailPath}`, 'Thumbnail');
         res.json({ success: true, thumbnailPath });
     } catch (error) {
-        console.error('缩略图生成失败:', error);
+        日志.错误(`缩略图生成失败: ${error}`, 'Thumbnail');
         res.status(500).json({ error: '缩略图生成失败' });
     }
 })
@@ -62,16 +64,18 @@ router.get('/dimensions', async (req, res) => {
         const { path, localPath } = req.query
         const imagePath = path || localPath
         if (!imagePath) {
+            日志.警告('未提供图片路径', 'Thumbnail');
             return res.status(400).json({ error: '未提供图片路径' })
         }
         const metadata = await sharp(imagePath).metadata()
+        日志.信息(`获取图片尺寸成功: ${imagePath}`, 'Thumbnail');
         res.json({
             width: metadata.width,
             height: metadata.height,
             format: metadata.format
         })
     } catch (error) {
-        console.error('获取图片尺寸失败:', error)
+        日志.错误(`获取图片尺寸失败: ${error}`, 'Thumbnail');
         res.status(500).json({ error: '获取图片尺寸失败' })
     }
 })

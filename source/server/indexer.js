@@ -1,29 +1,34 @@
 import { 根据路径查找并加载颜色索引 } from "./processors/color/colorIndex.js";
 import { listLocalDisks } from "./processors/fs/disk/diskInfo.js";
 import { globalTaskQueue } from "./processors/queue/taskQueue.js";
-let diskInfos= await listLocalDisks()
+import { 日志 } from './utils/logger.js';
+
+let diskInfos = await listLocalDisks()
 setImmediate(() => {
     let disks = diskInfos.map(d => d.name)
     const diskPromises = []
     disks.forEach(
-        d=>{
-            根据路径查找并加载颜色索引(d+'/')
+        d => {
+            根据路径查找并加载颜色索引(d + '/')
         }
     )
     disks.forEach(d => {
         diskPromises.push(async () => {
-            console.warn(d)
-           console.time(`构建磁盘目录树${d}`)
+            日志.警告(`开始处理磁盘: ${d}`, 'Indexer');
+            const startTime = Date.now();
             let result = await 构建磁盘目录树(d)
-            console.timeEnd(`构建磁盘目录树${d}`)
-           return result
+            const endTime = Date.now();
+            日志.信息(`磁盘 ${d} 目录树构建完成，耗时: ${endTime - startTime}ms`, 'Indexer');
+            return result
         })
     });
     (async () => {
-        console.time('buildIndex')
+        const startTime = Date.now();
+        日志.信息('开始构建索引', 'Indexer');
         for (let i = 0; i < diskPromises.length; i++) {
             setImmediate(globalTaskQueue.start); // 开始处理第一个Promise
         }
-        console.timeEnd('buildIndex')
+        const endTime = Date.now();
+        日志.信息(`索引构建完成，总耗时: ${endTime - startTime}ms`, 'Indexer');
     })()
 })
