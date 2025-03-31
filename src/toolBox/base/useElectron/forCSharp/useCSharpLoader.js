@@ -206,7 +206,7 @@ export const 设置DLL路径 = () => {
         console.error('设置DLL路径失败', e);
     }
 };
-
+await 设置DLL路径()
 // 兼容原始导出
 export const loadCsharpFunc = 加载C井函数;
 export const loadCsharpFile = 加载C井文件;
