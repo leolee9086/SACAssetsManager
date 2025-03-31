@@ -195,7 +195,8 @@ export default class SystemThumbnailLoader {
      * @returns 
      */
     match(filePath) {
-        return /.*/
+        // 匹配所有文件，但优先级最低
+        return /.*/;
     }
     sys = ['win32 x64']
 }

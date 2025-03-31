@@ -51,7 +51,12 @@ export const 获取数据模型提供者类型 = (appData) => {
     }
 };
 export const 解析数据模型 = (appData, 数据缓存, $realGlob, apiEnabled) => {
-    return {
+    console.log('[GalleryPanelData] 开始解析数据模型:', {
+        appData,
+        $realGlob,
+        apiEnabled
+    });
+    const 模型 = {
         dataProviderType: 获取数据模型提供者类型(appData),
         efuPath: appData.efuPath,
         tagLabel: appData.tagLabel,
@@ -66,8 +71,11 @@ export const 解析数据模型 = (appData, 数据缓存, $realGlob, apiEnabled)
             apiEnabled
         }
     };
+    console.log('[GalleryPanelData] 数据模型解析完成:', 模型);
+    return 模型;
 };
 export const 根据数据配置获取数据到缓存 = (数据模型, signal, callBack) => {
+    console.log('[GalleryPanelData] 开始获取数据, 数据模型:', 数据模型);
     const dataFetchers = {
         'efu文件列表': () => fetchEfuData(数据模型.efuPath, 数据模型.附件数据源, callBack),
         '本地文件系统': () => 获取本地文件夹数据(数据模型.realGlob, 数据模型.附件数据源, callBack, 1, signal),
@@ -85,6 +93,7 @@ export const 根据数据配置获取数据到缓存 = (数据模型, signal, ca
         })
     };
     const fetcher = dataFetchers[数据模型.dataProviderType];
+    console.log('[GalleryPanelData] 选择数据获取方式:', 数据模型.dataProviderType);
     return fetcher
 };
 const fetchEfuData = async (efuPath, dataTarget, callBack) => {

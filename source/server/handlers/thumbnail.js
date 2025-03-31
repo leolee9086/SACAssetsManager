@@ -15,13 +15,36 @@ import {
 import { buildCache, statWithCatch } from '../middlewares/runtime_cache.js'
 import { 获取哈希并写入数据库 } from '../processors/fs/stat.js'
 router.get('/', async (req, res, next) => {
-    globalTaskQueue.paused = true
+    const 请求ID = Date.now().toString(36) + Math.random().toString(36).substr(2);
+    const 开始时间 = performance.now();
+    
+    日志.信息(`开始处理缩略图请求`, 'Thumbnail', {
+        元数据: {
+            请求ID,
+            请求路径: req.path,
+            查询参数: req.query,
+            处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
+        },
+        标签: ['缩略图', '请求', '开始']
+    });
+    
+    globalTaskQueue.paused = true;
     try {
-        await next()
+        await next();
     } catch (e) {
-        日志.错误(e, 'Thumbnail');
+        日志.错误(`缩略图处理失败: ${e.message}`, 'Thumbnail', {
+            元数据: {
+                请求ID,
+                错误类型: e.name,
+                错误消息: e.message,
+                错误栈: e.stack,
+                处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
+            },
+            标签: ['缩略图', '请求', '错误']
+        });
+        res.status(500).send(`缩略图处理失败: ${e.message}`);
     }
-    return
+    return;
 },
     getSourcePath,
     生成缩略图响应,

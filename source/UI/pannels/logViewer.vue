@@ -656,32 +656,21 @@ const 切换展开元数据 = (日志) => {
     }
 };
 
-// 格式化结构化数据值
-const 格式化结构化值 = (值) => {
-    if (值 === null) return 'null';
-    if (值 === undefined) return 'undefined';
-    
-    if (typeof 值 === 'object') {
-        try {
-            return JSON.stringify(值);
-        } catch (e) {
-            return '[复杂对象]';
-        }
-    }
-    
-    if (typeof 值 === 'string' && 值.length > 100) {
-        return 值.substring(0, 100) + '...';
-    }
-    
-    return String(值);
-};
-
 // 获取内容字段
 const 获取内容字段 = (日志) => {
     // 先检查内容字段
     if (日志.内容) {
         if (typeof 日志.内容 === 'object' && 日志.内容 !== null) {
-            return 日志.内容;
+            try {
+                // 如果是字符串化的JSON，尝试解析
+                if (typeof 日志.内容 === 'string' && 
+                    (日志.内容.startsWith('{') || 日志.content.startsWith('['))) {
+                    return JSON.parse(日志.内容);
+                }
+                return 日志.内容;
+            } catch (e) {
+                return { 错误: '无法解析内容', 原始内容: 日志.内容 };
+            }
         }
         return 日志.内容;
     }
@@ -689,7 +678,16 @@ const 获取内容字段 = (日志) => {
     // 再检查content字段
     if (日志.content) {
         if (typeof 日志.content === 'object' && 日志.content !== null) {
-            return 日志.content;
+            try {
+                // 如果是字符串化的JSON，尝试解析
+                if (typeof 日志.content === 'string' && 
+                    (日志.content.startsWith('{') || 日志.content.startsWith('['))) {
+                    return JSON.parse(日志.content);
+                }
+                return 日志.content;
+            } catch (e) {
+                return { 错误: '无法解析内容', 原始内容: 日志.content };
+            }
         }
         return 日志.content;
     }
@@ -708,6 +706,45 @@ const 获取元素ID = (日志) => {
         日志._elId = `${时间戳.toString(36)}${随机数}${计数器}`
     }
     return 日志._elId;
+};
+
+// 格式化结构化数据值
+const 格式化结构化值 = (值) => {
+    if (值 === null) return 'null';
+    if (值 === undefined) return 'undefined';
+    
+    if (typeof 值 === 'object') {
+        try {
+            // 如果是字符串化的JSON，尝试解析
+            if (typeof 值 === 'string' && 
+                (值.startsWith('{') || 值.startsWith('['))) {
+                值 = JSON.parse(值);
+            }
+            
+            // 使用自定义replacer处理循环引用
+            const seen = new WeakSet();
+            return JSON.stringify(值, (key, value) => {
+                if (typeof value === 'object' && value !== null) {
+                    if (seen.has(value)) {
+                        return '[循环引用]';
+                    }
+                    seen.add(value);
+                }
+                if (value === undefined) return '[未定义]';
+                if (typeof value === 'function') return '[函数]';
+                if (typeof value === 'symbol') return value.toString();
+                return value;
+            }, 2);
+        } catch (e) {
+            return '[复杂对象]';
+        }
+    }
+    
+    if (typeof 值 === 'string' && 值.length > 100) {
+        return 值.substring(0, 100) + '...';
+    }
+    
+    return String(值);
 };
 </script>
 

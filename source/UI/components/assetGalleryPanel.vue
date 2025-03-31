@@ -247,16 +247,18 @@ const 创建回调并获取数据 = async () => {
     try {
         initializeSize();
         if (filListProvided.value) {
+            console.log('[AssetGalleryPanel] 使用提供的文件列表:', filListProvided.value.length, '个文件');
             数据缓存.value.data.push(...filListProvided.value);
         } else {
-            console.log($realGlob.value)
+            console.log('[AssetGalleryPanel] 开始解析数据模型, glob:', $realGlob.value);
             const dataModel = 解析数据模型(appData.value, 数据缓存.value, $realGlob.value, everthingEnabled);
+            console.log('[AssetGalleryPanel] 数据模型解析完成:', dataModel);
             const fetcher = 根据数据配置获取数据到缓存(dataModel, signal, callBack);
             await fetcher()
         }
         nextTick(callBack);
     } catch (e) {
-        console.warn(e);
+        console.error('[AssetGalleryPanel] 数据获取错误:', e);
     }
 };
 

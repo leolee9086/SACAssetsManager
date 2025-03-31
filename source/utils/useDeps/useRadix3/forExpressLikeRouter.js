@@ -1,604 +1,951 @@
+/*!
+ * Express-like Router with Radix3 for improved performance
+ */
+
+'use strict';
+
 import * as radix from "../../../../static/radix3.mjs";
-import { pathToRegexp, compile } from "../../../../static/path-to-regexp.js";
+import { pathToRegexp } from "../../../../static/path-to-regexp.js";
+import { 日志 } from "../../../server/utils/logger.js";
+import * as url from "../../../../static/url.js";
 
-class Layer {
-  constructor(path, methods, middleware, opts = {}) {
-    this.path = path;
-    this.methods = methods;
-    this.middleware = Array.isArray(middleware) ? middleware : [middleware];
-    this.name = opts.name || null;
-    // 修复参数名称提取
-    const keys = [];
-    this.regexp = pathToRegexp(path, keys);
-    this.paramNames = keys.map(key => key.name);
-    this.opts = opts;
-    // 为路由生成URL创建编译函数
-    this.pathCompiler = compile(path);
+const { parseUrl } = url;
+
+// 确保Buffer可用
+const Buffer = globalThis.Buffer || {
+  byteLength: function(str) {
+    // 简单实现，仅作兼容
+    return new TextEncoder().encode(str).length;
+  }
+};
+
+/**
+ * Module variables.
+ * @private
+ */
+const objectRegExp = /^\[object (\S+)\]$/;
+const slice = Array.prototype.slice;
+const toString = Object.prototype.toString;
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+
+/**
+ * HTTP 方法列表
+ */
+const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
+
+/**
+ * 将参数解码
+ * @private
+ */
+function decode_param(val) {
+  if (typeof val !== 'string' || val.length === 0) {
+    return val;
+  }
+
+  try {
+    return decodeURIComponent(val);
+  } catch (err) {
+    if (err instanceof URIError) {
+      err.message = '参数解码失败 \'' + val + '\'';
+      err.status = err.statusCode = 400;
+    }
+
+    throw err;
   }
 }
 
-class Router {
-  constructor(opts = {}) {
-    this.opts = opts;
-    this.prefix = opts.prefix || '';
-    this.methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
-    
-    // 为每个HTTP方法创建一个radix树
-    this.trees = {};
-    this.methods.forEach(method => {
-      this.trees[method] = radix.createRouter();
-    });
-    
-    // 存储所有路由层
-    this.stack = [];
-    // 存储命名路由
-    this.namedRoutes = {};
-    
-    // 创建各种HTTP方法处理函数
-    this.methods.forEach(method => {
-      this[method.toLowerCase()] = this._createMethodFunction(method);
-    });
-    
-    // 兼容Express的all方法
-    this.all = this._createMethodFunction('ALL');
+/**
+ * 获取pathname
+ * @private
+ */
+function getPathname(req) {
+  try {
+    return parseUrl(req).pathname;
+  } catch (err) {
+    return undefined;
+  }
+}
+
+/**
+ * 获取URL协议和主机部分
+ * @private
+ */
+function getProtohost(url) {
+  if (url.length === 0 || url[0] === '/') {
+    return undefined;
   }
 
-  /**
-   * 创建HTTP方法处理函数
-   * @param {String} method - HTTP方法
-   * @returns {Function} 方法处理函数
-   */
-  _createMethodFunction(method) {
-    return function(path, ...handlers) {
-      // Express风格不使用命名路由，所以简化处理
-      return this.register(method, path, {}, handlers);
-    };
+  const searchIndex = url.indexOf('?');
+  const pathLength = searchIndex !== -1
+    ? searchIndex
+    : url.length;
+
+  const fqdnIndex = url.slice(0, pathLength).indexOf('://');
+
+  return fqdnIndex !== -1
+    ? url.substring(0, url.indexOf('/', 3 + fqdnIndex))
+    : undefined;
+}
+
+/**
+ * 获取对象类型
+ * @private
+ */
+function gettype(obj) {
+  const type = typeof obj;
+
+  if (type !== 'object') {
+    return type;
   }
 
-  /**
-   * 注册路由处理函数
-   * @param {String|String[]} methods - HTTP方法
-   * @param {String|RegExp|Array} path - 路由路径
-   * @param {Object} [opts] - 路由选项
-   * @param {Function[]} middleware - 中间件函数数组
-   */
-  register(methods, path, opts, middleware) {
-    // 处理数组形式的路径
-    if (Array.isArray(path)) {
-      for (const p of path) {
-        this.register(methods, p, opts, middleware);
-      }
-      return this;
+  return toString.call(obj)
+    .replace(objectRegExp, '$1')
+    .toLowerCase();
+}
+
+/**
+ * 恢复对象属性
+ * @private
+ */
+function restore(fn, obj) {
+  const props = new Array(arguments.length - 2);
+  const vals = new Array(arguments.length - 2);
+
+  for (let i = 0; i < props.length; i++) {
+    props[i] = arguments[i + 2];
+    vals[i] = obj[props[i]];
+  }
+
+  return function() {
+    // 恢复之前的值
+    for (let i = 0; i < props.length; i++) {
+      obj[props[i]] = vals[i];
     }
-    
-    // 路径规范化处理
-    const normalizedPath = this._pathNormalization(path);
-    
-    // 处理参数重载 (opts是可选的)
-    if (typeof opts === 'function' || Array.isArray(opts)) {
-      middleware = opts;
-      opts = {};
+
+    return fn.apply(this, arguments);
+  };
+}
+
+/**
+ * 包装函数
+ * @private
+ */
+function wrap(old, fn) {
+  return function proxy() {
+    const args = new Array(arguments.length + 1);
+
+    args[0] = old;
+    for (let i = 0; i < arguments.length; i++) {
+      args[i + 1] = arguments[i];
     }
-    
-    const fullPath = this.prefix + normalizedPath;
-    
-    if (!Array.isArray(middleware)) {
-      middleware = [middleware];
+
+    return fn.apply(this, args);
+  };
+}
+
+/**
+ * 路由层 - Layer
+ */
+function Layer(path, options, fn) {
+  if (!(this instanceof Layer)) {
+    return new Layer(path, options, fn);
+  }
+
+  日志.信息('创建新的路由层: ' + path, 'Router');
+  const opts = options || {};
+
+  this.handle = fn;
+  this.name = fn.name || '<匿名>';
+  this.params = undefined;
+  this.path = undefined;
+  this.regexp = pathToRegexp(path, this.keys = [], opts);
+
+  // 快速路径标志
+  this.regexp.fast_star = path === '*';
+  this.regexp.fast_slash = path === '/' && opts.end === false;
+}
+
+/**
+ * 处理层中的错误
+ */
+Layer.prototype.handle_error = function handle_error(error, req, res, next) {
+  const fn = this.handle;
+
+  if (fn.length !== 4) {
+    // 不是标准的错误处理中间件
+    return next(error);
+  }
+
+  try {
+    fn(error, req, res, next);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 处理层中的请求
+ */
+Layer.prototype.handle_request = function handle(req, res, next) {
+  const fn = this.handle;
+
+  if (fn.length > 3) {
+    // 不是标准的请求处理函数
+    return next();
+  }
+
+  try {
+    fn(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * 检查路径是否匹配该层
+ */
+Layer.prototype.match = function match(path) {
+  let matched;
+
+  if (path != null) {
+    // 快速路径 / 匹配所有
+    if (this.regexp.fast_slash) {
+      this.params = {};
+      this.path = '';
+      return true;
     }
-    
-    // 确保methods是数组
-    if (!Array.isArray(methods)) {
-      methods = [methods];
+
+    // 快速路径 * (将所有内容匹配到一个参数中)
+    if (this.regexp.fast_star) {
+      this.params = {'0': decode_param(path)};
+      this.path = path;
+      return true;
     }
-    
-    // 创建路由层
-    const layer = new Layer(fullPath, methods, middleware, opts);
-    
-    // 如果指定了路由名称，存储命名路由
-    if (layer.name) {
-      this.namedRoutes[layer.name] = layer;
+
+    // 正则表达式匹配
+    matched = this.regexp.exec(path);
+  }
+
+  if (!matched) {
+    this.params = undefined;
+    this.path = undefined;
+    return false;
+  }
+
+  // 存储匹配值
+  this.params = {};
+  this.path = matched[0];
+
+  // 提取命名参数
+  const keys = this.keys;
+  const params = this.params;
+
+  for (let i = 1; i < matched.length; i++) {
+    const key = keys[i - 1];
+    const prop = key.name;
+    const val = decode_param(matched[i]);
+
+    if (val !== undefined || !(hasOwnProperty.call(params, prop))) {
+      params[prop] = val;
     }
-    
+  }
+
+  return true;
+};
+
+/**
+ * 路由 - Route
+ */
+function Route(path) {
+  this.path = path;
+  this.stack = [];
+
+  日志.信息('创建新的路由: ' + path, 'Router');
+
+  // 路由处理器，用于各种HTTP方法
+  this.methods = {};
+}
+
+/**
+ * 判断路由是否处理给定的HTTP方法
+ * @private
+ */
+Route.prototype._handles_method = function _handles_method(method) {
+  if (this.methods._all) {
+    return true;
+  }
+
+  // 规范化名称
+  const name = typeof method === 'string'
+    ? method.toLowerCase()
+    : method;
+
+  if (name === 'head' && !this.methods.head) {
+    // HEAD方法可以使用GET处理程序
+    return Boolean(this.methods.get);
+  }
+
+  return Boolean(this.methods[name]);
+};
+
+/**
+ * 返回支持的HTTP方法
+ * @private
+ */
+Route.prototype._options = function _options() {
+  const methods = Object.keys(this.methods);
+
+  // 如果支持GET但不支持HEAD，自动添加HEAD
+  if (this.methods.get && !this.methods.head) {
+    methods.push('head');
+  }
+
+  // 将方法名转为大写
+  for (let i = 0; i < methods.length; i++) {
+    methods[i] = methods[i].toUpperCase();
+  }
+
+  return methods;
+};
+
+/**
+ * 分派请求到路由
+ * @private
+ */
+Route.prototype.dispatch = function dispatch(req, res, done) {
+  let idx = 0;
+  const stack = this.stack;
+  let sync = 0;
+
+  if (stack.length === 0) {
+    return done();
+  }
+
+  let method = req.method.toLowerCase();
+
+  // HEAD请求可以使用GET处理程序
+  if (method === 'head' && !this.methods.head) {
+    method = 'get';
+  }
+
+  req.route = this;
+
+  next();
+
+  function next(err) {
+    // 退出当前路由的信号
+    if (err && err === 'route') {
+      return done();
+    }
+
+    // 退出整个路由器的信号
+    if (err && err === 'router') {
+      return done(err);
+    }
+
+    // 防止同步堆栈溢出
+    if (++sync > 100) {
+      return setTimeout(() => next(err), 0);
+    }
+
+    const layer = stack[idx++];
+
+    // 所有层处理完毕
+    if (!layer) {
+      return done(err);
+    }
+
+    if (layer.method && layer.method !== method) {
+      // 方法不匹配，跳过
+      next(err);
+    } else if (err) {
+      // 错误处理
+      layer.handle_error(err, req, res, next);
+    } else {
+      // 正常请求处理
+      layer.handle_request(req, res, next);
+    }
+
+    sync = 0;
+  }
+};
+
+/**
+ * 为所有HTTP方法添加处理程序
+ * @public
+ */
+Route.prototype.all = function all() {
+  const handles = Array.prototype.slice.call(arguments).flat();
+
+  for (let i = 0; i < handles.length; i++) {
+    const handle = handles[i];
+
+    if (typeof handle !== 'function') {
+      const type = toString.call(handle);
+      const msg = 'Route.all() 需要一个回调函数，但得到了 ' + type;
+      throw new TypeError(msg);
+    }
+
+    const layer = new Layer('/', {}, handle);
+    layer.method = undefined;
+
+    this.methods._all = true;
     this.stack.push(layer);
-    
-    // 在radix树中注册
-    for (const method of methods) {
-      if (this.methods.includes(method) || method === 'ALL') {
-        for (const m of method === 'ALL' ? this.methods : [method]) {
-          const tree = this.trees[m];
-          if (tree) {
-            tree.insert(fullPath, { middleware, layer });
-          }
-        }
+  }
+
+  return this;
+};
+
+// 为Route添加HTTP方法处理函数
+methods.forEach(function(method) {
+  Route.prototype[method] = function() {
+    const handles = Array.prototype.slice.call(arguments).flat();
+
+    for (let i = 0; i < handles.length; i++) {
+      const handle = handles[i];
+
+      if (typeof handle !== 'function') {
+        const type = toString.call(handle);
+        const msg = 'Route.' + method + '() 需要一个回调函数，但得到了 ' + type;
+        throw new TypeError(msg);
       }
+
+      日志.信息(`为路由 ${this.path} 添加 ${method} 方法处理器`, 'Router');
+
+      const layer = new Layer('/', {}, handle);
+      layer.method = method;
+
+      this.methods[method] = true;
+      this.stack.push(layer);
     }
-    
+
     return this;
+  };
+});
+
+/**
+ * Router - Express路由器
+ */
+function Router(options) {
+  const opts = options || {};
+
+  function router(req, res, next) {
+    router.handle(req, res, next);
   }
 
-  /**
-   * 设置路由前缀或处理嵌套路由
-   * @param {String|Router} prefix - 前缀或路由实例
-   * @param {Function|Router} [router] - 中间件或子路由
-   */
-  use(prefix, router) {
-    // Express风格的use: app.use('/path', router)
-    if (typeof prefix === 'string') {
-      if (router instanceof Router) {
-        // 合并子路由的stack
-        router.stack.forEach(layer => {
-          const cloned = new Layer(
-            this.prefix + prefix + layer.path.slice(router.prefix.length),
-            layer.methods,
-            layer.middleware,
-            layer.opts
-          );
-          
-          // 保留命名路由
-          if (cloned.name) {
-            this.namedRoutes[cloned.name] = cloned;
-          }
-          
-          this.stack.push(cloned);
-          
-          // 更新radix树
-          for (const method of layer.methods) {
-            if (this.methods.includes(method) || method === 'ALL') {
-              const tree = this.trees[method] || this.trees['GET'];
-              tree.insert(cloned.path, { middleware: cloned.middleware, layer: cloned });
-            }
-          }
-        });
-        
-        return this;
-      } else if (typeof router === 'function') {
-        // Express中间件: app.use('/path', function(req, res, next) {...})
-        return this.register('ALL', prefix + '(.*)', {}, router);
-      }
-    } else if (typeof prefix === 'function') {
-      // Express中间件: app.use(function(req, res, next) {...})
-      return this.register('ALL', '(.*)', {}, prefix);
-    } else if (prefix instanceof Router) {
-      // 直接使用另一个路由: app.use(router)
-      const router = prefix;
-      
-      router.stack.forEach(layer => {
-        this.stack.push(layer);
-        
-        // 更新radix树
-        for (const method of layer.methods) {
-          if (this.methods.includes(method) || method === 'ALL') {
-            const tree = this.trees[method] || this.trees['GET'];
-            tree.insert(layer.path, { middleware: layer.middleware, layer });
-          }
-        }
-      });
-      
-      // 合并命名路由
-      Object.keys(router.namedRoutes).forEach(name => {
-        this.namedRoutes[name] = router.namedRoutes[name];
-      });
-    }
-    
-    return this;
-  }
+  // 混入Router类方法
+  Object.setPrototypeOf(router, Router.prototype);
 
-  /**
-   * 根据命名路由和参数生成URL
-   * @param {String} name - 路由名称
-   * @param {Object} params - 路径参数
-   * @param {Object} options - 选项
-   * @returns {String} URL
-   */
-  url(name, params, options) {
-    const route = this.namedRoutes[name];
-    
-    if (!route) {
-      throw new Error(`没有找到名为 ${name} 的路由`);
-    }
-    
-    const args = params;
-    const url = route.pathCompiler(args);
-    
-    let querystring = '';
-    
-    if (options && options.query) {
-      const query = options.query;
-      querystring = Object.keys(query).map(key => {
-        let value = query[key];
-        if (Array.isArray(value)) {
-          return value.map(v => `${encodeURIComponent(key)}=${encodeURIComponent(v)}`).join('&');
-        }
-        return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-      }).join('&');
-      
-      if (querystring) {
-        querystring = `?${querystring}`;
-      }
-    }
-    
-    return url + querystring;
-  }
+  router.params = {};
+  router._params = [];
+  router.caseSensitive = opts.caseSensitive;
+  router.mergeParams = opts.mergeParams;
+  router.strict = opts.strict;
+  router.stack = [];
 
-  /**
-   * 重定向方法 (Express风格)
-   * @param {String} source - 源路径
-   * @param {String} destination - 目标路径
-   * @param {Number} [code=302] - HTTP状态码
-   */
-  redirect(source, destination, code = 302) {
-    return this.all(source, (req, res) => {
-      res.redirect(code, destination);
-    });
-  }
+  // Radix树，用于提高匹配性能
+  router.radixTrees = {};
+  methods.concat('all').forEach(method => {
+    router.radixTrees[method] = radix.createRouter();
+  });
 
-  /**
-   * 匹配路径和方法
-   * @param {String} path - 路径
-   * @param {String} method - HTTP方法 
-   * @returns {Object} 匹配结果
-   */
-  match(path, method) {
-    const result = {
-      routes: [],
-      params: {},
-      pathMatched: ''
-    };
-    
-    // 检查是否有ALL方法的匹配
-    this._checkMethodMatch(path, 'ALL', result);
-    
-    // 再检查具体方法的匹配
-    if (method !== 'ALL') {
-      this._checkMethodMatch(path, method, result);
-    }
-    
-    return result;
-  }
-  
-  /**
-   * 检查特定方法的路由匹配
-   * @param {String} path - 路径
-   * @param {String} method - HTTP方法
-   * @param {Object} result - 匹配结果
-   */
-  _checkMethodMatch(path, method, result) {
-    // 先查找radix树是否有精确匹配
-    const tree = this.trees[method];
-    if (tree) {
-      const matched = tree.lookup(path);
-      if (matched) {
-        result.pathMatched = path;
-        if (matched.params && typeof matched.params === 'object') {
-          Object.assign(result.params, matched.params);
-        }
-        if (matched.data && matched.data.layer && !result.routes.includes(matched.data.layer)) {
-          result.routes.push(matched.data.layer);
-        }
-      }
-    }
-    
-    // 如果没有精确匹配或需要补充，尝试正则匹配
-    for (const layer of this.stack) {
-      if ((layer.methods.includes(method) || layer.methods.includes('ALL')) && 
-          !result.routes.includes(layer)) {
-        const matches = layer.regexp.exec(path);
-        if (matches) {
-          result.pathMatched = path;
-          
-          // 提取正则参数
-          if (layer.paramNames && layer.paramNames.length) {
-            for (let i = 1; i < matches.length; i++) {
-              const name = layer.paramNames[i - 1];
-              if (name) result.params[name] = matches[i] || '';
-            }
-          }
-          
-          result.routes.push(layer);
-        }
-      }
-    }
-  }
-
-  /**
-   * 支持Express的next('route')功能
-   * @private
-   */
-  _handleNextRoute(req, res, matched, next) {
-    const middlewares = [];
-    for (const route of matched.routes) {
-      middlewares.push(...route.middleware.map(fn => {
-        return Object.assign(fn, { route: route });
-      }));
-    }
-    
-    let index = 0;
-    const self = this;
-    
-    function dispatch(err) {
-      if (err === 'route') {
-        // 跳过当前路由的剩余中间件
-        const currentRoute = index > 0 ? middlewares[index - 1]?.route : null;
-        while (index < middlewares.length && 
-              middlewares[index].route === currentRoute) {
-          index++;
-        }
-        return dispatch();
-      }
-      
-      // 处理常规错误
-      if (err) {
-        // 查找错误处理中间件 (有4个参数的函数)
-        while (index < middlewares.length) {
-          const handler = middlewares[index++];
-          // Express错误处理中间件判断参数数量
-          if (handler.length === 4) {
-            try {
-              return handler(err, req, res, dispatch);
-            } catch (e) {
-              return dispatch(e);
-            }
-          }
-        }
-        // 如果没有找到错误处理中间件，则传递给上层
-        return next(err);
-      }
-      
-      if (index >= middlewares.length) {
-        return next();
-      }
-      
-      const handler = middlewares[index++];
-      
-      // 跳过错误处理中间件
-      if (handler.length === 4) {
-        return dispatch();
-      }
-      
-      try {
-        handler(req, res, dispatch);
-      } catch (err) {
-        dispatch(err);
-      }
-    }
-    
-    return dispatch;
-  }
-
-  /**
-   * 生成Express中间件
-   * @returns {Function} Express风格中间件
-   */
-  routes() {
-    const router = this;
-    
-    return function(req, res, next) {
-      const method = req.method;
-      const path = req.path || req.url;
-      
-      // 记录匹配的路由
-      const matched = router.match(path, method);
-      
-      if (!matched.routes.length) {
-        return next();
-      }
-      
-      // 保存路由匹配信息
-      req.route = matched.routes[matched.routes.length - 1];
-      req.params = matched.params || {};
-      
-      // 首先处理参数中间件
-      router._applyParamMiddleware(req, res, function(err) {
-        if (err) return next(err);
-        
-        // 使用增强的dispatch处理程序
-        const dispatch = router._handleNextRoute(req, res, matched, next);
-        dispatch();
-      });
-    };
-  }
-  
-  /**
-   * 路由分组 (Express风格)
-   * @param {Object|Function} opts - 选项或回调函数
-   * @param {Function} [callback] - 回调函数
-   */
-  group(opts, callback) {
-    if (typeof opts === 'function') {
-      callback = opts;
-      opts = {};
-    }
-    
-    const prefix = opts.prefix || '';
-    const router = new Router({
-      prefix: this.prefix + prefix
-    });
-    
-    callback(router);
-    this.use(prefix, router);
-    
-    return this;
-  }
-  
-  /**
-   * 实现链式路由API (route方法)
-   * @param {String} path - 路由路径
-   * @returns {Object} 路由链对象
-   */
-  route(path) {
-    const route = {
-      path: path,
-      router: this
-    };
-    
-    // 为每个HTTP方法创建函数
-    this.methods.forEach(method => {
-      route[method.toLowerCase()] = function(...handlers) {
-        this.router.register(method, this.path, {}, handlers);
-        return this; // 返回route对象以支持链式调用
-      };
-    });
-    
-    return route;
-  }
-  
-  /**
-   * 支持更完整的路径模式
-   * @param {String|RegExp|Array} path - 路由路径
-   * @returns {String} 标准化的路径
-   */
-  _pathNormalization(path) {
-    // 处理RegExp路径
-    if (path instanceof RegExp) {
-      // 将正则表达式转换为兼容的字符串路径
-      // 注意：这是简化处理，实际应用中可能需要更复杂的转换
-      return path.toString().replace(/^\/|\/[gimsuy]*$/g, '');
-    }
-    
-    // 处理数组路径
-    if (Array.isArray(path)) {
-      return path; // 返回数组，由register方法处理
-    }
-    
-    // 处理通配符路径 - 支持Express风格
-    if (typeof path === 'string') {
-      // 将Express风格的*通配符转换为path-to-regexp兼容格式
-      if (path === '*') {
-        return '(.*)';
-      }
-      
-      // 处理路径末尾的?可选段落
-      if (path.endsWith('?')) {
-        const basePath = path.slice(0, -1);
-        return basePath + '?';
-      }
-    }
-    
-    // 直接返回字符串路径
-    return path;
-  }
-
-  /**
-   * 拓展Router.param来完全匹配Express行为
-   */
-  param(name, fn) {
-    if (!this._params) this._params = {};
-    
-    // 支持参数中间件
-    if (typeof fn === 'function') {
-      this._params[name] = fn;
-      return this;
-    }
-    
-    throw new Error('router.param() requires a callback function');
-  }
-
-  /**
-   * 处理请求前应用参数中间件
-   * @private
-   */
-  _applyParamMiddleware(req, res, next) {
-    if (!this._params || !req.params) {
-      return next();
-    }
-    
-    const paramNames = Object.keys(req.params);
-    if (!paramNames.length) return next();
-    
-    let i = 0;
-    const self = this;
-    
-    function param() {
-      if (i >= paramNames.length) return next();
-      const name = paramNames[i++];
-      const paramFn = self._params[name];
-      
-      if (paramFn && typeof paramFn === 'function') {
-        paramFn(req, res, param, req.params[name], name);
-      } else {
-        param();
-      }
-    }
-    
-    param();
-  }
-
-  /**
-   * 分配路由处理程序，兼容Express的方法
-   * @param {Function} handler - 处理函数
-   */
-  process_params(name, fn) {
-    const params = this.params = this.params || {};
-    const paramCallbacks = params[name] = params[name] || [];
-    
-    paramCallbacks.push(fn);
-    
-    return this;
-  }
-
-  /**
-   * 设置合并参数
-   * @param {Object} options - 参数选项
-   * @returns {Router} 为链式调用返回this
-   */
-  mergeParams(options) {
-    this.opts.mergeParams = options.mergeParams === true;
-    return this;
-  }
-
-  /**
-   * 返回路由器所有路由的格式化输出
-   * @returns {Array} 格式化的路由数组
-   */
-  getStack() {
-    return this.stack.map(layer => {
-      return {
-        path: layer.path,
-        methods: layer.methods,
-        middlewareCount: layer.middleware.length
-      };
-    });
-  }
-
-  /**
-   * 支持caseSensitive选项
-   * @param {Object} options - 参数选项 
-   * @returns {Router} 为链式调用返回this
-   */
-  caseSensitive(options) {
-    this.opts.caseSensitive = options.caseSensitive === true;
-    // 应用设置到路径匹配
-    this.methods.forEach(method => {
-      if (this.trees[method]) {
-        this.trees[method].ctx.options = {
-          ...this.trees[method].ctx.options,
-          caseSensitive: this.opts.caseSensitive
-        };
-      }
-    });
-    return this;
-  }
-
-  /**
-   * 支持strict选项
-   * @param {Object} options - 参数选项
-   * @returns {Router} 为链式调用返回this
-   */
-  strict(options) {
-    this.opts.strict = options.strict === true;
-    // 应用设置到路径匹配
-    this.methods.forEach(method => {
-      if (this.trees[method]) {
-        this.trees[method].ctx.options = {
-          ...this.trees[method].ctx.options,
-          strict: this.opts.strict
-        };
-      }
-    });
-    return this;
-  }
+  return router;
 }
 
-export  function createRouter(opts) {
-  return new Router(opts);
-} 
+/**
+ * 路由器原型
+ */
+Router.prototype = Object.create(null);
+
+/**
+ * 处理参数中间件映射
+ */
+Router.prototype.param = function param(name, fn) {
+  if (typeof name === 'function') {
+    日志.警告('router.param(fn)方法已过时，请使用路径参数', 'Router');
+    this._params.push(name);
+    return;
+  }
+
+  // 应用参数函数
+  const params = this._params;
+  const len = params.length;
+  let ret;
+
+  if (name[0] === ':') {
+    日志.警告(`router.param('${name}', fn)方法已过时，请使用router.param('${name.slice(1)}', fn)`, 'Router');
+    name = name.slice(1);
+  }
+
+  for (let i = 0; i < len; ++i) {
+    if (ret = params[i](name, fn)) {
+      fn = ret;
+    }
+  }
+
+  // 确保我们最终得到一个中间件函数
+  if (typeof fn !== 'function') {
+    throw new Error(`无效的param()调用: ${name}, 得到了 ${fn}`);
+  }
+
+  (this.params[name] = this.params[name] || []).push(fn);
+  return this;
+};
+
+/**
+ * 将请求分派到路由器
+ * @private
+ */
+Router.prototype.handle = function handle(req, res, out) {
+  const self = this;
+
+  日志.信息(`分派请求: ${req.method} ${req.url}`, 'Router');
+
+  let idx = 0;
+  const protohost = getProtohost(req.url) || '';
+  let removed = '';
+  let slashAdded = false;
+  let sync = 0;
+  const paramcalled = {};
+
+  // OPTIONS请求的选项
+  const options = [];
+
+  // 中间件和路由
+  const stack = self.stack;
+
+  // 管理路由器间变量
+  const parentParams = req.params;
+  const parentUrl = req.baseUrl || '';
+  const done = restore(out || function(err) {
+    if (err) {
+      res.statusCode = 500;
+      res.end(`服务器内部错误: ${err.message}`);
+    } else {
+      res.statusCode = 404;
+      res.end(`找不到资源: ${req.method} ${req.url}`);
+    }
+  }, req, 'baseUrl', 'next', 'params');
+
+  // 设置下一层
+  req.next = next;
+
+  // 对于OPTIONS请求，如果没有其他响应，则提供默认响应
+  if (req.method === 'OPTIONS') {
+    done = wrap(done, function(old, err) {
+      if (err || options.length === 0) return old(err);
+      
+      // 发送OPTIONS响应
+      const body = options.join(',');
+      res.setHeader('Allow', body);
+      res.setHeader('Content-Length', Buffer.byteLength(body));
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.statusCode = 200;
+      res.end(body);
+    });
+  }
+
+  // 设置基本请求值
+  req.baseUrl = parentUrl;
+  req.originalUrl = req.originalUrl || req.url;
+
+  // 初始化req.path
+  if (!req.path) {
+    const parsedUrl = parseUrl(req);
+    req.path = parsedUrl ? parsedUrl.pathname : req.url.split('?')[0];
+  }
+
+  next();
+
+  function next(err) {
+    // 'route'错误表示跳过当前路由
+    const layerError = err === 'route'
+      ? null
+      : err;
+
+    // 移除添加的斜杠
+    if (slashAdded) {
+      req.url = req.url.slice(1);
+      slashAdded = false;
+    }
+
+    // 恢复被修改的req.url
+    if (removed.length !== 0) {
+      req.baseUrl = parentUrl;
+      req.url = protohost + removed + req.url.slice(protohost.length);
+      removed = '';
+    }
+
+    // 退出路由器信号
+    if (layerError === 'router') {
+      setTimeout(() => done(null), 0);
+      return;
+    }
+
+    // 没有更多要处理的层
+    if (idx >= stack.length) {
+      setTimeout(() => done(layerError), 0);
+      return;
+    }
+
+    // 获取path和当前层
+    const path = req.path || req.url.split('?')[0];
+    if (path == null) {
+      return done(layerError);
+    }
+
+    let layer = null;
+    let match = false;
+    let route = null;
+
+    // 查找下一个匹配的层
+    while (match === false && idx < stack.length) {
+      layer = stack[idx++];
+      match = layer.match(path);
+      route = layer.route;
+
+      if (match === false) {
+        continue;
+      }
+
+      // 如果没有路由定义，这可能是中间件
+      if (!route) {
+        日志.信息(`匹配中间件: ${layer.path}`, 'Router');
+        continue;
+      }
+
+      const method = req.method;
+      const has_method = route._handles_method(method);
+
+      // 构建选项列表（为OPTIONS请求）
+      if (!has_method && method === 'OPTIONS') {
+        日志.信息(`添加OPTIONS方法支持: ${layer.path}`, 'Router');
+        options.push.apply(options, route._options());
+      }
+
+      // 跳过不处理此方法的路由
+      if (!has_method && method !== 'HEAD') {
+        日志.信息(`方法不匹配，跳过: ${method} ${layer.path}`, 'Router');
+        match = false;
+        continue;
+      }
+    }
+
+    // 未找到匹配
+    if (match === false) {
+      日志.信息(`未找到匹配路径: ${path}`, 'Router');
+      return done(layerError);
+    }
+
+    // 存储路由参数
+    if (layer.params) {
+      if (!req.params) {
+        req.params = {};
+      }
+      
+      Object.assign(req.params, layer.params);
+      日志.信息(`设置参数: ${JSON.stringify(req.params)}`, 'Router');
+    }
+
+    // 如果是路由层
+    if (route) {
+      日志.信息(`处理匹配的路由: ${layer.path}`, 'Router');
+      // 进入路由前处理参数
+      return self.process_params(layer, paramcalled, req, res, function(err) {
+        if (err) {
+          日志.错误(`参数处理错误: ${err.message}`, 'Router');
+          return next(err);
+        }
+
+        // 处理请求
+        if (route.stack.length === 0) {
+          日志.信息(`路由没有处理器，跳过: ${layer.path}`, 'Router');
+          return done(null);
+        }
+
+        日志.信息(`分派请求到路由: ${layer.path}`, 'Router');
+        route.dispatch(req, res, next);
+      });
+    }
+
+    // 处理错误或请求
+    if (layerError) {
+      日志.信息(`处理错误: ${layerError.message}`, 'Router');
+      layer.handle_error(layerError, req, res, next);
+    } else {
+      日志.信息(`处理请求: ${layer.path}`, 'Router');
+      layer.handle_request(req, res, next);
+    }
+  }
+};
+
+/**
+ * 处理路由参数
+ */
+Router.prototype.process_params = function process_params(layer, called, req, res, done) {
+  const params = this.params;
+
+  // 已处理的参数
+  const keys = layer.keys;
+
+  // 如果没有参数
+  if (!keys || keys.length === 0) {
+    return done();
+  }
+
+  let i = 0;
+  let name;
+  let paramIndex = 0;
+  let key;
+  let paramVal;
+  let paramCallbacks;
+  let paramCalled;
+
+  // 处理单个参数
+  function param(err) {
+    if (err) {
+      return done(err);
+    }
+
+    if (i >= keys.length) {
+      return done();
+    }
+
+    paramIndex = 0;
+    key = keys[i++];
+    name = key.name;
+    paramVal = req.params[name];
+    paramCallbacks = params[name];
+    paramCalled = called[name];
+
+    if (paramVal === undefined || !paramCallbacks) {
+      return param();
+    }
+
+    // 参数已处理
+    if (paramCalled && (paramCalled.match === paramVal
+      || (paramCalled.error && paramCalled.error !== 'route'))) {
+      // 恢复错误
+      req.params[name] = paramCalled.value;
+
+      // 下一个参数
+      return param(paramCalled.error);
+    }
+
+    called[name] = paramCalled = {
+      error: null,
+      match: paramVal,
+      value: paramVal
+    };
+
+    paramCallback();
+  }
+
+  // 单个参数回调
+  function paramCallback(err) {
+    const fn = paramCallbacks[paramIndex++];
+
+    // 存储当前错误
+    paramCalled.error = err;
+
+    if (err) {
+      // 错误标记为路由跳过
+      if (err === 'route') {
+        paramCalled.error = null;
+      }
+
+      return done(err);
+    }
+
+    if (!fn) return param();
+
+    try {
+      fn(req, res, paramCallback, paramVal, name);
+    } catch (e) {
+      paramCallback(e);
+    }
+  }
+
+  param();
+};
+
+/**
+ * 使用指定的中间件函数
+ */
+Router.prototype.use = function use(fn) {
+  let offset = 0;
+  let path = '/';
+
+  // 默认路径为/
+  if (typeof fn !== 'function') {
+    let arg = fn;
+
+    while (Array.isArray(arg) && arg.length !== 0) {
+      arg = arg[0];
+    }
+
+    // 第一个参数是路径
+    if (typeof arg !== 'function') {
+      offset = 1;
+      path = fn;
+    }
+  }
+
+  const callbacks = slice.call(arguments, offset);
+
+  if (callbacks.length === 0) {
+    throw new TypeError('Router.use() 需要中间件函数');
+  }
+
+  // 确保路径以/开头
+  if (path !== '/' && !path.startsWith('/')) {
+    path = '/' + path;
+  }
+  
+  for (let i = 0; i < callbacks.length; i++) {
+    const fn = callbacks[i];
+
+    if (typeof fn !== 'function' && !(fn && typeof fn.handle === 'function')) {
+      throw new TypeError('Router.use() 需要中间件函数或路由器实例，但得到了 ' + gettype(fn));
+    }
+
+    // 检查是否是子路由器
+    if (fn && typeof fn.handle === 'function') {
+      日志.信息(`挂载子路由器到 ${path}`, 'Router');
+      
+      // 创建处理子路由的中间件
+      const subRouter = fn;
+      const subAppLayer = new Layer(path, {
+        sensitive: this.caseSensitive,
+        strict: false,
+        end: false
+      }, function subAppHandler(req, res, next) {
+        const orig = req.url;
+        
+        // 确保req.path存在
+        if (!req.path) {
+          req.path = parseUrl(req).pathname;
+        }
+        
+        // 处理baseUrl
+        const originalBaseUrl = req.baseUrl || '';
+        
+        日志.信息(`子路由请求: ${req.path}，挂载路径: ${path}`, 'Router');
+        
+        // 如果路径不匹配或不是子路径，跳过
+        if (path !== '/' && req.path !== path && !req.path.startsWith(path + '/')) {
+          日志.信息(`路径不匹配，跳过子路由: ${req.path} 不匹配 ${path}`, 'Router');
+          return next();
+        }
+        
+        // 修改请求对象以反映子应用的挂载路径
+        if (path !== '/') {
+          let removed = path;
+          req.baseUrl = originalBaseUrl + removed;
+          req.url = req.url.substr(removed.length);
+          
+          // 如果URL为空，设置为/
+          if (req.url === '') {
+            req.url = '/';
+          }
+          
+          日志.信息(`修改请求URL: ${orig} -> ${req.url}，baseUrl: ${req.baseUrl}`, 'Router');
+        }
+        
+        // 一次性使用标志，确保只调用一次next
+        let called = false;
+        
+        function done(err) {
+          if (called) {
+            return;
+          }
+          called = true;
+          
+          // 恢复原始URL和baseUrl
+          req.baseUrl = originalBaseUrl;
+          req.url = orig;
+          
+          next(err);
+        }
+        
+        // 处理子路由器请求
+        subRouter.handle(req, res, done);
+      });
+      
+      subAppLayer.route = undefined;
+      this.stack.push(subAppLayer);
+    } else {
+      // 普通中间件函数
+      日志.信息(`挂载中间件到 ${path}`, 'Router');
+      
+      const layer = new Layer(path, {
+        sensitive: this.caseSensitive,
+        strict: false,
+        end: false
+      }, fn);
+      
+      layer.route = undefined;
+      this.stack.push(layer);
+    }
+  }
+
+  return this;
+};
+
+/**
+ * 创建一个新的Route并添加到路由器
+ */
+Router.prototype.route = function route(path) {
+  const route = new Route(path);
+
+  const layer = new Layer(path, {
+    sensitive: this.caseSensitive,
+    strict: this.strict,
+    end: true
+  }, route.dispatch.bind(route));
+
+  layer.route = route;
+
+  // 将路由添加到radix树以提高性能
+  try {
+    this.radixTrees.all.insert(path, layer);
+    日志.信息(`在radix树中添加路由: ${path}`, 'Router');
+  } catch (err) {
+    日志.错误(`向radix树添加路由失败: ${err.message}`, 'Router');
+    // 失败时添加到常规堆栈，不中断正常操作
+  }
+
+  this.stack.push(layer);
+  return route;
+};
+
+/**
+ * 返回路由器中间件
+ */
+Router.prototype.middleware = function middleware() {
+  return this.handle.bind(this);
+};
+
+/**
+ * 返回路由处理函数
+ */
+Router.prototype.routes = function routes() {
+  return this.handle.bind(this);
+};
+
+// 为Router添加HTTP方法处理函数
+methods.forEach(function(method) {
+  Router.prototype[method] = function(path) {
+    const route = this.route(path);
+    route[method].apply(route, slice.call(arguments, 1));
+    return this;
+  };
+});
+
+/**
+ * 创建新的路由器
+ */
+export function createRouter(options) {
+  return new Router(options);
+}

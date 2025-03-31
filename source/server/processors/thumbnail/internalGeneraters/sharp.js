@@ -20,7 +20,7 @@ export default class SharpLoader {
         return new Promise((resolve, reject) => {
             fs.readFile(源文件地址, (err, data) => {
                 if (err) {
-                    res.status(404).send(`File not found ${req.query.path}`);
+                    reject(new Error(`File not found: ${源文件地址}`));
                     return;
                 }
                 sharp(data)
@@ -36,7 +36,6 @@ export default class SharpLoader {
                         reject(err)
                     });
             });
-
         })
     }
     /**

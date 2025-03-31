@@ -18,11 +18,15 @@ function getLoaderByID(loaderID,loaders) {
     return loaders.find(item => item.id === loaderID)
 }
 function getLoaderByMatch(imagePath,loaders) {
-    let loader = null
+    // 按顺序尝试匹配，返回第一个匹配的生成器
     for (const _loader of loaders) {
-        if (imagePath.match(_loader.match(imagePath))) {
-            loader = _loader
+        const match = _loader.match(imagePath);
+        if (typeof match === 'string' && match === imagePath) {
+            return _loader;
+        }
+        if (match instanceof RegExp && match.test(imagePath)) {
+            return _loader;
         }
     }
-    return loader
+    return null;
 }

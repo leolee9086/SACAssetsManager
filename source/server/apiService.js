@@ -111,7 +111,6 @@ router.get('/color', async (req, res) => {
 })
 
 // 缩略图相关路由
-// 注意：可能需要调整 thumbnail 路由器的集成方式
 router.use('/thumbnail', genThumbnailRouter)
 router.get('/raw', async (req, res) => {
     let path = req.query.path || req.query.localPath

@@ -61,16 +61,65 @@ export const 创建缩略图生成上下文 = async (imagePath, loaderID = null)
     
     const stat = await statWithCatch(imagePath);
     if (!stat) {
-        const 错误消息 = `获取文件属性失败,不能为${imagePath}创建缩略图上下文`;
-        日志.错误(错误消息, 'ThumbnailContext', {
+        // 如果是空目录，使用默认的目录状态
+        const 默认目录状态 = {
+            type: 'dir',
+            size: 0,
+            birthtime: new Date(),
+            mtime: new Date(),
+            ctime: new Date(),
+            atime: new Date()
+        };
+        
+        日志.调试(`使用默认目录状态`, 'ThumbnailContext', {
             元数据: {
                 请求ID,
                 源文件路径: imagePath,
                 处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
             },
-            标签: ['缩略图', '上下文', '文件状态错误']
+            标签: ['缩略图', '上下文', '默认目录状态']
         });
-        throw new Error(错误消息);
+        
+        return {
+            extension: 'dir',
+            useExtension: true,
+            useRaw: false,
+            loader: await getCommonLoader(),
+            stat: 默认目录状态,
+            hash: 'dir_' + Date.now(),
+            fixedPath: imagePath,
+            cacheDir: (await getCachePath(imagePath, 'thumbnails')).cachePath,
+            hashedName: 'dir.thumbnail.png',
+            targetPath: null,
+            extensionThumbnailPath: null,
+            请求ID
+        };
+    }
+    
+    // 如果是文件夹,直接返回一个特殊的上下文
+    if (stat.type === 'dir') {
+        日志.调试(`检测到文件夹,使用文件夹缩略图`, 'ThumbnailContext', {
+            元数据: {
+                请求ID,
+                源文件路径: imagePath,
+                处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
+            },
+            标签: ['缩略图', '上下文', '文件夹处理']
+        });
+        return {
+            extension: 'dir',
+            useExtension: true,
+            useRaw: false,
+            loader: await getCommonLoader(),
+            stat,
+            hash: 'dir_' + Date.now(),
+            fixedPath: imagePath,
+            cacheDir: (await getCachePath(imagePath, 'thumbnails')).cachePath,
+            hashedName: 'dir.thumbnail.png',
+            targetPath: null,
+            extensionThumbnailPath: null,
+            请求ID
+        };
     }
     
     日志.调试(`获取到文件状态信息`, 'ThumbnailContext', {

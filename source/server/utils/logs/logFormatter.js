@@ -45,6 +45,9 @@ export const 是否为Base64图片 = (内容) => {
  * @returns {string|Object} 格式化后的字符串或对象（图片情况下）
  */
 export const 格式化参数 = (参数) => {
+    // 重置循环引用检测
+    seen.clear();
+    
     if (参数 === undefined) return 'undefined';
     if (参数 === null) return 'null';
     
@@ -117,51 +120,24 @@ export const 格式化参数 = (参数) => {
                 参数.push('...(已截断)');
             }
             
-            // 清空用于循环引用检测的Set
-            seen.clear();
+            // 处理循环引用
+            if (seen.has(参数)) {
+                return '[循环引用]';
+            }
+            seen.add(参数);
             
-            // 避免循环引用和复杂对象导致的问题
-            return JSON.stringify(参数, (key, value) => {
-                // 忽略特别长的字符串值
-                if (typeof value === 'string' && value.length > 500) {
-                    return value.substring(0, 500) + '...(已截断)';
+            // 递归处理对象的每个属性
+            const 处理后对象 = Array.isArray(参数) ? [] : {};
+            for (const 键 in 参数) {
+                if (Object.prototype.hasOwnProperty.call(参数, 键)) {
+                    处理后对象[键] = 格式化参数(参数[键]);
                 }
-                
-                // 处理特殊值
-                if (value !== value) return 'NaN'; // 处理NaN
-                if (value === Infinity) return 'Infinity';
-                if (value === -Infinity) return '-Infinity';
-                if (typeof value === 'function') return '[Function]';
-                if (typeof value === 'symbol') return value.toString();
-                
-                // 检测循环引用
-                if (typeof value === 'object' && value !== null) {
-                    if (seen.has(value)) {
-                        return '[循环引用]';
-                    }
-                    seen.add(value);
-                    
-                    // 限制对象的属性数量
-                    if (Object.keys(value).length > 20) {
-                        const limitedObj = {};
-                        let count = 0;
-                        for (const k in value) {
-                            if (count >= 20) break;
-                            limitedObj[k] = value[k];
-                            count++;
-                        }
-                        limitedObj['...(已截断)'] = `还有${Object.keys(value).length - 20}个属性`;
-                        return limitedObj;
-                    }
-                }
-                
-                return value;
-            }, 2);
+            }
+            return 处理后对象;
         }
-        
         return String(参数);
-    } catch (e) {
-        return `[无法序列化的对象: ${e.message}]`;
+    } catch (错误) {
+        return `[无法序列化: ${错误.message}]`;
     }
 };
 
@@ -174,7 +150,7 @@ export const 格式化元数据 = (元数据) => {
     if (!元数据 || typeof 元数据 !== 'object') return null;
     
     try {
-        // 清空用于循环引用检测的Set
+        // 重置循环引用检测
         seen.clear();
         
         // 处理特殊类型
@@ -366,8 +342,8 @@ export const 日志转文本 = (日志) => {
     if (日志.包含图片 && 日志.内容 && typeof 日志.内容 === 'object') {
         if (日志.内容.类型 === '图片') {
             内容文本 = `[图片]: ${日志.内容.描述 || ''}`;
-            if (日志.内容.值 && 日志.内容.值.length < 100) {
-                内容文本 += ' ' + 日志.内容.值;
+            if (日志.内容.值 && 日志.content.值.length < 100) {
+                内容文本 += ' ' + 日志.content.值;
             }
         } else {
             try {

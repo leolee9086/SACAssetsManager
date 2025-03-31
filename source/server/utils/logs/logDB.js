@@ -67,26 +67,71 @@ export const 保存日志 = (日志列表) => {
             return;
         }
         
-        try {
-            const 事务 = 日志数据库.transaction([数据库配置.存储名称], 'readwrite');
-            const 存储 = 事务.objectStore(数据库配置.存储名称);
-            
-            let 待完成计数 = 日志列表.length;
-            let 出错 = false;
-            
-            // 监听事务完成
-            事务.oncomplete = () => {
-                if (!出错) resolve();
-            };
-            
-            事务.onerror = (事件) => {
-                出错 = true;
-                reject(事件.target.error);
-            };
-            
-            // 批量添加日志
-            for (const 日志 of 日志列表) {
-                const 请求 = 存储.add(日志);
+        const 事务 = 日志数据库.transaction([数据库配置.存储名称], 'readwrite');
+        const 存储 = 事务.objectStore(数据库配置.存储名称);
+        
+        let 待完成计数 = 日志列表.length;
+        let 出错 = false;
+        
+        // 监听事务完成
+        事务.oncomplete = () => {
+            if (!出错) resolve();
+        };
+        
+        事务.onerror = (事件) => {
+            出错 = true;
+            reject(事件.target.error);
+        };
+        
+        // 批量添加日志
+        for (const 日志 of 日志列表) {
+            try {
+                // 确保日志对象是可序列化的
+                const 可序列化日志 = {
+                    id: 日志.id || Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                    时间: 日志.时间 || new Date().toISOString(),
+                    级别: 日志.级别 || 'info',
+                    内容: typeof 日志.内容 === 'object' ? 
+                        JSON.stringify(日志.内容, (key, value) => {
+                            if (value === undefined) return '[未定义]';
+                            if (value === null) return '[空]';
+                            if (typeof value === 'function') return '[函数]';
+                            if (typeof value === 'symbol') return value.toString();
+                            if (typeof value === 'object' && value !== null) {
+                                try {
+                                    JSON.stringify(value);
+                                    return value;
+                                } catch (e) {
+                                    return '[复杂对象]';
+                                }
+                            }
+                            return value;
+                        }) : String(日志.内容 || ''),
+                    来源: String(日志.来源 || ''),
+                    元数据: 日志.元数据 ? 
+                        JSON.stringify(日志.元数据, (key, value) => {
+                            if (value === undefined) return '[未定义]';
+                            if (value === null) return '[空]';
+                            if (typeof value === 'function') return '[函数]';
+                            if (typeof value === 'symbol') return value.toString();
+                            if (typeof value === 'object' && value !== null) {
+                                try {
+                                    JSON.stringify(value);
+                                    return value;
+                                } catch (e) {
+                                    return '[复杂对象]';
+                                }
+                            }
+                            return value;
+                        }) : null,
+                    标签: Array.isArray(日志.标签) ? JSON.stringify(日志.tags) : null,
+                    包含结构化数据: !!日志.元数据
+                };
+                
+                // 移除所有不可序列化的字段
+                delete 可序列化日志._elId;
+                
+                const 请求 = 存储.add(可序列化日志);
                 
                 请求.onsuccess = () => {
                     待完成计数--;
@@ -100,9 +145,11 @@ export const 保存日志 = (日志列表) => {
                     出错 = true;
                     reject(事件.target.error);
                 };
+            } catch (序列化错误) {
+                console.error('序列化日志失败:', 序列化错误);
+                出错 = true;
+                reject(序列化错误);
             }
-        } catch (错误) {
-            reject(错误);
         }
     });
 };
@@ -140,7 +187,14 @@ export const 加载日志 = (页码 = 0, 每页数量 = 100) => {
                         跳过数量--;
                         游标.continue();
                     } else if (已获取数量 < 每页数量) {
-                        日志列表.push(游标.value);
+                        // 反序列化数据
+                        const 日志 = 游标.value;
+                        const 反序列化日志 = {
+                            ...日志,
+                            元数据: 日志.元数据 ? JSON.parse(日志.元数据) : null,
+                            标签: 日志.标签 ? JSON.parse(日志.标签) : null
+                        };
+                        日志列表.push(反序列化日志);
                         已获取数量++;
                         游标.continue();
                     } else {
@@ -190,7 +244,14 @@ export const 加载早于时间戳的日志 = (时间戳, 数量 = 100) => {
                 const 游标 = 事件.target.result;
                 
                 if (游标 && 已获取数量 < 数量) {
-                    日志列表.push(游标.value);
+                    // 反序列化数据
+                    const 日志 = 游标.value;
+                    const 反序列化日志 = {
+                        ...日志,
+                        元数据: 日志.元数据 ? JSON.parse(日志.元数据) : null,
+                        标签: 日志.标签 ? JSON.parse(日志.标签) : null
+                    };
+                    日志列表.push(反序列化日志);
                     已获取数量++;
                     游标.continue();
                 } else {
@@ -250,7 +311,7 @@ export const 按条件查询日志 = (条件 = {}, 数量 = 100) => {
                 if (条件.内容) {
                     const 搜索词 = 条件.内容.toLowerCase();
                     过滤后日志 = 过滤后日志.filter(日志 => 
-                        日志.内容 && 日志.内容.toLowerCase().includes(搜索词)
+                        日志.content && 日志.content.toLowerCase().includes(搜索词)
                     );
                 }
                 

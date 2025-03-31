@@ -111,20 +111,23 @@ export const statWithNew = async (path) => {
 export const statWithCatch = async (path) => {
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     const start = Date.now()
+    console.log('[statWithCatch] 开始处理文件:', path);
     try {
         let result = await 查找并解析文件状态(path)
         if (result) {
+            console.log('[statWithCatch] 从缓存中找到文件状态:', result);
             return result
         }
         else {
+            console.log('[statWithCatch] 缓存未命中,尝试从文件系统获取状态');
             let stat
             try {
                 stat = await fs.promises.stat(path)
+                console.log('[statWithCatch] 成功获取文件状态:', stat);
             } catch (e) {
-                console.warn('获取文件状态失败', path, e)
+                console.warn('[statWithCatch] 获取文件状态失败:', path, e)
                 if (e.message.indexOf('no such file or directory')) {
-                    console.log('文件不存在,将删除颜色记录')
-                    console.log('文件不存在,将删除数据库记录')
+                    console.log('[statWithCatch] 文件不存在,将删除颜色记录和数据库记录')
                     globalTaskQueue.push(
                         async () => {
                             删除文件颜色记录(path)
@@ -146,15 +149,14 @@ export const statWithCatch = async (path) => {
             if (stat.isSymbolicLink()) {
                 stat.type = 'link'
             }
+            console.log('[statWithCatch] 写入缓存:', stat);
             await 写入缩略图缓存行(path, Date.now(), stat)
             const result = await 查找并解析文件状态(path)
-            //  console.log("statWithCatchNew",result)
-            console.log("statWithCatchNew", Date.now() - start, result)
-
+            console.log("[statWithCatch] 处理完成,耗时:", Date.now() - start, "结果:", result)
             return result
         }
     } catch (e) {
-        console.error(e)
+        console.error('[statWithCatch] 发生错误:', e)
         return
     }
 }

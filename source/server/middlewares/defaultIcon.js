@@ -183,116 +183,43 @@ export const 生成默认缩略图路径 = async (path) => {
 export const 生成缩略图响应 = async (req, res, next) => {
     const 请求ID = req.thumbnailRequestID || Date.now().toString(36) + Math.random().toString(36).substr(2);
     const 开始时间 = req.thumbnailStartTime || performance.now();
-    
-    日志.信息(`开始生成缩略图响应`, 'Thumbnail', {
-        元数据: {
-            请求ID,
-            请求URL: req.url,
-            请求参数: req.query,
-            源文件路径: req.sourcePath
-        },
-        标签: ['缩略图', '生成响应', '开始']
-    });
-    
-    globalTaskQueue.paused = true;
-    try {
-        await genThumbnail(req, res, next);
-        
-        日志.信息(`缩略图响应生成完成`, 'Thumbnail', {
-            元数据: {
-                请求ID,
-                源文件路径: req.sourcePath,
-                处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
-            },
-            标签: ['缩略图', '生成响应', '完成']
-        });
-    } catch (错误) {
-        日志.错误(`生成缩略图响应失败: ${错误.message}`, 'Thumbnail', {
-            元数据: {
-                请求ID,
-                源文件路径: req.sourcePath,
-                错误类型: 错误.name,
-                错误消息: 错误.message,
-                错误栈: 错误.stack,
-                处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
-            },
-            标签: ['缩略图', '生成响应', '错误']
-        });
-    } finally {
-        globalTaskQueue.paused = false;
-    }
-    return;
-}
-
-export async function genThumbnail(req, res, next) {
-    const 请求ID = req.thumbnailRequestID || Date.now().toString(36) + Math.random().toString(36).substr(2);
-    const 开始时间 = req.thumbnailStartTime || performance.now();
     const 源文件地址 = req.sourcePath;
     
-    日志.信息(`开始生成缩略图`, 'Thumbnail', {
+    日志.信息(`开始生成缩略图响应`, 'Thumbnail', {
         元数据: {
             请求ID,
             源文件路径: 源文件地址,
             请求大小: req.query.size || '默认',
             缩略图生成器ID: req.query.loaderID || '默认'
         },
-        标签: ['缩略图', '生成', '开始']
+        标签: ['缩略图', '响应', '开始']
     });
     
-    const stat = await statWithCatch(源文件地址);
-    const 缓存键 = JSON.stringify(stat);
-    const thumbnailCache = buildCache('thumbnailCache');
-    let ctx = {
-        req,
-        res,
-        query: req.query,
-        缓存对象: thumbnailCache,
-        stats: {
-            源文件地址,
-            缓存键,
-            缓存对象: thumbnailCache
-        }
-    };
-    
-    globalTaskQueue.paused = true;
-    let loaderID = ctx.query.loaderID;
-
-    if (!源文件地址) {
-        const 错误消息 = 'Invalid request: missing source file address';
-        日志.警告(错误消息, 'Thumbnail', {
-            元数据: {
-                请求ID,
-                处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
-            },
-            标签: ['缩略图', '生成', '参数错误']
-        });
-        res.status(400).send(错误消息);
-        return;
-    }
-    
-    let result = null;
-    let type = null;
     try {
+        const stat = await statWithCatch(源文件地址);
+        const hash = await 获取哈希并写入数据库(stat);
+        const thumbnailCache = buildCache('thumbnailCache');
+        
         // 检查缓存
-        const 缓存结果 = thumbnailCache.get(缓存键);
+        const 缓存结果 = thumbnailCache.get(hash);
         if (缓存结果) {
             日志.信息(`使用缓存的缩略图数据`, 'Thumbnail', {
                 元数据: {
                     请求ID,
                     源文件路径: 源文件地址,
-                    缓存键,
+                    文件哈希: hash,
+                    缓存类型: typeof 缓存结果 === 'object' ? (缓存结果.type || '未知') : 'Buffer',
                     处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
                 },
-                标签: ['缩略图', '生成', '使用缓存']
+                标签: ['缩略图', '响应', '使用缓存']
             });
             
-            // 检查缓存的数据是什么类型
             if (Buffer.isBuffer(缓存结果)) {
-                res.type('png');
+                res.type('image/png');
                 res.send(缓存结果);
                 return;
-            } else if (typeof 缓存结果 === 'object' && 缓存结果.data && 缓存结果.type) {
-                res.type(缓存结果.type);
+            } else if (typeof 缓存结果 === 'object' && 缓存结果.data) {
+                res.type(缓存结果.type || 'image/png');
                 res.send(缓存结果.data);
                 return;
             }
@@ -303,45 +230,31 @@ export async function genThumbnail(req, res, next) {
             元数据: {
                 请求ID,
                 源文件路径: 源文件地址,
-                使用生成器ID: loaderID || '默认'
+                使用生成器ID: req.query.loaderID || '默认'
             },
-            标签: ['缩略图', '生成', '无缓存']
+            标签: ['缩略图', '响应', '无缓存']
         });
         
-        result = await 生成文件缩略图(源文件地址, loaderID);
+        const result = await 生成文件缩略图(源文件地址, req.query.loaderID);
         
         if (result) {
-            type = result.type;
-            if (type) {
-                日志.信息(`缩略图生成成功(带类型)`, 'Thumbnail', {
-                    元数据: {
-                        请求ID,
-                        源文件路径: 源文件地址,
-                        缩略图类型: type,
-                        数据长度: result.data ? result.data.length : '未知',
-                        处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
-                    },
-                    标签: ['缩略图', '生成', '成功']
-                });
-                
-                res.type(type);
-                res.send(result.data);
-                return;
-            } else {
-                日志.信息(`缩略图生成成功(无类型)`, 'Thumbnail', {
-                    元数据: {
-                        请求ID,
-                        源文件路径: 源文件地址,
-                        数据长度: Buffer.isBuffer(result) ? result.length : '未知',
-                        处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
-                    },
-                    标签: ['缩略图', '生成', '成功']
-                });
-                
-                res.type('png');
-                res.send(result);
-                return;
-            }
+            const type = result.type || 'image/png';
+            const data = Buffer.isBuffer(result) ? result : result.data;
+            
+            日志.信息(`缩略图生成成功`, 'Thumbnail', {
+                元数据: {
+                    请求ID,
+                    源文件路径: 源文件地址,
+                    缩略图类型: type,
+                    数据长度: data ? data.length : '未知',
+                    处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
+                },
+                标签: ['缩略图', '响应', '成功']
+            });
+            
+            res.type(type);
+            res.send(data);
+            return;
         } else {
             日志.警告(`缩略图生成结果为空`, 'Thumbnail', {
                 元数据: {
@@ -349,27 +262,23 @@ export async function genThumbnail(req, res, next) {
                     源文件路径: 源文件地址,
                     处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
                 },
-                标签: ['缩略图', '生成', '无结果']
+                标签: ['缩略图', '响应', '无结果']
             });
         }
-    } catch (错误) {
-        日志.错误(`生成缩略图过程中出错: ${错误.message}`, 'Thumbnail', {
+        
+        next();
+    } catch (error) {
+        日志.错误(`缩略图生成失败: ${error.message}`, 'Thumbnail', {
             元数据: {
                 请求ID,
                 源文件路径: 源文件地址,
-                错误类型: 错误.name,
-                错误消息: 错误.message,
-                错误栈: 错误.stack,
+                错误类型: error.name,
+                错误消息: error.message,
+                错误栈: error.stack,
                 处理耗时: `${(performance.now() - 开始时间).toFixed(2)}ms`
             },
-            标签: ['缩略图', '生成', '错误']
+            标签: ['缩略图', '响应', '错误']
         });
-        
-        console.warn(错误);
-        res.status(500).send('Error processing image: ' + 错误.message);
-    } finally {
-        globalTaskQueue.paused = false;
+        next(error);
     }
-    
-    next && next();
-}
+};

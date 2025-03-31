@@ -7,9 +7,17 @@ import { 按文档ID查询file链接, 查询块id数组 } from '../utils/sql/siy
 import { applyStmt } from './galleryDefine.js'
 import { 按笔记本查询附件, 查询所有附件, 按文档ID查询所有子文档附件 } from '../utils/sql/siyuanSentence.js'
 export async function 获取本地文件夹数据(globSetting, target, callback, step, signal) {
+    console.log('[SiyuanAssets] 开始获取本地文件夹数据:', {
+        globSetting,
+        target: target.length,
+        step,
+        signal: !!signal
+    });
     let uri = `http://localhost:${plugin.http服务端口号}/glob-stream?setting=${encodeURIComponent(JSON.stringify(globSetting))}`
+    console.log('[SiyuanAssets] 请求URI:', uri);
     const compatibleCallback = createCompatibleCallback(target, callback, step);
     await applyURIStreamJson(uri, compatibleCallback, step, signal, globSetting.value)
+    console.log('[SiyuanAssets] 本地文件夹数据获取完成');
 }
 
 async function 获取标签相关笔记(tagLabel) {

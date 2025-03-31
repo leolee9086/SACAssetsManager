@@ -181,9 +181,12 @@ export async function 查找文件hash(filePath) {
     return result;
 }
 export async function 查找文件状态(filePath) {
+    console.log('[查找文件状态] 开始查找:', filePath);
     let 磁盘缩略图数据库 = await 根据路径查找并加载主数据库(filePath)
+    console.log('[查找文件状态] 数据库加载完成');
     const stmt = 磁盘缩略图数据库.prepare(`SELECT * FROM thumbnails WHERE fullName = ? and type='file'`);
     const result = stmt.get(转换为相对磁盘根目录路径(filePath));
+    console.log('[查找文件状态] 查询结果:', result);
     return result;
 }
 export async function 查找文件夹状态(filePath) {
@@ -194,13 +197,17 @@ export async function 查找文件夹状态(filePath) {
 }
 
 export async function 查找并解析文件状态(filePath) {
+    console.log('[查找并解析文件状态] 开始查找:', filePath);
     const result = await 查找文件状态(filePath)
     if (result) {
+        console.log('[查找并解析文件状态] 找到文件状态:', result);
         let json = JSON.parse(result.stat)
         json.hash = result.statHash
         json.path = filePath
+        console.log('[查找并解析文件状态] 解析完成:', json);
         return json
     } else {
+        console.log('[查找并解析文件状态] 未找到文件状态');
         return undefined
     }
 }

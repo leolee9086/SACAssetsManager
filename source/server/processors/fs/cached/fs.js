@@ -12,20 +12,26 @@ export function readFile(path) {
 }
 
 export function getRoot(path) {
+    console.log('[getRoot] 开始获取根目录:', path);
     let split = path.indexOf('\\') > -1 ? '\\' : '/'
-    return path.split(split)[0]
+    const root = path.split(split)[0]
+    console.log('[getRoot] 获取根目录完成:', { root, split });
+    return root
 }
 
 
 const existCache = buildCache('exist')
 export function getCachePath(path, cacheName, isDir = false) {
+    console.log('[getCachePath] 开始获取缓存路径:', { path, cacheName, isDir });
     const root = getRoot(path)
     const cacheDir = require('path').join(root, '.sac')
     return new Promise((resolve, reject) => {
         try {
             const cachePath = require('path').join(root, '.sac', cacheName)
+            console.log('[getCachePath] 缓存路径:', { cachePath, cacheDir });
             if (isDir) {
                 if (!existCache.get(cachePath) && !fs.existsSync(cachePath)) {
+                    console.log('[getCachePath] 创建目录缓存:', cachePath);
                     fs.mkdirSync(cachePath, { recursive: true })
                     existCache.set(cachePath, true)
                     setTimeout(() => {
@@ -34,6 +40,7 @@ export function getCachePath(path, cacheName, isDir = false) {
                 }
             } else {
                 if (!existCache.get(cacheDir) && !fs.existsSync(cacheDir)) {
+                    console.log('[getCachePath] 创建缓存目录:', cacheDir);
                     fs.mkdirSync(cacheDir, { recursive: true })
                     existCache.set(cacheDir, true)
                     setTimeout(() => {
@@ -41,12 +48,13 @@ export function getCachePath(path, cacheName, isDir = false) {
                     }, 1000 * 60 * 60 * 24)
                 }
             }
+            console.log('[getCachePath] 获取完成:', { root, cachePath });
             resolve({
                 root,
                 cachePath
             })
         } catch (error) {
-            console.error(error)
+            console.error('[getCachePath] 获取缓存路径失败:', error)
             reject(error)
         }
     })

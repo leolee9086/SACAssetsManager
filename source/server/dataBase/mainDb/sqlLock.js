@@ -35,59 +35,68 @@ export async function 创建文件锁(dbPath) {
 }
 
 export async function 释放文件锁(dbPath) {
+    console.log('[释放文件锁] 开始释放:', dbPath);
     const lockPath = `${dbPath}.lock`;
     try {
         // 检查锁文件是否存在
         await fs.access(lockPath);
+        console.log('[释放文件锁] 锁文件存在');
 
         // 读取锁文件内容
         const existingLock = await fs.readFile(lockPath, 'utf-8');
+        console.log('[释放文件锁] 读取锁文件内容');
 
         // 检查锁文件内容是否与当前实例匹配
         if (existingLock === lockContent) {
             // 尝试删除锁文件
             await fs.unlink(lockPath);
             活跃锁.delete(lockPath);
-            console.log(`成功释放文件锁: ${lockPath}`);
+            console.log('[释放文件锁] 成功释放文件锁');
         } else {
-            console.warn(`锁文件内容不匹配，无法释放: ${lockPath}`);
+            console.warn('[释放文件锁] 锁文件内容不匹配，无法释放');
         }
     } catch (error) {
         if (error.code === 'ENOENT') {
-            console.warn(`锁文件不存在: ${lockPath}`);
+            console.warn('[释放文件锁] 锁文件不存在');
         } else if (error.code === 'EACCES') {
-            console.error(`没有权限释放文件锁: ${lockPath}`);
+            console.error('[释放文件锁] 没有权限释放文件锁');
         } else {
-            console.error('释放文件锁时出错:', error);
+            console.error('[释放文件锁] 释放文件锁时出错:', error);
         }
     }
 }
 export async function 自动释放所有文件锁() {
+    console.log('[自动释放所有文件锁] 开始释放');
     for (const lockPath of 活跃锁) {
         try {
+            console.log('[自动释放所有文件锁] 处理锁文件:', lockPath);
             const existingLock = await fs.readFile(lockPath, 'utf-8')
             if (existingLock === lockContent) {
                 await fs.unlink(lockPath)
-                console.log(`自动释放文件锁: ${lockPath}`)
+                console.log('[自动释放所有文件锁] 成功释放锁文件');
             } else {
-                console.log(`跳过非本实例创建的锁: ${lockPath}`)
+                console.log('[自动释放所有文件锁] 跳过非本实例创建的锁');
             }
         } catch (error) {
-            console.error(`处理文件锁 ${lockPath} 时出错:`, error)
+            console.error('[自动释放所有文件锁] 处理文件锁时出错:', error);
         }
     }
     活跃锁.clear()
+    console.log('[自动释放所有文件锁] 释放完成');
 }
 window.强制释放所有文件锁= async function 强制释放所有文件锁() {
+    console.log('[强制释放所有文件锁] 开始释放');
     for (const lockPath of 活跃锁) {
         try {
-                await fs.unlink(lockPath)
-                console.log(`强制释放所有锁: ${lockPath}`)
+            console.log('[强制释放所有文件锁] 处理锁文件:', lockPath);
+            await fs.unlink(lockPath)
+            console.log('[强制释放所有文件锁] 成功释放锁文件');
         } catch (error) {
-            console.error(`处理文件锁 ${lockPath} 时出错:`, error)
+            console.error('[强制释放所有文件锁] 处理文件锁时出错:', error);
         }
     }
     活跃锁.clear()
+    console.log('[强制释放所有文件锁] 释放完成');
 }
 
 
