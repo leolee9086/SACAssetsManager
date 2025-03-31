@@ -42,8 +42,6 @@ export * from './base/useEcma/forFile/globTools.js';
 export * from './base/useEcma/forFile/forFilePath.js';
 export * from './base/useEcma/forFile/forFileSize.js';
 export * from './base/useEcma/forFile/forFileRead.js';
-export * from './base/useEcma/forFile/isImageFile.js';
-export * from './base/useEcma/forFile/forImageFile.js';
 
 // 网络工具
 export * from './base/forNetWork/forFetch/index.js';

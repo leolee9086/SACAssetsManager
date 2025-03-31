@@ -4,8 +4,11 @@
 */
 import '../utils/hack/hackRequire.js'
 import { createVueInterface } from '../../src/toolBox/feature/useVue/vueComponentLoader.js'
+import * as Vue from '../../static/vue.esm-browser.js'
+import * as SfcLoader from '../../static/vue3-sfc-loader.esm.js'
 import { 日志 } from '../../src/toolBox/base/useEcma/forLogs/useLogger.js'
 import { 初始化日志系统, 数据库, 格式化器, 处理器 } from './utils/logs/index.js'
+
 const channel = new BroadcastChannel('SACAssets')
 window.channel = channel
 channel.onmessage = (e) => {
@@ -19,9 +22,7 @@ channel.onmessage = (e) => {
         window.externalBase = path.join(siyuanConfig.system.workspaceDir, '/data/plugins/SACAssetsManager/node_modules/')
         window.workspaceDir = siyuanConfig.system.workspaceDir
         window.port = e.data.port
-
         if (window.require) {
-            
             import("./server.js")
         }
     }
@@ -215,6 +216,217 @@ const 创建日志组件 = async () => {
     }
 };
 
+// 使用IndexedDB实现高性能日志数据库
+let 日志数据库;
+const 数据库名称 = 'SACAssetsManager_日志数据库';
+const 数据库版本 = 1;
+const 日志存储名称 = '日志存储';
+
+// 初始化日志数据库
+const 初始化日志数据库 = () => {
+    return new Promise((resolve, reject) => {
+        const 请求 = indexedDB.open(数据库名称, 数据库版本);
+        
+        请求.onerror = (事件) => {
+            console.error('打开日志数据库失败:', 事件.target.error);
+            reject(事件.target.error);
+        };
+        
+        请求.onsuccess = (事件) => {
+            日志数据库 = 事件.target.result;
+            console.log('日志数据库打开成功');
+            resolve();
+        };
+        
+        请求.onupgradeneeded = (事件) => {
+            const 数据库 = 事件.target.result;
+            
+            // 创建日志对象存储
+            if (!数据库.objectStoreNames.contains(日志存储名称)) {
+                const 存储 = 数据库.createObjectStore(日志存储名称, { keyPath: 'id' });
+                
+                // 创建索引以便高效查询
+                存储.createIndex('时间', '时间', { unique: false });
+                存储.createIndex('级别', '级别', { unique: false });
+                存储.createIndex('来源', '来源', { unique: false });
+                
+                console.log('日志数据库结构创建成功');
+            }
+        };
+    });
+};
+
+// 保存日志到数据库（支持批量保存）
+const 保存日志到数据库 = (日志列表) => {
+    return new Promise((resolve, reject) => {
+        if (!日志数据库) {
+            reject(new Error('日志数据库未初始化'));
+            return;
+        }
+        
+        const 事务 = 日志数据库.transaction([日志存储名称], 'readwrite');
+        const 存储 = 事务.objectStore(日志存储名称);
+        
+        let 待完成计数 = 日志列表.length;
+        let 出错 = false;
+        
+        // 监听事务完成
+        事务.oncomplete = () => {
+            if (!出错) resolve();
+        };
+        
+        事务.onerror = (事件) => {
+            出错 = true;
+            reject(事件.target.error);
+        };
+        
+        // 批量添加日志
+        for (const 日志 of 日志列表) {
+            const 请求 = 存储.add(日志);
+            
+            请求.onsuccess = () => {
+                待完成计数--;
+                if (待完成计数 === 0 && !出错) {
+                    resolve();
+                }
+            };
+            
+            请求.onerror = (事件) => {
+                console.error('保存日志失败:', 事件.target.error);
+                出错 = true;
+                reject(事件.target.error);
+            };
+        }
+    });
+};
+
+// 从数据库加载日志（支持分页）
+const 从数据库加载日志 = (页码 = 0, 每页数量 = 100) => {
+    return new Promise((resolve, reject) => {
+        if (!日志数据库) {
+            reject(new Error('日志数据库未初始化'));
+            return;
+        }
+        
+        const 事务 = 日志数据库.transaction([日志存储名称], 'readonly');
+        const 存储 = 事务.objectStore(日志存储名称);
+        const 索引 = 存储.index('时间');
+        
+        // 使用游标进行分页
+        const 日志列表 = [];
+        let 跳过数量 = 页码 * 每页数量;
+        let 已获取数量 = 0;
+        
+        const 请求 = 索引.openCursor(null, 'prev'); // 降序排列，最新的日志在前
+        
+        请求.onsuccess = (事件) => {
+            const 游标 = 事件.target.result;
+            
+            if (游标) {
+                if (跳过数量 > 0) {
+                    跳过数量--;
+                    游标.continue();
+                } else if (已获取数量 < 每页数量) {
+                    日志列表.push(游标.value);
+                    已获取数量++;
+                    游标.continue();
+                } else {
+                    resolve(日志列表);
+                }
+            } else {
+                resolve(日志列表);
+            }
+        };
+        
+        请求.onerror = (事件) => {
+            reject(事件.target.error);
+        };
+    });
+};
+
+// 加载早于指定时间戳的日志
+const 加载早于时间戳的日志 = (时间戳, 数量 = 100) => {
+    return new Promise((resolve, reject) => {
+        if (!日志数据库) {
+            reject(new Error('日志数据库未初始化'));
+            return;
+        }
+        
+        const 事务 = 日志数据库.transaction([日志存储名称], 'readonly');
+        const 存储 = 事务.objectStore(日志存储名称);
+        const 索引 = 存储.index('时间');
+        
+        // 设置时间范围，查找早于指定时间戳的日志
+        const 范围 = IDBKeyRange.upperBound(时间戳, true);
+        
+        const 日志列表 = [];
+        let 已获取数量 = 0;
+        
+        const 请求 = 索引.openCursor(范围, 'prev'); // 降序排列
+        
+        请求.onsuccess = (事件) => {
+            const 游标 = 事件.target.result;
+            
+            if (游标 && 已获取数量 < 数量) {
+                日志列表.push(游标.value);
+                已获取数量++;
+                游标.continue();
+            } else {
+                resolve(日志列表);
+            }
+        };
+        
+        请求.onerror = (事件) => {
+            reject(事件.target.error);
+        };
+    });
+};
+
+// 获取数据库中的日志总数
+const 获取日志计数 = () => {
+    return new Promise((resolve, reject) => {
+        if (!日志数据库) {
+            reject(new Error('日志数据库未初始化'));
+            return;
+        }
+        
+        const 事务 = 日志数据库.transaction([日志存储名称], 'readonly');
+        const 存储 = 事务.objectStore(日志存储名称);
+        
+        const 计数请求 = 存储.count();
+        
+        计数请求.onsuccess = () => {
+            resolve(计数请求.result);
+        };
+        
+        计数请求.onerror = (事件) => {
+            reject(事件.target.error);
+        };
+    });
+};
+
+// 清空日志数据库
+const 清空日志数据库 = () => {
+    return new Promise((resolve, reject) => {
+        if (!日志数据库) {
+            reject(new Error('日志数据库未初始化'));
+            return;
+        }
+        
+        const 事务 = 日志数据库.transaction([日志存储名称], 'readwrite');
+        const 存储 = 事务.objectStore(日志存储名称);
+        
+        const 请求 = 存储.clear();
+        
+        请求.onsuccess = () => {
+            resolve();
+        };
+        
+        请求.onerror = (事件) => {
+            reject(事件.target.error);
+        };
+    });
+};
 
 // 确保在DOM加载完成后创建日志组件
 if (document.readyState === 'loading') {

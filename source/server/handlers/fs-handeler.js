@@ -4,10 +4,12 @@
  */
 import { 提取所有子目录文件扩展名 } from "../dataBase/mainDb.js";
 import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
-import { 是图片文件 } from '../../../src/toolBox/base/useEcma/forFile/isImageFile.js';
-import { 读取图片并发送 } from '../../../src/toolBox/base/useEcma/forFile/forImageFile.js';
 const path = require('path')
-// 图片扩展名列表已经转移到工具箱中
+const 图片扩展名列表 = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
+
+const 是图片文件 = (文件名) => {
+    return 图片扩展名列表.includes(path.extname(文件名).toLowerCase());
+};
 
 const 查找第一个图片 = async (目录路径) => {
     const fs = require('fs').promises;
@@ -73,6 +75,43 @@ const 查找第一个图片 = async (目录路径) => {
             标签: ['文件扫描', '图片查找', '错误']
         });
         return null;
+    }
+};
+
+const 读取图片并发送 = async (图片路径, res) => {
+    const fs = require('fs').promises;
+    const path = require('path');
+    const 读取开始时间 = performance.now();
+    
+    try {
+        const 图片数据 = await fs.readFile(图片路径);
+        const 文件类型 = `image/${path.extname(图片路径).slice(1)}`;
+        const 文件大小 = 图片数据.length;
+        
+        日志.调试(`成功读取图片: ${图片路径}`, 'FSScanner', {
+            元数据: { 
+                图片路径, 
+                文件类型,
+                文件大小: `${(文件大小 / 1024).toFixed(2)}KB`,
+                读取耗时: `${(performance.now() - 读取开始时间).toFixed(2)}ms`
+            },
+            标签: ['文件读取', '图片', '成功']
+        });
+        
+        res.set('Content-Type', 文件类型);
+        return res.send(图片数据);
+    } catch (错误) {
+        日志.错误(`读取图片失败: ${错误.message}`, 'FSScanner', {
+            元数据: { 
+                图片路径, 
+                错误类型: 错误.name,
+                错误消息: 错误.message,
+                错误栈: 错误.stack,
+                读取耗时: `${(performance.now() - 读取开始时间).toFixed(2)}ms`
+            },
+            标签: ['文件读取', '图片', '错误']
+        });
+        throw 错误;
     }
 };
 
@@ -213,7 +252,7 @@ export const 获取文件夹第一张图片 = async (req, res, next) => {
                 标签: ['文件夹图片', '发送', '图片预览']
             });
             
-            await 读取图片并发送(找到的图片路径, res, { 日志标识: 'FSHandler' });
+            await 读取图片并发送(找到的图片路径, res);
         } else {
             日志.信息(`重定向到缩略图: ${找到的图片路径}`, 'FSHandler', {
                 元数据: {
