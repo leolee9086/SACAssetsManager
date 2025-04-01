@@ -6,4 +6,5 @@
 // 导出所有类型定义
 export * from './api.js';
 export * from './fs.js';
-export * from './common.js'; 
+export * from './common.js';
+export * from './document.js'; 
