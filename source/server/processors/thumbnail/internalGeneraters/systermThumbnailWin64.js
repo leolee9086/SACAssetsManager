@@ -1,5 +1,5 @@
 import { loadCsharpFunc } from "../../../../../src/toolBox/base/useElectron/forCSharp/useCSharpLoader.js";
-import { createInvisibleWebview } from "../../../utils/containers/webview.js";
+import { 创建不可见Webview } from "../../../../../src/toolBox/base/useElectron/forWindow/useWebview.js";
 
 export const getLargeIcon = loadCsharpFunc(
     `
@@ -130,7 +130,7 @@ export const getBase64Thumbnail = loadCsharpFunc(
 )
 
 const buildEsmWebview = async (esmURL) => {
-    const webview = await createInvisibleWebview(esmURL,
+    const webview = await 创建不可见Webview(esmURL,
         true, window.siyuanConfig.system.workspaceDir + "\\data\\plugins\\SACAssetsManager\\source\\server\\processors\\thumbnail\\internalGeneraters\\preload.js")
     console.log(webview)
 
