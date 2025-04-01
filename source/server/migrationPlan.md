@@ -71,12 +71,13 @@ source/
 
 下一步计划：
 
-1. 替换入口文件的引用，将`index.html`中的引用从`init.js`改为`bootstrap/main.js`
-2. 继续迁移剩余的handlers到api/handlers目录
-3. 将原有processors下的功能迁移到对应services
-4. 更新服务使用集中的配置系统
-5. 实现数据库服务
-6. 进行功能测试
+1. ✅ 将处理器迁移到 `api/handlers` 目录，使用新的API处理器模板（大部分已完成）
+2. ✅ 创建各模块的详细文档
+3. 修改 `index.html`，引用 `bootstrap/main.js`
+4. 实现处理器对应的服务模块
+5. 将 `processors` 目录中的功能迁移到对应的服务中
+6. ✅ 实现数据库服务
+7. 进行功能测试
 
 ## 迁移步骤
 
@@ -104,14 +105,15 @@ source/
 11. ✅ 创建元数据和颜色API处理器
 12. ✅ 创建Eagle集成API处理器
 13. ✅ 创建文档处理API处理器
-14. 替换入口文件引用
+14. ✅ 创建各模块的说明文档
+15. 替换入口文件引用
    - 修改`index.html`中的引用，从原来的`init.js`改为`bootstrap/main.js`
-15. 继续迁移handlers到api/handlers
+16. 继续迁移handlers到api/handlers
    - 使用新创建的API处理器模板迁移更多现有处理器
-16. 将processors移动到services
+17. 将processors移动到services
    - 将相关处理器逐步迁移到对应服务目录
    - 确保向后兼容性
-17. 更新服务使用配置系统
+18. 更新服务使用配置系统
    - 修改服务实现，使用集中配置
 
 ### 第三阶段：优化和测试（待进行）
@@ -154,6 +156,15 @@ source/
 | -                   | api/handlers/eagle.js                | ✅ 已创建 |
 | -                   | api/handlers/document.js             | ✅ 已创建 |
 | -                   | api/routes.js                        | ✅ 已创建 |
+| -                   | DEVELOPMENT.md                       | ✅ 已创建 |
+| -                   | bootstrap/README.md                  | ✅ 已创建 |
+| -                   | api/README.md                        | ✅ 已创建 |
+| -                   | api/handlers/README.md               | ✅ 已创建 |
+| -                   | services/README.md                   | ✅ 已创建 |
+| -                   | services/document/README.md          | ✅ 已创建 |
+| -                   | services/fs/README.md                | ✅ 已创建 |
+| -                   | config/README.md                     | ✅ 已创建 |
+| -                   | types/README.md                      | ✅ 已创建 |
 | handlers/           | api/handlers/                        | 部分迁移 |
 | licenseChecker.js   | services/license/licenseChecker.js   | ✅ 已创建 |
 | logger.js           | services/logger/loggerService.js     | ✅ 已创建 |
@@ -176,6 +187,7 @@ source/
 7. **统一错误处理**：标准化的错误处理机制，提高可靠性
 8. **事件系统**：基于发布订阅模式的事件系统，降低组件间耦合
 9. **缓存机制**：集中和可配置的缓存策略，提高性能
+10. **文档完善**：每个模块都有详细的说明文档，便于新开发者理解
 
 ## 注意事项
 
@@ -186,12 +198,13 @@ source/
 
 ## 下一步工作
 
-1. ✅ 迁移handlers到api/handlers目录，使用新的API处理器模板（大部分已完成）
-2. 修改index.html引用bootstrap/main.js
-3. 为处理器实现对应的服务模块
-4. 将processors下的功能迁移到对应services
-5. 实现数据库服务
-6. 实施功能测试
+1. ✅ 将处理器迁移到 `api/handlers` 目录，使用新的API处理器模板（大部分已完成）
+2. ✅ 创建各模块的详细文档
+3. 修改 `index.html`，引用 `bootstrap/main.js`
+4. 实现处理器对应的服务模块
+5. 将 `processors` 目录中的功能迁移到对应的服务中
+6. ✅ 实现数据库服务
+7. 进行功能测试
 
 ## 完成标志
 
@@ -199,4 +212,23 @@ source/
 2. 所有旧文件已迁移或废弃
 3. 代码结构清晰，职责分明
 4. 测试覆盖关键功能
-5. 文档已更新 
+5. 文档已更新
+
+### 模块文档创建
+
+| 文档名 | 状态 |
+|-------|------|
+| `DEVELOPMENT.md` | ✅ 已创建 |
+| `bootstrap/README.md` | ✅ 已创建 |
+| `api/README.md` | ✅ 已创建 |
+| `api/handlers/README.md` | ✅ 已创建 |
+| `services/README.md` | ✅ 已创建 |
+| `services/document/README.md` | ✅ 已创建 |
+| `services/fs/README.md` | ✅ 已创建 |
+| `services/thumbnail/README.md` | ✅ 已创建 |
+| `services/logger/README.md` | ✅ 已创建 |
+| `services/color/README.md` | ✅ 已创建 |
+| `services/database/README.md` | ✅ 已创建 |
+| `services/tag/README.md` | ✅ 已创建 |
+| `config/README.md` | ✅ 已创建 |
+| `types/README.md` | ✅ 已创建 | 
