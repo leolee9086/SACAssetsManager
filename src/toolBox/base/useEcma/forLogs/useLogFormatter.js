@@ -43,6 +43,23 @@ export const 是否为Base64图片 = (内容) => {
 };
 
 /**
+ * 安全序列化对象，处理循环引用
+ * @param {any} 对象 - 需要序列化的对象
+ * @returns {string} 序列化后的字符串
+ */
+export const 安全序列化 = (对象) => {
+    try {
+        return serialize(对象, { space: 0 });
+    } catch (e) {
+        try {
+            return JSON.stringify(对象);
+        } catch (jsonError) {
+            return `[复杂对象: ${typeof 对象}]`;
+        }
+    }
+};
+
+/**
  * 格式化对象参数
  * @param {any} 参数 - 需要格式化的参数
  * @returns {string|Object} 格式化后的字符串或对象（图片情况下）
@@ -123,19 +140,8 @@ export const 格式化参数 = (参数) => {
                 参数.push('...(已截断)');
             }
             
-            // 使用serialize库处理对象，可以解决循环引用问题
-            try {
-                // 序列化对象，处理循环引用
-                return serialize(参数, { space: 0 });
-            } catch (错误) {
-                // 如果serialize失败，尝试使用JSON.stringify
-                try {
-                    return JSON.stringify(参数);
-                } catch (jsonError) {
-                    // 如果还是失败，则返回简单描述
-                    return `[复杂对象: ${typeof 参数}]`;
-                }
-            }
+            // 使用安全序列化处理对象
+            return 安全序列化(参数);
         }
         return String(参数);
     } catch (错误) {
@@ -288,9 +294,9 @@ export const 格式化日志 = (级别, 内容, 来源 = '', 选项 = {}) => {
                     // 已经是字符串，保持原样
                 } else {
                     try {
-                        格式化内容 = serialize(格式化内容, { space: 0 });
+                        格式化内容 = 安全序列化(格式化内容);
                     } catch (serializeError) {
-                        // 如果serialize失败，转为简单描述
+                        // 如果序列化失败，转为简单描述
                         格式化内容 = `[复杂对象: ${typeof 格式化内容}]`;
                     }
                 }
@@ -371,10 +377,17 @@ export const 日志转文本 = (日志) => {
             }
         } else {
             try {
-                内容文本 = JSON.stringify(日志.内容);
+                内容文本 = 安全序列化(日志.内容);
             } catch (e) {
                 内容文本 = '[复杂对象]';
             }
+        }
+    } else if (typeof 内容文本 === 'object' && 内容文本 !== null) {
+        // 处理非图片对象
+        try {
+            内容文本 = 安全序列化(内容文本);
+        } catch (e) {
+            内容文本 = '[复杂对象]';
         }
     }
     
