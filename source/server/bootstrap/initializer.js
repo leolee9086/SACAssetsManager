@@ -9,6 +9,9 @@ import * as Vue from '../../../static/vue.esm-browser.js'
 import * as SfcLoader from '../../../static/vue3-sfc-loader.esm.js'
 import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js'
 import { 初始化日志系统, 数据库, 格式化器, 处理器 } from '../utils/logs/index.js'
+import { getConfig, getPaths } from '../config/index.js'
+import { startAPIService } from '../api/apiService.js'
+import { clearAllEvents } from '../api/backendEvents.js'
 
 const channel = new BroadcastChannel('SACAssets')
 window.channel = channel
@@ -217,6 +220,155 @@ const setupLogInterception = () => {
         }
     };
 }
+
+/**
+ * 初始化器模块
+ * 负责初始化各个服务和组件
+ */
+
+/**
+ * 初始化工作空间目录
+ * @returns {Promise<void>}
+ */
+const initWorkspaceDirs = async () => {
+  const paths = getPaths();
+  const fs = await import('fs/promises');
+  
+  // 确保关键目录存在
+  const dirsToCreate = [
+    paths.dataDir,
+    paths.tempDir,
+    paths.cacheDir,
+    paths.thumbnailsDir,
+    paths.databaseDir,
+    paths.logsDir
+  ];
+  
+  for (const dir of dirsToCreate) {
+    try {
+      await fs.mkdir(dir, { recursive: true });
+      日志.信息(`确保目录存在: ${dir}`, 'Init');
+    } catch (error) {
+      日志.错误(`创建目录失败: ${dir} - ${error.message}`, 'Init');
+    }
+  }
+};
+
+/**
+ * 初始化服务
+ * @returns {Promise<void>}
+ */
+const initServices = async () => {
+  日志.信息('初始化服务...', 'Init');
+  
+  try {
+    // 导入服务模块
+    const fsService = await import('../services/fs/index.js');
+    const dbService = await import('../services/db/index.js');
+    const thumbnailService = await import('../services/thumbnail/index.js');
+    
+    // 初始化服务
+    await fsService.init();
+    await dbService.init();
+    await thumbnailService.init();
+    
+    日志.信息('服务初始化完成', 'Init');
+  } catch (error) {
+    日志.错误(`服务初始化失败: ${error.message}`, 'Init');
+    throw error;
+  }
+};
+
+/**
+ * 初始化事件监听器
+ * @returns {Promise<void>}
+ */
+const initEventListeners = async () => {
+  日志.信息('初始化事件监听器...', 'Init');
+  
+  // 清除可能的旧事件监听器
+  clearAllEvents();
+  
+  // 导入事件处理模块
+  const { subscribe } = await import('../api/backendEvents.js');
+  
+  // 订阅应用关闭事件
+  subscribe('app:shutdown', async () => {
+    日志.信息('接收到应用关闭事件', 'Events');
+    await shutdown();
+  });
+  
+  // 订阅系统事件
+  window.addEventListener('server-shutdown', async () => {
+    日志.信息('接收到服务器关闭事件', 'Events');
+    await shutdown();
+  });
+  
+  日志.信息('事件监听器初始化完成', 'Init');
+};
+
+/**
+ * 执行完整初始化流程
+ * @returns {Promise<void>}
+ */
+export const initialize = async () => {
+  日志.信息('开始初始化流程...', 'Init');
+  
+  try {
+    // 确保工作空间目录存在
+    await initWorkspaceDirs();
+    
+    // 初始化服务
+    await initServices();
+    
+    // 初始化事件监听器
+    await initEventListeners();
+    
+    // 启动API服务
+    await startAPIService();
+    
+    日志.信息('初始化流程完成', 'Init');
+  } catch (error) {
+    日志.错误(`初始化流程失败: ${error.message}`, 'Init');
+    throw error;
+  }
+};
+
+/**
+ * 关闭服务器
+ * @returns {Promise<void>}
+ */
+export const shutdown = async () => {
+  日志.信息('服务器关闭中...', 'Init');
+  
+  try {
+    // 停止API服务
+    const { stopAPIService } = await import('../api/apiService.js');
+    await stopAPIService();
+    
+    // 关闭服务
+    const fsService = await import('../services/fs/index.js');
+    const dbService = await import('../services/db/index.js');
+    const thumbnailService = await import('../services/thumbnail/index.js');
+    
+    await fsService.shutdown();
+    await dbService.shutdown();
+    await thumbnailService.shutdown();
+    
+    // 清除事件监听器
+    clearAllEvents();
+    
+    日志.信息('服务器已安全关闭', 'Init');
+  } catch (error) {
+    日志.错误(`服务器关闭失败: ${error.message}`, 'Init');
+  }
+};
+
+// 自动执行初始化流程
+initialize().catch(error => {
+  日志.错误(`初始化失败: ${error.message}`, 'Init');
+  console.error('初始化错误详情:', error);
+});
 
 // 监听DOM加载完成后初始化组件
 window.addEventListener('DOMContentLoaded', async () => {

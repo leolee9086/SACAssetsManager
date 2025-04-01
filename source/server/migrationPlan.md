@@ -17,6 +17,7 @@ source/server/
 │   ├── apiService.js          # API服务实现
 │   ├── backendEvents.js       # 后端事件系统
 │   └── handlers/              # API处理器
+│       └── handlerTemplate.js # API处理器模板
 │
 ├── config/                    # 配置管理(新增)
 │   ├── index.js               # 配置系统入口
@@ -32,8 +33,10 @@ source/server/
 │
 ├── services/                  # 核心服务实现
 │   ├── fs/                    # 文件系统服务
+│   │   └── index.js           # 文件系统服务实现
 │   ├── db/                    # 数据库服务
 │   ├── thumbnail/             # 缩略图服务
+│   │   └── index.js           # 缩略图服务实现
 │   ├── color/                 # 颜色分析服务
 │   ├── license/               # 许可证服务
 │   └── logger/                # 日志服务
@@ -56,21 +59,24 @@ source/server/
 
 ### 第二阶段：功能迁移（当前）
 
-1. 替换入口文件引用
+1. ✅ 创建标准化的API处理器模板
+2. ✅ 创建路由系统
+3. ✅ 创建API服务实现
+4. ✅ 创建后端事件系统
+5. ✅ 创建初始化模块
+6. ✅ 创建服务器启动器模块
+7. ✅ 实现文件系统服务
+8. ✅ 实现缩略图服务
+9. ✅ 创建基础的API处理器（FS和缩略图）
+10. ✅ 创建路由定义并应用到API服务
+11. 替换入口文件引用
    - 修改`index.html`中的引用，从原来的`init.js`改为`bootstrap/main.js`
-
-2. 服务初始化迁移
-   - 将现有的`main.js`功能迁移到`bootstrap`目录下的对应文件
-
-3. 将processors移动到services
+12. 继续迁移handlers到api/handlers
+   - 使用新创建的API处理器模板迁移更多现有处理器
+13. 将processors移动到services
    - 将相关处理器逐步迁移到对应服务目录
    - 确保向后兼容性
-
-4. 迁移handlers到api/handlers
-   - 创建api/handlers目录
-   - 移动handlers目录下的文件
-
-5. 更新服务使用配置系统
+14. 更新服务使用配置系统
    - 修改服务实现，使用集中配置
 
 ### 第三阶段：优化和测试（待进行）
@@ -78,11 +84,9 @@ source/server/
 1. 功能测试
    - 确保所有功能正常工作
    - 修复迁移过程中发现的问题
-
 2. 代码清理
    - 移除不再使用的旧文件
    - 统一代码风格和命名规范
-
 3. 性能优化
    - 识别并解决性能瓶颈
    - 优化缓存机制
@@ -98,25 +102,29 @@ source/server/
 
 ## 功能对应表
 
-| 旧文件/目录           | 新位置                           | 状态    |
-|---------------------|----------------------------------|---------|
-| server.js           | bootstrap/serverStarter.js       | ✅ 已创建 |
-| init.js             | bootstrap/initializer.js         | ✅ 已创建 |
-| main.js             | bootstrap/main.js                | ✅ 已创建 |
-| endPoints.js        | api/router.js                    | ✅ 已创建 |
-| apiService.js       | api/apiService.js                | ✅ 已创建 |
-| backendEvents.js    | api/backendEvents.js             | ✅ 已创建 |
-| licenseChecker.js   | services/license/licenseChecker.js | ✅ 已创建 |
-| logger.js           | services/logger/loggerService.js | ✅ 已创建 |
-| preload.js          | bootstrap/preload.js             | ✅ 已创建 |
-| dataBase/           | services/db/                     | ✅ 已创建 |
-| handlers/           | api/handlers/                    | 待迁移   |
-| processors/color/   | services/color/                  | ✅ 已创建 |
-| processors/thumbnail/ | services/thumbnail/            | ✅ 已创建 |
-| processors/fs/      | services/fs/                     | ✅ 已创建 |
-| middlewares/        | middlewares/                     | 保持不变 |
-| -                   | config/                          | ✅ 已创建 |
-| -                   | types/                           | ✅ 已创建 |
+| 旧文件/目录           | 新位置                               | 状态    |
+|---------------------|--------------------------------------|---------|
+| server.js           | bootstrap/serverStarter.js           | ✅ 已实现 |
+| init.js             | bootstrap/initializer.js             | ✅ 已实现 |
+| main.js             | bootstrap/main.js                    | ✅ 已实现 |
+| endPoints.js        | api/router.js                        | ✅ 已实现 |
+| apiService.js       | api/apiService.js                    | ✅ 已实现 |
+| backendEvents.js    | api/backendEvents.js                 | ✅ 已实现 |
+| preload.js          | bootstrap/preload.js                 | ✅ 已实现 |
+| -                   | api/handlers/handlerTemplate.js      | ✅ 已创建 |
+| -                   | api/handlers/fs.js                   | ✅ 已创建 |
+| -                   | api/handlers/thumbnail.js            | ✅ 已创建 |
+| -                   | api/routes.js                        | ✅ 已创建 |
+| handlers/           | api/handlers/                        | 部分迁移 |
+| licenseChecker.js   | services/license/licenseChecker.js   | ✅ 已创建 |
+| logger.js           | services/logger/loggerService.js     | ✅ 已创建 |
+| dataBase/           | services/db/                         | ✅ 已创建 |
+| processors/color/   | services/color/                      | ✅ 已创建 |
+| processors/thumbnail/ | services/thumbnail/                | ✅ 已实现 |
+| processors/fs/      | services/fs/                         | ✅ 已实现 |
+| middlewares/        | middlewares/                         | 保持不变 |
+| -                   | config/                              | ✅ 已实现 |
+| -                   | types/                               | ✅ 已实现 |
 
 ## 改进优势
 
@@ -126,6 +134,9 @@ source/server/
 4. **启动流程清晰**：启动和初始化流程更加清晰和有序
 5. **扩展性好**：松散耦合的模块设计，易于添加新功能
 6. **维护友好**：清晰的文件命名和目录结构，易于理解和维护
+7. **统一错误处理**：标准化的错误处理机制，提高可靠性
+8. **事件系统**：基于发布订阅模式的事件系统，降低组件间耦合
+9. **缓存机制**：集中和可配置的缓存策略，提高性能
 
 ## 注意事项
 
@@ -136,11 +147,14 @@ source/server/
 
 ## 下一步工作
 
-1. 迁移handlers到api/handlers目录
+1. ✅ 迁移handlers到api/handlers目录，使用新的API处理器模板（基础部分已完成）
 2. 修改index.html引用bootstrap/main.js
-3. 将processors下的功能迁移到对应services
-4. 修改服务实现以使用集中配置系统
-5. 实施功能测试
+3. 创建更多API处理器，迁移现有功能
+4. 为主要API端点创建路由定义
+5. 将processors下的功能迁移到对应services
+6. 实现数据库服务
+7. 实现颜色分析服务
+8. 实施功能测试
 
 ## 完成标志
 

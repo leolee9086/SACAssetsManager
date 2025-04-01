@@ -51,4 +51,93 @@ import '../api/apiService.js'
 /**
  * 开始索引队列
  */
-import '../indexer.js' 
+import '../indexer.js'
+
+/**
+ * 服务器启动器
+ * 负责协调服务器启动过程
+ */
+
+import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
+import { initConfig } from '../config/index.js';
+import { versionInfo } from './main.js';
+
+/**
+ * 启动服务器
+ * @param {Object} options - 启动选项
+ * @param {Object} [options.siyuanConfig] - 思源笔记配置
+ * @param {Object} [options.serverConfig] - 服务器配置
+ * @param {Object} [options.servicesConfig] - 服务配置
+ * @param {Object} [options.electron] - Electron对象
+ * @returns {Promise<void>}
+ */
+export const startServer = async (options = {}) => {
+  try {
+    日志.信息(`启动SACAssetsManager服务器 v${versionInfo.version}`, 'Server');
+    
+    // 初始化配置
+    日志.信息('加载配置...', 'Server');
+    await initConfig(options.siyuanConfig, {
+      server: options.serverConfig,
+      services: options.servicesConfig
+    });
+    
+    // 导入初始化模块并启动
+    日志.信息('执行初始化流程...', 'Server');
+    const { initialize } = await import('./initializer.js');
+    await initialize();
+    
+    // 发送准备就绪消息
+    if (window.channel) {
+      window.channel.postMessage('serverReady');
+      日志.信息('已发送服务器就绪通知', 'Server');
+    }
+    
+    return true;
+  } catch (error) {
+    日志.错误(`服务器启动失败: ${error.message}`, 'Server');
+    console.error('启动错误详情:', error);
+    return false;
+  }
+};
+
+/**
+ * 停止服务器
+ * @returns {Promise<void>}
+ */
+export const stopServer = async () => {
+  try {
+    日志.信息('停止服务器...', 'Server');
+    
+    // 导入初始化模块并关闭
+    const { shutdown } = await import('./initializer.js');
+    await shutdown();
+    
+    return true;
+  } catch (error) {
+    日志.错误(`服务器停止失败: ${error.message}`, 'Server');
+    console.error('停止错误详情:', error);
+    return false;
+  }
+};
+
+/**
+ * 重启服务器
+ * @param {Object} options - 重启选项
+ * @returns {Promise<boolean>} 是否成功重启
+ */
+export const restartServer = async (options = {}) => {
+  try {
+    日志.信息('重启服务器...', 'Server');
+    
+    await stopServer();
+    await startServer(options);
+    
+    日志.信息('服务器已重启', 'Server');
+    return true;
+  } catch (error) {
+    日志.错误(`服务器重启失败: ${error.message}`, 'Server');
+    console.error('重启错误详情:', error);
+    return false;
+  }
+}; 

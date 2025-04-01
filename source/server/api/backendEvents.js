@@ -1,145 +1,188 @@
 /**
- * 后端事件处理模块
- * 负责处理服务器端的事件触发和监听
+ * 后端事件系统
+ * 提供服务器端事件发布订阅机制
  */
 
 import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 /**
- * 事件处理器映射
- * @type {Object}
+ * @typedef {Object} EventSubscription
+ * @property {string} id - 订阅ID
+ * @property {Function} handler - 事件处理函数
+ * @property {boolean} once - 是否只触发一次
  */
-const 事件处理器 = {};
 
-/**
- * 添加事件监听器
- * @param {string} 事件名称 - 要监听的事件名称
- * @param {Function} 处理函数 - 事件处理函数
- * @param {Object} [选项={}] - 事件选项
- * @param {boolean} [选项.单次=false] - 是否只触发一次
- * @returns {string} 监听器ID
- */
-export const 添加事件监听器 = (事件名称, 处理函数, 选项 = {}) => {
-    if (!事件名称 || typeof 处理函数 !== 'function') {
-        throw new Error('事件名称和处理函数都必须提供');
-    }
-    
-    // 确保该事件的处理器数组存在
-    if (!事件处理器[事件名称]) {
-        事件处理器[事件名称] = [];
-    }
-    
-    // 生成唯一ID
-    const 监听器ID = `${事件名称}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // 添加处理器
-    事件处理器[事件名称].push({
-        id: 监听器ID,
-        处理函数,
-        单次: 选项.单次 === true
-    });
-    
-    日志.调试(`添加事件监听器: ${事件名称}, ID: ${监听器ID}`, 'Event');
-    
-    return 监听器ID;
+// 事件存储
+const events = new Map();
+
+// 生成唯一ID
+const generateId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
 };
 
 /**
- * 移除事件监听器
- * @param {string} 事件名称 - 事件名称
- * @param {string|Function} 标识符 - 监听器ID或处理函数
- * @returns {boolean} 是否成功移除
+ * 订阅事件
+ * @param {string} eventName - 事件名称
+ * @param {Function} handler - 事件处理函数
+ * @param {Object} [options={}] - 选项
+ * @param {boolean} [options.once=false] - 是否只触发一次
+ * @returns {string} 订阅ID
  */
-export const 移除事件监听器 = (事件名称, 标识符) => {
-    if (!事件名称 || !标识符 || !事件处理器[事件名称]) {
-        return false;
-    }
-    
-    const 原始长度 = 事件处理器[事件名称].length;
-    
-    if (typeof 标识符 === 'string') {
-        // 通过ID移除
-        事件处理器[事件名称] = 事件处理器[事件名称].filter(处理器 => 处理器.id !== 标识符);
-    } else if (typeof 标识符 === 'function') {
-        // 通过函数引用移除
-        事件处理器[事件名称] = 事件处理器[事件名称].filter(处理器 => 处理器.处理函数 !== 标识符);
-    }
-    
-    const 移除成功 = 事件处理器[事件名称].length < 原始长度;
-    
-    if (移除成功) {
-        日志.调试(`移除事件监听器: ${事件名称}`, 'Event');
-    }
-    
-    return 移除成功;
+export const subscribe = (eventName, handler, options = {}) => {
+  if (typeof handler !== 'function') {
+    throw new Error('事件处理器必须是函数');
+  }
+  
+  if (!events.has(eventName)) {
+    events.set(eventName, new Map());
+  }
+  
+  const subscriptionId = generateId();
+  const subscription = {
+    id: subscriptionId,
+    handler,
+    once: !!options.once
+  };
+  
+  events.get(eventName).set(subscriptionId, subscription);
+  日志.信息(`订阅事件: ${eventName} (ID: ${subscriptionId})`, 'Events');
+  
+  return subscriptionId;
 };
 
 /**
- * 触发事件
- * @param {string} 事件名称 - 要触发的事件名称
- * @param {*} 数据 - 事件数据
- * @returns {Promise<Array>} 所有处理器的处理结果
+ * 订阅单次事件
+ * @param {string} eventName - 事件名称
+ * @param {Function} handler - 事件处理函数
+ * @returns {string} 订阅ID
  */
-export const 触发事件 = async (事件名称, 数据) => {
-    if (!事件名称 || !事件处理器[事件名称]) {
-        return [];
-    }
-    
-    日志.调试(`触发事件: ${事件名称}`, 'Event');
-    
-    const 待移除 = [];
-    const 处理结果 = [];
-    
-    // 执行所有处理器
-    for (const 处理器 of 事件处理器[事件名称]) {
-        try {
-            const 结果 = await Promise.resolve(处理器.处理函数(数据));
-            处理结果.push(结果);
-            
-            // 如果是单次处理器，标记为待移除
-            if (处理器.单次) {
-                待移除.push(处理器.id);
-            }
-        } catch (错误) {
-            日志.错误(`事件处理器出错: ${错误.message}`, 'Event');
-            处理结果.push(null);
-        }
-    }
-    
-    // 移除单次处理器
-    待移除.forEach(id => {
-        事件处理器[事件名称] = 事件处理器[事件名称].filter(处理器 => 处理器.id !== id);
-    });
-    
-    return 处理结果;
+export const subscribeOnce = (eventName, handler) => {
+  return subscribe(eventName, handler, { once: true });
 };
 
 /**
- * 获取事件监听器数量
- * @param {string} [事件名称] - 事件名称，不提供则返回所有事件的监听器总数
- * @returns {number} 监听器数量
+ * 取消订阅
+ * @param {string} eventName - 事件名称
+ * @param {string} subscriptionId - 订阅ID
+ * @returns {boolean} 是否成功取消
  */
-export const 获取监听器数量 = (事件名称) => {
-    if (事件名称) {
-        return 事件处理器[事件名称]?.length || 0;
-    }
+export const unsubscribe = (eventName, subscriptionId) => {
+  if (!events.has(eventName)) {
+    return false;
+  }
+  
+  const eventSubscriptions = events.get(eventName);
+  const result = eventSubscriptions.delete(subscriptionId);
+  
+  if (result) {
+    日志.信息(`取消订阅: ${eventName} (ID: ${subscriptionId})`, 'Events');
     
-    // 计算所有事件的监听器总数
-    return Object.values(事件处理器).reduce((总数, 处理器数组) => 总数 + 处理器数组.length, 0);
+    // 如果没有更多订阅，删除事件
+    if (eventSubscriptions.size === 0) {
+      events.delete(eventName);
+    }
+  }
+  
+  return result;
 };
 
 /**
- * 清除所有事件监听器
- * @param {string} [事件名称] - 事件名称，不提供则清除所有事件的监听器
+ * 发布事件
+ * @param {string} eventName - 事件名称
+ * @param {*} data - 事件数据
+ * @returns {Promise<Array>} 处理结果
  */
-export const 清除事件监听器 = (事件名称) => {
-    if (事件名称) {
-        事件处理器[事件名称] = [];
-        日志.调试(`清除事件 ${事件名称} 的所有监听器`, 'Event');
-    } else {
-        Object.keys(事件处理器).forEach(名称 => {
-            事件处理器[名称] = [];
-        });
-        日志.调试('清除所有事件监听器', 'Event');
+export const publish = async (eventName, data) => {
+  if (!events.has(eventName)) {
+    日志.信息(`发布事件: ${eventName}，但没有订阅者`, 'Events');
+    return [];
+  }
+  
+  const eventSubscriptions = events.get(eventName);
+  const results = [];
+  const onceSubscriptions = [];
+  
+  // 执行所有订阅的处理函数
+  for (const [id, subscription] of eventSubscriptions.entries()) {
+    try {
+      const result = await Promise.resolve(subscription.handler(data, eventName));
+      results.push(result);
+      
+      // 收集需要移除的一次性订阅
+      if (subscription.once) {
+        onceSubscriptions.push(id);
+      }
+    } catch (error) {
+      日志.错误(`事件处理器错误: ${eventName} - ${error.message}`, 'Events');
+      results.push({ error: error.message });
     }
+  }
+  
+  // 移除一次性订阅
+  for (const id of onceSubscriptions) {
+    eventSubscriptions.delete(id);
+  }
+  
+  // 如果没有更多订阅，删除事件
+  if (eventSubscriptions.size === 0) {
+    events.delete(eventName);
+  }
+  
+  日志.信息(`发布事件: ${eventName} (${results.length}个订阅者)`, 'Events');
+  
+  return results;
+};
+
+/**
+ * 获取事件订阅数量
+ * @param {string} [eventName] - 事件名称
+ * @returns {number} 订阅数量
+ */
+export const getSubscriptionCount = (eventName) => {
+  if (eventName) {
+    return events.has(eventName) ? events.get(eventName).size : 0;
+  }
+  
+  let count = 0;
+  for (const subscriptions of events.values()) {
+    count += subscriptions.size;
+  }
+  
+  return count;
+};
+
+/**
+ * 获取所有事件名称
+ * @returns {string[]} 事件名称列表
+ */
+export const getEventNames = () => {
+  return Array.from(events.keys());
+};
+
+/**
+ * 清除特定事件的所有订阅
+ * @param {string} eventName - 事件名称
+ * @returns {boolean} 是否成功清除
+ */
+export const clearEvent = (eventName) => {
+  const hadEvent = events.has(eventName);
+  events.delete(eventName);
+  
+  if (hadEvent) {
+    日志.信息(`清除事件: ${eventName}`, 'Events');
+  }
+  
+  return hadEvent;
+};
+
+/**
+ * 清除所有事件订阅
+ */
+export const clearAllEvents = () => {
+  const eventCount = events.size;
+  events.clear();
+  
+  if (eventCount > 0) {
+    日志.信息(`清除所有事件 (${eventCount}个事件)`, 'Events');
+  }
 }; 
