@@ -9,6 +9,7 @@
     - `forLogs/` - 日志相关工具
   - `useElectron/` - Electron相关工具
     - `forCSharp/` - C#加载和调用相关工具
+    - `forWindow/` - Electron窗口和Webview管理工具
   - `useNode/` - Node.js环境工具
 - `feature/` - 特定功能领域的工具
 - `forCore/` - 核心功能相关工具，如串链器
@@ -21,6 +22,39 @@
 - `useVue/` - Vue框架相关工具
 
 ## 最近更新
+
+### 2024-04-03更新：Electron Webview工具迁移
+成功将以下Electron Webview相关工具迁移到工具箱：
+
+1. Webview管理工具：
+   - 旧路径：`source/server/utils/containers/webview.js`
+   - 新路径：`src/toolBox/base/useElectron/forWindow/useWebview.js`
+   - 导入示例：
+   ```js
+   import { 创建不可见Webview, 通过JS字符串创建Webview } from '../../../src/toolBox/base/useElectron/forWindow/useWebview.js';
+   // 或使用英文兼容API
+   import { createInvisibleWebview, createWebviewByJsString } from '../../../src/toolBox/base/useElectron/forWindow/useWebview.js';
+   ```
+
+2. 代理HTML工具：
+   - 旧路径：`source/server/utils/containers/createProxyHTML.js`
+   - 新路径：已合并到 `src/toolBox/base/useElectron/forWindow/useWebview.js`
+   - 导入示例：
+   ```js
+   import { 创建代理HTMLURL } from '../../../src/toolBox/base/useElectron/forWindow/useWebview.js';
+   // 或使用英文兼容API
+   import { createProxyHTMLURL } from '../../../src/toolBox/base/useElectron/forWindow/useWebview.js';
+   ```
+
+3. Webview处理器工具：
+   - 旧路径：`source/server/utils/containers/webviewProcessors.js`
+   - 新路径：已合并到 `src/toolBox/base/useElectron/forWindow/useWebview.js`
+   - 导入示例：
+   ```js
+   import { 向Webview暴露函数 } from '../../../src/toolBox/base/useElectron/forWindow/useWebview.js';
+   // 或使用英文兼容API
+   import { exposeFunctionToWebview } from '../../../src/toolBox/base/useElectron/forWindow/useWebview.js';
+   ```
 
 ### 重要提示：导入路径变更
 由于已完成后端服务工具重构并删除了兼容层，需要更新以下导入路径：
@@ -41,11 +75,19 @@
    - 旧路径：`import { setupDllPaths } from '../utils/dllFix/fixPathErrorUnicode.js'`
    - 新路径：`import { 设置DLL路径 as setupDllPaths } from '../../../src/toolBox/base/useElectron/forCSharp/useCSharpLoader.js'`
 
+5. Electron窗口管理工具：
+   - 旧路径：`import { createBrowserWindowByURL } from '../utils/containers/browserWindow.js'`
+   - 新路径：`import { 创建浏览器窗口 } from '../../../src/toolBox/base/useElectron/forWindow/useBrowserWindow.js'`
+
 ### 阶段3完成内容
 - 将后端服务工具重构到工具箱
   - 日志工具：`base/useEcma/forLogs/useLogger.js`
   - 心跳工具：`base/useElectron/useHeartBeat.js`
   - C#加载工具：`base/useElectron/forCSharp/useCSharpLoader.js`
+  - WebSocket事件工具：`base/forNetwork/forWebSocket/useWebSocketEvents.js`
+  - 端点URL生成工具：`base/forNetwork/forEndPoints/useEndPointsBuilder.js`
+  - Electron窗口管理工具：`base/useElectron/forWindow/useBrowserWindow.js`
+  - Electron Webview工具：`base/useElectron/forWindow/useWebview.js`
 - 移除了兼容层，使服务代码直接使用工具箱函数
 - 优化了工具箱目录结构
 

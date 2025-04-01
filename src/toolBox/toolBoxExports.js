@@ -182,4 +182,22 @@ export {
 } from './base/forNetwork/forEndPoints/useEndPointsBuilder.js';
 
 // Electron窗口管理工具
-export { 创建浏览器窗口 } from './base/useElectron/forWindow/useBrowserWindow.js'; 
+export { 创建浏览器窗口, enableRemote } from './base/useElectron/forWindow/useBrowserWindow.js';
+
+// Electron Webview管理工具
+export {
+  // 中文函数导出
+  创建代理HTMLURL,
+  启用远程模块,
+  创建不可见Webview,
+  通过JS地址创建Webview,
+  通过JS字符串创建Webview,
+  向Webview暴露函数,
+  // 英文兼容别名导出
+  createProxyHTMLURL,
+  enableRemote as webviewEnableRemote,
+  createInvisibleWebview,
+  createWebviewByJsURL,
+  createWebviewByJsString,
+  exposeFunctionToWebview
+} from './base/useElectron/forWindow/useWebview.js'; 

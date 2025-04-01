@@ -329,70 +329,63 @@ src/toolBox/
 1. 使用`remote.require("@electron/remote/main").enable`方式启用远程模块
 2. 为不同环境提供备选方案，但避免过于复杂的多层尝试
 3. 提供清晰的错误日志以方便调试
-1. **端点URL生成工具向后兼容升级**
-   - 路径：`src/toolBox/base/forNetwork/forEndPoints/useEndPointsBuilder.js`
-   - 问题：重构后的工具使用中文命名方法，而旧代码使用英文命名，导致`Cannot read properties of undefined (reading 'getPathExtensions')`错误
-   - 解决方案：添加英文别名以保持向后兼容
-   - 增强：
-     - 为`fs.path`、`fs.disk`添加英文方法名
-     - 为`thumbnail`添加英文方法名
-     - 为`metaRecords`添加英文方法名
-   - 文档：在AInote.md中添加兼容性说明
 
-### 向后兼容策略调整
+## 2024-04-03：迁移Electron Webview管理工具
 
-在重构工具函数时，需要遵循以下原则以确保向后兼容性：
+### 迁移内容
 
-1. **双命名导出**：提供中文命名的主函数，同时导出英文命名的别名函数
-2. **接口保持一致**：保持函数签名和返回值格式不变
-3. **属性名兼容**：为对象属性提供中英文双命名
-4. **测试用例覆盖**：编写测试用例验证兼容性
+1. **整合Webview相关工具**
+   - 新文件：`src/toolBox/base/useElectron/forWindow/useWebview.js`
+   - 源文件：
+     - `source/server/utils/containers/webview.js`
+     - `source/server/utils/containers/createProxyHTML.js`
+     - `source/server/utils/containers/webviewProcessors.js`
+   - 改进内容：
+     - 将分散在三个文件中的功能整合到单一模块
+     - 使用函数式风格重构，使用Promise和async/await
+     - 规范化命名，添加中文函数名
+     - 增强错误处理和环境检查
+     - 改进IPC通信和超时处理
+   - 文档：创建`useWebview.AInote.md`详细说明迁移过程
 
-这次修复强调了在进行重构时需要仔细检查现有代码对函数的调用方式，特别是对象属性的访问模式。
+### 主要功能
 
-### 未来改进方向
+1. **代理HTML创建**：
+   - `创建代理HTML` - 生成用于加载JavaScript的HTML代码
+   - `创建代理HTMLURL` - 将HTML代码转换为可加载的URL
 
-1. 完善单元测试，确保重构后的工具函数能够与现有代码兼容
-2. 考虑使用TypeScript提供更好的类型检查，减少运行时错误
-3. 添加废弃警告，鼓励使用中文命名的版本 
+2. **Webview管理**：
+   - `创建不可见Webview` - 创建隐藏的Webview元素
+   - `通过JS地址创建Webview` - 从JavaScript URL创建Webview
+   - `通过JS字符串创建Webview` - 从JavaScript代码创建Webview
 
-## 2024-04-01：修复Electron窗口管理工具兼容性问题
+3. **函数暴露**：
+   - `向Webview暴露函数` - 将函数暴露到Webview中执行
+   - 通过IPC通信实现跨Webview的函数调用
 
-### 修复内容
+### 兼容性策略
 
-1. **Electron Remote模块兼容性问题修复**
-   - 路径：`src/toolBox/base/useElectron/forWindow/useBrowserWindow.js`
-   - 问题：遇到错误 `Uncaught (in promise) Error: @electron/remote is disabled for this WebContents`
-   - 原因：不同版本的Electron和@electron/remote的启用方式不同
-   - 解决方案：
-     - 增加enableRemote配置选项，可传入自定义函数
-     - 实现多种启用方式尝试，按顺序兼容不同版本：
-       1. 传入的自定义enableRemote函数
-       2. Electron内置remote模块方式
-       3. 通过ipcRenderer请求主进程启用
-       4. 直接require启用方式
-       5. 解构enable函数方式
-       6. initialize+enable组合方式
-     - 增强错误处理和日志记录
-     - 添加主进程侦听器处理远程模块启用请求
-   - 文档：在AInote.md中添加兼容性问题说明和使用建议
+为确保与现有代码兼容，同时进行规范化重构，采用了以下策略：
 
-### 通用兼容性策略
+1. **双命名导出**：
+   ```javascript
+   export const createProxyHTMLURL = 创建代理HTMLURL;
+   export const enableRemote = 启用远程模块;
+   export const createInvisibleWebview = 创建不可见Webview;
+   export const createWebviewByJsURL = 通过JS地址创建Webview;
+   export const createWebviewByJsString = 通过JS字符串创建Webview;
+   export const exposeFunctionToWebview = 向Webview暴露函数;
+   ```
 
-为应对库和框架的版本差异问题，建议采用以下策略：
+2. **功能增强**：
+   - 增加了超时处理
+   - 增强了错误捕获机制
+   - 添加了事件监听器的自动清理
+   - 提供了更详细的日志记录
 
-1. **多方案尝试**：按优先级尝试多种实现方式
-2. **配置注入**：提供配置选项允许外部注入正确实现
-3. **全面错误日志**：记录所有错误以便于调试
-4. **优雅降级**：当关键功能不可用时提供替代方案
-5. **进程间通信**：利用可靠的IPC机制解决特定环境问题
+### 后续工作
 
-这次修复强调了在处理与外部库交互时需要考虑版本差异和API变化带来的兼容性问题，特别是在Electron这样快速迭代的框架中。
-通过实现多种方案尝试、错误日志记录和进程间通信等机制，我们可以有效解决在不同Electron版本中的兼容性问题。
-
-### 未来改进计划
-
-1. 实现更全面的Electron环境检测
-2. 考虑添加环境模拟能力，以便在非Electron环境下进行测试
-3. 为常见的Electron版本提供预设配置
-4. 添加Electron版本检测，自动选择合适的远程模块启用方式 
+1. 考虑添加单元测试，确保重构后的功能与原功能一致
+2. 创建使用示例，方便其他开发者理解如何使用
+3. 检查和处理现有代码中对这些工具的引用，确保兼容性
+4. 完善文档，添加更多的使用场景和最佳实践 
