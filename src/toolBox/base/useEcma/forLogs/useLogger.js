@@ -4,6 +4,8 @@
  */
 
 import { 格式化日志 as 格式化日志完整版, 日志转文本 } from './useLogFormatter.js';
+// 引入serialize-javascript库用于处理复杂对象序列化
+import serialize from '../../../../../static/serialize-javascript.js';
 
 // 日志级别枚举
 const 日志级别 = {
@@ -34,8 +36,10 @@ export const 创建控制台输出 = (日志) => {
     let 内容文本 = 日志.内容;
     if (typeof 内容文本 === 'object' && 内容文本 !== null) {
         try {
-            内容文本 = JSON.stringify(内容文本);
+            // 使用serialize-javascript来处理复杂对象
+            内容文本 = serialize(内容文本, { space: 0 });
         } catch (e) {
+            // 如果serialize失败，退回到简单表示
             内容文本 = '[复杂对象]';
         }
     }
@@ -86,14 +90,15 @@ export const 格式化日志 = (级别, 内容, 来源 = '', 选项 = null) => {
         } else if (Array.isArray(内容)) {
             // 单独处理数组
             try {
-                格式化内容 = JSON.stringify(内容);
+                // 使用serialize处理数组，可以处理数组中的循环引用
+                格式化内容 = serialize(内容, { space: 0 });
             } catch (e) {
                 格式化内容 = `Array(${内容.length})`;
             }
         } else if (typeof 内容 === 'object') {
-            // 对于普通对象，直接JSON.stringify
+            // 对于普通对象，使用serialize处理
             try {
-                格式化内容 = JSON.stringify(内容);
+                格式化内容 = serialize(内容, { space: 0 });
             } catch (e) {
                 // 备选序列化方法
                 try {
@@ -107,6 +112,16 @@ export const 格式化日志 = (级别, 内容, 来源 = '', 选项 = null) => {
         } else {
             // 其他基本类型直接转换为字符串
             格式化内容 = String(内容);
+        }
+    }
+    
+    // 处理元数据
+    if (元数据) {
+        try {
+            // 使用serialize处理元数据，确保元数据不会引起序列化问题
+            元数据 = JSON.parse(serialize(元数据, { space: 0 }));
+        } catch (e) {
+            元数据 = { 错误: '元数据格式化失败' };
         }
     }
     

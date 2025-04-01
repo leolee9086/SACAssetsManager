@@ -3,6 +3,9 @@
  * 提供日志格式化和序列化功能
  */
 
+// 引入serialize-javascript库用于处理复杂对象序列化，避免循环引用问题
+import serialize from '../../../../../static/serialize-javascript.js';
+
 // 用于检测循环引用
 const seen = new WeakSet();
 
@@ -87,7 +90,7 @@ export const 格式化参数 = (参数) => {
     if (typeof 参数 === 'number' || typeof 参数 === 'boolean') return 参数.toString();
     
     try {
-        // 对于对象和数组，限制其内容长度，避免超大对象
+        // 对于对象和数组，使用serialize-javascript库处理
         if (typeof 参数 === 'object' && 参数 !== null) {
             // 如果是Error对象，特殊处理
             if (参数 instanceof Error) {
@@ -120,20 +123,19 @@ export const 格式化参数 = (参数) => {
                 参数.push('...(已截断)');
             }
             
-            // 处理循环引用
-            if (seen.has(参数)) {
-                return '[循环引用]';
-            }
-            seen.add(参数);
-            
-            // 递归处理对象的每个属性
-            const 处理后对象 = Array.isArray(参数) ? [] : {};
-            for (const 键 in 参数) {
-                if (Object.prototype.hasOwnProperty.call(参数, 键)) {
-                    处理后对象[键] = 格式化参数(参数[键]);
+            // 使用serialize库处理对象，可以解决循环引用问题
+            try {
+                // 序列化对象，处理循环引用
+                return serialize(参数, { space: 0 });
+            } catch (错误) {
+                // 如果serialize失败，尝试使用JSON.stringify
+                try {
+                    return JSON.stringify(参数);
+                } catch (jsonError) {
+                    // 如果还是失败，则返回简单描述
+                    return `[复杂对象: ${typeof 参数}]`;
                 }
             }
-            return 处理后对象;
         }
         return String(参数);
     } catch (错误) {
@@ -150,45 +152,51 @@ export const 格式化元数据 = (元数据) => {
     if (!元数据 || typeof 元数据 !== 'object') return null;
     
     try {
-        // 重置循环引用检测
-        seen.clear();
-        
-        // 处理特殊类型
-        const 处理后元数据 = {};
-        for (const 键 in 元数据) {
-            let 值 = 元数据[键];
+        // 使用serialize库处理元数据对象，可以解决循环引用问题
+        return JSON.parse(serialize(元数据, { space: 0 }));
+    } catch (e) {
+        // 如果serialize失败，使用简化版处理
+        try {
+            // 重置循环引用检测
+            seen.clear();
             
             // 处理特殊类型
-            if (值 instanceof Error) {
-                处理后元数据[键] = {
-                    错误类型: 值.name,
-                    错误消息: 值.message,
-                    错误栈: 值.stack
-                };
-            } else if (typeof 值 === 'object' && 值 !== null) {
-                // 避免循环引用
-                if (seen.has(值)) {
-                    处理后元数据[键] = '[循环引用]';
-                } else {
-                    seen.add(值);
-                    
-                    // 处理数组
-                    if (Array.isArray(值) && 值.length > 20) {
-                        处理后元数据[键] = [...值.slice(0, 20), `...还有${值.length - 20}项`];
+            const 处理后元数据 = {};
+            for (const 键 in 元数据) {
+                let 值 = 元数据[键];
+                
+                // 处理特殊类型
+                if (值 instanceof Error) {
+                    处理后元数据[键] = {
+                        错误类型: 值.name,
+                        错误消息: 值.message,
+                        错误栈: 值.stack
+                    };
+                } else if (typeof 值 === 'object' && 值 !== null) {
+                    // 避免循环引用
+                    if (seen.has(值)) {
+                        处理后元数据[键] = '[循环引用]';
                     } else {
-                        // 递归处理嵌套对象
-                        处理后元数据[键] = 格式化元数据(值);
+                        seen.add(值);
+                        
+                        // 处理数组
+                        if (Array.isArray(值) && 值.length > 20) {
+                            处理后元数据[键] = [...值.slice(0, 20), `...还有${值.length - 20}项`];
+                        } else {
+                            // 递归处理嵌套对象
+                            处理后元数据[键] = 格式化元数据(值);
+                        }
                     }
+                } else {
+                    // 基本类型直接复制
+                    处理后元数据[键] = 值;
                 }
-            } else {
-                // 基本类型直接复制
-                处理后元数据[键] = 值;
             }
+            
+            return 处理后元数据;
+        } catch (backupError) {
+            return { 错误: `元数据格式化失败: ${e.message}` };
         }
-        
-        return 处理后元数据;
-    } catch (e) {
-        return { 错误: `元数据格式化失败: ${e.message}` };
     }
 };
 
@@ -275,8 +283,17 @@ export const 格式化日志 = (级别, 内容, 来源 = '', 选项 = {}) => {
             if (typeof 格式化内容 === 'undefined') {
                 格式化内容 = '[无法序列化]';
             } else {
-                // 如果已经是字符串，保持原样，否则转换为字符串
-                格式化内容 = typeof 格式化内容 === 'string' ? 格式化内容 : String(格式化内容);
+                // 如果已经是字符串，保持原样，否则尝试使用serialize处理
+                if (typeof 格式化内容 === 'string') {
+                    // 已经是字符串，保持原样
+                } else {
+                    try {
+                        格式化内容 = serialize(格式化内容, { space: 0 });
+                    } catch (serializeError) {
+                        // 如果serialize失败，转为简单描述
+                        格式化内容 = `[复杂对象: ${typeof 格式化内容}]`;
+                    }
+                }
             }
             
             元数据 = {
