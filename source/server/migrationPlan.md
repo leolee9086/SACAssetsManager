@@ -1,50 +1,82 @@
 # 服务器模块迁移计划
 
-## 目录结构迁移
-
-我们已经创建了新的目录结构，按照功能和职责进行了更清晰的组织：
+## 目录结构
 
 ```
-source/server/
-├── bootstrap/                 # 启动和初始化相关
-│   ├── main.js                # 主入口点(重命名自index.js)
-│   ├── serverStarter.js       # 服务器启动（替代server.js）
-│   ├── initializer.js         # 初始化逻辑（替代init.js）
-│   └── preload.js             # 预加载脚本
-│
-├── api/                       # API相关
-│   ├── router.js              # 主路由定义（替代endPoints.js）
-│   ├── apiService.js          # API服务实现
-│   ├── backendEvents.js       # 后端事件系统
-│   └── handlers/              # API处理器
-│       └── handlerTemplate.js # API处理器模板
-│
-├── config/                    # 配置管理(新增)
-│   ├── index.js               # 配置系统入口
-│   ├── paths.js               # 路径配置
-│   ├── server.js              # 服务器配置
-│   └── services.js            # 服务配置
-│
-├── types/                     # 类型定义(新增)
-│   ├── index.js               # 类型定义入口
-│   ├── api.js                 # API相关类型
-│   ├── fs.js                  # 文件系统类型
-│   └── common.js              # 通用类型
-│
-├── services/                  # 核心服务实现
-│   ├── fs/                    # 文件系统服务
-│   │   └── index.js           # 文件系统服务实现
-│   ├── db/                    # 数据库服务
-│   ├── thumbnail/             # 缩略图服务
-│   │   └── index.js           # 缩略图服务实现
-│   ├── color/                 # 颜色分析服务
-│   ├── license/               # 许可证服务
-│   └── logger/                # 日志服务
-│
-├── utils/                     # 工具函数
-├── middlewares/               # 中间件
-└── processors/                # 数据处理器(逐步移至services)
+source/
+└── server/
+    ├── bootstrap/              // 引导程序目录
+    │   ├── initializer.js      // 初始化器
+    │   ├── main.js             // 主入口
+    │   ├── preload.js          // 预加载脚本
+    │   └── serverStarter.js    // 服务器启动器
+    ├── api/                    // API目录
+    │   ├── apiService.js       // API服务实现
+    │   ├── backendEvents.js    // 后端事件系统
+    │   ├── router.js           // 路由器
+    │   ├── routes.js           // 路由定义
+    │   └── handlers/           // API处理器
+    │       ├── fs.js           // 文件系统处理器
+    │       ├── thumbnail.js    // 缩略图处理器
+    │       ├── metadata.js     // 元数据处理器
+    │       ├── color.js        // 颜色分析处理器
+    │       ├── eagle.js        // Eagle集成处理器
+    │       ├── document.js     // 文档处理器
+    │       └── handlerTemplate.js // 处理器模板
+    ├── config/                 // 配置目录
+    │   ├── configManager.js    // 配置管理器
+    │   └── default.js          // 默认配置
+    ├── types/                  // 类型定义目录
+    │   ├── api.js              // API类型
+    │   ├── fs.js               // 文件系统类型
+    │   ├── common.js           // 通用类型
+    │   ├── document.js         // 文档处理类型
+    │   └── index.js            // 类型索引
+    ├── services/               // 服务目录
+    │   ├── fs/                 // 文件系统服务
+    │   ├── thumbnail/          // 缩略图服务
+    │   ├── color/              // 颜色分析服务
+    │   ├── document/           // 文档处理服务
+    │   ├── license/            // 许可证服务
+    │   ├── db/                 // 数据库服务
+    │   └── logger/             // 日志服务
+    ├── utils/                  // 工具目录
+    │   └── ...
+    ├── middlewares/            // 中间件目录
+    │   └── ...
+    └── processors/             // 处理器目录(待迁移)
+        └── ...
 ```
+
+## 迁移概述
+
+本次重构旨在将原有的平面结构改造为模块化、分层的结构。重构过程中，我们遵循以下原则：
+
+1. **模块化**：将相关功能组织在同一目录下，便于维护和扩展
+2. **分层设计**：明确划分为初始化/引导层、API层、服务层和数据层
+3. **配置集中化**：统一配置管理，便于全局控制系统行为
+4. **类型安全**：引入JSDoc类型定义，提升开发体验和代码质量
+5. **功能内聚**：按照功能将代码组织成独立服务，降低耦合
+6. **统一接口**：标准化API响应格式和错误处理
+
+目前已经完成的主要工作包括：
+
+- ✅ 创建了Bootstrap架构，包括初始化器、预加载脚本、主入口和服务器启动器
+- ✅ 实现了配置系统，包括配置管理器和默认配置
+- ✅ 创建了API架构，包括API服务、路由系统和后端事件系统
+- ✅ 实现了文件系统服务和缩略图服务
+- ✅ 创建了多个API处理器，包括文件系统、缩略图、元数据、颜色分析、Eagle集成和文档处理
+- ✅ 建立了类型系统，为主要组件定义了类型
+- ✅ 创建了文档处理服务，支持PDF和Office文档的处理
+
+下一步计划：
+
+1. 替换入口文件的引用，将`index.html`中的引用从`init.js`改为`bootstrap/main.js`
+2. 继续迁移剩余的handlers到api/handlers目录
+3. 将原有processors下的功能迁移到对应services
+4. 更新服务使用集中的配置系统
+5. 实现数据库服务
+6. 进行功能测试
 
 ## 迁移步骤
 
@@ -69,14 +101,17 @@ source/server/
 8. ✅ 实现缩略图服务
 9. ✅ 创建基础的API处理器（FS和缩略图）
 10. ✅ 创建路由定义并应用到API服务
-11. 替换入口文件引用
+11. ✅ 创建元数据和颜色API处理器
+12. ✅ 创建Eagle集成API处理器
+13. ✅ 创建文档处理API处理器
+14. 替换入口文件引用
    - 修改`index.html`中的引用，从原来的`init.js`改为`bootstrap/main.js`
-12. 继续迁移handlers到api/handlers
+15. 继续迁移handlers到api/handlers
    - 使用新创建的API处理器模板迁移更多现有处理器
-13. 将processors移动到services
+16. 将processors移动到services
    - 将相关处理器逐步迁移到对应服务目录
    - 确保向后兼容性
-14. 更新服务使用配置系统
+17. 更新服务使用配置系统
    - 修改服务实现，使用集中配置
 
 ### 第三阶段：优化和测试（待进行）
@@ -114,6 +149,10 @@ source/server/
 | -                   | api/handlers/handlerTemplate.js      | ✅ 已创建 |
 | -                   | api/handlers/fs.js                   | ✅ 已创建 |
 | -                   | api/handlers/thumbnail.js            | ✅ 已创建 |
+| -                   | api/handlers/metadata.js             | ✅ 已创建 |
+| -                   | api/handlers/color.js                | ✅ 已创建 |
+| -                   | api/handlers/eagle.js                | ✅ 已创建 |
+| -                   | api/handlers/document.js             | ✅ 已创建 |
 | -                   | api/routes.js                        | ✅ 已创建 |
 | handlers/           | api/handlers/                        | 部分迁移 |
 | licenseChecker.js   | services/license/licenseChecker.js   | ✅ 已创建 |
@@ -147,14 +186,12 @@ source/server/
 
 ## 下一步工作
 
-1. ✅ 迁移handlers到api/handlers目录，使用新的API处理器模板（基础部分已完成）
+1. ✅ 迁移handlers到api/handlers目录，使用新的API处理器模板（大部分已完成）
 2. 修改index.html引用bootstrap/main.js
-3. 创建更多API处理器，迁移现有功能
-4. 为主要API端点创建路由定义
-5. 将processors下的功能迁移到对应services
-6. 实现数据库服务
-7. 实现颜色分析服务
-8. 实施功能测试
+3. 为处理器实现对应的服务模块
+4. 将processors下的功能迁移到对应services
+5. 实现数据库服务
+6. 实施功能测试
 
 ## 完成标志
 

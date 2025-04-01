@@ -6,6 +6,10 @@
 import { get, post, put, del, createRouteGroup } from './router.js';
 import * as fsHandlers from './handlers/fs.js';
 import * as thumbnailHandlers from './handlers/thumbnail.js';
+import * as metadataHandlers from './handlers/metadata.js';
+import * as colorHandlers from './handlers/color.js';
+import * as eagleHandlers from './handlers/eagle.js';
+import * as documentHandlers from './handlers/document.js';
 import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 // 文件系统路由组
@@ -29,10 +33,55 @@ thumbnailRoutes.get('/clear-cache', thumbnailHandlers.clearThumbnailCache);
 thumbnailRoutes.post('/upload', thumbnailHandlers.uploadImage);
 thumbnailRoutes.get('/formats', thumbnailHandlers.getSupportedFormats);
 
+// 元数据路由组
+const metadataRoutes = createRouteGroup('/metadata');
+
+// 元数据路由
+metadataRoutes.get('/exif', metadataHandlers.readExifMetadata);
+metadataRoutes.get('/attributes', metadataHandlers.getFileAttributes);
+metadataRoutes.get('/dimensions', metadataHandlers.getImageDimensions);
+
+// 颜色分析路由组
+const colorRoutes = createRouteGroup('/color');
+
+// 颜色分析路由
+colorRoutes.get('/', colorHandlers.getImageColors);
+colorRoutes.get('/search', colorHandlers.searchByColor);
+colorRoutes.delete('/record', colorHandlers.deleteColorRecord);
+
+// Eagle集成路由组
+const eagleRoutes = createRouteGroup('/eagle');
+
+// Eagle集成路由
+eagleRoutes.get('/path', eagleHandlers.findEagleLibraryPath);
+eagleRoutes.get('/tags', eagleHandlers.getEagleLibraryTags);
+eagleRoutes.get('/search', eagleHandlers.searchEagleLibrary);
+
+// 文档处理路由组
+const documentRoutes = createRouteGroup('/document');
+
+// 文档处理路由
+documentRoutes.get('/pdf/text', documentHandlers.extractPdfText);
+documentRoutes.get('/office/text', documentHandlers.extractOfficeText);
+documentRoutes.get('/pdf/preview', documentHandlers.getPdfPagePreview);
+documentRoutes.get('/pdf/info', documentHandlers.getPdfInfo);
+documentRoutes.get('/cleanup', documentHandlers.cleanupTempFiles);
+
 // 兼容原有路由
 // 这些路由可以在迁移完成后逐步替换
 get('/raw', fsHandlers.readFile);
 get('/thumbnail', thumbnailHandlers.generateThumbnail);
+get('/metadata/exif', metadataHandlers.readExifMetadata);
+get('/color', colorHandlers.getImageColors);
+get('/getPathseByColor', colorHandlers.searchByColor);
+get('/metaRecords/delete', colorHandlers.deleteColorRecord);
+get('/eagle-path', eagleHandlers.findEagleLibraryPath);
+get('/eagle-tags', eagleHandlers.getEagleLibraryTags);
+get('/extract-pdf-text', documentHandlers.extractPdfText);
+get('/extract-office-text', documentHandlers.extractOfficeText);
+get('/pdf-preview', documentHandlers.getPdfPagePreview);
+get('/pdf-info', documentHandlers.getPdfInfo);
+get('/document-cleanup', documentHandlers.cleanupTempFiles);
 
 /**
  * 注册所有API路由
