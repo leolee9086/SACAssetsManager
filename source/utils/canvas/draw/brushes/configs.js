@@ -11,58 +11,56 @@ export const createToolButtonConfigs=()=>{
     return Object.entries(brushConfigs).map(([key, config]) => config)
 }
 /**
- * 笔刷配置
+ * 笔刷类型定义
  */
-export const brushConfigs = {
-    尖头马克笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 1,
-        spacing: 1,
-        sizeMultiplier: 10,
-      //  usePigment: true,
-        name: 'marker',
-        label: '尖头马克笔',
-        defaultColor: '#e24a4a',
-        defaultSize: 1,
-        defaultOpacity: 0.6,
-        brushSize: { width: 20, height: 20 },
-        brushPath: '/plugins/SACAssetsManager/assets/brushes/marker.png'
+export const 尖头马克笔 ={
+    type: BRUSH_TYPES.IMAGE,
+    opacity: 1,
+    spacing: 1,
+    sizeMultiplier: 10,
+  //  usePigment: true,
+    name: 'marker',
+    label: '尖头马克笔',
+    defaultColor: '#e24a4a',
+    defaultSize: 1,
+    defaultOpacity: 0.6,
+    brushSize: { width: 20, height: 20 },
+    brushPath: '/plugins/SACAssetsManager/assets/brushes/marker.png'
 
-    },
-    宽头马克笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 1 / 30,
-        spacing: 5,
-        sizeMultiplier: 15,
-        name: 'wideMaker', 
-        label: '荧光笔',
-        defaultColor: '#f7d147',
-        defaultSize: 1,
-        defaultOpacity: 0.3,
-        brushSize: { width: 30, height: 30 },
-        brushPath: '/plugins/SACAssetsManager/assets/brushes/wide-marker.png'
-
-    },
-    水彩笔: {
-        type: BRUSH_TYPES.IMAGE,
-        opacity: 0.1,
-        spacing: 0.08,
-        sizeMultiplier: 20,
-        pickupEnabled: true,  // 启用沾染
-        pickupRadius: 20,     // 沾染影响半径
-        pickupDecay: 0.95,    // 沾衰减率
-        flowEnabled: true,
-        usePigment: true,
-        name: 'watercolor',
-        label: '水彩笔',
-        defaultColor: '#4a90e2',
-        defaultSize: 1,
-        defaultOpacity: 0.2,
-        brushSize: { width: 40, height: 40 },
-        brushPath: '/plugins/SACAssetsManager/assets/brushes/watercolor.png'
-
-    },
-    铅笔: {
+}
+export const 宽头马克笔 ={
+    type: BRUSH_TYPES.IMAGE,
+    opacity: 1 / 30,
+    spacing: 5,
+    sizeMultiplier: 15,
+    name: 'wideMaker', 
+    label: '荧光笔',
+    defaultColor: '#f7d147',
+    defaultSize: 1,
+    defaultOpacity: 0.3,
+    brushSize: { width: 30, height: 30 },
+    brushPath: '/plugins/SACAssetsManager/assets/brushes/wide-marker.png'
+}
+export const 水彩笔 ={
+    type: BRUSH_TYPES.IMAGE,
+    opacity: 0.1,
+    spacing: 0.08,
+    sizeMultiplier: 20,
+    pickupEnabled: true,  // 启用沾染
+    pickupRadius: 20,     // 沾染影响半径
+    pickupDecay: 0.95,    // 沾衰减率
+    flowEnabled: true,
+    usePigment: true,
+    name: 'watercolor',
+    label: '水彩笔',
+    defaultColor: '#4a90e2',
+    defaultSize: 1,
+    defaultOpacity: 0.2,
+    brushSize: { width: 40, height: 40 },
+    brushPath: '/plugins/SACAssetsManager/assets/brushes/watercolor.png'
+}
+export const 铅笔 ={
+    
         type: BRUSH_TYPES.IMAGE,
         opacity: 1,
         spacing: 2,
@@ -75,7 +73,16 @@ export const brushConfigs = {
         brushSize: { width: 10, height: 10 },
         brushPath: '/plugins/SACAssetsManager/assets/brushes/pencil.png'
 
-    },
+     
+}
+/**
+ * 笔刷配置
+ */
+export const brushConfigs = {
+    尖头马克笔,
+    宽头马克笔 ,
+    水彩笔,
+    铅笔,
     钢笔: {
         type: BRUSH_TYPES.SHAPE,
         opacity: 1,

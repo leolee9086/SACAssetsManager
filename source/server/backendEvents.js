@@ -1,75 +1,33 @@
-/**'
- *一个eventBus
+/**
+ * 后端事件系统
+ * 提供基于WebSocket的事件通信功能
  */
-const EventEmitter = require('events');
-const webSocket = require('ws');
-class wsEventListener {
-    constructor(wsTargets, eventBus) {
-        this.wsTargets = wsTargets
-        this.eventBus = eventBus
-        this.addMessageListener()
-    }
-    addMessageListener() {
-        this.wsTargets.on('message', (message) => {
-            //解析message,根据message.type,message.data,message.option
-            this.eventBus.emit(message.type, message.data, message.option)
-        })
-    }
-}
-export class BackendEvents extends EventEmitter {
-    constructor(ports, wsTargets) {
-        ports.forEach(port => {
-            this.ws = new webSocket.WebSocketServer({ port: port });
-        });
-        wsTargets.forEach(wsTarget => {
-            this.ws.add(wsTarget);
-        });
-        this.wsEventListener = new wsEventListener(this.wsTargets, this)
-        super();
-    }
-    on(event, listener) {
-        super.on(event, listener);
-    }
-    broadcast(event, ...args) {
-        this.wsTargets.forEach(wsTarget => {
-            wsTarget.send(JSON.stringify({ type: event, data: args }));
-        });
-    }
-    emitBroadcast(event, ...args) {
-        let fn = this.prepareEmit(event, ...args)
-        fn().broadcast()
-    }
-    /**
-     * 
-     * @param {*} event 
-     * @param {*} args 
-     * @returns 
-     */
-    prepareEmit(event, ...args) {
-        let fn = () => {
-            super.emit(event, ...args);
-            return {
-                broadcast: () => {
-                    this.broadcast(event, ...args);
-                }
-            }
-        }
 
-        return fn
-    }
-    off(event, listener) {
-        super.off(event, listener);
-    }
-    once(event, listener) {
-        super.once(event, listener);
-    }
-    removeListener(event, listener) {
-        super.removeListener(event, listener);
-    }
-    removeAllListeners(event) {
-        super.removeAllListeners(event);
-    }
-    listeners(event) {
-        return super.listeners(event);
-    }
+import { 创建后端事件系统 } from '../../src/toolBox/base/forNetwork/forWebSocket/useWebSocketEvents.js';
+
+// 导出BackendEvents类
+// 这个导出仅用于保持API兼容性
+export class BackendEvents {
+  constructor(ports, wsTargets) {
+    const 事件系统 = 创建后端事件系统({
+      端口列表: ports,
+      WS目标列表: wsTargets
+    });
+    
+    // 将事件系统的所有方法绑定到this上
+    this.on = 事件系统.on;
+    this.off = 事件系统.off;
+    this.once = 事件系统.once;
+    this.removeListener = 事件系统.removeListener;
+    this.removeAllListeners = 事件系统.removeAllListeners;
+    this.listeners = 事件系统.listeners;
+    this.broadcast = 事件系统.广播;
+    this.emitBroadcast = 事件系统.发出并广播;
+    this.prepareEmit = 事件系统.准备发出;
+    
+    // 保存原始对象
+    this.ws = 事件系统.ws服务器列表;
+    this.wsTargets = wsTargets;
+    this.wsEventListener = 事件系统.监听器列表;
+  }
 }

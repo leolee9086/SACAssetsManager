@@ -164,4 +164,22 @@ export {
  * 创建一个默认的事件总线实例
  */
 import { createEventBus } from './base/forEvent/eventBusTools.js';
-export const defaultEventBus = createEventBus(); 
+export const defaultEventBus = createEventBus();
+
+// WebSocket事件工具
+export { 创建WebSocket事件监听器, 创建后端事件系统 } from './base/forNetwork/forWebSocket/useWebSocketEvents.js';
+
+// 端点URL生成工具
+export { 
+  创建服务器主机地址生成器,
+  创建缩略图主机地址生成器,
+  创建上传路径生成器,
+  创建文件系统端点生成器,
+  创建元数据端点生成器,
+  创建缩略图端点生成器,
+  创建元数据记录端点生成器,
+  创建端点系统
+} from './base/forNetwork/forEndPoints/useEndPointsBuilder.js';
+
+// Electron窗口管理工具
+export { 创建浏览器窗口 } from './base/useElectron/forWindow/useBrowserWindow.js'; 
