@@ -1,118 +1,213 @@
 /**
  * 日志服务
- * 提供统一的日志记录和管理功能
+ * 提供统一的日志记录功能
  */
 
-import { 日志 } from '../../../../src/toolBox/base/useEcma/forLogs/useLogger.js';
-import * as 数据库 from '../../utils/logs/logDB.js';
-import * as 格式化器 from '../../../../src/toolBox/base/useEcma/forLogs/useLogFormatter.js';
-import * as 处理器 from '../../utils/logs/logProcessor.js';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { configManager } from '../../config/configManager.js';
+import { formatLogEntry } from './logFormatter.js';
+import { rotateLogFile } from './fileTransport.js';
 
-// 状态标记
-let 已初始化 = false;
+// 获取配置
+const config = configManager.get('logger');
+
+// 日志级别映射
+const LOG_LEVELS = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+};
+
+// 日志文件路径
+const logFilePath = path.join(config.filePath, `app-${new Date().toISOString().split('T')[0]}.log`);
 
 /**
- * 初始化日志系统
- * @returns {Promise<boolean>} 初始化是否成功
+ * 确保日志目录存在
  */
-export const 初始化日志系统 = async () => {
-    if (已初始化) return true;
+async function ensureLogDir() {
+  try {
+    await fs.mkdir(config.filePath, { recursive: true });
+  } catch (error) {
+    console.error(`创建日志目录失败: ${config.filePath}`, error);
+  }
+}
+
+/**
+ * 写入日志到文件
+ * @param {string} entry - 格式化的日志条目
+ */
+async function writeToFile(entry) {
+  try {
+    await ensureLogDir();
+    await fs.appendFile(logFilePath, entry + '\n', 'utf8');
     
-    try {
-        await 数据库.初始化数据库();
-        已初始化 = true;
-        return true;
-    } catch (错误) {
-        console.error('初始化日志系统失败:', 错误);
-        return false;
+    // 检查是否需要轮转日志文件
+    const stats = await fs.stat(logFilePath);
+    if (stats.size >= config.maxSize) {
+      await rotateLogFile(logFilePath, config.maxFiles);
     }
-};
+  } catch (error) {
+    console.error(`写入日志失败: ${logFilePath}`, error);
+  }
+}
 
 /**
- * 记录信息日志
- * @param {string|Object} 消息 - 日志消息
- * @param {string} [标签='默认'] - 日志标签
+ * 记录日志
+ * @param {string} level - 日志级别
+ * @param {string} message - 日志消息
+ * @param {Error|string} [error] - 错误对象或错误消息
+ * @param {string} [category='General'] - 日志分类
+ * @param {Object} [metadata] - 额外元数据
  */
-export const 记录信息 = (消息, 标签 = '默认') => {
-    日志.信息(消息, 标签);
-};
+async function log(level, message, error, category = 'General', metadata = {}) {
+  // 检查日志级别
+  if (LOG_LEVELS[level] < LOG_LEVELS[config.level]) {
+    return;
+  }
+
+  // 获取调用者信息
+  const caller = getCallerInfo();
+  
+  // 格式化日志条目
+  const entry = formatLogEntry({
+    timestamp: new Date(),
+    level,
+    message,
+    error,
+    category,
+    metadata,
+    caller
+  });
+
+  // 控制台输出
+  if (config.console) {
+    console.log(entry);
+  }
+
+  // 文件输出
+  if (config.file) {
+    await writeToFile(entry);
+  }
+}
 
 /**
- * 记录警告日志
- * @param {string|Object} 消息 - 日志消息
- * @param {string} [标签='默认'] - 日志标签
+ * 获取调用者信息
+ * @returns {Object} 调用者信息
  */
-export const 记录警告 = (消息, 标签 = '默认') => {
-    日志.警告(消息, 标签);
-};
-
-/**
- * 记录错误日志
- * @param {string|Object} 消息 - 日志消息
- * @param {string} [标签='默认'] - 日志标签
- */
-export const 记录错误 = (消息, 标签 = '默认') => {
-    日志.错误(消息, 标签);
-};
+function getCallerInfo() {
+  const stack = new Error().stack;
+  const callerLine = stack.split('\n')[3];
+  const match = callerLine.match(/at (.+?) \((.+?):(\d+):(\d+)\)/);
+  
+  if (match) {
+    return {
+      function: match[1],
+      file: path.basename(match[2]),
+      line: parseInt(match[3]),
+      column: parseInt(match[4])
+    };
+  }
+  
+  return null;
+}
 
 /**
  * 记录调试日志
- * @param {string|Object} 消息 - 日志消息
- * @param {string} [标签='默认'] - 日志标签
+ * @param {string} message - 日志消息
+ * @param {string} [category='General'] - 日志分类
+ * @param {Object} [metadata] - 额外元数据
  */
-export const 记录调试 = (消息, 标签 = '默认') => {
-    日志.调试(消息, 标签);
-};
+export function debug(message, category, metadata) {
+  log('debug', message, null, category, metadata);
+}
 
 /**
- * 创建日志批处理器
- * @param {Function} 保存函数 - 日志保存处理函数
- * @param {Object} 配置 - 批处理器配置
- * @returns {Object} 日志批处理器实例
+ * 记录信息日志
+ * @param {string} message - 日志消息
+ * @param {string} [category='General'] - 日志分类
+ * @param {Object} [metadata] - 额外元数据
  */
-export const 创建日志批处理器 = (保存函数, 配置 = {}) => {
-    return new 处理器.日志批处理器(保存函数, 配置);
-};
+export function info(message, category, metadata) {
+  log('info', message, null, category, metadata);
+}
 
 /**
- * 创建节流日志函数
- * @param {Function} 日志函数 - 原始日志函数
- * @param {Number} 延迟 - 节流延迟（毫秒）
- * @returns {Function} 节流后的日志函数
+ * 记录警告日志
+ * @param {string} message - 日志消息
+ * @param {string} [category='General'] - 日志分类
+ * @param {Object} [metadata] - 额外元数据
  */
-export const 创建节流日志函数 = (日志函数, 延迟 = 50) => {
-    return 处理器.创建节流函数(日志函数, 延迟);
-};
+export function warn(message, category, metadata) {
+  log('warn', message, null, category, metadata);
+}
 
 /**
- * 格式化日志
- * @param {string} 级别 - 日志级别
- * @param {Array} 参数 - 日志参数
- * @param {string} 来源 - 日志来源
- * @returns {Object} 格式化后的日志对象
+ * 记录错误日志
+ * @param {string} message - 日志消息
+ * @param {Error|string} [error] - 错误对象或错误消息
+ * @param {string} [category='General'] - 日志分类
+ * @param {Object} [metadata] - 额外元数据
  */
-export const 格式化日志 = (级别, 参数, 来源) => {
-    return 格式化器.格式化日志(级别, 参数, 来源);
-};
+export function error(message, error, category, metadata) {
+  log('error', message, error, category, metadata);
+}
+
+/**
+ * 开始性能分析
+ * @param {string} label - 分析标签
+ * @returns {Function} 结束分析的函数
+ */
+export function startProfiling(label) {
+  const start = Date.now();
+  
+  return () => {
+    const duration = Date.now() - start;
+    info(`${label} 完成，耗时: ${duration}ms`, 'Performance');
+  };
+}
 
 /**
  * 查询日志
- * @param {Object} 查询条件 - 查询条件对象
- * @param {Object} 选项 - 查询选项
- * @returns {Promise<Array>} 日志记录数组
+ * @param {Object} options - 查询选项
+ * @param {string} [options.level] - 日志级别过滤
+ * @param {string} [options.category] - 分类过滤
+ * @param {string} [options.startDate] - 开始日期
+ * @param {string} [options.endDate] - 结束日期
+ * @param {string} [options.search] - 搜索关键字
+ * @param {number} [options.limit=100] - 返回数量限制
+ * @returns {Promise<Array>} 日志条目数组
  */
-export const 查询日志 = async (查询条件 = {}, 选项 = {}) => {
-    return await 数据库.查询日志(查询条件, 选项);
-};
+export async function query(options = {}) {
+  const {
+    level,
+    category,
+    startDate,
+    endDate,
+    search,
+    limit = 100
+  } = options;
 
-/**
- * 清理过期日志
- * @param {Number} 天数 - 保留的天数
- * @returns {Promise<Number>} 清理的日志条数
- */
-export const 清理过期日志 = async (天数 = 30) => {
-    const 过期时间 = new Date();
-    过期时间.setDate(过期时间.getDate() - 天数);
-    
-    return await 数据库.删除过期日志(过期时间);
-}; 
+  try {
+    // 读取日志文件
+    const content = await fs.readFile(logFilePath, 'utf8');
+    const entries = content.split('\n').filter(Boolean);
+
+    // 过滤日志条目
+    return entries
+      .map(entry => JSON.parse(entry))
+      .filter(entry => {
+        if (level && entry.level !== level) return false;
+        if (category && entry.category !== category) return false;
+        if (startDate && new Date(entry.timestamp) < new Date(startDate)) return false;
+        if (endDate && new Date(entry.timestamp) > new Date(endDate)) return false;
+        if (search && !entry.message.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      })
+      .slice(0, limit);
+  } catch (error) {
+    console.error('查询日志失败:', error);
+    return [];
+  }
+} 
