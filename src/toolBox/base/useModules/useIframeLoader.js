@@ -7,8 +7,23 @@ const createIframeLoader = () => {
     let loadedLibrary = null;
     let iframe = null;
 
+    // 添加清理函数
+    const cleanupIframe = () => {
+        if (iframe && iframe.parentNode) {
+            try {
+                document.body.removeChild(iframe);
+                // 保留 loadedLibrary 引用，但清除 iframe
+                iframe = null;
+            } catch (e) {
+                console.warn(`清理iframe失败: ${e.message}`);
+            }
+        }
+    };
+
     return async (scriptPath, libraryName, globalSymbolName = null) => {
         if (loadedLibrary) {
+            // 如果已经加载过库并获取了引用，清理iframe以节省资源
+            cleanupIframe();
             return loadedLibrary;
         }
 
@@ -34,18 +49,28 @@ const createIframeLoader = () => {
                             if (globalSymbolName) {
                                 globalThis[Symbol(globalSymbolName)] = loadedLibrary;
                             }
+
+                            // 成功获取库引用后清理iframe
+                            cleanupIframe();
                             
                             resolve(loadedLibrary);
                         } else {
+                            cleanupIframe();
                             reject(new Error(`无法在iframe中找到${libraryName}对象`));
                         }
                     };
                     
                     script.onerror = () => {
+                        cleanupIframe();
                         reject(new Error(`在iframe中加载${scriptPath}失败`));
                     };
 
                     doc.head.appendChild(script);
+                };
+
+                iframe.onerror = () => {
+                    cleanupIframe();
+                    reject(new Error(`创建iframe失败`));
                 };
 
                 // 设置一个简单的HTML内容
@@ -64,6 +89,7 @@ const createIframeLoader = () => {
                 // 设置iframe内容
                 iframe.srcdoc = html;
             } catch (error) {
+                cleanupIframe();
                 reject(error);
             }
         });
