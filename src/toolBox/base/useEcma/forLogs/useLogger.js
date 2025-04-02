@@ -44,7 +44,6 @@ export const 格式化日志 = (级别, 内容, 来源 = '', 选项 = null) => {
         // 尝试使用完整版格式化
         return 格式化日志完整版(级别, 内容, 来源, 选项);
     } catch (e) {
-        console.error('日志格式化失败，降级使用简化版', e);
         
         // 简化版格式化逻辑（备用方案）
         const 时间 = new Date().toISOString();
@@ -92,7 +91,7 @@ export const 格式化日志 = (级别, 内容, 来源 = '', 选项 = null) => {
     }
 };
 
-// 导出日志方法
+// 导出日志方法,注意这些方法里绝对不能使用console,否则会循环引用
 export const 使用日志 = {
     信息: (内容, 来源 = '', 选项 = {}) => {
         if (正在记录日志) return;
@@ -100,7 +99,6 @@ export const 使用日志 = {
         
         try {
             const 日志 = 格式化日志(日志级别.INFO, 内容, 来源, 选项);
-            console.log(创建控制台输出(日志));
             return 日志;
         } finally {
             正在记录日志 = false;
@@ -112,7 +110,6 @@ export const 使用日志 = {
         
         try {
             const 日志 = 格式化日志(日志级别.WARN, 内容, 来源, 选项);
-            console.warn(创建控制台输出(日志));
             return 日志;
         } finally {
             正在记录日志 = false;
@@ -124,7 +121,6 @@ export const 使用日志 = {
         
         try {
             const 日志 = 格式化日志(日志级别.ERROR, 内容, 来源, 选项);
-            console.error(创建控制台输出(日志));
             return 日志;
         } finally {
             正在记录日志 = false;
@@ -136,7 +132,6 @@ export const 使用日志 = {
         
         try {
             const 日志 = 格式化日志(日志级别.DEBUG, 内容, 来源, 选项);
-            console.debug(创建控制台输出(日志));
             return 日志;
         } finally {
             正在记录日志 = false;
@@ -148,7 +143,6 @@ export const 使用日志 = {
         正在记录日志 = true;
         
         try {
-            // 确保每个日志条目格式正确
             const 处理后日志列表 = 日志列表.map(日志 => {
                 if (!日志.级别) 日志.级别 = 日志级别.INFO;
                 if (!日志.来源) 日志.来源 = 'System';
@@ -159,9 +153,6 @@ export const 使用日志 = {
                 
                 return 格式化日志(日志.级别, 日志.内容, 日志.来源, 选项);
             });
-            
-            // 只在控制台打印批量日志的摘要
-            console.log(`批量添加了 ${处理后日志列表.length} 条日志`);
             return 处理后日志列表;
         } finally {
             正在记录日志 = false;
