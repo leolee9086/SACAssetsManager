@@ -1,7 +1,4 @@
-/**
- * 服务管理面板注册文件
- * 此文件使用传统脚本方式加载，避免MIME类型错误
- */
+
 
 // 创建服务管理面板
 function registerServiceManagerPanel(container) {

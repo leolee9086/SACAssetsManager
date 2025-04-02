@@ -94,7 +94,7 @@ const DOCK_CONFIGS = {
   ServiceManagerPanel: {
     icon: "iconServer",
     position: "RightBottom",
-    component: null,
+    component:"/plugins/SACAssetsManager/source/UI/pannels/serviceManager/index.vue",
     title: "服务管理",
     propertyName: "serviceManagerDock"
   }
@@ -120,41 +120,6 @@ function createDock(plugin, dockType) {
     type: dockType,
     init() {
       const container = 插入UI面板容器(this.element);
-      
-      // 特殊处理服务管理面板
-      if (dockType === 'ServiceManagerPanel') {
-        // 首先确保Vue在全局可用
-        const vueScript = document.createElement('script');
-        vueScript.src = '/plugins/SACAssetsManager/static/vue.global.js';
-        
-        vueScript.onload = () => {
-          // Vue加载完成后，加载注册面板脚本
-          const script = document.createElement('script');
-          script.src = '/plugins/SACAssetsManager/source/UI/pannels/serviceManager/registerPanel.js';
-          // 注意：使用传统脚本而非模块
-          script.type = 'text/javascript';
-          
-          script.onload = () => {
-            if (typeof window.registerServiceManagerPanel === 'function') {
-              window.registerServiceManagerPanel(container);
-            } else {
-              console.error('找不到registerServiceManagerPanel函数');
-            }
-          };
-          
-          script.onerror = (err) => {
-            console.error('加载服务管理面板脚本失败:', err);
-          };
-          
-          document.head.appendChild(script);
-        };
-        
-        vueScript.onerror = (err) => {
-          console.error('加载Vue全局脚本失败:', err);
-        };
-        
-        document.head.appendChild(vueScript);
-      } else {
         // 其他面板使用原有的Vue加载方式
         import('/plugins/SACAssetsManager/src/toolBox/feature/useVue/vueComponentLoader.js').then(
           async module => {
@@ -172,7 +137,7 @@ function createDock(plugin, dockType) {
             }
           }
         );
-      }
+      
     }
   });
   return dock;
