@@ -4,21 +4,8 @@ import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
 import { showInputDialogPromise } from '../../dialog/inputDialog.js'
 import { 执行删除所有ThumbsDB } from './removeThumbsDb.js'
 import { 执行按扩展名分组 as 执行展平并按扩展名分组 } from './flatWithExtend.js'
-import { artTemplate as template } from '../../../../../src/toolBox/useAge/forText/useArtTemplate.js'
-// 渲染模板函数
-const 渲染模板 = async (templateStr, data) => {
-    try {
-        const renderFunc = template.compile(templateStr);
-        return renderFunc(data);
-    } catch (error) {
-        console.error('模板渲染错误:', error);
-        // 如果模板渲染失败，进行简单的变量替换
-        return Object.entries(data).reduce(
-            (str, [key, value]) => str.replace(new RegExp(`{{\\s*${key}\\s*}}`, 'g'), value),
-            templateStr
-        );
-    }
-};
+import { 以artTemplate渲染模板 as 渲染模板 } from '../../../../../src/toolBox/useAge/forText/useArtTemplate.js'
+
 
 const 构建UI执行函数 = (options={执行函数:null,用户确认提示:null}) => {
     const {执行函数,用户确认提示} = options

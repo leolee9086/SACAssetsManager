@@ -88,4 +88,29 @@ import { 字符串过滤 } from '../toolBox/base/useEcma/forString/stringFilters
 - `useXXX/` - 提供特定技术栈或平台的基础工具
 - `forXXX/` - 提供针对特定领域的基础工具
 
-文件命名应该反映其功能，避免使用无语义的名称如index.js或main.js。 
+文件命名应该反映其功能，避免使用无语义的名称如index.js或main.js。
+
+## 工具列表
+
+### iframeLoader.js
+提供通用的iframe加载器，用于在隔离环境中加载外部JavaScript库，避免污染主应用环境。
+
+功能：
+- 在隔离iframe环境中加载外部JavaScript库
+- 安全获取库导出的对象
+- 支持将库对象存储到全局Symbol中
+- 防止库污染主应用环境
+
+```javascript
+import { createIframeLoader } from './iframeLoader.js';
+
+// 创建加载器
+const iframeLoader = createIframeLoader();
+
+// 加载外部库
+const library = await iframeLoader(
+  '/path/to/library.js',  // 脚本路径 
+  'libraryName',          // 库在window对象上的名称
+  'globalSymbolName'      // 可选：用于全局存储的Symbol名
+);
+``` 

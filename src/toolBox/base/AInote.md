@@ -94,3 +94,39 @@
    - 用于技术栈或平台工具，如useEcma、useBrowser
    - 可能封装特定环境或技术的能力
    - 提供更高层次的抽象 
+
+# base 文件夹说明
+
+该文件夹包含项目中使用的基础工具函数和组件，提供通用的底层功能支持。
+
+## 文件说明
+
+### iframeLoader.js
+
+`iframeLoader.js` 提供了一个通用的iframe加载器，用于在隔离环境中加载外部库。
+
+主要功能：
+- 在隔离的iframe环境中加载外部JavaScript库
+- 获取库导出的对象
+- 支持将库对象存储到全局Symbol中
+- 防止库污染主应用环境
+
+使用示例：
+```javascript
+import { createIframeLoader } from './base/iframeLoader.js';
+
+const iframeLoader = createIframeLoader();
+const myLibrary = await iframeLoader(
+  '/path/to/library.js',  // 脚本路径
+  'libraryName',          // 库在window对象上的名称
+  'globalSymbolName'      // 可选：用于全局存储的Symbol名
+);
+```
+
+## 设计理念
+
+基础工具遵循以下原则：
+- 功能单一：每个工具专注于解决一个特定问题
+- 无副作用：尽量避免修改全局状态
+- 函数式风格：优先使用纯函数，避免类和继承
+- 高复用性：工具应易于在不同场景中重用 
