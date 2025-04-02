@@ -34,6 +34,67 @@
    - 增量实现新功能
    - 提供适配层和兼容层
 
+## 通用工具函数拆分计划
+
+### 拆分原则
+
+1. **功能聚合**：按功能类别组织工具函数
+2. **单一职责**：每个工具函数只负责一个功能
+3. **避免重复**：消除代码库中的功能重复
+4. **提高可测试性**：便于单元测试的编写
+
+### 已发现需要拆分的工具函数
+
+1. **文件系统操作工具** (`utils/fs`):
+   - `statWithCatch`: 安全获取文件状态 (fs/stat.js, processors/fs/stat.js)
+   - `statWithNew`: 获取文件状态并写入缓存 (processors/fs/stat.js)
+   - `buildStepCallback`: 构建步骤回调函数 (processors/fs/stat.js)
+   - `计算哈希`: 计算文件哈希值
+   - `获取哈希并写入数据库`: 获取哈希并保存 (processors/fs/stat.js)
+
+2. **缓存相关工具** (`utils/cache`):
+   - `buildCache`: 构建缓存实例 (processors/cache/cache.js)
+   - `getCachePath`: 获取缓存路径 (processors/fs/cached/fs.js)
+
+3. **遍历相关工具** (`utils/traversal`):
+   - `更新目录索引`: 更新目录索引 (processors/fs/walk.js)
+   - `initializeWalkParams`: 初始化遍历参数 (processors/fs/walk.js)
+   - `processWalkResults`: 处理遍历结果 (processors/fs/walk.js)
+   - `调度文件夹索引任务`: 安排索引更新任务 (processors/fs/walk.js)
+   - `文件遍历回调`: 文件遍历回调函数 (processors/fs/walk.js)
+   - `计算目录遍历优先级`: 计算遍历优先级 (processors/fs/walk.js)
+
+4. **心跳检测工具** (`utils/heartbeat`):
+   - `初始化心跳处理`: 心跳响应处理 (heartbeat.js)
+   - `更新主服务启动时间`: 更新主服务时间 (heartbeat.js)
+   - `更新静态服务启动时间`: 更新静态服务时间 (heartbeat.js)
+   - `获取服务状态快照`: 获取服务状态 (heartbeat.js)
+
+5. **URL和路径工具** (`utils/url`):
+   - `getStaticServerURL`: 构建静态服务器URL (main.js)
+   - `判定路径排除`: 判断路径是否排除 (utils/fs/windowsSystemDirs.js)
+
+6. **任务队列工具** (`utils/queue`):
+   - `添加优先级任务`: 添加优先级任务 (processors/queue/taskQueue.js)
+   - `添加后进先出后台任务`: 添加后台任务 (processors/queue/taskQueue.js)
+   - `globalTaskQueue`: 全局任务队列 (processors/queue/taskQueue.js)
+
+7. **网络请求和响应工具** (`utils/http`):
+   - `sendFileWithCacheSet`: 发送文件并设置缓存 (handlers/utils/responseType.js)
+   - 各种响应头设置函数 (middlewares/headers.js)
+
+8. **日志工具** (`utils/logger`):
+   - 自定义的控制台日志方法 (server.js)
+   - 日志接口 (utils/logs/*.js)
+
+### 后续步骤
+
+1. 创建以上工具函数的专用目录结构
+2. 将功能从原位置迁移到新目录
+3. 修改导入路径，确保兼容性
+4. 为每个工具函数编写单元测试
+5. 更新文档说明工具函数的用法
+
 ## 迁移计划
 
 ### 第一阶段：核心服务（进行中）

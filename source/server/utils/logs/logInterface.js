@@ -48,106 +48,6 @@ const 创建回退日志显示 = (容器元素, 错误) => {
     `
 }
 
-/**
- * 重写控制台日志方法
- * @param {boolean} 开发模式 - 是否在开发模式下
- * @returns {Object} 原始的console方法集
- */
-const 重写控制台方法 = (开发模式 = false) => {
-    // 保存原始console方法
-    const 原始console = {
-        log: console.log,
-        warn: console.warn,
-        error: console.error,
-        debug: console.debug
-    }
-
-    // 标记是否正在处理日志，防止循环调用
-    let 正在处理日志 = false
-
-    const 发送日志 = (级别, args) => {
-        try {
-            // 如果已经在处理日志中，不再发送消息，防止循环
-            if (正在处理日志) {
-                return
-            }
-            正在处理日志 = true
-            
-            const 日志内容 = 格式化器.格式化日志(级别, args, 'Console')
-            window.postMessage({ type: 'log', log: 日志内容 }, '*')
-            
-            正在处理日志 = false
-        } catch (e) {
-            正在处理日志 = false
-            原始console.error('发送日志失败:', e)
-        }
-    }
-
-    // 创建节流日志发送函数
-    const 节流发送日志 = 处理器.创建节流函数(发送日志, 50)
-
-    // 检查是否为内部日志
-    const 是内部日志 = (args) => {
-        return args.length > 0 && 
-            typeof args[0] === 'string' && 
-            (args[0].includes('接收到日志消息') || args[0].includes('操作日志'))
-    }
-
-    // 替换控制台方法
-    console.log = (...args) => {
-        if (是内部日志(args)) {
-            原始console.log.apply(console, args)
-            return
-        }
-        
-        // 仅在开发模式下在控制台输出
-        if (开发模式) {
-            原始console.log.apply(console, args)
-        }
-        
-        // 始终发送到UI日志
-        节流发送日志('info', args)
-    }
-
-    console.warn = (...args) => {
-        if (是内部日志(args)) {
-            原始console.warn.apply(console, args)
-            return
-        }
-        
-        // 警告级别，即使在非开发模式下也在控制台显示
-        原始console.warn.apply(console, args)
-        节流发送日志('warn', args)
-    }
-
-    console.error = (...args) => {
-        if (是内部日志(args)) {
-            原始console.error.apply(console, args)
-            return
-        }
-        
-        // 错误级别，始终在控制台显示
-        原始console.error.apply(console, args)
-        节流发送日志('error', args)
-    }
-
-    console.debug = (...args) => {
-        if (是内部日志(args)) {
-            原始console.debug.apply(console, args)
-            return
-        }
-        
-        // 调试级别，仅在开发模式下在控制台输出
-        if (开发模式) {
-            原始console.debug.apply(console, args)
-        }
-        
-        // 始终发送到UI日志
-        节流发送日志('debug', args)
-    }
-
-    return 原始console
-}
 
 /**
  * 暴露日志方法到全局
@@ -172,6 +72,5 @@ const 暴露日志方法 = () => {
 export {
     创建Vue日志组件,
     创建回退日志显示,
-    重写控制台方法,
     暴露日志方法
 } 

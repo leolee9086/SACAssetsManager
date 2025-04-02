@@ -3,7 +3,7 @@ import { 获取同源窗口 } from '../utils/webcontents/query.js';
 import { 初始化心跳处理, 更新主服务启动时间, 更新静态服务启动时间 } from './heartbeat.js';
 
 //使用webview作为接口
-import { 创建浏览器窗口, enableRemote } from '../../src/toolBox/base/useElectron/forWindow/useBrowserWindow.js';
+import { 创建浏览器窗口 } from '../../src/toolBox/base/useElectron/forWindow/useBrowserWindow.js';
 const entryURL = import.meta.resolve('./index.html?i=1'); // 主服务入口
 
 // 为静态服务器构建URL，带上必要的查询参数
@@ -71,7 +71,7 @@ staticChannel.addEventListener('message', (e) => {
 })
 
 // 监听enable-remote-module请求
-const { ipcRenderer, ipcMain } = require('electron');
+const { ipcRenderer } = require('electron');
 ipcRenderer.on('enable-remote-module', (event, arg) => {
     console.log('收到enable-remote-module请求:', arg);
     try {

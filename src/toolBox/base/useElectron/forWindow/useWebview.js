@@ -2,7 +2,7 @@
  * Electron Webview管理工具
  * 提供创建和管理不可见Webview的函数
  */
-
+ 
 /**
  * 创建代理HTML以加载JavaScript文件
  * @param {string} jsURL - JavaScript文件的URL
@@ -243,3 +243,6 @@ export const createInvisibleWebview = 创建不可见Webview;
 export const createWebviewByJsURL = 通过JS地址创建Webview;
 export const createWebviewByJsString = 通过JS字符串创建Webview;
 export const exposeFunctionToWebview = 向Webview暴露函数; 
+
+
+

@@ -6,7 +6,6 @@ import { 初始化日志系统 } from '../utils/logs/index.js'
 import { 
     创建Vue日志组件,
     创建回退日志显示,
-    重写控制台方法,
     暴露日志方法
 } from '../utils/logs/logInterface.js'
 import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js'
@@ -55,7 +54,6 @@ const 初始化日志组件 = async () => {
         const 开发模式 = window.开发模式 === true
         
         // 重写控制台
-     //   重写控制台方法(开发模式)
         
         // 暴露日志接口
         暴露日志方法()
