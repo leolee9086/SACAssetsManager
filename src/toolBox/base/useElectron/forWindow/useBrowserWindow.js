@@ -2,13 +2,10 @@
  * Electron浏览器窗口管理工具
  * 提供创建和管理Electron BrowserWindow的函数
  */
-import { enableRemoteModuleForBrowserWindow } from './useRemote.js';
 import { 获取BrowserWindow, 合并窗口配置, 验证配置有效性 } from './browserWindowCore.js';
 import { 关闭窗口列表, 处理单实例模式, 创建新窗口 } from './browserWindowManagement.js';
 import { 设置窗口保持活跃 } from './windowPersistence.js';
 import { 设置窗口心跳检测 } from './windowHeartbeat.js';
-
-
 /**
  * 创建浏览器窗口
  * @param {string} url - 窗口加载的URL
@@ -22,9 +19,9 @@ import { 设置窗口心跳检测 } from './windowHeartbeat.js';
  * @param {boolean} [配置.显示标题栏=true] - 是否显示窗口标题栏
  * @param {Function} [配置.获取同源窗口函数] - 查找同源窗口的函数
  * @param {Function} [配置.enableRemote] - 自定义的enableRemote函数，用于兼容不同版本的Electron
- * @returns {Promise<BrowserWindow>} 创建的浏览器窗口
+ * @returns {BrowserWindow} 创建的浏览器窗口
  */
-export const 创建浏览器窗口 = async (url, 用户配置 = {}) => {
+export const 创建浏览器窗口 = (url, 用户配置 = {}) => {
   // 合并并验证配置
   const 配置 = 合并窗口配置(用户配置);
   验证配置有效性(配置);
@@ -35,47 +32,41 @@ export const 创建浏览器窗口 = async (url, 用户配置 = {}) => {
     throw new Error('创建浏览器窗口需要Electron环境');
   }
 
-  return new Promise((resolve, reject) => {
-    try {
-      let 窗口 = null;
-      let 同源窗口列表 = [];
+  let 窗口 = null;
+  let 同源窗口列表 = [];
 
-      // 使用提供的函数或默认空数组
-      if (typeof 配置.获取同源窗口函数 === 'function') {
-        同源窗口列表 = 配置.获取同源窗口函数(url);
-      }
+  // 使用提供的函数或默认空数组
+  if (typeof 配置.获取同源窗口函数 === 'function') {
+    同源窗口列表 = 配置.获取同源窗口函数(url);
+  }
 
-      // 关闭已有窗口
-      if (配置.关闭已有窗口 && 同源窗口列表.length > 0) {
-        关闭窗口列表(同源窗口列表);
+  // 关闭已有窗口
+  if (配置.关闭已有窗口 && 同源窗口列表.length > 0) {
+    关闭窗口列表(同源窗口列表);
 
-        // 重新获取窗口列表
-        if (typeof 配置.获取同源窗口函数 === 'function') {
-          同源窗口列表 = 配置.获取同源窗口函数(url);
-        }
-      }
-
-      // 单实例模式处理
-      if (配置.单实例 && 同源窗口列表.length > 0) {
-        窗口 = 处理单实例模式(同源窗口列表, 配置.获取同源窗口函数, url);
-      }
-
-      // 如果没有现有窗口，创建新窗口
-      if (!窗口) {
-        窗口 = 创建新窗口(BrowserWindow, url, 配置);
-      }
-
-      // 设置窗口保持活跃
-      设置窗口保持活跃(窗口, url, 配置);
-
-      // 设置窗口心跳检测
-      设置窗口心跳检测(窗口, 配置);
-
-      resolve(窗口);
-    } catch (错误) {
-      reject(错误);
+    // 重新获取窗口列表
+    if (typeof 配置.获取同源窗口函数 === 'function') {
+      同源窗口列表 = 配置.获取同源窗口函数(url);
     }
-  });
+  }
+
+  // 单实例模式处理
+  if (配置.单实例 && 同源窗口列表.length > 0) {
+    窗口 = 处理单实例模式(同源窗口列表, 配置.获取同源窗口函数, url);
+  }
+
+  // 如果没有现有窗口，创建新窗口
+  if (!窗口) {
+    窗口 = 创建新窗口(BrowserWindow, url, 配置);
+  }
+
+  // 设置窗口保持活跃
+  设置窗口保持活跃(窗口, url, 配置);
+
+  // 设置窗口心跳检测
+  设置窗口心跳检测(窗口, 配置);
+
+  return 窗口;
 };
 
 /**

@@ -1,21 +1,17 @@
 import { plugin } from '../asyncModules.js'
 import { 获取同源窗口 } from '../utils/webcontents/query.js';
 import { 初始化心跳处理, 更新主服务启动时间, 更新静态服务启动时间 } from './heartbeat.js';
-
 //使用webview作为接口
 import { 创建浏览器窗口 } from '../../src/toolBox/base/useElectron/forWindow/useBrowserWindow.js';
 const entryURL = import.meta.resolve('./index.html?i=1'); // 主服务入口
-
 // 为静态服务器构建URL，带上必要的查询参数
 const getStaticServerURL = () => {
     const externalBase = `${window.siyuan.config.system.workspaceDir}/data/plugins/SACAssetsManager/node_modules/`;
     const port = plugin.http服务端口号 + 1;
     return import.meta.resolve(`./staticServerEntry.html?externalBase=${encodeURIComponent(externalBase)}&port=${port}`);
 };
-
 const channel = new BroadcastChannel('SACAssets')
 const staticChannel = new BroadcastChannel('SACAssetsStatic')
-
 // 定期发送配置信息到主服务
 setInterval(() => {
     try {

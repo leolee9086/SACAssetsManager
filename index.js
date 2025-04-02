@@ -181,16 +181,13 @@ function createDock(plugin, dockType) {
 module.exports = class SACAssetsManager extends Plugin {
   onload() {
     this.初始化插件同步状态()
-    this.初始化后台服务()
     this.初始化插件异步状态()
     this.创建web服务()
     this.创建资源Tab类型()
     this.添加菜单()
     this.加载i18n工具()
   }
-  async 初始化后台服务(){
-    await import(`${this.插件自身伺服地址}/source/servicies/index.js`)
-  }
+
   初始化插件同步状态() {
     pluginInstance = this
     eventBus = this.eventBus

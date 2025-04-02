@@ -1,4 +1,5 @@
 import { plugin } from '../../../pluginSymbolRegistry.js';
+import { getBaseStyleSource } from '../../../../src/toolBox/useAge/forSiyuan/useSiyuanBaseStyle.js';
 const { BrowserWindow } = require('@electron/remote');
 
 // 通用窗口配置
@@ -18,6 +19,53 @@ const DEFAULT_WINDOW_CONFIG = {
     }
 };
 
+
+
+/**
+ * 解析模块的完整路径
+ * @param {string} modulePath - 模块路径
+ * @returns {string} 完整的模块路径
+ */
+function resolveModulePath(modulePath) {
+    try {
+        // 获取插件根目录的URL前缀
+        const pluginUrlBase = new URL('/plugins/SACAssetsManager/', window.location.origin).toString();
+        
+        // 规范化模块路径
+        if (modulePath.startsWith('/')) {
+            // 已经是绝对路径，直接使用
+            return pluginUrlBase + modulePath.substring(1);
+        } else if (modulePath.startsWith('./') || modulePath.startsWith('../')) {
+            // 相对路径，基于当前文件位置解析
+            const currentDir = 'source/UI/electronUI/windows/';
+            return new URL(modulePath, pluginUrlBase + currentDir).toString();
+        } else {
+            // 没有前缀的路径，假定为相对于插件根目录
+            return pluginUrlBase + modulePath;
+        }
+    } catch (error) {
+        console.error('解析模块路径出错:', error);
+        return import.meta.resolve(modulePath);
+    }
+}
+
+/**
+ * 构建窗口URL参数
+ * @param {string} filePath - 文件路径（可选）
+ * @param {string} fullModulePath - 完整模块路径
+ * @param {string} baseStyleSrc - 基础样式源
+ * @returns {URLSearchParams} URL参数
+ */
+function buildWindowParams(filePath, fullModulePath, baseStyleSrc) {
+    return new URLSearchParams({
+        workspaceDir: siyuan.config.system.workspaceDir.replace(/\\/g, '/'),
+        pluginName: plugin.name,
+        imagePath: filePath || '',
+        baseStyleSrc: '/stage/build/app/' + baseStyleSrc,
+        modulePath: fullModulePath
+    });
+}
+
 /**
  * 创建新的电子窗口
  * @param {string} filePath - 文件路径（可选）
@@ -32,52 +80,14 @@ async function createElectronWindow(filePath, modulePath) {
         // 启用远程模块
         require('@electron/remote').require('@electron/remote/main').enable(newWindowContents);
         
-        // 获取基础样式
-        const baseStyle = document.querySelector('link[href^="base"]');
-        if (!baseStyle) {
-            console.error('无法找到基础样式链接');
-            throw new Error('无法找到基础样式链接');
-        }
-        const baseStyleSrc = baseStyle.getAttribute('href');
+        // 获取所需资源
+        const baseStyleSrc = getBaseStyleSource();
+        const fullModulePath = resolveModulePath(modulePath);
+        console.log('原始模块路径:', modulePath);
+        console.log('处理后的完整模块路径:', fullModulePath);
         
-        // 解析模块的完整路径，使用插件根目录作为基准
-        // 确保使用正确的路径格式 - 使用插件URL前缀
-        let fullModulePath;
-        try {
-            // 获取插件根目录的URL前缀
-            const pluginUrlBase = new URL('/plugins/SACAssetsManager/', window.location.origin).toString();
-            
-            // 规范化模块路径
-            if (modulePath.startsWith('/')) {
-                // 已经是绝对路径，直接使用
-                fullModulePath = pluginUrlBase + modulePath.substring(1);
-            } else if (modulePath.startsWith('./') || modulePath.startsWith('../')) {
-                // 相对路径，基于当前文件位置解析
-                // 注意：不要在currentDir中添加插件路径前缀，避免重复
-                const currentDir = 'source/UI/electronUI/windows/';
-                fullModulePath = new URL(modulePath, pluginUrlBase + currentDir).toString();
-            } else {
-                // 没有前缀的路径，假定为相对于插件根目录
-                fullModulePath = pluginUrlBase + modulePath;
-            }
-            
-            console.log('原始模块路径:', modulePath);
-            console.log('处理后的完整模块路径:', fullModulePath);
-        } catch (error) {
-            console.error('解析模块路径出错:', error);
-            fullModulePath = import.meta.resolve(modulePath);
-        }
-        
-        // 构建URL参数
-        const params = new URLSearchParams({
-            workspaceDir: siyuan.config.system.workspaceDir.replace(/\\/g, '/'),
-            pluginName: plugin.name,
-            imagePath: filePath || '',
-            baseStyleSrc: '/stage/build/app/' + baseStyleSrc,
-            modulePath: fullModulePath
-        });
-
-        // 加载窗口
+        // 构建URL参数并加载窗口
+        const params = buildWindowParams(filePath, fullModulePath, baseStyleSrc);
         const windowTemplateUrl = import.meta.resolve('../templates/window.html');
         await newWindow.loadURL(windowTemplateUrl + '?' + params.toString());
         
@@ -89,15 +99,22 @@ async function createElectronWindow(filePath, modulePath) {
         return newWindow;
     } catch (error) {
         console.error('创建窗口时出错:', error);
-        // 显示错误通知
-        if (window.siyuan?.notifications) {
-            window.siyuan.notifications.show({
-                type: 'error',
-                content: `创建窗口失败: ${error.message}`,
-                timeout: 5000
-            });
-        }
+        showErrorNotification(error);
         return null;
+    }
+}
+
+/**
+ * 显示错误通知
+ * @param {Error} error - 错误对象
+ */
+function showErrorNotification(error) {
+    if (window.siyuan?.notifications) {
+        window.siyuan.notifications.show({
+            type: 'error',
+            content: `创建窗口失败: ${error.message}`,
+            timeout: 5000
+        });
     }
 }
 
