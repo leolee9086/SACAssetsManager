@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>静态文件服务器</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h3>静态文件服务器</h3>
+    <div id="status">初始化中...</div>
+    
+    <script type="module">
+        // 显示状态信息
+        function showStatus(message, isError = false) {
+            console.log(message);
+            const statusEl = document.getElementById('status');
+            if (statusEl) {
+                statusEl.textContent = message;
+                statusEl.className = isError ? 'error' : 'success';
+            }
+        }
+        
+        // 导入自定义require功能
+        showStatus('导入自定义require功能...');
+        try {
+            await import('../utils/hack/hackRequire.js');
+            showStatus('自定义require功能导入成功');
+        } catch (err) {
+            showStatus(`导入自定义require功能失败: ${err.message}`, true);
+            throw err;
+        }
+        
+        // 创建广播通道
+        const channel = new BroadcastChannel('SACAssetsStatic');
+        
+        // 获取外部基础路径
+        function getExternalBase() {
+            showStatus('获取externalBase参数...');
+            const urlParams = new URLSearchParams(window.location.search);
+            const externalBase = urlParams.get('externalBase');
+            if (!externalBase) {
+                showStatus('警告: externalBase参数为空!', true);
+            } else {
+                showStatus(`externalBase参数: ${externalBase}`);
+            }
+            return externalBase;
+        }
+        
+        // 获取端口号
+        function getPort() {
+            showStatus('获取port参数...');
+            const urlParams = new URLSearchParams(window.location.search);
+            const portStr = urlParams.get('port');
+            const port = parseInt(portStr);
+            if (isNaN(port)) {
+                showStatus(`警告: port参数无效: ${portStr}, 使用默认端口6808`, true);
+                return 6808;
+            }
+            showStatus(`port参数: ${port}`);
+            return port;
+        }
+        
+        try {
+            // 获取参数
+            const externalBase = getExternalBase();
+            
+            // 设置外部基础路径
+            showStatus('设置require外部基础路径...');
+            if (externalBase) {
+                require.setExternalBase(externalBase);
+                showStatus('require外部基础路径设置成功');
+            } else {
+                showStatus('无法设置require外部基础路径，参数为空', true);
+                channel.postMessage({ type: 'staticServerError', error: 'externalBase参数为空' });
+                throw new Error('externalBase参数为空');
+            }
+            
+            // 加载Express模块
+            showStatus('加载Express模块...');
+            const express = require('express');
+            showStatus('Express模块加载成功');
+            
+            // 创建Express应用
+            const app = express();
+            const port = getPort();
+            
+            // 添加CORS中间件
+            showStatus('设置CORS中间件...');
+            app.use((req, res, next) => {
+                res.header('Access-Control-Allow-Origin', '*');
+                res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+                res.header('Access-Control-Allow-Headers', 'Content-Type');
+                next();
+            });
+            
+            // 添加原始图片接口
+            showStatus('设置raw图片接口...');
+            app.get('/raw', (req, res) => {
+                try {
+                    const path = req.query.path;
+                    const localPath = req.query.localPath;
+                    // 根据是否有localPath参数决定使用哪个路径
+                    const imagePath = localPath || (path ? externalBase + path : null);
+                    
+                    if (!imagePath) {
+                        console.error('缺少路径参数');
+                        return res.status(400).send('缺少路径参数');
+                    }
+                    
+                    console.log(`处理raw请求: ${path || localPath} -> ${imagePath}`);
+                    
+                    // 设置缓存头
+                    res.setHeader('Cache-Control', 'public, max-age=86400');
+                    
+                    // 发送文件
+                    res.sendFile(imagePath, (err) => {
+                        if (err) {
+                            console.error('发送图片文件失败:', err);
+                            res.status(404).send('图片未找到');
+                        }
+                    });
+                } catch (err) {
+                    console.error('处理raw请求出错:', err);
+                    res.status(500).send(`服务器错误: ${err.message}`);
+                }
+            });
+            
+            // 添加缩略图接口
+            showStatus('设置缩略图接口...');
+            const thumbnailCache = new Map();
+            app.get('/thumbnail', async (req, res) => {
+                const targetUrl = `http://127.0.0.1:${port - 1}${req.url}`;
+                const cacheKey = req.url;
+                
+                console.log(`[缩略图代理] 处理请求: ${targetUrl}`);
+                
+                try {
+                    // 检查缓存
+                    const cachedData = thumbnailCache.get(cacheKey);
+                    if (cachedData && (Date.now() - cachedData.timestamp) < 10000) {
+                        console.log(`[缩略图代理] 使用缓存数据: ${cacheKey}`);
+                        res.writeHead(200, {
+                            'Content-Type': 'image/png',
+                            'Content-Length': cachedData.data.length,
+                            'Cache-Control': 'public, max-age=3600'
+                        });
+                        return res.end(cachedData.data);
+                    }
+                    
+                    // 从主服务获取
+                    console.log(`[缩略图代理] 从主服务获取数据: ${targetUrl}`);
+                    const response = await fetch(targetUrl);
+                    
+                    if (!response.ok) {
+                        console.error(`[缩略图代理] 主服务返回错误: ${response.status} ${response.statusText}`);
+                        throw new Error(`主服务返回错误: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    const buffer = new Uint8Array(arrayBuffer);
+                    
+                    if (buffer.length === 0) {
+                        console.error('[缩略图代理] 获取到的数据为空');
+                        throw new Error('获取到的数据为空');
+                    }
+                    
+                    console.log(`[缩略图代理] 成功获取数据: ${buffer.length} 字节`);
+                    
+                    // 缓存数据
+                    thumbnailCache.set(cacheKey, {
+                        data: buffer,
+                        timestamp: Date.now()
+                    });
+                    
+                    // 限制缓存大小
+                    if (thumbnailCache.size > 100) {
+                        const oldestKey = [...thumbnailCache.keys()][0];
+                        thumbnailCache.delete(oldestKey);
+                    }
+                    
+                    // 返回响应
+                    res.writeHead(200, {
+                        'Content-Type': 'image/png',
+                        'Content-Length': buffer.length,
+                        'Cache-Control': 'public, max-age=3600'
+                    });
+                    res.end(buffer);
+                } catch (error) {
+                    console.error('[缩略图代理] 处理请求失败:', error);
+                    res.status(500).send(`获取缩略图失败: ${error.message}`);
+                }
+            });
+            
+            // 启动服务器
+            showStatus('启动HTTP服务器...');
+            let server127 = null;
+            let serverLocal = null;
+            
+            try {
+                // 监听127.0.0.1
+                server127 = app.listen(port, '127.0.0.1', () => {
+                    console.log(`静态文件服务器运行在 http://127.0.0.1:${port}`);
+                    showStatus(`服务器运行在 http://127.0.0.1:${port}`);
+                    
+                    // 尝试在localhost上也监听
+                    try {
+                        serverLocal = app.listen(port, 'localhost', () => {
+                            console.log(`静态文件服务器运行在 http://localhost:${port}`);
+                        });
+                    } catch (err) {
+                        // 忽略localhost绑定错误，这是正常的
+                        console.warn('在localhost上监听失败(可忽略):', err);
+                    }
+                    
+                    // 发送服务就绪消息
+                    showStatus('静态文件服务器启动成功');
+                    channel.postMessage({ type: 'staticServerReady' });
+                });
+                
+                // 处理服务器错误
+                server127.on('error', (err) => {
+                    showStatus(`服务器错误: ${err.message}`, true);
+                    channel.postMessage({ type: 'staticServerError', error: err.message });
+                });
+            } catch (err) {
+                showStatus(`启动服务器失败: ${err.message}`, true);
+                channel.postMessage({ type: 'staticServerError', error: err.message });
+                throw err;
+            }
+            
+            // 设置消息监听
+            showStatus('设置消息监听...');
+            channel.onmessage = (event) => {
+                try {
+                    const data = event.data;
+                    console.log('收到消息:', data);
+                    
+                    if (data && data.type === 'ping') {
+                        // 响应心跳检测
+                        channel.postMessage({ type: 'pong', timestamp: Date.now() });
+                    }
+                } catch (err) {
+                    console.error('处理消息出错:', err);
+                }
+            };
+            
+            // 设置进程退出处理
+            window.addEventListener('beforeunload', () => {
+                if (server127) {
+                    try { server127.close(); } catch (e) {}
+                }
+                if (serverLocal) {
+                    try { serverLocal.close(); } catch (e) {}
+                }
+                channel.postMessage({ type: 'staticServerShutdown' });
+                channel.close();
+            });
+            
+        } catch (error) {
+            showStatus(`初始化失败: ${error.message}`, true);
+            console.error('初始化错误:', error);
+            
+            // 报告错误
+            try {
+                channel.postMessage({ 
+                    type: 'staticServerError', 
+                    error: error.message,
+                    stack: error.stack
+                });
+            } catch (e) {
+                console.error('无法报告错误:', e);
+            }
+        }
+    </script>
+</body>
+</html> 
