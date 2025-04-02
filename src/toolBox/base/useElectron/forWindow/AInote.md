@@ -1,92 +1,89 @@
-# Electron窗口管理工具重构笔记
+# Electron 窗口模块设计说明
 
-## 重构内容
+## 模块结构
 
-这个目录包含从`source/server/utils/containers/browserWindow.js`重构而来的Electron窗口管理工具。
+此模块采用了函数式编程风格，将 Electron 窗口管理功能拆分为多个专门的子模块：
 
-### 主要改进
+1. **useBrowserWindow.js** - 主模块，提供创建浏览器窗口的入口函数
+2. **browserWindowCore.js** - 核心功能，提供配置管理和参数验证
+3. **browserWindowManagement.js** - 窗口管理功能，负责创建、关闭和单实例处理
+4. **windowPersistence.js** - 窗口持久化功能，确保窗口保持活跃
+5. **windowHeartbeat.js** - 心跳检测功能，监控窗口状态并自动恢复
 
-1. **函数式风格改进**：
-   - 将嵌套回调改为Promise和async/await
-   - 避免深度嵌套和复杂条件判断
-   - 明确函数职责和边界
+## 设计原则
 
-2. **配置参数规范化**：
-   - 使用中文命名提升可读性
-   - 统一配置对象结构
-   - 提供合理默认值
+1. **职责分离**: 每个文件处理一类相关功能
+2. **函数式风格**: 使用纯函数减少副作用
+3. **易扩展**: 通过合理的模块划分，方便未来功能扩展
+4. **可测试**: 独立的功能函数更易于单元测试
 
-3. **错误处理增强**：
-   - 添加环境检查
-   - 完善异常捕获机制
-   - 提高稳定性和可靠性
+## 使用说明
 
-4. **心跳检测优化**：
-   - 改进心跳检测逻辑
-   - 优化资源清理机制
-   - 增加连接状态监控
+主要通过 `创建浏览器窗口` 函数创建和管理 Electron 窗口，通过配置对象控制窗口的行为。
 
-### 迁移策略
+```javascript
+创建浏览器窗口('https://example.com', {
+  单实例: true,
+  保持活跃: true,
+  使用心跳检测: true
+});
+```
 
-保留了`createBrowserWindowByURL`作为兼容性接口，内部实现使用重构的函数。在关键调用点直接替换为新函数。
+## readme.md
 
-## 使用注意
+```markdown:src/toolBox/base/useElectron/forWindow/readme.md
+# Electron 窗口管理工具
 
-1. 需要在Electron环境中使用
-2. 最好提供`获取同源窗口函数`以实现单实例功能
-3. 当`保持活跃`选项为true时，`单实例`也必须为true
-4. 心跳检测仅在特定环境下激活
+## 功能简介
 
-## 兼容性修复（2024-04-01）
+这个工具提供了创建和管理 Electron 浏览器窗口的功能，支持：
 
-### @electron/remote 兼容性问题
+- 窗口单实例控制
+- 窗口持久化（自动重建）
+- 窗口心跳检测
+- 窗口缓存清理
 
-修复了Electron Remote模块的兼容性问题：
+## 使用示例
 
-1. **问题描述**：
-   - 错误信息：`Uncaught (in promise) Error: @electron/remote is disabled for this WebContents`
-   - 原因：不同版本的Electron和@electron/remote启用方式不同
+```javascript
+import { 创建浏览器窗口 } from './useBrowserWindow.js';
 
-2. **修复措施**：
-   - 参照`source/server/utils/containers/webview.js`文件实现了统一的remote启用方式
-   - 提供了导出的enableRemote函数
-   - 简化流程，使用`remote.require("@electron/remote/main").enable`方式
-   - 减少了复杂的多方案尝试，提高可靠性
-   - 保留ipcRenderer通信作为备选方案
-   - 增强了错误处理和日志记录
+// 基本用法
+创建浏览器窗口('https://example.com');
 
-3. **使用建议**：
-   - 推荐直接使用导出的enableRemote函数：
-   ```javascript
-   import { enableRemote } from '../../src/toolBox/base/useElectron/forWindow/useBrowserWindow.js';
-   
-   // 获取enable函数
-   const enableFunc = enableRemote();
-   if (enableFunc) {
-     enableFunc(webContents);
-   }
-   ```
-   
-   - 也可以在创建窗口时使用自定义函数：
-   ```javascript
-   import { 创建浏览器窗口 } from '../../src/toolBox/base/useElectron/forWindow/useBrowserWindow.js';
-   
-   // 自定义启用函数
-   const 启用远程模块 = (webContents) => {
-     try {
-       const remoteEnable = require('@electron/remote').require('@electron/remote/main').enable;
-       remoteEnable(webContents);
-       return true;
-     } catch (错误) {
-       console.error('启用远程模块失败:', 错误);
-       return false;
-     }
-   };
-   
-   // 使用配置选项
-   创建浏览器窗口(url, {
-     // 其他配置...
-     enableRemote: 启用远程模块
-   });
-   ```
-   - 遇到问题时可以查看控制台错误日志进行调试 
+// 高级配置
+创建浏览器窗口('https://example.com', {
+  单实例: true,         // 确保只有一个窗口实例
+  保持活跃: true,       // 窗口关闭后自动重建
+  使用心跳检测: true,   // 使用心跳检测确保窗口响应
+  清除缓存: true,       // 清除浏览器缓存
+  显示标题栏: false,    // 隐藏窗口标题栏
+  立即显示: true        // 窗口创建后立即显示
+});
+```
+
+## 配置选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| 关闭已有窗口 | true | 是否关闭已存在的相同URL窗口 |
+| 单实例 | true | 是否确保只有一个窗口实例 |
+| 立即显示 | true | 是否立即显示窗口 |
+| 清除缓存 | true | 是否清除浏览器缓存 |
+| 保持活跃 | true | 窗口关闭时是否自动重新创建 |
+| 使用心跳检测 | true | 是否启用心跳检测 |
+| 显示标题栏 | true | 是否显示窗口标题栏 |
+| 获取同源窗口函数 | null | 用于查找同源窗口的函数 |
+| enableRemote | null | 自定义的enableRemote函数 |
+```
+
+## 总结
+
+通过这种拆分方式，原本过长的单一文件被拆分成了5个功能明确的小模块：
+1. 主模块 - 提供API入口
+2. 核心功能 - 提供基础配置
+3. 窗口管理 - 处理窗口实例
+4. 窗口持久化 - 保持窗口活跃
+5. 心跳检测 - 监控窗口状态
+
+每个模块都有明确的职责和适当的功能分组，使代码更易于理解和维护。同时保持了函数式编程风格，减少了函数嵌套。 
