@@ -270,8 +270,39 @@ export class 串行任务控制器 {
         this.clear();
         // 触发销毁事件
         this.eventBus.emit('destroy');
-        // 移除所有事件监听器
-        this.eventBus.off();
+        
+        // 清理所有事件监听器
+        if (typeof this.eventBus.removeAllListeners === 'function') {
+            // 如果支持 removeAllListeners 方法，直接使用
+            this.eventBus.removeAllListeners();
+        } else {
+            // 否则，使用预定义的事件列表逐个清理
+            const events = [
+                'taskAdded', 'taskCompleted', 'taskError', 
+                'paused', 'resumed', 'queueCleared', 
+                'destroy', 'allTasksCompleted'
+            ];
+            
+            for (const event of events) {
+                if (typeof this.eventBus.off === 'function') {
+                    try {
+                        // 使用 removeAllListeners 变体（如果有）
+                        if (typeof this.eventBus.removeAllListeners === 'function') {
+                            this.eventBus.removeAllListeners(event);
+                        } else {
+                            // 避免直接调用无参数的 off 方法
+                            this.eventBus.eventNames?.().forEach(name => {
+                                if (name === event) {
+                                    this.eventBus.removeAllListeners?.(name);
+                                }
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`清理事件 ${event} 监听器时出错:`, error);
+                    }
+                }
+            }
+        }
     }
 
     /**

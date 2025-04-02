@@ -5,8 +5,6 @@ import { showInputDialogPromise } from '../../dialog/inputDialog.js'
 import { 执行删除所有ThumbsDB } from './removeThumbsDb.js'
 import { 执行按扩展名分组 as 执行展平并按扩展名分组 } from './flatWithExtend.js'
 import { 以artTemplate渲染模板 as 渲染模板 } from '../../../../../src/toolBox/useAge/forText/useArtTemplate.js'
-
-
 const 构建UI执行函数 = (options={执行函数:null,用户确认提示:null}) => {
     const {执行函数,用户确认提示} = options
     return async (options = { path: null }) => {
@@ -22,12 +20,10 @@ const 构建UI执行函数 = (options={执行函数:null,用户确认提示:null
             执行函数名: 执行函数.name,
             // 可以添加更多需要在模板中使用的数据
         };
-        
         // 处理用户确认提示，使用模板引擎渲染
         const 默认提示 = `开始后所有{{path}}中的文件将会被{{执行函数名}}执行,无法恢复`;
         const 提示模板 = 用户确认提示 || 默认提示;
         const 处理后的提示 = await 渲染模板(提示模板, 模板数据);
-            
         let confirm = await confirmAsPromise(
             `确认开始执行?`,
             处理后的提示
