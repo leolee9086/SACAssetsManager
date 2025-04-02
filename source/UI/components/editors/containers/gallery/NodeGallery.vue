@@ -110,7 +110,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { 默认函数式节点加载表 } from '../../loader/defaultMap.js';
 import { 默认组件式节点注册表 } from '../../loader/defaultMap.js';
-import { parseJSDocConfigFromURL } from '../../../../../utils/codeLoaders/js/jsDoc.js';
+import { parseJSDocConfigFromURL } from '../../../../../../src/toolBox/feature/forCodeAnalysis/jsParser.js';
 const searchQuery = ref('');
 const expandedCategories = ref({});
 const nodeCategories = ref([]);

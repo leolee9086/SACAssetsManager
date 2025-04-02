@@ -200,4 +200,13 @@ export {
   createWebviewByJsURL,
   createWebviewByJsString,
   exposeFunctionToWebview
-} from './base/useElectron/forWindow/useWebview.js'; 
+} from './base/useElectron/forWindow/useWebview.js';
+
+// 代码分析工具
+export { 
+  解析JSDoc配置, 
+  从URL解析JSDoc配置,
+  // 兼容原有API
+  parseJSDocConfig,
+  parseJSDocConfigFromURL
+} from './feature/forCodeAnalysis/jsParser.js'; 

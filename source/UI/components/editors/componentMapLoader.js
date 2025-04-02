@@ -1,6 +1,6 @@
 import { 全局节点注册表标记,默认组件式节点注册表,默认函数式节点加载配置, 默认函数式节点加载表 } from "./loader/defaultMap.js";
 import { parseNodeDefine } from "./containers/nodeDefineParser.js";
-import { parseJSDocConfigFromURL } from "../../../utils/codeLoaders/js/jsDoc.js";
+import { parseJSDocConfigFromURL } from "../../../../src/toolBox/feature/forCodeAnalysis/jsParser.js";
 import { jsDoc2NodeDefine, wrapSFCStringFromNodeDefine } from "./nodes/wraper/jsWraper.js";
 import { writeFile } from "../../../polyfills/fs.js";
 import { loadMathJSNodes } from './loader/mathjsLoader.js';
