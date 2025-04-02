@@ -1,5 +1,6 @@
 import { plugin } from '../asyncModules.js'
 import { 获取同源窗口 } from '../utils/webcontents/query.js';
+import { 初始化心跳处理, 更新主服务启动时间, 更新静态服务启动时间 } from './heartbeat.js';
 
 //使用webview作为接口
 import { 创建浏览器窗口, enableRemote } from '../../src/toolBox/base/useElectron/forWindow/useBrowserWindow.js';
@@ -54,13 +55,17 @@ staticChannel.addEventListener('message', (e) => {
         console.error('静态服务器错误:', e.data.error)
     } else if (e.data && e.data.type === 'staticServerReady') {
         console.log('静态服务器就绪')
+        // 记录静态服务启动时间
+        更新静态服务启动时间(Date.now());
         // 通知主服务静态服务器已就绪
         channel.postMessage({ type: 'staticServerReady' });
     } else if (e.data && e.data.type === 'pong') {
         // 处理心跳响应
-        plugin.staticServerLastPong = e.data.timestamp
+        plugin.staticServerLastPong = e.data.timestamp;
     } else if (e.data && e.data.type === 'staticServerShutdown') {
         console.log('静态服务器关闭');
+        // 重置静态服务启动时间
+        plugin.staticServerStartTime = null;
         // 可能需要在这里做一些清理工作
     }
 })
@@ -119,6 +124,9 @@ plugin.serverContainer = await 创建浏览器窗口(entryURL, {
   获取同源窗口函数: 获取同源窗口,
   enableRemote: 启用远程模块
 });
+
+// 记录主服务启动时间
+更新主服务启动时间(Date.now());
 
 /**
  * 启动独立的静态服务器
@@ -277,10 +285,51 @@ plugin.rebuildServerContainer = () => {
   }
 }
 
+// 处理心跳消息
 ipcRenderer.on('heartbeat', (e, data) => {
-   if(data.message){ console.log('收到心跳响应', data.message)}
+  try {
+    if (data && data.message) {
+      console.log('收到心跳消息:', data.message);
+    }
     
-   data.webContentID&& (plugin.serverContainerWebContentsID = data.webContentID)
+    const statusInfo = {
+      type: 'heartbeat',
+      isActive: true,
+      timestamp: Date.now(),
+      webContentID: plugin.serverContainerWebContentsID,
+      port: plugin.http服务端口号,
+      status: 'running',
+      services: {
+        main: {
+          isRunning: true,
+          startTime: plugin.mainServerStartTime || Date.now(),
+          port: plugin.http服务端口号,
+          status: 'running'
+        },
+        static: {
+          isRunning: !!plugin.staticServerContainer && 
+                    (typeof plugin.staticServerContainer.isDestroyed !== 'function' || 
+                     !plugin.staticServerContainer.isDestroyed()),
+          startTime: plugin.staticServerStartTime || Date.now(),
+          port: plugin.https服务端口号,
+          status: plugin.staticServerContainer ? 'running' : 'stopped'
+        }
+      }
+    };
+    
+    // 发送心跳回应
+    e.sender.send('heartbeat', statusInfo);
+  } catch (error) {
+    // 即使发生错误，也尝试发送最小的心跳响应
+    console.error('处理心跳消息时发生错误:', error);
+    e.sender.send('heartbeat', {
+      type: 'heartbeat',
+      isActive: true,
+      timestamp: Date.now(),
+      webContentID: plugin.serverContainerWebContentsID,
+      error: error.message
+    });
+  }
 });
 
 plugin.eventBus.on('openDevTools', () => {
@@ -334,6 +383,9 @@ plugin.eventBus.on('openDevTools', () => {
         console.error('打开开发者工具失败', e)
     }
 })
+
+// 初始化心跳响应处理
+初始化心跳处理(ipcRenderer);
 
 // 导出函数
 export { 

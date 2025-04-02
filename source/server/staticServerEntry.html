@@ -8,283 +8,355 @@
         body { 
             font-family: Arial, sans-serif;
             padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
         }
-        #status {
-            margin: 10px 0;
-            padding: 10px;
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
             border-radius: 5px;
-            background-color: #f8f9fa;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .error { color: red; }
-        .success { color: green; }
+        h1 {
+            color: #2196F3;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .status.running {
+            background-color: #E8F5E9;
+            border-left: 4px solid #4CAF50;
+        }
+        .status.error {
+            background-color: #FFEBEE;
+            border-left: 4px solid #F44336;
+        }
+        .log {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 15px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .log-entry.error {
+            color: #F44336;
+        }
+        .log-entry.info {
+            color: #2196F3;
+        }
+        .log-entry.success {
+            color: #4CAF50;
+        }
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            flex: 1;
+            min-width: 200px;
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-title {
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 24px;
+            color: #333;
+        }
+        .heartbeat-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: #E3F2FD;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
-    <h3>静态文件服务器</h3>
-    <div id="status">初始化中...</div>
-    
+    <div class="container">
+        <h1>静态文件服务器</h1>
+        <div id="status" class="status">初始化中...</div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-title">端口</div>
+                <div id="port" class="stat-value">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">运行时间</div>
+                <div id="uptime" class="stat-value">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">心跳</div>
+                <div id="heartbeat" class="stat-value">-</div>
+            </div>
+        </div>
+        
+        <div class="heartbeat-info" id="heartbeat-info">
+            心跳状态：等待中
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
     <script type="module">
-        // 显示状态信息
-        function showStatus(message, isError = false) {
-            console.log(message);
-            const statusEl = document.getElementById('status');
-            if (statusEl) {
-                statusEl.textContent = message;
-                statusEl.className = isError ? 'error' : 'success';
-            }
-        }
+        // 获取URL参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const port = parseInt(urlParams.get('port')) || 6993;
+        const externalBase = urlParams.get('externalBase') || '';
         
-        // 导入自定义require功能
-        showStatus('导入自定义require功能...');
-        try {
-            await import('../utils/hack/hackRequire.js');
-            showStatus('自定义require功能导入成功');
-        } catch (err) {
-            showStatus(`导入自定义require功能失败: ${err.message}`, true);
-            throw err;
-        }
+        // 设置页面元素
+        document.getElementById('port').textContent = port;
         
-        // 创建广播通道
+        // 创建广播频道
         const channel = new BroadcastChannel('SACAssetsStatic');
         
-        // 获取外部基础路径
-        function getExternalBase() {
-            showStatus('获取externalBase参数...');
-            const urlParams = new URLSearchParams(window.location.search);
-            const externalBase = urlParams.get('externalBase');
-            if (!externalBase) {
-                showStatus('警告: externalBase参数为空!', true);
-            } else {
-                showStatus(`externalBase参数: ${externalBase}`);
+        // 服务器状态
+        const serverState = {
+            status: 'initializing',
+            startTime: Date.now(),
+            lastPing: null,
+            lastPong: null,
+            pingCount: 0,
+            pongCount: 0,
+            errors: []
+        };
+        
+        // 日志函数
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            // 如果是错误，也记录到状态
+            if (type === 'error') {
+                serverState.errors.push({
+                    timestamp: Date.now(),
+                    message: message
+                });
             }
-            return externalBase;
         }
         
-        // 获取端口号
-        function getPort() {
-            showStatus('获取port参数...');
-            const urlParams = new URLSearchParams(window.location.search);
-            const portStr = urlParams.get('port');
-            const port = parseInt(portStr);
-            if (isNaN(port)) {
-                showStatus(`警告: port参数无效: ${portStr}, 使用默认端口6808`, true);
-                return 6808;
+        // 更新状态显示
+        function updateStatus() {
+            const statusElement = document.getElementById('status');
+            const uptimeElement = document.getElementById('uptime');
+            const heartbeatElement = document.getElementById('heartbeat');
+            const heartbeatInfoElement = document.getElementById('heartbeat-info');
+            
+            // 计算运行时间
+            const uptime = Math.floor((Date.now() - serverState.startTime) / 1000);
+            const hours = Math.floor(uptime / 3600);
+            const minutes = Math.floor((uptime % 3600) / 60);
+            const seconds = uptime % 60;
+            
+            // 更新状态显示
+            switch (serverState.status) {
+                case 'running':
+                    statusElement.className = 'status running';
+                    statusElement.textContent = '服务运行中';
+                    break;
+                case 'error':
+                    statusElement.className = 'status error';
+                    statusElement.textContent = '服务出错';
+                    break;
+                default:
+                    statusElement.className = 'status';
+                    statusElement.textContent = '服务初始化中';
             }
-            showStatus(`port参数: ${port}`);
-            return port;
+            
+            // 更新运行时间
+            uptimeElement.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // 更新心跳信息
+            if (serverState.lastPing) {
+                const pingAgo = Math.floor((Date.now() - serverState.lastPing) / 1000);
+                heartbeatElement.textContent = `${pingAgo}秒前`;
+                
+                // 更新详细心跳信息
+                let heartbeatInfo = `
+                    <div>心跳状态：活跃</div>
+                    <div>收到Ping次数：${serverState.pingCount}</div>
+                    <div>发送Pong次数：${serverState.pongCount}</div>
+                    <div>最后Ping时间：${new Date(serverState.lastPing).toLocaleTimeString()}</div>
+                `;
+                heartbeatInfoElement.innerHTML = heartbeatInfo;
+            }
         }
         
-        try {
-            // 获取参数
-            const externalBase = getExternalBase();
-            
-            // 设置外部基础路径
-            showStatus('设置require外部基础路径...');
-            if (externalBase) {
-                require.setExternalBase(externalBase);
-                showStatus('require外部基础路径设置成功');
-            } else {
-                showStatus('无法设置require外部基础路径，参数为空', true);
-                channel.postMessage({ type: 'staticServerError', error: 'externalBase参数为空' });
-                throw new Error('externalBase参数为空');
-            }
-            
-            // 加载Express模块
-            showStatus('加载Express模块...');
-            const express = require('express');
-            showStatus('Express模块加载成功');
-            
-            // 创建Express应用
-            const app = express();
-            const port = getPort();
-            
-            // 添加CORS中间件
-            showStatus('设置CORS中间件...');
-            app.use((req, res, next) => {
-                res.header('Access-Control-Allow-Origin', '*');
-                res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-                res.header('Access-Control-Allow-Headers', 'Content-Type');
-                next();
-            });
-            
-            // 添加原始图片接口
-            showStatus('设置raw图片接口...');
-            app.get('/raw', (req, res) => {
-                try {
-                    const path = req.query.path;
-                    const localPath = req.query.localPath;
-                    // 根据是否有localPath参数决定使用哪个路径
-                    const imagePath = localPath || (path ? externalBase + path : null);
-                    
-                    if (!imagePath) {
-                        console.error('缺少路径参数');
-                        return res.status(400).send('缺少路径参数');
-                    }
-                    
-                    console.log(`处理raw请求: ${path || localPath} -> ${imagePath}`);
-                    
-                    // 设置缓存头
-                    res.setHeader('Cache-Control', 'public, max-age=86400');
-                    
-                    // 发送文件
-                    res.sendFile(imagePath, (err) => {
-                        if (err) {
-                            console.error('发送图片文件失败:', err);
-                            res.status(404).send('图片未找到');
+        // 启动HTTP服务
+        async function startServer() {
+            try {
+                // 使用express启动静态文件服务
+                const express = require('express');
+                const cors = require('cors');
+                const path = require('path');
+                const app = express();
+                
+                // 启用CORS
+                app.use(cors());
+                
+                // 配置静态资源目录
+                const staticPath = path.resolve(externalBase);
+                log(`配置静态资源目录: ${staticPath}`, 'info');
+                
+                app.use(express.static(staticPath, {
+                    maxAge: '1h',
+                    setHeaders: (res, path, stat) => {
+                        // 设置CORS和缓存控制头
+                        res.set('Access-Control-Allow-Origin', '*');
+                        res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+                        res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+                        
+                        // 设置正确的MIME类型
+                        if (path.endsWith('.js')) {
+                            res.set('Content-Type', 'application/javascript; charset=UTF-8');
+                        } else if (path.endsWith('.css')) {
+                            res.set('Content-Type', 'text/css; charset=UTF-8');
+                        } else if (path.endsWith('.json')) {
+                            res.set('Content-Type', 'application/json; charset=UTF-8');
+                        } else if (path.endsWith('.html')) {
+                            res.set('Content-Type', 'text/html; charset=UTF-8');
+                        } else if (path.endsWith('.svg')) {
+                            res.set('Content-Type', 'image/svg+xml');
+                        } else if (path.endsWith('.woff2')) {
+                            res.set('Content-Type', 'font/woff2');
+                        } else if (path.endsWith('.woff')) {
+                            res.set('Content-Type', 'font/woff');
+                        } else if (path.endsWith('.ttf')) {
+                            res.set('Content-Type', 'font/ttf');
+                        } else if (path.endsWith('.eot')) {
+                            res.set('Content-Type', 'application/vnd.ms-fontobject');
+                        } else if (path.endsWith('.otf')) {
+                            res.set('Content-Type', 'font/otf');
                         }
-                    });
-                } catch (err) {
-                    console.error('处理raw请求出错:', err);
-                    res.status(500).send(`服务器错误: ${err.message}`);
-                }
-            });
-            
-            // 添加缩略图接口
-            showStatus('设置缩略图接口...');
-            const thumbnailCache = new Map();
-            app.get('/thumbnail', async (req, res) => {
-                const targetUrl = `http://127.0.0.1:${port - 1}${req.url}`;
-                const cacheKey = req.url;
+                    }
+                }));
                 
-                console.log(`[缩略图代理] 处理请求: ${targetUrl}`);
-                
-                try {
-                    // 检查缓存
-                    const cachedData = thumbnailCache.get(cacheKey);
-                    if (cachedData && (Date.now() - cachedData.timestamp) < 10000) {
-                        console.log(`[缩略图代理] 使用缓存数据: ${cacheKey}`);
-                        res.writeHead(200, {
-                            'Content-Type': 'image/png',
-                            'Content-Length': cachedData.data.length,
-                            'Cache-Control': 'public, max-age=3600'
-                        });
-                        return res.end(cachedData.data);
-                    }
-                    
-                    // 从主服务获取
-                    console.log(`[缩略图代理] 从主服务获取数据: ${targetUrl}`);
-                    const response = await fetch(targetUrl);
-                    
-                    if (!response.ok) {
-                        console.error(`[缩略图代理] 主服务返回错误: ${response.status} ${response.statusText}`);
-                        throw new Error(`主服务返回错误: ${response.status} ${response.statusText}`);
-                    }
-                    
-                    const arrayBuffer = await response.arrayBuffer();
-                    const buffer = new Uint8Array(arrayBuffer);
-                    
-                    if (buffer.length === 0) {
-                        console.error('[缩略图代理] 获取到的数据为空');
-                        throw new Error('获取到的数据为空');
-                    }
-                    
-                    console.log(`[缩略图代理] 成功获取数据: ${buffer.length} 字节`);
-                    
-                    // 缓存数据
-                    thumbnailCache.set(cacheKey, {
-                        data: buffer,
-                        timestamp: Date.now()
+                // 心跳和状态API
+                app.get('/api/status', (req, res) => {
+                    res.json({
+                        status: serverState.status,
+                        uptime: Date.now() - serverState.startTime,
+                        startTime: serverState.startTime,
+                        port: port,
+                        lastPing: serverState.lastPing,
+                        lastPong: serverState.lastPong,
+                        pingCount: serverState.pingCount,
+                        pongCount: serverState.pongCount,
+                        errors: serverState.errors.slice(-10) // 仅返回最近10条错误
                     });
-                    
-                    // 限制缓存大小
-                    if (thumbnailCache.size > 100) {
-                        const oldestKey = [...thumbnailCache.keys()][0];
-                        thumbnailCache.delete(oldestKey);
-                    }
-                    
-                    // 返回响应
-                    res.writeHead(200, {
-                        'Content-Type': 'image/png',
-                        'Content-Length': buffer.length,
-                        'Cache-Control': 'public, max-age=3600'
-                    });
-                    res.end(buffer);
-                } catch (error) {
-                    console.error('[缩略图代理] 处理请求失败:', error);
-                    res.status(500).send(`获取缩略图失败: ${error.message}`);
-                }
-            });
-            
-            // 启动服务器
-            showStatus('启动HTTP服务器...');
-            let server127 = null;
-            let serverLocal = null;
-            
-            try {
-                // 监听127.0.0.1
-                server127 = app.listen(port, '127.0.0.1', () => {
-                    console.log(`静态文件服务器运行在 http://127.0.0.1:${port}`);
-                    showStatus(`服务器运行在 http://127.0.0.1:${port}`);
-                    
-                    // 尝试在localhost上也监听
-                    try {
-                        serverLocal = app.listen(port, 'localhost', () => {
-                            console.log(`静态文件服务器运行在 http://localhost:${port}`);
-                        });
-                    } catch (err) {
-                        // 忽略localhost绑定错误，这是正常的
-                        console.warn('在localhost上监听失败(可忽略):', err);
-                    }
-                    
-                    // 发送服务就绪消息
-                    showStatus('静态文件服务器启动成功');
-                    channel.postMessage({ type: 'staticServerReady' });
                 });
                 
-                // 处理服务器错误
-                server127.on('error', (err) => {
-                    showStatus(`服务器错误: ${err.message}`, true);
-                    channel.postMessage({ type: 'staticServerError', error: err.message });
-                });
-            } catch (err) {
-                showStatus(`启动服务器失败: ${err.message}`, true);
-                channel.postMessage({ type: 'staticServerError', error: err.message });
-                throw err;
-            }
-            
-            // 设置消息监听
-            showStatus('设置消息监听...');
-            channel.onmessage = (event) => {
-                try {
-                    const data = event.data;
-                    console.log('收到消息:', data);
+                // 启动服务
+                const server = app.listen(port, () => {
+                    log(`静态资源服务器启动成功，端口: ${port}`, 'success');
+                    serverState.status = 'running';
                     
-                    if (data && data.type === 'ping') {
-                        // 响应心跳检测
-                        channel.postMessage({ type: 'pong', timestamp: Date.now() });
-                    }
-                } catch (err) {
-                    console.error('处理消息出错:', err);
-                }
-            };
-            
-            // 设置进程退出处理
-            window.addEventListener('beforeunload', () => {
-                if (server127) {
-                    try { server127.close(); } catch (e) {}
-                }
-                if (serverLocal) {
-                    try { serverLocal.close(); } catch (e) {}
-                }
-                channel.postMessage({ type: 'staticServerShutdown' });
-                channel.close();
-            });
-            
-        } catch (error) {
-            showStatus(`初始化失败: ${error.message}`, true);
-            console.error('初始化错误:', error);
-            
-            // 报告错误
-            try {
+                    // 广播服务就绪消息
+                    channel.postMessage({ 
+                        type: 'staticServerReady',
+                        port: port,
+                        startTime: serverState.startTime
+                    });
+                });
+                
+                server.on('error', (error) => {
+                    log(`服务器错误: ${error.message}`, 'error');
+                    serverState.status = 'error';
+                    
+                    // 广播错误消息
+                    channel.postMessage({ 
+                        type: 'staticServerError', 
+                        error: error.message 
+                    });
+                });
+                
+            } catch (error) {
+                log(`启动服务器失败: ${error.message}`, 'error');
+                serverState.status = 'error';
+                
+                // 广播错误消息
                 channel.postMessage({ 
                     type: 'staticServerError', 
-                    error: error.message,
-                    stack: error.stack
+                    error: error.message 
                 });
-            } catch (e) {
-                console.error('无法报告错误:', e);
             }
         }
+        
+        // 处理广播频道消息
+        channel.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'ping') {
+                // 更新最后ping时间
+                serverState.lastPing = event.data.timestamp;
+                serverState.pingCount++;
+                
+                // 发送pong响应
+                const pongData = {
+                    type: 'pong',
+                    timestamp: Date.now(),
+                    serverState: {
+                        status: serverState.status,
+                        uptime: Date.now() - serverState.startTime,
+                        startTime: serverState.startTime,
+                        port: port
+                    }
+                };
+                
+                channel.postMessage(pongData);
+                serverState.lastPong = pongData.timestamp;
+                serverState.pongCount++;
+                
+                log(`收到ping请求并发送pong响应`, 'info');
+            }
+        });
+        
+        // 启动服务器
+        startServer();
+        
+        // 定时更新状态显示
+        setInterval(updateStatus, 1000);
+        
+        // 定时发送状态心跳
+        setInterval(() => {
+            if (serverState.status === 'running') {
+                channel.postMessage({
+                    type: 'staticServerStatus',
+                    timestamp: Date.now(),
+                    status: serverState.status,
+                    uptime: Date.now() - serverState.startTime,
+                    startTime: serverState.startTime,
+                    port: port
+                });
+            }
+        }, 30000); // 每30秒发送一次状态更新
+        
+        // 初始日志
+        log('静态资源服务器初始化中...', 'info');
     </script>
 </body>
 </html> 

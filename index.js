@@ -90,6 +90,13 @@ const DOCK_CONFIGS = {
     component: '/plugins/SACAssetsManager/source/UI/pannels/pannelList/index.vue',
     title: "面板列表",
     propertyName: "pannelListDock"
+  },
+  ServiceManagerPanel: {
+    icon: "iconServer",
+    position: "RightBottom",
+    component: null,
+    title: "服务管理",
+    propertyName: "serviceManagerDock"
   }
 }
 let pluginInstance = {}
@@ -113,22 +120,59 @@ function createDock(plugin, dockType) {
     type: dockType,
     init() {
       const container = 插入UI面板容器(this.element);
-      import('/plugins/SACAssetsManager/src/toolBox/feature/useVue/vueComponentLoader.js').then(
-        async module => {
-          try {
-            // 使用await等待异步函数完成
-            const app = await module.initVueApp(config.component);
-            // 确保app存在且mount函数可用
-            if (app && typeof app.mount === 'function') {
-              app.mount(container);
+      
+      // 特殊处理服务管理面板
+      if (dockType === 'ServiceManagerPanel') {
+        // 首先确保Vue在全局可用
+        const vueScript = document.createElement('script');
+        vueScript.src = '/plugins/SACAssetsManager/static/vue.global.js';
+        
+        vueScript.onload = () => {
+          // Vue加载完成后，加载注册面板脚本
+          const script = document.createElement('script');
+          script.src = '/plugins/SACAssetsManager/source/UI/pannels/serviceManager/registerPanel.js';
+          // 注意：使用传统脚本而非模块
+          script.type = 'text/javascript';
+          
+          script.onload = () => {
+            if (typeof window.registerServiceManagerPanel === 'function') {
+              window.registerServiceManagerPanel(container);
             } else {
-              console.error('Vue应用创建失败', app);
+              console.error('找不到registerServiceManagerPanel函数');
             }
-          } catch (error) {
-            console.error('加载Vue组件失败:', error);
+          };
+          
+          script.onerror = (err) => {
+            console.error('加载服务管理面板脚本失败:', err);
+          };
+          
+          document.head.appendChild(script);
+        };
+        
+        vueScript.onerror = (err) => {
+          console.error('加载Vue全局脚本失败:', err);
+        };
+        
+        document.head.appendChild(vueScript);
+      } else {
+        // 其他面板使用原有的Vue加载方式
+        import('/plugins/SACAssetsManager/src/toolBox/feature/useVue/vueComponentLoader.js').then(
+          async module => {
+            try {
+              // 使用await等待异步函数完成
+              const app = await module.initVueApp(config.component);
+              // 确保app存在且mount函数可用
+              if (app && typeof app.mount === 'function') {
+                app.mount(container);
+              } else {
+                console.error('Vue应用创建失败', app);
+              }
+            } catch (error) {
+              console.error('加载Vue组件失败:', error);
+            }
           }
-        }
-      );
+        );
+      }
     }
   });
   return dock;
@@ -255,7 +299,237 @@ module.exports = class SACAssetsManager extends Plugin {
     const { 获取插件服务端口号 } = await import(`${this.插件自身伺服地址}/src/toolBox/base/forNetWork/forPort/forSiyuanPort.js`);
     this.http服务端口号 = await 获取插件服务端口号(this.name + "_http", 6992);
     this.https服务端口号 = await 获取插件服务端口号(this.name + "_https", 6993);
+    
+    // 初始化服务状态存储
+    this.servicesStatus = {
+      main: {
+        isRunning: false,
+        startTime: null,
+        port: this.http服务端口号,
+        lastHeartbeat: null
+      },
+      static: {
+        isRunning: false,
+        startTime: null, 
+        port: this.https服务端口号,
+        lastHeartbeat: null
+      }
+    };
+    
+    // 启动自动心跳检测
+    this.heartbeatInterval = setInterval(() => {
+      this.checkServicesStatus();
+    }, 5000); // 每5秒检查一次
+    
     await import(`${this.插件自身伺服地址}/source/server/main.js`);
+    
+    // 添加服务管理辅助函数
+    this.pingServer = async () => {
+      // 检查主服务是否响应
+      try {
+        if (!this.serverContainer) return false;
+        
+        // 发送心跳并等待响应
+        return new Promise((resolve) => {
+          const timeout = setTimeout(() => resolve(false), 2000); // 2秒超时
+          
+          // 临时事件监听器
+          const handleHeartbeat = (e, data) => {
+            clearTimeout(timeout);
+            
+            if (data && data.type === 'heartbeat') {
+              // 存储服务状态信息
+              this.updateServicesStatus(data);
+              resolve(true);
+            } else if (data && data.webContentID === this.serverContainerWebContentsID) {
+              resolve(true);
+            }
+          };
+          
+          // 添加临时监听器
+          const { ipcRenderer } = require('electron');
+          ipcRenderer.once('heartbeat', handleHeartbeat);
+          
+          // 发送心跳请求
+          ipcRenderer.send('heartbeat', { requireResponse: true });
+          
+          // 3秒后清理
+          setTimeout(() => {
+            ipcRenderer.removeListener('heartbeat', handleHeartbeat);
+          }, 3000);
+        });
+      } catch (error) {
+        console.warn('Ping主服务失败:', error);
+        return false;
+      }
+    };
+    
+    this.pingStaticServer = async () => {
+      // 检查静态服务器是否响应
+      try {
+        if (!this.staticServerContainer) return false;
+        
+        // 如果30秒内有心跳响应，认为服务活跃
+        if (this.staticServerLastPong) {
+          const isActive = (Date.now() - this.staticServerLastPong) < 30000;
+          
+          // 更新服务状态
+          if (isActive && this.servicesStatus && this.servicesStatus.static) {
+            this.servicesStatus.static.isRunning = true;
+            this.servicesStatus.static.lastHeartbeat = this.staticServerLastPong;
+            
+            // 如果没有记录启动时间，则记录
+            if (!this.servicesStatus.static.startTime) {
+              this.servicesStatus.static.startTime = this.staticServerStartTime || Date.now();
+            }
+            
+            // 广播状态更新
+            this.eventBus.emit('service:status-updated', {
+              service: 'static',
+              status: this.servicesStatus.static
+            });
+          }
+          
+          return isActive;
+        }
+        
+        // 发送ping并等待响应
+        return new Promise((resolve) => {
+          const timeout = setTimeout(() => resolve(false), 2000); // 2秒超时
+          
+          // 设置临时处理程序
+          const staticChannel = new BroadcastChannel('SACAssetsStatic');
+          const handlePong = (event) => {
+            if (event.data && event.data.type === 'pong') {
+              clearTimeout(timeout);
+              
+              // 更新状态
+              if (this.servicesStatus && this.servicesStatus.static) {
+                this.servicesStatus.static.isRunning = true;
+                this.servicesStatus.static.lastHeartbeat = event.data.timestamp;
+                
+                // 如果没有记录启动时间，则记录
+                if (!this.servicesStatus.static.startTime) {
+                  this.servicesStatus.static.startTime = this.staticServerStartTime || Date.now();
+                }
+                
+                // 广播状态更新
+                this.eventBus.emit('service:status-updated', {
+                  service: 'static',
+                  status: this.servicesStatus.static
+                });
+              }
+              
+              staticChannel.close();
+              resolve(true);
+            }
+          };
+          
+          staticChannel.addEventListener('message', handlePong);
+          
+          // 发送ping
+          staticChannel.postMessage({ type: 'ping', timestamp: Date.now() });
+          
+          // 3秒后清理
+          setTimeout(() => {
+            staticChannel.removeEventListener('message', handlePong);
+            staticChannel.close();
+          }, 3000);
+        });
+      } catch (error) {
+        console.warn('Ping静态服务器失败:', error);
+        return false;
+      }
+    };
+    
+    this.getStaticServerUrl = () => {
+      if (!this.staticServerContainer || !this.https服务端口号) return null;
+      return `http://localhost:${this.https服务端口号}`;
+    };
+    
+    // 更新服务状态并广播更新事件
+    this.updateServicesStatus = (heartbeatData) => {
+      try {
+        if (!heartbeatData || !heartbeatData.services) return;
+        
+        // 更新主服务状态
+        if (heartbeatData.services.main) {
+          this.servicesStatus.main.isRunning = heartbeatData.services.main.isRunning;
+          this.servicesStatus.main.port = heartbeatData.services.main.port;
+          this.servicesStatus.main.lastHeartbeat = heartbeatData.timestamp;
+          
+          // 如果没有记录启动时间，使用服务报告的启动时间
+          if (!this.servicesStatus.main.startTime && heartbeatData.services.main.startTime) {
+            this.servicesStatus.main.startTime = heartbeatData.services.main.startTime;
+            
+            // 记录到插件实例
+            this.mainServerStartTime = heartbeatData.services.main.startTime;
+          }
+          
+          // 广播状态更新
+          this.eventBus.emit('service:status-updated', {
+            service: 'main',
+            status: this.servicesStatus.main
+          });
+        }
+        
+        // 更新静态服务状态
+        if (heartbeatData.services.static) {
+          this.servicesStatus.static.isRunning = heartbeatData.services.static.isRunning;
+          this.servicesStatus.static.port = heartbeatData.services.static.port;
+          this.servicesStatus.static.lastHeartbeat = heartbeatData.timestamp;
+          
+          // 如果没有记录启动时间，使用服务报告的启动时间
+          if (!this.servicesStatus.static.startTime && heartbeatData.services.static.startTime) {
+            this.servicesStatus.static.startTime = heartbeatData.services.static.startTime;
+            
+            // 记录到插件实例
+            this.staticServerStartTime = heartbeatData.services.static.startTime;
+          }
+          
+          // 广播状态更新
+          this.eventBus.emit('service:status-updated', {
+            service: 'static',
+            status: this.servicesStatus.static
+          });
+        }
+      } catch (err) {
+        console.error('更新服务状态失败:', err);
+      }
+    };
+    
+    // 检查所有服务状态
+    this.checkServicesStatus = async () => {
+      try {
+        // 先ping主服务
+        const mainStatus = await this.pingServer();
+        
+        // 如果主服务已关闭但状态未更新，发出事件
+        if (!mainStatus && this.servicesStatus.main.isRunning) {
+          this.servicesStatus.main.isRunning = false;
+          this.eventBus.emit('server:stopped');
+          this.eventBus.emit('service:status-updated', {
+            service: 'main',
+            status: this.servicesStatus.main
+          });
+        }
+        
+        // 再ping静态服务
+        const staticStatus = await this.pingStaticServer();
+        
+        // 如果静态服务已关闭但状态未更新，发出事件
+        if (!staticStatus && this.servicesStatus.static.isRunning) {
+          this.servicesStatus.static.isRunning = false;
+          this.eventBus.emit('staticServer:stopped');
+          this.eventBus.emit('service:status-updated', {
+            service: 'static',
+            status: this.servicesStatus.static
+          });
+        }
+      } catch (err) {
+        console.warn('检查服务状态失败:', err);
+      }
+    };
   }
   /**
    * 移动到menus.js中
