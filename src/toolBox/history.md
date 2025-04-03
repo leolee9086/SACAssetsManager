@@ -242,3 +242,65 @@
 ### 2023年X月X日
 
 完成了对 `filetree.js` 的迁移工作，将文档管理相关功能移至 `forFiletree` 子目录，并进行了更好的结构组织。现在所有与文件树和文档操作相关的功能都集中在 `forFiletree/useSiyuanFiletree.js` 中，同时保留了指向该位置的重定向层，确保向后兼容性。改进了模块的文档说明，添加了中文API接口，优化了函数的错误处理和参数验证。
+
+### 2024-03-21
+- 完成 `system.js` 的迁移工作
+  - 源文件：`source/fromThirdParty/siyuanKernel/system.js`
+  - 目标文件：`src/toolBox/useAge/forSiyuan/useSiyuanSystem.js`
+  - 状态：已完成，包含兼容层
+  - API变更：
+    - 新增中文API接口：
+      - `重载UI`
+      - `获取工作空间信息`
+      - `获取网络配置`
+      - `设置网络代理`
+      - `获取系统字体`
+      - `获取版本号`
+      - `获取当前时间戳`
+      - `获取启动进度`
+      - `退出应用`
+      - `设置自动启动`
+      - `设置外观模式`
+      - `检查更新`
+      - `获取图表渲染器信息`
+      - `获取主题模式`
+      - `获取升级进度`
+    - 保留原有英文API接口
+  - 改进：
+    - 优化了参数验证和错误处理
+    - 添加了详细的JSDoc注释
+    - 提供了完整的中文API接口
+    - 保持了与原有API的兼容性
+    - 统一了错误处理机制
+    - 增强了类型安全性
+
+- 完成 `runtime.js` 的迁移工作
+  - 源文件：`source/fromThirdParty/siyuanClient/runtime.js`
+  - 目标文件：`src/toolBox/useAge/forSiyuan/useSiyuanDialog.js`
+  - 状态：已完成，包含兼容层
+  - API变更：
+    - 将 `confirm` 和 `Dialog` 重定向到 `useSiyuanDialog.js` 中的实现
+    - `confirm` -> `confirmAsPromise`
+    - `Dialog` -> `createSimpleDialog`
+  - 改进：
+    - 简化了API结构
+    - 统一了对话框相关的功能
+    - 保持了与原有API的兼容性
+    - 提供了更清晰的错误提示
+
+- 完成 `index.js` 的迁移工作
+  - 源文件：`source/fromThirdParty/siyuanClient/index.js`
+  - 目标文件：`src/toolBox/useAge/forSiyuan/useSiyuanDialog.js`
+  - 状态：已完成，包含兼容层
+  - API变更：
+    - 将 `confirmAsPromise` 重定向到 `useSiyuanDialog.js` 中的实现
+  - 改进：
+    - 简化了API结构
+    - 统一了对话框相关的功能
+    - 保持了与原有API的兼容性
+    - 提供了更清晰的错误提示
+
+### 下一步计划
+1. 继续迁移 `source/fromThirdParty` 目录中的其他文件
+2. 完善 `README.md` 和 `AInote.md` 文档
+3. 持续优化工具箱功能

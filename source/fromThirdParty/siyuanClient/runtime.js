@@ -1,77 +1,16 @@
-import { plugin } from "../../pluginSymbolRegistry.js";
-import { clientApi } from "../../asyncModules.js";
+/**
+ * @fileoverview 【已废弃】思源笔记运行时API
+ * 此文件为兼容层，请不要直接使用。
+ * 请从 src/toolBox/useAge/forSiyuan/useSiyuanDialog.js 导入
+ */
 
-const {
-    adaptHotkey,
-    confirm,
-    Constants,
-    showMessage,
-    fetchPost,
-    fetchSyncPost,
-    fetchGet,
-    getFrontend,
-    getBackend,
-    getModelByDockType,
-    openTab,
-    openWindow,
-    openMobileFileById,
-    lockScreen,
-    exitSiYuan,
-    Protyle,
-    Plugin,
-    Dialog,
-    Menu,
-    Setting,
-    getAllEditor,
-    platformUtils
-} = clientApi
+import { confirmAsPromise, createSimpleDialog } from '../../../src/toolBox/useAge/forSiyuan/useSiyuanDialog.js';
 
+// 记录警告
+console.warn('siyuanClient/runtime.js 已经废弃，请从 src/toolBox/useAge/forSiyuan/useSiyuanDialog.js 导入');
 
-
-const {
-    app,
-    i18n,
-    eventBus,
-    data,
-    displayName,
-    name,
-    protyleSlash,
-    customBlockRenders,
-    topBarIcons,
-
-    setting,
-
-    statusBarIcons,
-    commands,
-    models,
-    docks,
-    protyleOptionsValue,
-
-
-    onload,
-    onunload,
-    uninstall,
-    updateCards,
-    onLayoutReady,
-    addCommand,
-    addIcons,
-    addTopBar,
-    addStatusBar,
-    openSetting,
-    loadData,
-
-    saveData,
-    removeData,
-    getOpenedTab,
-    addTab,
-    addDock,
-    addFloatLayer,
-    updateProtyleToolbar,
-    protyleOptions,
-} = plugin
-
-
+// 为兼容性重新导出
 export {
-    confirm,
-    Dialog
-}
+  confirmAsPromise as confirm,
+  createSimpleDialog as Dialog
+};
