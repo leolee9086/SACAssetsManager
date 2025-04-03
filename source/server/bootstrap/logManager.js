@@ -9,7 +9,6 @@ import {
     暴露日志方法
 } from '../utils/logs/logInterface.js'
 import { 日志 } from '../../../src/toolBox/base/useEcma/forLogs/useLogger.js'
-
 /**
  * 初始化日志组件
  * @returns {Promise<boolean>} 日志系统初始化是否成功
@@ -49,15 +48,7 @@ const 初始化日志组件 = async () => {
             // 如果Vue组件创建失败，回退到简单日志显示
             创建回退日志显示(logApp, 错误)
         }
-
-        // 开发模式标志（可通过全局变量控制）
-        const 开发模式 = window.开发模式 === true
-        
-        // 重写控制台
-        
-        // 暴露日志接口
         暴露日志方法()
-
         日志.信息('日志系统初始化完成', 'System')
         return 组件创建成功
     } catch (错误) {

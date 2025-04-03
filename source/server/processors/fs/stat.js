@@ -108,14 +108,27 @@ export const statWithNew = async (path) => {
         console.warn('获取文件状态失败', path, e);
     }
 }
-export const statWithCatch = async (path) => {
+/**
+ * 获取文件或目录的状态信息
+ * @param {string} path - 文件或目录路径
+ * @param {Object} options - 配置选项
+ * @param {Function} options.onError - 错误处理回调函数
+ * @param {Function} options.onSuccess - 成功处理回调函数
+ * @returns {Promise<Object|null>} 文件状态信息
+ */
+export const statWithCatch = async (path, options = {}) => {
+    const { onError, onSuccess } = options;
     path = path.replace(/\\/g, '/').replace(/\/\//g, '/');
     const start = Date.now()
     console.log('[statWithCatch] 开始处理文件:', path);
+    
     try {
         let result = await 查找并解析文件状态(path)
         if (result) {
             console.log('[statWithCatch] 从缓存中找到文件状态:', result);
+            if (onSuccess) {
+                onSuccess(result);
+            }
             return result
         }
         else {
@@ -136,6 +149,9 @@ export const statWithCatch = async (path) => {
                         }
                     )
                 }
+                if (onError) {
+                    onError(e);
+                }
                 return undefined
             }
             stat.name = path.split('/').pop()
@@ -153,10 +169,18 @@ export const statWithCatch = async (path) => {
             await 写入缩略图缓存行(path, Date.now(), stat)
             const result = await 查找并解析文件状态(path)
             console.log("[statWithCatch] 处理完成,耗时:", Date.now() - start, "结果:", result)
+            
+            if (onSuccess) {
+                onSuccess(result);
+            }
+            
             return result
         }
     } catch (e) {
         console.error('[statWithCatch] 发生错误:', e)
+        if (onError) {
+            onError(e);
+        }
         return
     }
 }

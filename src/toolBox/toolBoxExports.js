@@ -34,6 +34,9 @@ export * from './forUI/dialog/inputDialog.js';
 // 任务队列工具
 export * from './base/useEcma/forFunctions/forTaskQueue.js';
 
+// 空闲队列处理工具
+export * from './base/useBrowser/forIdle/idleQueueTools.js';
+
 // 文件系统工具
 export * from './forFileSystem/diskTools.js';
 
@@ -50,6 +53,12 @@ export * from './base/forNetWork/forPort/forPortValidation.js';
 export * from './base/forNetWork/forPort/forPortRecord.js';
 export * from './base/forNetWork/forPort/forSiyuanPort.js';
 export * from './base/forNetWork/forSiyuanApi/index.js';
+
+// 加密哈希工具
+export * from './base/useEcma/forCrypto/forHash/computeMd5Hash.js';
+
+// 缓存相关工具
+export * from './base/useEcma/forCrypto/forCache/useCacheProvider.js';
 
 // 基础文本工具
 export * from './base/useEcma/textTools.js';
