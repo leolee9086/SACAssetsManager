@@ -71,6 +71,9 @@ export * from './feature/useImage/imageToolBox.js';
 // 思源笔记环境工具
 export * from './useAge/useSiyuan.js';
 
+// 思源笔记块处理工具
+export { BlockHandler, 创建块处理器, 匹配块类型 } from './useAge/forSiyuan/forBlock/useBlockHandler.js';
+
 // 日志工具
 export * from './base/useEcma/forLogs/useLogger.js';
 

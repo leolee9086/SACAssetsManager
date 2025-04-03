@@ -1,6 +1,6 @@
 import { plugin } from "../pluginSymbolRegistry.js"
 import { kernelApi } from "../asyncModules.js"
-import BlockHandler from "../fromThirdParty/siyuanUtils/BlockHandler.js"
+import { BlockHandler } from "../../src/toolBox/useAge/forSiyuan/forBlock/useBlockHandler.js"
 import { 思源sql助手提示词 } from "../../assets/prompts/思源笔记表结构介绍.js";
 
 // 导入AI配置适配器
