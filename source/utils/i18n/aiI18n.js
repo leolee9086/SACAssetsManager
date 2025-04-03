@@ -1,4 +1,3 @@
-
 /**
 * 使用 OpenAI API 同步翻译文本
 * 
@@ -36,6 +35,10 @@ export const 同步调用openAI翻译 = (文本, 目标语言, 接口配置) => 
         return 文本; // 出错时返回原文
     }
 };
+
+// 导入AI配置适配器
+import { forTranslationConfig } from '../../../src/toolBox/useAge/forSiyuan/forAI/forLegacyCode.js';
+
 /**
 * 使用思源配置同步调用 AI 翻译
 * 
@@ -45,20 +48,10 @@ export const 同步调用openAI翻译 = (文本, 目标语言, 接口配置) => 
 * @throws {Error} 当 API 请求失败时抛出错误
 */
 export const 同步调用思源配置翻译 = (文本) => {
-    const 思源配置 = window.siyuan.config.ai.openAI;
-    const 目标语言 = window.siyuan.config.lang
-    const 接口配置 = {
-        模型: 思源配置.apiModel,
-        API地址: `${思源配置.apiBaseURL}/chat/completions`,
-        请求头: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${思源配置.apiKey}`,
-           // 'User-Agent': 思源配置.apiUserAgent
-        }
-    };
-
-    return 同步调用openAI翻译(文本, 目标语言, 接口配置);
+    const 接口配置 = forTranslationConfig();
+    return 同步调用openAI翻译(文本, 接口配置.目标语言, 接口配置);
 };
+
 export const 创建AI翻译标签函数 = (目标语言, 接口配置) => {
     return function (字符串数组, ...插值) {
         // 构建完整的模板字符串
@@ -116,30 +109,13 @@ export const 创建AI翻译标签函数 = (目标语言, 接口配置) => {
 };
 
 export const 创建思源配置AI翻译标签函数 = (目标语言= window.siyuan.config.lang) => {
-    const 思源配置 = window.siyuan.config.ai.openAI;
-    const 接口配置 = {
-        模型: 思源配置.apiModel,
-        API地址: `${思源配置.apiBaseURL}/chat/completions`,
-        请求头: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${思源配置.apiKey}`,
-        }
-    };
-
+    const 接口配置 = forTranslationConfig(目标语言);
     return 创建AI翻译标签函数(目标语言, 接口配置);
 };
 
 
 export const 创建可选AI翻译标签函数 = ( 启用翻译 =()=> true,目标语言 = window.siyuan.config.lang) => {
-    const 思源配置 = window.siyuan.config.ai.openAI;
-    const 接口配置 = {
-        模型: 思源配置.apiModel,
-        API地址: `${思源配置.apiBaseURL}/chat/completions`,
-        请求头: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${思源配置.apiKey}`,
-        }
-    };
+    const 接口配置 = forTranslationConfig(目标语言);
     const AI翻译标签函数 = 创建AI翻译标签函数(目标语言, 接口配置);
     return function (字符串数组, ...插值) {
         if (启用翻译()) {

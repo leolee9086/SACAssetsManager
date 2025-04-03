@@ -298,4 +298,38 @@ export default class SACAssetsManager extends Plugin {
 4. **错误恢复机制**
    - 服务异常自动检测和恢复
    - 心跳通信失败优雅降级
-   - 全面的错误捕获和日志记录 
+   - 全面的错误捕获和日志记录
+
+## AI配置问题修复
+
+### 思源笔记API配置字段修改
+
+思源笔记在配置中使用`apiModel`字段存储模型名称，但我们的代码部分地方仍在使用`model`字段，这导致API请求失败，报错"Model field is required"。
+
+### 已修复文件
+
+1. `src/toolBox/useAge/forSiyuan/forAI/fromLocalSiyuanAI.js`:
+   - 修改`createSafeApiConfig`函数，优先使用`apiModel`而不是`model`
+
+2. `src/toolBox/useAge/forSiyuan/forAI/computeSiyuanAI.js`:
+   - 修改`createApiConfig`函数，确保同时支持`model`和`apiModel`字段，并在返回时包含这两个字段
+
+3. `src/toolBox/useAge/forSiyuan/forAI/useSiyuanAI.js`:
+   - 修改`getOpenAICompatConfig`函数，确保优先使用`apiModel`字段，并在返回时同时提供`apiModel`和`model`字段
+
+4. `source/noteChat/index.js`:
+   - 修改`handleStreamingResponse`函数，优先使用`aiConfig.apiModel`而不是`model`
+
+### 修复策略
+
+我们的修复遵循以下原则：
+
+1. 向后兼容：同时保留`apiModel`和`model`字段，确保旧代码能正常工作
+2. 优先使用：读取配置时优先使用`apiModel`，兼容`model`
+3. 统一输出：返回配置时同时提供两个字段，确保不同API均能使用
+
+### 未来优化方向
+
+1. 统一字段名称：逐步标准化为只使用`model`或`apiModel`
+2. 添加类型检查：使用JSDoc或TypeScript定义配置类型
+3. 配置验证：实现配置验证函数，确保必要字段存在并有效 

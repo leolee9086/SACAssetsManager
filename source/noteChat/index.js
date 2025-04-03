@@ -2,6 +2,10 @@ import { plugin } from "../pluginSymbolRegistry.js"
 import { kernelApi } from "../asyncModules.js"
 import BlockHandler from "../fromThirdParty/siyuanUtils/BlockHandler.js"
 import { 思源sql助手提示词 } from "../../assets/prompts/思源笔记表结构介绍.js";
+
+// 导入AI配置适配器
+import { forLegacySiyuanConfig } from "../../src/toolBox/useAge/forSiyuan/forAI/forLegacyCode.js";
+
 /**
  * 合并用户对话消息，确保对话角色(user/assistant/system)交替出现
  * @param {Array<{role: string, content: string}>} notechat - 原始对话消息数组
@@ -64,6 +68,9 @@ function handleRoleSetting(e, role) {
 
 // 新增: 处理流式对话响应的函数
 async function handleStreamingResponse(e, responseContent) {
+    // 获取AI配置信息
+    const aiConfig = forLegacySiyuanConfig();
+    
     const lastBlock = e.detail.blockElements[e.detail.blockElements.length - 1];
     const last = new BlockHandler(lastBlock.getAttribute('data-node-id'));
     const data = await last.insertAfter(responseContent);
@@ -74,8 +81,8 @@ async function handleStreamingResponse(e, responseContent) {
                 id: op.id,
                 attrs: {
                     'custom-chat-role': 'assistant',
-                    'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
-                    'custom-chat-model': window.siyuan.config.ai.openAI.model
+                    'custom-chat-endpoint': aiConfig.endpoint || aiConfig.apiBaseURL,
+                    'custom-chat-model': aiConfig.apiModel || aiConfig.model
                 }
             });
             // 处理子块
@@ -87,8 +94,8 @@ async function handleStreamingResponse(e, responseContent) {
                         id: id,
                         attrs: {
                             'custom-chat-role': 'assistant',
-                            'custom-chat-endpoint': window.siyuan.config.ai.openAI.endpoint,
-                            'custom-chat-model': window.siyuan.config.ai.openAI.model
+                            'custom-chat-endpoint': aiConfig.endpoint || aiConfig.apiBaseURL,
+                            'custom-chat-model': aiConfig.apiModel || aiConfig.model
                         }
                     });
                 });
@@ -117,7 +124,9 @@ async function handleContextBasedChat(e) {
     const merged = mergeUserDialogue(noteChat);
     
     const { showStreamingChatDialog } = await import('../UI/dialogs/streamingChatDialog.js');
-    const emitter = await showStreamingChatDialog(merged, window.siyuan.config.ai.openAI);
+    // 使用配置适配器获取AI配置
+    const aiConfig = forLegacySiyuanConfig();
+    const emitter = await showStreamingChatDialog(merged, aiConfig);
     
     let responseContent = '';
     
@@ -175,7 +184,9 @@ plugin.eventBus.on('click-blockicon', (e) => {
             console.log(merged);
             
             const { showStreamingChatDialog } = await import('../UI/dialogs/streamingChatDialog.js');
-            const emitter = await showStreamingChatDialog(merged, window.siyuan.config.ai.openAI);
+            // 使用配置适配器获取AI配置
+            const aiConfig = forLegacySiyuanConfig();
+            const emitter = await showStreamingChatDialog(merged, aiConfig);
             
             let responseContent = '';
             

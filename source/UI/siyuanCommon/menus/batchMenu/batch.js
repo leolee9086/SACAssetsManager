@@ -536,44 +536,6 @@ export const 还原重复文件 = (options) => {
     }
 };
 
-export const 快速还原重复文件 = (options) => {
-    return {
-        label: '快速还原重复文件(全部位置)',
-        click: async () => {
-            const localPath = options.data.localPath;
-            if (!localPath) {
-                console.error('无法获取本地路径');
-                return;
-            }
-            const fs = require('fs').promises;
-            const path = require('path');
-            const duplicateListPath = path.join(localPath, '重复文件扫描结果.json');
-            
-            // 检查扫描结果文件是否存在
-            try {
-                await fs.access(duplicateListPath);
-            } catch (error) {
-                clientApi.showMessage('找不到重复文件扫描结果，请先扫描重复文件', 'error');
-                return;
-            }
-            
-            let confirm = await confirmAsPromise(
-                `确认开始快速还原重复文件?`,
-                `<p>开始后,将会根据扫描结果"重复文件扫描结果.json"还原重复文件</p>
-                <p>所有文件将直接还原到全部位置(已存在的文件不会覆盖)</p>
-                <p>可能会有大量文件操作并需要一定时间执行</p>
-                `
-            )
-            if (confirm) {
-                await 执行还原重复文件(duplicateListPath, localPath, { 
-                    interactive: false, 
-                    overwrite: false 
-                });
-            }
-        }
-    }
-};
-
 
 
 

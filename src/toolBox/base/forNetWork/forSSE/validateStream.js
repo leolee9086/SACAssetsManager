@@ -9,6 +9,12 @@
  * @returns {boolean} 如果响应是有效的可读流则返回true
  */
 export function 是有效流(响应) {
+  // 首先检查是否是ReadableStream类型
+  if (响应 && 响应.constructor && 响应.constructor.name === 'ReadableStream') {
+    return true;
+  }
+  
+  // 然后检查是否实现了异步迭代器协议
   return 响应 &&
     typeof 响应[Symbol.asyncIterator] === 'function' &&
     typeof 响应.next === 'function';
