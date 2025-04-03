@@ -1,29 +1,13 @@
-import { request } from '../core/request';
-
 /**
- * 获取应用信息
- * @param {Object} [options] - 配置选项
- * @returns {Promise<{
- *   status: string,
- *   data: {
- *     version: string,           // 应用版本号
- *     prereleaseVersion: null,   // 预发布版本号
- *     buildVersion: string,      // 构建版本号
- *     execPath: string,          // 可执行文件路径
- *     platform: string           // 运行平台
- *   }
- * }>}
+ * @fileoverview 【已废弃】Eagle 应用信息模块
+ * 此文件为兼容层，请不要直接使用。
+ * 请从 src/toolBox/useAge/forEagle/useEagleApplication.js 导入相应功能
  */
-export const getApplicationInfo = (options = {}) => {
-    return request('/api/application/info', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    }, options);
-}; 
 
-// 导出所有函数
-export {
-  getApplicationInfo
-}; 
+import { 获取应用信息 as getApplicationInfo } from '../../../../src/toolBox/useAge/forEagle/useEagleApplication.js';
+
+// 记录警告
+console.warn('eagle/api/application.js 已经废弃，请从 src/toolBox/useAge/forEagle/useEagleApplication.js 导入相应功能');
+
+// 为兼容性重新导出
+export { getApplicationInfo }; 

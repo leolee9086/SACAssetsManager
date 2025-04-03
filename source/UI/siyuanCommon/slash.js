@@ -15,9 +15,7 @@ import {
     设置插件斜杠菜单
 } from "../../../src/toolBox/useAge/forSiyuan/useSiyuanSlash.js";
 
-import { getStatu, 状态注册表 } from "../../globalStatus/index.js";
 import { plugin } from "../../pluginSymbolRegistry.js";
-import { clientApi } from "../../asyncModules.js";
 
 // 导出函数，保持与原有代码兼容
 export { 

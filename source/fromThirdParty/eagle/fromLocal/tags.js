@@ -1,23 +1,18 @@
-import { plugin } from "../../../pluginSymbolRegistry.js"
-//这里还依赖插件实例,之后要改掉
-const 根据路径获取eagle标签列表 = async (eaglePath) => {
-    try {
-        const res = await fetch(`http://localhost:${plugin.http服务端口号}/eagle-tags?path=${eaglePath}`)
-        const json = await res.json()
-        return json
-    } catch (error) {
-        console.error('获取Eagle标签列表失败:', error)
-        throw error
-    }
-}
+/**
+ * @fileoverview 【已废弃】Eagle 标签管理入口
+ * 此文件为兼容层，请不要直接使用。
+ * 请从 src/toolBox/useAge/forEagle/useEagleTags.js 导入相应功能
+ */
 
-const 根据本地路径获取eagle素材库路径 = async (localPath) => {
-    try {
-        const res = await fetch(`http://localhost:${plugin.http服务端口号}/eagle-path?path=${localPath}`)
-        const json = await res.json()
-        return json.finded
-    } catch (error) {
-        console.error('获取Eagle素材库路径失败:', error)
-        throw error
-    }
-}
+import { plugin } from "../../../pluginSymbolRegistry.js";
+import {
+    获取标签列表 as getTags,
+    获取素材库路径 as getLibraryPath
+} from '../../../../src/toolBox/useAge/forEagle/useEagleTags.js';
+
+// 记录警告
+console.warn('eagle/fromLocal/tags.js 已经废弃，请从 src/toolBox/useAge/forEagle/useEagleTags.js 导入相应功能');
+
+// 为兼容性重新导出
+export const getTags = (eaglePath) => getTags(eaglePath, plugin.http服务端口号);
+export const getLibraryPath = (localPath) => getLibraryPath(localPath, plugin.http服务端口号);

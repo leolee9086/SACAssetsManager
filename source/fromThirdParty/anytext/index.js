@@ -1,4 +1,26 @@
-import { listLocalDisks } from "../../data/diskInfo.js";
+/**
+ * @fileoverview 【已废弃】AnyTXT API 入口
+ * 此文件为兼容层，请不要直接使用。
+ * 请从 src/toolBox/useAge/forAnytext/useAnytextApi.js 导入相应功能
+ */
+
+import {
+    搜索文件 as searchFiles,
+    检查API可用性 as checkApiAvailability,
+    通过AnyTXT搜索 as searchByAnytxt
+} from '../../../src/toolBox/useAge/forAnytext/useAnytextApi.js';
+
+// 记录警告
+console.warn('anytext/index.js 已经废弃，请从 src/toolBox/useAge/forAnytext/useAnytextApi.js 导入相应功能');
+
+// 为兼容性重新导出
+export {
+    searchFiles,
+    checkApiAvailability,
+    searchByAnytxt
+};
+
+/*import { listLocalDisks } from "../../data/diskInfo.js";
 // 将 API 相关的配置抽取出来
 const API_CONFIG = {
     DEFAULT_HOST: 'localhost',
@@ -140,4 +162,4 @@ export const checkApiAvailability = async (port, host = API_CONFIG.DEFAULT_HOST)
         return false;
     }
 };
-
+*/

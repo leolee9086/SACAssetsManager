@@ -300,7 +300,61 @@
     - 保持了与原有API的兼容性
     - 提供了更清晰的错误提示
 
+- 完成 `eagle` 目录的迁移工作
+  - 源目录：`source/fromThirdParty/eagle`
+  - 目标目录：`src/toolBox/useAge/forEagle`
+  - 状态：已完成，包含兼容层
+  - 模块拆分：
+    - `useEagleApi.js`: API基础功能
+      - API配置
+      - 请求处理
+      - 参数构建
+    - `useEagleSearch.js`: 搜索功能
+      - 搜索执行
+      - 结果转换
+    - `useEagleFolder.js`: 文件夹管理
+      - 文件夹列表获取
+      - 结果转换
+    - `useEagleLibrary.js`: 资源库管理
+      - 资源库列表获取
+      - 结果转换
+  - API变更：
+    - 新增中文API接口
+    - 保留原有英文API接口
+  - 改进：
+    - 优化了模块结构，按功能拆分
+    - 统一了错误处理机制
+    - 提供了完整的中文API接口
+    - 保持了与原有API的兼容性
+    - 增强了类型安全性
+    - 统一了API端点配置
+    - 改进了参数验证
+
+- 完成 `npm` 目录的迁移工作
+  - 源目录：`source/fromThirdParty/npm`
+  - 目标目录：`src/toolBox/useAge/forNpm`
+  - 状态：已完成，包含兼容层
+  - 模块拆分：
+    - `useNpmApi.js`: npm API基础功能
+      - 包信息获取
+      - 版本列表获取
+      - 包搜索功能
+  - API变更：
+    - 新增中文API接口：
+      - `获取包信息`
+      - `获取包版本列表`
+      - `搜索包`
+    - 保留原有英文API接口
+  - 改进：
+    - 优化了模块结构
+    - 统一了错误处理机制
+    - 提供了完整的中文API接口
+    - 保持了与原有API的兼容性
+    - 增强了类型安全性
+    - 统一了API配置
+    - 改进了参数验证
+
 ### 下一步计划
-1. 继续迁移 `source/fromThirdParty` 目录中的其他文件
+1. 继续迁移 `source/fromThirdParty/anytext` 目录
 2. 完善 `README.md` 和 `AInote.md` 文档
 3. 持续优化工具箱功能
