@@ -127,6 +127,8 @@
 | `source/fromThirdParty/siyuanKernel/system.js` | `src/toolBox/useAge/forSiyuan/useSiyuanSystem.js` | 完成（兼容层） |
 | `source/fromThirdParty/siyuanKernel/notebook.js` | `src/toolBox/useAge/forSiyuan/useSiyuanNotebook.js` | 完成（兼容层） |
 | `source/fromThirdParty/siyuanClient/dialogs/confirmPromises.js` | `src/toolBox/useAge/forSiyuan/useSiyuanDialog.js` | 完成（兼容层） |
+| `source/fromThirdParty/siyuanKernel/file.js` | `src/toolBox/useAge/forSiyuan/useSiyuanFile.js` | 完成（兼容层） |
+| `source/fromThirdParty/siyuanKernel/filetree.js` | `src/toolBox/useAge/forSiyuan/forFiletree/useSiyuanFiletree.js` | 完成（兼容层） |
 
 ### API变更
 
@@ -138,13 +140,105 @@
    - 新增兼容导出：`getBlockAttrs`、`setBlockAttrs`
    - 确保与原 `attr.js` 兼容
 
+3. 文件操作API (useSiyuanFile.js):
+   - 新增函数：`获取唯一文件名`、`全局复制文件`、`复制文件`、`获取文件`、`读取目录`、`重命名文件`、`删除文件`、`上传文件`、`创建目录`、`获取临时目录路径`、`检查文件是否存在`
+   - 英文兼容API：`getUniqueFilename`、`globalCopyFiles`、`copyFile`、`getFile`、`readDir`、`renameFile`、`removeFile`、`putFile`、`createDir`、`getTempDirPath`、`isFileExist`
+
 ### 下一步计划
 
-1. 继续迁移 `source/fromThirdParty/siyuanKernel` 中的其他API文件
-   - [x] 已完成 `asset.js`、`attr.js`、`block.js`、`blockOp.js`、`system.js`、`notebook.js` 的兼容层迁移
-   - [ ] 下一步重点处理 `file.js`、`filetree.js`、`workspace.js` 等文件
-2. 完成 `source/fromThirdParty/siyuanClient` 目录的迁移
-   - [x] 已完成 `dialogs/confirmPromises.js` 的兼容层迁移
-   - [ ] 下一步处理 `runtime.js` 和其他客户端工具
-3. 添加或更新 `README.md` 和 `AInote.md` 到新创建的目录中
+1. 继续迁移 `source/fromThirdParty/siyuanKernel` 中其他API文件
+   - [x] `asset.js`
+   - [x] `file.js`
+   - [x] `filetree.js`
+   - [ ] `workspace.js`
+   - [ ] `system.js`
+   - [ ] 其他核心API
+   
+2. 完成 `source/fromThirdParty/siyuanClient` 目录迁移
+   - [x] `dialogs/confirmPromises.js`
+   - [ ] `runtime.js`
+   - [ ] 其他客户端工具
+   
+3. 在新创建的目录中添加或更新 `README.md` 和 `AInote.md`
+   
 4. 持续扩展和优化工具集功能
+
+## 迁移记录
+
+### 已完成的迁移
+
+- [x] `source/fromThirdParty/siyuanUtils/blockIcons.js` -> `src/toolBox/useAge/forSiyuan/forBlock/useSiyuanBlockIcon.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanUtils/delegators/markdown.js` -> `src/toolBox/useAge/forSiyuan/forMarkdown/useSiyuanMarkdown.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanUtils/upload.js` -> `src/toolBox/useAge/forSiyuan/forAsset/useSiyuanUpload.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanUtils/attr.js` -> `src/toolBox/useAge/forSiyuan/forBlock/useSiyuanBlockAttr.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanKernel/asset.js` -> `src/toolBox/useAge/forSiyuan/useSiyuanAsset.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanKernel/notebook.js` -> `src/toolBox/useAge/forSiyuan/useSiyuanNotebook.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanClient/dialogs/confirmPromises.js` -> `src/toolBox/useAge/forSiyuan/useSiyuanDialog.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanKernel/file.js` -> `src/toolBox/useAge/forSiyuan/useSiyuanFile.js` (完成，含兼容层)
+- [x] `source/fromThirdParty/siyuanKernel/filetree.js` -> `src/toolBox/useAge/forSiyuan/forFiletree/useSiyuanFiletree.js` (完成，含兼容层)
+
+### 结构调整
+
+为了更好地组织代码，我们对部分文件进行了结构调整：
+
+1. 创建专门的子目录来存放相关功能：
+   - `forBlock` - 存放与块相关的工具函数
+   - `forMarkdown` - 存放与Markdown相关的工具函数
+   - `forAsset` - 存放与资源文件相关的工具函数
+   - `forFiletree` - 存放与文件树和文档相关的工具函数
+
+2. 添加重定向层以保持向后兼容性：
+   - `useSiyuanFiletree.js` 重定向到 `forFiletree/useSiyuanFiletree.js`
+
+3. 每个子目录都添加了 `README.md` 和 `AInote.md` 文件，提供详细的功能说明和开发笔记。
+
+### API变更
+
+#### `useSiyuanBlockIcon.js`
+- 增加：`获取所有内置图标`、`获取思源内部图标`、`解析图标字符串`等中文函数
+
+#### `useSiyuanMarkdown.js`
+- 增加：`处理导出Markdown`、`生成导出Markdown`等中文函数
+
+#### `useSiyuanUpload.js`
+- 增加：`上传资源文件`、`批量上传资源文件`等中文函数
+
+#### `useSiyuanBlockAttr.js`
+- 增加：`获取块属性`、`设置块属性`等中文函数
+
+#### `useSiyuanAsset.js`
+- 增加：`获取资源文件`、`设置资源文件`、`删除资源文件`等中文函数
+
+#### `useSiyuanNotebook.js`
+- 增加：`获取笔记本列表`、`获取笔记本配置`、`打开笔记本`等中文函数
+
+#### `useSiyuanFile.js`
+- 增加：`获取唯一文件名`、`全局复制文件`、`复制文件`、`获取文件`、`读取目录`、`重命名文件`、`删除文件`、`上传文件`、`创建目录`、`获取临时目录路径`、`检查文件是否存在`等中文函数
+
+#### `useSiyuanFiletree.js`
+- 增加：`列出文档树`、`创建文档`、`创建每日笔记`、`重命名文档`、`通过ID重命名文档`、`移动文档`、`删除文档`、`获取文档创建保存路径`、`搜索文档`、`根据路径列出文档`、`获取文档`、`获取引用创建保存路径`、`修改文档排序`、`使用Markdown创建文档`、`文档转换为标题`、`标题转换为文档`、`列表项转换为文档`、`刷新文件树`等中文函数
+
+## 下一步计划
+
+1. 继续迁移 `source/fromThirdParty/siyuanKernel` 中其他API文件
+   - [x] `asset.js`
+   - [x] `file.js`
+   - [x] `filetree.js`
+   - [ ] `workspace.js`
+   - [ ] `system.js`
+   - [ ] 其他核心API
+   
+2. 完成 `source/fromThirdParty/siyuanClient` 目录迁移
+   - [x] `dialogs/confirmPromises.js`
+   - [ ] `runtime.js`
+   - [ ] 其他客户端工具
+   
+3. 在新创建的目录中添加或更新 `README.md` 和 `AInote.md`
+   
+4. 持续扩展和优化工具集功能
+
+## 最近更新
+
+### 2023年X月X日
+
+完成了对 `filetree.js` 的迁移工作，将文档管理相关功能移至 `forFiletree` 子目录，并进行了更好的结构组织。现在所有与文件树和文档操作相关的功能都集中在 `forFiletree/useSiyuanFiletree.js` 中，同时保留了指向该位置的重定向层，确保向后兼容性。改进了模块的文档说明，添加了中文API接口，优化了函数的错误处理和参数验证。

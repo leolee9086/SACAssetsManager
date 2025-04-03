@@ -11,6 +11,11 @@
 - `useSiyuanTab.js` - 思源页签管理工具，提供页签创建和管理功能
 - `useSiyuanColor.js` - 思源颜色工具，提供颜色相关功能
 - `useSiyuanMenuBuilder.js` - 思源菜单构建工具，提供组合式菜单构建能力
+- `useSiyuanFile.js` - 思源文件操作工具，提供文件的读写删等基础操作
+- `useSiyuanFiletree.js` - 思源文件树操作工具，提供文档管理和文档树操作功能
+- `useSiyuanNotebook.js` - 思源笔记本管理工具，提供笔记本的操作和管理功能
+- `useSiyuanAsset.js` - 思源资源文件管理工具，提供资源文件的操作和管理功能
+- `useSiyuanBlock.js` - 思源块操作工具，提供块的创建、更新和管理功能
 
 ## 使用指南
 
@@ -206,6 +211,8 @@ if (!检查思源环境()) {
 - `useSiyuanWorkspace.js` - 思源工作区操作API封装
 - `useSiyuanNotebook.js` - 思源笔记本操作API封装
 - `useSiyuanAsset.js` - 思源资源文件操作API封装
+- `useSiyuanFile.js` - 思源文件操作API封装
+- `useSiyuanFiletree.js` - 思源文件树和文档管理API封装
 - `useSiyuanSlash.js` - 思源斜杠菜单工具
 - `useSiyuanTab.js` - 思源页签管理工具
 
