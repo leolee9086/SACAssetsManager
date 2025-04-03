@@ -1,22 +1,15 @@
-import { confirm } from "../runtime.js";
-
 /**
- * 创建确认对话框并返回Promise
- * @param {string} 标题 对话框标题
- * @param {string} 主体内容 对话框内容
- * @returns {Promise<boolean>} 用户确认返回true，取消返回false
+ * @fileoverview 已弃用 - 思源确认对话框
+ * @deprecated 请直接从toolBox导入函数：
+ * - 对话框操作: src/toolBox/useAge/forSiyuan/useSiyuanDialog.js
+ * - 或使用集中API: src/toolBox/useAge/useSiyuan.js 中的 dialog
  */
-export const confirmAsPromise = (标题, 主体内容) => {
-    return new Promise((resolve) => {
-        confirm(
-            标题,
-            主体内容,
-            () => {
-                resolve(true);
-            },
-            () => {
-                resolve(false);
-            }
-        );
-    });
-};
+
+// 从新路径导入函数
+import { confirmAsPromise } from "../../../../src/toolBox/useAge/forSiyuan/useSiyuanDialog.js";
+
+// 兼容性导出
+export { confirmAsPromise };
+
+// 此文件已弃用，请直接从toolBox导入相应函数
+console.warn('siyuanClient/dialogs/confirmPromises.js 已弃用，请直接从 src/toolBox/useAge 导入相应函数');

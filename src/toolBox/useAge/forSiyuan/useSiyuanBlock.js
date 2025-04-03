@@ -343,4 +343,8 @@ export const appendBlock = 追加块;
 export const deleteBlock = 删除块;
 export const moveBlock = 移动块;
 export const setBlockAttributes = 设置块属性;
-export const getBlockAttributes = 获取块属性; 
+export const getBlockAttributes = 获取块属性;
+
+// 为保持兼容性，添加原有API名称的导出
+export const getBlockAttrs = 获取块属性;
+export const setBlockAttrs = 设置块属性; 

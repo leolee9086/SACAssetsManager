@@ -1,7 +1,7 @@
 // imagePreviewerUtils.js
 import { uploadAsset } from '../../../fromThirdParty/siyuanKernel/asset.js'
 import { drawRulers } from '../../../utils/canvas/helpers/rulers.js'
-import { uploadToSiyuanAssets } from '../../../fromThirdParty/siyuanUtils/upload.js'
+import { uploadToSiyuanAssets } from '../../../../src/toolBox/useAge/forSiyuan/forAsset/useSiyuanUpload.js'
 const fs = require('fs')
 const path = require("path")
 export {drawRulers,uploadToSiyuanAssets as uploadToSiyuan}

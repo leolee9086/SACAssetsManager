@@ -24,6 +24,23 @@ export const 获取笔记本列表 = (options = {}) => {
 };
 
 /**
+ * 获取笔记本信息
+ * @param {string} id - 笔记本ID
+ * @param {Object} [options] - 请求选项
+ * @returns {Promise<Object>} 笔记本信息
+ */
+export const 获取笔记本信息 = (id, options = {}) => {
+  if (!id) {
+    return Promise.resolve({
+      code: -1,
+      msg: '笔记本ID不能为空',
+      data: null
+    });
+  }
+  return 发送笔记本请求('getNotebookInfo', { notebook: id }, options);
+};
+
+/**
  * 打开笔记本
  * @param {string} id - 笔记本ID
  * @param {Object} [options] - 请求选项
@@ -218,14 +235,16 @@ export const 导入Markdown到笔记本 = (选项, requestOptions = {}) => {
 };
 
 // 导出英文版API
-export const getNotebookList = 获取笔记本列表;
+export const getNotebooks = 获取笔记本列表;
+export const getNotebookInfo = 获取笔记本信息;
 export const openNotebook = 打开笔记本;
 export const closeNotebook = 关闭笔记本;
 export const createNotebook = 创建笔记本;
 export const renameNotebook = 重命名笔记本;
 export const removeNotebook = 删除笔记本;
-export const getNotebookConfig = 获取笔记本配置;
-export const setNotebookConfig = 设置笔记本配置;
+export const getNotebookConf = 获取笔记本配置;
+export const setNotebookConf = 设置笔记本配置;
 export const setNotebookIcon = 设置笔记本图标;
-export const setNotebooksSort = 设置笔记本排序;
-export const importMarkdownToNotebook = 导入Markdown到笔记本; 
+export const setNotebookSort = 设置笔记本排序;
+export const importMarkdownToNotebook = 导入Markdown到笔记本;
+export const lsNotebooks = 获取笔记本列表; // 兼容原API 

@@ -73,6 +73,13 @@ export * from './useAge/useSiyuan.js';
 
 // 思源笔记块处理工具
 export { BlockHandler, 创建块处理器, 匹配块类型 } from './useAge/forSiyuan/forBlock/useBlockHandler.js';
+export { 根据类型获取图标, 获取块类型图标映射, 获取列表图标映射, getIconByType } from './useAge/forSiyuan/forBlock/useSiyuanBlockIcon.js';
+
+// 思源笔记Markdown处理工具
+export { Markdown工具, 创建Markdown工具, markdown委托器 } from './useAge/forSiyuan/forMarkdown/useSiyuanMarkdown.js';
+
+// 思源笔记资源上传工具
+export { 上传到思源资源库, 创建上传处理器, uploadToSiyuanAssets } from './useAge/forSiyuan/forAsset/useSiyuanUpload.js';
 
 // 日志工具
 export * from './base/useEcma/forLogs/useLogger.js';
@@ -150,6 +157,11 @@ import * as useSiyuanAsset from './useAge/forSiyuan/useSiyuanAsset.js';
 import * as useSiyuanSlash from './useAge/forSiyuan/useSiyuanSlash.js';
 import * as useSiyuanTab from './useAge/forSiyuan/useSiyuanTab.js';
 
+// 新增模块分组导出
+import * as forBlock from './useAge/forSiyuan/forBlock/useSiyuanBlockIcon.js';
+import * as forMarkdown from './useAge/forSiyuan/forMarkdown/useSiyuanMarkdown.js';
+import * as forAsset from './useAge/forSiyuan/forAsset/useSiyuanUpload.js';
+
 // 导出思源特定功能工具
 export {
     useSiyuanMenu,
@@ -160,7 +172,11 @@ export {
     useSiyuanNotebook,
     useSiyuanAsset,
     useSiyuanSlash,
-    useSiyuanTab
+    useSiyuanTab,
+    // 新增模块组
+    forBlock,
+    forMarkdown,
+    forAsset
 };
 
 /**
