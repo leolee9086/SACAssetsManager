@@ -5,6 +5,7 @@ import { showInputDialogPromise } from '../../dialog/inputDialog.js'
 import { 执行删除所有ThumbsDB } from './removeThumbsDb.js'
 import { 执行按扩展名分组 as 执行展平并按扩展名分组 } from './flatWithExtend.js'
 import { 以artTemplate渲染模板 as 渲染模板 } from '../../../../../src/toolBox/useAge/forText/useArtTemplate.js'
+import { 执行还原重复文件 } from './restoreDuplicates.js'
 const 构建UI执行函数 = (options={执行函数:null,用户确认提示:null}) => {
     const {执行函数,用户确认提示} = options
     return async (options = { path: null }) => {
@@ -376,8 +377,6 @@ export const 归集图片文件 = (options) => {
     }
 };
 
-
-
 import { 执行复制文档树结构 } from './copyFileTree.js'
 
 export const 复制文档树结构 = (options) => {
@@ -499,6 +498,79 @@ export const 批量打包文件 = (options) => {
                 click: () => 执行打包(100)
             }
         ]
+    }
+};
+
+export const 还原重复文件 = (options) => {
+    return {
+        label: '还原重复文件',
+        click: async () => {
+            const localPath = options.data.localPath;
+            if (!localPath) {
+                console.error('无法获取本地路径');
+                return;
+            }
+            const fs = require('fs').promises;
+            const path = require('path');
+            const duplicateListPath = path.join(localPath, '重复文件扫描结果.json');
+            
+            // 检查扫描结果文件是否存在
+            try {
+                await fs.access(duplicateListPath);
+            } catch (error) {
+                clientApi.showMessage('找不到重复文件扫描结果，请先扫描重复文件', 'error');
+                return;
+            }
+            
+            let confirm = await confirmAsPromise(
+                `确认开始还原重复文件?`,
+                `<p>开始后,将会根据扫描结果"重复文件扫描结果.json"还原重复文件</p>
+                <p>可能会有大量文件操作并需要一定时间执行</p>
+                <p>您可以选择要还原的文件</p>
+                `
+            )
+            if (confirm) {
+                await 执行还原重复文件(duplicateListPath, localPath, { interactive: true });
+            }
+        }
+    }
+};
+
+export const 快速还原重复文件 = (options) => {
+    return {
+        label: '快速还原重复文件(全部位置)',
+        click: async () => {
+            const localPath = options.data.localPath;
+            if (!localPath) {
+                console.error('无法获取本地路径');
+                return;
+            }
+            const fs = require('fs').promises;
+            const path = require('path');
+            const duplicateListPath = path.join(localPath, '重复文件扫描结果.json');
+            
+            // 检查扫描结果文件是否存在
+            try {
+                await fs.access(duplicateListPath);
+            } catch (error) {
+                clientApi.showMessage('找不到重复文件扫描结果，请先扫描重复文件', 'error');
+                return;
+            }
+            
+            let confirm = await confirmAsPromise(
+                `确认开始快速还原重复文件?`,
+                `<p>开始后,将会根据扫描结果"重复文件扫描结果.json"还原重复文件</p>
+                <p>所有文件将直接还原到全部位置(已存在的文件不会覆盖)</p>
+                <p>可能会有大量文件操作并需要一定时间执行</p>
+                `
+            )
+            if (confirm) {
+                await 执行还原重复文件(duplicateListPath, localPath, { 
+                    interactive: false, 
+                    overwrite: false 
+                });
+            }
+        }
     }
 };
 
