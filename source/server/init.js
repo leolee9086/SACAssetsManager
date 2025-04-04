@@ -12,7 +12,7 @@
  */
 
 // 启用自定义require功能
-import '../utils/hack/hackRequire.js'
+import '../../src/utils/hack/hackRequire.js'
 
 // 导入各初始化模块
 import { 初始化消息通道 } from './bootstrap/requireHack.js'

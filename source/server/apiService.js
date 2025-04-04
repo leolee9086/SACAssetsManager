@@ -5,7 +5,7 @@ const cors = require('cors'); // 引入 cors 中间件
 import { 日志 } from '../../src/toolBox/base/useEcma/forLogs/useLogger.js';
 
 // 引入自定义路由器
-import { createRouter } from '../utils/useDeps/useRadix3/forExpressLikeRouter.js';
+import { createRouter } from '../../src/utils/useDeps/useRadix3/forExpressLikeRouter.js';
 const router = createRouter();
 
 import { genThumbnailRouter, listLoaders } from './handlers/thumbnail.js';
@@ -41,7 +41,7 @@ import { 删除文件颜色记录 } from './processors/color/colorIndex.js';
 import { buildCache } from './middlewares/runtime_cache.js';
 import { 响应文件夹扩展名请求, 获取文件夹第一张图片 } from './handlers/fs-handeler.js';
 import { readExifCommentHandler } from './handlers/metaData.js';
-import { 查找文件所在素材库路径,从文件系统获取eagle素材库标签列表 } from '../utils/thirdParty/eagle.js';
+import { 查找文件所在素材库路径,从文件系统获取eagle素材库标签列表 } from '../../src/utils/thirdParty/eagle.js';
 
 // Eagle 相关路由
 router.get('/eagle-path', (req, res) => {
