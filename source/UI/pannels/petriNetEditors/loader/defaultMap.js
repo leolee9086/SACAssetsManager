@@ -12,6 +12,7 @@ export const 默认组件式节点注册表 = {
     'math/number': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/math/number.vue",
     'note/protyle': "/plugins/SACAssetsManager/source/UI/components/common/assetCard/protyleCell.vue",
     'image/brightness': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/image/brightness.vue",
+    'ai/config': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/ai/SiyuanAIConfig.vue",
     localImageInput: '/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/localImageInput.vue',
     ImageCompressor: '/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/ImageCompressor.vue',
     ImageComparison: 解析预定义带节点定义组件('ImageComparison.vue'),
