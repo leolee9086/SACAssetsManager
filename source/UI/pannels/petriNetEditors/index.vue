@@ -87,7 +87,7 @@ import { shallowRef } from '../../../../static/vue.esm-browser.js';
 const cardsContainer = ref(null)
 const cardManager = new CardManager();
 const 运行时卡片对象序列 = ref([]);
-const editorConfig = "/plugins/SACAssetsManager/source/UI/components/editors/builtInNet/brightness.json"
+const editorConfig = "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/builtInNet/brightness.json"
 const connectionCanvasRef = ref(null);
 const coordinateManager = ref(null);
 const container = ref(null);

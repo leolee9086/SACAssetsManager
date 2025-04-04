@@ -149,6 +149,7 @@ const 从卡片组查找锚点 = (卡片组, 卡片查询函数, 锚点查询函
   return 目标锚点;
 }
 const 以连接定义构造连接线组 =(连接定义)=>{
+  console.log(props.cards,连接定义)
   const fromAnchor = 从卡片组查找锚点(
       props.cards,
       (卡片组) => 查找卡片(卡片组, 'id', 连接定义.from.cardId),

@@ -6,7 +6,7 @@ export {extractExports,extractImports} from './forModuleAnalyze.js'
  * @param {string} code - 需要解析的代码字符串
  * @returns {Object} 返回AST语法树对象
  */
-export const parseCodeToAst = (code) => {
+export const parseCodeToAST = (code) => {
     return parser.parse(code, {
         sourceType: 'module',
         plugins: ['typescript']  // 如果需要支持TS

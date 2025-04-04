@@ -9,7 +9,7 @@ import {
   cc,
   loadVueComponentAsNodeSync,
   clearComponentCache
-} from '../../../src/toolBox/useVue/vueComponentLoader.js';
+} from '../../../src/toolBox/feature/useVue/vueComponentLoader.js';
 
 // 导出所有功能
 export {

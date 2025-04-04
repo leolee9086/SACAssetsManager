@@ -1,6 +1,6 @@
 import { createMathJSNodes } from '../nodes/wraper/tsWrapper.js';
 import { 默认组件式节点注册表, 默认函数式节点加载配置 } from './defaultMap.js';
-import { writeFile } from '../../../../polyfills/fs.js';
+import { writeFile } from '../../../../../polyfills/fs.js';
 
 /**
  * 加载 mathjs 函数节点

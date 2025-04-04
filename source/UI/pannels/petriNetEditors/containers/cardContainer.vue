@@ -60,7 +60,7 @@
 <script setup>
 import { ref, computed, onUnmounted, toRef, markRaw, watch, onMounted, nextTick, shallowRef, defineComponent } from 'vue';
 import errorContainer from './errorContainer.vue';
-import { ErrorBoundary } from '../../common/wraper/utilsComponent.js';
+import { ErrorBoundary } from '../../../components/common/wraper/utilsComponent.js';
 import { 按指定值分组 } from '../../../../../src/utils/useEcma/useArray/groupBy.js';
 import { validateSize, validatePosition } from '../geometry/validatGeometry.js';
 import { getAnchorStyle } from './nodeDefineParser/controllers/anchorConfig.js';

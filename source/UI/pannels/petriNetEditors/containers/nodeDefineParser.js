@@ -1,4 +1,4 @@
-import { loadVueComponentAsNodeSync } from "../../../../../src/toolBox/useVue/vueComponentLoader.js";
+import { loadVueComponentAsNodeSync } from "../../../../../src/toolBox/feature/useVue/vueComponentLoader.js";
 import { shallowRef } from "../../../../../static/vue.esm-browser.js";
 import { checkInputs, checkOutputs } from "./nodeDefineParser/validators.js";
 import { AnchorTypes, Sides, LogTypes, TYPE_MAP, NodeError } from "./nodeDefineParser/types.js";
@@ -190,6 +190,7 @@ export async function parseNodeDefine(componentURL, cardInfo) {
     scope.isLoaded = true;
 
     const component = await loadVueComponentAsNodeSync(componentURL).getComponent(scope);
+    console.log(scope)
     const nodeDefine = scope.nodeDefine
     const componentName = new URL(componentURL, window.location.origin).pathname;
     if (!nodeDefine) {
@@ -198,6 +199,7 @@ export async function parseNodeDefine(componentURL, cardInfo) {
     const componentProps = {};
     const parsedInputs = parseInputs(component.props, nodeDefine.inputs, componentName, componentProps, nodeDefine);
     const parsedOutputs = parseOutputs(component.emits, nodeDefine.outputs, componentName, nodeDefine);
+    console.log(parsedInputs,parsedOutputs)
     const anchorControllers = createAnchorControllers(parsedInputs, parsedOutputs, nodeDefine, componentProps, cardInfo);
     return createNodeController(anchorControllers, scope, component, componentName, componentProps, componentURL, cardInfo);
   } catch (error) {
@@ -388,7 +390,7 @@ function handleNoInputAnchors(cardInfo, globalInputs, nodeDefine, scope) {
   }
 
   // 2. 其次使用全局输入
-  const globalInput = globalInputs[cardInfo.id];
+  const globalInput = globalInputs&&globalInputs[cardInfo.id];
   if (globalInput !== undefined) {
     // 保存全局输入到 savedInputs
     cardInfo.savedInputs = { value: globalInput };

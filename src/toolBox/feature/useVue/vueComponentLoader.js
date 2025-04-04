@@ -14,8 +14,15 @@ import { plugin } from '../../../../source/asyncModules.js';
 import { 初始化模块缓存, 数据库缓存管理器 } from './useSFC/forVueCache.js';
 import { 加载历史记录 } from './useSFC/forVueError.js';
 import { 创建加载器选项, 初始化Vue应用, 创建Vue界面, 增强加载模块 } from './useSFC/forVueApp.js';
-import { 创建组件模板, 加载组件为节点同步 } from './useSFC/forVueUtils.js';
+import { 创建组件模板 } from './useSFC/forVueUtils.js';
 import { 初始化Vite模式 } from './useSFC/forViteMode.js';
+/**
+ * 异步加载Vue组件，并通过NodeSync接口返回
+ * @param {string} componentURL - 组件的URL
+ * @returns {Object} 包含getNodeDefineScope和getComponent方法的对象
+ */
+import {loadVueComponentAsNodeSync} from './useSFC/forVueUtils.js';
+export {loadVueComponentAsNodeSync}
 
 // 初始化模块缓存
 初始化模块缓存(Vue, { runtime: { plugin } });
@@ -387,67 +394,6 @@ export const clearComponentCache = async () => {
 export const cc = 创建组件模板;
 
 /**
- * 异步加载Vue组件，并通过NodeSync接口返回
- * @param {string} componentURL - 组件的URL
- * @returns {Object} 包含getNodeDefineScope和getComponent方法的对象
- */
-export const loadVueComponentAsNodeSync = (componentURL) => {
-  const options = 创建加载器选项({}, Vue, SfcLoader);
-  const enhancedLoader = 增强加载模块(SfcLoader.loadModule);
-  const nodeSync = 加载组件为节点同步(componentURL, enhancedLoader, options);
-  
-  return {
-    async getNodeDefineScope(id) {
-      return await nodeSync.获取节点定义作用域(id);
-    },
-    
-    async getComponent(scope) {
-      return await nodeSync.获取组件(scope);
-    }
-  };
-};
-
-/**
- * 智能修复路径
- * @param {string} 路径 - 需要修复的路径
- * @returns {string} 修复后的路径
- */
-const 智能修复路径 = async (路径) => {
-  // 如果已经修复过，直接返回
-  if (VITE模式配置.路径修复表.has(路径)) {
-    return VITE模式配置.路径修复表.get(路径);
-  }
-  
-  // 检查是否有扩展名
-  const 有扩展名 = /\.\w+$/.test(路径);
-  if (有扩展名) {
-    return 路径; // 已有扩展名，无需修复
-  }
-  
-  // 尝试常见扩展名
-  const 扩展名列表 = ['.vue', '.js', '.jsx', '.ts', '.tsx', '.json'];
-  
-  for (const 扩展名 of 扩展名列表) {
-    const 修复路径 = `${路径}${扩展名}`;
-    
-    try {
-      // 尝试请求文件
-      const 响应 = await fetch(修复路径);
-      if (响应.ok) {
-        console.log(`路径修复成功: ${路径} -> ${修复路径}`);
-        VITE模式配置.路径修复表.set(路径, 修复路径);
-        return 修复路径;
-      }
-    } catch (错误) {
-      // 忽略错误，继续尝试下一个扩展名
-    }
-  }
-  
-  // 所有尝试失败，返回原路径
-  return 路径;
-};
-
-/**
  * 保存Vite模式配置到本地存储
  */
 const 保存配置 = () => {
@@ -507,7 +453,7 @@ export default {
   createVueInterface,
   clearComponentCache,
   cc,
-  loadVueComponentAsNodeSync,
+  
   initViteEnvironment,
   isViteModeSupported,
   configureViteMode
