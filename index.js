@@ -62,10 +62,7 @@ const TAB_CONFIGS = {
     component: '/plugins/SACAssetsManager/source/UI/components/assetGalleryPanel.vue',
     containerId: 'assetsColumn'
   },
-  EditorTab: {
-    component: '/plugins/SACAssetsManager/source/UI/components/editors/image.vue',
-    containerId: 'assetsColumn'
-  },
+
 
   ...构建TAB配置()
 }

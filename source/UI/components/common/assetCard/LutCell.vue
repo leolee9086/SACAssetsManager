@@ -23,7 +23,7 @@ import { 计算素材缩略图样式, 计算扩展名标签样式 } from '../ass
 import { LAYOUT_COLUMN } from '../../../utils/threhold.js';
 import { rgb数组转字符串 } from '../../../../../src/utils/color/convert.js';
 import { 获取素材属性值, 计算素材类型角标 } from '../../../../data/attributies/parseAttributies.js';
-import ImageComparison from '../../../components/editors/ImageComparison.vue?';
+import ImageComparison from '../../../../../src/shared/components/withNodeDefine/ImageComparison.vue';
 import { processImageWithLUTFile } from '../../../../../src/utils/Lut/lutProcessor.js';
 async function handleFileUpload() {
     const { dialog } = window.require('@electron/remote');
