@@ -78,3 +78,5 @@ export function CIEDE2000(Lab_1, Lab_2) {
     const dE_00 = Math.sqrt(f_L ** 2 + f_C ** 2 + f_H ** 2 + R_T * f_C * f_H);
     return dE_00;
 }
+
+
