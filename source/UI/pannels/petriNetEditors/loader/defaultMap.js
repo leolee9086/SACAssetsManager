@@ -1,6 +1,9 @@
 import * as 向量 from '../geometry/geometryCalculate/vector.js'
 import * as LUT处理器 from '../../../../../src/utils/Lut/lutProcessor.js'
-
+export const 预定义带节点定义组件路径 = '/plugins/SACAssetsManager/src/shared/components/withNodeDefine'
+export const 解析预定义带节点定义组件 = (subpath) => {
+    return `${预定义带节点定义组件路径}/${subpath}`
+}
 // 定义全局Symbol
 export const 全局节点注册表标记 = Symbol.for('SACComponentMap');
 
@@ -11,7 +14,7 @@ export const 默认组件式节点注册表 = {
     'image/brightness': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/image/brightness.vue",
     localImageInput: '/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/localImageInput.vue',
     ImageCompressor: '/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/ImageCompressor.vue',
-    ImageComparison: '/plugins/SACAssetsManager/src/shared/components/withNodeDefine/ImageComparison.vue',
+    ImageComparison: 解析预定义带节点定义组件('ImageComparison.vue'),
 };
 
 // 获取或创建全局componentMap
