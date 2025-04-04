@@ -17,3 +17,8 @@ export const 是串链器标记 = (目标) => {
     return 目标 === 串链器标记
 }
 
+ // 获取原始值
+export const 获取原始值 = (值) => {
+    if (值 && typeof 值 === 'object' && '值' in 值) return 值.值;
+    return 值;
+};

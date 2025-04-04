@@ -5,7 +5,8 @@
 
 // 引入serialize-javascript库用于处理复杂对象序列化，避免循环引用问题
 import serialize from '../../../../../static/serialize-javascript.js';
-
+import { 安全序列化 } from '../../useUtils/useSerialize.js';
+export {安全序列化}
 // 用于检测循环引用
 const seen = new WeakSet();
 
@@ -42,22 +43,6 @@ export const 是否为Base64图片 = (内容) => {
     return /^data:image\/(jpeg|png|gif|webp|svg\+xml|bmp);base64,/.test(内容);
 };
 
-/**
- * 安全序列化对象，处理循环引用
- * @param {any} 对象 - 需要序列化的对象
- * @returns {string} 序列化后的字符串
- */
-export const 安全序列化 = (对象) => {
-    try {
-        return serialize(对象, { space: 0 });
-    } catch (e) {
-        try {
-            return JSON.stringify(对象);
-        } catch (jsonError) {
-            return `[复杂对象: ${typeof 对象}]`;
-        }
-    }
-};
 
 /**
  * 格式化对象参数

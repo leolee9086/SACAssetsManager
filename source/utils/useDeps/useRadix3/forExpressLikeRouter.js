@@ -595,87 +595,136 @@ Router.prototype.handle = function handle(req, res, out) {
       return done(layerError);
     }
 
-    let layer = null;
-    let match = false;
-    let route = null;
-
-    // 查找下一个匹配的层
-    while (match === false && idx < stack.length) {
-      layer = stack[idx++];
-      match = layer.match(path);
-      route = layer.route;
-
-      if (match === false) {
-        continue;
-      }
-
-      // 如果没有路由定义，这可能是中间件
-      if (!route) {
-        日志.信息(`匹配中间件: ${layer.path}`, 'Router');
-        continue;
-      }
-
-      const method = req.method;
-      const has_method = route._handles_method(method);
-
-      // 构建选项列表（为OPTIONS请求）
-      if (!has_method && method === 'OPTIONS') {
-        日志.信息(`添加OPTIONS方法支持: ${layer.path}`, 'Router');
-        options.push.apply(options, route._options());
-      }
-
-      // 跳过不处理此方法的路由
-      if (!has_method && method !== 'HEAD') {
-        日志.信息(`方法不匹配，跳过: ${method} ${layer.path}`, 'Router');
-        match = false;
-        continue;
-      }
-    }
-
-    // 未找到匹配
-    if (match === false) {
-      日志.信息(`未找到匹配路径: ${path}`, 'Router');
-      return done(layerError);
-    }
-
-    // 存储路由参数
-    if (layer.params) {
-      if (!req.params) {
-        req.params = {};
+    // 错误处理优先使用常规堆栈
+    if (layerError) {
+      walkStack(path);
+    } else {
+      // 优先使用radix树查找路由匹配
+      const method = req.method.toLowerCase();
+      const radixTree = self.radixTrees[method] || self.radixTrees.all;
+      
+      // 尝试使用radix树进行精确匹配
+      if (radixTree) {
+        const radixMatch = radixTree.lookup(path);
+        if (radixMatch) {
+          日志.信息(`Radix树匹配成功: ${path}`, 'Router');
+          const layer = radixMatch.data;
+          
+          if (layer && layer.route) {
+            // 设置参数
+            Object.assign(req.params || {}, radixMatch.params || {});
+            日志.信息(`Radix匹配设置参数: ${JSON.stringify(req.params)}`, 'Router');
+            
+            // 处理匹配的路由
+            return self.process_params(layer, paramcalled, req, res, function(err) {
+              if (err) {
+                日志.错误(`参数处理错误: ${err.message}`, 'Router');
+                return next(err);
+              }
+              
+              const route = layer.route;
+              
+              // 处理请求
+              if (route.stack.length === 0) {
+                日志.信息(`路由没有处理器，跳过: ${layer.path}`, 'Router');
+                return done(null);
+              }
+              
+              日志.信息(`分派请求到路由: ${layer.path}`, 'Router');
+              route.dispatch(req, res, next);
+            });
+          }
+        }
       }
       
-      Object.assign(req.params, layer.params);
-      日志.信息(`设置参数: ${JSON.stringify(req.params)}`, 'Router');
+      // 如果radix树没有匹配，回退到常规堆栈
+      walkStack(path);
     }
+    
+    // 使用常规堆栈进行匹配
+    function walkStack(path) {
+      let layer = null;
+      let match = false;
+      let route = null;
 
-    // 如果是路由层
-    if (route) {
-      日志.信息(`处理匹配的路由: ${layer.path}`, 'Router');
-      // 进入路由前处理参数
-      return self.process_params(layer, paramcalled, req, res, function(err) {
-        if (err) {
-          日志.错误(`参数处理错误: ${err.message}`, 'Router');
-          return next(err);
+      // 查找下一个匹配的层
+      while (match === false && idx < stack.length) {
+        layer = stack[idx++];
+        match = layer.match(path);
+        route = layer.route;
+
+        if (match === false) {
+          continue;
         }
 
-        // 处理请求
-        if (route.stack.length === 0) {
-          日志.信息(`路由没有处理器，跳过: ${layer.path}`, 'Router');
-          return done(null);
+        // 如果没有路由定义，这可能是中间件
+        if (!route) {
+          日志.信息(`匹配中间件: ${layer.path}`, 'Router');
+          continue;
         }
 
-        日志.信息(`分派请求到路由: ${layer.path}`, 'Router');
-        route.dispatch(req, res, next);
-      });
-    }
+        const method = req.method;
+        const has_method = route._handles_method(method);
 
-    // 处理错误或请求
-    if (layerError) {
-      日志.信息(`处理错误: ${layerError.message}`, 'Router');
-      layer.handle_error(layerError, req, res, next);
-    } else {
-      日志.信息(`处理请求: ${layer.path}`, 'Router');
-      layer.handle_request(req, res, next);
+        // 构建选项列表（为OPTIONS请求）
+        if (!has_method && method === 'OPTIONS') {
+          日志.信息(`添加OPTIONS方法支持: ${layer.path}`, 'Router');
+          options.push.apply(options, route._options());
+        }
+
+        // 跳过不处理此方法的路由
+        if (!has_method && method !== 'HEAD') {
+          日志.信息(`方法不匹配，跳过: ${method} ${layer.path}`, 'Router');
+          match = false;
+          continue;
+        }
+      }
+
+      // 未找到匹配
+      if (match === false) {
+        日志.信息(`未找到匹配路径: ${path}`, 'Router');
+        return done(layerError);
+      }
+
+      // 存储路由参数
+      if (layer.params) {
+        if (!req.params) {
+          req.params = {};
+        }
+        
+        Object.assign(req.params, layer.params);
+        日志.信息(`设置参数: ${JSON.stringify(req.params)}`, 'Router');
+      }
+
+      // 如果是路由层
+      if (route) {
+        日志.信息(`处理匹配的路由: ${layer.path}`, 'Router');
+        // 进入路由前处理参数
+        return self.process_params(layer, paramcalled, req, res, function(err) {
+          if (err) {
+            日志.错误(`参数处理错误: ${err.message}`, 'Router');
+            return next(err);
+          }
+
+          // 处理请求
+          if (route.stack.length === 0) {
+            日志.信息(`路由没有处理器，跳过: ${layer.path}`, 'Router');
+            return done(null);
+          }
+
+          日志.信息(`分派请求到路由: ${layer.path}`, 'Router');
+          route.dispatch(req, res, next);
+        });
+      }
+
+      // 处理错误或请求
+      if (layerError) {
+        日志.信息(`处理错误: ${layerError.message}`, 'Router');
+        layer.handle_error(layerError, req, res, next);
+      } else {
+        日志.信息(`处理请求: ${layer.path}`, 'Router');
+        layer.handle_request(req, res, next);
+      }
     }
   }
 };
@@ -909,6 +958,7 @@ Router.prototype.route = function route(path) {
 
   // 将路由添加到radix树以提高性能
   try {
+    // 添加到通用的'all'树
     this.radixTrees.all.insert(path, layer);
     日志.信息(`在radix树中添加路由: ${path}`, 'Router');
   } catch (err) {
@@ -939,6 +989,18 @@ methods.forEach(function(method) {
   Router.prototype[method] = function(path) {
     const route = this.route(path);
     route[method].apply(route, slice.call(arguments, 1));
+    
+    // 将路由添加到对应方法的radix树中
+    try {
+      if (this.radixTrees[method]) {
+        const layer = this.stack[this.stack.length - 1];
+        this.radixTrees[method].insert(path, layer);
+        日志.信息(`在${method}方法的radix树中添加路由: ${path}`, 'Router');
+      }
+    } catch (err) {
+      日志.错误(`向${method}方法的radix树添加路由失败: ${err.message}`, 'Router');
+    }
+    
     return this;
   };
 });

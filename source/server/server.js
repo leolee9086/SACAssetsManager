@@ -1,6 +1,5 @@
 
-import { 设置DLL路径 } from '../../src/toolBox/base/useElectron/forCSharp/useCSharpLoader.js'
-await 设置DLL路径()
+
 
 const maxLogLength = 10000; // 设置最大日志长度
 let logCount = 0;

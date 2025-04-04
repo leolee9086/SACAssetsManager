@@ -1,5 +1,6 @@
+const fs = require('fs').promises;
+
 export async function tryBecomeMaster(masterFile, masterTimeout) {
-    const fs = require('fs').promises;
     const lockFile = `${masterFile}.lock`;
 
     // 尝试获取锁文件的访问权限，如果不存在则创建
