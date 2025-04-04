@@ -5,7 +5,7 @@
  */
 
 import { debounce } from '../../../src/toolBox/base/useEcma/forFunctions/forDebounce.js';
-import { rgba数组转字符串, rgb数组转字符串 } from '../../utils/color/convert.js';
+import { rgba数组转字符串, rgb数组转字符串 } from '../../../src/utils/color/convert.js';
 import { 获取素材属性值, 计算素材类型角标 } from '../../data/attributies/parseAttributies.js';
 import { 格式化文件大小 as 格式化大小 } from '../../../src/toolBox/base/useEcma/forFile/forFileSize.js';
 import { readFileInChunks } from '../../../src/toolBox/base/useEcma/forFile/forFileRead.js';

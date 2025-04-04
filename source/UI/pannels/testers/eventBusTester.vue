@@ -178,7 +178,7 @@
   
   <script setup>
   import { ref, reactive, computed, onMounted, onUnmounted, watchEffect } from 'vue';
-  import { createEventBus, 创建事件总线 } from '../../../../src/toolBox/forEvent/useEventBus.js';
+  import { createEventBus, 创建事件总线 } from '../../../../src/toolBox/forEvent/eventBusTools.js';
   import LogViewer from './LogViewer.vue';
   import TestPanel from './TestPanel.vue';
   

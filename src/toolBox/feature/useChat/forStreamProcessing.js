@@ -35,7 +35,7 @@ export async function 处理流式消息(response, options = {}) {
       _lastFull: ''
     }
   } = options;
-
+  console.log(response,options)
   if (!是有效流(response)) {
     const 错误信息 = { error: '无效响应流', message: '提供的响应不是有效的流' };
     onError?.(错误信息);
@@ -51,11 +51,10 @@ export async function 处理流式消息(response, options = {}) {
 
     onStart?.(pendingMsg);
 
-    for await (const event of response) {
-      const { 类型: type, 数据: data } = 解析SSE事件(event);
-
+    for await (const chunk of response) {
+      const { 类型: type, 数据: data } = 解析SSE事件(chunk);
       // 检查是否是结束信号
-      if (type === 'done' || data.是完整) {
+      if (type === 'done' ) {
         pendingMsg.status = 'success';
         pendingMsg.meta.progress = 100;
         onChunk?.(pendingMsg);
@@ -75,7 +74,7 @@ export async function 处理流式消息(response, options = {}) {
           const 错误信息 = {
             type: 'first_chunk_invalid',
             message: `首包格式异常 [${type}]`,
-            data: { type, data, event }
+            data: { type, data, event: chunk }
           };
           onError?.(错误信息);
           return { content: '', success: false };

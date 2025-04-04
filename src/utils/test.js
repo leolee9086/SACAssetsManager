@@ -7,7 +7,7 @@
 //这个模块被用创建webcomponents
 import { createWebComponent } from "./module/vue/webcomponents.js";
 import { SFCMenuLoader } from "./module/vue/SFCdsl.js";
-import { clientApi } from "../asyncModules.js";
+import { clientApi } from "../../source/asyncModules.js";
 
 
 // 创建 loader 实例

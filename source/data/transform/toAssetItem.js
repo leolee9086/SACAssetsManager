@@ -1,4 +1,4 @@
-import { 修正路径分隔符号为正斜杠 } from '../../utils/fs/fixPath.js';
+import { 修正路径分隔符号为正斜杠 } from '../../../src/utils/fs/fixPath.js';
 import { 转换思源时间戳为毫秒 } from '../../../src/toolBox/useAge/forSiyuan/forTime/useConverters.js'
 
 export async function 转换笔记查询结果到附件项(blocks) {

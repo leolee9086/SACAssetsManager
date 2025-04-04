@@ -1,3 +1,9 @@
+/**
+ * 同步加载并执行JavaScript脚本
+ * @param {string} path - 脚本文件的路径
+ * @param {string} id - 要赋予脚本元素的ID
+ * @returns {boolean} 是否成功加载脚本(如果已存在相同ID的脚本则返回false)
+ */
 export const addScriptSync = (path, id) => {
     if (document.getElementById(id)) {
         return false;
@@ -13,6 +19,13 @@ export const addScriptSync = (path, id) => {
     scriptElement.id = id;
     document.head.appendChild(scriptElement);
 };
+
+/**
+ * 异步加载并执行JavaScript脚本
+ * @param {string} path - 脚本文件的路径
+ * @param {string} id - 要赋予脚本元素的ID
+ * @returns {Promise<boolean>} 返回Promise，解析为是否成功加载脚本(如果已存在相同ID的脚本则解析为false)
+ */
 export const addScript = (path, id) => {
     return new Promise((resolve) => {
         if (document.getElementById(id)) {
@@ -37,11 +50,3 @@ export const addScript = (path, id) => {
         };
     });
 };
-export const addEcharts=  async()=>{
-    await addScript(`/stage/protyle/js/echarts/echarts.min.js?v=5.3.2`, "protyleEchartsScript")
-    await addScript(`/stage/protyle/js/echarts/echarts-gl.min.js?v=2.0.9`, "protyleEchartsGLScript")
-}
-export const addEchartsSync=  ()=>{
-     addScriptSync(`/stage/protyle/js/echarts/echarts.min.js?v=5.3.2`, "protyleEchartsScript")
-     addScriptSync(`/stage/protyle/js/echarts/echarts-gl.min.js?v=2.0.9`, "protyleEchartsGLScript")
-}

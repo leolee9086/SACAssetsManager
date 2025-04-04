@@ -1,5 +1,5 @@
 import { kernelApi } from "../../asyncModules.js";
-import { isSiyuanAssetPath } from "../../utils/pathUtils/checker.js";
+import { isSiyuanAssetPath } from "../../../src/utils/pathUtils/checker.js";
 export {isSiyuanAssetPath}
 /**
  * 清理资产路径中的时间戳和随机字符串

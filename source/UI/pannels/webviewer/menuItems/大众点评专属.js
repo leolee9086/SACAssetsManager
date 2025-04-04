@@ -27,7 +27,7 @@ export const 提取店铺信息菜单项 ={
         ];
 
         const emitter = await showStreamingChatDialog(messages, window.siyuan?.config?.ai?.openAI || {
-          endpoint: 'https://api.openai.com/v1',
+          endpoint: 'https://api.openai.com/v1/chat/completions',
           apiKey: '',
           model: 'gpt-3.5-turbo'
         });
@@ -101,7 +101,7 @@ export const 查找五家推荐店铺菜单项 = {
             ];
 
             const emitter = await showStreamingChatDialog(messages, window.siyuan?.config?.ai?.openAI || {
-                endpoint: 'https://api.openai.com/v1',
+                endpoint: 'https://api.openai.com/v1/chat/completions',
                 apiKey: '',
                 model: 'gpt-3.5-turbo'
             });

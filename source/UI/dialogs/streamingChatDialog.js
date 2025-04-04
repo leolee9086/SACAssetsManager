@@ -1,5 +1,5 @@
 import { AISSEProvider } from '../../../src/toolBox/feature/useOpenAI/useOpenAISSE.js'
-import { IEventEmitterSimple as EventEmitter} from '../../utils/events/emitter.js'
+import { IEventEmitterSimple as EventEmitter} from '../../../src/utils/events/emitter.js'
 
 /**
  * 创建并显示流式聊天对话框

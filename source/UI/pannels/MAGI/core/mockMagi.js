@@ -14,7 +14,7 @@ export class MockWISE {
     this.openaiClient = createAISSEProvider({
       apiKey: config.openAIConfig?.apiKey || 'default_key',
       model: config.openAIConfig?.model || 'gpt-4',
-      endpoint: config.openAIConfig?.endpoint || 'https://api.your-ai-service.com/v1',
+      base_url: config.openAIConfig?.base_url || 'https://api.your-ai-service.com/v1',
       temperature: config.openAIConfig?.temperature ?? 0.7,
       max_tokens: config.openAIConfig?.max_tokens ?? 500
     })
@@ -185,7 +185,7 @@ export class MockWISE {
       const streamer = createPromptStreamer(
         {
           apiKey: this.config.openAIConfig?.apiKey,
-          apiBaseURL: this.config.openAIConfig?.endpoint,
+          apiBaseURL: this.config.openAIConfig?.base_url,
           apiModel: this.config.openAIConfig?.model,
           temperature: this.config.openAIConfig?.temperature,
           max_tokens: this.config.openAIConfig?.max_tokens
@@ -319,7 +319,7 @@ export class MockMelchior extends MockWISE {
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
         model: "deepseek-ai/DeepSeek-V3",
-        endpoint: 'https://api.siliconflow.cn/v1/',
+        base_url: 'https://api.siliconflow.cn/v1/',
         temperature: 0.3,
         max_tokens: 4096,
         context_window: 12800
@@ -347,7 +347,7 @@ export class MockBalthazar extends MockWISE {
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
         model: "deepseek-ai/DeepSeek-V3",
-        endpoint: 'https://api.siliconflow.cn/v1/',
+        base_url: 'https://api.siliconflow.cn/v1/',
         temperature: 0.7,
         max_tokens: 4096,
         context_window: 6400
@@ -401,7 +401,7 @@ export class MockCasper extends MockWISE {
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
         model: "deepseek-ai/DeepSeek-V3",
-        endpoint: 'https://api.siliconflow.cn/v1/',
+        base_url: 'https://api.siliconflow.cn/v1/',
         temperature: 0.7,
         max_tokens: 30,
         context_window: 0
@@ -453,7 +453,7 @@ export class MockTrinity extends MockWISE {
       openAIConfig: {
         apiKey: 'sk-aqvyijgfetcswtdfofouewfrwdezezcpmfacweaerlhpwkeg',
         model: "deepseek-ai/DeepSeek-V3",
-        endpoint: 'https://api.siliconflow.cn/v1/',
+        base_url: 'https://api.siliconflow.cn/v1/',
         temperature: 0.5,
         max_tokens: 4096,
         context_window: 16000

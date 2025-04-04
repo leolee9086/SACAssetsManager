@@ -9,6 +9,7 @@
  * @returns {Object|null} 解析后的JSON数据或null（如果数据为[DONE]或无效）
  */
 export function 解析SSE事件(chunk) {
+  console.log(chunk)
   if (typeof chunk !== 'string') return null;
   try {
     // 移除"data: "前缀

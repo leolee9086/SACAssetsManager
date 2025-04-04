@@ -46,9 +46,9 @@ import { watchStatu, 状态注册表 } from '../../../globalStatus/index.js';
 import { verticalScrollFirst } from '../../utils/scroll.js';
 import assetsImage from '../../components/assetInfoPanel/assetsImage.vue';
 import { 打开文件夹数组素材页签 } from './assetinfoPanel.js';
-import { 搜集eagle元数据 } from '../../../utils/thirdParty/eagle.js';
-import { 在资源管理器打开本地文件夹数组 } from '../../../utils/useRemote/shell.js';
-import { 获取数组中素材所在笔记 } from '../../../utils/sql/siyuanSentence.js';
+import { 搜集eagle元数据 } from '../../../../src/utils/thirdParty/eagle.js';
+import { 在资源管理器打开本地文件夹数组 } from '../../../../src/utils/useRemote/shell.js';
+import { 获取数组中素材所在笔记 } from '../../../../src/utils/sql/siyuanSentence.js';
 
 // 导入新工具函数
 import { 
@@ -58,7 +58,7 @@ import {
   处理资产路径数组,
   比较资产路径数组
 } from '../../../../src/toolBox/feature/forAssets/forAssetInfo.js';
-import { 异步清理重复元素, 异步映射 } from '../../../utils/useEcma/useArray/index.js';
+import { 异步清理重复元素, 异步映射 } from '../../../../src/utils/useEcma/useArray/index.js';
 
 const path = _path.default
 const imageSrc = ref(['http://127.0.0.1/thumbnail/?path=assets%2F42-20240129031127-2sioyhf.jpg']);

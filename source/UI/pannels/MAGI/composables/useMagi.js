@@ -1,7 +1,6 @@
 import { ref, reactive, watch } from '../../../../../static/vue.esm-browser.js'
 import { initMagi, MockTrinity } from '../core/mockMagi.js'
 import { 处理流式消息 ,创建消息} from '../utils/messageUtils.js'
-import { AISSEConversation } from '../../../../../src/toolBox/feature/useOpenAI/useOpenAISSE.js'
 
 export function useMagi() {
     const seels = reactive([])
@@ -126,14 +125,7 @@ export function useMagi() {
 } 
 
 export const  processSagesResponses = async (sages, userMessage, difficulty) => {
-    // 根据难度值调整请求参数
-    const requestConfig = difficulty > 70 ? { 
-        model: 'deep-think',
-        maxTokens: 2000
-    } : {
-        model: 'fast',
-        maxTokens: 800
-    }
+   
 
     const responsePromises = sages.map(async (seel) => {
         try {

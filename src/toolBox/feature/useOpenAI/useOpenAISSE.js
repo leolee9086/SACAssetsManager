@@ -8,7 +8,7 @@ import { 是有效流 } from '../../base/forNetWork/forSSE/validateStream.js'
 import { 分割缓冲区 } from '../../base/forNetWork/forSSE.js'
 import { 查找差异索引 } from '../../base/useEcma/forString/forDiff.js'
 import { 标准化openAI兼容配置 } from './forOpenAIConfig.js'
-
+import { getChatCompletionsEndpoint } from './defaultEndpoints.js'
 // ===== 核心功能函数 =====
 
 /**
@@ -31,8 +31,9 @@ function createProviderState(config = {}) {
  * @param {Array} messages - 消息数组
  * @returns {Promise<Array>} 包含响应和读取器的数组
  */
-async function 发送请求(state, messages) {
-  const response = await fetch(state.config.endpoint, {
+async function 发送请求(state, messages, endpoint) {
+  console.log(state, messages, endpoint)
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: state.config.headers,
     body: JSON.stringify({
@@ -44,13 +45,14 @@ async function 发送请求(state, messages) {
     }),
     signal: state.abortController.signal
   })
-
+  console.log(response)
   if (!response.ok) {
     const errorBody = await response.text()
     throw new Error(`HTTP ${response.status}: ${errorBody.slice(0, 200)}`)
   }
-
+  console.log(response.body)      
   const reader = response.body.getReader()
+  console.log(reader)
   return [response, reader]
 }
 
@@ -113,7 +115,7 @@ function 处理增量Delta响应(state, data, baseEvent) {
   // 处理 reasoning_content
   if (choice.delta.reasoning_content !== undefined && choice.delta.reasoning_content !== null) {
     formattedChoice.delta = 处理思考内容(state, choice.delta.reasoning_content)
-  } 
+  }
   // 处理普通 content
   else if (choice.delta.content !== undefined) {
     formattedChoice.delta = 处理普通内容(state, choice.delta.content)
@@ -156,7 +158,7 @@ function formatToOpenAIEvent(state, data, msgId) {
 
   const baseEvent = {
     id: msgId,
-    created: Math.floor(Date.now()/1000),
+    created: Math.floor(Date.now() / 1000),
     model: state.config.model,
     system_fingerprint: 'ai_service_1'
   }
@@ -205,23 +207,26 @@ function 批量处理数据块(state, chunks, msgId) {
 }
 
 /**
- * 生成错误事件
+ * 生成网络请求错误事件
  * @param {Object} state - 提供者状态
- * @param {Error} error - 错误对象
+ * @param {Error} error - 网络请求错误对象
  * @param {string} msgId - 消息ID
- * @returns {Object} 错误事件对象
+ * @returns {Object} 网络错误事件对象
+ * @description 此函数仅用于处理网络请求类错误，包括HTTP错误、连接错误、响应流错误等
  */
-function generateErrorEvent(state, error, msgId) {
+function generateErrorEvent(state, error, msgId,stack) {
+  console.error(state, error, msgId,stack)
   return {
     id: msgId,
     object: 'chat.completion.chunk',
-    created: Math.floor(Date.now()/1000),
+    created: Math.floor(Date.now() / 1000),
     model: state.config.model,
     system_fingerprint: 'ai_service_1',
     error: {
       code: 500,
       message: error.message,
-      type: 'server_error'
+      type: 'network_error',
+      stack: stack
     },
     choices: []
   }
@@ -239,13 +244,14 @@ async function* 处理响应流(state, reader, msgId) {
   const TEXT_DECODER = new TextDecoder()
   let buffer = ''
   let pendingYield = Promise.resolve()
+    console.log(state, reader, msgId)
 
   do {
     const { done, value } = await reader.read()
     if (done) break
 
     buffer += TEXT_DECODER.decode(value, { stream: true })
-    
+
     // 高效分割处理块
     let chunks
     [chunks, buffer] = 分割缓冲区(buffer, CHUNK_DELIMITER)
@@ -258,7 +264,7 @@ async function* 处理响应流(state, reader, msgId) {
       await pendingYield
       for (const event of events) {
         yield event
-        pendingYield = new Promise(resolve => 
+        pendingYield = new Promise(resolve =>
           setTimeout(resolve, state.config.chunkInterval || 0)
         )
       }
@@ -274,28 +280,25 @@ async function* 处理响应流(state, reader, msgId) {
 
 /**
  * 创建聊天完成流
- * @param {Object} state - 提供者状态
+ * @param {Object} provider - 提供者状态
  * @param {Array} messages - 消息数组
  * @yields {Object} 聊天完成事件
  */
-async function* createChatCompletion(state, messages) {
-  state._hasSeenReasoningContent = false
+async function* createChatCompletion(provider, messages) {
+  provider._hasSeenReasoningContent = false
   const msgId = `chatcmpl-${Date.now()}`
   let response
   let reader = null
-  
-  try {
-    [response, reader] = await 发送请求(state, messages)
-    if (!是有效流(response.body)) {
-      throw new Error('无效的响应流')
-    }
-    yield* 处理响应流(state, reader, msgId)
-  } catch (e) {
-    yield generateErrorEvent(state, e, msgId)
-    throw e
-  } finally {
-    reader?.releaseLock()
+  let endpoint = getChatCompletionsEndpoint(provider.config.apiBaseURL)
+  let result = await 发送请求(provider, messages, endpoint)
+  response = result[0]
+  reader = result[1]
+ 
+  if (!是有效流(response.body)) {
+    throw new Error('无效的响应流')
   }
+  yield* 处理响应流(provider, reader, msgId)
+
 }
 
 /**
@@ -317,7 +320,7 @@ function createConversationState(providerConfig = {}) {
   return {
     provider: createProviderState({
       apiKey: providerConfig.apiKey,
-      endpoint: providerConfig.endpoint || providerConfig.apiBaseURL,
+      apiBaseURL: providerConfig.apiBaseURL,
       model: providerConfig.model || providerConfig.apiModel,
       temperature: providerConfig.temperature,
       max_tokens: providerConfig.max_tokens || providerConfig.apiMaxTokens,
@@ -349,11 +352,12 @@ function addAsSystem(state, prompt) {
  */
 async function* 处理聊天响应流(state, fullResponse) {
   for await (const chunk of createChatCompletion(state.provider, state.messages)) {
+    // 如果是网络错误生成的错误事件，直接抛出异常
     if (chunk.error) throw new Error(chunk.error.message)
-    
+
     const content = chunk.choices[0]?.delta?.content || ''
     fullResponse += content
-    
+
     // 实时返回增量内容
     yield {
       partial: content,
@@ -373,7 +377,7 @@ async function* 处理聊天响应流(state, fullResponse) {
  */
 async function* streamAsUser(state, message) {
   state.messages.push({ role: 'user', content: message })
-  
+
   let fullResponse = ''
   yield* 处理聊天响应流(state, fullResponse)
 }
@@ -401,21 +405,22 @@ async function postAsUser(state, message) {
 async function postBatch(state, messages) {
   state.messages = state.messages.concat(messages)
   let fullResponse = ''
-  
+
   try {
     for await (const chunk of createChatCompletion(state.provider, state.messages)) {
+      // 检查是否是网络错误事件
       if (chunk.error) {
-        throw new Error(chunk.error.message)
+        throw new Error(`网络请求错误: ${chunk.error.message}`)
       }
       const content = chunk.choices[0]?.delta?.content || ''
       fullResponse += content
     }
-    
+
     state.messages.push({
       role: 'assistant',
       content: fullResponse
     })
-    
+
     return {
       choices: [{
         message: {
@@ -440,16 +445,17 @@ async function getCompletion(state, { messages }) {
   try {
     // 重置消息历史，只使用当前请求的消息
     state.messages = [...messages]
-    
+
     let fullResponse = ''
     for await (const chunk of createChatCompletion(state.provider, state.messages)) {
+      // 检查是否是网络错误事件
       if (chunk.error) {
-        throw new Error(chunk.error.message)
+        throw new Error(`网络请求错误: ${chunk.error.message}`)
       }
       const content = chunk.choices[0]?.delta?.content || ''
       fullResponse += content
     }
-    
+
     // 不保存到消息历史，因为这是单次完成请求
     return {
       content: fullResponse,
@@ -481,13 +487,14 @@ function 刷新缓冲区(buffer) {
  */
 async function* 处理SSE完成流(state) {
   let buffer = []
-  
+
   for await (const chunk of createChatCompletion(state.provider, state.messages)) {
+    // 如果是网络错误生成的错误事件，直接抛出异常
     if (chunk.error) throw new Error(chunk.error.message)
-    
+
     const content = chunk.choices[0]?.delta?.content || ''
     buffer.push(content)
-    
+
     if (content.includes('\n') || buffer.length > 3) {
       const flushed = 刷新缓冲区(buffer)
       buffer = []
@@ -542,7 +549,7 @@ function createStreamerState(providerConfig = {}, systemPrompt = '') {
   return {
     provider: createProviderState({
       apiKey: providerConfig.apiKey,
-      endpoint: providerConfig.apiBaseURL,
+      apiBaseURL: providerConfig.apiBaseURL,
       model: providerConfig.apiModel,
       temperature: providerConfig.temperature,
       max_tokens: providerConfig.apiMaxTokens,
@@ -585,11 +592,11 @@ export class AISSEProvider {
   constructor(config = {}) {
     const state = createProviderState(config)
     Object.assign(this, state)
-    
+
     // 绑定方法
     this.createChatCompletion = (messages) => createChatCompletion(this, messages)
     this.abort = () => abort(this)
-    
+
     // 内部方法
     this._发送请求 = (messages) => 发送请求(this, messages)
     this._处理响应流 = (reader, msgId) => 处理响应流(this, reader, msgId)
@@ -611,7 +618,7 @@ export class AISSEConversation {
   constructor(providerConfig = {}) {
     const state = createConversationState(providerConfig)
     Object.assign(this, state)
-    
+
     // 绑定方法
     this.addAsSystem = (prompt) => {
       addAsSystem(this, prompt)
@@ -623,7 +630,7 @@ export class AISSEConversation {
     this.getCompletion = (options) => getCompletion(this, options)
     this.getSSECompletion = (options) => getSSECompletion(this, options)
     this.setConfig = (newConfig) => setConversationConfig(this, newConfig)
-    
+
     // 内部方法
     this._处理聊天响应流 = (fullResponse) => 处理聊天响应流(this, fullResponse)
     this._处理SSE完成流 = () => 处理SSE完成流(this)
@@ -638,7 +645,7 @@ export class SSEPromptStreamer {
   constructor(providerConfig = {}, systemPrompt = '') {
     const state = createStreamerState(providerConfig, systemPrompt)
     Object.assign(this, state)
-    
+
     // 绑定方法
     this.createStream = (messages) => createStream(this, messages)
     this.setSystemPrompt = (newPrompt) => setSystemPrompt(this, newPrompt)
@@ -648,7 +655,7 @@ export class SSEPromptStreamer {
 // 工厂函数
 export function createAISSEProvider(config) {
   const state = createProviderState(config)
-  
+
   return {
     ...state,
     createChatCompletion: (messages) => createChatCompletion(state, messages),
@@ -659,7 +666,7 @@ export function createAISSEProvider(config) {
 // 更新工厂函数名称
 export function createPromptStreamer(config, systemPrompt = '') {
   const state = createStreamerState(config, systemPrompt)
-  
+
   return {
     ...state,
     createStream: (messages) => createStream(state, messages),

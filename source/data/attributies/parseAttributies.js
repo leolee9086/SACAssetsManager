@@ -1,5 +1,5 @@
-import { 柯里化 } from '../../utils/functions/currying.js'
-import { 块类型语言对照表 } from '../../utils/siyuanData/block.js'
+import { 柯里化 } from '../../../src/utils/functions/currying.js'
+import { 块类型语言对照表 } from '../../../src/utils/siyuanData/block.js'
 
 const numberParser = (value) => {
     const num = Number(value)

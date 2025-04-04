@@ -1,5 +1,5 @@
 
-import {domToImage} from '../base/useDeps/useDomToImage/fromDom-to-image.js'
+import {domToImage} from '../../../src/toolBox/base/useDeps/useDomToImage.js/fromDom-to-image.js'
 /**
  * 创建临时DOM容器
  * @param {string} content - HTML内容 

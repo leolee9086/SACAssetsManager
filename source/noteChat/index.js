@@ -141,7 +141,7 @@ async function handleContextBasedChat(e) {
     });
     
     emitter.on('error', (error) => {
-        console.error('对话出错:', error);
+        console.error('对话出错:', error,error.stack);
     });
     
     emitter.emit('start');
@@ -201,7 +201,7 @@ plugin.eventBus.on('click-blockicon', (e) => {
             });
             
             emitter.on('error', (error) => {
-                console.error('对话出错:', error);
+                console.error('对话出错:', error,error.stack);
             });
             
             emitter.emit('start');

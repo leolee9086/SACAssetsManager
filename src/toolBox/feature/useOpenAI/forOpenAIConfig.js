@@ -73,7 +73,7 @@ export function 标准化openAI兼容配置(配置 = {}) {
 function 标准化端点(端点) {
     // 如果没有指定endpoint，则使用OpenAI默认端点
     if (!端点) {
-        return 'https://api.openai.com/v1/chat/completions';
+        return 'https://api.openai.com/v1';
     }
     
     // 如果是相对URL，添加OpenAI基础URL
