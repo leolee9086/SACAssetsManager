@@ -46,15 +46,33 @@ export async function 处理流式消息(response, options = {}) {
     let hasContent = false;
     let finalContent = '';
     let receivedChunks = 0;
-    let lastFullContent = '';
     const pendingMsg = { ...初始消息 };
 
     onStart?.(pendingMsg);
 
     for await (const chunk of response) {
-      const { 类型: type, 数据: data } = 解析SSE事件(chunk);
+      const data = 解析SSE事件(chunk);
+      
+      // 如果解析失败或为null，则跳过此块
+      if (!data) continue;
+      
+      // 检查是否有错误
+      if (data.error) {
+        const 错误信息 = {
+          type: 'stream_error',
+          message: data.error.message || '流处理错误',
+          data: data.error
+        };
+        onError?.(错误信息);
+        return { content: pendingMsg.content, success: false };
+      }
+      
+      // 获取内容增量
+      const contentDelta = data.choices?.[0]?.delta?.content || '';
+      const finishReason = data.choices?.[0]?.finish_reason;
+      
       // 检查是否是结束信号
-      if (type === 'done' ) {
+      if (finishReason === 'stop') {
         pendingMsg.status = 'success';
         pendingMsg.meta.progress = 100;
         onChunk?.(pendingMsg);
@@ -62,59 +80,24 @@ export async function 处理流式消息(response, options = {}) {
         return { content: pendingMsg.content, success: true };
       }
 
-      // 首包验证
+      // 更新统计
       receivedChunks++;
-      if (receivedChunks === 1) {
-        const isValidFirstChunk = (
-          (type === 'init' && (data.进度 !== undefined || data.内容)) ||
-          (type === 'chunk' && (data.内容 || data.进度 !== undefined))
-        );
-
-        if (!isValidFirstChunk) {
-          const 错误信息 = {
-            type: 'first_chunk_invalid',
-            message: `首包格式异常 [${type}]`,
-            data: { type, data, event: chunk }
-          };
-          onError?.(错误信息);
-          return { content: '', success: false };
+      
+      // 处理内容增量
+      if (contentDelta) {
+        if (!hasContent) {
+          hasContent = true;
+          pendingMsg.status = 'loading';
         }
-
-        if (data.进度 !== undefined) {
-          pendingMsg.meta.progress = data.进度;
-          onProgress?.(data.进度);
-        }
-      }
-
-      // 处理内容
-      if (data.内容?.trim() && !hasContent) {
-        hasContent = true;
-        pendingMsg.status = 'loading';
-        pendingMsg.content = data.内容;
-        onChunk?.(pendingMsg);
-      }
-
-      // 更新内容
-      if (hasContent) {
-        if (data.模式 === 'delta') {
-          // 增量更新
-          pendingMsg.content += data.内容;
-        } else if (data.模式 === 'full') {
-          // 全量更新，查找差异部分
-          const diffStartIndex = 查找差异索引(lastFullContent, data.内容);
-          const newContent = data.内容.slice(diffStartIndex);
-          pendingMsg.content += newContent;
-          lastFullContent = data.内容;
-        } else {
-          // 未知模式，直接替换
-          pendingMsg.content = data.内容 || pendingMsg.content;
-        }
-
-        pendingMsg.meta.progress = data.进度 || pendingMsg.meta.progress;
-        pendingMsg.status = 'loading';
-        pendingMsg.timestamp = Date.now();
+        
+        // 累加内容
+        pendingMsg.content += contentDelta;
         finalContent = pendingMsg.content;
-
+        
+        // 更新时间戳
+        pendingMsg.timestamp = Date.now();
+        
+        // 回调进度
         onChunk?.(pendingMsg);
       }
     }

@@ -112,6 +112,7 @@ const sendToAll = async () => {
         const trinity = seels.find(seel => seel.config.name === 'TRINITY-00')
         // 拆分处理三贤者响应为独立函数
         const completedResponses = await processSagesResponses(sages, userMessage);
+        console.log(completedResponses)
         // 过滤有效响应并转换 think 标签
         const validResponses = 处理三贤人响应并转换Think标签(completedResponses)
         // 存储崔尼蒂的总结结果

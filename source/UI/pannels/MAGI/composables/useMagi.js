@@ -204,11 +204,14 @@ export const handleTrinitySummary = async (validResponses, trinity, userMessage)
     if (!validResponses.length || !trinity) return null;
     
     console.log('开始Trinity总结', {
-        responses: validResponses.map(r => ({
+        responses: validResponses.map(r => {
+            console.log(r)
+            
+            return {
             seel: r.seel,
             contentLength: r.content.length,
             content:r.content
-        }))
+        }})
     });
 
     try {

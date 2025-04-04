@@ -105,11 +105,14 @@ export function 处理三贤人响应并转换Think标签(响应列表) {
     .filter(响应 => 响应 && 响应.content)
     .map(响应 => {
       const { 普通内容 } = 解析思考内容(响应.content);
-      return 普通内容 || 响应.content;
+      return {
+        content: 普通内容 || 响应.content,
+        seel: 响应.seel,
+        displayName: 响应.displayName
+      }
     });
 }
 
 // 为保持兼容性提供英文命名的别名
 export const parseThinkContent = 解析思考内容;
 export const formatRichTextMessage = 格式化富文本消息;
-export const processSagesResponsesAndConvertThink = 处理三贤人响应并转换Think标签; 
