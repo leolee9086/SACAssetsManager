@@ -1,3 +1,4 @@
+
 export async function uploadData(device, textures, image, lutData) {
     device.queue.writeTexture(
         { texture: textures.inputTexture },
@@ -13,7 +14,6 @@ export async function uploadData(device, textures, image, lutData) {
         { width: 32, height: 32, depthOrArrayLayers: 32 }
     );
 }
-
 export async function readResult(device, texture, width, height) {
     const resultBuffer = device.createBuffer({
         size: width * height * 4,

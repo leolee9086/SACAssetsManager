@@ -1,7 +1,7 @@
 import { initializeWebGPU } from './webgpuSetup.js';
 import { createTextures, destroyResources } from './resources.js';
 import { createComputePipeline, createBindGroup } from './pipeline.js';
-import { uploadData, readResult } from './dataHandlers.js';
+export {uploadData,readResult} from '../../../src/toolBox/base/useBrowser/useCanvas/useWebgpu/forDataTransfer.js'
 
 /**
  * 使用 LUT 处理图像

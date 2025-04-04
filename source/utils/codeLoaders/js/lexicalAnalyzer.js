@@ -1,12 +1,5 @@
-import * as parser from '../../../../static/@babel_parser.js'
+import {parseCodeToAST} from '../../../../src/toolBox/base/useDeps/useBabel/useBabelExports.js'
 
-// 解析代码为AST
-function parseCodeToAST(code) {
-    return parser.parse(code, {
-        sourceType: 'module',
-        plugins: ['typescript']  // 如果需要支持TS
-    });
-}
 
 // 处理变量声明
 function handleVariableDeclaration(declarations, node) {

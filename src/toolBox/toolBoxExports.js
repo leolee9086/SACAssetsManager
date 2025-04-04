@@ -5,6 +5,13 @@
  * 推荐直接导入所需的特定工具函数，而不是整个模块。
  */
 
+// 导入子目录的导出文件
+export * from './base/baseExports.js';
+export * from './feature/featureExports.js';
+export * from './useAge/useAgeExports.js';
+
+// 保留原有直接导出的重要方法以保持向后兼容性
+
 // MIME相关工具
 export * from './forMime/getMimeTypeInfo.js';
 export * from './forMime/mimeTypeTools.js';
@@ -14,22 +21,22 @@ export * from './forMime/mimeUsageTools.js';
 export { createEventBus } from './base/forEvent/eventBusTools.js';
 
 // 平台检测和文本处理工具
-export * from './usePolyfills/getPlatformInfo.js';
-export * from './usePolyfills/getTextProcessor.js';
-export * from './usePolyfills/platformDetection.js';
-export * from './usePolyfills/browserDetection.js';
-export * from './usePolyfills/osDetection.js';
-export * from './usePolyfills/uaParserTools.js';
-export * from './usePolyfills/uaAnalysis.js';
+export * from './base/usePolyfills/getPlatformInfo.js';
+export * from './base/usePolyfills/getTextProcessor.js';
+export * from './base/usePolyfills/platformDetection.js';
+export * from './base/usePolyfills/browserDetection.js';
+export * from './base/usePolyfills/osDetection.js';
+export * from './base/usePolyfills/uaParserTools.js';
+export * from './base/usePolyfills/uaAnalysis.js';
 
 // Vue相关工具
-export * from './useVue/vueComponentLoader.js';
-export * from './useVue/dialogTools.js';
+export * from './feature/useVue/vueComponentLoader.js';
+export * from './feature/useVue/dialogTools.js';
 
 // UI相关工具
-export * from './forUI/menus/menuRegister.js';
-export * from './forUI/dialog/imagePickerDialog.js';
-export * from './forUI/dialog/inputDialog.js';
+export * from './base/forUI/menus/menuRegister.js';
+export * from './base/forUI/dialog/imagePickerDialog.js';
+export * from './base/forUI/dialog/inputDialog.js';
 
 // 任务队列工具
 export * from './base/useEcma/forFunctions/forTaskQueue.js';
@@ -38,7 +45,7 @@ export * from './base/useEcma/forFunctions/forTaskQueue.js';
 export * from './base/useBrowser/forIdle/idleQueueTools.js';
 
 // 文件系统工具
-export * from './forFileSystem/diskTools.js';
+export * from './feature/forFileSystem/diskTools.js';
 
 // 文件处理工具
 export * from './base/useEcma/forFile/globTools.js';

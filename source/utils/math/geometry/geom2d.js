@@ -1,57 +1,20 @@
-// 计算两点之间的距离和角度
-export const 计算点距离和角度 = (startX, startY, endX, endY) => {
-    const dx = endX - startX
-    const dy = endY - startY
-    return {
-        distance: Math.sqrt(dx * dx + dy * dy),
-        angle: Math.atan2(dy, dx)
-    }
-}
+import { 
+    计算点距离和角度,
+    按距离采样点序列,
+    xywhRect2ltwhRect as xywh2ltwh, 
+    ltwhRect2xywhRect as ltwh2xywh
+} from "../../../../src/toolBox/base/forMath/forGeometry/forGeometryExports.js";
+export {计算点距离和角度,按距离采样点序列,xywh2ltwh,ltwh2xywh}
 
-export const 按距离采样点序列 = (原始点序列, 最小采样距离, 最大采样距离) => {
-    return 原始点序列.reduce((采样后点序列, 当前点) => {
-        if (采样后点序列.length === 0) {
-            采样后点序列.push(当前点);
-            return 采样后点序列;
-        }
-        const 上一采样点 = 采样后点序列[采样后点序列.length - 1];
-        const 空间距离 = Math.hypot(当前点.x - 上一采样点.x, 当前点.y - 上一采样点.y);
 
-        if (空间距离 >= 最小采样距离 && 空间距离 <= 最大采样距离) {
-            采样后点序列.push(当前点);
-        }
-        return 采样后点序列;
-    }, []);
-};
 
-export const xywh2ltwh = (xywh) => {
-    if (!xywh || typeof xywh !== 'object') {
-        console.warn('无效的XYWH格式数据')
-        return null
-    }
 
-    return {
-        left: xywh.x,
-        top: xywh.y,
-        width: xywh.width,
-        height: xywh.height
-    }
-}
 
-export const ltwh2xywh = (ltwh) => {
-    if (!ltwh || typeof ltwh !== 'object') {
-        console.warn('无效的LTWH格式数据')
-        return null
-    }
-
-    return {
-        x: ltwh.left,
-        y: ltwh.top,
-        width: ltwh.width,
-        height: ltwh.height
-    }
-}
-
+/**
+ * 将LTRB边界格式转换为XYWH格式
+ * @param {{left: number, top: number, right: number, bottom: number}} bounds - LTRB边界对象
+ * @returns {{x: number, y: number, width: number, height: number}|null} XYWH格式对象或null
+ */
 export const ltrb2xywh = (bounds) => {
     if (!bounds || typeof bounds !== 'object') {
         console.warn('无效的边界格式数据')
@@ -66,6 +29,11 @@ export const ltrb2xywh = (bounds) => {
     }
 }
 
+/**
+ * 将XYWH格式转换为LTRB边界格式
+ * @param {{x: number, y: number, width: number, height: number}} xywh - XYWH格式对象
+ * @returns {{left: number, top: number, right: number, bottom: number}|null} LTRB边界对象或null
+ */
 export const xywh2ltrb = (xywh) => {
     if (!xywh || typeof xywh !== 'object') {
         console.warn('无效的XYWH格式数据')
@@ -82,6 +50,11 @@ export const xywh2ltrb = (xywh) => {
 
 
 
+/**
+ * 计算宽高比
+ * @param {{width: number, height: number}} wh - 包含width和height的对象
+ * @returns {number} 宽高比(width/height)
+ */
 export const genRatioWh=(wh)=>{
     return wh.width/wh.height
 }
