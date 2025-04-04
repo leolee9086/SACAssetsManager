@@ -10,7 +10,7 @@ import { 创建临时数据对象 } from './workspaceAdapters/utils/cache.js';
 import { sac } from '../../../asyncModules.js';
 import fs from '../../../polyfills/fs.js';
 import { 获取数据项所在hnsw层级, 获取随机层级 } from "./hnswlayers/utils.js";
-import { withPerformanceLogging } from '../../../utils/functionAndClass/performanceRun.js';
+import { withPerformanceLogging } from '../../../../src/utils/functionAndClass/performanceRun.js';
 import { 删除数据项hnsw索引 } from './hnswlayers/build.js';
 const { logger } = sac
 let 命名常量 = {

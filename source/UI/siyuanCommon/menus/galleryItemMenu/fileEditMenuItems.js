@@ -1,6 +1,6 @@
-import { isImagePath } from '../../../../utils/fs/pathType.js'
-import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
-import { 压缩单个图片 } from '../../../../utils/image/compress.js'
+import { isImagePath } from '../../../../../src/utils/fs/pathType.js'
+import { confirmAsPromise } from '../../../../../src/utils/siyuanUI/confirm.js'
+import { 压缩单个图片 } from '../../../../../src/utils/image/compress.js'
 import { 打开文件夹,批量打开文件夹 } from './electron-frontEnd.js/folder.js'
 const 生成压缩目标文件名 = (imagePath, 压缩质量, 文件格式) => {
     return imagePath.replace(/\.[^.]+$/, '') + `_sac_${压缩质量}.${文件格式}`

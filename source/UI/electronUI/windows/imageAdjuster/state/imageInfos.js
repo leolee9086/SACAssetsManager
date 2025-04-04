@@ -1,6 +1,6 @@
 import { computed, ref } from "../../../../../../static/vue.esm-browser.js"
-import { fromFilePath } from "../../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js"
-import { genRatioWh } from "../../../../../utils/math/geometry/geom2d.js"
+import { fromFilePath } from "../../../../../../src/utils/fromDeps/sharpInterface/useSharp/toSharp.js"
+import { genRatioWh } from "../../../../../../src/utils/math/geometry/geom2d.js"
 export const originalImageInfo = ref({
 
 })

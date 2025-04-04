@@ -39,7 +39,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { testTextureGenerator } from '../../../utils/image/textures/generators.js'
+import { testTextureGenerator } from '../../../../src/utils/image/textures/generators.js'
 
 const visible = ref(false)
 const textureResults = ref({})

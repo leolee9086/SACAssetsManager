@@ -1,7 +1,7 @@
 import { 打开任务控制对话框 } from '../../dialog/tasks.js';
-import { isImage } from '../../../../utils/image/isImage.js';
-import { isPureColor } from '../../../../utils/image/pureColor.js';
-import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js';
+import { isImage } from '../../../../../src/utils/image/isImage.js';
+import { isPureColor } from '../../../../../src/utils/image/pureColor.js';
+import { confirmAsPromise } from '../../../../../src/utils/siyuanUI/confirm.js';
 const path = require('path')
 const fs = require('fs').promises
 

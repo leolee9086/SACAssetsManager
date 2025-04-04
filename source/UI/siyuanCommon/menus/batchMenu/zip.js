@@ -1,5 +1,5 @@
 import { JSZip } from '../../../../../src/toolBox/useAge/forFileManage/forZipLike/useJsZip.js'
-import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js';
+import { confirmAsPromise } from '../../../../../src/utils/siyuanUI/confirm.js';
 import { kernelApi, plugin } from '../../../../asyncModules.js';
 const fs = require('fs').promises;
 const path = require('path');

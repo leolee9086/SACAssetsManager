@@ -78,7 +78,7 @@ import { createCollection } from '../../../../../URT/builder.js';
 import URTNode from './URTNode.vue';
 import FileDropZone from '../../../../components/common/inputters/fileDropZone.vue';
 import CCIcon from '../../../../components/common/baseComponents/icons.vue';
-import { 选择文件夹, 选择文件 } from '../../../../../utils/useRemote/dialog.js';
+import { 选择文件夹, 选择文件 } from '../../../../../../src/utils/useRemote/dialog.js';
 import LayoutRoot from '../../../../components/common/layout/layoutRoot.vue';
 const fs = window.require('fs').promises;
 const path = window.require('path');

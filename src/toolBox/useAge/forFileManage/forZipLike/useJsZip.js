@@ -1,5 +1,7 @@
-import { requirePluginBased } from "../../../../../source/utils/module/createRequire.js";
-const JSZip = requirePluginBased('jszip')
+/*import { requirePluginBased } from "../../../../../source/utils/module/createRequire.js";
+const JSZip = requirePluginBased('jszip')*/
+import * as JSZip from '../../../../../static/jszip.js'
+console.log(JSZip)
 const fs = require('fs').promises
 export { JSZip }
 export async function addFileToZip(zipFilePath, fileToAddPath, fileNameInZip) {

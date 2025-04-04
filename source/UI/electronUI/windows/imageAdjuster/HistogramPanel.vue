@@ -23,8 +23,8 @@
 <script setup>
 import { computed, ref,watch,onUnmounted  } from 'vue';
 import ECharts from '../../../components/common/echarts.vue';
-import { 创建经典直方图配置 } from '../../../../utils/fromDeps/echarts/presets.js';
-import { getHistogramFromSharp } from '../../../../utils/image/histogram.js';
+import { 创建经典直方图配置 } from '../../../../../src/utils/fromDeps/echarts/presets.js';
+import { getHistogramFromSharp } from '../../../../../src/utils/image/histogram.js';
 import { 防抖 } from '../../../../../src/toolBox/base/useEcma/forFunctions/forDebounce.js';
 const props = defineProps({
   channels: Array,

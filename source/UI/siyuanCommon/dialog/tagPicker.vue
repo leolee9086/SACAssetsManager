@@ -58,7 +58,7 @@ import { addFilesToMultiTags, getTagAssets, removeFilesFromMultiTags, saveTags }
 import _pinyin from '../../../../static/pinyin.js';
 import { 打开标签资源视图 } from '../tabs/assetsTab.js';
 import { getStatu, 状态注册表 } from '../../../globalStatus/index.js';
-import { confirmAsPromise } from '../../../utils/siyuanUI/confirm.js';
+import { confirmAsPromise } from '../../../../src/utils/siyuanUI/confirm.js';
 const searchQuery = ref(''); // 添加一个响应式变量来存储搜索查询
 const selectedTags = ref([]); // 用于存储选中的标签
 const isTagExists = computed(() => {

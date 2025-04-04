@@ -140,7 +140,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { createFunctionRouter } from '../../../utils/feature/forFunctionEndpoints.js';
+import { createFunctionRouter } from '../../../../src/utils/feature/forFunctionEndpoints.js';
 
 // 响应式状态
 const router = ref(null);

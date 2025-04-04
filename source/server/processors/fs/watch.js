@@ -1,4 +1,4 @@
-import { 修正路径分隔符号为反斜杠, 修正路径分隔符号为正斜杠 } from '../../../utils/fs/fixPath.js'
+import { 修正路径分隔符号为反斜杠, 修正路径分隔符号为正斜杠 } from '../../../../src/utils/fs/fixPath.js'
 import { buildCache } from '../cache/cache.js'
 const watcher = require('@parcel/watcher')
 const wachedPaths = buildCache('wachedPaths')

@@ -1,8 +1,8 @@
-import { 欧几里得聚类, CIEDE2000聚类 } from '../../../utils/color/Kmeans.js'
+import { 欧几里得聚类, CIEDE2000聚类 } from '../../../../src/utils/color/Kmeans.js'
 import { 找到文件颜色, 添加到颜色索引 } from '../color/colorIndex.js'
-import { awaitForEach } from '../../../utils/useEcma/useArray/walk.js'
+import { awaitForEach } from '../../../../src/utils/useEcma/useArray/walk.js'
 import { 缩放图像到32 } from './utils/sharp.js'
-import { isValidImageBuffer } from '../../../utils/image/isImage.js'
+import { isValidImageBuffer } from '../../../../src/utils/image/isImage.js'
 /**
  * 获取图像的主色调
  * @param {Object} buffer - 图像的缓冲区对象

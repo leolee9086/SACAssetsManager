@@ -1,4 +1,4 @@
-import { plugin } from '../../pluginSymbolRegistry.js'
+import { plugin } from '../../../source/asyncModules.js'
 const path = require('path')
 const workspaceDir = window.siyuan?.config?.system?.workspaceDir||window.workspaceDir
 const pluginName = plugin?.name||window.pluginName

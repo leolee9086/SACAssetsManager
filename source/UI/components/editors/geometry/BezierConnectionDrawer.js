@@ -1,5 +1,5 @@
 import Konva from '../../../../../static/konva.js';
-import { 从点集创建贝塞尔曲线绘制函数, 绘制贝塞尔曲线 } from '../../../../utils/canvas/konvaUtils/shapes.js';
+import { 从点集创建贝塞尔曲线绘制函数, 绘制贝塞尔曲线 } from '../../../../../src/utils/canvas/konvaUtils/shapes.js';
 import { STYLES, GEOMETRY } from '../types.js'; // 从 types.js 导入常量
 import { 自中心以方向向量计算矩形上交点 } from './geometryCalculate/intersections.js';
 import { 计算正交分段路径 } from './geometryCalculate/path.js';

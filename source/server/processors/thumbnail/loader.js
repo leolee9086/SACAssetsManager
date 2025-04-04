@@ -1,5 +1,5 @@
 import { getColor } from './color.js'
-import { diffColor } from '../../../utils/color/Kmeans.js'
+import { diffColor } from '../../../../src/utils/color/Kmeans.js'
 import { globalTaskQueue,  添加后进先出后台任务 } from '../queue/taskQueue.js'
 import { 内置缩略图生成器序列 } from './loaders/internal.js'
 import { getCommonLoader } from './loaders/query.js'

@@ -1,5 +1,5 @@
 export const 思源软件图标URL = '/stage/icon-large.png'
-import { kernelApi } from "../../asyncModules.js";
+import { kernelApi } from "../../../source/asyncModules.js";
 function createEmptySVGDataURL(cssString) {
   
     const svg = `

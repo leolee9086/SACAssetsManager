@@ -1,4 +1,4 @@
-import { extractFileExtensions } from "../../../../utils/fs/extension.js";
+import { extractFileExtensions } from "../../../../../src/utils/fs/extension.js";
 const 扩展名map = new Map();
 
 export const 更新扩展名中间件 = (获取配置, 获取扩展名缓存) => {

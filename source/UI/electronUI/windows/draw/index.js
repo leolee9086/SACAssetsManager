@@ -1,5 +1,5 @@
-import { brushConfigs, createToolButtonConfigs } from "../../../../utils/canvas/draw/brushes/configs.js"
-import { DrawingTools } from "../../../../utils/canvas/draw/index.js"
+import { brushConfigs, createToolButtonConfigs } from "../../../../../src/utils/canvas/draw/brushes/configs.js"
+import { DrawingTools } from "../../../../../src/utils/canvas/draw/index.js"
 const createCanvas=(width,height)=>{
     const canvas = document.createElement('canvas')
     canvas.width = width

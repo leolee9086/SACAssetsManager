@@ -9,7 +9,7 @@
 // 从新路径导入函数
 import { 创建并打开思源原生菜单, 向菜单批量添加项目 } from "../../../src/toolBox/useAge/forSiyuan/useSiyuanMenu.js";
 import { 检查思源环境 } from "../../../src/toolBox/base/useEnv/siyuanEnv.js";
-import { clientApi } from "../../asyncModules.js";
+import { clientApi } from "../../../source/asyncModules.js";
 
 /**
  * 创建点击事件菜单触发函数

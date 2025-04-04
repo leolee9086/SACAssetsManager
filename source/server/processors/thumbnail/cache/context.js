@@ -3,7 +3,7 @@ import { 获取哈希并写入数据库 } from '../../fs/stat.js'
 import { imageExtensions, 是否不需要单独缩略图 } from '../utils/lists.js'
 import { getCommonLoader, getLoader } from '../loaders/query.js'
 import { getCachePath } from '../../fs/cached/fs.js'
-import { getFileExtension } from '../../../../utils/fs/extension.js'
+import { getFileExtension } from '../../../../../src/utils/fs/extension.js'
 import { 内置缩略图生成器序列 } from '../loaders/internal.js'
 import { 日志 } from "../../../../../src/toolBox/base/useEcma/forLogs/useLogger.js"
 

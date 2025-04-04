@@ -1,7 +1,7 @@
 import { 打开任务控制对话框 } from '../../dialog/tasks.js';
-import { 递归扫描文件夹并执行任务 } from '../../../../utils/fs/batch.js';
+import { 递归扫描文件夹并执行任务 } from '../../../../../src/utils/fs/batch.js';
 import { 全量计算文件MD5,宽松计算文件MD5 } from '../../../../../src/toolBox/useAge/forFileManage/forHash/useSimpleMd5.js';
-import { UltraFastFingerprint } from '../../../../utils/hash/fastBlake.js';
+import { UltraFastFingerprint } from '../../../../../src/utils/hash/fastBlake.js';
 const fs = require('fs').promises;
 const path = require('path');
 const fingerprinter = new UltraFastFingerprint();

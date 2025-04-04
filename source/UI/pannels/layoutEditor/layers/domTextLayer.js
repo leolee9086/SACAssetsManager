@@ -1,7 +1,7 @@
 import Konva from '../../../../../static/konva.js'
 import { getSysFonts } from '../../../../fromThirdParty/siyuanKernel/system.js'
-import { addScript } from '../../../../utils/DOM/addScript.js'
-import { convertDOMToImage } from '../../../../utils/DOM/domToImage.js'
+import { addScript } from '../../../../../src/utils/DOM/addScript.js'
+import { convertDOMToImage } from '../../../../../src/utils/DOM/domToImage.js'
 import { domTextPresets } from './presets/domTextPresets.js'
 
 // 添加缓存存储

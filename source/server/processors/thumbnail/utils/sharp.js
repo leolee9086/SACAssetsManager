@@ -1,5 +1,5 @@
 const sharp = require('sharp')
-import { 创建变换预设 } from '../../../../utils/fromDeps/sharpInterface/useSharp/transform.js'
+import { 创建变换预设 } from '../../../../../src/utils/fromDeps/sharpInterface/useSharp/transform.js'
 
 /**
  * 处理图像缓冲区，将图像缩放到32x32像素

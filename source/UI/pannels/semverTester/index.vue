@@ -370,7 +370,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import * as semver from '../../../utils/useAges/forVersionCompare/useIownSemver.js';
+import * as semver from '../../../../src/utils/useAges/forVersionCompare/useIownSemver.js';
 
 // 标签页
 const tabs = [

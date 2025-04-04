@@ -77,11 +77,11 @@ import textureGallery from './textureGallery.vue';
 import ImageAdjuster from './ImageAdjuster.vue';
 import imageGalleryHori from './components/imageGalleryHori.vue';
 import { ref, computed, inject, toRef, onUnmounted, onMounted, shallowRef, watch } from 'vue';
-import { fromFilePath, fromBuffer } from '../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js';
-import { requirePluginDeps } from '../../../../utils/module/requireDeps.js';
+import { fromFilePath, fromBuffer } from '../../../../../src/utils/fromDeps/sharpInterface/useSharp/toSharp.js';
+import { requirePluginDeps } from '../../../../../src/utils/module/requireDeps.js';
 import { getImageDisplayRect } from './utils/css.js';
-import { 选择图片文件 } from '../../../../utils/useRemote/dialog.js';
-import { 覆盖保存 } from '../../../../utils/fs/write.js';
+import { 选择图片文件 } from '../../../../../src/utils/useRemote/dialog.js';
+import { 覆盖保存 } from '../../../../../src/utils/fs/write.js';
 import { 获取实际裁剪区域, 获取相对图像边界 } from './utils/common.js';
 import { previewState, 从sharp对象更新处理后预览图像, 从路径更新原始预览图像, 刷新并获取预览控制器信号, 更新处理前后预览图像, 清除预览更新定时器, 获取上次预览更新间隔 as 获取上次预览更新间隔, 设置预览更新定时器, 重置所有预览状态, 重置预览控制器 } from './state/previewState.js'
 import {

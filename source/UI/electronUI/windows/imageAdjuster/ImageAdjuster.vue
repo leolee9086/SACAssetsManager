@@ -79,7 +79,7 @@ import { ref, computed } from 'vue';
 import { 参数定义注册表 } from './pipelineBuilder.js';
 import FloatLayerWindow from '../../../components/common/floatLayerWindow/floatLayerWindow.vue';
 import _pinyin from '../../../../../static/pinyin.js';
-import {  以关键词匹配对象 } from '../../../../utils/strings/search.js';
+import {  以关键词匹配对象 } from '../../../../../src/utils/strings/search.js';
 const props = defineProps({
   effectStack: {
     type: Array,

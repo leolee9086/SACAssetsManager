@@ -88,14 +88,14 @@ import apiIcon from './galleryPanel/apiIcon.vue';
 import { plugin } from 'runtime'
 import _path from '../../../polyfills/path.js'
 import * as endPoints from '../../server/endPoints.js'
-import { addUniquePalletColors } from '../../utils/color/filter.js';
+import { addUniquePalletColors } from '../../../src/utils/color/filter.js';
 import multiple from "./common/selection/multiple.vue";
 import { 更新扩展名中间件 } from './galleryPanel/middlewares/extensions.js';
 import { 提取缩略图路径中间件, 提取NoteID中间件, 提取tags中间件 } from '../../data/attributies/attributeParsers.js';
 import { 过滤器中间件 } from './galleryPanel/middlewares/extensions.js';
-import { 创建带中间件的Push方法 } from "../../utils/useEcma/useArray/push.js";
+import { 创建带中间件的Push方法 } from "../../../src/utils/useEcma/useArray/push.js";
 import { 校验数据项扩展名, 解析数据模型, 根据数据配置获取数据到缓存, 构建遍历参数, useGlob, useExtensions } from "./galleryPanelData.js";
-import { 柯里化 } from "../../utils/functions/currying.js";
+import { 柯里化 } from "../../../src/utils/functions/currying.js";
 import { LAYOUT_COLUMN, LAYOUT_ROW, 根据尺寸获取显示模式, 表格视图阈值 } from '../utils/threhold.js';
 import ColorPicker from './galleryPanel/colorPicker.vue'
 import Slider from './galleryPanel/toolbar/slider.vue'

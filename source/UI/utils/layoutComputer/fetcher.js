@@ -1,5 +1,5 @@
 import { applyStmt } from "../../../data/galleryDefine.js"
-import { 按笔记本查询附件,查询所有附件,按文档ID查询所有子文档附件 } from "../../../utils/sql/siyuanSentence.js"
+import { 按笔记本查询附件,查询所有附件,按文档ID查询所有子文档附件 } from "../../../../src/utils/sql/siyuanSentence.js"
 export const  处理默认数据=(tab,target,callback)=>{
     以sql获取tab附件数据(tab, 102400).then(
         data=>{return data.map(

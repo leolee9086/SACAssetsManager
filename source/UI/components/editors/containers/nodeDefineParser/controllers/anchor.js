@@ -1,6 +1,6 @@
-import { addMethods } from "../../../../../../utils/object/addMethod.js";
+import { addMethods } from "../../../../../../../src/utils/object/addMethod.js";
 import { AnchorTypes, Sides } from "../types.js";
-import { addEvents } from "../../../../../../utils/events/addEvents.js";
+import { addEvents } from "../../../../../../../src/utils/events/addEvents.js";
 import { getAnchorConfig } from "./anchorConfig.js";
 
 /**

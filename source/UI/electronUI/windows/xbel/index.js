@@ -1,4 +1,4 @@
-import { initVueApp } from '../../../../utils/module/vue/loadVueApp.js'
+import { initVueApp } from '../../../../../src/utils/module/vue/loadVueApp.js'
 
 // 使用IIFE包装异步逻辑
 ;(async () => {

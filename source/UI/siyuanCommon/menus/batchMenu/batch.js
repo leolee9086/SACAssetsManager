@@ -1,6 +1,6 @@
 import { plugin } from '../../../../pluginSymbolRegistry.js'
 import { 打开任务控制对话框 } from '../../dialog/tasks.js'
-import { confirmAsPromise } from '../../../../utils/siyuanUI/confirm.js'
+import { confirmAsPromise } from '../../../../../src/utils/siyuanUI/confirm.js'
 import { showInputDialogPromise } from '../../dialog/inputDialog.js'
 import { 执行删除所有ThumbsDB } from './removeThumbsDb.js'
 import { 执行按扩展名分组 as 执行展平并按扩展名分组 } from './flatWithExtend.js'

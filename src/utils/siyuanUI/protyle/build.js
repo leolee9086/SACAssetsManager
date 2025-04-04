@@ -1,4 +1,4 @@
-import { clientApi,plugin } from "../../../asyncModules.js"
+import { clientApi,plugin } from "../../../../source/asyncModules.js"
 export const 根据块ID创建protyle = (element,id) => {
     return new clientApi.Protyle(
         plugin.app,

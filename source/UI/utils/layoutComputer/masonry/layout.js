@@ -1,5 +1,5 @@
 import Rbush from '../../../../../static/rbush.js';
-import { 定长执行 } from '../../../../utils/functions/Iteration.js';
+import { 定长执行 } from '../../../../../src/utils/functions/Iteration.js';
 export function 二分查找可见素材(位置序列, 查找起点, 窗口高度) {
     let 当前起始索引 = 0;
     let 当前截止索引 = 位置序列.length - 1;

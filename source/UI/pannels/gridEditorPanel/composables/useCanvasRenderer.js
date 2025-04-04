@@ -2,9 +2,9 @@ import { ref } from '../../../../../static/vue.esm-browser.js'
 import { createPattern } from '../patterns.js'
 import { createPerfStats, updatePerfStats } from '../performanceState.js'
 import { 创建遮罩画布元素 } from '../utils.js'
-import { hasRectangularUnit, getRectangularUnit } from '../../../../utils/image/textures/pattern/recUnit.js'
-import {drawImageWithConfig} from '../../../../utils/canvas/draw/simpleDraw/images.js'
-import { 在画布上下文批量绘制线条 } from '../../../../utils/canvas/draw/simpleDraw/lines.js'
+import { hasRectangularUnit, getRectangularUnit } from '../../../../../src/utils/image/textures/pattern/recUnit.js'
+import {drawImageWithConfig} from '../../../../../src/utils/canvas/draw/simpleDraw/images.js'
+import { 在画布上下文批量绘制线条 } from '../../../../../src/utils/canvas/draw/simpleDraw/lines.js'
 
 export function useCanvasRenderer() {
   const width = ref(300)

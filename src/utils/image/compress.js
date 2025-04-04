@@ -1,4 +1,4 @@
-import { plugin } from '../../pluginSymbolRegistry.js'
+import { plugin } from '../../../source/asyncModules.js'
 const workspaceDir = window.siyuan.config.system.workspaceDir
 const sharpPath = require('path').join(workspaceDir, 'data', 'plugins', plugin.name, 'node_modules', 'sharp')
 const sharp = require(sharpPath)

@@ -1,10 +1,10 @@
-import { 递归扫描文件夹并执行任务 } from "../../../../utils/fs/batch.js";
+import { 递归扫描文件夹并执行任务 } from "../../../../../src/utils/fs/batch.js";
 import { 打开任务控制对话框 } from "../../dialog/tasks.js";
-import { confirmAsPromise } from "../../../../utils/siyuanUI/confirm.js";
+import { confirmAsPromise } from "../../../../../src/utils/siyuanUI/confirm.js";
 const path = require('path');
 const fs = require('fs').promises;
 const { clipboard } = require('electron');
-import { 从文件树生成markdown列表,从文件树生成markdown段落 } from "../../../../utils/siyuanData/contentBuilder.js";
+import { 从文件树生成markdown列表,从文件树生成markdown段落 } from "../../../../../src/utils/siyuanData/contentBuilder.js";
 /**
  * 获取文件属性
  * @param {string} fullPath - 文件的完整路径

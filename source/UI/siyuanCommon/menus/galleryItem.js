@@ -10,13 +10,13 @@ import { 模式切换菜单项 } from "./modeMenu/modeSwitch.js";
 import { 计算主标签 } from "./common/menuHead.js";
 import { 添加插件菜单内容 } from "./pluginMenu/pluginMenu.js";
 import { 打开本地资源视图 } from "../tabs/assetsTab.js";
-import { isImage } from "../../../utils/image/isImage.js";
-import { 根据背景色获取黑白前景色 } from "../../../utils/color/processColor.js";
+import { isImage } from "../../../../src/utils/image/isImage.js";
+import { 根据背景色获取黑白前景色 } from "../../../../src/utils/color/processColor.js";
 import { fetchSync } from "../../../../src/toolBox/base/forNetWork/forFetch/fetchSyncTools.js";
-import { 向菜单批量添加项目 } from "../../../utils/siyuanUI/menu.js";
+import { 向菜单批量添加项目 } from "../../../../src/utils/siyuanUI/menu.js";
 import { checkClipboardForFilePath } from "../../../../src/toolBox/base/useBrowser/useClipBoard.js";
-import { rgbaArrayToHexString } from "../../../utils/color/colorSpace.js";
-import { h, f } from "../../../utils/DOM/builder.js";
+import { rgbaArrayToHexString } from "../../../../src/utils/color/colorSpace.js";
+import { h, f } from "../../../../src/utils/DOM/builder.js";
 import { 创建链式思源菜单 } from "../../../../src/toolBox/useAge/forSiyuan/useSiyuanMenu.js";
 const { eventBus } = plugin
 

@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-import { IEventEmitterSimple } from '../../../utils/events/emitter.js'
+import { IEventEmitterSimple } from '../../../../src/utils/events/emitter.js'
 import { showStreamingChatDialog } from '../../dialogs/streamingChatDialog.js'
 import { TEST_GENERATION_PROMPTS } from '../../../../assets/prompts/测试文件生成.js'
 

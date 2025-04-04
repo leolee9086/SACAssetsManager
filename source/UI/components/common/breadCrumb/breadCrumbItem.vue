@@ -12,8 +12,8 @@
 </template>
 <script setup>
 import {toRefs,defineProps} from 'vue'
-import { isSvg } from '../../../../utils/siyuanData/icon.js';
-import { 面包屑图标类,思源protyle面包屑类 } from '../../../../utils/css/classConstance.js';
+import { isSvg } from '../../../../../src/utils/siyuanData/icon.js';
+import { 面包屑图标类,思源protyle面包屑类 } from '../../../../../src/utils/css/classConstance.js';
 const props = defineProps({
     label: {
         type: String,

@@ -1,4 +1,4 @@
-import { 柯里化 } from '../../../utils/functions/currying.js';
+import { 柯里化 } from '../../../../src/utils/functions/currying.js';
 const fs = require('fs').promises;
 const path = require('path');
 

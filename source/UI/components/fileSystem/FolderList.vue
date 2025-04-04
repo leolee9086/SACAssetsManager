@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { buildMultiClickListener } from '../../../utils/DOM/continuousEvent.js';
+import { buildMultiClickListener } from '../../../../src/utils/DOM/continuousEvent.js';
 import { 打开文件夹图标菜单 } from '../../siyuanCommon/menus/folderItem.js';
 
 const props = defineProps({

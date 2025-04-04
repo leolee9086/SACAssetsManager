@@ -1,4 +1,4 @@
-import { MinHeap } from '../../../utils/useEcma/useArray/minHeap.js'
+import { MinHeap } from '../../../../src/utils/useEcma/useArray/minHeap.js'
 import { reportHeartbeat } from '../../../../src/toolBox/base/useElectron/useHeartBeat.js'
 
 // 常量配置

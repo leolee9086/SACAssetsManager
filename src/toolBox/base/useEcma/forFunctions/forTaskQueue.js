@@ -5,7 +5,7 @@
  * 任务按优先级执行，支持空闲回调执行模式。
  */
 
-import { createEventBus } from '../../forEvent/eventBusTools.js';
+import { createEventBus } from '../../forEvent/useEventBus.js';
 
 /**
  * 最小堆实现，用于优先级队列

@@ -9,7 +9,7 @@
   </div>
 </template>
 <script nodeDefine>
-import { 计算图像感知哈希,计算图像相似度 } from '../../../utils/image/pHash.js';
+import { 计算图像感知哈希,计算图像相似度 } from '../../../../src/utils/image/pHash.js';
 import {ref} from 'vue'
 // 声明运行时状态存储
 const runtime = {

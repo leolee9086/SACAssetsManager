@@ -1,9 +1,9 @@
 import { 柯里化 } from "../../../../../src/toolBox/base/useEcma/forFunctions/forCurrying.js";
-import { 计算归一化向量余弦相似度, } from "../../../../utils/vector/similarity.js";
+import { 计算归一化向量余弦相似度, } from "../../../../../src/utils/vector/similarity.js";
 import { 查找最相似点 } from "../vector.js";
 import Mingo from '../../../../../static/mingo.js'
 import { hnswAnn搜索数据集 } from "../hnswlayers/query.js";
-import { withPerformanceLogging } from "../../../../utils/functionAndClass/performanceRun.js";
+import { withPerformanceLogging } from "../../../../../src/utils/functionAndClass/performanceRun.js";
 export const 以过滤函数和向量字段名创建查询数据集 = (数据集对象, 向量字段名, 前置查询条件) => {
     // 将数据集对象的值转换为数组
     let 数据集数组 = Object.values(数据集对象);

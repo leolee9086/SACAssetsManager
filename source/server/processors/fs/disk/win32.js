@@ -1,6 +1,6 @@
 const { existsSync } = window.require('fs');
 const iconv = require('iconv-lite');
-import { executeCommand } from '../../../../utils/system/commond.js';
+import { executeCommand } from '../../../../../src/utils/system/commond.js';
 
 /**
  * 获取 Windows 系统下的网络驱动器映射信息

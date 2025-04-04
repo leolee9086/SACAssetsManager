@@ -1,4 +1,4 @@
-import { 添加动作, 添加连接, 添加节点 } from "../../../../utils/graph/PetriNet.js";
+import { 添加动作, 添加连接, 添加节点 } from "../../../../../src/utils/graph/PetriNet.js";
 // 工具函数
 function getCardFromIdOrInstance(cards, cardOrId) {
     return (typeof cardOrId === 'string') ? cards.get(cardOrId) : cardOrId;

@@ -8,7 +8,7 @@ import { reportHeartbeat } from '../../../../src/toolBox/base/useElectron/useHea
 import { 查找子文件夹, 删除缩略图缓存行, 计算哈希 } from '../thumbnail/indexer.js'
 import { getCachePath } from './cached/fs.js'
 import { 查找文件夹状态 } from '../../dataBase/mainDb.js'
-import { 判定路径排除 } from '../../../utils/fs/windowsSystemDirs.js'
+import { 判定路径排除 } from '../../../../src/utils/fs/windowsSystemDirs.js'
 /**
  * 使用修改后的fdir,遍历指定目录
  * @param {*} root 

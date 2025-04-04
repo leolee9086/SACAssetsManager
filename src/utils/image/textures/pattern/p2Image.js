@@ -1,5 +1,5 @@
 import { 在画布上下文批量绘制线条 } from "../../../canvas/draw/simpleDraw/lines.js";
-import { calculateImageFitScale } from "../../utils.js";
+import { calculateImageFitScale } from "../../../src/utils.js";
 import { 校验P1晶格基向量, 规范化P1图案配置 } from "./utils/config.js";
 import { 以基向量对生成网格线数据, 在画布上下文应用变换, 蒙版到节点形状 } from "./utils/index.js";
 import { 从基向量对计算P1网格填充范围 } from "./utils/p1Utils.js";

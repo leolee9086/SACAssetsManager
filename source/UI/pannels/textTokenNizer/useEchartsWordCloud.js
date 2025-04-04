@@ -1,4 +1,4 @@
-import { addEchartsSync } from '../../../utils/DOM/addScript.js'
+import { addEchartsSync } from '../../../../src/utils/DOM/addScript.js'
 
 addEchartsSync()
 

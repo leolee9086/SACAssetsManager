@@ -1,5 +1,5 @@
 import { ref } from "../../../../../../static/vue.esm-browser.js"
-import { fromBuffer } from "../../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js"
+import { fromBuffer } from "../../../../../../src/utils/fromDeps/sharpInterface/useSharp/toSharp.js"
 /**
  * 效果管理
  */

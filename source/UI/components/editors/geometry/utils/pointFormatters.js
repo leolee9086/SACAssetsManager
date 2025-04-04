@@ -1,4 +1,4 @@
-import { 柯里化 } from "../../../../../utils/functions/currying.js";
+import { 柯里化 } from "../../../../../../src/utils/functions/currying.js";
 /**
  * @typedef {Object} 二维点
  * @property {number} x - X坐标

@@ -1,5 +1,5 @@
-import { fromFilePath } from "../../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js"
-import { requirePluginDeps } from "../../../../../utils/module/requireDeps.js"
+import { fromFilePath } from "../../../../../../src/utils/fromDeps/sharpInterface/useSharp/toSharp.js"
+import { requirePluginDeps } from "../../../../../../src/utils/module/requireDeps.js"
 const sharp = requirePluginDeps('sharp')
 
 export const 对buffer应用效果堆栈 =async (buffer,效果堆栈管线函数)=>{

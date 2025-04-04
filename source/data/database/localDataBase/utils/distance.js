@@ -1,4 +1,4 @@
-import { 计算归一化向量余弦相似度 } from "../../../../utils/vector/similarity.js"
+import { 计算归一化向量余弦相似度 } from "../../../../../src/utils/vector/similarity.js"
 import { 获取数据项向量字段值 } from "./item.js";
 let 距离缓存 = {};
 let 访问次数 = {};

@@ -1,7 +1,7 @@
 import { TransitionQueue } from './petri/queue.js';
 import { analyzePath, compilePath } from './petri/pathAnalyzer.js';
-import { 创建流程图, 添加节点, 添加动作, 添加连接, 找到入口节点, 找到出口节点, 已经连接 } from '../../../utils/graph/PetriNet.js';
-import { 删除节点列表, 删除动作列表 } from '../../../utils/graph/PetriNet.js';
+import { 创建流程图, 添加节点, 添加动作, 添加连接, 找到入口节点, 找到出口节点, 已经连接 } from '../../../../src/utils/graph/PetriNet.js';
+import { 删除节点列表, 删除动作列表 } from '../../../../src/utils/graph/PetriNet.js';
 import {
     生成连接ID,
     生成清理节点ID,

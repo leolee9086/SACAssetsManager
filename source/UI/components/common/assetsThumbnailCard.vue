@@ -31,7 +31,7 @@
 <script setup lang="jsx">
 import { ref, computed, toRef, onMounted, onBeforeUnmount, defineEmits, nextTick, watch } from 'vue';
 import { thumbnail } from '../../../server/endPoints.js';
-import { rgb数组转字符串 } from '../../../utils/color/convert.js';
+import { rgb数组转字符串 } from '../../../../src/utils/color/convert.js';
 import { LAYOUT_COLUMN, LAYOUT_ROW } from '../../utils/threhold.js';
 import { 获取素材属性值, UNDEFINED_MARKER, 解析文件内部属性显示, 解析文件属性名标签 } from '../../../data/attributies/parseAttributies.js';
 import { findTagsByFilePath } from '../../../data/tags.js';

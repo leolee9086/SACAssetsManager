@@ -145,8 +145,8 @@ async function 获取图片文件列表(dir) {
 }
 
 
-import { 计算图像感知哈希 } from '../../../../utils/image/pHash.js';
-import { 计算灰度图像数据哈希 } from '../../../../utils/image/greyScaleHash.js';
+import { 计算图像感知哈希 } from '../../../../../src/utils/image/pHash.js';
+import { 计算灰度图像数据哈希 } from '../../../../../src/utils/image/greyScaleHash.js';
 import { filePickPromise } from '../../dialog/fileDiffAndPick.js';
 async function 计算图片哈希(filePath, mode = 'simple') {
     try {

@@ -10,7 +10,7 @@ export const 获取相对图像边界 = (容器元素, 图像元素) => {
     };
     return bounds
 }
-import { xywh2ltwh } from "../../../../../utils/math/geometry/geom2d.js";
+import { xywh2ltwh } from "../../../../../../src/utils/math/geometry/geom2d.js";
 import { 裁剪框控制器 } from "../state/cropBoxController.js";
 export const 获取实际裁剪区域 = (container,processedImg, originalRect)=>{
     if (!container || !processedImg) return null;

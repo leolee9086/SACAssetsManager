@@ -21,7 +21,7 @@
 </template>
 <script setup>
 import { ref, watch ,toRef} from 'vue';
-import { searchByEverything } from '../../../../utils/thirdParty/everything.js';
+import { searchByEverything } from '../../../../../src/utils/thirdParty/everything.js';
 const props = defineProps({
     modelValue: {
         type: Number,

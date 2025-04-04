@@ -89,7 +89,7 @@ import {
   openZipViewerWindow,
   openMetadataEditorWindow
 } from '../../electronUI/windows/electronWindowManager.js';
-import { 以关键词匹配对象 } from '../../../utils/strings/search.js';
+import { 以关键词匹配对象 } from '../../../../src/utils/strings/search.js';
 
 // 窗口列表
 const windows = ref([

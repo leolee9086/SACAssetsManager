@@ -81,7 +81,7 @@ import { ensureUniqueCardIds as 校验并实例化卡片组, updateConnectionIds
 import { updateAnchorsPosition } from './containers/nodeDefineParser/controllers/anchor.js';
 import StyleSelector from './toolBar/StyleSelector.vue';
 
-import { validateConnection } from '../../../utils/graph/PetriNet.js';
+import { validateConnection } from '../../../../src/utils/graph/PetriNet.js';
 import { findExistingConnection, findDuplicateConnection } from './GraphManager.js';
 import { shallowRef } from '../../../../static/vue.esm-browser.js';
 const cardsContainer = ref(null)

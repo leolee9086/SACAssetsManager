@@ -1,4 +1,4 @@
-import { addMethods } from '../../../utils/object/addMethod.js'
+import { addMethods } from '../../../../src/utils/object/addMethod.js'
 // 状态管理相关方法
 const stateMethods = {
   getState() {

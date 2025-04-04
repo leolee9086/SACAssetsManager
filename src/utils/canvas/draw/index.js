@@ -1,9 +1,9 @@
-import { fromURL } from "../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js"
-import { loadImageFromUrl as loadImage } from "../../../utils/image/loader/fromURL.js"
-import { 获取事件canvas坐标 } from "../../../utils/canvas/events.js"
-import { 当前设备支持压感 } from "../../../utils/system/surport/pressure.js"
-import { 尖头马克笔, 宽头马克笔, 水彩笔, 铅笔, 钢笔, 鸭嘴笔 } from "../../../utils/canvas/draw/brushes.js"
-import { brushImageProcessor } from '../../../utils/canvas/draw/brushes.js'
+import { fromURL } from "../../../../src/utils/fromDeps/sharpInterface/useSharp/toSharp.js"
+import { loadImageFromUrl as loadImage } from "../../../../src/utils/image/loader/fromURL.js"
+import { 获取事件canvas坐标 } from "../../../../src/utils/canvas/events.js"
+import { 当前设备支持压感 } from "../../../../src/utils/system/surport/pressure.js"
+import { 尖头马克笔, 宽头马克笔, 水彩笔, 铅笔, 钢笔, 鸭嘴笔 } from "../../../../src/utils/canvas/draw/brushes.js"
+import { brushImageProcessor } from '../../../../src/utils/canvas/draw/brushes.js'
 import { 按距离采样点序列 } from "../../math/geometry/geom2d.js"
 import { 获取事件压力值 } from "../../events/getPressure.js"
 import { $canvas混合模式 } from "../../constants/browser.js"

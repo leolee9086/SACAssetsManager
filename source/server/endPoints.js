@@ -1,7 +1,7 @@
 //这个文件是在前端调用的,注意这一点
 import { plugin } from '../asyncModules.js'
 import { imageExtensions } from '../server/processors/thumbnail/utils/lists.js'
-import { 获取文档图标 } from '../utils/siyuanData/icon.js'
+import { 获取文档图标 } from '../../src/utils/siyuanData/icon.js'
 import { 
   创建端点系统
 } from '../../src/toolBox/base/forNetwork/forEndPoints/useEndPointsBuilder.js'

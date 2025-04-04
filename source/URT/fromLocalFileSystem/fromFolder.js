@@ -2,7 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 import { URTStream } from '../stream/URTStream.js'
 import { createFolder, createResource } from '../builder.js'
-import { UltraFastFingerprint } from '../../utils/hash/fastBlake.js'
+import { UltraFastFingerprint } from '../../../src/utils/hash/fastBlake.js'
 
 /**
  * 从文件夹创建URT资源流

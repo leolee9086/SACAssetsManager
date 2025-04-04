@@ -1,5 +1,5 @@
 import { sac } from "../../../../asyncModules.js";
-import { withPerformanceLogging } from "../../../../utils/functionAndClass/performanceRun.js";
+import { withPerformanceLogging } from "../../../../../src/utils/functionAndClass/performanceRun.js";
 import { hnsw索引元设置 } from "../config.js";
 import { 为数据项构建hnsw索引, 删除数据项hnsw索引 } from "../hnswlayers/build.js";
 import { hnswAnn搜索数据集 } from "../hnswlayers/query.js";

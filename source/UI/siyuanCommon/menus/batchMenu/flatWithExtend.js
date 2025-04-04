@@ -1,4 +1,4 @@
-import { 递归扫描文件夹并执行任务 } from "../../../../utils/fs/batch.js";
+import { 递归扫描文件夹并执行任务 } from "../../../../../src/utils/fs/batch.js";
 import { 打开任务控制对话框 } from "../../dialog/tasks.js";
 const path = require('path')
 const fs = require('fs').promises

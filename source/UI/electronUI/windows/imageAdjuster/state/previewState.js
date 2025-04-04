@@ -1,5 +1,5 @@
 import { ref } from "../../../../../../static/vue.esm-browser.js";
-import { fromFilePath } from "../../../../../utils/fromDeps/sharpInterface/useSharp/toSharp.js";
+import { fromFilePath } from "../../../../../../src/utils/fromDeps/sharpInterface/useSharp/toSharp.js";
 import { isSplitViewEnabled as 视图模式为裂像预览 } from "./useViewState.js";
 export const previewState = ref({
     lastFullRenderTime: 0,

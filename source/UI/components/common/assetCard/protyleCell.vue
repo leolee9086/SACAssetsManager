@@ -9,7 +9,7 @@
 <script nodeDefine>
 import { ref } from 'vue';
 import { kernelApi } from 'runtime';
-import { 根据块ID创建protyle } from '../../../../utils/siyuanUI/protyle/build.js';
+import { 根据块ID创建protyle } from '../../../../../src/utils/siyuanUI/protyle/build.js';
 const $blockID = ref('')
 const  handleInput=()=>{
     $blockID.value&&nodeDefine.process( $blockID.value)

@@ -1,2 +1,2 @@
-import { buildMultiClickListener } from "../../utils/DOM/continuousEvent";
+import { buildMultiClickListener } from "../../../src/utils/DOM/continuousEvent";
 export {buildMultiClickListener}

@@ -1,10 +1,10 @@
-import { confirmAsPromise } from '../../../../../utils/siyuanUI/confirm.js'
+import { confirmAsPromise } from '../../../../../../src/utils/siyuanUI/confirm.js'
 import { kernelApi, plugin } from '../../../../../asyncModules.js'
 import {
   处理单个D5A文件缩略图,
   执行缩略图写入,
   批量处理D5A文件缩略图数据,
-} from '../../../../../utils/thirdParty/d5/index.js'
+} from '../../../../../../src/utils/thirdParty/d5/index.js'
 const { 翻译 } = plugin
 
 // 新增辅助函数，提高代码可读性

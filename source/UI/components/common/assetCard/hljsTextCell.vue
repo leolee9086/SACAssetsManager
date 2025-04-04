@@ -9,7 +9,7 @@
 <script setup>
 import { ref, toRef, onMounted, nextTick } from 'vue';
 import { 获取素材属性值 } from '../../../../data/attributies/parseAttributies.js';
-import { getTextEditorWebview, writeHljsIframe } from '../../../../utils/DOM/iframe.js';
+import { getTextEditorWebview, writeHljsIframe } from '../../../../../src/utils/DOM/iframe.js';
 import { 文件系统工具 } from '../../componentUtils.js';
 const props = defineProps(['cardData', 'attributeName','ariaLabel']);
 const attributeName = toRef(props, 'attributeName');

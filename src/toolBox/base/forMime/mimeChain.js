@@ -1,5 +1,5 @@
 import { 创建串链器 } from '../forCore/串链器.js';
-import useMime from '../../utils/base/useMime.js';
+import useMime from '../../../src/utils/base/useMime.js';
 
 /**
  * MIME 类型串链器
