@@ -1,10 +1,16 @@
 
+/**
+ * 用于校验数据集文件夹名称中非法字符的正则表达式
+ * @type {RegExp}
+ * @description 匹配以下非法字符：/ \ : ? % * " | < > 空格
+ */
 const 数据集文件夹名非法字符校验正则 = /[\/\\:?%*"|<> ]+/g;
 
 /**
  * 生成字符串的32位整数哈希值
  * @param {string} str - 需要计算哈希值的输入字符串
  * @returns {number} 32位整数哈希值
+ * @description 使用简单的哈希算法生成32位整数哈希值
  */
 function simpleHashCode(str) {
     let hash = 0;
@@ -14,8 +20,8 @@ function simpleHashCode(str) {
       hash |= 0; // Convert to 32bit integer
     }
     return hash;
-  }
-  
+}
+
 /**
  * 将原始名称转换为合法的文件夹名称
  * @param {string} 原始名称 - 需要转换的原始文件夹名称
@@ -46,4 +52,26 @@ export function 迁移为合法文件夹名称(原始名称) {
     // 将哈希码附加到文件夹名称
     const 最终名称 = `${可读部分}_${哈希码}`;
     return 最终名称;
+}
+
+/**
+ * 将路径中的正斜杠替换为反斜杠
+ * @param {string} path - 需要修正的路径字符串
+ * @returns {string} 修正后的路径字符串
+ * @description 主要用于Windows系统路径标准化
+ */
+export function 修正路径分隔符号为反斜杠(path) {
+    // 使用正则表达式替换所有正斜杠为反斜杠
+    return path.replace(/\//g, '\\');
+}
+
+/**
+ * 将路径中的反斜杠替换为正斜杠
+ * @param {string} path - 需要修正的路径字符串
+ * @returns {string} 修正后的路径字符串
+ * @description 主要用于跨平台路径标准化
+ */
+export function 修正路径分隔符号为正斜杠(path) {
+    // 使用正则表达式替换所有反斜杠为正斜杠
+    return path.replace(/\\/g, '/');
 }
