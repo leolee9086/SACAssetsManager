@@ -79,14 +79,54 @@ function initializeCentroids(data, k) {
  * @returns {Array<Array|Float32Array>} 聚类中心
  */
 function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
-  if (data.length <= k) {
-    // 如果数据点少于聚类数，直接返回数据点
-    return data.map(d => Array.from(d));
+  // 添加防御性检查
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    console.error('K-means错误: 无效的数据集', { dataLength: data?.length });
+    return Array(k).fill().map(() => Array(10).fill(0)); // 返回默认聚类中心
+  }
+  
+  // 过滤掉无效数据点
+  const validData = data.filter(point => 
+    point && point.length > 0 && 
+    !Array.from(point).some(val => typeof val !== 'number' || isNaN(val))
+  );
+  
+  if (validData.length === 0) {
+    console.error('K-means错误: 数据集中没有有效的数据点');
+    return Array(k).fill().map(() => Array(data[0]?.length || 10).fill(0));
+  }
+  
+  // 标准化维度，确保所有点都具有相同的维度
+  const dimension = validData[0].length;
+  for (let i = 1; i < validData.length; i++) {
+    if (validData[i].length !== dimension) {
+      console.warn(`K-means警告: 数据点${i}的维度(${validData[i].length})与期望维度(${dimension})不匹配`);
+      // 填充或截断向量以匹配维度
+      const normalizedPoint = new Float32Array(dimension).fill(0);
+      for (let j = 0; j < Math.min(dimension, validData[i].length); j++) {
+        normalizedPoint[j] = validData[i][j];
+      }
+      validData[i] = normalizedPoint;
+    }
+  }
+  
+  if (validData.length <= k) {
+    // 如果数据点少于聚类数，直接返回数据点并填充剩余的
+    const centroids = validData.map(d => Array.from(d));
+    while (centroids.length < k) {
+      // 复制现有中心点或创建零向量
+      if (centroids.length > 0) {
+        centroids.push(Array.from(centroids[0]));
+      } else {
+        centroids.push(Array(dimension).fill(0));
+      }
+    }
+    return centroids;
   }
   
   // 初始化聚类中心
-  let centroids = initializeCentroids(data, k);
-  let assignments = new Array(data.length).fill(0);
+  let centroids = initializeCentroids(validData, k);
+  let assignments = new Array(validData.length).fill(0);
   let changed = true;
   let iteration = 0;
   
@@ -95,13 +135,13 @@ function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
     iteration++;
     
     // 分配步骤：将每个点分配到最近的中心
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < validData.length; i++) {
       let minDist = Infinity;
       let newCluster = 0;
       
       for (let j = 0; j < k; j++) {
-        const dist = computeEuclideanDistance(data[i], centroids[j]);
-        if (dist < minDist) {
+        const dist = computeEuclideanDistance(validData[i], centroids[j]);
+        if (dist < minDist && dist !== Infinity) { // 忽略无效距离
           minDist = dist;
           newCluster = j;
         }
@@ -114,15 +154,15 @@ function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
     }
     
     // 更新步骤：重新计算聚类中心
-    const newCentroids = Array(k).fill().map(() => Array(data[0].length).fill(0));
+    const newCentroids = Array(k).fill().map(() => Array(dimension).fill(0));
     const counts = Array(k).fill(0);
     
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < validData.length; i++) {
       const cluster = assignments[i];
       counts[cluster]++;
       
-      for (let j = 0; j < data[i].length; j++) {
-        newCentroids[cluster][j] += data[i][j];
+      for (let j = 0; j < validData[i].length; j++) {
+        newCentroids[cluster][j] += validData[i][j];
       }
     }
     
@@ -134,8 +174,8 @@ function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
         }
         centroids[i] = newCentroids[i];
       } else {
-        // 处理空聚类
-        centroids[i] = Array.from(getRandomElement(data));
+        // 处理空聚类 - 随机选择一个有效数据点
+        centroids[i] = Array.from(getRandomElement(validData));
       }
     }
   }
@@ -150,6 +190,17 @@ function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
  * @returns {Array<Float32Array>} 子向量数组
  */
 function splitVector(vector, numSubvectors) {
+  // 添加防御性检查
+  if (!vector || vector.length === 0) {
+    console.error('分割向量错误: 无效的输入向量', { vector });
+    return Array(numSubvectors).fill().map(() => new Float32Array(1).fill(0));
+  }
+  
+  if (!numSubvectors || numSubvectors <= 0) {
+    console.error('分割向量错误: 无效的子向量数量', { numSubvectors });
+    return [new Float32Array(vector.length)].map((_, i) => vector[i] || 0);
+  }
+  
   const dimension = vector.length;
   const subvectorSize = Math.ceil(dimension / numSubvectors);
   const subvectors = [];
@@ -158,11 +209,17 @@ function splitVector(vector, numSubvectors) {
     const start = i * subvectorSize;
     const end = Math.min((i + 1) * subvectorSize, dimension);
     
-    if (start >= dimension) break;
+    if (start >= dimension) {
+      // 如果超出维度，添加零向量以保持子向量数量一致
+      subvectors.push(new Float32Array(1).fill(0));
+      continue;
+    }
     
     const subvector = new Float32Array(end - start);
     for (let j = start; j < end; j++) {
-      subvector[j - start] = vector[j];
+      // 确保值是有效数字
+      const value = vector[j];
+      subvector[j - start] = (typeof value === 'number' && !isNaN(value)) ? value : 0;
     }
     
     subvectors.push(subvector);
@@ -330,24 +387,46 @@ export function createDeltaPQ({
    * @returns {Object} 训练结果统计
    */
   function train(vectors) {
-    if (vectors.length === 0) {
-      throw new Error('Empty training set');
+    if (!vectors || !Array.isArray(vectors) || vectors.length === 0) {
+      throw new Error('Delta-PQ训练错误: 空训练集或无效数据');
     }
     
+    // 过滤掉无效向量
+    const validVectors = vectors.filter(vec => 
+      vec && vec.length > 0 && 
+      !Array.from(vec).some(val => typeof val !== 'number' || isNaN(val))
+    );
+    
+    if (validVectors.length === 0) {
+      throw new Error('Delta-PQ训练错误: 没有有效的训练向量');
+    }
+    
+    console.log(`Delta-PQ训练: 过滤后有效向量数量 ${validVectors.length}/${vectors.length}`);
+    
     // 确定向量维度
-    vectorDimension = vectors[0].length;
+    vectorDimension = validVectors[0].length;
     subvectorSize = Math.ceil(vectorDimension / numSubvectors);
     
     // 限制训练样本数量
-    const trainVectors = vectors.length > sampleSize 
-      ? vectors.slice(0, sampleSize) 
-      : vectors;
+    const trainVectors = validVectors.length > sampleSize 
+      ? validVectors.slice(0, sampleSize) 
+      : validVectors;
     
     // 计算中心向量（所有向量的平均值）
     centerVector = new Float32Array(vectorDimension);
     for (const vec of trainVectors) {
       for (let i = 0; i < vectorDimension; i++) {
-        centerVector[i] += vec[i] / trainVectors.length;
+        // 处理不同长度的向量
+        const value = i < vec.length ? vec[i] : 0;
+        centerVector[i] += (typeof value === 'number' && !isNaN(value)) ? value / trainVectors.length : 0;
+      }
+    }
+    
+    // 确保中心向量中没有非法值
+    for (let i = 0; i < vectorDimension; i++) {
+      if (isNaN(centerVector[i]) || !isFinite(centerVector[i])) {
+        console.warn(`Delta-PQ训练警告: 中心向量在位置 ${i} 包含无效值, 替换为0`);
+        centerVector[i] = 0;
       }
     }
     
@@ -355,56 +434,83 @@ export function createDeltaPQ({
     const deltaVectors = trainVectors.map(vec => {
       const delta = new Float32Array(vectorDimension);
       for (let i = 0; i < vectorDimension; i++) {
-        delta[i] = vec[i] - centerVector[i];
+        // 安全地计算差值
+        const vecValue = i < vec.length ? vec[i] : 0;
+        delta[i] = (typeof vecValue === 'number' && !isNaN(vecValue)) 
+          ? vecValue - centerVector[i] 
+          : 0;
       }
       return delta;
     });
     
-    // 为每个子空间训练一个码本
-    codebooks = [];
-    
-    for (let i = 0; i < numSubvectors; i++) {
-      // 提取当前子空间的所有子向量
-      const subvectorData = [];
+    try {
+      // 为每个子空间训练一个码本
+      codebooks = [];
       
-      for (const deltaVec of deltaVectors) {
-        const startIdx = i * subvectorSize;
-        const endIdx = Math.min((i + 1) * subvectorSize, vectorDimension);
+      for (let i = 0; i < numSubvectors; i++) {
+        // 提取当前子空间的所有子向量
+        const subvectorData = [];
         
-        if (startIdx >= vectorDimension) break;
-        
-        const subvector = new Float32Array(endIdx - startIdx);
-        for (let j = startIdx; j < endIdx; j++) {
-          subvector[j - startIdx] = deltaVec[j];
+        for (const deltaVec of deltaVectors) {
+          const startIdx = i * subvectorSize;
+          const endIdx = Math.min((i + 1) * subvectorSize, vectorDimension);
+          
+          if (startIdx >= vectorDimension) break;
+          
+          const subvector = new Float32Array(endIdx - startIdx);
+          for (let j = startIdx; j < endIdx; j++) {
+            subvector[j - startIdx] = deltaVec[j];
+          }
+          
+          subvectorData.push(subvector);
         }
         
-        subvectorData.push(subvector);
+        // 对子向量执行K-means聚类
+        try {
+          const subvectorCentroids = kMeans(subvectorData, numClusters, maxIterations);
+          codebooks.push(subvectorCentroids);
+        } catch (error) {
+          console.error(`Delta-PQ训练错误: 子向量${i}聚类失败`, error);
+          // 创建一个默认的码本
+          const defaultCodebook = Array(numClusters).fill()
+            .map(() => new Float32Array(subvectorData[0]?.length || 1).fill(0));
+          codebooks.push(defaultCodebook);
+        }
       }
       
-      // 对子向量执行K-means聚类
-      const subvectorCentroids = kMeans(subvectorData, numClusters, maxIterations);
-      codebooks.push(subvectorCentroids);
+      // 标记为已训练，在进行量化和反量化前必须设置
+      isTrained = true;
+      
+      // 计算平均量化误差 (尝试对一个子集进行评估)
+      let totalError = 0;
+      const maxTestVectors = Math.min(100, trainVectors.length);
+      
+      for (let i = 0; i < maxTestVectors; i++) {
+        try {
+          const vec = trainVectors[i];
+          const { codes } = quantizeVector(vec);
+          const reconstructed = dequantizeVector(codes);
+          totalError += computeQuantizationError(vec, reconstructed);
+        } catch (error) {
+          console.warn(`Delta-PQ训练警告: 评估向量${i}时出错`, error);
+          // 继续处理下一个向量
+        }
+      }
+      
+      const averageError = totalError / maxTestVectors;
+      
+      return {
+        averageError,
+        numVectors: trainVectors.length,
+        codebookSize: numClusters,
+        compressionRatio: (32 * vectorDimension) / (bitsPerCode * numSubvectors),
+        validVectorRatio: validVectors.length / vectors.length
+      };
+    } catch (error) {
+      isTrained = false;
+      console.error('Delta-PQ训练错误:', error);
+      throw new Error(`Delta-PQ训练失败: ${error.message}`);
     }
-    
-    // 计算平均量化误差
-    let totalError = 0;
-    for (const vec of trainVectors) {
-      const { codes } = quantizeVector(vec);
-      const reconstructed = dequantizeVector(codes);
-      totalError += computeQuantizationError(vec, reconstructed);
-    }
-    
-    const averageError = totalError / trainVectors.length;
-    
-    // 标记为已训练
-    isTrained = true;
-    
-    return {
-      averageError,
-      numVectors: trainVectors.length,
-      codebookSize: numClusters,
-      compressionRatio: (32 * vectorDimension) / (bitsPerCode * numSubvectors)
-    };
   }
   
   /**

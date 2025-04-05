@@ -10,9 +10,28 @@
  * @returns {number} 距离值
  */
 export function computeEuclideanDistance(a, b) {
+  // 添加防御性检查
+  if (!a || !b) {
+    console.error('向量距离计算错误: 输入向量为空', { a, b });
+    return Infinity; // 返回无穷大表示无效距离
+  }
+  
+  if (a.length !== b.length) {
+    console.error('向量距离计算错误: 向量维度不匹配', { aLength: a.length, bLength: b.length });
+    return Infinity;
+  }
+  
   let sum = 0;
   const length = a.length;
   for (let i = 0; i < length; i++) {
+    // 确保数值有效
+    if (typeof a[i] !== 'number' || typeof b[i] !== 'number' || 
+        isNaN(a[i]) || isNaN(b[i])) {
+      console.error('向量距离计算错误: 向量包含非数值元素', { 
+        index: i, aValue: a[i], bValue: b[i] 
+      });
+      return Infinity;
+    }
     const diff = a[i] - b[i];
     sum += diff * diff;
   }
