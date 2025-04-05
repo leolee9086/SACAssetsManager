@@ -229,10 +229,46 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
     const heap = [];
     const transactionSystem = createTransactionSystem();
     
+    // 用于跟踪最大值的最大堆
+    let maxHeap = [];
+    const maxCompareFn = (a, b) => -compareFn(a, b); // 反转比较函数
+    let maxHeapSynced = false; // 标记最大堆是否已同步
+    
     // 内部帮助方法
     const validateValue = (value) => {
         if (value === undefined) {
             throw new Error('Cannot push undefined value');
+        }
+    };
+    
+    // 同步最大堆中的元素
+    const syncMaxHeap = () => {
+        // 重建最大堆
+        maxHeap = [];
+        
+        // 如果主堆为空，则清空最大堆
+        if (heap.length === 0) {
+            maxHeapSynced = true;
+            return;
+        }
+        
+        // 将最小堆中的所有元素复制到最大堆
+        for (const value of heap) {
+            maxHeap.push(value);
+        }
+        
+        // 构建最大堆
+        for (let i = Math.max(0, parent(maxHeap.length - 1)); i >= 0; i--) {
+            heapifyDown(maxHeap, maxCompareFn, i);
+        }
+        
+        maxHeapSynced = true;
+    };
+    
+    // 确保最大堆已同步
+    const ensureMaxHeapSynced = () => {
+        if (!maxHeapSynced) {
+            syncMaxHeap();
         }
     };
     
@@ -242,6 +278,15 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
             
             heap.push(value);
             heapifyUp(heap, compareFn, heap.length - 1);
+            
+            // 将同一个值添加到最大堆，如果最大堆已同步
+            if (maxHeapSynced && maxHeap.length > 0) {
+                maxHeap.push(value);
+                heapifyUp(maxHeap, maxCompareFn, maxHeap.length - 1);
+            } else {
+                // 标记最大堆需要重新同步
+                maxHeapSynced = false;
+            }
         },
         
         pop: () => {
@@ -254,6 +299,9 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
                 heap[0] = last;
                 heapifyDown(heap, compareFn, 0);
             }
+            
+            // 最小堆变化后，标记最大堆需要重新同步
+            maxHeapSynced = false;
             
             return min;
         },
@@ -341,6 +389,8 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
         // 高效地清空堆
         clear: () => {
             heap.length = 0;
+            maxHeap = [];
+            maxHeapSynced = true;
         },
         
         // 事务系统接口
@@ -354,48 +404,75 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
         
         getWorst: () => {
             if (heap.length === 0) return null;
+            if (heap.length === 1) return heap[0];
             
-            // 在最小堆中，最差（最大）的元素通常在叶节点中
-            // 找出所有叶节点中的最大值
-            let maxElement = heap[0];
-            let maxIndex = 0;
+            // 确保最大堆已同步
+            ensureMaxHeapSynced();
             
-            for (let i = 1; i < heap.length; i++) {
-                if (compareFn(heap[i], maxElement) > 0) {
-                    maxElement = heap[i];
-                    maxIndex = i;
-                }
-            }
-            
-            return maxElement;
+            // 最大堆的根节点就是最大值（最差的元素）
+            return maxHeap[0];
         },
         
         popWorst: () => {
             if (heap.length === 0) return null;
             if (heap.length === 1) return heap.pop();
             
-            // 找出最大元素的索引
-            let maxIndex = 0;
-            for (let i = 1; i < heap.length; i++) {
-                if (compareFn(heap[i], heap[maxIndex]) > 0) {
-                    maxIndex = i;
+            // 确保最大堆已同步
+            ensureMaxHeapSynced();
+            
+            // 从最大堆中获取最大值并移除
+            const worst = maxHeap[0];
+            const maxHeapLast = maxHeap.pop();
+            if (maxHeap.length > 0) {
+                maxHeap[0] = maxHeapLast;
+                heapifyDown(maxHeap, maxCompareFn, 0);
+            }
+            
+            // 从主堆中找到并删除该元素 - 使用更可靠的查找方法
+            let index = -1;
+            
+            // 对于复杂对象，不能只比较值是否等于0，需要检查对象身份或深度比较
+            if (typeof worst === 'object' && worst !== null) {
+                // 如果对象有id属性，使用id比较
+                if (worst.id !== undefined) {
+                    for (let i = 0; i < heap.length; i++) {
+                        if (heap[i].id === worst.id) {
+                            index = i;
+                            break;
+                        }
+                    }
+                } else {
+                    // 否则使用严格相等比较对象引用
+                    index = heap.findIndex(item => item === worst);
+                }
+            } else {
+                // 基本类型或null可以使用标准比较
+                for (let i = 0; i < heap.length; i++) {
+                    if (compareFn(worst, heap[i]) === 0 && worst === heap[i]) {
+                        index = i;
+                        break;
+                    }
                 }
             }
             
-            // 交换最大元素和最后一个元素，然后移除最后一个元素
-            const worst = heap[maxIndex];
-            const lastElement = heap.pop();
-            
-            // 如果移除的是最后一个元素，就直接返回
-            if (maxIndex === heap.length) {
-                return worst;
+            if (index !== -1) {
+                // 移除该元素并维护堆属性
+                const last = heap.pop();
+                if (index < heap.length) {
+                    heap[index] = last;
+                    
+                    // 确保堆性质在删除后仍然保持
+                    heapifyDown(heap, compareFn, index);
+                    heapifyUp(heap, compareFn, index); // 可能需要上移
+                }
+            } else {
+                // 如果在最小堆中找不到元素（不应该发生），重新同步两个堆
+                console.warn('在最小堆中找不到最差元素，重新同步堆');
+                syncMaxHeap();
             }
             
-            // 否则，用最后一个元素替换最大元素的位置
-            heap[maxIndex] = lastElement;
-            
-            // 从替换位置向下堆化，确保堆的性质
-            heapifyDown(heap, compareFn, maxIndex);
+            // 最小堆变化后，标记最大堆需要重新同步，但我们已经手动维护了它
+            // 这里不需要完全重建，因为我们已经正确移除了元素
             
             return worst;
         }

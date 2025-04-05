@@ -1,3 +1,62 @@
+# DeltaPQ-HNSW 向量索引
+
+## 功能概述
+
+本模块实现了将DeltaPQ向量压缩与HNSW图索引结合的高性能向量检索系统，同时保持高压缩比和高检索性能。
+
+## 核心优势
+
+1. **高压缩比**：通过DeltaPQ量化技术大幅减少向量存储空间，降低内存占用
+2. **高性能检索**：通过HNSW图索引保持次线性时间复杂度的快速检索能力
+3. **灵活配置**：支持多种配置参数调整，适应不同场景需求
+4. **兼顾精度与速度**：量化压缩与图索引结合，在降低存储成本的同时保持较高查询精度
+
+## 搜索放大策略
+
+本模块采用三层搜索放大策略，提高查询的召回率和精度：
+
+1. **初始搜索放大**：在HNSW搜索阶段获取k*SEARCH_AMPLIFICATION_FACTOR个候选结果
+2. **ef参数放大**：使用k*EF_AMPLIFICATION_FACTOR的ef值确保HNSW搜索质量
+3. **重排放大**：从初步候选中选取k*RERANK_AMPLIFICATION_FACTOR个结果进行精确距离重排
+
+放大策略的优势：
+- 单次搜索即可获得高质量结果，无需多次尝试不同参数
+- 通过重排序阶段确保最终结果精度
+- 效率更高，相比多ef策略减少了重复搜索的开销
+
+## 使用示例
+
+```javascript
+import { createCombinedDeltaPQHNSW } from './useCombinedDeltaPQHNSW.js';
+
+// 创建索引实例
+const index = createCombinedDeltaPQHNSW({
+  numSubvectors: 8,
+  bitsPerCode: 8,
+  distanceFunction: 'euclidean',
+  efConstruction: 200,
+  efSearch: 200
+});
+
+// 训练索引
+index.train(trainingVectors);
+
+// 添加向量
+for (const vector of vectors) {
+  index.addVector(vector);
+}
+
+// 搜索
+const results = index.search(queryVector, 10);
+```
+
+## 适用场景
+
+- 大规模向量库的相似性搜索
+- 内存受限环境下的向量检索
+- 需要兼顾速度和精度的应用场景
+- 特征向量检索、语义搜索、图像检索等领域
+
 # DeltaPQ-HNSW 向量检索模块
 
 高性能、低内存占用的向量相似度检索工具集，结合了DeltaPQ向量压缩和HNSW图索引技术。
@@ -228,4 +287,114 @@ const filteredResults = hnswIndex.searchKNN(queryVector, 5, null, excludeIds);
 
 ## 内部实现
 
-有关内部算法实现的详细说明，请参考 [AInote.md](./AInote.md)。 
+有关内部算法实现的详细说明，请参考 [AInote.md](./AInote.md)。
+
+# HNSW高性能向量索引实现
+
+## 算法概述
+
+HNSW（分层可导航小世界）是一种高性能近似最近邻搜索算法，通过构建多层次图结构实现对数时间复杂度的查询。
+
+### 核心特点
+
+- **多层图结构**：底层包含所有节点，高层包含随机子集，形成导航结构
+- **贪婪搜索策略**：从高层开始，逐层下降寻找最近邻
+- **连接优化**：控制每层每个节点的连接数，平衡索引质量和大小
+
+## 参数传递与防御性编程
+
+在复杂算法实现中，防御性编程至关重要。我们的代码通过以下方式增强健壮性：
+
+### 1. 参数校验的重要性
+
+良好的参数校验可以：
+- 捕获90%的潜在错误
+- 提供明确的错误信息而非模糊的空指针异常
+- 减少调试时间并提高系统可靠性
+
+### 2. 常见错误类型及防御措施
+
+对于`TypeError: Cannot read properties of undefined (reading 'id')`错误：
+
+```javascript
+// 错误写法
+const id1 = v1.id;  // v1可能为undefined
+
+// 正确写法
+const id1 = v1 && v1.id !== undefined ? v1.id : '0';
+```
+
+### 3. 关键函数的防御检查
+
+- **distanceWithCache**：确保向量和ID有效
+- **searchLayer**：验证入口点和连接的有效性
+- **insertNode**：检查节点和向量存在性
+
+## 高效实现策略
+
+### 1. 距离计算优化
+
+- 使用LRU缓存存储常用距离计算
+- 避免重复计算相同向量对之间的距离
+- 支持多种距离度量（欧几里得、余弦、内积）
+
+### 2. 搜索策略优化
+
+- 最小堆实现高效的候选集管理
+- 跨层共享已访问节点集合
+- 基于距离的早期终止策略
+
+### 3. 连接管理优化
+
+- 高效的连接添加和修剪算法
+- 使用Set进行快速存在性检查
+- 分层的连接数控制策略
+
+## 调试与异常处理
+
+为帮助调试复杂问题，代码加入了多级异常处理：
+
+1. **详细日志**：记录关键操作和状态变更
+2. **精确错误信息**：包含出错对象、ID和上下文
+3. **失败优雅降级**：在关键点检测失败并尝试合理恢复
+
+## 性能优化建议
+
+1. **合理设置参数**：
+   - `M`：16-32之间，影响索引质量和大小
+   - `efConstruction`：100-200，影响建构质量
+   - `efSearch`：50-100，影响查询精度和速度
+
+2. **内存优化**：
+   - 使用Float32Array而非普通数组
+   - 根据数据集大小调整距离缓存
+
+3. **批量操作**：
+   - 使用批量插入代替单个插入
+   - 预计算批次内向量距离
+
+## 使用示例
+
+```javascript
+// 创建索引
+const index = createHNSWIndex({
+  distanceFunction: 'euclidean',
+  M: 16,
+  efConstruction: 200,
+  efSearch: 50
+});
+
+// 添加向量
+const nodeId = index.insertNode(vector, { metadata: 'example' });
+
+// 查询最近邻
+const results = index.searchKNN(queryVector, 10);
+```
+
+## 故障排查指南
+
+| 错误类型 | 可能原因 | 解决方案 |
+|---------|---------|---------|
+| TypeError: Cannot read property 'id' | 无效节点对象传入 | 检查节点创建和查询向量格式 |
+| 查询结果为空 | 入口点无效或被删除 | 重新设置入口点或检查节点状态 |
+| 连接数量异常 | 层级计算错误 | 检查层级随机函数和参数设置 | 
