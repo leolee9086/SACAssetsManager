@@ -727,5 +727,14 @@ async function 运行测试() {
   }
 }
 
-export { 运行测试 }; 
+/**
+ * 与经典HNSW实现进行对比测试
+ */
+async function 运行对比测试() {
+  // 导入对比测试模块
+  const { default: 对比测试 } = await import('../hnswlayers对比测试.js');
+  await 对比测试();
+}
+
+export { 运行测试, 运行对比测试 }; 
 

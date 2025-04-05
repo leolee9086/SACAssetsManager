@@ -4,8 +4,8 @@
 
 
 import { FeatureExtractor,estimateAtmosphericLight } from "../utils/image/analyze/features.js";
-import { MinHeap } from '../utils/useEcma/useArray/minHeap.js';
 import { webGpuDevice as device } from "../utils/browser/gpu.js";
+import { MinHeap } from "../../src/toolBox/feature/useDataStruct/useHeaps/useMinHeap.js";
 // 特征系统
 
 class LUTGenerator {

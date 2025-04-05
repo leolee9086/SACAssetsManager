@@ -1,10 +1,6 @@
-import { sac } from "../../../../asyncModules.js";
-import { withPerformanceLogging } from "../../../../../src/utils/functionAndClass/performanceRun.js";
 import { hnsw索引元设置 } from "../config.js";
 import { 为数据项构建hnsw索引, 删除数据项hnsw索引 } from "../hnswlayers/build.js";
-import { hnswAnn搜索数据集 } from "../hnswlayers/query.js";
 import { 获取随机层级 } from "../hnswlayers/utils.js";
-import { 准备向量查询函数 } from "./query.js";
 import { 创建邻接表, 查询邻居 } from "../neighbors/crud.js";
 import { 添加所有模型到hnsw层级映射 } from "../hnswlayers/utils.js";
 export const 迁移数据项向量结构 = (数据项, hnsw层级映射) => {
@@ -133,7 +129,7 @@ export const 初始化hnsw单模型邻接表 = (模型名称, 数据项) => {
             层级邻接表.layer = layerMatch ? parseInt(layerMatch[1], 10) : undefined;
         }
     });
-    sac.logger.databaseInfo(`数据项${数据项.id}的${模型名称}特征索引初始化完成`);
+    console.log(`数据项${数据项.id}的${模型名称}特征索引初始化完成`);
     return 数据项.neighbors[hnsw索引名称];
 }
 function areVectorsEqual(vectorA, vectorB) {
