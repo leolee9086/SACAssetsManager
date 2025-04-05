@@ -73,18 +73,21 @@ export function getDistanceFunction(distanceName, euclideanFunc, cosineFunc, inn
   }
 }
 
-/**
- * 获取随机层数
- * 实现分层策略，大多数节点在底层，少数节点在高层
- * @param {number} ml - 最大层数
- * @param {number} M - 每层最大连接数
- * @returns {number} - 随机层数
- */
-export function getRandomLevel(ml, M) {
-  const r = Math.random();
-  return Math.floor(-Math.log(r) * (ml / Math.log(M)));
-}
 
+export function getRandomLevel(ml) {
+    // 使用几何分布随机确定层级，概率为1/e = 0.3679
+    const probability = 1 / Math.E;
+    
+    // 随机生成层级
+    let level = 0;
+    
+    // 概率性增加层级，直到超过最大层级或概率测试失败
+    while (level < ml && Math.random() < probability) {
+      level++;
+    }
+    
+    return level;
+  }
 /**
  * 创建HNSW图节点
  * @param {number} id - 节点唯一ID
