@@ -2,15 +2,13 @@ import jsonSyAdapter from './workspaceAdapters/jsonAdapter.js';
 import msgSyAdapter from './workspaceAdapters/msgAdapter.js';
 import { 校验主键 } from './keys.js';
 import { plugin } from '../../../asyncModules.js';
-import { 迁移为合法文件夹名称 } from './utils/fileName.js';
+import { 迁移为合法文件夹名称 } from '../../../../src/toolBox/base/usePath/forFix.js';
 import { 计算LuteNodeID模 } from './utils/mod.js';
 import { 准备向量查询函数 } from './utils/query.js';
 import { 初始化数据项hnsw领域邻接表, 迁移数据项向量结构 } from './utils/item.js';
 import { 创建临时数据对象 } from './workspaceAdapters/utils/cache.js';
 import { sac } from '../../../asyncModules.js';
 import fs from '../../../polyfills/fs.js';
-import { 获取数据项所在hnsw层级, 获取随机层级 } from "./hnswlayers/utils.js";
-import { withPerformanceLogging } from '../../../../src/utils/functionAndClass/performanceRun.js';
 import { 删除数据项hnsw索引 } from './hnswlayers/build.js';
 const { logger } = sac
 let 命名常量 = {
