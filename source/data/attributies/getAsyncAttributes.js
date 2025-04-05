@@ -1,13 +1,13 @@
 import { thumbnail } from "../../server/endPoints.js";
 export const getAssetItemColor = async (assetData) => {
-    if (assetData.colorPllet&&assetData.colorPllet[0]) {
+    if (assetData.colorPllet && assetData.colorPllet[0]) {
         return assetData.colorPllet;
     }
     try {
         const response = await fetch(thumbnail.getColor(assetData.type, assetData.path));
         if (!response.ok) {
             console.warn(`HTTP error! status: ${response.status}`);
-            assetData.colorPllet=[]
+            assetData.colorPllet = []
 
             return [];
         }
@@ -16,13 +16,13 @@ export const getAssetItemColor = async (assetData) => {
             assetData.colorPllet = data.sort((a, b) => b.count - a.count);
             return assetData.colorPllet;
         } else {
-            assetData.colorPllet=[]
+            assetData.colorPllet = []
             console.warn(data.error)
             return []
         }
     } catch (error) {
         console.warn(error)
-        assetData.colorPllet=[]
+        assetData.colorPllet = []
         return []
     }
 

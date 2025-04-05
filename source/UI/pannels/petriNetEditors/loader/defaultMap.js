@@ -10,9 +10,13 @@ export const 全局节点注册表标记 = Symbol.for('SACComponentMap');
 // 初始化默认组件映射
 export const 默认组件式节点注册表 = {
     'math/number': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/math/number.vue",
+    'text/input': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/text/textInput.vue",
+    'text/textarea': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/text/textareaInput.vue",
+    'text/markdown': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/text/markdownInput.vue",
     'note/protyle': "/plugins/SACAssetsManager/source/UI/components/common/assetCard/protyleCell.vue",
     'image/brightness': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/image/brightness.vue",
     'ai/config': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/ai/SiyuanAIConfig.vue",
+    'ai/chat': "/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/nodes/ai/SiyuanAIChat.vue",
     localImageInput: '/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/localImageInput.vue',
     ImageCompressor: '/plugins/SACAssetsManager/source/UI/pannels/petriNetEditors/ImageCompressor.vue',
     ImageComparison: 解析预定义带节点定义组件('ImageComparison.vue'),

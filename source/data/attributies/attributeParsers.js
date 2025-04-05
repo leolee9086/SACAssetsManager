@@ -10,6 +10,7 @@ const 常用图标属性 = [
     'icône', 'vignette', 'favicon', 'logo', 'image', 'photo', // 法文
     'иконка', 'миниатюра', 'фавикон', 'логотип', 'изображение', 'фото' // 俄文
 ];
+const 微信捐赠图片伺服地址=`/plugins/SACAssetsManager/assets/wechatDonate.jpg`
 
 const 创建缩略图URL对象 = (item, 布局控制器) => {
     if (!item.thumbnailURL) {
@@ -27,7 +28,7 @@ const 创建缩略图URL对象 = (item, 布局控制器) => {
                 if (item.type) {
                     return thumbnail.genHref(item.type, item.path, 布局控制器.getCardSize(), item);
                 } else {
-                    return "/plugins/SACAssetsManager/assets/wechatDonate.jpg";
+                    return 微信捐赠图片伺服地址;
                 }
             }
         }

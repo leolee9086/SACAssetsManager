@@ -2,7 +2,6 @@ import { 最小堆 } from "../../../../../src/utils/useEcma/useArray/minHeap.js"
 import { hnsw索引元设置, 计算层级预期邻居数量 } from "../config.js";
 import { 计算数据项距离 } from "../utils/distance.js";
 import { 获取数据项特定hnsw索引邻接表 } from "../utils/item.js";
-import { withPerformanceLogging } from "../../../../../src/utils/functionAndClass/performanceRun.js";
 import { 选择入口点 } from "./entry.js";
 import { 重建数据集的层级映射 } from "./utils.js";
 function 根据层级获取节点邻居候选(数据集, 目标数据项, 当前层入口点, 模型名称, 当前层级, hnsw层级映射) {
