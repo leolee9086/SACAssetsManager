@@ -411,7 +411,7 @@ function 测试HNSW索引召回率和性能() {
   try {
     // 1. 生成测试数据
     console.log('1. 生成测试数据...');
-    const numVectors = 1000;
+    const numVectors = 3000;
     const dimensions = 128;
     
     // 创建具有更好区分度的向量集合
@@ -419,7 +419,7 @@ function 测试HNSW索引召回率和性能() {
     
     // 生成5个聚类中心
     const centroids = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i <30; i++) {
       const centroid = new Float32Array(dimensions);
       for (let j = 0; j < dimensions; j++) {
         centroid[j] = Math.random() * 2 - 1; // 范围[-1, 1]

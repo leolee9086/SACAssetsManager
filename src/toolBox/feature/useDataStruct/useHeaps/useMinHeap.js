@@ -560,4 +560,44 @@ class MinHeap {
     }
 }
 
+/**
+ * 创建专门用于HNSW搜索的最大堆
+ * 对标准MinHeap的封装，简化了最大堆的使用
+ */
+export function createMaxHeap(compareFunc = (a, b) => a - b) {
+    // 反转比较函数，将最小堆转为最大堆
+    const maxHeapCompare = (a, b) => compareFunc(b, a);
+    const heap = createMinHeap(maxHeapCompare);
+    
+    // 包装返回的堆，统一API
+    return {
+      push: (item) => heap.push(item),
+      pop: () => heap.pop(),
+      peek: () => heap.peek(),
+      size: () => heap.size(),
+      isEmpty: () => heap.size() === 0,
+      toArray: () => {
+        const array = [];
+        const tempHeap = createMinHeap(maxHeapCompare);
+        
+        // 复制堆内容
+        while (heap.size() > 0) {
+          const item = heap.pop();
+          array.push(item);
+          tempHeap.push(item);
+        }
+        
+        // 恢复堆
+        while (tempHeap.size() > 0) {
+          heap.push(tempHeap.pop());
+        }
+        
+        return array;
+      },
+      getWorst: () => {
+        if (heap.size() === 0) return null;
+        return heap.peek();
+      }
+    };
+  }
 export { createMinHeap, MinHeap };

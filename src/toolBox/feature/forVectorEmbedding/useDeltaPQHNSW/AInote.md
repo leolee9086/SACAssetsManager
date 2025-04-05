@@ -1,4 +1,59 @@
-# HNSW索引实现与调试笔记
+# HNSW向量检索模块
+
+本模块实现了高性能的HNSW (Hierarchical Navigable Small World) 向量索引及搜索算法，采用函数式编程风格。
+
+## 模块结构
+
+该模块按照关注点分离原则，将不同功能拆分为多个文件：
+
+- `useCustomedHNSW.js` - 主模块实现，包括核心索引操作
+- `forHNSWHelpers.js` - 辅助函数，包括距离缓存、随机层级生成等
+- `forHNSWIdMapping.js` - ID映射管理相关函数
+- `forHNSWSearch.js` - 搜索相关函数，包括层级搜索和最近邻搜索
+- `forHNSWOptimize.js` - 索引优化和统计相关函数
+- `forHNSWBatch.js` - 批量操作函数，支持高效批量插入和搜索
+
+## 功能特点
+
+1. 高性能近似最近邻搜索
+2. 可扩展的多距离度量支持（欧几里得、余弦、内积等）
+3. 距离计算缓存优化
+4. 分层图结构，查询复杂度为O(log n)
+5. 节点的逻辑删除而非物理删除，减少内存碎片
+6. 高效批量操作支持
+7. 连接结构优化功能，提高召回率
+
+## 使用方式
+
+基本使用示例：
+
+```javascript
+import { createHNSWIndex } from './useCustomedHNSW.js';
+
+// 创建索引
+const index = createHNSWIndex({
+  distanceFunction: 'cosine', // 'euclidean'、'cosine'或'inner_product'
+  M: 64,                      // 每层最大连接数
+  efConstruction: 200,        // 构建参数
+  efSearch: 200,              // 搜索参数
+  ml: 16                      // 最大层数
+});
+
+// 插入向量
+const id1 = index.insertNode([0.1, 0.2, 0.3], { label: 'vector1' });
+const id2 = index.insertNode([0.2, 0.3, 0.4], { label: 'vector2' });
+
+// 搜索最近邻
+const results = index.searchKNN([0.1, 0.2, 0.3], 10);
+```
+
+## 性能优化建议
+
+1. 较大数据集建议使用批量插入函数 `batchInsertNodes`
+2. 搜索参数 `efSearch` 影响召回率和速度，值越大召回率越高但速度越慢
+3. 构建参数 `efConstruction` 影响索引质量，值越大索引质量越高但构建越慢
+4. 对于高维向量，推荐使用余弦距离
+5. 如果需要提高召回率，可以使用 `optimizeConnectivity` 优化连接结构
 
 ## 性能优化与问题排查
 
