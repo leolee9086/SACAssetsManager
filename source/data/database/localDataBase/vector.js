@@ -8,23 +8,7 @@ export async function 创建简单短哈希(文本,短码长度=8) {
     const 短哈希值 = 哈希值.substring(0, 短码长度);
     return 短哈希值;
 }
-export const 计算向量相似度=(输入点, 点数据集, 相似度算法)=>{
-    let 拷贝点
-    if (!Array.isArray(输入点)) {
-        拷贝点 = JSON.parse(输入点)
-    } else {
-        拷贝点 = 输入点
-    }
-    let similarityScores = [];
-    for (let v of 点数据集) {
-        let similarity = 相似度算法(拷贝点, v.vector);
-        similarityScores.push({
-            data: v,
-            score: similarity
-        });
-    }
-    return similarityScores;
-}
+
 export async function _查找最相似点(输入点, 点数据集, 查找阈值 = 10, 相似度算法=计算余弦相似度32位, 过滤条件) {
     let 拷贝点 = Array.isArray(输入点) ? 输入点 : JSON.parse(输入点);
     let tops = new Array(查找阈值).fill(null).map(() => ({ score: -Infinity }));
