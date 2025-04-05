@@ -1,8 +1,25 @@
 /**
+ * @template T
+ * @typedef {{
+ *   then: <R>(resolve: (value: T) => R|Promise<R>, reject?: (error: any) => any) => 流化代理<R>,
+ *   catch: <R>(reject: (error: any) => R|Promise<R>) => 流化代理<T|R>,
+ *   finally: (callback: () => void) => 流化代理<T>,
+ *   $$值: () => Promise<T>,
+ * } & (T extends object ? {
+ *   [K in keyof T]: T[K] extends (...args: infer A) => infer R 
+ *     ? (...args: A) => 流化代理<Awaited<R>>
+ *     : 流化代理<Awaited<T[K]>>
+ * } : {}) & {
+ *   [key: string]: (...args: any[]) => 流化代理<any>
+ * }} 流化代理
+ */
+
+/**
  * 处理Promise相关方法
+ * @template T
  * @param {string} 属性 - 属性名
  * @param {Proxy} 接收者 - 代理对象
- * @param {Promise} 当前Promise - 当前Promise对象
+ * @param {Promise<T>} 当前Promise - 当前Promise对象
  * @returns {Function|null} - 处理函数或null
  */
 const 处理Promise方法 = (属性, 接收者, 当前Promise) => {
@@ -44,8 +61,9 @@ const 处理Promise方法 = (属性, 接收者, 当前Promise) => {
 
 /**
  * 创建流式转换的代理对象
- * @param {Promise} 当前Promise - 当前Promise状态
- * @returns {Proxy} - 代理对象
+ * @template T
+ * @param {Promise<T>} 当前Promise - 当前Promise状态
+ * @returns {流化代理<T>} - 代理对象
  */
 const 创建流化代理 = (当前Promise) => {
   return new Proxy(function(){}, {
@@ -119,13 +137,36 @@ const 创建流化代理 = (当前Promise) => {
 
 /**
  * 流化器 - 将值转换为支持流式调用的代理（自动切换上下文）
- * @param {any} 目标 - 要流化的目标
- * @returns {Proxy} - 返回流化后的代理
+ * @template T
+ * @param {T|Promise<T>} 目标 - 要流化的目标
+ * @returns {流化代理<T> & {
+ *   [K in keyof T]: T[K] extends (...args: infer A) => infer R 
+ *     ? (...args: A) => 流化代理<Awaited<R>>
+ *     : 流化代理<Awaited<T[K]>>
+ * }} - 返回流化后的代理
  */
 export function 流化(目标) {
   // 如果已经是Promise，直接使用
   const 当前Promise = 目标 instanceof Promise ? 目标 : Promise.resolve(目标);
   
   // 创建并返回代理
-  return 创建流化代理(当前Promise);
+  return /** @type {any} */ (创建流化代理(当前Promise));
 } 
+
+// 添加懒加载辅助函数
+/**
+ * 懒流化 - 延迟执行计算函数并返回流化代理
+ * @template T
+ * @param {() => T|Promise<T>} 计算函数 - 返回要流化值的函数(同步或异步)
+ * @returns {流化代理<T>} - 返回流化后的代理对象
+ * @example
+ * // 懒加载数据
+ * const 数据 = 懒流化(() => fetch('/big-data').json());
+ * // 实际访问时才触发请求
+ * 数据.items[0].name.$$值.then(console.log);
+ */
+export function 懒流化(计算函数) {
+  return 流化(() => 计算函数());
+}
+
+
