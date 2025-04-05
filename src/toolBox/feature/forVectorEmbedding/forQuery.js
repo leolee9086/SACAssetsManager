@@ -1,7 +1,4 @@
-import { 计算归一化向量余弦相似度 } from "../../../../src/utils/vector/similarity.js";
-
-
-export async function 查找最相似点(输入点, 点数据集, 查找阈值 = 10, 相似度算法=计算归一化向量余弦相似度, 过滤条件) {
+export async function 查找最相似点(输入点, 点数据集, 查找阈值 = 10, 相似度算法, 过滤条件) {
     let 拷贝点 = new Float32Array(输入点)
     let tops = [];
     for (let v of 点数据集) {
@@ -17,5 +14,3 @@ export async function 查找最相似点(输入点, 点数据集, 查找阈值 =
     }
     return tops;
 }
-
-export {查找最相似点 as findSimilarity}

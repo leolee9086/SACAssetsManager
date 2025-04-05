@@ -1,6 +1,6 @@
 import { 柯里化 } from "../../../../../src/toolBox/base/useEcma/forFunctions/forCurrying.js";
 import { 计算归一化向量余弦相似度, } from "../../../../../src/utils/vector/similarity.js";
-import { 查找最相似点 } from "../vector.js";
+import { 查找最相似点 } from "../../../../../src/toolBox/feature/forVectorEmbedding/forQuery.js";
 import Mingo from '../../../../../static/mingo.js'
 import { hnswAnn搜索数据集 } from "../hnswlayers/query.js";
 import { withPerformanceLogging } from "../../../../../src/utils/functionAndClass/performanceRun.js";
