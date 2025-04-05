@@ -193,6 +193,7 @@ export function createCombinedDeltaPQHNSW({
   let vectorMap = new Map(); // 存储所有向量及其量化信息的映射
   let idMap = new Map(); // 内部ID到原始ID的映射
   let nextId = 0; // 用于生成唯一的内部ID
+  let idCounter = 0; // 用于在batchAddVectors中生成唯一ID
   
   // 保存索引维度，解决查询维度匹配问题
   let dimensions = null;
@@ -230,6 +231,10 @@ export function createCombinedDeltaPQHNSW({
     
     // 缓存训练向量以便后续添加
     trainingVectors = [...vectors];
+    
+    // 重置ID计数器
+    nextId = 0;
+    idCounter = 0;
     
     // 添加随机填充向量以增强图连接性
     if (randomFillCount > 0 && vectors.length > 0) {
@@ -374,30 +379,34 @@ export function createCombinedDeltaPQHNSW({
    * @returns {number} 成功返回内部ID，失败返回-1
    */
   function addVector(vector, id = null, metadata = null, storeOriginal = true) {
-    if (!vector || vector.length === 0) {
-      console.error('无法添加空向量');
-      return -1;
+    if (!isTrained) {
+      throw new Error('索引未训练，无法添加向量');
     }
     
-    // 克隆向量以防止外部修改
-    const vectorArray = Array.isArray(vector) ? new Float32Array(vector) : new Float32Array(vector);
+    // 检查向量格式
+    const vectorArray = Array.isArray(vector) ? vector : vector instanceof Float32Array ? vector : null;
+    
+    if (!vectorArray) {
+      throw new Error('无效的向量格式，必须是数组或Float32Array');
+    }
+    
+    // 检查维度
+    if (dimensions && vectorArray.length !== dimensions) {
+      throw new Error(`向量维度不匹配：期望${dimensions}，实际${vectorArray.length}`);
+    }
     
     try {
-      // 如果索引未训练，将向量添加到训练集
-      if (!isTrained) {
-        console.log('索引尚未训练，将向量添加到待训练集');
-        trainingVectors.push(vectorArray);
-        return -1;
-      }
-      
       // 生成内部ID
       const internalId = nextId++;
+      
+      // 使用传入的ID作为原始ID，若未提供则使用内部ID
+      const originalId = id !== null ? id : internalId;
       
       // 构建向量数据结构
       const vectorData = {
         originalVector: storeOriginal ? new Float32Array(vectorArray) : null,
         userData: metadata,
-        originalId: id  // 明确存储原始ID
+        originalId: originalId  // 明确存储原始ID
       };
       
       // 量化向量
@@ -420,21 +429,35 @@ export function createCombinedDeltaPQHNSW({
       
       // 构建节点数据对象 - 明确包含完整的originalId
       const nodeData = {
-        originalId: id,  // 直接将原始ID作为主键存储，确保ID映射正确
+        originalId: originalId,  // 明确存储原始ID
         userData: metadata
       };
       
-      // 插入HNSW节点 - 这会返回内部节点ID
-      const nodeId = hnswIndex.insertNode(vectorArray, nodeData);
+      // 插入HNSW节点
+      let nodeId;
       
-      // 存储向量数据和ID映射
-      vectorMap.set(nodeId, vectorData);
-      if (id !== null) {
-        // 双向映射，提高查找速度和可靠性
-        idMap.set(nodeId, id);
+      // 检查insertNode函数所需的参数模式
+      // 先尝试直接调用hnswIndex对象的插入方法
+      if (typeof hnswIndex.insertNode === 'function') {
+        nodeId = hnswIndex.insertNode(vectorArray, nodeData);
+      } else {
+        console.error('HNSW索引不支持插入节点操作');
+        return -1;
       }
       
-      return nodeId;
+      // 存储向量数据和ID映射
+      if (nodeId !== undefined && nodeId !== null && nodeId !== -1) {
+        // 建立双向ID映射关系
+        vectorMap.set(nodeId, vectorData);
+        if (originalId !== nodeId) {
+          idMap.set(nodeId, originalId); // 内部ID到原始ID的映射
+        }
+        
+        return nodeId; // 返回内部ID方便索引操作
+      } else {
+        console.error('添加向量到HNSW索引失败');
+        return -1;
+      }
     } catch (error) {
       console.error('添加向量失败:', error);
       return -1;
@@ -473,41 +496,24 @@ export function createCombinedDeltaPQHNSW({
   }
   
   /**
-   * 执行K近邻搜索 - 使用最小堆优化版本, 大幅改进查询精度与召回率
-   * @param {Float32Array|Array} queryVector - 查询向量
-   * @param {number} k - 返回的近邻数量
-   * @param {Object} options - 搜索选项
-   * @returns {Array<{id: number, distance: number, data: any}>} 搜索结果
+   * 预处理查询向量
+   * @param {Float32Array|Array<number>} queryVector - 原始查询向量
+   * @returns {Float32Array} 处理后的向量
    */
-  function search(queryVector, k = 10, { ef = efSearch, useQuantization = true, verbose = false } = {}) {
-    if (!isTrained) {
-      console.error('索引尚未训练，无法执行搜索');
-      return [];
-    }
-
-    // 检查HNSW索引是否有效
-    if (!hnswIndex) {
-      console.error('HNSW索引不存在，无法执行搜索');
-      return [];
-    }
-
-    // 添加填充向量使用说明
-    if (verbose && randomFillCount > 0) {
-      console.log(`注意: 索引中包含 ${randomFillCount} 个随机填充向量，这些向量仅用于维持图结构的连接性，不会出现在最终搜索结果中`);
-    }
-
+  function preprocessQueryVector(queryVector) {
     // 检查向量格式和维度
     const vectorArray = Array.isArray(queryVector) ? new Float32Array(queryVector) : queryVector;
+    
     if (!dimensions) {
       console.error('索引维度未设置，可能是索引未训练');
-      return [];
+      return vectorArray;
     }
     
     if (vectorArray.length !== dimensions) {
       console.error(`查询向量维度 ${vectorArray.length} 与索引维度 ${dimensions} 不匹配`);
-      return [];
+      return vectorArray;
     }
-
+    
     // 克隆查询向量以防止修改原始数据
     const queryCopy = new Float32Array(vectorArray);
     
@@ -516,343 +522,369 @@ export function createCombinedDeltaPQHNSW({
       normalizeVector(queryCopy);
     }
     
-    // 使用搜索放大策略：大幅提高ef参数以增加搜索质量
-    const effectiveEf = Math.max(ef, k * EF_AMPLIFICATION_FACTOR);
-    
-    if (verbose) {
-      console.log(`搜索参数: k=${k}, ef=${effectiveEf}, useQuantization=${useQuantization}`);
-      console.log(`当前索引中向量数量: ${vectorMap.size}`);
-      console.log(`搜索放大策略: 初始搜索放大倍数=${SEARCH_AMPLIFICATION_FACTOR}, ef放大倍数=${EF_AMPLIFICATION_FACTOR}`);
-    }
-
-    try {
-      // 对查询向量进行量化
-      let queryCode = null;
-      if (useQuantization) {
-        try {
-          const quantizationResult = deltaPQ.quantizeVector(queryCopy);
-          queryCode = quantizationResult.codes;
-          
-          if (verbose) {
-            console.log('查询向量量化成功');
-          }
-        } catch (error) {
-          console.warn('量化查询向量失败，将退回到使用原始向量:', error);
-          useQuantization = false;
-        }
-      }
-
-      // 搜索HNSW索引 - 大幅扩大初始搜索范围以提高召回率
-      const searchParams = { ef: effectiveEf };
-      
-      // 执行HNSW搜索，使用更高的EF确保结果质量 - 使用SEARCH_AMPLIFICATION_FACTOR放大搜索范围
-      const initialResults = hnswIndex.searchKNN(queryCopy, k * SEARCH_AMPLIFICATION_FACTOR, searchParams);
-      
-      if (verbose) {
-        console.log(`HNSW初始搜索结果数量: ${initialResults.length}`);
-      }
-      
-      if (initialResults.length === 0) {
-        console.warn('HNSW索引未返回任何结果，可能需要增加ef参数或重建索引');
-        
-        // 如果索引搜索失败，尝试使用线性搜索作为备份 - 这对小数据集很有效
-        if (vectorMap.size < 1000) {
-          console.log('尝试使用线性搜索作为备份...');
-          
-          return linearSearch(queryCopy, k, useQuantization, queryCode, verbose);
-        }
-        
-        return [];
-      }
-
-      // 创建最小堆用于存储最终结果 - 这确保我们始终保持k个最近的结果
-      const resultHeap = createBinaryHeap((a, b) => b.distance - a.distance);
-      
-      // 首先进行一次距离计算矫正 - 改进ID处理和距离计算逻辑
-      const recalculatedResults = [];
-      
-      // 检查结果中是否包含不合法的节点ID，及早发现问题
-      const invalidNodeIds = initialResults.filter(r => !vectorMap.has(r.id)).map(r => r.id);
-      if (invalidNodeIds.length > 0 && verbose) {
-        console.warn(`发现${invalidNodeIds.length}个无效节点ID: ${invalidNodeIds.join(', ')}`);
-        console.warn('注意,填充向量被用于维持良好的图结构,搜索结果中应予以剔除');
-      }
-      
-      for (const result of initialResults) {
-        try {
-          // 获取内部节点，提取原始ID
-          const nodeId = result.id;
-          
-          // 确保向量存在于vectorMap中
-          if (!vectorMap.has(nodeId)) {
-            if (verbose) {
-              console.warn(`无法找到内部ID为 ${nodeId} 的向量数据`);
-            }
-            continue;
-          }
-          
-          const vectorData = vectorMap.get(nodeId);
-          
-          // 防御性检查确保有向量数据
-          if (!vectorData) {
-            if (verbose) {
-              console.warn(`内部ID为 ${nodeId} 的数据为空`);
-            }
-            continue;
-          }
-          
-          // 获取节点，检查是否为填充向量
-          const node = hnswIndex.getNode ? hnswIndex.getNode(nodeId) : 
-                     (hnswIndex._nodes && hnswIndex._nodes.get(nodeId));
-          
-          // 跳过填充向量
-          if (node && node.data && node.data.isFiller === true) {
-            if (verbose) {
-              console.log(`跳过填充向量，ID=${nodeId}`);
-            }
-            continue;
-          }
-          
-          // 获取原始ID - 改进ID查找顺序，确保匹配精确查询结果
-          let originalId = null;
-          
-          // 1. 首先尝试从向量数据中获取原始ID
-          if (vectorData.originalId !== undefined) {
-            originalId = vectorData.originalId;
-          } 
-          // 2. 然后尝试从idMap中获取
-          else if (idMap.has(nodeId)) {
-            originalId = idMap.get(nodeId);
-          }
-          
-          // 尝试获取向量数据，优先使用原始向量
-          let vector = null;
-          if (vectorData.originalVector) {
-            vector = vectorData.originalVector;
-          } else if (vectorData.vector) {
-            vector = vectorData.vector;
-          } else if (vectorData.codes) {
-            // 如果只有编码，尝试解码
-            vector = deltaPQ.dequantizeVector(vectorData.codes);
-          }
-          
-          // 如果无法获取向量数据，记录警告并跳过
-          if (!vector) {
-            if (verbose) {
-              console.warn(`无法为内部ID ${nodeId} 获取有效的向量数据`);
-            }
-            continue;
-          }
-          
-          // 重新计算精确距离，确保排序准确性
-          const exactDistance = computeEuclideanDistance(queryCopy, vector);
-          
-          recalculatedResults.push({
-            id: nodeId,
-            originalId: originalId,
-            distance: exactDistance,
-            vector: vector // 临时存储向量以便后续使用
-          });
-        } catch (error) {
-          console.warn(`无法重新计算内部ID为 ${result.id} 的距离:`, error);
-        }
-      }
-      
-      // 根据精确距离重新排序，确保最接近的结果排在前面
-      recalculatedResults.sort((a, b) => a.distance - b.distance);
-      
-      // 取前k*RERANK_AMPLIFICATION_FACTOR个结果，进行第二阶段过滤
-      const topRecalculated = recalculatedResults.slice(0, k * RERANK_AMPLIFICATION_FACTOR);
-      
-      if (verbose) {
-        console.log(`重新计算距离后的结果数量: ${topRecalculated.length}`);
-        console.log(`使用重排放大倍数: ${RERANK_AMPLIFICATION_FACTOR}倍`);
-      }
-
-      // 将结果插入最小堆并保持堆的大小不超过k
-      for (const result of topRecalculated) {
-        try {
-          // 获取节点数据 - 改进节点数据访问方式
-          const node = hnswIndex.getNode ? hnswIndex.getNode(result.id) : 
-                      (hnswIndex._nodes && hnswIndex._nodes.get(result.id));
-                      
-          if (!node) {
-            if (verbose) {
-              console.warn(`找不到节点ID ${result.id} 的数据`);
-            }
-            continue;
-          }
-          
-          // 获取原始ID - 更全面的ID提取策略, 大幅提高ID映射准确性
-          let originalId = result.originalId; // 优先使用之前计算的结果
-          
-          // 如果之前没有找到，再次尝试从各种可能的地方提取
-          if (originalId === undefined || originalId === null) {
-            // 1. 从idMap中查找
-            if (idMap.has(result.id)) {
-              originalId = idMap.get(result.id);
-            } 
-            // 2. 从节点数据中查找
-            else if (node.data && typeof node.data === 'object') {
-              if (node.data.originalId !== undefined) {
-                originalId = node.data.originalId;
-              } else if (node.data.userData && typeof node.data.userData === 'object') {
-                if (node.data.userData.originalId !== undefined) {
-                  originalId = node.data.userData.originalId;
-                } else if (node.data.userData.id !== undefined) {
-                  originalId = node.data.userData.id;
-                } else if (node.data.userData.index !== undefined) {
-                  originalId = node.data.userData.index;
-                }
-              } else if (node.data.userData !== undefined && node.data.userData !== null) {
-                // 直接使用userData作为原始ID的情况
-                originalId = node.data.userData;
-              }
-            }
-            
-            // 3. 最后尝试从向量数据中查找
-            if ((originalId === undefined || originalId === null) && vectorMap.has(result.id)) {
-              const vData = vectorMap.get(result.id);
-              if (vData && vData.originalId !== undefined) {
-                originalId = vData.originalId;
-              }
-            }
-            
-            // 4. 如果仍然找不到，使用内部ID作为最后的备选
-            if (originalId === undefined || originalId === null) {
-              originalId = result.id;
-            }
-          }
-          
-          if (verbose && originalId !== undefined) {
-            console.log(`节点ID映射: 内部ID=${result.id} -> 原始ID=${originalId}`);
-          }
-          
-          // 构建结果对象
-          const resultObj = {
-            id: originalId, // 直接使用原始ID作为主ID - 关键修改
-            internalId: result.id, // 保留内部ID以便调试
-            originalId: originalId,
-            distance: result.distance,
-            data: node && node.data ? node.data.userData : null
-          };
-          
-          // 最小堆中当前元素数量小于k，直接添加
-          if (resultHeap.size() < k) {
-            resultHeap.push(resultObj);
-            
-            if (verbose && resultHeap.size() === 1) {
-              console.log(`添加首个元素到堆: ID=${resultObj.id}, 距离=${resultObj.distance}`);
-            }
-          } 
-          // 如果当前元素距离小于堆顶元素距离，替换堆顶
-          else if (result.distance < resultHeap.peek().distance) {
-            if (verbose) {
-              console.log(`替换堆顶元素: 旧=${resultHeap.peek().id}(${resultHeap.peek().distance}) -> 新=${resultObj.id}(${resultObj.distance})`);
-            }
-            
-            resultHeap.pop(); // 移除距离最远的元素
-            resultHeap.push(resultObj); // 添加新元素
-          }
-        } catch (error) {
-          console.warn(`处理搜索结果 ${result.id} 时出错:`, error);
-          // 继续处理下一个结果
-        }
-      }
-
-      // 将最小堆转换为数组并按距离排序
-      const finalResults = [];
-      while (resultHeap.size() > 0) {
-        finalResults.push(resultHeap.pop());
-      }
-      
-      // 倒序排列，确保距离最近的在前面
-      finalResults.reverse();
-      
-      if (verbose) {
-        console.log(`最终返回 ${finalResults.length} 个结果`);
-        if (finalResults.length > 0) {
-          console.log('首个结果:', finalResults[0]);
-        }
-      }
-      
-      return finalResults;
-    } catch (error) {
-      console.error('执行搜索时出错:', error);
+    return queryCopy;
+  }
+  
+  /**
+   * 处理搜索结果
+   * @param {Array} searchResults - 原始搜索结果
+   * @param {boolean} returnDistances - 是否返回距离值
+   * @returns {Array} 处理后的结果
+   */
+  function processSearchResults(searchResults, returnDistances = true) {
+    if (!searchResults || searchResults.length === 0) {
       return [];
+    }
+    
+    // 格式化结果
+    const finalResults = [];
+    
+    for (const result of searchResults) {
+      // 获取内部ID
+      const internalId = result.id;
+      
+      // 跳过无效结果
+      if (internalId === undefined || internalId === null) {
+        continue;
+      }
+      
+      // 确保向量存在于vectorMap中
+      if (!vectorMap.has(internalId)) {
+        continue;
+      }
+      
+      const vectorData = vectorMap.get(internalId);
+      if (!vectorData) {
+        continue;
+      }
+      
+      // 获取原始ID - 修复：优先从vectorData.originalId获取，其次从idMap获取
+      let originalId;
+      
+      if (vectorData.originalId !== undefined) {
+        originalId = vectorData.originalId;
+      } else if (idMap.has(internalId)) {
+        originalId = idMap.get(internalId);
+      } else {
+        originalId = internalId; // 回退使用内部ID
+        console.warn(`找不到ID ${internalId} 的原始ID映射，使用内部ID作为原始ID`);
+      }
+      
+      // 构建结果对象 - 修复：统一使用originalId作为id，internalId作为内部标识
+      const resultObj = {
+        id: originalId,
+        originalId: originalId, // 保持一致性
+        internalId: internalId, // 添加内部ID以便调试
+        distance: result.distance,
+        userData: vectorData.userData
+      };
+      
+      // 添加距离信息
+      if (returnDistances && result.distance !== undefined) {
+        resultObj.distance = result.distance;
+      }
+      
+      // 添加元数据
+      if (vectorData.userData) {
+        resultObj.data = vectorData.userData;
+      }
+      
+      finalResults.push(resultObj);
+    }
+    
+    // 确保结果按距离排序
+    if (returnDistances) {
+      finalResults.sort((a, b) => a.distance - b.distance);
+    }
+    
+    return finalResults;
+  }
+  
+  /**
+   * 执行K近邻搜索 - 使用最小堆优化版本, 大幅改进查询精度与召回率
+   * @param {Float32Array|Array} queryVector - 查询向量
+   * @param {number} k - 返回的近邻数量
+   * @param {Object} options - 搜索选项
+   * @returns {Array<{id: number, distance: number, data: any}>} 搜索结果
+   */
+  function search(queryVector, k = 10, params = {}) {
+    if (!isTrained) {
+      console.error('索引尚未训练，无法执行搜索');
+      return [];
+    }
+    
+    // 参数预处理
+    const actualK = Math.min(Math.max(1, k), vectorMap.size);
+    const { 
+      ef = efSearch, 
+      returnDistances = true, 
+      returnVectors = false, 
+      excludeIds = new Set(), 
+      verbose = false, 
+      useQuantization = true, 
+      multipleEfSearch = false
+    } = params;
+    
+    // 定义多EF策略变量
+    const useMultiEfStrategy = multipleEfSearch;
+    
+    // 向量预处理
+    let processedVector = preprocessQueryVector(queryVector);
+    
+    try {
+      // 使用正确的参数顺序调用searchKNN
+      // 参数顺序: queryVector, nodes, entryPoint, maxLevel, efSearch, distanceFunc, k, ef, excludeIds
+      let searchResults = hnswIndex.searchKNN(
+        processedVector,                // 查询向量
+        hnswIndex._nodes || new Map(),  // 节点存储
+        hnswIndex._entryPoint || { id: null, level: 0 }, // 入口点
+        hnswIndex._maxLevel || 0,       // 最大层级
+        ef,                            // efSearch
+        hnswIndex._distanceFunc,       // 距离函数
+        actualK,                       // k
+        ef,                            // ef
+        excludeIds                     // 排除ID
+      );
+      
+      // 如果结果不足且未设置特定参数，尝试增加搜索宽度
+      if (searchResults && searchResults.length < actualK && !params.ef) {
+        // 再次调用searchKNN，但使用更大的ef值
+        const extendedResults = hnswIndex.searchKNN(
+          processedVector,
+          hnswIndex._nodes || new Map(),
+          hnswIndex._entryPoint || { id: null, level: 0 },
+          hnswIndex._maxLevel || 0,
+          ef * 2,                      // 使用更大的ef值
+          hnswIndex._distanceFunc,
+          actualK,
+          ef * 2,                      // 使用更大的ef值
+          excludeIds
+        );
+        
+        // 合并结果
+        if (extendedResults && extendedResults.length > 0) {
+          searchResults.push(...extendedResults);
+        }
+      }
+      
+      // 使用多EF策略搜索
+      if (multipleEfSearch && (!searchResults || searchResults.length < actualK)) {
+        if (verbose) console.log('使用多EF策略搜索增强结果...');
+        
+        // 尝试更大的ef值（2倍、4倍、8倍）
+        const efMultipliers = [2, 4, 8];
+        
+        for (const multiplier of efMultipliers) {
+          const currentEf = ef * multiplier;
+          
+          if (verbose) console.log(`尝试ef=${currentEf}的搜索...`);
+          
+          const additionalResults = hnswIndex.searchKNN(
+            processedVector,
+            hnswIndex._nodes || new Map(),
+            hnswIndex._entryPoint || { id: null, level: 0 },
+            hnswIndex._maxLevel || 0,
+            currentEf,
+            hnswIndex._distanceFunc,
+            actualK * 2, // 搜索更多结果以增加多样性
+            currentEf,
+            excludeIds
+          );
+          
+          if (additionalResults && additionalResults.length > 0) {
+            if (!searchResults) {
+              searchResults = additionalResults;
+            } else {
+              // 合并结果，避免重复
+              const existingIds = new Set(searchResults.map(r => r.id));
+              
+              for (const result of additionalResults) {
+                if (!existingIds.has(result.id)) {
+                  searchResults.push(result);
+                  existingIds.add(result.id);
+                }
+              }
+            }
+            
+            if (searchResults.length >= actualK) {
+              if (verbose) console.log(`使用ef=${currentEf}找到足够的结果`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // 重排序和处理搜索结果 - 修复：确保ID一致性和正确性
+      const processedResults = processSearchResults(searchResults, true);
+      
+      // 检查是否需要线性搜索回退
+      if (processedResults.length < actualK) {
+        if (params.verbose) {
+          console.log(`HNSW搜索返回结果不足，回退到线性搜索。搜索到${processedResults.length}条，需要${actualK}条`);
+        }
+        
+        // 创建已找到结果的ID集合以避免重复
+        const foundIds = new Set(processedResults.map(r => r.originalId !== undefined ? r.originalId : r.id));
+        
+        // 执行线性搜索，排除已找到的结果
+        const linearResults = linearSearch(
+          processedVector,
+          actualK - processedResults.length,
+          !params.disableQuantization,
+          foundIds,
+          params.verbose
+        );
+        
+        // 合并结果
+        processedResults.push(...linearResults);
+        
+        // 重新按距离排序
+        processedResults.sort((a, b) => a.distance - b.distance);
+      }
+      
+      // 使用多EF策略搜索处理，尝试使用不同的EF值搜索并合并结果
+      if (useMultiEfStrategy && processedResults.length < actualK) {
+        // 尝试使用更大的ef值进行搜索
+        const largerEfResults = [];
+        
+        // 尝试几个不同的ef值
+        const efMultipliers = [3, 5, 10];
+        
+        for (const multiplier of efMultipliers) {
+          // 增加ef值重新搜索
+          const newEf = ef * multiplier;
+          
+          if (params.verbose) {
+            console.log(`尝试使用更大的ef值: ${newEf}`);
+          }
+          
+          // 执行新的搜索
+          const newResults = hnswIndex.searchKNN(
+            processedVector,
+            hnswIndex._nodes || new Map(),
+            hnswIndex._entryPoint || { id: null, level: 0 },
+            hnswIndex._maxLevel || 0,
+            newEf,
+            hnswIndex._distanceFunc,
+            actualK,
+            newEf,
+            excludeIds
+          );
+          
+          // 处理搜索结果确保ID一致性
+          const newProcessedResults = processSearchResults(newResults, true);
+          
+          // 添加到新结果数组
+          largerEfResults.push(...newProcessedResults);
+          
+          // 如果已经找到足够的结果，跳出循环
+          if (largerEfResults.length >= (actualK - processedResults.length)) {
+            break;
+          }
+        }
+        
+        // 创建已找到结果的ID集合
+        const existingIds = new Set(processedResults.map(r => r.originalId !== undefined ? r.originalId : r.id));
+        
+        // 过滤掉重复ID的结果
+        const uniqueNewResults = largerEfResults.filter(r => {
+          const resultId = r.originalId !== undefined ? r.originalId : r.id;
+          return !existingIds.has(resultId);
+        });
+        
+        // 合并结果
+        processedResults.push(...uniqueNewResults);
+        
+        // 重新按距离排序
+        processedResults.sort((a, b) => a.distance - b.distance);
+      }
+      
+      // 返回前k个结果 - 确保仅保留需要的字段
+      return processedResults.slice(0, k).map(r => ({
+        id: r.id,
+        originalId: r.originalId,
+        distance: r.distance,
+        data: r.data || r.userData
+      }));
+    } catch (error) {
+      console.error('搜索执行失败:', error);
+      
+      // 当HNSW搜索失败时回退到线性搜索
+      if (verbose) {
+        console.warn('HNSW搜索失败，回退到线性搜索:', error.message);
+      }
+      
+      // 执行线性搜索作为备选方案
+      return linearSearch(queryVector, k, useQuantization, excludeIds, verbose);
     }
   }
   
   /**
-   * 执行线性搜索作为HNSW索引搜索的后备方案
-   * 适用于小型数据集或HNSW召回率不足的情况
+   * 执行线性搜索作为HNSW搜索的回退方案
+   * @param {Float32Array|Array} queryVector - 查询向量
+   * @param {number} k - 返回的近邻数量
+   * @param {boolean} useQuantization - 是否使用量化编码计算距离
+   * @param {Set<number>} excludeIds - 要排除的ID集合
+   * @param {boolean} verbose - 是否输出详细日志
+   * @returns {Array<{id: number, originalId: number, distance: number}>} 搜索结果
    */
-  function linearSearch(queryVector, k, useQuantization, queryCode, verbose) {
-    if (verbose) {
-      console.log(`执行线性搜索, 向量数: ${vectorMap.size}`);
+  function linearSearch(queryVector, k = 10, useQuantization = false, excludeIds = null, verbose = false) {
+    if (!isTrained || vectorMap.size === 0) {
+      if (verbose) console.warn('索引未训练或为空，无法执行线性搜索');
+      return [];
     }
     
+    // 预处理查询向量
+    const processedQuery = preprocessQueryVector(queryVector);
+    
+    // 转换成数组以便排序
     const results = [];
+    
+    // 使用量化编码或原始向量计算距离
+    if (verbose) console.time('线性搜索计算时间');
     
     // 遍历所有向量计算距离
     for (const [internalId, vectorData] of vectorMap.entries()) {
-      try {
-        // 获取节点，检查是否为填充向量
-        const node = hnswIndex.getNode ? hnswIndex.getNode(internalId) : 
-                   (hnswIndex._nodes && hnswIndex._nodes.get(internalId));
-        
-        // 跳过填充向量
-        if (node && node.data && node.data.isFiller === true) {
-          if (verbose) {
-            console.log(`线性搜索：跳过填充向量，ID=${internalId}`);
-          }
-          continue;
-        }
-        
-        let distance;
-        
-        // 根据是否启用量化选择距离计算方法
-        if (useQuantization && queryCode && vectorData.codes) {
-          // 使用量化向量计算近似距离 (更快但精度较低)
-          distance = deltaPQ.computeApproximateDistance(queryCode, vectorData.codes);
-        } else if (vectorData.originalVector) {
-          // 使用原始向量计算精确距离 (较慢但精度高)
-          distance = computeEuclideanDistance(queryVector, vectorData.originalVector);
-        } else if (vectorData.vector) {
-          // 使用还原的向量计算距离 (折中方案)
-          distance = computeEuclideanDistance(queryVector, vectorData.vector);
-        } else {
-          // 跳过没有向量数据的条目
-          if (verbose) {
-            console.warn(`向量映射中ID=${internalId}没有有效的向量数据`);
-          }
-          continue;
-        }
-        
-        // 获取原始ID
-        const originalId = idMap.get(internalId);
-        
-        results.push({
-          id: originalId !== undefined ? originalId : internalId,
-          originalId: originalId,
-          internalId: internalId,
-          distance: distance,
-          data: vectorData.userData
-        });
-      } catch (error) {
-        console.warn(`线性搜索计算ID=${internalId}的距离时出错:`, error);
+      // 跳过填充向量和排除的ID
+      if (vectorData.isFiller || (excludeIds && excludeIds.has(internalId))) {
+        continue;
       }
+      
+      let distance;
+      if (useQuantization && vectorData.codes) {
+        // 使用量化向量计算近似距离
+        const queryCode = deltaPQ.quantizeVector(processedQuery).codes;
+        distance = deltaPQ.computeApproximateDistance(vectorData.codes, queryCode);
+      } else if (vectorData.originalVector) {
+        // 使用原始向量计算精确距离
+        distance = computeEuclideanDistance(processedQuery, vectorData.originalVector);
+      } else if (vectorData.vector) {
+        // 使用反量化向量
+        distance = computeEuclideanDistance(processedQuery, vectorData.vector);
+      } else {
+        // 没有可用向量，跳过
+        continue;
+      }
+      
+      // 添加到结果列表 - 修复：确保ID一致性
+      const originalId = vectorData.originalId || (idMap.has(internalId) ? idMap.get(internalId) : internalId);
+      
+      results.push({
+        id: originalId,         // 主ID使用原始ID
+        originalId: originalId, // 保持一致性
+        internalId: internalId, // 添加内部ID以便调试
+        distance,
+        userData: vectorData.userData
+      });
     }
     
-    // 按距离排序并取前k个
+    if (verbose) console.timeEnd('线性搜索计算时间');
+    
+    // 按距离排序
     results.sort((a, b) => a.distance - b.distance);
-    const topResults = results.slice(0, k);
     
-    if (verbose) {
-      console.log(`线性搜索返回 ${topResults.length} 个结果`);
-    }
-    
-    return topResults;
+    // 返回前k个结果
+    return results.slice(0, k);
   }
   
   /**
@@ -886,31 +918,93 @@ export function createCombinedDeltaPQHNSW({
    * @returns {Array<number>} 添加的向量ID数组
    */
   function batchAddVectors(vectors, ids = null, metadata = null, storeOriginal = true) { // 默认为true
-    if (!vectors || vectors.length === 0) {
-      console.error('无法添加空向量数组');
+    if (!isTrained) {
+      console.error('索引尚未训练，无法添加向量');
       return [];
     }
     
-    const results = [];
+    if (!vectors || !Array.isArray(vectors) || vectors.length === 0) {
+      return [];
+    }
     
-    // 如果没有ID或元数据，创建空数组
-    const idsArray = ids || Array(vectors.length).fill(null);
-    const metadataArray = metadata || Array(vectors.length).fill(null);
-    
-    // 逐个添加向量
-    for (let i = 0; i < vectors.length; i++) {
-      try {
-        const id = idsArray[i];
-        const meta = metadataArray[i];
-        const addedId = addVector(vectors[i], id, meta, storeOriginal);
-        results.push(addedId);
-      } catch (error) {
-        console.error(`批量添加向量失败，索引: ${i}`, error);
-        results.push(-1);
+    // 确保向量维度正确
+    for (const vector of vectors) {
+      if (!vector || vector.length !== dimensions) {
+        console.error(`向量维度 ${vector ? vector.length : 'undefined'} 与索引维度 ${dimensions} 不匹配`);
+        return [];
       }
     }
     
-    return results;
+    // 批量预处理向量和ID
+    const processedVectors = [];
+    const resultIds = [];
+    const vectorCodes = [];
+    const nodeData = [];
+    
+    for (let i = 0; i < vectors.length; i++) {
+      try {
+        const vector = vectors[i];
+        
+        // 获取ID - 修复：优先使用传入的ID，否则生成新ID
+        const id = ids && i < ids.length ? ids[i] : nextId++;
+        
+        // 获取元数据
+        const userData = metadata && i < metadata.length ? metadata[i] : null;
+        
+        // 处理向量（归一化等）
+        const processedVector = preprocessQueryVector(vector);
+        
+        // 量化向量
+        const quantizationResult = deltaPQ.quantizeVector(processedVector);
+        
+        // 存储处理后的数据
+        processedVectors.push(processedVector);
+        resultIds.push(id);
+        vectorCodes.push(quantizationResult.codes);
+        nodeData.push({
+          originalId: id,  // 明确在nodeData中设置originalId
+          userData: userData
+        });
+        
+        // 记录映射关系 - 修复：使用internalId明确区分内部ID
+        const internalId = idCounter++;
+        idMap.set(internalId, id); // 内部ID映射到原始ID
+        
+        // 存储向量数据 - 修复：vectorMap的key应该是internalId
+        vectorMap.set(internalId, {
+          codes: quantizationResult.codes,
+          originalId: id,  // 显式存储原始ID
+          userData,
+          // 可选存储原始向量（会增加内存使用）
+          originalVector: storeOriginal ? new Float32Array(vector) : undefined
+        });
+      } catch (error) {
+        console.error(`处理批量向量 ${i} 时出错:`, error);
+      }
+    }
+    
+    // 批量插入HNSW索引
+    try {
+      // 检查hnswIndex是否有batch插入方法
+      if (typeof hnswIndex.addItems === 'function') {
+        // 使用批量添加方法
+        hnswIndex.addItems(processedVectors, nodeData);
+      } else if (typeof hnswIndex.batchInsertNodes === 'function') {
+        // 使用batchInsertNodes方法
+        hnswIndex.batchInsertNodes(processedVectors, nodeData);
+      } else {
+        // 回退到单个插入
+        console.warn('HNSW索引不支持批量插入，回退到单个插入模式');
+        for (let i = 0; i < processedVectors.length; i++) {
+          let data = nodeData[i];
+          hnswIndex.insertNode(processedVectors[i], data);
+        }
+      }
+    } catch (error) {
+      console.error('批量插入HNSW索引时出错:', error);
+    }
+    
+    return resultIds;
   }
   
   /**
@@ -1278,18 +1372,19 @@ export function createCombinedDeltaPQHNSW({
     return true;
   }
   
-  // 返回公共API
+  // 返回组合索引对象
   return {
     train,
     addVector,
-    batchAddVectors,
     removeVector,
     search,
-    clear,
-    getDecodedVector,
+    linearSearch,
     getVectorCodes,
+    getDecodedVector,
+    batchAddVectors,
     getMetadata,
     serialize,
-    deserialize
+    deserialize,
+    clear
   };
 }

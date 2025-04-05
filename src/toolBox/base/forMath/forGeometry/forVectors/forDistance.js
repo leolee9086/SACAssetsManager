@@ -75,20 +75,56 @@ export function computeChebyshevDistance(a, b) {
  * @param {Float32Array|Array} b - 第二个向量
  * @returns {Number} 相似度值 [-1,1]，值越大表示越相似
  */
-export function computeCosineDistance(a, b) {
+export function computeCosineSimilarity(a, b) {
+  // 添加防御性检查
+  if (!a || !b) {
+    console.error('向量相似度计算错误: 输入向量为空', { a, b });
+    return 0; // 返回0表示零相似度
+  }
+  
+  if (a.length !== b.length) {
+    console.error('向量相似度计算错误: 向量维度不匹配', { aLength: a.length, bLength: b.length });
+    return 0;
+  }
+  
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;
   const length = a.length;
   
   for (let i = 0; i < length; i++) {
+    // 确保数值有效
+    if (typeof a[i] !== 'number' || typeof b[i] !== 'number' || 
+        isNaN(a[i]) || isNaN(b[i])) {
+      console.error('向量相似度计算错误: 向量包含非数值元素', { 
+        index: i, aValue: a[i], bValue: b[i] 
+      });
+      return 0;
+    }
+    
     dotProduct += a[i] * b[i];
     normA += a[i] * a[i];
     normB += b[i] * b[i];
   }
   
+  // 处理零向量情况
   if (normA === 0 || normB === 0) return 0;
+  
+  // 计算余弦相似度
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/**
+ * 计算余弦距离 - 值越小表示向量越相似
+ * @param {Float32Array|Array} a - 第一个向量
+ * @param {Float32Array|Array} b - 第二个向量
+ * @returns {Number} 距离值 [0,2]，值越小表示越相似
+ */
+export function computeCosineDistance(a, b) {
+  // 余弦距离 = 1 - 余弦相似度
+  // 确保返回的是距离度量（越小越相似）
+  const similarity = computeCosineSimilarity(a, b);
+  return 1 - similarity;
 }
 
 /**
