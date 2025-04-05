@@ -1,10 +1,8 @@
 import { 打开任务控制对话框 } from '../../dialog/tasks.js';
 import { 递归扫描文件夹并执行任务 } from '../../../../../src/utils/fs/batch.js';
 import { 全量计算文件MD5,宽松计算文件MD5 } from '../../../../../src/toolBox/useAge/forFileManage/forHash/useSimpleMd5.js';
-import { UltraFastFingerprint } from '../../../../../src/utils/hash/fastBlake.js';
 const fs = require('fs').promises;
 const path = require('path');
-const fingerprinter = new UltraFastFingerprint();
 
 // 文件大小检查
 const forFileSize = async (filePath, options = {}) => {
@@ -108,11 +106,7 @@ const withFileProcessing = async (context, options = {}) => {
     const { filePath, fileHashes, duplicates = [], skippedFiles = [], useLooseHash = false } = context;
     const maxFileSize = options.maxFileSize || 100 * 1024 * 1024; // 100MB
     
-    // 指纹计算（可选）
-    if (options.useFingerprint) {
-        const fingerprint = await fingerprinter.calculateFingerprint(filePath);
-    }
-
+  
     // 文件大小检查
     const sizeCheck = await forFileSize(filePath, { 
         maxSize: maxFileSize, 

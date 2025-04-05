@@ -220,7 +220,7 @@ class AlignedBufferPool {
 const path = require('path');
 const { performance } = require('perf_hooks');
 
-async function walkAndHash(dir, hashFunction, name) {
+export async function walkAndHash(dir, hashFunction, name) {
     // 信号量实现
     class Semaphore {
         constructor(max) {
@@ -381,51 +381,3 @@ async function walkAndHash(dir, hashFunction, name) {
         duplicates
     };
 }
-
-async function compareHashMethods() {
-    console.log('开始性能测试...\n');
-
-    const ultraFast = new UltraFastFingerprint();
-    
-    console.log('测试 UltraFastFingerprint...');
-    const ultraResult = await walkAndHash(
-        'D:\\', 
-        (file) => ultraFast.calculateFingerprint(file),
-        'UltraFastFingerprint'
-    );
-
-    // 打印性能结果
-    console.log('\n=== 最终性能对比 ===');
-    [ultraResult].forEach(result => {
-        console.log(`\n${result.name}:`);
-        console.log(`总文件数: ${result.fileCount}`);
-        console.log(`总大小: ${result.totalSize.toFixed(2)} GB`);
-        console.log(`总耗时: ${result.totalTime.toFixed(2)} 秒`);
-        console.log(`平均每文件: ${result.averageTimePerFile.toFixed(2)} ms`);
-        console.log(`处理速度: ${result.speedGBps.toFixed(2)} GB/s`);
-        console.log(`错误数: ${result.errors}`);
-    });
-
-    // 打印重复文件信息
-    console.log('\n=== 重复文件列表 ===');
-    ultraResult.duplicates.forEach(([hash, files]) => {
-        const totalSize = files.reduce((acc, f) => acc + f.size, 0);
-        const sizeInMB = totalSize / (1024 * 1024);
-        
-        console.log(`\n重复文件组 (总大小: ${sizeInMB.toFixed(2)} MB):`);
-        files.forEach(file => {
-            const fileSizeInMB = file.size / (1024 * 1024);
-            console.log(`  ${file.path} (${fileSizeInMB.toFixed(2)} MB)`);
-        });
-        console.log('-'.repeat(50));
-    });
-}
-/*
-// 运行测试
-(async () => {
-    try {
-        await compareHashMethods();
-    } catch (error) {
-        console.error('测试过程中发生错误:', error);
-    }
-})();*/

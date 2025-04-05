@@ -70,9 +70,12 @@ src/toolBox/
 
 ## 已完成的重构(建议不要列举太多,隔一段时间总结一下,列出最近的动作就可以了)
 
-阶段计数:1
+阶段计数:0
 
-当前正在进行重构工作：重构思源工具函数到工具箱，已完成 BlockHandler、blockIcons、upload 和 markdown 的迁移
+当前正在进行重构工作：
+- 重构思源工具函数到工具箱，已完成 BlockHandler、blockIcons、upload 和 markdown 的迁移
+- 向量距离计算函数统一整合至 forDistance.js，完善各类向量距离计算函数
+- 规范化向量归一化工具，保持命名一致性
 
 详细历史记录请查看src/toolBox/history.md
 

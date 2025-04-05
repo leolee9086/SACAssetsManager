@@ -358,3 +358,51 @@
 1. 继续迁移 `source/fromThirdParty/anytext` 目录
 2. 完善 `README.md` 和 `AInote.md` 文档
 3. 持续优化工具箱功能
+
+## 2024-04-05 向量距离计算函数重构
+
+### 完成事项
+
+1. 整合并规范化了向量距离计算函数
+2. 将 `base/forMath/forGeometry/forVectors/forDistance.js` 更新为集中的向量距离计算模块
+3. 将 `feature/forVectorEmbedding/useDeltaPQHNSW/useCustomedHNSW.js` 中的距离函数移到公共模块中
+4. 更新了 `base/forMath/forGeometry/forVectors/forNormalization.js` 使其命名规范保持一致性
+5. 添加了新的距离计算函数：汉明距离和杰卡德距离
+
+### 迁移摘要
+
+| 旧路径 | 新路径 | 状态 |
+|--------|--------|------|
+| 散落在不同文件的距离计算函数 | `base/forMath/forGeometry/forVectors/forDistance.js` | 完成 |
+
+### API变更
+
+1. 距离计算函数 (forDistance.js):
+   - 规范化命名: `曼哈顿距离` → `computeManhattanDistance`
+   - 规范化命名: `切比雪夫距离` → `computeChebyshevDistance`
+   - 规范化命名: `余弦相似度` → `computeCosineDistance`
+   - 新增函数: `computeInnerProduct` - 内积相似度计算
+   - 新增函数: `computeHammingDistance` - 汉明距离计算
+   - 新增函数: `computeJaccardDistance` - 杰卡德距离计算
+   - 移除了重复实现和默认导出
+
+2. 向量归一化函数 (forNormalization.js):
+   - 规范化命名: `向量归一化` → `computeVectorNormalization`
+   - 改进类型注释，支持 Float32Array 和 Array 类型
+
+3. HNSW索引实现 (useCustomedHNSW.js):
+   - 移除内部重复的距离计算函数，统一使用 forDistance.js 中的实现
+   - 保持功能不变，减少代码重复
+
+### 下一步计划
+
+1. 继续完善向量数学工具:
+   - 添加向量运算函数 (加、减、点积、叉积等)
+   - 提供低级别的向量操作优化
+   - 增强向量索引性能优化
+
+2. 考虑添加以下函数:
+   - 闵可夫斯基距离计算
+   - 马氏距离计算
+   - KL散度和JS散度
+   - 地理距离计算函数

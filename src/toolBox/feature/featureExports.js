@@ -21,6 +21,9 @@ export * from './forFileSystem/diskTools.js';
 // forGoLang Go语言相关工具
 export * from './forGoLang/index.js';
 
+// forIndex 索引工具
+export * from './forIndex/usePartitionedHNSW.js';
+
 // logViewer 日志查看工具
 export * from './logViewer/index.js';
 
@@ -56,4 +59,11 @@ export * from './useUI/index.js';
 // useVue Vue框架工具
 export * from './useVue/vueExports.js';
 export * from './useVue/vueComponentLoader.js';
-export * from './useVue/dialogTools.js'; 
+export * from './useVue/dialogTools.js';
+
+// forVectorEmbedding 向量嵌入工具
+export * from './forVectorEmbedding/forQuery.js';
+export * from './forVectorEmbedding/forSimilarity.js';
+export * from './forVectorEmbedding/useDeltaPQHNSW/useCustomedHNSW.js';
+export * from './forVectorEmbedding/useDeltaPQHNSW/useCustomedDeltaPQ.js';
+export * from './forVectorEmbedding/useDeltaPQHNSW/useCombinedDeltaPQHNSW.js'; 
