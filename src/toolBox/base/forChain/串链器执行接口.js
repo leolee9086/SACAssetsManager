@@ -1,5 +1,5 @@
 import { 构建新态射重载表项目,插入新态射 } from "./串链器态射定义.js";
-import  * as 工具 from './串链器工具.js'
+import  * as 工具 from './useChainableHelper.js'
 export const 创建定义接口 = (全局态射表, 命名空间态射表) => {
     let 是方法状态 = false;
     let 当前命名空间 = '';

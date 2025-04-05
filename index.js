@@ -542,5 +542,5 @@ function 插入UI面板容器(UI容器父元素) {
 /***
  * 引入这个模块只是为了测试
  */
-import('/plugins/SACAssetsManager/src/utils/test.js')
+import('/plugins/SACAssetsManager/tests/index.js')
 

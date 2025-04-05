@@ -1,4 +1,4 @@
-import { 创建串链器, 创建扩展定义 } from '../src/工具箱/forCore/串链器.js';
+import { 创建串链器, 创建扩展定义 } from '../src/toolBox/base/forChain/串链器.js';
 
 // 工具函数，用于运行测试并捕获错误
 const 运行测试 = (名称, 函数) => {

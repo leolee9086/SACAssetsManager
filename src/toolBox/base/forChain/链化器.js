@@ -126,3 +126,9 @@ const 处理Promise方法 = (属性, 接收者, 当前Promise) => {
     // 创建并返回代理
     return /** @type {any} */ (创建链化代理(当前Promise, 目标));
   }
+
+
+
+
+
+
