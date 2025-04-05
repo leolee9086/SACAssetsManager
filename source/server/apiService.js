@@ -15,7 +15,7 @@ import { entryCounter } from './handlers/entry-counter.js';
 import { listDisk } from './handlers/listDisk.js';
 const port = window.port
 import { statWithCatch } from './processors/fs/stat.js';
-import * as headers from './middlewares/headers.js';
+import { headerTypes } from '../../src/toolBox/base/forNetWork/useHeaders/useHeaderTypes.js';
 import { genColor, getFilesByColor } from './handlers/get-color.js'
 import { createSiyuanBroadcastChannel } from './processors/web/siyuanWebSocket.js'
 import { globalTaskQueue } from './middlewares/runtime_queue.js';
@@ -31,8 +31,8 @@ app.use(cors());
 // 使用自定义路由器替代默认路由
 // 流式遍历文件夹
 router.get('/glob-stream', globStream)
-router.get('/file-list-stream', headers.types.textPlain, fileListStream)
-router.post('/file-list-stream', headers.types.textPlain, fileListStream)
+router.get('/file-list-stream', headerTypes.textPlain, fileListStream)
+router.post('/file-list-stream', headerTypes.textPlain, fileListStream)
 router.get('/count-etries', entryCounter)
 router.get('/listDisk', listDisk)
 router.get('/loaders', listLoaders)

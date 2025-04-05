@@ -3,7 +3,7 @@ import { buildFilter } from './builder-filter.js'
 import { fdir } from './fdirModified/index.js'
 import { buildCache } from '../cache/cache.js'
 import { isMetaData, isThumbnail } from '../thumbnail/utils/regexs.js'
-import { globalTaskQueue, 添加优先级任务,添加后进先出后台任务 } from '../queue/taskQueue.js'
+import { globalTaskQueue, 添加带有优先级的全局任务,添加后进先出后台任务 } from '../queue/taskQueue.js'
 import { reportHeartbeat } from '../../../../src/toolBox/base/useElectron/useHeartBeat.js'
 import { 查找子文件夹, 删除缩略图缓存行, 计算哈希 } from '../thumbnail/indexer.js'
 import { getCachePath } from './cached/fs.js'
@@ -65,7 +65,7 @@ async function 文件遍历回调(path, isDir, fixedroot, 遍历优先级, count
             timouters[path] = undefined
             return { path }
         }
-        timouters[path] = () =>添加优先级任务(删除索引任务函数,1)
+        timouters[path] = () =>添加带有优先级的全局任务(删除索引任务函数,1)
         if (isThumbnail(path) || isMetaData(path)) {
             return
         }
@@ -88,7 +88,7 @@ async function 文件遍历回调(path, isDir, fixedroot, 遍历优先级, count
             }
             return { path }
         }
-        添加优先级任务(遍历任务函数,真实遍历优先级)
+        添加带有优先级的全局任务(遍历任务函数,真实遍历优先级)
     } catch (e) {
         console.warn(e)
     }

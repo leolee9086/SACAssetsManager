@@ -4,9 +4,9 @@ import {
     statWithCatch, 
     sendFileWithCacheSet 
 } from "../runtime_cache.js"
-import { 暂停文件系统解析队列,恢复文件系统解析队列 } from "../runtime_queue.js"
+import { 暂停全局任务队列执行,恢复全局任务队列执行 } from "../runtime_queue.js"
 export const checkAndSendExtensionIcon = async (req, res, next) => {
-    暂停文件系统解析队列()
+    暂停全局任务队列执行()
     const 源文件地址 = req.sourcePath
     const stat = await statWithCatch(源文件地址)
     let extension = 源文件地址.split('.').pop()
@@ -17,9 +17,9 @@ export const checkAndSendExtensionIcon = async (req, res, next) => {
     console.log(`查找扩展名缓存路径`,扩展名缓存路径)
     if (await sendFileWithCacheSet(res, 扩展名缓存路径, thumbnailCache, 缓存键)) {
         console.log(`扩展名缓存命中`,源文件地址)
-        恢复文件系统解析队列()
+        恢复全局任务队列执行()
         return
     }
-    恢复文件系统解析队列()
+    恢复全局任务队列执行()
     next()
 }

@@ -75,7 +75,7 @@
    - `判定路径排除`: 判断路径是否排除 (utils/fs/windowsSystemDirs.js)
 
 6. **任务队列工具** (`utils/queue`):
-   - `添加优先级任务`: 添加优先级任务 (processors/queue/taskQueue.js)
+   - `添加带有优先级的全局任务`: 添加带有优先级的全局任务 (processors/queue/taskQueue.js)
    - `添加后进先出后台任务`: 添加后台任务 (processors/queue/taskQueue.js)
    - `globalTaskQueue`: 全局任务队列 (processors/queue/taskQueue.js)
 

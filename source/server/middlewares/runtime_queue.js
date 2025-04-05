@@ -1,1 +1,1 @@
-export {globalTaskQueue,暂停文件系统解析队列,恢复文件系统解析队列} from '../processors/queue/taskQueue.js'
+export {globalTaskQueue,暂停全局任务队列执行,恢复全局任务队列执行} from '../processors/queue/taskQueue.js'
