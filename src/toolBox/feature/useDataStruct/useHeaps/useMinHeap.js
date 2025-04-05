@@ -350,6 +350,54 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
         
         getTransactionTypes: () => {
             return { ...transactionSystem.transactionTypes };
+        },
+        
+        getWorst: () => {
+            if (heap.length === 0) return null;
+            
+            // 在最小堆中，最差（最大）的元素通常在叶节点中
+            // 找出所有叶节点中的最大值
+            let maxElement = heap[0];
+            let maxIndex = 0;
+            
+            for (let i = 1; i < heap.length; i++) {
+                if (compareFn(heap[i], maxElement) > 0) {
+                    maxElement = heap[i];
+                    maxIndex = i;
+                }
+            }
+            
+            return maxElement;
+        },
+        
+        popWorst: () => {
+            if (heap.length === 0) return null;
+            if (heap.length === 1) return heap.pop();
+            
+            // 找出最大元素的索引
+            let maxIndex = 0;
+            for (let i = 1; i < heap.length; i++) {
+                if (compareFn(heap[i], heap[maxIndex]) > 0) {
+                    maxIndex = i;
+                }
+            }
+            
+            // 交换最大元素和最后一个元素，然后移除最后一个元素
+            const worst = heap[maxIndex];
+            const lastElement = heap.pop();
+            
+            // 如果移除的是最后一个元素，就直接返回
+            if (maxIndex === heap.length) {
+                return worst;
+            }
+            
+            // 否则，用最后一个元素替换最大元素的位置
+            heap[maxIndex] = lastElement;
+            
+            // 从替换位置向下堆化，确保堆的性质
+            heapifyDown(heap, compareFn, maxIndex);
+            
+            return worst;
         }
     };
 };
@@ -424,6 +472,14 @@ class MinHeap {
     
     registerTransactionHook(hookType, callback) {
         return this.heap.registerTransactionHook(hookType, callback);
+    }
+
+    getWorst() {
+        return this.heap.getWorst();
+    }
+    
+    popWorst() {
+        return this.heap.popWorst();
     }
 }
 

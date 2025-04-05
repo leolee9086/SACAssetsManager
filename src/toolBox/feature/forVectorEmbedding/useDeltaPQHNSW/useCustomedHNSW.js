@@ -24,6 +24,9 @@ import {
   computeInnerProduct
 } from "../../../base/forMath/forGeometry/forVectors/forDistance.js";
 
+// 导入最小堆实现
+import { createMinHeap } from "../../../feature/useDataStruct/useHeaps/useMinHeap.js";
+
 // 常量定义
 const DEFAULT_M = 16;              // 每个节点最大连接数
 const DEFAULT_EF_CONSTRUCTION = 200; // 构建时的候选集大小
@@ -98,7 +101,7 @@ export function getRandomLevel(ml, M) {
 }
 
 /**
- * 在指定层查找K个最近邻节点
+ * 在指定层查找K个最近邻节点，使用最小堆优化
  * @param {Object} q - 查询节点
  * @param {number} k - 返回的邻居数量
  * @param {number} ef - 搜索候选集大小
@@ -116,26 +119,27 @@ export function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, ex
   const ep = nodes.get(entryPoint.id);
   if (!ep || ep.deleted) return [];
   
-  // 初始化候选集和已访问集
+  // 初始化已访问集
   const visited = new Set([ep.id]);
+  
+  // 计算到入口点的距离
   const distance = distanceFunc(q.vector, ep.vector);
-  let candidates = [{ id: ep.id, distance }];
-  let results = [{ id: ep.id, distance }];
   
-  // 限制结果数量
-  if (results.length > ef) {
-    results.sort((a, b) => a.distance - b.distance);
-    results = results.slice(0, ef);
-  }
+  // 使用最小堆存储候选集 - 按距离从小到大排序
+  const candidatesHeap = createMinHeap((a, b) => a.distance - b.distance);
+  candidatesHeap.push({ id: ep.id, distance });
   
-  // 扩展搜索
-  while (candidates.length > 0) {
+  // 使用最小堆存储结果集 - 按距离从小到大排序
+  const resultsHeap = createMinHeap((a, b) => a.distance - b.distance);
+  resultsHeap.push({ id: ep.id, distance });
+  
+  // 当候选集不为空时继续搜索
+  while (candidatesHeap.size() > 0) {
     // 获取当前最近的候选节点
-    candidates.sort((a, b) => a.distance - b.distance);
-    const current = candidates.shift();
+    const current = candidatesHeap.pop();
     
     // 如果当前候选的距离大于结果集中最远的距离，终止搜索
-    if (results.length >= ef && current.distance > results[results.length - 1].distance) {
+    if (resultsHeap.size() >= ef && current.distance > resultsHeap.getWorst().distance) {
       break;
     }
     
@@ -156,22 +160,27 @@ export function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, ex
       const distance = distanceFunc(q.vector, neighbor.vector);
       
       // 判断是否应加入结果集
-      const shouldAddToResults = results.length < ef || distance < results[results.length - 1].distance;
+      const shouldAddToResults = resultsHeap.size() < ef || distance < resultsHeap.getWorst().distance;
       
       if (shouldAddToResults) {
-        candidates.push({ id: neighborId, distance });
-        results.push({ id: neighborId, distance });
+        candidatesHeap.push({ id: neighborId, distance });
+        resultsHeap.push({ id: neighborId, distance });
         
-        // 保持候选集按距离排序并限制大小
-        results.sort((a, b) => a.distance - b.distance);
-        if (results.length > ef) {
-          results = results.slice(0, ef);
+        // 保持结果集大小不超过ef
+        if (resultsHeap.size() > ef) {
+          resultsHeap.popWorst();
         }
       }
     }
   }
   
-  // 返回前k个最近邻
+  // 转换为数组
+  const results = [];
+  while (resultsHeap.size() > 0) {
+    results.push(resultsHeap.pop());
+  }
+  
+  // 排序并返回前k个结果
   results.sort((a, b) => a.distance - b.distance);
   return results.slice(0, Math.min(k, results.length));
 }
@@ -340,7 +349,7 @@ export function insertNode(vector, data = null, nodes, entryPoint, M, ml, efCons
 }
 
 /**
- * 搜索K个最近邻
+ * 搜索K个最近邻，使用最小堆优化
  * @param {Float32Array} queryVector - 查询向量
  * @param {Map} nodes - 节点存储
  * @param {Object} entryPoint - 入口点
@@ -353,7 +362,7 @@ export function insertNode(vector, data = null, nodes, entryPoint, M, ml, efCons
  * @returns {Array<{id: number, distance: number, node: Object}>} 最近邻结果
  */
 export function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceFunc, k = 10, ef = null, excludeIds = new Set()) {
-  ef = ef || efSearch;
+  ef = ef || Math.max(efSearch, k);
   
   if (!entryPoint.id || nodes.size === 0) return [];
   
@@ -363,7 +372,7 @@ export function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, di
   // 从顶层开始搜索
   let currentNode = entryPoint;
   
-  // 自顶向下搜索
+  // 自顶向下搜索 - 通过层次确定一个好的入口点
   for (let lc = maxLevel; lc > 0; lc--) {
     const neighbors = searchLayer(queryNode, 1, 1, lc, nodes, currentNode, distanceFunc, excludeIds);
     if (neighbors.length > 0) {
@@ -372,7 +381,7 @@ export function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, di
   }
   
   // 底层进行精确搜索
-  const results = searchLayer(queryNode, k, Math.max(ef, k), 0, nodes, currentNode, distanceFunc, excludeIds);
+  const results = searchLayer(queryNode, k, ef, 0, nodes, currentNode, distanceFunc, excludeIds);
   
   // 返回完整节点信息
   return results.map(r => {
@@ -454,25 +463,51 @@ export function getStats(state, nodes, parameters) {
  * @returns {Object} 可序列化的索引数据
  */
 export function serializeIndex(nodes, entryPoint, state) {
+  console.log(`开始序列化HNSW索引，节点数量: ${nodes.size}`);
+  
   const serializedNodes = [];
+  let validNodeCount = 0;
   
   // 序列化节点数据
   for (const node of nodes.values()) {
     if (node.deleted) continue; // 排除已删除节点
     
-    serializedNodes.push({
-      id: node.id,
-      vector: Array.from(node.vector), // 将向量转为普通数组
-      data: node.data,
-      connections: node.connections.map(level => Array.from(level)) // 深拷贝连接数组
-    });
+    try {
+      // 验证节点数据的有效性
+      if (!node.vector || node.vector.length === 0) {
+        console.warn(`节点 ${node.id} 的向量数据无效，跳过该节点`);
+        continue;
+      }
+      
+      if (!node.connections || !Array.isArray(node.connections)) {
+        console.warn(`节点 ${node.id} 的连接数据无效，跳过该节点`);
+        continue;
+      }
+      
+      serializedNodes.push({
+        id: node.id,
+        vector: Array.from(node.vector), // 将向量转为普通数组
+        data: node.data,
+        connections: node.connections.map(level => Array.from(level)) // 深拷贝连接数组
+      });
+      
+      validNodeCount++;
+    } catch (error) {
+      console.error(`序列化节点 ${node.id} 时出错:`, error);
+    }
   }
   
-  return {
+  console.log(`序列化完成，有效节点: ${validNodeCount}/${nodes.size}`);
+  console.log(`入口点: ${JSON.stringify(entryPoint)}`);
+  console.log(`索引状态: ${JSON.stringify(state)}`);
+  
+  const result = {
     nodes: serializedNodes,
     entryPoint: { ...entryPoint },
     state: { ...state }
   };
+  
+  return result;
 }
 
 /**
@@ -483,23 +518,78 @@ export function serializeIndex(nodes, entryPoint, state) {
  * @param {Object} data - 序列化的索引数据
  */
 export function deserializeIndex(nodes, entryPoint, state, data) {
+  console.log(`开始反序列化HNSW索引，节点数量: ${data.nodes ? data.nodes.length : 0}`);
+  
+  if (!data || !data.nodes || !Array.isArray(data.nodes)) {
+    console.error('反序列化失败: 无效的节点数据');
+    return false;
+  }
+  
+  if (!data.entryPoint) {
+    console.error('反序列化失败: 缺少入口点');
+    return false;
+  }
+  
+  if (!data.state) {
+    console.error('反序列化失败: 缺少状态数据');
+    return false;
+  }
+  
   // 清空现有数据
   nodes.clear();
   
   // 还原节点
+  let restoredCount = 0;
   for (const nodeData of data.nodes) {
-    const node = createHNSWNode(
-      nodeData.id,
-      new Float32Array(nodeData.vector),
-      nodeData.data
-    );
-    node.connections = nodeData.connections.map(level => Array.from(level));
-    nodes.set(node.id, node);
+    try {
+      if (!nodeData.vector || !Array.isArray(nodeData.vector)) {
+        console.warn(`节点 ${nodeData.id} 的向量数据无效，跳过该节点`);
+        continue;
+      }
+      
+      const node = createHNSWNode(
+        nodeData.id,
+        new Float32Array(nodeData.vector),
+        nodeData.data
+      );
+      
+      if (!nodeData.connections || !Array.isArray(nodeData.connections)) {
+        console.warn(`节点 ${nodeData.id} 的连接数据无效，设置为空连接`);
+        node.connections = [];
+      } else {
+        node.connections = nodeData.connections.map(level => 
+          Array.isArray(level) ? Array.from(level) : []
+        );
+      }
+      
+      nodes.set(node.id, node);
+      restoredCount++;
+    } catch (error) {
+      console.error(`还原节点 ${nodeData.id} 时出错:`, error);
+    }
   }
   
+  console.log(`节点还原完成，成功还原 ${restoredCount}/${data.nodes.length} 个节点`);
+  
   // 还原入口点和状态
-  Object.assign(entryPoint, data.entryPoint);
-  Object.assign(state, data.state);
+  try {
+    Object.assign(entryPoint, data.entryPoint);
+    console.log(`入口点还原成功: ${JSON.stringify(entryPoint)}`);
+  } catch (error) {
+    console.error('还原入口点失败:', error);
+    return false;
+  }
+  
+  try {
+    Object.assign(state, data.state);
+    console.log(`状态还原成功: ${JSON.stringify(state)}`);
+  } catch (error) {
+    console.error('还原状态失败:', error);
+    return false;
+  }
+  
+  console.log('HNSW索引反序列化成功');
+  return true;
 }
 
 /**

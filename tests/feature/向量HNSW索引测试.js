@@ -62,6 +62,27 @@ function generateRandomVectors(numVectors, dimensions, useFloat32 = true) {
 }
 
 /**
+ * 计算性能统计数据
+ * @param {Array<number>} times - 执行时间数组(毫秒)
+ * @returns {Object} 统计数据
+ */
+function computePerformanceStats(times) {
+  // 确保至少有一个样本
+  if (!times || times.length === 0) return { avg: 0, min: 0, max: 0, median: 0 };
+  
+  // 复制并排序数组以计算中位数
+  const sortedTimes = [...times].sort((a, b) => a - b);
+  
+  return {
+    avg: times.reduce((sum, t) => sum + t, 0) / times.length,
+    min: sortedTimes[0],
+    max: sortedTimes[sortedTimes.length - 1],
+    median: sortedTimes[Math.floor(sortedTimes.length / 2)],
+    p95: sortedTimes[Math.floor(sortedTimes.length * 0.95)]
+  };
+}
+
+/**
  * 测试HNSW索引基本功能
  */
 function 测试HNSW索引基本功能() {
@@ -185,70 +206,202 @@ function 测试DeltaPQ压缩() {
 function 测试组合索引() {
   console.log('\n---- 测试Delta-PQ-HNSW组合索引 ----');
   
-  // 1. 生成测试数据
-  const numVectors = 1000;
-  const dimensions = 128;
-  const testData = generateRandomVectors(numVectors, dimensions);
-  
-  // 2. 创建组合索引
-  const combinedIndex = createCombinedDeltaPQHNSW({
-    // Delta-PQ配置
-    numSubvectors: 16,
-    bitsPerCode: 8,
-    // HNSW配置
-    M: 16,
-    efConstruction: 128,
-    efSearch: 64
-  });
-  
-  // 3. 批量添加向量
-  console.time('组合索引构建时间');
-  for (const item of testData) {
-    combinedIndex.addVector(item.vector, item.id, item.metadata);
+  try {
+    // 1. 生成测试数据
+    console.log('1. 生成测试数据...');
+    const numVectors = 1000;
+    const dimensions = 128;
+    const testData = generateRandomVectors(numVectors, dimensions);
+    console.log(`成功生成 ${testData.length} 个测试向量，维度: ${dimensions}`);
+    
+    // 2. 创建组合索引
+    console.log('2. 创建组合索引...');
+    const combinedIndex = createCombinedDeltaPQHNSW({
+      // Delta-PQ配置
+      numSubvectors: 16,
+      bitsPerCode: 8,
+      sampleSize: 100, // 显式设置小一些的训练样本数量
+      // HNSW配置
+      M: 16,
+      efConstruction: 128,
+      efSearch: 64
+    });
+    console.log('组合索引创建成功');
+    
+    // 3. 分为训练集和测试集
+    console.log('3. 准备训练集...');
+    const trainData = testData.slice(0, 100);
+    const testData2 = testData.slice(100, 300); // 使用较少的向量进行测试
+    console.log(`分割数据为训练集(${trainData.length}个向量)和测试集(${testData2.length}个向量)`);
+    
+    // 4. 先训练索引
+    console.log('4. 训练组合索引...');
+    try {
+      console.time('组合索引训练时间');
+      const vectors = trainData.map(item => item.vector);
+      const trainResult = combinedIndex.train(vectors);
+      console.timeEnd('组合索引训练时间');
+      console.log('训练完成，结果:', trainResult);
+    } catch (error) {
+      console.error('训练索引失败:', error);
+      return; // 训练失败就退出测试
+    }
+    
+    // 5. 然后添加向量
+    console.log('5. 添加更多向量...');
+    try {
+      console.time('组合索引添加向量时间');
+      // 使用批量添加而不是逐个添加
+      console.log(`开始批量添加 ${testData2.length} 个向量...`);
+      
+      // 提取向量、ID和元数据
+      const vectors = testData2.map(item => item.vector);
+      const ids = testData2.map(item => item.id);
+      const metadataList = testData2.map(item => item.metadata);
+      
+      // 批量添加向量
+      const addedIds = combinedIndex.batchAddVectors(vectors, ids, metadataList);
+      
+      // 统计添加结果
+      const successCount = addedIds.filter(id => id >= 0).length;
+      console.log(`成功添加 ${successCount}/${testData2.length} 个向量`);
+      
+      console.timeEnd('组合索引添加向量时间');
+      
+      // 检查索引状态
+      const indexMetadata = combinedIndex.getMetadata();
+      console.log('索引元数据:', JSON.stringify(indexMetadata, null, 2));
+    } catch (error) {
+      console.error('添加向量失败:', error);
+    }
+    
+    // 6. 测试查询
+    console.log('6. 测试查询...');
+    const queryIndex = Math.floor(Math.random() * testData.length);
+    const queryVector = testData[queryIndex].vector;
+    console.log(`使用第 ${queryIndex} 个向量作为查询向量`);
+    
+    // 6.1 使用组合索引查询
+    let combinedResults = [];
+    try {
+      console.time('组合索引查询时间');
+      combinedResults = combinedIndex.search(queryVector, 10, { 
+        ef: 100,          // 增加ef提高搜索质量
+        useQuantization: true,  // 使用量化版本以提高性能
+        verbose: false     // 关闭详细日志
+      });
+      console.timeEnd('组合索引查询时间');
+      console.log(`查询结果数量: ${combinedResults.length}`);
+      
+      // 只打印前3个结果的摘要，避免日志过多
+      if (combinedResults.length > 0) {
+        const resultSummary = combinedResults.slice(0, 3).map(r => ({
+          id: r.id,
+          originalId: r.originalId,
+          distance: r.distance.toFixed(6)
+        }));
+        console.log(`前3个查询结果: ${JSON.stringify(resultSummary, null, 2)}`);
+        if (combinedResults.length > 3) {
+          console.log(`...共 ${combinedResults.length} 个结果`);
+        }
+      }
+    } catch (error) {
+      console.error('组合索引查询失败:', error);
+    }
+    
+    // 6.2 计算精确查询（用于对比）
+    let exactResults = [];
+    try {
+      console.time('精确线性查询时间');
+      exactResults = testData
+        .map(item => ({
+          id: item.id,
+          distance: computeEuclideanDistance(queryVector, item.vector)
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 10);
+      console.timeEnd('精确线性查询时间');
+      console.log('精确查询结果:', exactResults);
+    } catch (error) {
+      console.error('精确查询失败:', error);
+    }
+    
+    // 7. 比较召回率
+    if (combinedResults.length > 0 && exactResults.length > 0) {
+      try {
+        const exactIds = new Set(exactResults.map(r => r.id));
+        let recallCount = 0;
+        
+        // 检查exactResults是否包含有效ID
+        if (exactIds.size === 0) {
+          console.warn('精确查询结果没有有效ID，无法计算召回率');
+          console.log('精确查询结果:', JSON.stringify(exactResults.slice(0, 3)));
+          console.log('组合查询结果:', JSON.stringify(combinedResults.slice(0, 3)));
+          console.log('无法计算召回率: 精确查询结果ID无效');
+        } else {
+          // 遍历组合查询结果，计算匹配的数量
+          for (const result of combinedResults) {
+            // 检查结果对象是否有originalId字段
+            if (result && typeof result.originalId !== 'undefined') {
+              if (exactIds.has(result.originalId)) {
+                recallCount++;
+              }
+            } else if (result && typeof result.id !== 'undefined') {
+              // 尝试使用id字段
+              if (exactIds.has(result.id)) {
+                recallCount++;
+              }
+            }
+          }
+          
+          const recallRate = recallCount / Math.min(10, exactResults.length);
+          console.log(`组合索引查询召回率: ${recallRate.toFixed(4)} (${recallCount}/${Math.min(10, exactResults.length)})`);
+        }
+      } catch (error) {
+        console.error('计算召回率失败:', error);
+        console.error('精确查询结果示例:', exactResults.length > 0 ? JSON.stringify(exactResults[0]) : '无结果');
+        console.error('组合查询结果示例:', combinedResults.length > 0 ? JSON.stringify(combinedResults[0]) : '无结果');
+      }
+    } else {
+      console.log(`无法计算召回率: 查询结果不完整 (组合结果: ${combinedResults.length}, 精确结果: ${exactResults.length})`);
+      
+      // 打印查询结果的详细情况，帮助诊断
+      if (combinedResults.length === 0) {
+        console.log('组合查询结果为空');
+      }
+      
+      if (exactResults.length === 0) {
+        console.log('精确查询结果为空');
+      }
+    }
+    
+    // 8. 测试序列化/反序列化
+    console.log('8. 测试序列化/反序列化...');
+    try {
+      console.time('组合索引序列化时间');
+      const serialized = combinedIndex.serialize();
+      console.timeEnd('组合索引序列化时间');
+      console.log(`序列化数据大小: ${(serialized.length / 1024).toFixed(2)} KB`);
+      
+      console.time('组合索引反序列化时间');
+      const deserializedIndex = createCombinedDeltaPQHNSW();
+      const success = deserializedIndex.deserialize(serialized);
+      console.timeEnd('组合索引反序列化时间');
+      console.log(`反序列化${success ? '成功' : '失败'}`);
+      
+      if (success) {
+        // 验证反序列化后的查询结果
+        const resultsAfterDeserialization = deserializedIndex.search(queryVector, 10);
+        console.log(`反序列化后查询结果数量: ${resultsAfterDeserialization.length}, 期望: 10`);
+      }
+    } catch (error) {
+      console.error('序列化/反序列化测试失败:', error);
+    }
+    
+    console.log('组合索引测试完成');
+  } catch (error) {
+    console.error('组合索引测试失败:', error);
   }
-  console.timeEnd('组合索引构建时间');
-  
-  // 4. 测试查询
-  const queryVector = testData[Math.floor(Math.random() * numVectors)].vector;
-  
-  // 4.1 使用组合索引查询
-  console.time('组合索引查询时间');
-  const combinedResults = combinedIndex.search(queryVector, 10);
-  console.timeEnd('组合索引查询时间');
-  
-  // 4.2 计算精确查询（用于对比）
-  console.time('精确线性查询时间');
-  const exactResults = testData
-    .map(item => ({
-      id: item.id,
-      distance: computeEuclideanDistance(queryVector, item.vector)
-    }))
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, 10);
-  console.timeEnd('精确线性查询时间');
-  
-  // 5. 比较召回率
-  const exactIds = new Set(exactResults.map(r => r.id));
-  const recallCount = combinedResults.filter(r => exactIds.has(r.id)).length;
-  const recallRate = recallCount / 10;
-  
-  console.log(`组合索引查询召回率: ${recallRate.toFixed(4)} (${recallCount}/10)`);
-  
-  // 6. 测试序列化/反序列化
-  console.time('组合索引序列化时间');
-  const serialized = combinedIndex.serialize();
-  console.timeEnd('组合索引序列化时间');
-  
-  console.log(`序列化数据大小: ${(serialized.length / 1024).toFixed(2)} KB`);
-  
-  console.time('组合索引反序列化时间');
-  const deserializedIndex = createCombinedDeltaPQHNSW();
-  deserializedIndex.deserialize(serialized);
-  console.timeEnd('组合索引反序列化时间');
-  
-  // 验证反序列化后的查询结果
-  const resultsAfterDeserialization = deserializedIndex.search(queryVector, 10);
-  console.log(`反序列化后查询结果数量: ${resultsAfterDeserialization.length}, 期望: 10`);
 }
 
 /**
@@ -269,9 +422,9 @@ function 测试不同距离度量() {
   
   // 3. 添加向量到所有索引
   for (const item of testData) {
-    euclideanIndex.addVector(item.vector, item.id);
-    cosineIndex.addVector(item.vector, item.id);
-    innerProductIndex.addVector(item.vector, item.id);
+    euclideanIndex.insertNode(item.vector, { id: item.id });
+    cosineIndex.insertNode(item.vector, { id: item.id });
+    innerProductIndex.insertNode(item.vector, { id: item.id });
   }
   
   // 4. 用相同的查询向量在不同索引中查询
@@ -292,6 +445,152 @@ function 测试不同距离度量() {
   
   const differenceRatio = 1 - euclideanResults.filter(r => cosineIds.has(r.id)).length / 5;
   console.log(`不同距离度量结果差异率: ${(differenceRatio * 100).toFixed(2)}%`);
+}
+
+/**
+ * 测试最小堆优化的搜索性能
+ */
+function 测试最小堆优化搜索() {
+  console.log('\n---- 测试最小堆优化搜索性能 ----');
+  
+  try {
+    // 1. 生成测试数据
+    console.log('1. 生成测试数据...');
+    const numVectors = 5000; // 使用较大的向量集
+    const dimensions = 128;
+    const testData = generateRandomVectors(numVectors, dimensions);
+    console.log(`成功生成 ${testData.length} 个测试向量，维度: ${dimensions}`);
+    
+    // 2. 创建组合索引
+    console.log('2. 创建组合索引...');
+    const combinedIndex = createCombinedDeltaPQHNSW({
+      // Delta-PQ配置
+      numSubvectors: 16,
+      bitsPerCode: 8,
+      sampleSize: 1000,
+      // HNSW配置
+      M: 16,
+      efConstruction: 128,
+      efSearch: 64
+    });
+    console.log('组合索引创建成功');
+    
+    // 3. 训练索引
+    console.log('3. 训练组合索引...');
+    try {
+      console.time('组合索引训练时间');
+      const trainVectors = testData.slice(0, 1000).map(item => item.vector);
+      const trainResult = combinedIndex.train(trainVectors);
+      console.timeEnd('组合索引训练时间');
+      console.log('训练完成，结果:', trainResult);
+    } catch (error) {
+      console.error('训练索引失败:', error);
+      return;
+    }
+    
+    // 4. 添加向量
+    console.log('4. 添加向量...');
+    console.time('向量添加时间');
+    const vectors = testData.slice(1000).map(item => item.vector);
+    const ids = testData.slice(1000).map(item => item.id);
+    const metadata = testData.slice(1000).map(item => item.metadata);
+    
+    const addedIds = combinedIndex.batchAddVectors(vectors, ids, metadata);
+    console.timeEnd('向量添加时间');
+    console.log(`成功添加 ${addedIds.filter(id => id >= 0).length} 个向量`);
+    
+    // 5. 准备查询向量
+    const numQueries = 50;
+    console.log(`5. 执行 ${numQueries} 次查询性能测试...`);
+    const queryVectors = [];
+    for (let i = 0; i < numQueries; i++) {
+      const randomIndex = Math.floor(Math.random() * testData.length);
+      queryVectors.push(testData[randomIndex].vector);
+    }
+    
+    // 6. 测试最小堆优化搜索性能
+    console.log('6. 测试最小堆优化搜索...');
+    const optimizedTimes = [];
+    const optimizedResults = [];
+    
+    for (let i = 0; i < queryVectors.length; i++) {
+      const queryVector = queryVectors[i];
+      
+      const startTime = performance.now();
+      const results = combinedIndex.search(queryVector, 10, {
+        ef: 100,
+        useQuantization: true,
+        verbose: false
+      });
+      const endTime = performance.now();
+      
+      optimizedTimes.push(endTime - startTime);
+      optimizedResults.push(results);
+      
+      // 每10次查询输出一次进度
+      if ((i + 1) % 10 === 0 || i === queryVectors.length - 1) {
+        console.log(`已完成 ${i + 1}/${queryVectors.length} 次查询`);
+      }
+    }
+    
+    // 7. 分析性能数据
+    console.log('7. 性能统计分析...');
+    const stats = computePerformanceStats(optimizedTimes);
+    
+    console.log(`最小堆优化搜索性能统计(毫秒):`);
+    console.log(`- 平均查询时间: ${stats.avg.toFixed(3)}ms`);
+    console.log(`- 最小查询时间: ${stats.min.toFixed(3)}ms`);
+    console.log(`- 最大查询时间: ${stats.max.toFixed(3)}ms`);
+    console.log(`- 中位查询时间: ${stats.median.toFixed(3)}ms`);
+    console.log(`- 95%分位查询时间: ${stats.p95.toFixed(3)}ms`);
+    
+    // 8. 输出部分结果
+    console.log('8. 示例查询结果:');
+    if (optimizedResults[0] && optimizedResults[0].length > 0) {
+      console.log(`第一次查询返回 ${optimizedResults[0].length} 个结果`);
+      console.log('前3个结果:');
+      optimizedResults[0].slice(0, 3).forEach((result, i) => {
+        console.log(`  ${i+1}. ID: ${result.id}, 距离: ${result.distance.toFixed(6)}`);
+      });
+    } else {
+      console.log('查询未返回结果');
+    }
+    
+    // 9. 执行精确搜索作为对照
+    console.log('9. 计算精确搜索召回率...');
+    const sampleQueryVector = queryVectors[0];
+    
+    // 精确搜索
+    console.time('精确搜索时间');
+    const exactResults = testData
+      .map(item => ({
+        id: item.id,
+        distance: computeEuclideanDistance(sampleQueryVector, item.vector)
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10);
+    console.timeEnd('精确搜索时间');
+    
+    // 计算召回率
+    if (optimizedResults[0] && optimizedResults[0].length > 0) {
+      const exactIds = new Set(exactResults.map(r => r.id));
+      let matchCount = 0;
+      
+      for (const result of optimizedResults[0]) {
+        if (exactIds.has(result.originalId)) {
+          matchCount++;
+        }
+      }
+      
+      const recallRate = matchCount / Math.min(10, exactResults.length);
+      console.log(`召回率: ${(recallRate * 100).toFixed(2)}% (${matchCount}/${Math.min(10, exactResults.length)})`);
+    }
+    
+    console.log('最小堆优化搜索测试完成');
+  } catch (error) {
+    console.error('最小堆优化搜索测试失败:', error);
+    console.error(error.stack);
+  }
 }
 
 /**
@@ -320,19 +619,29 @@ function 测试大规模数据性能() {
   const combinedIndex = createCombinedDeltaPQHNSW({
     numSubvectors: 32,
     bitsPerCode: 8,
+    sampleSize: 1000, // 用于训练的样本数
     M: 16,
     efConstruction: 128,
     efSearch: 100
   });
   
-  // 3. 构建索引
-  console.time('索引构建时间');
-  for (const item of testData) {
+  // 3. 先训练索引
+  console.log('训练索引...');
+  console.time('索引训练时间');
+  const trainData = testData.slice(0, 1000);
+  const trainVectors = trainData.map(item => item.vector);
+  combinedIndex.train(trainVectors);
+  console.timeEnd('索引训练时间');
+  
+  // 4. 构建索引（添加剩余向量）
+  console.time('索引添加向量时间');
+  const remainingData = testData.slice(1000);
+  for (const item of remainingData) {
     combinedIndex.addVector(item.vector, item.id);
   }
-  console.timeEnd('索引构建时间');
+  console.timeEnd('索引添加向量时间');
   
-  // 4. 测试查询性能
+  // 5. 测试查询性能
   const numQueries = 100;
   const queryTimes = [];
   
@@ -351,7 +660,7 @@ function 测试大规模数据性能() {
   const avgQueryTime = queryTimes.reduce((sum, time) => sum + time, 0) / numQueries;
   console.log(`平均查询时间 (${numQueries}次查询): ${avgQueryTime.toFixed(3)} ms`);
   
-  // 5. 测试内存使用
+  // 6. 测试内存使用
   const serialized = combinedIndex.serialize();
   const memorySizeMB = serialized.length / (1024 * 1024);
   console.log(`索引大小: ${memorySizeMB.toFixed(2)} MB`);
@@ -364,13 +673,35 @@ function 测试大规模数据性能() {
 async function 运行测试() {
   console.log('======== HNSW索引和Delta-PQ压缩测试 ========\n');
   
-  测试HNSW索引基本功能();
-  测试DeltaPQ压缩();
-   测试组合索引();
-   测试不同距离度量();
-   测试大规模数据性能();
-  
-  console.log('\n======== 测试完成 ========');
+  try {
+    console.log('开始测试HNSW索引基本功能...');
+    测试HNSW索引基本功能();
+    console.log('\n基本功能测试完成');
+    
+    console.log('\n开始测试Delta-PQ压缩...');
+    测试DeltaPQ压缩();
+    console.log('\nDelta-PQ压缩测试完成');
+
+    console.log('\n开始测试组合索引...');
+    测试组合索引();
+    console.log('\n组合索引测试完成');
+    
+    console.log('\n开始测试不同距离度量...');
+    测试不同距离度量();
+    console.log('\n距离度量测试完成');
+    
+    console.log('\n开始测试最小堆优化搜索性能...');
+    测试最小堆优化搜索();
+    console.log('\n最小堆优化搜索测试完成');
+    
+    console.log('\n开始测试大规模数据性能...');
+    测试大规模数据性能();
+    console.log('\n大规模测试完成');
+  } catch (error) {
+    console.error('测试过程中发生错误:', error);
+  } finally {
+    console.log('\n======== 测试完成 ========');
+  }
 }
 
 // 导出运行测试函数

@@ -239,7 +239,7 @@ export function createDeltaPQ({
   maxIterations = DEFAULT_MAX_ITERATIONS
 } = {}) {
   // 每个子空间的聚类数
-  const numClusters = Math.pow(2, bitsPerCode);
+  let numClusters = Math.pow(2, bitsPerCode);
   
   // 存储子空间聚类中心
   let codebooks = null;
@@ -272,23 +272,51 @@ export function createDeltaPQ({
   }
   
   /**
-   * 量化一个向量
+   * 量化一个向量 - 性能优化版本
    * @param {Float32Array|Array} vector - 输入向量
+   * @param {boolean} [fast=false] - 是否使用快速路径（跳过某些检查）
    * @returns {{codes: Uint8Array, deltaVector: Float32Array}} 量化结果
    */
-  function quantizeVector(vector) {
+  function quantizeVector(vector, fast = false) {
     if (!isTrained) {
       throw new Error('DeltaPQ not trained');
     }
     
-    // 计算delta向量（相对于中心向量的偏差）
-    const deltaVector = new Float32Array(vector.length);
-    for (let i = 0; i < vector.length; i++) {
-      deltaVector[i] = vector[i] - centerVector[i];
+    // 防御性检查
+    if (!vector) {
+      throw new Error('输入向量为空');
     }
     
-    // 分解为子向量
-    const subvectors = splitVector(deltaVector, numSubvectors);
+    if (vector.length !== vectorDimension && !fast) {
+      console.warn(`向量维度不匹配: ${vector.length} vs ${vectorDimension}，将进行调整`);
+      // 调整向量维度
+      if (vector.length < vectorDimension) {
+        // 扩展向量
+        const extendedVector = new Float32Array(vectorDimension);
+        for (let i = 0; i < vector.length; i++) {
+          extendedVector[i] = vector[i];
+        }
+        vector = extendedVector;
+      } else {
+        // 截断向量
+        const truncatedVector = new Float32Array(vectorDimension);
+        for (let i = 0; i < vectorDimension; i++) {
+          truncatedVector[i] = vector[i];
+        }
+        vector = truncatedVector;
+      }
+    }
+    
+    // 计算delta向量（相对于中心向量的偏差）
+    const deltaVector = new Float32Array(vectorDimension);
+    for (let i = 0; i < vectorDimension; i++) {
+      deltaVector[i] = i < vector.length ? (vector[i] - centerVector[i]) : -centerVector[i];
+    }
+    
+    // 分解为子向量 - 快速路径跳过一些检查
+    const subvectors = fast ? 
+      splitVectorFast(deltaVector, numSubvectors, subvectorSize) : 
+      splitVector(deltaVector, numSubvectors);
     
     // 量化每个子向量
     const codes = new Uint8Array(numSubvectors);
@@ -297,10 +325,18 @@ export function createDeltaPQ({
       let minDist = Infinity;
       let bestCode = 0;
       
-      // 找到最接近的聚类中心
+      const subvector = subvectors[i];
+      
+      // 使用快速距离计算以提高性能
       for (let j = 0; j < numClusters; j++) {
         const centroid = codebooks[i][j];
-        const dist = computeEuclideanDistance(subvectors[i], centroid);
+        let dist = 0;
+        
+        // 手动展开欧几里得距离计算以提高性能
+        for (let k = 0; k < subvector.length; k++) {
+          const diff = subvector[k] - centroid[k];
+          dist += diff * diff;
+        }
         
         if (dist < minDist) {
           minDist = dist;
@@ -312,6 +348,51 @@ export function createDeltaPQ({
     }
     
     return { codes, deltaVector };
+  }
+  
+  /**
+   * 快速分割向量 - 针对性能优化
+   * @param {Float32Array} vector - 输入向量 
+   * @param {number} numSubvectors - 子向量数量
+   * @param {number} subvectorSize - 子向量大小
+   * @returns {Array<Float32Array>} 子向量数组
+   */
+  function splitVectorFast(vector, numSubvectors, subvectorSize) {
+    const dimension = vector.length;
+    const subvectors = new Array(numSubvectors);
+    
+    for (let i = 0; i < numSubvectors; i++) {
+      const start = i * subvectorSize;
+      const end = Math.min((i + 1) * subvectorSize, dimension);
+      
+      if (start >= dimension) {
+        subvectors[i] = new Float32Array(1).fill(0);
+        continue;
+      }
+      
+      const subvector = new Float32Array(end - start);
+      
+      // 使用循环展开以提高性能
+      const len = end - start;
+      let j = 0;
+      
+      // 每4个一组处理
+      for (; j + 3 < len; j += 4) {
+        subvector[j] = vector[start + j];
+        subvector[j + 1] = vector[start + j + 1];
+        subvector[j + 2] = vector[start + j + 2];
+        subvector[j + 3] = vector[start + j + 3];
+      }
+      
+      // 处理剩余的元素
+      for (; j < len; j++) {
+        subvector[j] = vector[start + j];
+      }
+      
+      subvectors[i] = subvector;
+    }
+    
+    return subvectors;
   }
   
   /**
@@ -541,6 +622,318 @@ export function createDeltaPQ({
     return databaseCodes.map(code => computeApproximateDistance(queryCode, code));
   }
   
+  /**
+   * 序列化量化器状态
+   * @returns {string} JSON序列化数据
+   */
+  function serialize() {
+    try {
+      if (!isTrained) {
+        throw new Error('量化器未训练，无法序列化');
+      }
+      
+      console.log(`开始序列化DeltaPQ量化器，状态: ${isTrained ? "已训练" : "未训练"}`);
+      
+      // 验证核心数据是否存在
+      if (!codebooks || !centerVector || !vectorDimension || !subvectorSize) {
+        console.error("序列化失败: 核心数据缺失", { 
+          hasCodebooks: !!codebooks, 
+          hasCenter: !!centerVector,
+          vectorDim: vectorDimension,
+          subVecSize: subvectorSize
+        });
+        throw new Error('量化器数据不完整，无法序列化');
+      }
+      
+      // 准备序列化数据
+      const data = {
+        // 配置
+        config: {
+          numSubvectors,
+          bitsPerCode,
+          sampleSize,
+          maxIterations
+        },
+        // 训练数据
+        trained: {
+          codebooks: null,
+          centerVector: null,
+          vectorDimension,
+          subvectorSize
+        },
+        // 状态
+        isTrained
+      };
+      
+      // 序列化中心向量
+      try {
+        if (centerVector && centerVector.length > 0) {
+          data.trained.centerVector = Array.from(centerVector);
+          console.log(`中心向量序列化成功，维度: ${centerVector.length}`);
+        } else {
+          console.warn('中心向量无效或为空');
+          data.trained.centerVector = new Array(vectorDimension).fill(0);
+        }
+      } catch (e) {
+        console.error('中心向量序列化失败:', e);
+        data.trained.centerVector = new Array(vectorDimension).fill(0);
+      }
+      
+      // 序列化码本
+      try {
+        if (codebooks && Array.isArray(codebooks) && codebooks.length > 0) {
+          // 验证码本结构
+          const isValidCodebooks = codebooks.every(book => 
+            Array.isArray(book) && book.length === numClusters &&
+            book.every(centroid => centroid && centroid.length > 0)
+          );
+          
+          if (isValidCodebooks) {
+            data.trained.codebooks = codebooks.map(book => 
+              book.map(centroid => Array.from(centroid))
+            );
+            console.log(`码本序列化成功，数量: ${codebooks.length}，每个码本聚类数: ${codebooks[0].length}`);
+          } else {
+            console.warn('码本结构无效，使用默认值');
+            throw new Error('码本结构无效');
+          }
+        } else {
+          console.warn('码本为空或无效');
+          throw new Error('码本为空或无效');
+        }
+      } catch (e) {
+        console.error('码本序列化失败:', e);
+        return null; // 码本是必要的，如果序列化失败则返回null
+      }
+      
+      // 序列化为JSON字符串
+      const jsonString = JSON.stringify(data);
+      console.log(`DeltaPQ量化器序列化完成，数据大小: ${jsonString.length} 字节`);
+      
+      return jsonString;
+    } catch (error) {
+      console.error('量化器序列化失败:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * 从序列化数据恢复量化器状态
+   * @param {string} serialized - 序列化数据
+   * @returns {boolean} 是否成功
+   */
+  function deserialize(serialized) {
+    try {
+      if (!serialized || typeof serialized !== 'string') {
+        console.error('反序列化DeltaPQ量化器失败: 无效的序列化数据');
+        return false;
+      }
+      
+      console.log(`开始反序列化DeltaPQ量化器，数据长度: ${serialized.length}`);
+      
+      const data = JSON.parse(serialized);
+      
+      // 防御性检查，确保数据结构完整
+      if (!data || typeof data !== 'object') {
+        console.error('反序列化DeltaPQ量化器失败: 无效的JSON数据结构');
+        return false;
+      }
+      
+      // 检查必要数据存在性
+      if (!data.trained) {
+        console.error('反序列化DeltaPQ量化器失败: 缺少训练数据');
+        return false;
+      }
+      
+      // 恢复配置
+      if (data.config) {
+        numSubvectors = data.config.numSubvectors || numSubvectors;
+        bitsPerCode = data.config.bitsPerCode || bitsPerCode;
+        sampleSize = data.config.sampleSize || sampleSize;
+        maxIterations = data.config.maxIterations || maxIterations;
+        console.log(`已恢复配置参数: numSubvectors=${numSubvectors}, bitsPerCode=${bitsPerCode}`);
+      }
+      
+      // 更新聚类数
+      numClusters = Math.pow(2, bitsPerCode);
+      console.log(`使用每码本${bitsPerCode}位计算得到的码本聚类数: ${numClusters}`);
+      
+      // 恢复训练数据
+      if (data.trained) {
+        // 恢复基本参数
+        vectorDimension = data.trained.vectorDimension || 0;
+        subvectorSize = data.trained.subvectorSize || 0;
+        
+        console.log(`恢复向量维度: ${vectorDimension}, 子向量大小: ${subvectorSize}`);
+        
+        if (vectorDimension <= 0 || subvectorSize <= 0) {
+          console.error('反序列化失败: 无效的向量维度或子向量大小');
+          return false;
+        }
+        
+        // 恢复中心向量
+        let centerVectorRestored = false;
+        if (data.trained.centerVector && Array.isArray(data.trained.centerVector)) {
+          try {
+            // 检查中心向量数据是否有效
+            const validCenterVector = data.trained.centerVector.every(
+              val => typeof val === 'number' && isFinite(val)
+            );
+            
+            if (validCenterVector) {
+              centerVector = new Float32Array(data.trained.centerVector);
+              centerVectorRestored = true;
+              console.log(`成功恢复中心向量，维度: ${centerVector.length}`);
+            } else {
+              console.error('中心向量包含无效数据，无法恢复');
+            }
+          } catch (e) {
+            console.error('恢复中心向量时出错:', e);
+          }
+        }
+        
+        if (!centerVectorRestored) {
+          // 如果没有中心向量或恢复失败，创建一个默认的
+          if (vectorDimension > 0) {
+            centerVector = new Float32Array(vectorDimension);
+            console.log(`创建默认中心向量，维度: ${vectorDimension}`);
+          } else {
+            console.warn('反序列化警告: 无法创建中心向量，缺少维度信息');
+            return false;
+          }
+        }
+        
+        // 恢复码本
+        let codebooksRestored = false;
+        if (data.trained.codebooks && Array.isArray(data.trained.codebooks)) {
+          try {
+            // 检查码本结构
+            const validCodebookStructure = data.trained.codebooks.every(book => 
+              Array.isArray(book) && 
+              // 放宽条件，不要求每个码本都有numClusters个聚类，只要有内容且结构正确即可
+              book.length > 0 && 
+              book.every(centroid => Array.isArray(centroid))
+            );
+            
+            if (validCodebookStructure) {
+              codebooks = [];
+              
+              // 更有弹性的码本恢复机制
+              for (let i = 0; i < data.trained.codebooks.length; i++) {
+                const book = data.trained.codebooks[i];
+                const codebook = [];
+                
+                // 确保每个码本都有numClusters个聚类中心
+                for (let j = 0; j < numClusters; j++) {
+                  if (j < book.length) {
+                    const centroid = book[j];
+                    // 确保每个中心点都是有效的
+                    const validCentroid = centroid.every(val => 
+                      typeof val === 'number' && isFinite(val)
+                    );
+                    
+                    if (validCentroid) {
+                      codebook.push(new Float32Array(centroid));
+                    } else {
+                      // 如果中心点数据无效，创建零向量
+                      const defaultLength = centroid.length || 
+                                           (book[0] && Array.isArray(book[0]) ? book[0].length : 1);
+                      codebook.push(new Float32Array(defaultLength));
+                    }
+                  } else {
+                    // 如果缺少聚类中心，添加一个零向量
+                    const defaultLength = book[0] && Array.isArray(book[0]) ? 
+                                       book[0].length : Math.ceil(vectorDimension / numSubvectors);
+                    codebook.push(new Float32Array(defaultLength));
+                  }
+                }
+                
+                codebooks.push(codebook);
+              }
+              
+              // 确保有足够的码本
+              while (codebooks.length < numSubvectors) {
+                const defaultSubvectorSize = Math.ceil(vectorDimension / numSubvectors);
+                const defaultCodebook = [];
+                
+                for (let j = 0; j < numClusters; j++) {
+                  defaultCodebook.push(new Float32Array(defaultSubvectorSize));
+                }
+                
+                codebooks.push(defaultCodebook);
+              }
+              
+              codebooksRestored = true;
+              console.log(`成功恢复码本，数量: ${codebooks.length}，每个码本聚类数: ${codebooks[0].length}`);
+            } else {
+              console.error('码本结构无效，无法恢复');
+            }
+          } catch (e) {
+            console.error('反序列化码本失败:', e);
+          }
+        }
+        
+        if (!codebooksRestored) {
+          console.warn('反序列化警告: 无法恢复码本，使用默认值');
+          
+          // 创建默认码本
+          codebooks = [];
+          const defaultSubvectorSize = Math.ceil(vectorDimension / numSubvectors);
+          
+          for (let i = 0; i < numSubvectors; i++) {
+            const subCodebook = [];
+            for (let j = 0; j < numClusters; j++) {
+              subCodebook.push(new Float32Array(defaultSubvectorSize));
+            }
+            codebooks.push(subCodebook);
+          }
+          
+          console.log(`已创建默认码本，数量: ${codebooks.length}`);
+          return false; // 无法恢复码本时返回失败
+        }
+      } else {
+        console.warn('反序列化警告: 缺少训练数据');
+        return false;
+      }
+      
+      // 更新训练状态
+      isTrained = data.isTrained === true;
+      
+      // 额外检查确保恢复后的状态有效
+      if (isTrained) {
+        if (!codebooks || !centerVector || vectorDimension <= 0 || subvectorSize <= 0) {
+          console.warn('反序列化警告: 恢复的训练状态不完整');
+          isTrained = false;
+          return false;
+        }
+        
+        // 验证码本大小是否符合预期
+        const expectedCodebooksLength = numSubvectors;
+        const expectedCentroidsPerCodebook = numClusters;
+        
+        if (codebooks.length !== expectedCodebooksLength) {
+          console.warn(`码本数量不匹配: 期望 ${expectedCodebooksLength}, 实际 ${codebooks.length}`);
+          isTrained = false;
+          return false;
+        }
+        
+        for (let i = 0; i < codebooks.length; i++) {
+          if (codebooks[i].length !== expectedCentroidsPerCodebook) {
+            console.warn(`码本 ${i} 的聚类数不匹配: 期望 ${expectedCentroidsPerCodebook}, 实际 ${codebooks[i].length}`);
+            isTrained = false;
+            return false;
+          }
+        }
+      }
+      
+      console.log(`DeltaPQ量化器反序列化完成，训练状态: ${isTrained}`);
+      return true;
+    } catch (error) {
+      console.error('反序列化DeltaPQ量化器失败:', error);
+      return false;
+    }
+  }
+  
   // 返回公共API
   return {
     train,
@@ -554,10 +947,13 @@ export function createDeltaPQ({
     getMetadata: () => ({
       isTrained,
       vectorDimension,
+      subvectorSize,
       numSubvectors,
       bitsPerCode,
       compressionRatio: isTrained ? (32 * vectorDimension) / (bitsPerCode * numSubvectors) : null
-    })
+    }),
+    serialize,
+    deserialize
   };
 }
 
