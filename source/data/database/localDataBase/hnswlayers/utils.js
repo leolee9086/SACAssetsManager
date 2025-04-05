@@ -39,18 +39,57 @@ export const 重建数据集的层级映射 = (数据集, hnsw层级映射, id) 
     // 使用全局变量存储上次重建时间，适用于浏览器和Node.js
     const globalObj = typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : {};
     
-    // 如果已经在短时间内尝试重建了这个ID对应的映射，就不再重复重建
-    const 当前时间 = Date.now();
+    // 初始化重建时间记录和重建计数器
     if (!globalObj._lastRebuildTimes) {
         globalObj._lastRebuildTimes = {};
+    }
+    
+    if (!globalObj._rebuildCounts) {
+        globalObj._rebuildCounts = {};
     }
     
     // 对特定ID的重建，防止短时间内重复重建同一ID
     if (id) {
         const 上次重建时间 = globalObj._lastRebuildTimes[id] || 0;
-        // 如果在最近1秒内已经重建过，就跳过
-        if (当前时间 - 上次重建时间 < 1000) {
-            console.log(`跳过数据项${id}的重建，因为刚刚在${当前时间 - 上次重建时间}ms前重建过`);
+        const 当前时间 = Date.now();
+        // 增加重建计数
+        globalObj._rebuildCounts[id] = (globalObj._rebuildCounts[id] || 0) + 1;
+        const 重建次数 = globalObj._rebuildCounts[id];
+        
+        // 动态调整冷却时间，频繁重建的ID需要更长的冷却时间
+        let 冷却时间 = 1000; // 默认1秒
+        if (重建次数 > 5) {
+            冷却时间 = Math.min(10000, 重建次数 * 1000); // 最多10秒
+        }
+        
+        // 如果在冷却期内已经重建过，就跳过
+        if (当前时间 - 上次重建时间 < 冷却时间) {
+            console.log(`跳过数据项${id}的重建，因为刚刚在${当前时间 - 上次重建时间}ms前重建过（已重建${重建次数}次）`);
+            
+            // 对于频繁重建的节点，记录警告
+            if (重建次数 > 10) {
+                console.warn(`警告：数据项${id}重建频率异常高（${重建次数}次），可能存在图结构损坏或循环依赖`);
+                
+                // 每10次重建记录一次详细日志，避免日志过多
+                if (重建次数 % 10 === 0) {
+                    console.error(`数据项${id}的频繁重建可能表明存在问题：`, {
+                        id: id,
+                        重建次数: 重建次数,
+                        上次重建时间: new Date(上次重建时间).toISOString(),
+                        数据项: 数据集[id] ? '存在' : '不存在',
+                        数据项详情: 数据集[id] ? JSON.stringify({
+                            id: 数据集[id].id,
+                            neighbors: 数据集[id].neighbors ? Object.keys(数据集[id].neighbors) : 'null'
+                        }) : 'null'
+                    });
+                    
+                    // 清理异常节点的计数器，给它一个重新开始的机会
+                    if (重建次数 > 50) {
+                        globalObj._rebuildCounts[id] = 0;
+                    }
+                }
+            }
+            
             return;
         }
         
@@ -61,6 +100,9 @@ export const 重建数据集的层级映射 = (数据集, hnsw层级映射, id) 
             try {
                 添加所有模型到hnsw层级映射(数据集[id], hnsw层级映射);
                 console.log(`数据项${id}的层级映射重建完成`);
+                
+                // 重建成功后重置计数器
+                globalObj._rebuildCounts[id] = 0;
             } catch (e) {
                 console.error(`重建数据项${id}的层级映射时出错:`, e);
             }
@@ -73,6 +115,7 @@ export const 重建数据集的层级映射 = (数据集, hnsw层级映射, id) 
     // 全局重建映射的防重复机制
     const 全局重建键 = '全局重建';
     const 上次全局重建时间 = globalObj._lastRebuildTimes[全局重建键] || 0;
+    const 当前时间 = Date.now();
     if (当前时间 - 上次全局重建时间 < 5000) { // 5秒内不重复全局重建
         console.log(`跳过全局重建，因为刚刚在${当前时间 - 上次全局重建时间}ms前重建过`);
         return;

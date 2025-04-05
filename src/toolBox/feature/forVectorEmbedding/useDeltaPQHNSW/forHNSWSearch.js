@@ -55,8 +55,16 @@ export function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, ex
   const resultQueue = createMinHeap((a, b) => b.distance - a.distance);
   resultQueue.push({ id: entryPoint.id, distance: initialDistance, node: ep });
   
-  // 设置当前最远距离为初始距离
+  // 设置当前最远距离为初始距离 - 随后会不断更新
   let currentFurthestDistance = initialDistance;
+  
+  // 如果resultQueue不为空，获取peek值
+  if (resultQueue.size() > 0) {
+    const worstCandidate = resultQueue.peek();
+    if (worstCandidate) {
+      currentFurthestDistance = worstCandidate.distance;
+    }
+  }
   
   // 当候选队列非空时继续搜索
   while (candidateQueue.size() > 0) {
@@ -64,8 +72,8 @@ export function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, ex
     const currentNearest = candidateQueue.pop();
     if (!currentNearest) continue;
     
-    // 如果当前候选的距离比结果集中最远的还要远，且结果集已经满了，则停止搜索
-    // 这是经典实现中的关键判断条件
+    // 关键优化：如果当前候选的距离比结果集中最远的还要远，且结果集已经满了，则停止搜索
+    // 经典实现中的判断条件是 currentNearest.distance > currentFurthestDistance
     if (resultQueue.size() >= effectiveEf && currentNearest.distance > currentFurthestDistance) {
       break;
     }
@@ -101,23 +109,22 @@ export function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, ex
       }
       
       // 经典实现的关键判断:
-      // 如果结果集未满或邻居距离小于当前最远距离，则加入结果集
+      // 注意：与经典实现保持一致，不再使用 currentNearest.distance 作为比较基准
+      // 而是使用 currentFurthestDistance
       if (resultQueue.size() < effectiveEf || neighborDistance < currentFurthestDistance) {
-        // 将邻居添加到候选队列
+        // 将邻居添加到候选队列和结果队列
         candidateQueue.push({ id: neighborId, distance: neighborDistance, node: neighbor });
-        
-        // 将邻居添加到结果队列
         resultQueue.push({ id: neighborId, distance: neighborDistance, node: neighbor });
         
         // 如果结果队列大小超过ef，移除最远的节点
         if (resultQueue.size() > effectiveEf) {
-          const furthest = resultQueue.pop();
-          if (furthest) {
-            // 更新当前最远距离
-            const worstCandidate = resultQueue.peek();
-            if (worstCandidate) {
-              currentFurthestDistance = worstCandidate.distance;
-            }
+          resultQueue.pop(); // 移除最远的节点
+          
+          // 关键：直接查看最远节点的距离，不需要pop后再peek
+          // 这是与经典实现的关键区别
+          const worstCandidate = resultQueue.peek();
+          if (worstCandidate) {
+            currentFurthestDistance = worstCandidate.distance;
           }
         }
       }
@@ -126,18 +133,24 @@ export function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, ex
   
   // 收集结果
   const results = [];
-  while (resultQueue.size() > 0 && results.length < k) {
+  // 按距离从小到大排序获取结果 - 完全模仿经典实现
+  // 直接获取所有结果，排序后取前k个
+  const allResults = [];
+  while (resultQueue.size() > 0) {
     const item = resultQueue.pop();
     if (item) {
-      results.push({
+      allResults.push({
         id: item.id,
         distance: item.distance
       });
     }
   }
   
-  // 结果按距离从小到大排序返回
-  return results.sort((a, b) => a.distance - b.distance);
+  // 按距离排序
+  allResults.sort((a, b) => a.distance - b.distance);
+  
+  // 返回前k个结果
+  return allResults.slice(0, k);
 }
 
 /**
@@ -217,7 +230,7 @@ export function greedySearchLayer(queryNode, entryPoint, level, nodes, distanceF
 }
 
 /**
- * 在索引中搜索k个最近邻 - 完全重写，直接模仿经典实现的"hnswAnn搜索数据集"函数逻辑
+ * 在索引中搜索k个最近邻 - 优化实现，提高效率
  * @param {Float32Array|Array} queryVector - 查询向量
  * @param {Map} nodes - 节点存储
  * @param {Object} entryPoint - 入口点
@@ -243,70 +256,79 @@ export function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, di
   }
   
   // 确保参数有效
-  const effectiveEf = ef || Math.max(efSearch, k * 3);
+  const effectiveEf = ef || Math.max(efSearch, k * 2);
+  const effectiveK = Math.min(k, nodes.size);
   
+  // 包装查询向量以便于传递
+  const queryObj = { vector: queryVector };
+  
+  // 创建已访问节点集合
+  const visited = new Set(excludeIds);
+  
+  // 从最高层开始逐层向下搜索
+  let currentEp = entryPoint;
+  
+  // 避免在循环中创建过多临时变量
+  let epNode = null;
+  let epDistance = Infinity;
+  
+  // 使用一次距离计算作为初始入口点距离
   try {
-    // 创建查询对象
-    const query = { vector: queryVector };
-    
-    // 从入口点开始
-    let currentEntryPoint = entryPoint;
-    
-    // 用于跟踪已访问节点
-    const visited = new Set(excludeIds);
-    
-    // 自顶向下遍历所有层级
-    // 在每一层使用贪婪搜索找到最近的点
-    for (let level = maxLevel; level > 0; level--) {
-      // 在当前层使用贪心搜索找到最近的点
-      const closestNode = greedySearchLayer(
-        query,
-        currentEntryPoint,
+    epNode = nodes.get(entryPoint.id);
+    if (epNode && !epNode.deleted) {
+      epDistance = distanceFunc(queryVector, epNode.vector);
+    }
+  } catch (error) {
+    console.error('初始距离计算失败', error);
+  }
+  
+  // 逐层向下搜索
+  for (let level = Math.min(maxLevel, currentEp.level); level > 0; level--) {
+    // 在当前层级寻找最近邻节点作为下一层级的入口点
+    try {
+      const layerResults = searchLayer(
+        queryObj,
+        1,               // 只寻找1个最近邻作为入口点
+        1,               // 最小的ef值以加速搜索
         level,
         nodes,
+        currentEp,
         distanceFunc,
+        excludeIds,
         visited
       );
       
-      // 更新入口点为当前层找到的最近点
-      if (closestNode && closestNode.id !== null) {
-        currentEntryPoint = { id: closestNode.id };
-        // 将已找到的点添加到已访问集合
-        visited.add(closestNode.id);
+      // 如果找到更好的入口点，更新当前入口点
+      if (layerResults.length > 0) {
+        currentEp = { id: layerResults[0].id, level };
       }
+    } catch (error) {
+      console.warn(`层级${level}搜索失败:`, error);
     }
-    
-    // 在底层(0层)进行完整的邻近搜索
-    const candidates = searchLayer(
-      query,
-      k * 2, // 搜索更多候选点以提高召回率
-      effectiveEf,
-      0,
-      nodes,
-      currentEntryPoint,
-      distanceFunc,
-      excludeIds,
-      visited
-    );
-    
-    // 转换结果格式
-    const results = candidates.map(item => {
-      const node = nodes.get(item.id);
-      
-      return {
-        id: node?.data?.id || item.id, // 使用数据中的ID或节点ID
-        internalId: item.id, // 保留内部ID以便后续操作
-        distance: item.distance,
-        data: node?.data || null
-      };
-    });
-    
-    // 返回前k个结果
-    return results.slice(0, k);
-  } catch (error) {
-    console.error('searchKNN执行错误:', error);
-    return [];
   }
+  
+  // 在最底层进行k近邻搜索
+  const results = searchLayer(
+    queryObj,
+    effectiveK,
+    effectiveEf,
+    0,              // 最底层
+    nodes,
+    currentEp,
+    distanceFunc,
+    excludeIds,
+    visited
+  );
+  
+  // 处理搜索结果，添加节点数据
+  return results.map(item => {
+    const node = nodes.get(item.id);
+    return {
+      id: item.id,
+      distance: item.distance,
+      data: node ? node.data : null
+    };
+  });
 }
 
 // 导入所需依赖

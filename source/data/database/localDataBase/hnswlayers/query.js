@@ -4,21 +4,54 @@ import { 获取数据项向量字段值, 获取数据项特定hnsw索引邻接�
 import { 获取数据项所在hnsw层级, 重建数据集的层级映射 } from "./utils.js";
 import { MinHeap } from "../../../../../src/toolBox/feature/useDataStruct/useHeaps/useMinHeap.js";
 import { 选择入口点 } from "./entry.js";
-function 贪心搜索当前层级(数据集, 当前点, 查询向量, hnsw索引名称, 当前层级, 模型名称, 已遍历点=new Set(),hnsw层级映射) {
+function 贪心搜索当前层级(数据集, 当前点, 查询向量, hnsw索引名称, 当前层级, 模型名称, 已遍历点=new Set(), hnsw层级映射) {
+    // 防御性检查
+    if (!当前点 || !数据集[当前点.id]) {
+        console.warn('贪心搜索当前层级: 当前点无效');
+        return { data: null, distance: 1 };
+    }
+    
     let 最近点 = 当前点;
     let 最近点特征向量 = 获取数据项向量字段值(数据集[最近点.id], 模型名称);
     let 最近距离 = 1 - 计算归一化向量余弦相似度(查询向量, 最近点特征向量);
     let 改进 = true;
+    
+    // 记录重建尝试次数
+    let 重建尝试次数 = 0;
+    const 最大重建次数 = 2;
+    
     //持续搜索直到找到最近的点
     while (改进) {
         改进 = false;
         let 当前层邻接表 = 获取数据项特定hnsw索引邻接表(最近点, hnsw索引名称, 当前层级);
-        if(!当前层邻接表){
-            重建数据集的层级映射(数据集,hnsw层级映射,最近点.id)
-            return {data:最近点,distance:最近距离}
+        
+        // 如果邻接表不存在，检查重建尝试次数
+        if (!当前层邻接表) {
+            // 如果未超过最大重建次数，尝试重建
+            if (重建尝试次数 < 最大重建次数) {
+                console.log(`最近点${最近点.id}的${当前层级}层邻接表不存在，尝试重建（第${重建尝试次数+1}次）`);
+                重建尝试次数++;
+                重建数据集的层级映射(数据集, hnsw层级映射, 最近点.id);
+                
+                // 重建后重新获取邻接表
+                当前层邻接表 = 获取数据项特定hnsw索引邻接表(最近点, hnsw索引名称, 当前层级);
+                
+                // 如果重建后仍然无法获取邻接表，返回当前最近点
+                if (!当前层邻接表) {
+                    console.warn(`最近点${最近点.id}的${当前层级}层邻接表重建后仍不存在，终止搜索并返回当前点`);
+                    return { data: 最近点, distance: 最近距离 };
+                }
+            } else {
+                // 如果已达最大重建次数，终止搜索并返回当前最近点
+                console.warn(`最近点${最近点.id}的${当前层级}层邻接表不存在且已达最大重建次数，终止搜索并返回当前点`);
+                return { data: 最近点, distance: 最近距离 };
+            }
         }
+        
+        // 遍历当前层的邻居节点
+        let 找到更近的邻居 = false;
         for (let 邻居 of 当前层邻接表.items) {
-            if (邻居&&!已遍历点.has(邻居.id)) {
+            if (邻居 && 邻居.id && !已遍历点.has(邻居.id)) {
                 已遍历点.add(邻居.id);
                 if (数据集[邻居.id]) {
                     let 邻居特征向量 = 获取数据项向量字段值(数据集[邻居.id], 模型名称);
@@ -27,15 +60,22 @@ function 贪心搜索当前层级(数据集, 当前点, 查询向量, hnsw索引
                         最近点 = 数据集[邻居.id];
                         最近距离 = 邻居距离
                         改进 = true;
+                        找到更近的邻居 = true;
                         // 更新当前层邻接表为新的最近点的邻接表
-                        当前层邻接表 = 获取数据项特定hnsw索引邻接表(最近点, hnsw索引名称, 当前层级);
                         // 重置循环以遍历新的最近点的邻居
                         break;
                     }
                 }
             }
         }
+        
+        // 如果没有找到更近的邻居，结束搜索
+        if (!找到更近的邻居) {
+            break;
+        }
     }
+    
+    // 返回最近点及其距离
     return { data: 最近点, distance: 最近距离 };
 }
 function hnswAnn单次搜索(数据集, 模型名称, 查询向量, N = 1, hnsw层级映射, 入口点, 已遍历点=new Set()) {
@@ -112,13 +152,16 @@ function hnswAnn单次搜索(数据集, 模型名称, 查询向量, N = 1, hnsw�
 // 在函数外部定义动态候选数量，以便在多次调用中保持状态
 let 动态候选数量 = hnsw索引元设置.搜索过程动态候选数量;
 
-export function hnswAnn搜索数据集(数据集, 模型名称, 查询向量, N = 1, hnsw层级映射) {
+export function hnswAnn搜索数据集(数据集, 模型名称, 查询向量, N = 1, hnsw层级映射, efSearch = null) {
     let 结果集 = new Map();
     let 已遍历入口点 = new Set();
     let 遍历次数 = 0;
     
+    // 如果提供了efSearch参数，则使用它来替代动态候选数量
+    const 使用的候选数量 = efSearch || 动态候选数量;
+    
     while (结果集.size < N && 遍历次数 < 3) {
-        let 本轮结果需求 = Math.ceil(Math.max(N * 1.5, 动态候选数量)) - 结果集.size;
+        let 本轮结果需求 = Math.ceil(Math.max(N * 1.5, 使用的候选数量)) - 结果集.size;
         遍历次数 += 1;
         let 搜索开始时间 = performance.now();
         let 入口点 = 选择入口点(数据集, 模型名称, hnsw层级映射, 已遍历入口点);
@@ -133,8 +176,8 @@ export function hnswAnn搜索数据集(数据集, 模型名称, 查询向量, N 
                 结果集.set(item.data.id, item);
             });
         }
-        // 如果单次搜索耗时超过20毫秒，动态调整候选数量
-        if (搜索结束时间 - 搜索开始时间 > 20) {
+        // 如果未提供efSearch且单次搜索耗时超过20毫秒，动态调整候选数量
+        if (!efSearch && 搜索结束时间 - 搜索开始时间 > 20) {
             动态候选数量 = Math.max(N * 1.5, 动态候选数量 / 2);
         }
     }

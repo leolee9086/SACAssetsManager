@@ -120,11 +120,17 @@ async function 对比测试() {
   console.log('\n===== HNSW索引实现对比测试 =====');
   
   // 测试参数
-  const numVectors = 1000;
+  const numVectors = 3000;
   const dimensions = 64;
   const numQueries = 20;
   const k = 10; // 查询返回的邻居数量
   const modelName = 'test_model';
+  
+  // HNSW参数 - 增加构建和搜索时的ef值
+  const M = 48;                   // 每个节点的最大连接数
+  const efConstruction = 800;     // 构建索引时的ef值
+  const efSearch = 800;           // 搜索时的ef值
+  const ml = 16;                  // 最大层数
   
   // 1. 生成测试数据
   console.log(`1. 生成${numVectors}个${dimensions}维随机向量...`);
@@ -134,13 +140,13 @@ async function 对比测试() {
   // 2. 初始化两种实现的索引
   console.log('2. 初始化索引结构...');
   
-  // 自定义HNSW实现
+  // 自定义HNSW实现 - 使用相同的参数
   const customIndex = createHNSWIndex({
     distanceFunction: 'euclidean',
-    M: 16,
-    efConstruction: 100,
-    efSearch: 50,
-    ml: 10
+    M: M,
+    efConstruction: efConstruction,
+    efSearch: efSearch,
+    ml: ml
   });
   
   // 经典HNSW实现
@@ -195,15 +201,15 @@ async function 对比测试() {
     const exactEndTime = performance.now();
     exactQueryTimes.push(exactEndTime - exactStartTime);
     
-    // 自定义HNSW查询
+    // 自定义HNSW查询 - 使用相同的efSearch参数
     const customStartTime = performance.now();
-    const customResults = customIndex.searchKNN(queryVector, k);
+    const customResults = customIndex.searchKNN(queryVector, k, { ef: efSearch * 2 });
     const customEndTime = performance.now();
     customQueryTimes.push(customEndTime - customStartTime);
     
-    // 经典HNSW查询
+    // 经典HNSW查询 - 使用相同的efSearch参数
     const classicStartTime = performance.now();
-    const classicResults = hnswAnn搜索数据集(dataset, modelName, queryVector, k, hnswLayerMapping);
+    const classicResults = hnswAnn搜索数据集(dataset, modelName, queryVector, k, hnswLayerMapping, efSearch * 2);
     const classicEndTime = performance.now();
     classicQueryTimes.push(classicEndTime - classicStartTime);
     
