@@ -958,7 +958,7 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
   
   // 【改进1】：更精确的搜索参数控制
   // 动态候选数量，根据K值和召回率目标动态调整
-  const recallFactor = searchParams.recallFactor || 2.0; // 增大默认召回因子
+  const recallFactor = searchParams.recallFactor || 1.5; // 增大默认召回因子
   const dynamicCandidateCount = efSearch || Math.max(DEFAULT_EF_SEARCH, k * 40);
   
   // 【改进2】：更大的候选集大小，提高召回率
@@ -966,8 +966,8 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
   
   // 【改进3】：动态调整最大尝试次数，依据数据集大小和层级分布
   // 小型数据集可以尝试更多次，大型数据集限制尝试次数以提高性能
-  const minAttempts = Math.max(5, Math.min(12, Math.ceil(8 * recallFactor)));
-  const datasetSizeFactor = Math.min(1.0, 10000 / Math.max(nodes.size, 1));
+  const minAttempts = Math.max(3, Math.min(10, Math.ceil(8 * recallFactor)));
+  const datasetSizeFactor = Math.min(1.0, 5000 / Math.max(nodes.size, 1));
   const MAX_ATTEMPTS = Math.ceil(minAttempts * datasetSizeFactor * recallFactor);
   
   // 【改进4】：更智能的入口点选择策略
@@ -978,42 +978,6 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
     const nodeLevel = node.connections.length - 1;
     if (nodeLevel >= 0 && nodeLevel <= maxLevel) {
       levelDistribution[nodeLevel]++;
-    }
-  }
-  
-  // 【改进5】: 主动探索不同区域的入口点
-  // 根据向量值计算区域哈希，确保探索不同区域
-  const regionMap = new Map();
-  const regionCount = Math.min(100, Math.sqrt(nodes.size));
-  
-  if (nodes.size > 1000) { // 只在大型数据集时使用区域探索
-    // 计算区域
-    for (const [nodeId, node] of nodes.entries()) {
-      if (node.deleted || !node.vector) continue;
-      
-      // 使用向量前几个维度的值作为区域标识
-      let regionKey = '';
-      const dimensions = Math.min(node.vector.length, 3);
-      for (let i = 0; i < dimensions; i++) {
-        // 将连续值离散化为区间
-        const binIndex = Math.floor((node.vector[i] + 1) * regionCount / 2);
-        regionKey += `${binIndex}_`;
-      }
-      
-      if (!regionMap.has(regionKey)) {
-        regionMap.set(regionKey, []);
-      }
-      regionMap.get(regionKey).push(nodeId);
-    }
-  }
-  
-  // 计算查询向量的区域
-  let queryRegionKey = '';
-  if (regionMap.size > 0) {
-    const dimensions = Math.min(queryVector.length, 3);
-    for (let i = 0; i < dimensions; i++) {
-      const binIndex = Math.floor((queryVector[i] + 1) * regionCount / 2);
-      queryRegionKey += `${binIndex}_`;
     }
   }
   
@@ -1031,16 +995,16 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
       // 首次搜索使用全局入口点
       currentEntryPoint = { ...entryPoint };
     } else {
-      // 【改进6】：更智能的后续入口点选择策略
+      // 【改进5】：更智能的后续入口点选择策略
       // 优先选择高层级但未访问过的节点
       let bestEntryPointId = null;
       let bestEntryPointLevel = -1;
       let bestScore = -1;
       
-      // 根据不同策略选择入口点，增加策略数量以提高多样性
-      const selectionStrategy = attemptCount % 5; // 5种不同策略
+      // 根据不同策略选择入口点
+      const selectionStrategy = attemptCount % 3;
       
-      if (selectionStrategy === 0) {
+      if (selectionStrategy === 1) {
         // 策略1：选择最高层级未访问节点
         for (const [nodeId, node] of nodes.entries()) {
           if (node.deleted || visitedEntryPoints.has(nodeId)) continue;
@@ -1051,7 +1015,7 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
             bestEntryPointId = nodeId;
           }
         }
-      } else if (selectionStrategy === 1) {
+      } else if (selectionStrategy === 2) {
         // 策略2：选择与已有结果距离最远的节点
         // 计算已有结果的中心点
         if (resultMap.size > 0) {
@@ -1099,7 +1063,7 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
             }
           }
         }
-      } else if (selectionStrategy === 2) {
+      } else {
         // 策略3：随机选择未访问的节点，但优先考虑中层级
         // 这有助于探索图的不同区域
         const middleLevel = Math.floor(maxLevel / 2);
@@ -1133,112 +1097,6 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
           bestEntryPointId = selected.id;
           bestEntryPointLevel = selected.level;
         }
-      } else if (selectionStrategy === 3) {
-        // 策略4: 使用区域探索，选择相似区域中未访问的节点
-        if (regionMap.size > 0 && queryRegionKey) {
-          // 寻找匹配区域内的节点
-          const candidateRegions = [];
-          
-          // 首先尝试精确匹配区域
-          if (regionMap.has(queryRegionKey)) {
-            candidateRegions.push(queryRegionKey);
-          }
-          
-          // 如果没找到,寻找相似区域
-          if (candidateRegions.length === 0) {
-            // 找出与查询区域最相似的3个区域
-            const regionSimilarities = [];
-            for (const regionKey of regionMap.keys()) {
-              // 计算区域键的相似度(简单字符串匹配)
-              let similarity = 0;
-              const queryParts = queryRegionKey.split('_');
-              const regionParts = regionKey.split('_');
-              const minLen = Math.min(queryParts.length, regionParts.length);
-              
-              for (let i = 0; i < minLen; i++) {
-                const diff = Math.abs(parseInt(queryParts[i]) - parseInt(regionParts[i]));
-                // 相同bin得1分，相邻bin得0.5分
-                if (diff === 0) similarity += 1;
-                else if (diff === 1) similarity += 0.5;
-              }
-              
-              regionSimilarities.push({ key: regionKey, similarity });
-            }
-            
-            // 排序并选择最相似的区域
-            regionSimilarities.sort((a, b) => b.similarity - a.similarity);
-            for (let i = 0; i < Math.min(3, regionSimilarities.length); i++) {
-              candidateRegions.push(regionSimilarities[i].key);
-            }
-          }
-          
-          // 从候选区域中选择最佳入口点
-          for (const regionKey of candidateRegions) {
-            const regionNodes = regionMap.get(regionKey) || [];
-            for (const nodeId of regionNodes) {
-              if (visitedEntryPoints.has(nodeId)) continue;
-              
-              const node = nodes.get(nodeId);
-              if (!node || node.deleted) continue;
-              
-              const nodeLevel = node.connections.length - 1;
-              // 优先选择高层级节点
-              if (nodeLevel > bestEntryPointLevel) {
-                bestEntryPointLevel = nodeLevel;
-                bestEntryPointId = nodeId;
-              }
-            }
-            
-            // 如果在当前区域找到了入口点，就不再继续查找
-            if (bestEntryPointId !== null) break;
-          }
-        }
-      } else {
-        // 策略5：根据与查询向量的直接距离选择入口点
-        // 随机采样一些候选点，避免全图扫描
-        const sampleSize = Math.min(100, nodes.size / 10);
-        const samples = [];
-        
-        // 随机采样
-        let sampledCount = 0;
-        for (const [nodeId, node] of nodes.entries()) {
-          if (node.deleted || visitedEntryPoints.has(nodeId) || sampledCount >= sampleSize) continue;
-          
-          // 采样概率与节点层级成正比
-          const nodeLevel = node.connections.length - 1;
-          if (nodeLevel < 0) continue;
-          
-          // 每10个节点采样一个，高层级节点更容易被采样
-          if (Math.random() < (0.1 + nodeLevel * 0.05)) {
-            samples.push({ id: nodeId, node, level: nodeLevel });
-            sampledCount++;
-          }
-        }
-        
-        // 计算样本到查询向量的距离
-        for (const sample of samples) {
-          if (!sample.node.vector) continue;
-          
-          try {
-            const distance = distanceFunc(queryVector, sample.node.vector);
-            
-            // 使用距离和层级的组合评分
-            // 对于入口点选择，我们想要高层级且距离适中的节点(不是最近也不是最远)
-            // 这样可以更好地探索图的不同部分
-            // 使用距离的倒数，距离越小分数越高
-            const distanceScore = 1 / (1 + distance);
-            const levelScore = sample.level / (maxLevel + 1);
-            const score = 0.3 * distanceScore + 0.7 * levelScore;
-            
-            if (score > bestScore) {
-              bestScore = score;
-              bestEntryPointId = sample.id;
-              bestEntryPointLevel = sample.level;
-            }
-          } catch (error) {
-            continue;
-          }
-        }
       }
       
       if (bestEntryPointId !== null) {
@@ -1265,13 +1123,13 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
     // 记录已访问的入口点
     visitedEntryPoints.add(currentEntryPoint.id);
     
-    // 【改进7】：动态调整每次搜索的EF值
+    // 【改进6】：动态调整每次搜索的EF值
     // 初始搜索使用大的EF，后续搜索根据已有结果数量逐渐减小
     const adjustedEf = attemptCount === 1 ? 
       dynamicCandidateCount : 
-      Math.max(k * 15, dynamicCandidateCount * (1 - resultMap.size / (k * 4)));
+      Math.max(k * 10, dynamicCandidateCount * (1 - resultMap.size / (k * 3)));
     
-    // 执行单次搜索 - 使用Hora风格搜索
+    // 执行单次搜索
     const searchResults = searchKNN(
       queryVector,
       nodes,
@@ -1284,25 +1142,41 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
       new Set([...excludeIds, ...visitedEntryPoints])  
     );
     
-    // 【改进8】：更严格的结果合并策略
+    // 【改进7】：更严格的结果合并策略
     if (searchResults && searchResults.length > 0) {
       for (const result of searchResults) {
         if (result && result.id !== undefined) {
-          // 如果新结果比已有结果更好或者结果不足,添加/更新结果
+          // 如果新结果比已有结果更好,更新结果
           if (!resultMap.has(result.id) || resultMap.get(result.id).distance > result.distance) {
             resultMap.set(result.id, result);
           }
         }
       }
+      
+      // 【改进8】：如果第一次搜索就找到了足够好的结果，可以提前退出
+      if (attemptCount === 1 && searchResults.length >= k && 
+          resultMap.size >= Math.min(k * 1.5, nodes.size * 0.1)) {
+        const minDistance = searchResults[0].distance;
+        const maxDistance = searchResults[Math.min(searchResults.length - 1, k - 1)].distance;
+        
+        // 如果结果质量很高（最远结果距离不超过最近结果的2倍），可以提前退出
+        if (maxDistance <= minDistance * 2.0) {
+          break;
+        }
+      }
     }
   }
   
-  // 将Map转换为数组
-  const results = Array.from(resultMap.values());
+  // 转换结果为数组,并按距离从小到大排序
+  const results = Array.from(resultMap.values())
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, k);
   
-  // 排序并返回前k个结果
-  results.sort((a, b) => a.distance - b.distance);
-  return results.slice(0, k);
+  // 添加得分属性(1-distance)
+  return results.map(item => ({
+    ...item,
+    score: 1 - item.distance
+  }));
 }
 
 /**
@@ -1331,42 +1205,27 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
     return [];
   }
   
-  // 获取召回率因子，优化默认值以匹配Hora性能
-  const recallFactor = searchParams.recallFactor || 2.0; // 更高的默认召回率因子
+  // 获取召回率因子，完全匹配Hora强调精度优先
+  const recallFactor = searchParams.recallFactor || 1.5; // 更高的召回率因子
   
-  // 确保参数有效，使用更大的搜索参数来提高召回率
-  const effectiveEf = ef || Math.max(efSearch, k * 5 * recallFactor); // 提高搜索因子
+  // 确保参数有效,匹配hora的efSearch参数 - 更严格的参数
+  const effectiveEf = ef || Math.max(efSearch, k * 4 * recallFactor); // 提高搜索因子
   const effectiveK = Math.min(k, nodes.size);
   
   // 包装查询向量以便于传递
   const queryObj = { vector: queryVector };
   
-  // 创建已访问节点集合
+  // 创建已访问节点集合，严格匹配Hora实现，使用全局访问集
   const visited = new Set(excludeIds);
   
   // 从最高层开始逐层向下搜索
   let currentEntryPoint = entryPoint;
   
-  // 保存候选节点，用于 layerSearchWithCandidate
+  // 保存候选节点，用于 layerSearchWithCandidate - 关键优化点
   let candidateSet = [];
-  
-  // 【优化1】：记录每层找到的候选点
-  // 用于优化后续层的搜索，避免重复计算
-  const layerCandidates = new Map();
-  
-  // 【优化2】：动态调整每层的ef值
-  // 根据层级调整ef值，最高层使用较小的ef，底层使用大的ef
-  const getLayerEf = (level) => {
-    // 层级越高，ef越小；层级越低，ef越大
-    const levelRatio = (maxLevel - level + 1) / (maxLevel + 1);
-    return Math.max(effectiveK, Math.ceil(effectiveEf * levelRatio));
-  };
   
   // 贪心搜索逐层下降,直到第1层(不包括第0层)
   for (let level = Math.min(maxLevel, currentEntryPoint.level); level > 0; level--) {
-    // 确定当前层使用的ef值
-    const layerEf = getLayerEf(level);
-    
     // 如果有候选集，使用候选集进行搜索
     if (candidateSet.length > 0) {
       // 使用候选集进行搜索 - 完全匹配Hora的search_layer_with_candidate
@@ -1376,26 +1235,17 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
         visited,
         level, 
         effectiveK,
-        layerEf, // 使用针对层级优化的ef值
+        effectiveEf,
         nodes,
         distanceFunc,
         false
       );
       
       if (candidates && candidates.length > 0) {
-        // 保存本层的候选结果
-        layerCandidates.set(level, [...candidates]);
-        
         // 更新入口点为本层最好的结果
         currentEntryPoint = { id: candidates[0].id, level };
-        
-        // 【优化3】：增大候选集，使用前20%的结果作为下层搜索的种子
-        // 这样可以避免陷入局部最优
-        const candidateCount = Math.max(
-          5, 
-          Math.min(20, Math.ceil(candidates.length * 0.2))
-        );
-        candidateSet = candidates.slice(0, candidateCount);
+        // 更新候选集用于下一层搜索
+        candidateSet = candidates.slice(0, Math.min(candidates.length, 10));
       }
     } else {
       // 首次搜索使用贪心搜索
@@ -1413,55 +1263,13 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
         currentEntryPoint = { id: nearestResult.id, level };
         // 初始化候选集，用于下一层搜索
         candidateSet = [{ id: nearestResult.id, distance: nearestResult.distance }];
-        
-        // 记录本层结果
-        layerCandidates.set(level, candidateSet);
       }
     }
   }
   
-  // 【优化4】：如果最底层前有多个候选层，合并它们的候选集来强化搜索
-  // 这是一个类似beam search的策略
-  if (layerCandidates.size > 1) {
-    // 合并不同层的候选集
-    const mergedCandidates = new Map();
-    
-    // 从每一层获取候选，优先考虑低层的候选（因为它们更精确）
-    for (const [level, candidates] of layerCandidates.entries()) {
-      for (const candidate of candidates) {
-        if (!mergedCandidates.has(candidate.id)) {
-          mergedCandidates.set(candidate.id, {
-            id: candidate.id,
-            distance: candidate.distance,
-            level
-          });
-        } else if (mergedCandidates.get(candidate.id).level > level) {
-          // 如果已有的候选来自更高层，用低层的结果替换它
-          mergedCandidates.set(candidate.id, {
-            id: candidate.id,
-            distance: candidate.distance,
-            level
-          });
-        }
-      }
-    }
-    
-    // 转换为数组并排序
-    const sortedMergedCandidates = Array.from(mergedCandidates.values())
-      .sort((a, b) => a.distance - b.distance);
-    
-    // 使用合并后的候选集作为最终候选
-    const maxCandidateCount = Math.min(30, sortedMergedCandidates.length);
-    candidateSet = sortedMergedCandidates
-      .slice(0, maxCandidateCount)
-      .map(({ id, distance }) => ({ id, distance }));
-  }
-  
-  // 在最底层(第0层)进行k近邻搜索 - 与Hora实现相匹配但更积极
-  // 【优化5】：底层使用最大的ef值确保高召回率
-  const bottomLayerEf = Math.max(effectiveEf, k * 8);
-  
+  // 在最底层(第0层)进行k近邻搜索 - 完全匹配Hora的实现
   let results;
+  
   // 如果有候选集，使用它进行最终层的搜索
   if (candidateSet.length > 0) {
     results = searchLayerWithCandidateHora(
@@ -1470,7 +1278,7 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
       visited,
       0,
       effectiveK,
-      bottomLayerEf, // 底层使用更大的ef
+      effectiveEf,
       nodes,
       distanceFunc,
       false
@@ -1480,7 +1288,7 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
     results = searchLayer(
       queryObj,
       effectiveK,
-      bottomLayerEf, // 底层使用更大的ef
+      effectiveEf,
       0,
       nodes,
       currentEntryPoint,
@@ -1665,8 +1473,8 @@ function searchLayerWithCandidateHora(queryNode, initialCandidates, visitedNodes
     return [];
   }
   
-  // 确保ef至少为k，提高为2倍k以增加召回率
-  const effectiveEf = Math.max(ef, k * 2);
+  // 确保ef至少为k
+  const effectiveEf = Math.max(ef, k);
   
   // 初始化已访问节点集合 - 完全匹配Hora的实现
   const visited = new Set();
@@ -1676,11 +1484,11 @@ function searchLayerWithCandidateHora(queryNode, initialCandidates, visitedNodes
     }
   }
   
-  // 【核心优化1】: 使用更大的初始候选队列
+  // 【Hora实现】: 添加初始候选到队列
   const candidateQueue = createMinHeap((a, b) => a.distance - b.distance);
   const resultQueue = createMinHeap((a, b) => b.distance - a.distance);
   
-  // 【核心优化2】: 确保所有初始候选都被考虑，不跳过任何潜在候选
+  // 标记初始候选为已访问并添加到队列
   for (const candidate of initialCandidates) {
     if (!candidate || candidate.id === undefined) continue;
     
@@ -1689,41 +1497,29 @@ function searchLayerWithCandidateHora(queryNode, initialCandidates, visitedNodes
       id: candidate.id,
       distance: candidate.distance
     });
-    
-    // 只有未删除的节点才添加到结果队列
-    if (!hasDeleted || !nodes.get(candidate.id)?.deleted) {
-      resultQueue.push({
-        id: candidate.id,
-        distance: candidate.distance
-      });
-    }
+    resultQueue.push({
+      id: candidate.id,
+      distance: candidate.distance
+    });
   }
   
-  // 初始下界距离 - 使用更宽松的初始下界
+  // 初始下界距离 - 严格匹配Hora的实现
   let lowerBound = Infinity;
   if (resultQueue.size() > 0) {
     const furthestResult = resultQueue.peek();
     if (furthestResult) {
-      // 【核心优化3】: 稍微放宽下界，允许探索更多候选
-      lowerBound = furthestResult.distance * 1.05; // 5%的宽松空间
+      lowerBound = furthestResult.distance;
     }
   }
   
-  // 【核心优化4】: 增加遍历深度限制，防止过度探索影响性能
-  let explorationCount = 0;
-  const maxExploration = Math.min(10000, nodes.size / 10); // 动态调整最大探索次数
-  
-  // 【Hora搜索实现】- 但增加了细微的差异以提高召回率:
-  while (candidateQueue.size() > 0 && explorationCount < maxExploration) {
-    explorationCount++;
-    
+  // 【Hora搜索实现】:
+  while (candidateQueue.size() > 0) {
     // 取出当前最近的候选节点
     const currentNearest = candidateQueue.pop();
     if (!currentNearest) continue;
     
-    // 【核心优化5】: 更加宽松的终止条件
-    // 当当前距离明显大于下界时才终止
-    if (currentNearest.distance > lowerBound * 1.1) { // 允许10%的额外探索
+    // 【Hora终止条件】: 当前候选距离严格大于下界
+    if (currentNearest.distance > lowerBound) {
       break;
     }
     
@@ -1740,31 +1536,8 @@ function searchLayerWithCandidateHora(queryNode, initialCandidates, visitedNodes
       connections = currentNode.connections[level];
     }
     
-    // 【核心优化6】: 优先考虑近距离的邻居
-    // 复制连接列表进行处理
-    const sortedConnections = [...connections];
-    
-    // 对邻居进行一次排序，先处理可能更近的邻居 - 性能提升策略
-    if (sortedConnections.length > 20) { // 只对大量连接时进行排序
-      // 获取与连接的预估距离
-      const connDistances = new Map();
-      for (const connId of sortedConnections) {
-        const connNode = nodes.get(connId);
-        if (!connNode || !connNode.vector) continue;
-        
-        // 使用向量首个维度作为粗略估计
-        const roughDistance = Math.abs(connNode.vector[0] - queryNode.vector[0]);
-        connDistances.set(connId, roughDistance);
-      }
-      
-      // 按粗略距离排序
-      sortedConnections.sort((a, b) => {
-        return (connDistances.get(a) || Infinity) - (connDistances.get(b) || Infinity);
-      });
-    }
-    
-    // 遍历所有邻居 - 实现与Hora类似但更积极探索
-    for (const neighborId of sortedConnections) {
+    // 遍历所有邻居 - 完全匹配Hora实现
+    for (const neighborId of connections) {
       // 跳过已访问的节点
       if (visited.has(neighborId)) continue;
       
@@ -1786,29 +1559,26 @@ function searchLayerWithCandidateHora(queryNode, initialCandidates, visitedNodes
         continue;
       }
       
-      // 【核心优化7】: 更宽松的筛选条件，允许更多潜在候选
-      if (neighborDistance < lowerBound * 1.1 || resultQueue.size() < effectiveEf) {
+      // 【Hora核心判断】: 距离小于下界或结果不足ef个时添加
+      if (neighborDistance < lowerBound || resultQueue.size() < effectiveEf) {
         candidateQueue.push({
           id: neighborId,
           distance: neighborDistance
         });
         
-        // 只有合法节点才能进入结果
-        if (!hasDeleted || !neighbor.deleted) {
-          resultQueue.push({
-            id: neighborId,
-            distance: neighborDistance
-          });
+        resultQueue.push({
+          id: neighborId,
+          distance: neighborDistance
+        });
+        
+        // 结果队列超过大小限制,移除最远的节点
+        if (resultQueue.size() > effectiveEf) {
+          resultQueue.pop(); // 移除最远的结果
           
-          // 结果队列超过大小限制,移除最远的节点
-          if (resultQueue.size() > effectiveEf) {
-            resultQueue.pop(); // 移除最远的结果
-            
-            // 更新下界 - 仅在结果集发生变化时
-            const furthestResult = resultQueue.peek();
-            if (furthestResult) {
-              lowerBound = furthestResult.distance;
-            }
+          // 更新下界 - 仅在结果集发生变化时
+          const furthestResult = resultQueue.peek();
+          if (furthestResult) {
+            lowerBound = furthestResult.distance;
           }
         }
       }
@@ -1844,20 +1614,15 @@ export function createHNSWIndex({
   efSearch = DEFAULT_EF_SEARCH,
   ml = DEFAULT_ML,
   useDistanceCache = true,
-  recallFactor = 2.0, // 增大默认召回率因子
+  recallFactor = 1.5, // 增大默认召回率因子
   autoOptimize = true // 自动优化图结构
 } = {}) {
   // 参数安全检查和调整
-  const effectiveM = Math.max(20, M); // 增加连接数
-  const effectiveEfConstruction = Math.max(500, efConstruction); // 增加构建参数
-  const effectiveEfSearch = Math.max(500, efSearch); // 增加搜索参数
+  const effectiveM = Math.max(16, M);
+  const effectiveEfConstruction = Math.max(400, efConstruction); // 增加构建参数
+  const effectiveEfSearch = Math.max(400, efSearch); // 增加搜索参数
   const effectiveMl = Math.max(16, ml);
-  const effectiveRecallFactor = Math.max(1.0, Math.min(3.0, recallFactor)); // 扩大范围，提高最小值
-  
-  // 距离函数处理
-  const distanceFunc = useDistanceCache 
-    ? createDistanceCache(getDistanceFunction(distanceFunction))
-    : getDistanceFunction(distanceFunction);
+  const effectiveRecallFactor = Math.max(0.5, Math.min(3.0, recallFactor)); // 扩大范围
   
   // 1. 初始化内部状态
   const nodes = new Map();
@@ -1872,7 +1637,16 @@ export function createHNSWIndex({
     optimizationThreshold: 1000 // 触发优化的阈值
   };
   
-  // 2. 初始化入口点
+  // 2. 设置距离函数
+  let distanceFunc = getDistanceFunction(distanceFunction);
+  
+  // 3. 优化：如果启用了缓存，创建距离计算缓存
+  if (useDistanceCache) {
+    const originalDistanceFunc = distanceFunc;
+    distanceFunc = createDistanceCache(originalDistanceFunc);
+  }
+  
+  // 索引状态
   const entryPoint = { id: null, level: -1 };
   
   // 参数对象
