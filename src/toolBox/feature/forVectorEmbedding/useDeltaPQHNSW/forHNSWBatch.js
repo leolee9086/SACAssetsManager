@@ -1,122 +1,207 @@
 /**
- * HNSW批量操作模块
- * 提供批量插入和高性能批处理功能
+ * HNSW批量操作函数模块
+ * 提供批量插入和优化功能
  */
 
 /**
- * 批量插入向量到索引中，比单个插入更高效
- * @param {Array<Float32Array>} vectors - 要插入的向量数组
- * @param {Array} [dataList] - 关联数据数组
- * @param {Map} nodes - 节点存储
- * @param {Object} entryPoint - 入口点
- * @param {number} M - 每层最大连接数
- * @param {number} ml - 最大层数
- * @param {number} efConstruction - 构建参数
- * @param {Function} distanceFunc - 距离计算函数
- * @param {Object} state - 状态对象 {maxId, maxLevel, nodeCount}
- * @param {number} [batchSize=10] - 每批处理的向量数量
+ * 批量插入节点
+ * @param {Array<{vector: Float32Array, data: any}>} items - 要插入的项目数组
+ * @param {Function} insertNodeFn - 插入节点函数
+ * @param {Object} options - 批量插入选项
  * @returns {Array<number>} 插入节点的ID数组
  */
-export function batchInsertNodes(vectors, dataList = [], nodes, entryPoint, M, ml, efConstruction, distanceFunc, state, batchSize = 10) {
-  if (!vectors || vectors.length === 0) return [];
+export function batchInsertNodes(items, insertNodeFn, options = {}) {
+  const {
+    shuffleItems = true,
+    progressCallback = null,
+    batchSize = 1000
+  } = options;
   
-  // 验证输入
-  if (dataList && dataList.length > 0 && dataList.length !== vectors.length) {
-    console.warn(`数据数组长度(${dataList.length})与向量数组长度(${vectors.length})不匹配，部分向量将没有关联数据`);
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return [];
   }
   
-  const nodeIds = [];
-  const distanceCache = new Map(); // 路径距离缓存
+  // 创建要处理的项目副本
+  let workItems = [...items];
   
-  // 创建高效的距离缓存函数
-  const cachedDistanceFunc = (v1, v2) => {
-    // 使用向量ID或内存地址作为键
-    const id1 = v1.id !== undefined ? v1.id : v1;
-    const id2 = v2.id !== undefined ? v2.id : v2;
+  // 如果需要随机排序，打乱数组
+  if (shuffleItems) {
+    for (let i = workItems.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [workItems[i], workItems[j]] = [workItems[j], workItems[i]];
+    }
+  }
+  
+  const insertedIds = [];
+  const total = workItems.length;
+  let processed = 0;
+  
+  // 批量处理项目
+  for (let i = 0; i < total; i += batchSize) {
+    const batch = workItems.slice(i, i + batchSize);
     
-    // 确保id1 <= id2以避免重复键
-    const [smallerId, largerId] = id1 <= id2 ? [id1, id2] : [id2, id1];
-    const key = `${smallerId}_${largerId}`;
-    
-    if (distanceCache.has(key)) {
-      return distanceCache.get(key);
+    for (const item of batch) {
+      if (!item.vector) continue;
+      
+      const id = insertNodeFn(item.vector, item.data);
+      if (id !== null) {
+        insertedIds.push(id);
+      }
+      
+      processed++;
     }
     
-    const distance = distanceFunc(v1.vector || v1, v2.vector || v2);
+    // 如果有进度回调，调用它
+    if (progressCallback && typeof progressCallback === 'function') {
+      progressCallback({
+        processed,
+        total,
+        percent: Math.floor((processed / total) * 100),
+        insertedCount: insertedIds.length
+      });
+    }
+  }
+  
+  return insertedIds;
+}
+
+/**
+ * 批量优化索引连接
+ * @param {Map} nodes - 节点存储
+ * @param {Object} entryPoint - 入口点
+ * @param {Function} distanceFunc - 距离计算函数
+ * @param {number} M - 每层最大连接数
+ * @param {Object} options - 优化选项
+ * @returns {Object} 优化结果
+ */
+export function batchOptimizeIndex(nodes, entryPoint, distanceFunc, M, options = {}) {
+  const {
+    progressCallback = null,
+    repairBrokenLinks = true,
+    balanceConnections = true,
+    improveLinkQuality = true,
+    batchSize = 1000
+  } = options;
+  
+  const nodeIds = Array.from(nodes.keys());
+  const total = nodeIds.length;
+  
+  let processed = 0;
+  let optimizedNodes = 0;
+  let repairedLinks = 0;
+  let improvedConnections = 0;
+  
+  // 按批次处理节点
+  for (let i = 0; i < total; i += batchSize) {
+    const batchIds = nodeIds.slice(i, i + batchSize);
     
-    // 只缓存当前批次中的距离计算结果
-    distanceCache.set(key, distance);
-    return distance;
+    for (const nodeId of batchIds) {
+      const node = nodes.get(nodeId);
+      if (!node || node.deleted) {
+        processed++;
+        continue;
+      }
+      
+      let nodeOptimized = false;
+      
+      // 1. 修复断开的连接
+      if (repairBrokenLinks) {
+        for (let level = 0; level < node.connections.length; level++) {
+          const connections = node.connections[level];
+          
+          const validConnections = connections.filter(connId => {
+            const connNode = nodes.get(connId);
+            return connNode && !connNode.deleted;
+          });
+          
+          if (validConnections.length !== connections.length) {
+            node.connections[level] = validConnections;
+            repairedLinks += (connections.length - validConnections.length);
+            nodeOptimized = true;
+          }
+        }
+      }
+      
+      // 2. 改善连接质量
+      if (improveLinkQuality) {
+        for (let level = 0; level < node.connections.length; level++) {
+          // 如果连接数量已经足够多，跳过此层
+          const maxConn = level === 0 ? M * 2 : M;
+          if (node.connections[level].length >= maxConn) continue;
+          
+          // 从当前层的所有连接中获取二级连接
+          const secondLevelCandidates = new Map();
+          
+          for (const connId of node.connections[level]) {
+            const connNode = nodes.get(connId);
+            if (!connNode || connNode.deleted) continue;
+            
+            // 获取连接的连接
+            if (connNode.connections.length > level) {
+              for (const secondConnId of connNode.connections[level]) {
+                // 避免重复和自连接
+                if (secondConnId === nodeId || node.connections[level].includes(secondConnId)) continue;
+                
+                const secondNode = nodes.get(secondConnId);
+                if (!secondNode || secondNode.deleted) continue;
+                
+                try {
+                  const distance = distanceFunc(node.vector, secondNode.vector);
+                  
+                  // 更新或添加二级候选
+                  if (!secondLevelCandidates.has(secondConnId) || 
+                      secondLevelCandidates.get(secondConnId) > distance) {
+                    secondLevelCandidates.set(secondConnId, distance);
+                  }
+                } catch (error) {
+                  continue;
+                }
+              }
+            }
+          }
+          
+          // 将二级连接转换为数组并排序
+          const candidates = Array.from(secondLevelCandidates.entries())
+            .sort((a, b) => a[1] - b[1])
+            .map(entry => entry[0]);
+          
+          // 添加最近的二级连接
+          const toAdd = candidates.slice(0, maxConn - node.connections[level].length);
+          
+          if (toAdd.length > 0) {
+            node.connections[level] = [...node.connections[level], ...toAdd];
+            improvedConnections += toAdd.length;
+            nodeOptimized = true;
+          }
+        }
+      }
+      
+      if (nodeOptimized) {
+        optimizedNodes++;
+      }
+      
+      processed++;
+    }
+    
+    // 报告进度
+    if (progressCallback && typeof progressCallback === 'function') {
+      progressCallback({
+        processed,
+        total,
+        percent: Math.floor((processed / total) * 100),
+        optimizedNodes,
+        repairedLinks,
+        improvedConnections
+      });
+    }
+  }
+  
+  return {
+    totalProcessed: processed,
+    optimizedNodes,
+    repairedLinks,
+    improvedConnections
   };
-  
-  // 分批处理向量
-  for (let i = 0; i < vectors.length; i += batchSize) {
-    // 清空上一批次的距离缓存，避免缓存过大
-    distanceCache.clear();
-    
-    // 当前批次的向量
-    const batchVectors = vectors.slice(i, i + batchSize);
-    const batchData = dataList.slice(i, i + batchSize);
-    
-    // 预计算当前批次内向量之间的距离，有助于提高批量插入效率
-    for (let j = 0; j < batchVectors.length; j++) {
-      for (let k = j + 1; k < batchVectors.length; k++) {
-        const distance = distanceFunc(batchVectors[j], batchVectors[k]);
-        const key = `${i + j}_${i + k}`;
-        distanceCache.set(key, distance);
-      }
-    }
-    
-    // 处理当前批次的每个向量
-    for (let j = 0; j < batchVectors.length; j++) {
-      // 获取原始数据，如果有
-      const originalData = j < batchData.length ? batchData[j] : null;
-      
-      // 确保数据对象存在，并包含正确的ID映射
-      const enhancedData = originalData || {};
-      
-      // 如果是简单数据类型，转换为对象
-      const nodeData = typeof enhancedData !== 'object' || enhancedData === null ? 
-        { value: enhancedData } : { ...enhancedData };
-      
-      // 保存批量索引，可用于追踪数据来源
-      nodeData.batchIndex = i + j;
-      
-      // 确保originalId存在
-      if (nodeData.originalId === undefined) {
-        // 如果有id字段，使用它作为originalId
-        nodeData.originalId = nodeData.id !== undefined ? nodeData.id : (i + j);
-      }
-      
-      // 保持id字段与originalId一致，以便兼容旧代码
-      if (nodeData.id === undefined) {
-        nodeData.id = nodeData.originalId;
-      }
-      
-      const nodeId = insertNode(
-        batchVectors[j],
-        nodeData,  // 使用增强的数据对象
-        nodes,
-        entryPoint,
-        M,
-        ml,
-        efConstruction,
-        cachedDistanceFunc,
-        state
-      );
-      nodeIds.push(nodeId);
-      
-      // 不再与所有现有节点计算距离，HNSW算法只需要计算搜索路径上的距离
-    }
-    
-    // 每批次结束后输出进度信息
-    if (vectors.length > batchSize) {
-      const progress = Math.min(i + batchSize, vectors.length);
-      console.log(`已处理 ${progress}/${vectors.length} 个向量 (${Math.round(progress/vectors.length*100)}%)`);
-    }
-  }
-  
-  return nodeIds;
 }
 
 /**
@@ -211,5 +296,5 @@ export function batchSearchKNN(queryVectors, k, nodes, entryPoint, maxLevel, efS
 }
 
 // 导入所需的函数
-import { insertNode } from "./useCustomedHNSW.js";
+//import { insertNode } from "./useCustomedHNSW.js";
 import { searchKNN } from "./forHNSWSearch.js"; 

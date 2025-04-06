@@ -1,8 +1,7 @@
-import fs from "../../../../polyfills/fs.js";
-import path from "../../../../polyfills/path.js";
+import fs from "../../../../../polyfills/fs.js";
+import path from "../../../../../polyfills/path.js";
 import { 读取工作空间文件列表 } from "../utils/glob.js";
 import { 对分片执行去除特殊键值, 迁移数据项向量结构 } from "../utils/item.js";
-import { sac } from "../../../../asyncModules.js";
 export class fileChunkAdapter {
     constructor(文件保存地址, 序列化, 反序列化, 扩展名) {
         this.总文件数 = 8
@@ -45,12 +44,9 @@ export class fileChunkAdapter {
         return 写入分片号数组
     }
     async 加载数据切片(文件路径, 切片编号, 反序列化函数) {
-        文件路径=文件路径.replace('//','/')
         let content = {}
-
         if (await fs.exists(文件路径 + 'chunk' + 切片编号 + `.${this.扩展名}`)) {
             try {
-
                 content = await fs.readFile(文件路径 + 'chunk' + 切片编号 + `.${this.扩展名}`)
                 content = await 反序列化函数(content)
 
@@ -61,13 +57,6 @@ export class fileChunkAdapter {
         return { content: content }
     }
     async 处理日志(log, 子文件夹路径) {
-        if (log) {
-            try { sac.logger.datasetwarn(log) } catch (e) {
-
-            }
-        }
-
-        sac.logger.datasetlog(`数据文件夹${子文件夹路径}读取完成`)
     }
     async 加载全部数据(数据集对象,hnsw层级映射) {
         if (await fs.exists(this.文件保存地址)) {
@@ -95,9 +84,10 @@ export class fileChunkAdapter {
                                         console.warn(e)
                                     }
                                 }
+                               
                             }
                             if (!数据项.vector || typeof 数据项.vector !== 'object' || Object.values(数据项.vector).some(v => !Array.isArray(v) || v.some(item => typeof item !== 'number') || !v[0])) {
-                                sac.logger.datasetwarn(`文件${子文件夹路径}中数据项${key}的vector字段${JSON.stringify(数据项.vector)}不是有效的向量\n,已删除`)
+                              //  sac.logger.datasetwarn(`文件${子文件夹路径}中数据项${key}的vector字段${JSON.stringify(数据项.vector)}不是有效的向量\n,已删除`)
                                 失效数据项数量 += 1
                                 continue; // 跳过不符合结构的数据项
                             }
@@ -112,12 +102,12 @@ export class fileChunkAdapter {
                         }
                     }
                 }
-                失效数据项数量?log += `${子文件夹路径}中删除共计${失效数据项数量}个数据项`:null
+                log += `删除共计${失效数据项数量}个数据项`
                 await this.处理日志(log, 子文件夹路径)
             }
             return 数据集对象
         } else {
-            sac.logger.datasetlog(this.文件保存地址, await fs.exists(this.文件保存地址))
+          //  sac.logger.datasetlog(this.文件保存地址, await fs.exists(this.文件保存地址))
             return {}
         }
     }

@@ -1,6 +1,7 @@
 import { sac } from "../../asyncModules.js";
 import { 数据库 } from './localDataBase/index.js'
-import { 标量查询数据集 } from "./publicUtils/endpoints.js";
+import { 从测试版迁移数据 } from "./localDataBase/utils/migration.js";
+await 从测试版迁移数据()
 const 向量存储 = {
     公开向量数据库实例: new 数据库('/data/public/vectorStorage'),
     插件向量数据库实例: new 数据库('/data/storage/petal/SiyuanAssistantCollection/vectorStorage'),
@@ -40,7 +41,7 @@ databaseRouter.post(
                 }
             }
         } catch (e) {
-            console.error(e)
+            console.error(ctx)
             ctx.error(e.message)
         }
         next()
@@ -92,33 +93,9 @@ databaseRouter.post(
             sac.logger.databasewarn(`数据集${data.collection_name}数据加载未完成`)
         }
         if (本地块数据集) {
+
             try {
                 let result = await 本地块数据集.以向量搜索数据(data.vector_name,data.vector,data.limit,data.filter_before,data.filter_after)
-                ctx.body.data = result
-            }
-            catch (e) {
-                ctx.error("查询中发现出现错误,请检查日志" + e)
-            }
-        }
-    }
-)
-databaseRouter.post(
-    '/scalarQuery', async (ctx, next) => {
-        let data = {
-            collection_name: '',
-            query_conditions: {},
-            include_vector_field: false,
-            ...ctx.req.body
-        }
-        let 本地块数据集 = 向量存储.公开向量数据库实例.根据名称获取数据集(data.collection_name)
-        if (!本地块数据集) {
-            ctx.error(`数据集${data.collection_name}不存在`)
-        } else if (本地块数据集.数据加载中) {
-            sac.logger.databasewarn(`数据集${data.collection_name}数据加载未完成`)
-        }
-        if (本地块数据集) {
-            try {
-                let result = 标量查询数据集(本地块数据集.数据集对象, data.query_conditions, data.include_vector_field)
                 ctx.body.data = result
             }
             catch (e) {
@@ -204,13 +181,14 @@ databaseRouter.post(
 
         } else {
             ctx.body= {
-                dataLoaded:!本地块数据集.数据加载中
+                dataLoaded:本地块数据集.数据加载完成
             }
         }
     }
 )
 databaseRouter.post(
     '/add', async (ctx, next) => {
+        console.log(ctx)
         let data = {
             collection_name: '',
             keys: [],
@@ -234,7 +212,6 @@ databaseRouter.post(
                 }
             }
             catch (e) {
-                console.error(e)
                 ctx.error("添加数据时发生错误,请检查日志" + e)
             }
         }

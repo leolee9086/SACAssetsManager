@@ -558,6 +558,16 @@ class MinHeap {
     popWorst() {
         return this.heap.popWorst();
     }
+    
+    /**
+     * 返回堆中的所有元素，保持堆的结构不变
+     * @returns {Array} 堆中的所有元素数组
+     */
+    toArray() {
+        // 获取原始堆的副本
+        const elements = this.getHeap();
+        return elements;
+    }
 }
 
 /**

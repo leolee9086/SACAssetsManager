@@ -12,7 +12,6 @@ const DEFAULT_MAX_ITERATIONS = 25;    // K-means最大迭代次数
 import {
   computeEuclideanDistance,
   computeManhattanDistance,
-  computeChebyshevDistance,
   computeCosineDistance,
   computeInnerProduct
 } from "../../../base/forMath/forGeometry/forVectors/forDistance.js";

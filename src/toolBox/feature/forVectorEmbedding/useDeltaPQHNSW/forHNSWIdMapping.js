@@ -1,80 +1,122 @@
 /**
- * HNSW ID映射管理模块
- * 处理内部节点ID与外部原始ID之间的映射关系
+ * HNSW ID映射辅助函数
+ * 处理HNSW索引中的ID映射和转换
  */
 
 /**
- * 确保节点数据包含正确的ID映射
- * @param {Object} nodeData - 节点数据对象 
- * @param {number} nodeId - 内部节点ID
- * @returns {Object} 处理后的节点数据对象
+ * 确保获取节点ID的映射
+ * 处理节点ID与外部ID之间的映射关系
+ * @param {Object} node - HNSW节点
+ * @returns {number} 节点ID
  */
-export function ensureNodeIdMapping(nodeData = {}, nodeId) {
-  // 创建数据对象的副本，避免修改原始对象
-  const enhancedData = typeof nodeData !== 'object' || nodeData === null ? 
-    { value: nodeData } : { ...nodeData };
+export function ensureNodeIdMapping(node) {
+  if (!node) return null;
   
-  // 确保originalId存在
-  if (enhancedData.originalId === undefined) {
-    // 如果有id字段，使用它作为originalId
-    enhancedData.originalId = enhancedData.id !== undefined ? enhancedData.id : nodeId;
+  // 如果节点有data.id，使用它作为外部ID
+  if (node.data && node.data.id !== undefined) {
+    return node.data.id;
   }
   
-  // 保持id字段与originalId一致，以便兼容旧代码
-  if (enhancedData.id === undefined) {
-    enhancedData.id = enhancedData.originalId;
-  }
-  
-  return enhancedData;
+  // 否则使用内部ID
+  return node.id;
 }
 
 /**
- * 从节点信息中获取原始ID
- * @param {Object} node - 包含数据的节点对象
- * @param {number} fallbackId - 如果无法获取原始ID时的后备ID
- * @returns {number|string} 原始ID
+ * 从节点获取原始ID
+ * @param {Object} node - HNSW节点
+ * @returns {number} 原始ID
  */
-export function getOriginalIdFromNode(node, fallbackId) {
-  if (!node || !node.data) return fallbackId;
+export function getOriginalIdFromNode(node) {
+  if (!node) return null;
   
-  // 优先使用originalId字段，其次是id字段，最后才使用后备ID
-  return node.data.originalId !== undefined ? 
-    node.data.originalId : (node.data.id !== undefined ? node.data.id : fallbackId);
+  // 优先使用data.id
+  if (node.data && node.data.id !== undefined) {
+    return node.data.id;
+  }
+  
+  // 回退到内部id
+  return node.id;
 }
 
 /**
- * 验证索引中节点的ID映射
+ * 创建ID到内部ID的映射表
  * @param {Map} nodes - 节点存储
- * @param {number} nodeCount - 有效节点数量
- * @returns {Object} ID映射统计信息
+ * @returns {Map} ID映射表
  */
-export function verifyIdMapping(nodes, nodeCount) {
-  const stats = {
-    totalNodes: nodes.size,
-    activeNodes: nodeCount,
-    missingDataCount: 0,
-    missingIdMappingCount: 0,
-    idMappingStats: {}
-  };
+export function createIdMappingTable(nodes) {
+  const idMap = new Map();
   
-  for (const [nodeId, node] of nodes.entries()) {
-    if (node.deleted) continue; // 跳过已删除节点
+  for (const [internalId, node] of nodes.entries()) {
+    if (node.deleted) continue;
     
-    if (!node.data) {
-      stats.missingDataCount++;
-      continue;
-    }
-    
-    const hasOriginalId = node.data.originalId !== undefined;
-    const hasDataId = node.data.id !== undefined;
-    
-    const mappingType = `${hasOriginalId ? 'O' : '-'}${hasDataId ? 'D' : '-'}`;
-    stats.idMappingStats[mappingType] = (stats.idMappingStats[mappingType] || 0) + 1;
-    
-    if (!hasOriginalId && !hasDataId) {
-      stats.missingIdMappingCount++;
+    const externalId = ensureNodeIdMapping(node);
+    if (externalId !== null && externalId !== undefined) {
+      idMap.set(externalId, internalId);
     }
   }
   
-  return stats;
+  return idMap;
+}
+
+/**
+ * 从外部ID获取内部ID
+ * @param {Map} nodes - 节点存储
+ * @param {*} externalId - 外部ID
+ * @returns {number|null} 内部ID或null
+ */
+export function getInternalIdFromExternalId(nodes, externalId) {
+  // 首先尝试直接匹配内部ID
+  if (nodes.has(externalId)) {
+    return externalId;
+  }
+  
+  // 寻找匹配的外部ID
+  for (const [internalId, node] of nodes.entries()) {
+    if (node.deleted) continue;
+    
+    if (node.data && node.data.id === externalId) {
+      return internalId;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * 验证节点ID的一致性
+ * @param {Map} nodes - 节点存储
+ * @returns {Object} 验证结果
+ */
+export function validateNodeIds(nodes) {
+  const externalIds = new Set();
+  const duplicates = [];
+  const missing = [];
+  
+  for (const [internalId, node] of nodes.entries()) {
+    if (node.deleted) continue;
+    
+    const externalId = node.data?.id;
+    
+    // 检查是否有外部ID
+    if (externalId === undefined || externalId === null) {
+      missing.push(internalId);
+    } 
+    // 检查外部ID是否重复
+    else if (externalIds.has(externalId)) {
+      duplicates.push({
+        externalId,
+        internalId
+      });
+    } else {
+      externalIds.add(externalId);
+    }
+  }
+  
+  return {
+    valid: duplicates.length === 0 && missing.length === 0,
+    duplicates,
+    missing,
+    totalExternalIds: externalIds.size,
+    totalNodes: nodes.size
+  };
 } 

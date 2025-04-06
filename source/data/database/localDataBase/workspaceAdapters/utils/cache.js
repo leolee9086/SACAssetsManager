@@ -1,4 +1,4 @@
-import { 计算LuteNodeID模 } from "../../../src/utils/mod.js";
+import { 计算LuteNodeID模 } from "../../utils/mod.js";
 export const 创建临时数据对象 =(分组数据对象, 总文件数)=>{
     let 临时数据对象 = {};
     for (let i = 0; i < 总文件数; i++) {

@@ -1,8 +1,10 @@
+import { withPerformanceLogging } from "../../../../utils/functionAndClass/performanceRun.js";
 import { hnsw索引元设置 } from "../config.js";
-import { 为数据项构建hnsw索引, 删除数据项hnsw索引 } from "../hnswlayers/build.js";
+import { 为数据项构建hnsw索引 } from "../hnswlayers/build.js";
+import { hnswAnn搜索数据集 } from "../hnswlayers/query.js";
 import { 获取随机层级 } from "../hnswlayers/utils.js";
+import { 准备向量查询函数 } from "./query.js";
 import { 创建邻接表, 查询邻居 } from "../neighbors/crud.js";
-import { 添加所有模型到hnsw层级映射 } from "../hnswlayers/utils.js";
 export const 迁移数据项向量结构 = (数据项, hnsw层级映射) => {
     let 迁移结果 = {
         created: 数据项.created || Date.now(),
@@ -30,6 +32,37 @@ export const 迁移数据项向量结构 = (数据项, hnsw层级映射) => {
     初始化数据项向量字段(数据项, 迁移结果);
     添加所有模型到hnsw层级映射(迁移结果, hnsw层级映射)
     return 迁移结果;
+};
+export const 添加所有模型到hnsw层级映射 = (数据项, hnsw层级映射) => {
+    // 遍历数据项的vector字段中的每个模型名称
+    for (let 模型名称 in 数据项.vector) {
+        if (数据项.vector.hasOwnProperty(模型名称)) {
+            // 获取hnsw索引名称
+            let hnsw索引名称 = `${模型名称}_hnsw`;
+            // 检查数据项是否有对应模型名称的邻接表
+            if (数据项.neighbors && 数据项.neighbors[hnsw索引名称]) {
+                // 确保hnsw层级映射为该模型名称初始化了一个数组
+                if (!hnsw层级映射[模型名称]) {
+                    hnsw层级映射[模型名称] = [];
+                }
+                // 遍历数据项的邻接表，按层级添加到hnsw层级映射中
+                数据项.neighbors[hnsw索引名称].forEach((邻接表) => {
+                    // 确保hnsw层级映射在该层级有一个数组来存储邻接表
+                    if (!hnsw层级映射[模型名称][邻接表.layer]) {
+                        hnsw层级映射[模型名称][邻接表.layer] = [];
+                    }
+                    hnsw层级映射[模型名称][邻接表.layer].push(数据项.id);
+                });
+                // 校验并清除不存在的邻接表映射
+                hnsw层级映射[模型名称].forEach((层级, index) => {
+                    if (!数据项.neighbors[hnsw索引名称].some(邻接表 => 邻接表.layer === index)) {
+                        // 如果数据项没有当前层级的邻接表，但映射表中有记录，则清除该层级的映射
+                        hnsw层级映射[模型名称][index] = hnsw层级映射[模型名称][index].filter(id => id !== 数据项.id);
+                    }
+                });
+            }
+        }
+    }
 };
 export const 初始化数据项向量字段 = (数据项, 迁移结果) => {
     // 检查数据项是否有vector字段且该字段为对象
@@ -89,32 +122,13 @@ export const 对分片执行去除特殊键值 = (分片) => {
     }
 };
 export const 获取数据项向量字段值 = (数据项, 向量字段名) => {
-    return 数据项 && 数据项.vector[向量字段名] || [];
+    return 数据项.vector[向量字段名] || [];
 };
 //有关hnsw索引的初始化技术
 export const 获取数据项特定hnsw索引邻接表 = (数据项, hnsw索引名称, 目标层级) => {
-    let 层级类型名 = `layer${目标层级}`;
-    let 邻接表 = 查询邻居(数据项, hnsw索引名称, 层级类型名);
-    
-    // 如果邻接表不存在或无效（增加防御性检查）
-    if (!邻接表 || !邻接表.items) {
-        // 尝试从整个邻接表数组中找到对应层级
-        if (数据项.neighbors && 数据项.neighbors[hnsw索引名称]) {
-            const 邻接表数组 = 数据项.neighbors[hnsw索引名称];
-            // 通过layer属性或type属性查找对应层级
-            邻接表 = 邻接表数组.find(表 => 
-                (表.layer === 目标层级) || 
-                (表.type === 层级类型名)
-            );
-            
-            // 如果找到了但items不存在，初始化items
-            if (邻接表 && !邻接表.items) {
-                邻接表.items = [];
-            }
-        }
-    }
-    
-    return 邻接表;
+    let 层级类型名 = `layer${目标层级}`
+    return 查询邻居(数据项, hnsw索引名称, 层级类型名)
+
 };
 export const 初始化hnsw单模型邻接表 = (模型名称, 数据项) => {
     let hnsw索引名称 = `${模型名称}_hnsw`;
@@ -130,40 +144,54 @@ export const 初始化hnsw单模型邻接表 = (模型名称, 数据项) => {
         if (!层级邻接表.items) {
             层级邻接表.items = []; // 初始化空的邻居列表
         }
-        try {
-            层级邻接表.items = 层级邻接表.items
-                .filter(item => item && typeof item.distance === 'number') // 过滤掉distance不是数字的项以及空项
-                .reduce((acc, item) => {
-                    if (!acc.some(x => x.id === item.id && x.distance > item.distance)) {
-                        acc = acc.filter(x => x.id !== item.id); // 移除同id但距离较小的项
-                        acc.push(item); // 添加当前项
-                    }
-                    return acc;
-                }, []);
-        } catch (e) {
-            console.warn(e)
-        }
         if (typeof 层级邻接表.type === 'string') {
             let layerMatch = 层级邻接表.type.match(/layer(\d+)/);
             层级邻接表.layer = layerMatch ? parseInt(layerMatch[1], 10) : undefined;
         }
     });
-    console.log(`数据项${数据项.id}的${模型名称}特征索引初始化完成`);
     return 数据项.neighbors[hnsw索引名称];
 }
-function areVectorsEqual(vectorA, vectorB) {
-    if (vectorA.length !== vectorB.length) return false;
-    for (let i = 0; i < vectorA.length; i++) {
-        if (vectorA[i] !== vectorB[i]) return false;
-    }
-    return true;
-}
-export const 初始化数据项hnsw领域邻接表 = async (数据项, 数据集, hnsw层级映射, 旧数据项) => {
+//只有新添加的数据项才需要经过这一步'
+let 计算次数=0
+let 正确次数=0
+export const 初始化数据项hnsw领域邻接表 = async (数据项, 数据集, hnsw层级映射) => {
     for (let 模型名称 in 数据项.vector) {
-        if (旧数据项 && 旧数据项.vector[模型名称] && !areVectorsEqual(旧数据项.vector[模型名称], 数据项.vector[模型名称])) {
-            删除数据项hnsw索引(数据集, 旧数据项.id, 模型名称, hnsw层级映射);
-        }
         添加所有模型到hnsw层级映射(数据项, hnsw层级映射)
-        await 为数据项构建hnsw索引(数据集, 数据项, 模型名称, hnsw层级映射)
+        为数据项构建hnsw索引(数据集,数据项,模型名称,hnsw层级映射)
+        // 如果特征向量名称数组中还没有这个模型名称，则添加进去
+        // 假设有一个方法用于初始化特征向量的hnsw层级
+       try {
+            if(Object.keys(数据集).length < 1000){
+                continue;
+            }
+            console.log(`当前数据集大小${Object.keys(数据集).length}`);
+            let hnsw查询结果 = withPerformanceLogging(hnswAnn搜索数据集)(数据集, 模型名称, 数据项.vector[模型名称], 100, hnsw层级映射);
+            let 暴力查询 = withPerformanceLogging(准备向量查询函数)(数据集);
+            let 暴力查询结果 = await withPerformanceLogging(暴力查询)(模型名称, 数据项.vector[模型名称], 100);
+
+            // 计算不同K值的召回率
+            const K值列表 = [100, 50, 20,10];
+            K值列表.forEach(K值 => {
+                let hnswIds = new Set(hnsw查询结果.slice(0, K值).map(r => r.id));
+                let 暴力查询Ids = new Set(暴力查询结果.slice(0, K值).map(r => r.id));
+                let 交集数量 = [...hnswIds].filter(id => 暴力查询Ids.has(id)).length;
+                let 召回率 = 交集数量 / K值; // 召回率是交集数量除以K值
+                console.log(`K${K值}的hnswAnn搜索召回率: ${召回率.toFixed(4)}`); // 保留四位小数
+            });
+            计算次数+=1
+            if(hnsw查询结果[0].id===暴力查询结果[0].id){
+                正确次数+=1
+                console.log(`k1的多次命中召回率: ${(正确次数/计算次数).toFixed(4)}`); // 保留四位小数
+
+            }
+            // 显示前一百项的id和分数
+            //console.log('hnsw查询结果前100项:', hnsw查询结果.slice(0, 100).map(r => `${r.id}: ${r.score}`));
+            //console.log('暴力查询结果前100项:', 暴力查询结果.slice(0, 100).map(r => `${r.id}: ${r.similarityScore}`));
+        } catch (e) {
+            console.error(e.stack);
+            throw e;
+        }
+
     }
 }
+
