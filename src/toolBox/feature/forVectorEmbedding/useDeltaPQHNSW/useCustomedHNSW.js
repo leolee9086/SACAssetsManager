@@ -586,7 +586,7 @@ export function createHNSWIndex({
       ef = null, 
       excludeIds = new Set(),
       debug = false,
-      multipleSearches = false  // 默认不执行多次搜索
+      multipleSearches = true  // 默认启用多次搜索提高召回率
     } = searchParams || {};
     
     // 使用Map存储结果以避免重复
@@ -596,15 +596,16 @@ export function createHNSWIndex({
     // 搜索尝试计数器
     let attemptCount = 0;
     
-    // 设置有效的搜索参数 - 降低ef值以提高速度
-    const effectiveEf = ef || Math.max(efSearch, k * 2);
+    // 关键改动: 显著提高ef值以提升召回率，同时保持速度和精度的平衡
+    // 参考hnswlayers实现中的动态efSearch策略
+    const effectiveEf = ef || Math.max(efSearch, k * 4);
     
-    // 减少最大搜索次数到2次
-    const MAX_ATTEMPTS = multipleSearches ? 2 : 1;
+    // 增加最大搜索次数到3次，完全匹配hnswlayers的实现
+    const MAX_ATTEMPTS = multipleSearches ? 3 : 1;
     
     while (resultMap.size < k && attemptCount < MAX_ATTEMPTS) {
-      // 计算本轮需要的结果数量 - 降低倍率到1.2
-      const neededResults = Math.ceil(Math.max(k * 1.2, effectiveEf)) - resultMap.size;
+      // 关键改动: 大幅提高每轮需要的结果数量，参考hnswlayers实现中的系数为1.5
+      const neededResults = Math.ceil(Math.max(k * 1.5, effectiveEf)) - resultMap.size;
       attemptCount++;
       
       // 选择入口点 - 首先使用全局入口点，然后尝试其他点
@@ -614,23 +615,36 @@ export function createHNSWIndex({
         // 第一次搜索使用全局入口点
         currentEntryPoint = entryPoint;
       } else {
-        // 后续搜索尝试找未访问过的高层级节点
-        // 从最高层级开始查找
-        for (let level = state.maxLevel; level >= 0; level--) {
-          let found = false;
-          
+        // 关键改动: 以更有效的方式寻找新入口点
+        // 从最高层级开始查找，优先选择高层级节点
+        let bestEntryPointLevel = -1;
+        let bestEntryPointId = null;
+        
+        // 尝试找未访问过的最高层级节点作为新入口点
+        for (const [nodeId, node] of nodes.entries()) {
+          if (!node.deleted && 
+              !visitedEntryPoints.has(nodeId) &&
+              node.connections.length > bestEntryPointLevel) {
+            bestEntryPointLevel = node.connections.length - 1;
+            bestEntryPointId = nodeId;
+          }
+        }
+        
+        if (bestEntryPointId !== null) {
+          currentEntryPoint = { id: bestEntryPointId, level: bestEntryPointLevel };
+          visitedEntryPoints.add(bestEntryPointId);
+        } else {
+          // 如果找不到未访问的节点，随机选择一个非入口点的节点
           for (const [nodeId, node] of nodes.entries()) {
             if (!node.deleted && 
-                node.connections.length > level && 
+                nodeId !== entryPoint.id && 
                 !visitedEntryPoints.has(nodeId)) {
-              currentEntryPoint = { id: nodeId, level };
+              const level = node.connections.length - 1;
+              currentEntryPoint = { id: nodeId, level: Math.max(0, level) };
               visitedEntryPoints.add(nodeId);
-              found = true;
               break;
             }
           }
-          
-          if (found) break;
         }
         
         // 如果仍然找不到入口点，跳出循环
@@ -643,8 +657,9 @@ export function createHNSWIndex({
       // 记录已访问的入口点
       visitedEntryPoints.add(currentEntryPoint.id);
       
-      // 不再动态增加ef值，使用固定的ef值
-      const searchEf = effectiveEf;
+      // 关键改动: 对每次搜索使用递增的ef值，显著提高召回率
+      // 第一次使用标准ef，后续增加ef值
+      const searchEf = ef || Math.max(effectiveEf, effectiveEf * attemptCount);
       
       // 执行单次搜索
       const searchResults = searchKNN(
@@ -678,9 +693,9 @@ export function createHNSWIndex({
       }
     }
     
-    // 仅在结果严重不足且数据量小时进行部分暴力搜索
-    if (resultMap.size < k * 0.5 && nodes.size > 0 && nodes.size < 5000) {
-      console.warn(`常规搜索结果严重不足(${resultMap.size}/${k})，尝试部分暴力搜索`);
+    // 关键改动: 更积极地触发部分暴力搜索，当结果数量不足预期的70%时
+    if (resultMap.size < k * 0.7 && nodes.size > 0 && nodes.size < 10000) {
+      console.warn(`常规搜索结果不足(${resultMap.size}/${k})，尝试部分暴力搜索`);
       
       // 排除已知的节点
       const allExcludedIds = new Set([...excludeIds, ...visitedEntryPoints]);
@@ -689,11 +704,15 @@ export function createHNSWIndex({
         allExcludedIds.add(id);
       }
       
-      // 限制暴力搜索的节点数量比例，避免在较大数据集上执行过多搜索
-      const maxNodesToSearch = Math.min(nodes.size, Math.min(1000, nodes.size * 0.2));
+      // 关键改动: 增加暴力搜索的节点比例，特别是对于较小的数据集
+      // 动态调整采样率，较小数据集搜索更多节点
+      const samplingRate = nodes.size < 1000 ? 0.5 : 
+                          (nodes.size < 5000 ? 0.3 : 0.2);
+      
+      const maxNodesToSearch = Math.min(nodes.size, Math.ceil(nodes.size * samplingRate));
       let nodesSearched = 0;
       
-      // 暴力搜索部分节点 - 限制搜索节点数量
+      // 暴力搜索部分节点
       for (const [nodeId, node] of nodes.entries()) {
         if (nodesSearched >= maxNodesToSearch) break;
         
