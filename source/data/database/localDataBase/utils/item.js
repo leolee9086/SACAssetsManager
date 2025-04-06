@@ -93,9 +93,28 @@ export const 获取数据项向量字段值 = (数据项, 向量字段名) => {
 };
 //有关hnsw索引的初始化技术
 export const 获取数据项特定hnsw索引邻接表 = (数据项, hnsw索引名称, 目标层级) => {
-    let 层级类型名 = `layer${目标层级}`
-    return 查询邻居(数据项, hnsw索引名称, 层级类型名)
-
+    let 层级类型名 = `layer${目标层级}`;
+    let 邻接表 = 查询邻居(数据项, hnsw索引名称, 层级类型名);
+    
+    // 如果邻接表不存在或无效（增加防御性检查）
+    if (!邻接表 || !邻接表.items) {
+        // 尝试从整个邻接表数组中找到对应层级
+        if (数据项.neighbors && 数据项.neighbors[hnsw索引名称]) {
+            const 邻接表数组 = 数据项.neighbors[hnsw索引名称];
+            // 通过layer属性或type属性查找对应层级
+            邻接表 = 邻接表数组.find(表 => 
+                (表.layer === 目标层级) || 
+                (表.type === 层级类型名)
+            );
+            
+            // 如果找到了但items不存在，初始化items
+            if (邻接表 && !邻接表.items) {
+                邻接表.items = [];
+            }
+        }
+    }
+    
+    return 邻接表;
 };
 export const 初始化hnsw单模型邻接表 = (模型名称, 数据项) => {
     let hnsw索引名称 = `${模型名称}_hnsw`;

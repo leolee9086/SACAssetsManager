@@ -9,8 +9,46 @@ const DEFAULT_NUM_SUBVECTORS = 8;     // 子向量数量
 const DEFAULT_BITS_PER_CODE = 8;      // 每个子向量编码位数
 const DEFAULT_SAMPLE_SIZE = 1000;     // 训练样本量
 const DEFAULT_MAX_ITERATIONS = 25;    // K-means最大迭代次数
-import {computeEuclideanDistance} from "../../../base/forMath/forGeometry/forVectors/forDistance.js";
+import {
+  computeEuclideanDistance,
+  computeManhattanDistance,
+  computeChebyshevDistance,
+  computeCosineDistance,
+  computeInnerProduct
+} from "../../../base/forMath/forGeometry/forVectors/forDistance.js";
 
+// 支持的距离度量类型
+export const DISTANCE_METRICS = {
+  EUCLIDEAN: 'euclidean',
+  MANHATTAN: 'manhattan',
+  CHEBYSHEV: 'chebyshev',
+  COSINE: 'cosine',
+  INNER_PRODUCT: 'innerProduct'
+};
+
+/**
+ * 获取距离函数
+ * @param {string} metric - 距离度量类型
+ * @returns {Function} 距离计算函数
+ */
+function getDistanceFunction(metric) {
+  switch (metric) {
+    case DISTANCE_METRICS.EUCLIDEAN:
+      return computeEuclideanDistance;
+    case DISTANCE_METRICS.MANHATTAN:
+      return computeManhattanDistance;
+    case DISTANCE_METRICS.CHEBYSHEV:
+      return computeChebyshevDistance;
+    case DISTANCE_METRICS.COSINE:
+      return computeCosineDistance;
+    case DISTANCE_METRICS.INNER_PRODUCT:
+      // 内积用于相似度，需要转换为距离度量（值越小越相似）
+      return (a, b) => -computeInnerProduct(a, b);
+    default:
+      console.warn(`未知的距离度量类型: ${metric}，使用默认的欧几里得距离`);
+      return computeEuclideanDistance;
+  }
+}
 
 /**
  * 随机选择数组中的一个元素
@@ -25,9 +63,10 @@ function getRandomElement(array) {
  * 随机初始化聚类中心
  * @param {Array<Array|Float32Array>} data - 数据集
  * @param {number} k - 聚类数
+ * @param {Function} distanceFunction - 距离计算函数
  * @returns {Array<Array|Float32Array>} 聚类中心
  */
-function initializeCentroids(data, k) {
+function initializeCentroids(data, k, distanceFunction) {
   // k-means++ 初始化
   const centroids = [];
   
@@ -40,7 +79,7 @@ function initializeCentroids(data, k) {
     const distances = data.map(point => {
       let minDist = Infinity;
       for (const centroid of centroids) {
-        const dist = computeEuclideanDistance(point, centroid);
+        const dist = distanceFunction(point, centroid);
         minDist = Math.min(minDist, dist);
       }
       return minDist;
@@ -76,9 +115,10 @@ function initializeCentroids(data, k) {
  * @param {Array<Array|Float32Array>} data - 数据集
  * @param {number} k - 聚类数
  * @param {number} maxIterations - 最大迭代次数
+ * @param {Function} distanceFunction - 距离计算函数
  * @returns {Array<Array|Float32Array>} 聚类中心
  */
-function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
+function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS, distanceFunction) {
   // 添加防御性检查
   if (!data || !Array.isArray(data) || data.length === 0) {
     console.error('K-means错误: 无效的数据集', { dataLength: data?.length });
@@ -125,7 +165,7 @@ function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
   }
   
   // 初始化聚类中心
-  let centroids = initializeCentroids(validData, k);
+  let centroids = initializeCentroids(validData, k, distanceFunction);
   let assignments = new Array(validData.length).fill(0);
   let changed = true;
   let iteration = 0;
@@ -140,7 +180,7 @@ function kMeans(data, k, maxIterations = DEFAULT_MAX_ITERATIONS) {
       let newCluster = 0;
       
       for (let j = 0; j < k; j++) {
-        const dist = computeEuclideanDistance(validData[i], centroids[j]);
+        const dist = distanceFunction(validData[i], centroids[j]);
         if (dist < minDist && dist !== Infinity) { // 忽略无效距离
           minDist = dist;
           newCluster = j;
@@ -236,7 +276,8 @@ export function createDeltaPQ({
   numSubvectors = DEFAULT_NUM_SUBVECTORS,
   bitsPerCode = DEFAULT_BITS_PER_CODE,
   sampleSize = DEFAULT_SAMPLE_SIZE,
-  maxIterations = DEFAULT_MAX_ITERATIONS
+  maxIterations = DEFAULT_MAX_ITERATIONS,
+  distanceMetric = DISTANCE_METRICS.EUCLIDEAN
 } = {}) {
   // 每个子空间的聚类数
   let numClusters = Math.pow(2, bitsPerCode);
@@ -255,6 +296,9 @@ export function createDeltaPQ({
   
   // 训练标志
   let isTrained = false;
+  
+  // 距离计算函数
+  const distanceFunction = getDistanceFunction(distanceMetric);
   
   /**
    * 计算量化误差
@@ -327,16 +371,10 @@ export function createDeltaPQ({
       
       const subvector = subvectors[i];
       
-      // 使用快速距离计算以提高性能
+      // 使用指定的距离函数计算
       for (let j = 0; j < numClusters; j++) {
         const centroid = codebooks[i][j];
-        let dist = 0;
-        
-        // 手动展开欧几里得距离计算以提高性能
-        for (let k = 0; k < subvector.length; k++) {
-          const diff = subvector[k] - centroid[k];
-          dist += diff * diff;
-        }
+        const dist = distanceFunction(subvector, centroid);
         
         if (dist < minDist) {
           minDist = dist;
@@ -450,16 +488,23 @@ export function createDeltaPQ({
       const centroid2 = codebooks[i][codes2[i]];
       
       // 计算子空间中心点之间的距离
-      let subDist = 0;
-      for (let j = 0; j < centroid1.length; j++) {
-        const diff = centroid1[j] - centroid2[j];
-        subDist += diff * diff;
-      }
+      const subDist = distanceFunction(centroid1, centroid2);
       
-      distance += subDist;
+      // 对于欧几里得距离，我们可以直接累加子距离的平方
+      // 对于其他距离，我们需要直接累加距离值
+      if (distanceMetric === DISTANCE_METRICS.EUCLIDEAN) {
+        distance += subDist * subDist;  // 欧几里得距离的平方
+      } else {
+        distance += subDist;  // 其他距离直接累加
+      }
     }
     
-    return Math.sqrt(distance);
+    // 对于欧几里得距离，最后需要开平方
+    if (distanceMetric === DISTANCE_METRICS.EUCLIDEAN) {
+      distance = Math.sqrt(distance);
+    }
+    
+    return distance;
   }
   
   /**
@@ -548,7 +593,7 @@ export function createDeltaPQ({
         
         // 对子向量执行K-means聚类
         try {
-          const subvectorCentroids = kMeans(subvectorData, numClusters, maxIterations);
+          const subvectorCentroids = kMeans(subvectorData, numClusters, maxIterations, distanceFunction);
           codebooks.push(subvectorCentroids);
         } catch (error) {
           console.error(`Delta-PQ训练错误: 子向量${i}聚类失败`, error);
@@ -585,7 +630,8 @@ export function createDeltaPQ({
         numVectors: trainVectors.length,
         codebookSize: numClusters,
         compressionRatio: (32 * vectorDimension) / (bitsPerCode * numSubvectors),
-        validVectorRatio: validVectors.length / vectors.length
+        validVectorRatio: validVectors.length / vectors.length,
+        distanceMetric  // 添加所使用的距离度量
       };
     } catch (error) {
       isTrained = false;
@@ -652,7 +698,8 @@ export function createDeltaPQ({
           numSubvectors,
           bitsPerCode,
           sampleSize,
-          maxIterations
+          maxIterations,
+          distanceMetric  // 添加距离度量类型
         },
         // 训练数据
         trained: {
@@ -751,7 +798,17 @@ export function createDeltaPQ({
         bitsPerCode = data.config.bitsPerCode || bitsPerCode;
         sampleSize = data.config.sampleSize || sampleSize;
         maxIterations = data.config.maxIterations || maxIterations;
-        console.log(`已恢复配置参数: numSubvectors=${numSubvectors}, bitsPerCode=${bitsPerCode}`);
+        
+        // 恢复距离度量类型
+        const restoredMetric = data.config.distanceMetric;
+        if (restoredMetric && Object.values(DISTANCE_METRICS).includes(restoredMetric)) {
+          distanceMetric = restoredMetric;
+        } else {
+          console.warn(`反序列化警告: 无效的距离度量类型 ${restoredMetric}，使用默认欧几里得距离`);
+          distanceMetric = DISTANCE_METRICS.EUCLIDEAN;
+        }
+        
+        console.log(`已恢复配置参数: numSubvectors=${numSubvectors}, bitsPerCode=${bitsPerCode}, distanceMetric=${distanceMetric}`);
       }
       
       // 更新聚类数
@@ -950,6 +1007,7 @@ export function createDeltaPQ({
       subvectorSize,
       numSubvectors,
       bitsPerCode,
+      distanceMetric,  // 添加距离度量类型
       compressionRatio: isTrained ? (32 * vectorDimension) / (bitsPerCode * numSubvectors) : null
     }),
     serialize,
@@ -966,14 +1024,16 @@ export function createDeltaPQIndex({
   numSubvectors = DEFAULT_NUM_SUBVECTORS,
   bitsPerCode = DEFAULT_BITS_PER_CODE,
   sampleSize = DEFAULT_SAMPLE_SIZE,
-  maxIterations = DEFAULT_MAX_ITERATIONS
+  maxIterations = DEFAULT_MAX_ITERATIONS,
+  distanceMetric = DISTANCE_METRICS.EUCLIDEAN  // 添加距离度量类型参数
 } = {}) {
   // 创建量化器
   const quantizer = createDeltaPQ({
     numSubvectors,
     bitsPerCode,
     sampleSize,
-    maxIterations
+    maxIterations,
+    distanceMetric  // 传递距离度量类型
   });
   
   // 存储索引中的向量
@@ -1099,6 +1159,7 @@ export function createDeltaPQIndex({
     getMetadata: () => ({
       isBuilt,
       numVectors: vectors.length,
+      distanceMetric,  // 添加距离度量类型
       ...quantizer.getMetadata()
     })
   };
