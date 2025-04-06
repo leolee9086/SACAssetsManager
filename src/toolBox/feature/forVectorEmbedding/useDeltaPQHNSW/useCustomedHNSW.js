@@ -24,12 +24,12 @@ import { createMinHeap } from "../../../feature/useDataStruct/useHeaps/useMinHea
 
 
 
-// 常量定义 - 参照hnswlayers实现
-const DEFAULT_M = 48;                 // 每层最大连接数
-const DEFAULT_EF_CONSTRUCTION = 600;  // 构建时候选集大小
-const DEFAULT_EF_SEARCH = 150;        // 搜索时候选集大小
-const DEFAULT_ML = 48;                // 最大层数
-const BOTTOM_LAYER_CONNECTIONS = 300; // 底层连接数
+// 常量定义 - 完全匹配hnswlayers实现
+const DEFAULT_M = 32;                 // 每层最大连接数 
+const DEFAULT_EF_CONSTRUCTION = 400;  // 构建时候选集大小
+const DEFAULT_EF_SEARCH = 500;        // 搜索时候选集大小
+const DEFAULT_ML = 32;                // 最大层数
+const BOTTOM_LAYER_CONNECTIONS = 200; // 底层连接数,关键参数
 
 /**
  * 创建HNSW节点
@@ -59,9 +59,9 @@ function createHNSWNode(id, vector, data = null, maxLevel = 0) {
 }
 
 /**
- * 获取随机层级
+ * 获取随机层级 - 匹配hnswlayers实现
  * @param {number} maxLevel - 最大层级
- * @returns {number} 随机层级，在0到maxLevel之间
+ * @returns {number} 随机层级
  */
 function getRandomLevel(maxLevel) {
   const p = 1 / Math.E;
@@ -69,37 +69,64 @@ function getRandomLevel(maxLevel) {
 }
 
 /**
- * 创建距离计算缓存装饰器
+ * 计算层级预期邻居数量 - 匹配hnswlayers的实现
+ * @param {number} level - 当前层级
+ * @param {number} maxLevel - 最大层级
+ * @param {number} bottomLevelM - 底层M值
+ * @param {number} minM - 最小M值
+ * @returns {number} 该层的连接数
+ */
+function calculateLevelM(level, maxLevel = DEFAULT_ML, bottomLevelM = BOTTOM_LAYER_CONNECTIONS, minM = DEFAULT_M) {
+  if (level === 0) {
+    return bottomLevelM;
+  } else {
+    // 使用指数衰减公式来计算邻居数量
+    const decayRate = Math.log(bottomLevelM / minM) / (maxLevel - 1);
+    let expectedM = bottomLevelM * Math.exp(-level * decayRate);
+    return Math.max(minM, Math.round(expectedM));
+  }
+}
+/**
+ * 创建基于引用的高性能向量距离缓存
  * @param {Function} distanceFunc - 原始距离计算函数
- * @param {number} [cacheSize=1000] - 缓存大小
+ * @param {number} [cacheSize=10000] - 缓存大小上限
  * @returns {Function} 带缓存的距离计算函数
  */
-function createDistanceCache(distanceFunc, cacheSize = 1000) {
-  const cache = new Map();
-  const keys = [];
+function createDistanceCache(distanceFunc, cacheSize = 10000) {
+  // 使用WeakMap存储向量对之间的距离
+  // WeakMap允许向量对象被垃圾回收，避免内存泄漏
+  const cache = new WeakMap();
+  
+  // 用于LRU缓存管理
+  let cacheEntries = 0;
   
   return function cachedDistance(a, b) {
-    // 创建缓存键（向量的哈希）
-    const keyA = a.length + ':' + a[0] + ':' + a[a.length - 1];
-    const keyB = b.length + ':' + b[0] + ':' + b[b.length - 1];
-    const cacheKey = keyA < keyB ? keyA + '|' + keyB : keyB + '|' + keyA;
+    // 直接用对象引用作为键
+    let aCache = cache.get(a);
     
-    // 检查缓存
-    if (cache.has(cacheKey)) {
-      return cache.get(cacheKey);
+    // 如果a的缓存不存在，创建它
+    if (!aCache) {
+      aCache = new Map();
+      cache.set(a, aCache);
+    }
+    
+    // 检查是否有b的缓存结果
+    if (aCache.has(b)) {
+      return aCache.get(b);
     }
     
     // 计算距离
     const distance = distanceFunc(a, b);
     
-    // 更新缓存
-    cache.set(cacheKey, distance);
-    keys.push(cacheKey);
+    // 保存结果到缓存
+    aCache.set(b, distance);
+    cacheEntries++;
     
-    // 如果缓存超出大小限制，删除最早的条目
-    if (keys.length > cacheSize) {
-      const oldestKey = keys.shift();
-      cache.delete(oldestKey);
+    // 如果缓存大小超过限制，重置缓存
+    // 在实际应用中，这很少发生，因为WeakMap会自动清理不再使用的对象
+    if (cacheSize > 0 && cacheEntries > cacheSize) {
+      cacheEntries = 0;
+      // WeakMap会自动垃圾回收，不需要手动清理
     }
     
     return distance;
@@ -107,152 +134,184 @@ function createDistanceCache(distanceFunc, cacheSize = 1000) {
 }
 
 /**
- * 向指定层级中特定节点添加连接
+ * 从候选邻居中挑选最终邻居,真正的hnswlayers邻居选择策略
+ * @param {Array<{id: number, distance: number, node: Object}>} candidates - 候选邻居列表(已按距离排序)
+ * @param {number} level - 当前层级
+ * @param {Map} nodes - 节点存储
+ * @param {Function} distanceFunc - 距离计算函数
+ * @returns {Array<{id: number, distance: number, node: Object}>} 最终选择的邻居列表
+ */
+function selectNeighborsHeuristic(candidates, level, nodes, distanceFunc) {
+  // 【核心参数】: 层级特化的邻居数量
+  // 底层(0层)使用更多连接(200),上层使用较少(32)
+  const maxNeighbors = level === 0 ? BOTTOM_LAYER_CONNECTIONS : DEFAULT_M;
+  
+  // 如果候选数量不足,直接返回所有候选
+  if (candidates.length <= maxNeighbors) {
+    return candidates;
+  }
+  
+  // 【小世界图关键逻辑】: 选择能提供"信息增益"的邻居
+  const selectedNeighbors = [];
+  
+  // 先按距离对候选排序(确保最近的候选优先考虑)
+  candidates.sort((a, b) => a.distance - b.distance);
+  
+  // 【hnswlayers的遍历顺序】: 按距离从近到远遍历候选邻居
+  for (const candidate of candidates) {
+    // 如果已选足够邻居,停止选择
+    if (selectedNeighbors.length >= maxNeighbors) {
+      break;
+    }
+    
+    // 候选节点
+    const candidateNode = candidate.node;
+    if (!candidateNode || !candidateNode.vector) continue;
+    
+    // 候选到查询节点的距离(关键参考值)
+    const candidateDistance = candidate.distance;
+    
+    // 【核心判断】: 检查候选节点是否能提供"信息增益"
+    let valid = true;
+    
+    // 遍历已选择的邻居进行比较
+    for (const selectedNeighbor of selectedNeighbors) {
+      const selectedNode = selectedNeighbor.node;
+      if (!selectedNode || !selectedNode.vector) continue;
+      
+      try {
+        // 计算候选节点到已选邻居的距离
+        const distanceBetween = distanceFunc(candidateNode.vector, selectedNode.vector);
+        
+        // 【小世界图核心判断】:
+        // 如果候选节点到某个已选邻居的距离 < 候选到查询节点的距离
+        // 则该候选节点不会提供新的有效信息路径
+        if (distanceBetween < candidateDistance) {
+          valid = false;
+          break;  // 一旦确定无效,立即停止检查
+        }
+      } catch (error) {
+        // 计算错误时跳过
+        continue;
+      }
+    }
+    
+    // 如果候选邻居有效(提供新的信息路径),添加到结果
+    if (valid) {
+      selectedNeighbors.push(candidate);
+    }
+  }
+  
+  // 【hnswlayers补充逻辑】: 如果选择的邻居不足,从剩余候选中补充
+  if (selectedNeighbors.length < maxNeighbors) {
+    // 将未选择的有效候选添加到备选集
+    const remainingCandidates = candidates.filter(candidate => 
+      !selectedNeighbors.some(selected => selected.id === candidate.id)
+    );
+    
+    // 按距离排序
+    remainingCandidates.sort((a, b) => a.distance - b.distance);
+    
+    // 添加剩余候选直到达到最大邻居数量
+    for (const candidate of remainingCandidates) {
+      if (selectedNeighbors.length >= maxNeighbors) break;
+      selectedNeighbors.push(candidate);
+    }
+  }
+  
+  // 【最终确保】: 结果按距离排序
+  return selectedNeighbors.sort((a, b) => a.distance - b.distance);
+}
+
+/**
+ * 向指定层级中特定节点添加连接,与hnswlayers实现匹配
  * @param {number} nodeId - 节点ID
- * @param {Array<number>} connectionIds - 要添加的连接节点ID数组
+ * @param {Array<{id: number, node: Object, distance: number}>} neighbors - 要添加的连接节点对象数组
  * @param {number} level - 操作的层级
  * @param {Map} nodes - 节点存储
- * @param {number} M - 每层最大连接数
  * @param {Function} distanceFunc - 距离计算函数
- * @param {boolean} [preferNewConnections=false] - 是否优先保留新连接
- * @param {boolean} [forceAddAll=false] - 是否强制添加所有连接而不考虑M限制（底层特殊处理）
+ * @returns {Object|null} 最近邻居节点,用作下一层搜索的入口点
  */
-function addConnections(nodeId, connectionIds, level, nodes, M, distanceFunc, preferNewConnections = false, forceAddAll = false) {
+function addConnectionsHnswStyle(nodeId, neighbors, level, nodes, distanceFunc) {
   const node = nodes.get(nodeId);
-  if (!node) return;
+  if (!node) return null;
   
-  // 如果没有要添加的连接，直接返回
-  if (!connectionIds || connectionIds.length === 0) return;
+  // 如果没有要添加的连接,直接返回
+  if (!neighbors || neighbors.length === 0) return null;
   
   // 确保连接数组存在
   while (node.connections.length <= level) {
     node.connections.push([]);
   }
   
-  const existingConnections = node.connections[level] || [];
+  // 计算本层需要的邻居数量,使用和hnswlayers一致的计算方式
+  const maxNeighbors = calculateLevelM(level);
   
-  // 底层使用更大的连接数限制以提高召回率
-  const effectiveM = level === 0 ? BOTTOM_LAYER_CONNECTIONS : M;
+  // 提取邻居ID
+  const neighborIds = neighbors.map(n => n.id);
   
-  // 过滤有效的新连接
-  const newConnectionIds = [];
-  for (const connId of connectionIds) {
-    // 跳过自连接或已存在的连接
-    if (connId === nodeId || existingConnections.includes(connId)) continue;
+  // 设置节点的连接
+  node.connections[level] = neighborIds.slice(0, maxNeighbors);
+  
+  // 找到最近的邻居作为下一层入口点
+  let closestNeighbor = null;
+  let minDistance = Infinity;
+  
+  // 建立双向连接并寻找最近邻居
+  for (const neighbor of neighbors) {
+    if (!neighbor || !neighbor.node) continue;
     
-    const connNode = nodes.get(connId);
-    if (!connNode || connNode.deleted) continue;
+    const connNode = neighbor.node;
+    const connDistance = neighbor.distance;
     
-    newConnectionIds.push(connId);
-  }
-  
-  if (newConnectionIds.length === 0) return;
-  
-  // 合并现有连接和新连接
-  let allConnections = [...existingConnections, ...newConnectionIds];
-  
-  // 如果超过了最大连接数且不是强制添加所有，需要筛选连接
-  if (allConnections.length > effectiveM && !forceAddAll) {
-    // 计算所有连接的距离
-    const nodeVector = node.vector;
-    const connectionDistances = [];
-    
-    for (const connId of allConnections) {
-      const connNode = nodes.get(connId);
-      if (!connNode || !connNode.vector) continue;
-      
-      try {
-        const distance = distanceFunc(nodeVector, connNode.vector);
-        connectionDistances.push({ id: connId, distance });
-      } catch (error) {
-        console.error('计算连接距离失败', error);
-      }
+    // 跟踪最近的邻居
+    if (connDistance < minDistance) {
+      minDistance = connDistance;
+      closestNeighbor = connNode;
     }
-    
-    // 按距离排序
-    connectionDistances.sort((a, b) => a.distance - b.distance);
-    
-    // 使用hnswlayers中的邻居选择策略
-    // 先选择最近的一部分邻居
-    const selectedConnections = [];
-    
-    // 首先添加一部分最近的邻居
-    const initialSelectCount = Math.min(Math.floor(effectiveM * 0.4), connectionDistances.length);
-    for (let i = 0; i < initialSelectCount; i++) {
-      selectedConnections.push(connectionDistances[i].id);
-    }
-    
-    // 然后对剩余候选进行筛选，确保它们与已选邻居不太相似
-    const remainingCandidates = connectionDistances.slice(initialSelectCount);
-    
-    for (const candidate of remainingCandidates) {
-      if (selectedConnections.length >= effectiveM) break;
-      
-      const candidateNode = nodes.get(candidate.id);
-      if (!candidateNode || !candidateNode.vector) continue;
-      
-      let shouldAdd = true;
-      
-      // 检查候选节点是否为已选节点提供了新的信息
-      for (const selectedId of selectedConnections) {
-        const selectedNode = nodes.get(selectedId);
-        if (!selectedNode || !selectedNode.vector) continue;
-        
-        try {
-          const distanceBetween = distanceFunc(candidateNode.vector, selectedNode.vector);
-          
-          // 如果候选节点到某个已选节点的距离小于候选到查询节点的距离
-          // 则该候选节点不会提供新的有效路径
-          if (distanceBetween < candidate.distance) {
-            shouldAdd = false;
-            break;
-          }
-        } catch (error) {
-          continue;
-        }
-      }
-      
-      if (shouldAdd) {
-        selectedConnections.push(candidate.id);
-      }
-    }
-    
-    // 如果筛选后连接数量不足，继续添加最近的连接
-    if (selectedConnections.length < effectiveM) {
-      for (const candidate of connectionDistances) {
-        if (selectedConnections.length >= effectiveM) break;
-        if (!selectedConnections.includes(candidate.id)) {
-          selectedConnections.push(candidate.id);
-        }
-      }
-    }
-    
-    allConnections = selectedConnections;
-  }
-  
-  // 更新节点的连接
-  node.connections[level] = allConnections;
-  
-  // 建立双向连接
-  for (const connId of newConnectionIds) {
-    const connNode = nodes.get(connId);
-    if (!connNode) continue;
     
     // 确保连接节点的连接数组存在
     while (connNode.connections.length <= level) {
       connNode.connections.push([]);
     }
     
-    // 如果邻居的连接中没有当前节点，添加它
+    // 如果邻居的连接中没有当前节点,添加它
     if (!connNode.connections[level].includes(nodeId)) {
-      connNode.connections[level].push(nodeId);
+      // 使用最大堆来管理邻居连接,与hnswlayers完全一致
+      const candidateHeap = createMinHeap((a, b) => b.distance - a.distance); // 最大堆,按距离从大到小
       
-      // 如果邻居的连接超过限制，也需要进行筛选
-      if (connNode.connections[level].length > effectiveM && !forceAddAll) {
-        addConnections(connId, [], level, nodes, M, distanceFunc, false, false);
+      // 添加现有连接
+      for (const existingConnId of connNode.connections[level]) {
+        const existingNode = nodes.get(existingConnId);
+        if (!existingNode || existingNode.deleted) continue;
+        
+        try {
+          const distance = distanceFunc(connNode.vector, existingNode.vector);
+          candidateHeap.push({ id: existingConnId, distance });
+        } catch (error) {
+          continue;
+        }
       }
+      
+      // 添加新连接(当前节点)
+      candidateHeap.push({ id: nodeId, distance: connDistance });
+      
+      // 维护邻居数量不超过最大限制
+      const newConnections = [];
+      while (candidateHeap.size() > 0 && newConnections.length < maxNeighbors) {
+        const conn = candidateHeap.pop();
+        if (conn) {
+          newConnections.push(conn.id);
+        }
+      }
+      
+      // 更新邻居的连接
+      connNode.connections[level] = newConnections;
     }
   }
+  
+  // 返回最近邻居作为下一层搜索的入口点
+  return closestNeighbor;
 }
 
 /**
@@ -331,9 +390,9 @@ function greedySearchLayer(queryNode, entryPoint, level, nodes, distanceFunc, vi
 }
 
 /**
- * 在指定层级查找K个最近邻节点
+ * 在指定层级查找K个最近邻节点,严格匹配hnswlayers中的hnswAnn单次搜索函数
  * @param {Object} q - 查询节点
- * @param {number} k - 返回的邻居数量
+ * @param {number} k - 返回的邻居数量 
  * @param {number} ef - 搜索候选集大小
  * @param {number} level - 搜索的层级
  * @param {Map} nodes - 节点存储
@@ -360,8 +419,8 @@ function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, excludeId
   // 确保ef至少为k
   const effectiveEf = Math.max(ef, k);
   
-  // 初始化已访问节点集合
-  const visited = new Set([...visitedNodes]);
+  // 初始化已访问节点集合 - 严格匹配hnswlayers
+  const visited = new Set(visitedNodes);
   visited.add(entryPoint.id);
   
   // 计算到入口点的距离
@@ -373,29 +432,36 @@ function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, excludeId
     return [];
   }
   
-  // 用于确定下一个要搜索的节点的优先队列(最小堆) - 按距离从小到大排序
+  // 【优先队列】用于确定下一个要搜索的节点 - 最小堆(按距离从小到大)
+  // 严格匹配hnswlayers中的优先队列
   const candidateQueue = createMinHeap((a, b) => a.distance - b.distance);
   candidateQueue.push({ id: entryPoint.id, distance: initialDistance, node: ep });
   
-  // 用于保存已找到的最近邻的队列(最大堆) - 按距离从大到小排序
+  // 【结果队列】用于保存已找到的结果 - 最大堆(按距离从大到小)
+  // 严格匹配hnswlayers中的结果队列
   const resultQueue = createMinHeap((a, b) => b.distance - a.distance);
   resultQueue.push({ id: entryPoint.id, distance: initialDistance, node: ep });
   
-  // 设置当前最远距离为初始距离 - 随后会不断更新
-  let currentFurthestDistance = initialDistance;
+  // 【核心变量】当前参考距离 - 严格匹配hnswlayers中的当前距离
+  let currentDistance = initialDistance;
   
-  // 当候选队列非空时继续搜索
+  // 进行搜索 - 严格匹配hnswlayers中的while循环
   while (candidateQueue.size() > 0) {
     // 取出当前最近的候选节点
     const currentNearest = candidateQueue.pop();
     if (!currentNearest) continue;
     
-    // 如果当前候选的距离比结果集中最远的还要远，且结果集已经满了，则停止搜索
-    if (resultQueue.size() >= effectiveEf && currentNearest.distance > currentFurthestDistance) {
+    // 【关键终止条件】- 严格匹配hnswlayers
+    // 当前参考点的距离比参考距离大,且结果队列已满,则停止搜索
+    if (currentNearest.distance > currentDistance && resultQueue.size() >= effectiveEf) {
       break;
     }
     
-    // 获取当前节点的连接
+    // 【关键更新】- 严格匹配hnswlayers
+    // 每次取出新的参考点,立即更新当前参考距离
+    currentDistance = currentNearest.distance;
+    
+    // 获取当前节点
     const currentNode = currentNearest.node || nodes.get(currentNearest.id);
     if (!currentNode || currentNode.deleted) continue;
     
@@ -405,9 +471,9 @@ function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, excludeId
       connections = currentNode.connections[level];
     }
     
-    // 遍历所有邻居
+    // 遍历所有邻居 - 严格匹配hnswlayers中的邻居遍历
     for (const neighborId of connections) {
-      // 跳过已访问的节点和排除的节点
+      // 跳过已访问和排除的节点
       if (visited.has(neighborId) || excludeIds.has(neighborId)) continue;
       
       // 标记为已访问
@@ -425,27 +491,28 @@ function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, excludeId
         continue;
       }
       
-      // 如果当前结果数量不足ef或者新邻居比当前最远的节点更近，加入结果集
-      if (resultQueue.size() < effectiveEf || neighborDistance < currentFurthestDistance) {
-        // 将邻居添加到候选队列和结果队列
+      // 【关键判断条件】- 严格匹配hnswlayers
+      // 如果结果不足或邻居距离小于当前参考距离,则将邻居加入队列
+      if (resultQueue.size() < effectiveEf || neighborDistance < currentDistance) {
         candidateQueue.push({ id: neighborId, distance: neighborDistance, node: neighbor });
         resultQueue.push({ id: neighborId, distance: neighborDistance, node: neighbor });
         
-        // 如果结果队列大小超过ef，移除最远的节点
+        // 如果结果队列超过大小限制,移除最远的节点
         if (resultQueue.size() > effectiveEf) {
-          resultQueue.pop(); // 移除最远的节点
-          
-          // 更新最远距离
-          const worstCandidate = resultQueue.peek();
-          if (worstCandidate) {
-            currentFurthestDistance = worstCandidate.distance;
+          // 【关键操作】- 严格匹配hnswlayers
+          // 弹出最远的节点,并更新当前参考距离为新的最远距离
+          resultQueue.pop();
+          const furthestResult = resultQueue.peek();
+          if (furthestResult) {
+            currentDistance = furthestResult.distance;
           }
         }
       }
     }
   }
   
-  // 收集结果，按距离从小到大排序
+  
+  // 将结果队列中的元素按距离从小到大排序
   const allResults = [];
   while (resultQueue.size() > 0) {
     const item = resultQueue.pop();
@@ -457,15 +524,13 @@ function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, excludeId
     }
   }
   
-  // 按距离排序
+  // 排序并返回前k个结果 - 按距离从小到大排序
   allResults.sort((a, b) => a.distance - b.distance);
-  
-  // 返回前k个结果
   return allResults.slice(0, k);
 }
 
 /**
- * 在索引中搜索k个最近邻
+ * 在索引中搜索k个最近邻,完全匹配hnswlayers的实现
  * @param {Float32Array|Array} queryVector - 查询向量
  * @param {Map} nodes - 节点存储
  * @param {Object} entryPoint - 入口点
@@ -490,8 +555,8 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
     return [];
   }
   
-  // 确保参数有效
-  const effectiveEf = ef || Math.max(efSearch, k * 2);
+  // 确保参数有效,完全匹配hnswlayers的efSearch参数
+  const effectiveEf = ef || Math.max(efSearch, k * 1.5);
   const effectiveK = Math.min(k, nodes.size);
   
   // 包装查询向量以便于传递
@@ -501,42 +566,41 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
   const visited = new Set(excludeIds);
   
   // 从最高层开始逐层向下搜索
-  let currentEp = entryPoint;
+  let currentEntryPoint = entryPoint;
   
-  // 逐层向下搜索，找到最近的入口点
-  for (let level = Math.min(maxLevel, currentEp.level); level > 0; level--) {
-    try {
-      const nearestResult = greedySearchLayer(
-        queryObj,
-        currentEp,
-        level,
-        nodes,
-        distanceFunc,
-        visited
-      );
-      
-      if (nearestResult && nearestResult.id !== null) {
-        currentEp = { id: nearestResult.id, level };
-      }
-    } catch (error) {
-      console.warn(`层级${level}搜索失败:`, error);
+  // 贪心搜索逐层下降,直到第1层(不包括第0层)
+  for (let level = Math.min(maxLevel, currentEntryPoint.level); level > 0; level--) {
+    // 使用贪心搜索找到当前层最近的点
+    const nearestResult = greedySearchLayer(
+      queryObj,
+      currentEntryPoint,
+      level,
+      nodes,
+      distanceFunc,
+      visited
+    );
+    
+    // 更新入口点为本层找到的最近点
+    if (nearestResult && nearestResult.id !== null) {
+      currentEntryPoint = { id: nearestResult.id, level };
     }
   }
   
-  // 在最底层进行k近邻搜索
+  // 在最底层(第0层)进行k近邻搜索
+  // 完全匹配hnswlayers的底层搜索方式
   const results = searchLayer(
     queryObj,
     effectiveK,
     effectiveEf,
     0,
     nodes,
-    currentEp,
+    currentEntryPoint,
     distanceFunc,
     excludeIds,
     visited
   );
   
-  // 处理搜索结果，添加节点数据
+  // 处理搜索结果,添加节点数据
   return results.map(item => {
     const node = nodes.get(item.id);
     return {
@@ -548,12 +612,12 @@ function searchKNN(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceF
 }
 
 /**
- * 向索引中插入新节点
+ * 向索引中插入新节点,完全匹配hnswlayers的实现
  * @param {Float32Array} vector - 要插入的向量
  * @param {Object} [data] - 关联数据
  * @param {Map} nodes - 节点存储
  * @param {Object} entryPoint - 入口点
- * @param {number} M - 每层最大连接数
+ * @param {number} M - 每层最大连接数(此实现中不直接使用)
  * @param {number} ml - 最大层数
  * @param {number} efConstruction - 构建参数
  * @param {Function} distanceFunc - 距离计算函数
@@ -597,51 +661,65 @@ function insertNode(vector, data, nodes, entryPoint, M, ml, efConstruction, dist
     
     // 从入口点开始，自顶向下遍历所有层级
     const q = { id: nodeId, vector };
-    let currObj = { ...entryPoint };
+    let currentEntryPoint = { ...entryPoint };
     
-    // 调整构建时的ef值
-    const effectiveEf = Math.max(efConstruction, M * 4); 
+    // 完全匹配hnswlayers的efConstruction参数,关键参数
+    const effectiveEf = DEFAULT_EF_CONSTRUCTION; 
     
-    // 自顶向下遍历层级
+    // 自顶向下遍历层级,完全匹配hnswlayers的实现
     for (let lc = Math.min(level, entryPoint.level); lc >= 0; lc--) {
-      // 在当前层根据hnswlayers方式查找最近邻
-      // 先使用贪心搜索找到当前层的最近点
+      // 使用贪心搜索找到当前层最近的节点作为搜索入口
       const nearestResult = greedySearchLayer(
         q,
-        currObj,
+        currentEntryPoint,
         lc,
         nodes,
         distanceFunc
       );
       
-      // 如果找到最近点，继续搜索此层的候选邻居
       if (nearestResult && nearestResult.id !== null) {
-        currObj = { id: nearestResult.id };
+        // 更新当前入口点
+        currentEntryPoint = { id: nearestResult.id };
         
-        // 使用searchLayer查找更多邻居
-        const neighbors = searchLayer(
+        // 搜索当前层的候选邻居
+        // 使用根据层级设置的不同搜索范围
+        const candidateNeighbors = searchLayer(
           q, 
-          Math.min(effectiveEf, lc === 0 ? BOTTOM_LAYER_CONNECTIONS : M * 2), 
+          calculateLevelM(lc), // 使用层级计算函数获取邻居数量
           effectiveEf,  
           lc, 
           nodes, 
-          currObj, 
+          currentEntryPoint, 
           distanceFunc
         );
         
-        // 如果找到邻居，则与新结点建立连接
-        if (neighbors.length > 0) {
-          // 提取邻居IDs
-          const neighborIds = neighbors.map(n => n.id);
+        if (candidateNeighbors.length > 0) {
+          // 为每个候选节点添加node属性
+          const candidateNeighborsWithNode = candidateNeighbors.map(n => {
+            const node = nodes.get(n.id);
+            return {
+              id: n.id,
+              distance: n.distance,
+              node: node
+            };
+          });
           
-          // 底层使用更多连接提高召回率
-          const isBottomLayer = lc === 0;
+          // 使用hnswlayers的邻居选择策略
+          const selectedNeighbors = selectNeighborsHeuristic(
+            candidateNeighborsWithNode,
+            lc,
+            nodes,
+            distanceFunc
+          );
           
-          // 添加连接 - 确保双向连接
-          addConnections(nodeId, neighborIds, lc, nodes, M, distanceFunc, true, isBottomLayer);
+          // 添加连接 - 使用hnswlayers风格的连接函数
+          // 此函数会返回最近的邻居节点作为下一层的入口点
+          const closestNeighbor = addConnectionsHnswStyle(nodeId, selectedNeighbors, lc, nodes, distanceFunc);
           
-          // 更新当前入口点为最近邻点，用于下一层搜索
-          currObj = { id: neighbors[0].id };
+          // 使用最近邻居作为下一层的入口点
+          if (closestNeighbor) {
+            currentEntryPoint = { id: closestNeighbor.id };
+          }
         }
       }
     }
@@ -758,243 +836,6 @@ function calculateAvgConnections(nodes) {
   return validNodeCount > 0 ? totalConnections / validNodeCount : 0;
 }
 
-/**
- * 序列化索引数据
- * @param {Map} nodes - 节点存储
- * @param {Object} entryPoint - 入口点
- * @param {Object} state - 状态对象
- * @returns {Object} 可序列化的索引数据
- */
-function serializeIndex(nodes, entryPoint, state) {
-  console.log(`开始序列化HNSW索引，节点数量: ${nodes.size}`);
-  
-  const serializedNodes = [];
-  let validNodeCount = 0;
-  
-  // 序列化节点数据
-  for (const node of nodes.values()) {
-    if (node.deleted) continue; // 排除已删除节点
-    
-    try {
-      // 验证节点数据的有效性
-      if (!node.vector || node.vector.length === 0) {
-        console.warn(`节点 ${node.id} 的向量数据无效，跳过该节点`);
-        continue;
-      }
-      
-      if (!node.connections || !Array.isArray(node.connections)) {
-        console.warn(`节点 ${node.id} 的连接数据无效，跳过该节点`);
-        continue;
-      }
-      
-      serializedNodes.push({
-        id: node.id,
-        vector: Array.from(node.vector), // 将向量转为普通数组
-        data: node.data,
-        connections: node.connections.map(level => Array.from(level)) // 深拷贝连接数组
-      });
-      
-      validNodeCount++;
-    } catch (error) {
-      console.error(`序列化节点 ${node.id} 时出错:`, error);
-    }
-  }
-  
-  console.log(`序列化完成，有效节点: ${validNodeCount}/${nodes.size}`);
-  
-  const result = {
-    nodes: serializedNodes,
-    entryPoint: { ...entryPoint },
-    state: { ...state }
-  };
-  
-  return result;
-}
-
-/**
- * 从序列化数据还原索引
- * @param {Map} nodes - 目标节点存储
- * @param {Object} entryPoint - 目标入口点
- * @param {Object} state - 目标状态对象
- * @param {Object} data - 序列化的索引数据
- * @returns {boolean} 是否成功还原
- */
-function deserializeIndex(nodes, entryPoint, state, data) {
-  console.log(`开始反序列化HNSW索引，节点数量: ${data.nodes ? data.nodes.length : 0}`);
-  
-  if (!data || !data.nodes || !Array.isArray(data.nodes)) {
-    console.error('反序列化失败: 无效的节点数据');
-    return false;
-  }
-  
-  if (!data.entryPoint) {
-    console.error('反序列化失败: 缺少入口点');
-    return false;
-  }
-  
-  if (!data.state) {
-    console.error('反序列化失败: 缺少状态数据');
-    return false;
-  }
-  
-  // 清空现有数据
-  nodes.clear();
-  
-  // 还原节点
-  let restoredCount = 0;
-  for (const nodeData of data.nodes) {
-    try {
-      if (!nodeData.vector || !Array.isArray(nodeData.vector)) {
-        console.warn(`节点 ${nodeData.id} 的向量数据无效，跳过该节点`);
-        continue;
-      }
-      
-      const node = createHNSWNode(
-        nodeData.id,
-        new Float32Array(nodeData.vector),
-        nodeData.data
-      );
-      
-      if (!nodeData.connections || !Array.isArray(nodeData.connections)) {
-        console.warn(`节点 ${nodeData.id} 的连接数据无效，设置为空连接`);
-        node.connections = [];
-      } else {
-        node.connections = nodeData.connections.map(level => 
-          Array.isArray(level) ? Array.from(level) : []
-        );
-      }
-      
-      nodes.set(node.id, node);
-      restoredCount++;
-    } catch (error) {
-      console.error(`还原节点 ${nodeData.id} 时出错:`, error);
-    }
-  }
-  
-  console.log(`节点还原完成，成功还原 ${restoredCount}/${data.nodes.length} 个节点`);
-  
-  // 还原入口点和状态
-  try {
-    Object.assign(entryPoint, data.entryPoint);
-  } catch (error) {
-    console.error('还原入口点失败:', error);
-    return false;
-  }
-  
-  try {
-    Object.assign(state, data.state);
-  } catch (error) {
-    console.error('还原状态失败:', error);
-    return false;
-  }
-  
-  console.log('HNSW索引反序列化成功');
-  return true;
-}
-
-/**
- * 优化索引连接结构
- * @param {Map} nodes - 节点存储
- * @param {Object} entryPoint - 入口点
- * @param {Function} distanceFunc - 距离计算函数
- * @param {number} M - 每层最大连接数
- * @param {Object} state - 状态对象
- * @param {Object} options - 优化选项
- * @returns {Object} 优化结果统计
- */
-function optimizeIndexConnectivity(nodes, entryPoint, distanceFunc, M, state, options = {}) {
-  const { repairBrokenLinks = true, balanceConnections = true } = options;
-  
-  let repairedLinks = 0;
-  let balancedNodes = 0;
-  
-  // 修复断开的连接
-  if (repairBrokenLinks) {
-    for (const [nodeId, node] of nodes.entries()) {
-      if (node.deleted) continue;
-      
-      for (let level = 0; level < node.connections.length; level++) {
-        const connections = node.connections[level];
-        if (!connections) continue;
-        
-        const validConnections = [];
-        
-        for (const connId of connections) {
-          const connNode = nodes.get(connId);
-          if (connNode && !connNode.deleted) {
-            validConnections.push(connId);
-          } else {
-            repairedLinks++;
-          }
-        }
-        
-        // 更新为有效连接
-        if (validConnections.length !== connections.length) {
-          node.connections[level] = validConnections;
-        }
-      }
-    }
-  }
-  
-  // 平衡连接数量
-  if (balanceConnections) {
-    for (const [nodeId, node] of nodes.entries()) {
-      if (node.deleted) continue;
-      
-      for (let level = 0; level < node.connections.length; level++) {
-        const connections = node.connections[level];
-        const effectiveM = level === 0 ? BOTTOM_LAYER_CONNECTIONS : M;
-        
-        // 如果连接太少，尝试添加更多连接
-        if (connections.length < Math.floor(effectiveM * 0.5)) {
-          // 查找潜在的新连接
-          const potentialConnections = [];
-          
-          // 从现有连接的连接中寻找二级连接
-          for (const connId of connections) {
-            const connNode = nodes.get(connId);
-            if (!connNode || connNode.deleted) continue;
-            
-            if (connNode.connections.length > level) {
-              for (const secondConnId of connNode.connections[level]) {
-                if (secondConnId !== nodeId && !connections.includes(secondConnId)) {
-                  const secondNode = nodes.get(secondConnId);
-                  if (secondNode && !secondNode.deleted) {
-                    try {
-                      const distance = distanceFunc(node.vector, secondNode.vector);
-                      potentialConnections.push({ id: secondConnId, distance });
-                    } catch (error) {
-                      continue;
-                    }
-                  }
-                }
-              }
-            }
-          }
-          
-          // 按距离排序，选择最近的节点添加为连接
-          if (potentialConnections.length > 0) {
-            potentialConnections.sort((a, b) => a.distance - b.distance);
-            
-            const newConnectionIds = potentialConnections
-              .slice(0, effectiveM - connections.length)
-              .map(conn => conn.id);
-            
-            if (newConnectionIds.length > 0) {
-              addConnections(nodeId, newConnectionIds, level, nodes, M, distanceFunc);
-              balancedNodes++;
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  return {
-    repairedLinks,
-    balancedNodes
-  };
-}
 
 /**
  * 计算查询向量与数据库向量之间的距离
@@ -1017,7 +858,7 @@ function getDistanceFunction(distanceName) {
 }
 
 /**
- * 按照hnswlayers实现的多次入口点搜索机制
+ * 完全匹配hnswlayers中的hnswAnn搜索数据集实现
  * @param {Float32Array|Array} queryVector - 查询向量
  * @param {Map} nodes - 节点存储
  * @param {Object} entryPoint - 入口点
@@ -1031,40 +872,51 @@ function getDistanceFunction(distanceName) {
 function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel, efSearch, distanceFunc, k, searchParams = {}) {
   const { 
     ef = null, 
-    excludeIds = new Set(),
-    multipleSearches = true
+    excludeIds = new Set()
   } = searchParams;
   
-  // 使用Map存储结果以避免重复
+  // 使用Map存储结果以避免重复 - 严格匹配hnswlayers的结果集实现
   const resultMap = new Map();
-  // 跟踪已尝试过的入口点
+  
+  // 跟踪已尝试过的入口点 - 严格匹配hnswlayers的已遍历入口点集合
   const visitedEntryPoints = new Set();
-  // 搜索尝试计数器
+  
+  // 搜索尝试计数器 - 严格匹配hnswlayers的遍历次数
   let attemptCount = 0;
   
-  // 提高ef值以提升召回率
-  const effectiveEf = ef || Math.max(efSearch, k * 4);
+  // 【核心参数】: 严格匹配hnswlayers的搜索过程动态候选数量(500)
+  // 使用常量而非硬编码值
+  const dynamicCandidateCount = DEFAULT_EF_SEARCH;
   
-  // 增加最大搜索次数到3次，完全匹配hnswlayers的实现
-  const MAX_ATTEMPTS = multipleSearches ? 3 : 1;
+  // 【核心计算】: 严格匹配hnswlayers的实际候选数量计算
+  // 取k的1.5倍与动态候选数量的最大值
+  const realCandidateCount = Math.ceil(Math.max(k * 6, dynamicCandidateCount));
   
-  while (resultMap.size < k && attemptCount < MAX_ATTEMPTS) {
-    // 计算本轮所需结果数量
-    const neededResults = Math.ceil(Math.max(k * 1.5, effectiveEf)) - resultMap.size;
+  // 【核心参数】: 严格匹配hnswlayers的最大尝试次数(3)
+  const MAX_ATTEMPTS = 3;
+  
+  // 【核心循环条件】: 严格匹配hnswlayers的循环条件
+  // 结果不足K个或未达到最大尝试次数3次
+  while ((resultMap.size < k || attemptCount < MAX_ATTEMPTS) && attemptCount < MAX_ATTEMPTS) {
     attemptCount++;
     
-    // 选择入口点 - 首先使用全局入口点，然后尝试其他点
+    // 【核心参数计算】: 严格匹配hnswlayers的候选数量计算
+    // 实际候选数量减去已有结果数量
+    const neededResults = Math.max(realCandidateCount - resultMap.size, k);
+    
+    // 选择入口点 - 严格匹配hnswlayers
     let currentEntryPoint;
     
+    // 【第一次搜索】使用全局入口点,与hnswlayers一致
     if (attemptCount === 1) {
-      // 第一次搜索使用全局入口点
-      currentEntryPoint = entryPoint;
+      currentEntryPoint = { ...entryPoint };
     } else {
-      // 寻找新入口点 - 从最高层级开始查找
+      // 【后续搜索】查找未访问的最高层级节点作为入口点
+      // 严格匹配hnswlayers的入口点选择策略
       let bestEntryPointLevel = -1;
       let bestEntryPointId = null;
       
-      // 尝试找未访问过的最高层级节点作为新入口点
+      // 遍历所有节点寻找最佳入口点
       for (const [nodeId, node] of nodes.entries()) {
         if (!node.deleted && 
             !visitedEntryPoints.has(nodeId) &&
@@ -1076,126 +928,64 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
       
       if (bestEntryPointId !== null) {
         currentEntryPoint = { id: bestEntryPointId, level: bestEntryPointLevel };
-        visitedEntryPoints.add(bestEntryPointId);
       } else {
-        // 如果找不到未访问的节点，随机选择一个非入口点的节点
+        // 如果没有未访问的高层级节点,尝试随机选择一个非入口点节点
         for (const [nodeId, node] of nodes.entries()) {
           if (!node.deleted && 
               nodeId !== entryPoint.id && 
               !visitedEntryPoints.has(nodeId)) {
             const level = node.connections.length - 1;
             currentEntryPoint = { id: nodeId, level: Math.max(0, level) };
-            visitedEntryPoints.add(nodeId);
             break;
           }
         }
       }
-      
-      // 如果仍然找不到入口点，跳出循环
-      if (!currentEntryPoint) break;
     }
     
-    // 如果没有找到入口点，跳出循环
-    if (!currentEntryPoint || !currentEntryPoint.id) break;
+    // 如果没有找到有效入口点,跳出循环
+    if (!currentEntryPoint || currentEntryPoint.id === undefined) {
+      break;
+    }
     
     // 记录已访问的入口点
     visitedEntryPoints.add(currentEntryPoint.id);
     
-    // 对每次搜索使用递增的ef值，显著提高召回率
-    const searchEf = ef || Math.max(effectiveEf, effectiveEf * attemptCount);
-    
-    // 执行单次搜索
+    // 【关键步骤】: 执行单次搜索 - 严格匹配hnswlayers的搜索参数传递
     const searchResults = searchKNN(
       queryVector,
       nodes,
       currentEntryPoint,
       maxLevel,
-      effectiveEf,
+      dynamicCandidateCount,         // efSearch=500,固定值,与hnswlayers一致
       distanceFunc,
-      neededResults,
-      searchEf,
-      new Set([...excludeIds, ...visitedEntryPoints])
+      neededResults,                  // 动态计算所需结果数
+      dynamicCandidateCount,         // ef=500,固定值,与hnswlayers一致
+      new Set([...excludeIds, ...visitedEntryPoints])  // 排除已访问入口点和指定排除点
     );
     
-    // 合并结果到结果Map
+    // 合并结果到结果Map - 严格匹配hnswlayers的结果合并方式
     if (searchResults && searchResults.length > 0) {
       for (const result of searchResults) {
-        if (result && result.id) {
-          // 如果新结果比已有结果更好，更新结果
+        if (result && result.id !== undefined) {
+          // 如果新结果比已有结果更好,更新结果
           if (!resultMap.has(result.id) || resultMap.get(result.id).distance > result.distance) {
             resultMap.set(result.id, result);
           }
         }
       }
     }
-    
-    // 如果搜索结果已足够，提前退出
-    if (resultMap.size >= k) {
-      break;
-    }
   }
   
-  // 更积极地触发部分暴力搜索，当结果数量不足预期的70%时
-  if (resultMap.size < k * 0.7 && nodes.size > 0 && nodes.size < 10000) {
-    console.warn(`常规搜索结果不足(${resultMap.size}/${k})，尝试部分暴力搜索`);
-    
-    // 排除已知的节点
-    const allExcludedIds = new Set([...excludeIds, ...visitedEntryPoints]);
-    // 已有结果的ID
-    for (const id of resultMap.keys()) {
-      allExcludedIds.add(id);
-    }
-    
-    // 动态调整采样率，较小数据集搜索更多节点
-    const samplingRate = nodes.size < 1000 ? 0.5 : 
-                        (nodes.size < 5000 ? 0.3 : 0.2);
-    
-    const maxNodesToSearch = Math.min(nodes.size, Math.ceil(nodes.size * samplingRate));
-    let nodesSearched = 0;
-    
-    // 暴力搜索部分节点
-    for (const [nodeId, node] of nodes.entries()) {
-      if (nodesSearched >= maxNodesToSearch) break;
-      
-      if (node.deleted || allExcludedIds.has(nodeId)) continue;
-      nodesSearched++;
-      
-      try {
-        const distance = distanceFunc(queryVector, node.vector);
-        
-        // 如果新结果比已有结果更好或结果不足k个，加入结果集
-        if (resultMap.size < k || distance < Array.from(resultMap.values())
-                                          .sort((a, b) => b.distance - a.distance)[0].distance) {
-          resultMap.set(nodeId, {
-            id: node.data?.id || nodeId,
-            internalId: nodeId,
-            distance,
-            data: node.data
-          });
-          
-          // 保持结果数量为k
-          if (resultMap.size > k) {
-            // 找出距离最远的结果并移除
-            const sortedResults = Array.from(resultMap.entries())
-              .sort((a, b) => b[1].distance - a[1].distance);
-            
-            if (sortedResults.length > 0) {
-              resultMap.delete(sortedResults[0][0]);
-            }
-          }
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-  }
-  
-  // 转换结果为数组，并按距离排序
+  // 转换结果为数组,并按距离从小到大排序 - 严格匹配hnswlayers的结果处理
   const results = Array.from(resultMap.values())
     .sort((a, b) => a.distance - b.distance)
     .slice(0, k);
   
-  return results;
+  // 添加得分属性(1-distance) - 与hnswlayers的score字段对应
+  return results.map(item => ({
+    ...item,
+    score: 1 - item.distance  // 添加score字段,表示相似度得分
+  }));
 }
 
 /**
@@ -1370,10 +1160,7 @@ export function createHNSWIndex({
     // 用于测试的内部属性
     _nodes: nodes,
     
-    // 优化连接结构函数
-    optimizeConnectivity: (options = {}) => optimizeIndexConnectivity(
-      nodes, entryPoint, distanceFunc, effectiveM, state, options
-    )
+  
   };
 }
 

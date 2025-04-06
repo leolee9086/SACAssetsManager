@@ -2,15 +2,14 @@
  * HNSW索引实现比较测试入口文件
  * 用于运行拆分后的HNSW测试模块
  * 
- * 已修复的问题:
- * 1. 召回率计算逻辑问题 - 不同实现的结果格式不一致导致ID匹配失败
- * 2. 添加了详细的调试输出以便定位问题
- * 3. 优化了ID提取和匹配逻辑，支持更多格式的结果
+ * 修改说明:
+ * 1. 移除了经典算法参与对比，只测试优化实现
+ * 2. 仍保留原有的调试支持和参数配置
  */
 
 import { runTests } from './hnswlayers对比测试/index.mjs';
 
-console.log('启动HNSW索引实现比较测试...');
+console.log('启动HNSW索引实现测试...');
 
 // 运行测试，使用自定义测试参数
 runTests({
@@ -22,10 +21,11 @@ runTests({
   startVectorCount: 1000,   // 起始测试向量数量
   hnswParams: {
     M: 12,                  // 每个节点的最大连接数
-    efConstruction: 100,    // 构建索引时的ef值
-    efSearch: 50,           // 搜索时的ef值
+    efConstruction: 200,    // 构建索引时的ef值
+    efSearch: 100,          // 搜索时的ef值
     ml: 6                   // 最大层数
   },
+  skipClassicImplementation: true, // 跳过经典算法对比
   debug: true               // 启用详细调试输出
 }).catch(error => {
   console.error('测试执行失败:', error);

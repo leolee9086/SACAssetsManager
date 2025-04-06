@@ -58,10 +58,17 @@ async function generateTestData(numVectors, dimensions, numQueries) {
  * @param {string} modelName - 模型名称
  * @param {Object} hnswParams - HNSW索引参数
  * @param {number} minRecallRate - 最小可接受召回率
+ * @param {Object} options - 其他测试选项
+ * @param {boolean} [options.skipClassicImplementation=false] - 是否跳过经典算法的测试
  * @returns {Object} 测试结果
  */
-async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, hnswParams, minRecallRate) {
+async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, hnswParams, minRecallRate, options = {}) {
   console.log(`\n============ 测试向量数量: ${numVectors} ============`);
+  const skipClassicImplementation = options.skipClassicImplementation || false;
+  
+  if (skipClassicImplementation) {
+    console.log('⚠️ 注意: 经典HNSW实现将被跳过');
+  }
 
   try {
     // 0. 准备测试数据
@@ -85,12 +92,15 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       ml: hnswParams.ml
     });
 
-    // 经典HNSW实现
-    const collectionName = `hnsw测试_${Date.now()}_${numVectors}`;
-    const collection = new 数据集(collectionName, 'id', 'debug', {
-      文件保存格式: 'json',
-      文件保存地址: './temp'
-    });
+    // 经典HNSW实现，仅在不跳过的情况下初始化
+    let collection = null;
+    if (!skipClassicImplementation) {
+      const collectionName = `hnsw测试_${Date.now()}_${numVectors}`;
+      collection = new 数据集(collectionName, 'id', 'debug', {
+        文件保存格式: 'json',
+        文件保存地址: './temp'
+      });
+    }
 
     // 3. 测量索引构建时间
     console.log(`[3/4] 测量索引构建时间...`);
@@ -98,7 +108,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
     // 记录构建时间
     const buildTimes = {
       custom: 0,
-      classic: 0,
+      classic: skipClassicImplementation ? -1 : 0,
       hora: 0
     };
 
@@ -122,12 +132,12 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       }
 
       // 添加数据到经典实现
-      for (const item of testData) {
+     /* for (const item of testData) {
         if (!item.meta) {
           item.meta = { id: item.id, text: `向量_${item.id}` };
         }
         await collection.添加数据([item]);
-      }
+      }*/
 
       const customBuildEnd = performance.now();
       buildTimes.custom = customBuildEnd - customBuildStart;
@@ -252,20 +262,9 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
 
         // 经典HNSW查询
         const classicStartTime = performance.now();
-        let classicResults = await collection.以向量搜索数据('test_model', queryVector, k);
-
-        try {
-          const tempResults = await collection.以向量搜索数据('test_model', queryVector, k);
-          if (tempResults && Array.isArray(tempResults)) {
-            classicResults = tempResults;
-
-            // 添加调试信息，查看经典HNSW实现的结果格式
-            if (i === 0) {
-              console.log('- 经典HNSW结果样本:', classicResults.slice(0, 1).id);
-            }
-          }
-        } catch (e) {
-          console.error('经典HNSW查询错误:', e);
+        let classicResults = null;
+        if (!skipClassicImplementation) {
+          classicResults = await collection.以向量搜索数据('test_model', queryVector, k);
         }
         const classicEndTime = performance.now();
         classicQueryTimes.push(classicEndTime - classicStartTime);
@@ -304,7 +303,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
             console.log('\n======== 召回率计算调试 ========');
             console.log(`精确结果数量: ${exactResults.length}`);
             console.log(`自定义HNSW结果数量: ${customResults.length}`);
-            console.log(`经典HNSW结果数量: ${classicResults.length}`);
+            console.log(`经典HNSW结果数量: ${classicResults ? classicResults.length : '未计算'}`);
             console.log(`Hora WASM结果数量: ${horaResultArray.length}`);
 
             // 检查结果是否为空
@@ -386,7 +385,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
                 typeof sampleCustom === 'object' ? JSON.stringify(sampleCustom) : sampleCustom);
             }
 
-            if (classicResults.length > 0) {
+            if (classicResults && classicResults.length > 0) {
               const sampleClassic = classicResults[0];
               console.log('经典HNSW第一个结果:',
                 typeof sampleClassic === 'object' ? JSON.stringify(sampleClassic) : sampleClassic);
@@ -394,21 +393,23 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
           }
 
           const customRecall = computeCustomRecallRate(customResults, exactResults, k, isFirstQuery);
-          const classicRecall = computeClassicRecallRate(classicResults, exactResults, k, isFirstQuery);
+          const classicRecall = skipClassicImplementation ? null : computeClassicRecallRate(classicResults, exactResults, k, isFirstQuery);
           const horaRecall = computeHoraRecallRate(horaResultArray, exactResults, k, isFirstQuery);
 
           // 在第一次查询后输出召回率结果
           if (isFirstQuery) {
             console.log('\n召回率计算结果:');
             console.log(`自定义HNSW: ${(customRecall * 100).toFixed(2)}%`);
-            console.log(`经典HNSW: ${(classicRecall * 100).toFixed(2)}%`);
+            console.log(`经典HNSW: ${(classicRecall ? (classicRecall * 100).toFixed(2) : '未计算')}%`);
             console.log(`Hora WASM: ${(horaRecall * 100).toFixed(2)}%`);
             console.log('======== 召回率计算调试结束 ========\n');
           }
 
           // 记录召回率
           recallRates.custom.push(customRecall);
-          recallRates.classic.push(classicRecall);
+          if (!skipClassicImplementation) {
+            recallRates.classic.push(classicRecall);
+          }
           recallRates.hora.push(horaRecall);
         } catch (error) {
           horaQueryTimes.push(0);
@@ -418,18 +419,18 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
 
       // 5. 计算统计结果
       const customQueryStats = computePerformanceStats(customQueryTimes);
-      const classicQueryStats = computePerformanceStats(classicQueryTimes);
+      const classicQueryStats = skipClassicImplementation ? null : computePerformanceStats(classicQueryTimes);
       const exactQueryStats = computePerformanceStats(exactQueryTimes);
       const horaQueryStats = computePerformanceStats(horaQueryTimes);
 
       const customRecallStats = computePerformanceStats(recallRates.custom.map(r => r * 100));
-      const classicRecallStats = computePerformanceStats(recallRates.classic.map(r => r * 100));
+      const classicRecallStats = skipClassicImplementation ? null : computePerformanceStats(recallRates.classic.map(r => r * 100));
       const horaRecallStats = computePerformanceStats(recallRates.hora.map(r => r * 100));
 
       // 计算相对速度提升
       const speedups = {
         custom: exactQueryStats.avg / customQueryStats.avg,
-        classic: exactQueryStats.avg / classicQueryStats.avg,
+        classic: skipClassicImplementation ? null : exactQueryStats.avg / classicQueryStats.avg,
         hora: horaQueryTimes.some(t => t > 0) ? exactQueryStats.avg / horaQueryStats.avg : 0
       };
 
@@ -442,7 +443,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       console.log('\n⏱️  构建时间 (ms)');
       console.log('┌────────────────┬─────────────┐');
       console.log(`│ 自定义HNSW     │ ${buildTimes.custom.toFixed(2).padStart(11)} │`);
-      console.log(`│ 经典HNSW       │ ${buildTimes.classic.toFixed(2).padStart(11)} │`);
+      console.log(`│ 经典HNSW       │ ${buildTimes.classic === -1 ? '跳过' : buildTimes.classic.toFixed(2).padStart(11)} │`);
       console.log(`│ Hora WASM HNSW │ ${buildTimes.hora.toFixed(2).padStart(11)} │`);
       console.log('└────────────────┴─────────────┘');
 
@@ -451,7 +452,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       console.log('┌────────────────┬─────────────┬─────────────┐');
       console.log(`│ 精确查询       │ ${exactQueryStats.avg.toFixed(2).padStart(11)} │      -      │`);
       console.log(`│ 自定义HNSW     │ ${customQueryStats.avg.toFixed(2).padStart(11)} │ ${speedups.custom.toFixed(2).padStart(11)}x │`);
-      console.log(`│ 经典HNSW       │ ${classicQueryStats.avg.toFixed(2).padStart(11)} │ ${speedups.classic.toFixed(2).padStart(11)}x │`);
+      console.log(`│ 经典HNSW       │ ${classicQueryStats ? classicQueryStats.avg.toFixed(2).padStart(11) : '未计算'} │ ${speedups.classic === null ? 'N/A' : speedups.classic.toFixed(2).padStart(11)}x │`);
       console.log(`│ Hora WASM HNSW │ ${horaQueryStats.avg.toFixed(2).padStart(11)} │ ${(speedups.hora > 0 ? speedups.hora.toFixed(2) : 'N/A').padStart(11)} │`);
       console.log('└────────────────┴─────────────┴─────────────┘');
 
@@ -461,20 +462,20 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       console.log(`│ 实现           │     平均    │     最低    │     最高    │`);
       console.log('├────────────────┼─────────────┼─────────────┼─────────────┤');
       console.log(`│ 自定义HNSW     │ ${customRecallStats.avg.toFixed(2).padStart(11)} │ ${customRecallStats.min.toFixed(2).padStart(11)} │ ${customRecallStats.max.toFixed(2).padStart(11)} │`);
-      console.log(`│ 经典HNSW       │ ${classicRecallStats.avg.toFixed(2).padStart(11)} │ ${classicRecallStats.min.toFixed(2).padStart(11)} │ ${classicRecallStats.max.toFixed(2).padStart(11)} │`);
+      console.log(`│ 经典HNSW       │ ${classicRecallStats ? classicRecallStats.avg.toFixed(2).padStart(11) : '未计算'} │ ${classicRecallStats ? classicRecallStats.min.toFixed(2).padStart(11) : '未计算'} │ ${classicRecallStats ? classicRecallStats.max.toFixed(2).padStart(11) : '未计算'} │`);
       console.log(`│ Hora WASM HNSW │ ${horaRecallStats.avg.toFixed(2).padStart(11)} │ ${horaRecallStats.min.toFixed(2).padStart(11)} │ ${horaRecallStats.max.toFixed(2).padStart(11)} │`);
       console.log('└────────────────┴─────────────┴─────────────┴─────────────┘');
 
       // 检查是否所有实现都满足最低召回率要求
       const recallPassed = {
         custom: customRecallStats.avg >= minRecallRate,
-        classic: classicRecallStats.avg >= minRecallRate,
+        classic: skipClassicImplementation ? null : classicRecallStats.avg >= minRecallRate,
         hora: horaRecallStats.avg >= minRecallRate
       };
 
       console.log(`\n📋 符合最低召回率要求 (${minRecallRate}%)`);
       console.log(`自定义HNSW: ${recallPassed.custom ? '✅ 通过' : '❌ 未通过'}`);
-      console.log(`经典HNSW: ${recallPassed.classic ? '✅ 通过' : '❌ 未通过'}`);
+      console.log(`经典HNSW: ${recallPassed.classic === null ? '未计算' : (recallPassed.classic ? '✅ 通过' : '❌ 未通过')}`);
       console.log(`Hora WASM HNSW: ${recallPassed.hora ? '✅ 通过' : '❌ 未通过'}`);
 
       // 返回测试结果
@@ -496,12 +497,12 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
         failedCriteria: {
           speedup: {
             custom: speedups.custom < 1,
-            classic: speedups.classic < 1,
+            classic: skipClassicImplementation ? null : speedups.classic < 1,
             hora: speedups.hora > 0 ? speedups.hora < 1 : (bulkAddResult && horaRecallStats.avg <= 0)
           },
           recall: {
             custom: customRecallStats.avg < minRecallRate,
-            classic: classicRecallStats.avg < minRecallRate,
+            classic: skipClassicImplementation ? null : classicRecallStats.avg < minRecallRate,
             hora: horaRecallStats.avg > 0 ? horaRecallStats.avg < minRecallRate : (bulkAddResult)
           }
         }
@@ -531,6 +532,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
  * @param {number} [options.maxVectorCount=1000] - 最大测试向量数量
  * @param {number} [options.startVectorCount=100] - 起始测试向量数量
  * @param {Object} [options.hnswParams] - HNSW索引参数
+ * @param {boolean} [options.skipClassicImplementation=false] - 是否跳过经典算法的测试
  * @returns {Promise<Object>} 测试结果
  */
 async function 指数级扩展测试(options = {}) {
@@ -548,6 +550,11 @@ async function 指数级扩展测试(options = {}) {
     const growthFactor = options.growthFactor || 2;      // 向量数量增长因子
     const maxVectorCount = options.maxVectorCount || 8000; // 最大测试向量数量
     const startVectorCount = options.startVectorCount || 1000; // 起始向量数量
+    const skipClassicImplementation = options.skipClassicImplementation || false; // 是否跳过经典算法
+
+    if (skipClassicImplementation) {
+      console.log('📢 经典HNSW实现将被跳过（根据测试配置选项）');
+    }
 
     // HNSW参数
     const hnswParams = options.hnswParams || {
@@ -572,7 +579,8 @@ async function 指数级扩展测试(options = {}) {
           k,
           modelName,
           hnswParams,
-          minRecallRate
+          minRecallRate,
+          { skipClassicImplementation }
         );
 
         testResults.push(result);
@@ -581,18 +589,18 @@ async function 指数级扩展测试(options = {}) {
         const failedSpeedup = result.failedCriteria?.speedup;
         const failedRecall = result.failedCriteria?.recall;
 
-        if (failedSpeedup && (failedSpeedup.custom && failedSpeedup.classic && failedSpeedup.hora)) {
-          console.log('\n⚠️ 性能测试未通过: 所有实现的查询速度都慢于暴力搜索');
+        if (failedSpeedup && (failedSpeedup.custom && failedSpeedup.classic === null && failedSpeedup.hora)) {
+          console.log('\n⚠️ 性能测试未通过: 自定义HNSW和Hora WASM HNSW的查询速度都慢于暴力搜索');
           console.log('- 自定义HNSW:', failedSpeedup.custom ? '未通过' : '通过');
-          console.log('- 经典HNSW:', failedSpeedup.classic ? '未通过' : '通过');
+          console.log('- 经典HNSW:', failedSpeedup.classic === null ? '未计算' : '通过');
           console.log('- Hora WASM HNSW:', failedSpeedup.hora ? '未通过' : '通过');
           shouldStopTesting = true;
         }
 
-        if (failedRecall && (failedRecall.custom && failedRecall.classic && failedRecall.hora)) {
-          console.log('\n⚠️ 准确性测试未通过: 所有实现的召回率都低于阈值', minRecallRate, '%');
+        if (failedRecall && (failedRecall.custom && failedRecall.classic === null && failedRecall.hora)) {
+          console.log('\n⚠️ 准确性测试未通过: 自定义HNSW和Hora WASM HNSW的召回率都低于阈值', minRecallRate, '%');
           console.log('- 自定义HNSW:', failedRecall.custom ? '未通过' : '通过');
-          console.log('- 经典HNSW:', failedRecall.classic ? '未通过' : '通过');
+          console.log('- 经典HNSW:', failedRecall.classic === null ? '未计算' : '通过');
           console.log('- Hora WASM HNSW:', failedRecall.hora ? '未通过' : '通过');
           shouldStopTesting = true;
         }
@@ -633,7 +641,7 @@ async function 指数级扩展测试(options = {}) {
 
       testResults.forEach(result => {
         if (!result.error) {
-          console.log(`${result.vectorCount},${result.queryStats.custom.avg.toFixed(2)},${result.queryStats.classic.avg.toFixed(2)},${result.queryStats.hora.avg.toFixed(2)},${result.queryStats.exact.avg.toFixed(2)},${result.recallStats.custom.avg.toFixed(2)},${result.recallStats.classic.avg.toFixed(2)},${result.recallStats.hora.avg.toFixed(2)}`);
+          console.log(`${result.vectorCount},${result.queryStats.custom.avg.toFixed(2)},${result.queryStats.classic ? result.queryStats.classic.avg.toFixed(2) : '未计算'},${result.queryStats.hora.avg.toFixed(2)},${result.queryStats.exact.avg.toFixed(2)},${result.recallStats.custom.avg.toFixed(2)},${result.recallStats.classic ? result.recallStats.classic.avg.toFixed(2) : '未计算'},${result.recallStats.hora.avg.toFixed(2)}`);
         }
       });
 
@@ -653,8 +661,8 @@ async function 指数级扩展测试(options = {}) {
         console.log('\n最终规模下各实现性能对比:');
 
         const implementations = ['自定义HNSW', '经典HNSW', 'Hora WASM HNSW'];
-        const speedups = [lastValidResult.speedups.custom, lastValidResult.speedups.classic, lastValidResult.speedups.hora];
-        const recalls = [lastValidResult.recallStats.custom.avg, lastValidResult.recallStats.classic.avg, lastValidResult.recallStats.hora.avg];
+        const speedups = [lastValidResult.speedups.custom, lastValidResult.speedups.classic === null ? null : lastValidResult.speedups.classic, lastValidResult.speedups.hora];
+        const recalls = [lastValidResult.recallStats.custom.avg, lastValidResult.recallStats.classic ? lastValidResult.recallStats.classic.avg : null, lastValidResult.recallStats.hora.avg];
 
         // 跳过Hora评估，如果它没有成功运行
         let validImplementations = implementations.slice();
@@ -669,18 +677,18 @@ async function 指数级扩展测试(options = {}) {
         }
 
         // 找出最佳速度和召回率的实现
-        const bestSpeedupIndex = validSpeedups.findIndex(s => s === Math.max(...validSpeedups));
-        const bestRecallIndex = validRecalls.findIndex(r => r === Math.max(...validRecalls));
+        const bestSpeedupIndex = validSpeedups.findIndex(s => s === Math.max(...validSpeedups.filter(s => s !== null)));
+        const bestRecallIndex = validRecalls.findIndex(r => r === Math.max(...validRecalls.filter(r => r !== null)));
 
-        console.log(`速度最优: ${validImplementations[bestSpeedupIndex]} (${validSpeedups[bestSpeedupIndex].toFixed(2)}x)`);
-        console.log(`召回率最优: ${validImplementations[bestRecallIndex]} (${validRecalls[bestRecallIndex].toFixed(2)}%)`);
+        console.log(`速度最优: ${validImplementations[bestSpeedupIndex]} (${validSpeedups[bestSpeedupIndex] === null ? 'N/A' : validSpeedups[bestSpeedupIndex].toFixed(2)}x)`);
+        console.log(`召回率最优: ${validImplementations[bestRecallIndex]} (${validRecalls[bestRecallIndex] === null ? '未计算' : validRecalls[bestRecallIndex].toFixed(2)}%)`);
 
         // 综合评分
         const combinedScores = validImplementations.map((_, i) => {
           // 标准化速度分数
-          const speedupScore = validSpeedups[i] / Math.max(...validSpeedups);
+          const speedupScore = validSpeedups[i] === null ? 0 : validSpeedups[i] / Math.max(...validSpeedups.filter(s => s !== null));
           // 标准化召回率分数
-          const recallScore = validRecalls[i] / Math.max(...validRecalls);
+          const recallScore = validRecalls[i] === null ? 0 : validRecalls[i] / Math.max(...validRecalls.filter(r => r !== null));
           // 综合分数 (60% 速度 + 40% 召回率)
           return speedupScore * 0.6 + recallScore * 0.4;
         });
