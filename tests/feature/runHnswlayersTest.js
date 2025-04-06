@@ -14,7 +14,7 @@ console.log('启动HNSW索引实现测试...');
 // 运行测试，使用自定义测试参数
 runTests({
   dimensions: 512,          // 降低维度，加快测试
-  numQueries: 5,            // 减少查询次数，加快测试
+  numQueries: 100,            // 减少查询次数，加快测试
   k: 10,                    // 查询返回的邻居数量
   minRecallRate: 70,        // 降低最小可接受召回率
   maxVectorCount: 1000,     // 降低最大测试向量数量
