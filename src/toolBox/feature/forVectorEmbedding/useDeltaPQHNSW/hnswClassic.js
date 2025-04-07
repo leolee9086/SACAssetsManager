@@ -111,25 +111,6 @@ class Neighbor {
     }
 }
 
-// FixedBitSet替代 - 用于跟踪已访问节点
-class FixedBitSet {
-    constructor(capacity) {
-        this.bits = new Set();
-        this.capacity = capacity;
-    }
-
-    insert(id) {
-        this.bits.add(id);
-    }
-
-    contains(id) {
-        return this.bits.has(id);
-    }
-
-    static withCapacity(capacity) {
-        return new FixedBitSet(capacity);
-    }
-}
 
 // 度量方法枚举
 export const Metric = {
@@ -477,7 +458,7 @@ export class HNSWIndex {
             const curNeighbors = this.getNeighbor(curId, level);
 
             for (const neigh of curNeighbors) {
-                if (visitedId.contains(neigh)) {
+                if (visitedId.has(neigh)) {
                     continue;
                 }
 
@@ -507,7 +488,7 @@ export class HNSWIndex {
 
     // 在特定层级搜索
     searchLayer(root, searchData, level, ef, hasDeletion) {
-        const visitedId = new FixedBitSet(this._nodes.length);
+        const visitedId = new Set();
         const topCandidates = createBinaryHeap((a, b) => {
             return b.distance() - a.distance(); // 最小堆 (距离越小越好)
         });
@@ -527,7 +508,7 @@ export class HNSWIndex {
             candidates.push(Neighbor.new(root, -lowerBound));
         }
 
-        visitedId.insert(root);
+        visitedId.add(root);
 
         while (!candidates.isEmpty()) {
             const curNeigh = candidates.peek();
@@ -542,7 +523,7 @@ export class HNSWIndex {
             const curNeighbors = this.getNeighbor(curId, level);
 
             for (const neigh of curNeighbors) {
-                if (visitedId.contains(neigh)) {
+                if (visitedId.has(neigh)) {
                     continue;
                 }
 
@@ -735,11 +716,11 @@ export class HNSWIndex {
         }
 
         let level = insertLevel < this._cur_level ? insertLevel : this._cur_level;
-        const visitedId = new FixedBitSet(this._nodes.length);
+        const visitedId = new Set();
         let sortedCandidates = [];
         const insertData = this.getData(insertId);
 
-        visitedId.insert(insertId);
+        visitedId.add(insertId);
         sortedCandidates.push(Neighbor.new(curId, this.getDistanceFromId(curId, insertId)));
 
         while (true) {
