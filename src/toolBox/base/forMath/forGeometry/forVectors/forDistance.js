@@ -101,9 +101,6 @@ export function computeCosineDistance(x, y) {
 
   if (normXSqrt === 0 || normYSqrt === 0) return 1.0;
   return 1.0 - dotProduct / (normXSqrt * normYSqrt);
-
-
-  return 1 - similarity;
 }
 
 /**
