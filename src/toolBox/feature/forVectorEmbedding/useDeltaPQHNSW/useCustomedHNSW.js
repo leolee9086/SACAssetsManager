@@ -8,7 +8,7 @@ import {
   computeInnerProduct
 } from "../../../base/forMath/forGeometry/forVectors/forDistance.js";
 // 导入HNSW辅助函数
-import { createMinHeap } from "../../../feature/useDataStruct/useHeaps/useMinHeap.js";
+import { createMinHeap as createBinaryHeap } from "../../../feature/useDataStruct/useHeaps/useMinHeap.js";
 
 // 常量定义
 const DEFAULT_M = 32;                  
@@ -28,88 +28,7 @@ const Metric = {
 
 // ================ 基础数据结构 ================
 
-/**
- * 创建二进制堆实现 - 对标BinaryHeap
- */
-export function createBinaryHeap(comparator) {
-  const elements = [];
 
-  return {
-    push(element) {
-      // 添加元素到末尾并上浮到合适位置
-      elements.push(element);
-      let currentIndex = elements.length - 1;
-      while (currentIndex > 0) {
-        const parentIndex = Math.floor((currentIndex - 1) / 2);
-        if (comparator(elements[currentIndex], elements[parentIndex]) >= 0) break;
-        // 交换元素
-        [elements[currentIndex], elements[parentIndex]] = [elements[parentIndex], elements[currentIndex]];
-        currentIndex = parentIndex;
-      }
-    },
-
-    pop() {
-      if (elements.length === 0) return null;
-
-      const top = elements[0];
-      const bottom = elements.pop();
-
-      if (elements.length > 0) {
-        elements[0] = bottom;
-        // 下沉操作
-        let currentIndex = 0;
-        while (true) {
-          const leftChildIndex = 2 * currentIndex + 1;
-          const rightChildIndex = 2 * currentIndex + 2;
-          let smallestIndex = currentIndex;
-
-          if (leftChildIndex < elements.length &&
-              comparator(elements[leftChildIndex], elements[smallestIndex]) < 0) {
-            smallestIndex = leftChildIndex;
-          }
-
-          if (rightChildIndex < elements.length &&
-              comparator(elements[rightChildIndex], elements[smallestIndex]) < 0) {
-            smallestIndex = rightChildIndex;
-          }
-
-          if (smallestIndex === currentIndex) break;
-
-          [elements[currentIndex], elements[smallestIndex]] =
-            [elements[smallestIndex], elements[currentIndex]];
-          currentIndex = smallestIndex;
-        }
-      }
-
-      return top;
-    },
-
-    peek() {
-      return elements.length > 0 ? elements[0] : null;
-    },
-
-    isEmpty() {
-      return elements.length === 0;
-    },
-
-    size() {
-      return elements.length;
-    },
-
-    clear() {
-      elements.length = 0;
-    },
-
-    // 转换为排序数组
-    intoSortedVec() {
-      // 避免创建额外数组，直接克隆并排序
-      if (elements.length === 0) return [];
-      const sorted = elements.slice(0);
-      sorted.sort(comparator);
-      return sorted;
-    }
-  };
-}
 
 /**
  * 创建邻居对象的辅助函数

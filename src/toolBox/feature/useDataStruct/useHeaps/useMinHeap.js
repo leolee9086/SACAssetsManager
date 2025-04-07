@@ -12,25 +12,22 @@ function swap(heap, i, j) {
 
 // 非递归实现的堆操作函数 - 避免函数调用开销
 function heapifyUp(heap, compareFn, index) {
-    const value = heap[index];
     let currentIndex = index;
-    let parentIndex = parent(currentIndex);
     
-    while (currentIndex > 0 && compareFn(heap[parentIndex], value) > 0) {
-        heap[currentIndex] = heap[parentIndex];
+    while (currentIndex > 0) {
+        const parentIndex = parent(currentIndex);
+        // 修改比较条件，使其与$createBinaryHeap兼容
+        // 当compareFn(current, parent) < 0时，current应该排在parent前面
+        if (compareFn(heap[currentIndex], heap[parentIndex]) >= 0) break;
+        
+        // 直接交换元素，与$createBinaryHeap保持一致
+        swap(heap, currentIndex, parentIndex);
         currentIndex = parentIndex;
-        parentIndex = parent(currentIndex);
-    }
-    
-    // 只有在最终位置不同时才赋值，减少不必要的操作
-    if (currentIndex !== index) {
-        heap[currentIndex] = value;
     }
 }
 
 function heapifyDown(heap, compareFn, index) {
     const size = heap.length;
-    const value = heap[index];
     let currentIndex = index;
     
     while (true) {
@@ -38,6 +35,7 @@ function heapifyDown(heap, compareFn, index) {
         const leftIndex = left(currentIndex);
         const rightIndex = right(currentIndex);
         
+        // 修改比较条件，使其与$createBinaryHeap兼容
         if (leftIndex < size && compareFn(heap[leftIndex], heap[smallestIndex]) < 0) {
             smallestIndex = leftIndex;
         }
@@ -48,13 +46,9 @@ function heapifyDown(heap, compareFn, index) {
         
         if (smallestIndex === currentIndex) break;
         
-        heap[currentIndex] = heap[smallestIndex];
+        // 直接交换元素，与$createBinaryHeap保持一致
+        swap(heap, currentIndex, smallestIndex);
         currentIndex = smallestIndex;
-    }
-    
-    // 只有在最终位置不同时才赋值
-    if (currentIndex !== index) {
-        heap[currentIndex] = value;
     }
 }
 
@@ -63,12 +57,14 @@ async function asyncHeapifyUp(heap, compareFn, index) {
     // 计算所有可能的交换操作，然后批量执行
     const swaps = [];
     let currentIndex = index;
-    let parentIndex = parent(currentIndex);
     
-    while (currentIndex > 0 && compareFn(heap[parentIndex], heap[currentIndex]) > 0) {
+    while (currentIndex > 0) {
+        const parentIndex = parent(currentIndex);
+        // 修改比较条件，使其与$createBinaryHeap兼容
+        if (compareFn(heap[currentIndex], heap[parentIndex]) >= 0) break;
+        
         swaps.push([currentIndex, parentIndex]);
         currentIndex = parentIndex;
-        parentIndex = parent(currentIndex);
     }
     
     // 批量执行交换，每10次操作让出一次事件循环
@@ -90,6 +86,7 @@ async function asyncHeapifyDown(heap, compareFn, index) {
         const leftIndex = left(currentIndex);
         const rightIndex = right(currentIndex);
         
+        // 修改比较条件，使其与$createBinaryHeap兼容
         if (leftIndex < size && compareFn(heap[leftIndex], heap[smallestIndex]) < 0) {
             smallestIndex = leftIndex;
         }
@@ -230,9 +227,10 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
     const transactionSystem = createTransactionSystem();
     
     // 用于跟踪最大值的最大堆
-    let maxHeap = [];
+    let maxHeap = null; // 初始化为null，表示尚未创建
     const maxCompareFn = (a, b) => -compareFn(a, b); // 反转比较函数
     let maxHeapSynced = false; // 标记最大堆是否已同步
+    let maxHeapInitialized = false; // 标记最大堆是否已初始化
     
     // 内部帮助方法
     const validateValue = (value) => {
@@ -241,8 +239,42 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
         }
     };
     
+    // 初始化最大堆
+    const initializeMaxHeap = () => {
+        if (maxHeapInitialized) return;
+        
+        // 创建最大堆
+        maxHeap = [];
+        
+        // 如果主堆为空，则清空最大堆
+        if (heap.length === 0) {
+            maxHeapSynced = true;
+            maxHeapInitialized = true;
+            return;
+        }
+        
+        // 将最小堆中的所有元素复制到最大堆
+        for (const value of heap) {
+            maxHeap.push(value);
+        }
+        
+        // 构建最大堆
+        for (let i = Math.max(0, parent(maxHeap.length - 1)); i >= 0; i--) {
+            heapifyDown(maxHeap, maxCompareFn, i);
+        }
+        
+        maxHeapSynced = true;
+        maxHeapInitialized = true;
+    };
+    
     // 同步最大堆中的元素
     const syncMaxHeap = () => {
+        // 如果最大堆尚未初始化，则初始化它
+        if (!maxHeapInitialized) {
+            initializeMaxHeap();
+            return;
+        }
+        
         // 重建最大堆
         maxHeap = [];
         
@@ -267,6 +299,11 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
     
     // 确保最大堆已同步
     const ensureMaxHeapSynced = () => {
+        if (!maxHeapInitialized) {
+            initializeMaxHeap();
+            return;
+        }
+        
         if (!maxHeapSynced) {
             syncMaxHeap();
         }
@@ -279,11 +316,11 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
             heap.push(value);
             heapifyUp(heap, compareFn, heap.length - 1);
             
-            // 将同一个值添加到最大堆，如果最大堆已同步
-            if (maxHeapSynced && maxHeap.length > 0) {
+            // 如果最大堆已初始化，则同步更新
+            if (maxHeapInitialized && maxHeapSynced && maxHeap.length > 0) {
                 maxHeap.push(value);
                 heapifyUp(maxHeap, maxCompareFn, maxHeap.length - 1);
-            } else {
+            } else if (maxHeapInitialized) {
                 // 标记最大堆需要重新同步
                 maxHeapSynced = false;
             }
@@ -300,8 +337,10 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
                 heapifyDown(heap, compareFn, 0);
             }
             
-            // 最小堆变化后，标记最大堆需要重新同步
-            maxHeapSynced = false;
+            // 如果最大堆已初始化，标记需要重新同步
+            if (maxHeapInitialized) {
+                maxHeapSynced = false;
+            }
             
             return min;
         },
@@ -342,22 +381,29 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
         pushAsync: async (value) => {
             validateValue(value);
             
-            heap.push(value);
-            await asyncHeapifyUp(heap, compareFn, heap.length - 1);
+            // 使用事务系统确保操作的一致性
+            return transactionSystem.withTransaction(heap, async (data) => {
+                data.push(value);
+                await asyncHeapifyUp(data, compareFn, data.length - 1);
+                return value;
+            });
         },
         
         popAsync: async () => {
             if (heap.length === 0) return null;
             
-            const min = heap[0];
-            const last = heap.pop();
-            
-            if (heap.length > 0) {
-                heap[0] = last;
-                await asyncHeapifyDown(heap, compareFn, 0);
-            }
-            
-            return min;
+            // 使用事务系统确保操作的一致性
+            return transactionSystem.withTransaction(heap, async (data) => {
+                const min = data[0];
+                const last = data.pop();
+                
+                if (data.length > 0) {
+                    data[0] = last;
+                    await asyncHeapifyDown(data, compareFn, 0);
+                }
+                
+                return min;
+            });
         },
         
         peek: () => heap.length > 0 ? heap[0] : null,
@@ -376,8 +422,6 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
         pushBulk: (values) => {
             if (!Array.isArray(values) || values.length === 0) return;
             
-            // 先添加所有元素
-            const originalSize = heap.length;
             heap.push(...values);
             
             // 从倒数第一个非叶子节点开始向下调整整个堆
@@ -389,8 +433,10 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
         // 高效地清空堆
         clear: () => {
             heap.length = 0;
-            maxHeap = [];
-            maxHeapSynced = true;
+            if (maxHeapInitialized) {
+                maxHeap = [];
+                maxHeapSynced = true;
+            }
         },
         
         // 事务系统接口
@@ -431,19 +477,31 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
             // 从主堆中找到并删除该元素 - 使用更可靠的查找方法
             let index = -1;
             
-            // 对于复杂对象，不能只比较值是否等于0，需要检查对象身份或深度比较
+            // 改进的对象比较逻辑
             if (typeof worst === 'object' && worst !== null) {
-                // 如果对象有id属性，使用id比较
-                if (worst.id !== undefined) {
-                    for (let i = 0; i < heap.length; i++) {
-                        if (heap[i].id === worst.id) {
-                            index = i;
-                            break;
-                        }
+                // 尝试多种比较策略
+                // 1. 首先尝试使用严格相等比较对象引用
+                index = heap.findIndex(item => item === worst);
+                
+                // 2. 如果找不到，尝试使用id属性比较
+                if (index === -1 && worst.id !== undefined) {
+                    index = heap.findIndex(item => item && item.id === worst.id);
+                }
+                
+                // 3. 如果仍然找不到，尝试使用JSON字符串比较（适用于简单对象）
+                if (index === -1) {
+                    try {
+                        const worstStr = JSON.stringify(worst);
+                        index = heap.findIndex(item => {
+                            try {
+                                return JSON.stringify(item) === worstStr;
+                            } catch (e) {
+                                return false;
+                            }
+                        });
+                    } catch (e) {
+                        // JSON序列化失败，忽略此比较方法
                     }
-                } else {
-                    // 否则使用严格相等比较对象引用
-                    index = heap.findIndex(item => item === worst);
                 }
             } else {
                 // 基本类型或null可以使用标准比较
@@ -471,10 +529,37 @@ const createMinHeap = (compareFn = (a, b) => a - b) => {
                 syncMaxHeap();
             }
             
-            // 最小堆变化后，标记最大堆需要重新同步，但我们已经手动维护了它
-            // 这里不需要完全重建，因为我们已经正确移除了元素
+            // 标记最大堆需要重新同步，因为我们已经修改了最大堆
+            maxHeapSynced = false;
             
             return worst;
+        },
+        
+        // 添加intoSortedVec方法，与useCustomedHNSW.js中的createBinaryHeap兼容
+        intoSortedVec: () => {
+            // 如果堆为空，直接返回空数组
+            if (heap.length === 0) return [];
+            
+            // 创建堆的副本，避免修改原始堆
+            const heapCopy = [...heap];
+            const result = [];
+            
+            // 使用堆排序算法，逐个提取最小元素
+            while (heapCopy.length > 0) {
+                // 提取堆顶元素（最小值）
+                const min = heapCopy[0];
+                result.push(min);
+                
+                // 将最后一个元素移到堆顶
+                const last = heapCopy.pop();
+                if (heapCopy.length > 0) {
+                    heapCopy[0] = last;
+                    // 向下调整堆
+                    heapifyDown(heapCopy, compareFn, 0);
+                }
+            }
+            
+            return result;
         }
     };
 };
@@ -513,7 +598,7 @@ class MinHeap {
     }
 
     async pushAsync(value) {
-        await this.heap.pushAsync(value);
+        return await this.heap.pushAsync(value);
     }
     
     async popAsync() {
@@ -522,7 +607,7 @@ class MinHeap {
     
     // 提供安全版本的异步操作
     async pushAsyncSafe(value) {
-        await this.heap.pushAsyncSafe(value);
+        return await this.heap.pushAsyncSafe(value);
     }
     
     async popAsyncSafe() {
@@ -568,11 +653,20 @@ class MinHeap {
         const elements = this.getHeap();
         return elements;
     }
+    
+    /**
+     * 将堆转换为排序数组，与useCustomedHNSW.js中的createBinaryHeap兼容
+     * @returns {Array} 排序后的数组
+     */
+    intoSortedVec() {
+        return this.heap.intoSortedVec();
+    }
 }
 
 /**
  * 创建专门用于HNSW搜索的最大堆
  * 对标准MinHeap的封装，简化了最大堆的使用
+ * 完全兼容$createBinaryHeap接口
  */
 export function createMaxHeap(compareFunc = (a, b) => a - b) {
     // 反转比较函数，将最小堆转为最大堆
@@ -586,28 +680,23 @@ export function createMaxHeap(compareFunc = (a, b) => a - b) {
       peek: () => heap.peek(),
       size: () => heap.size(),
       isEmpty: () => heap.size() === 0,
+      clear: () => heap.clear(),
       toArray: () => {
-        const array = [];
-        const tempHeap = createMinHeap(maxHeapCompare);
-        
-        // 复制堆内容
-        while (heap.size() > 0) {
-          const item = heap.pop();
-          array.push(item);
-          tempHeap.push(item);
-        }
-        
-        // 恢复堆
-        while (tempHeap.size() > 0) {
-          heap.push(tempHeap.pop());
-        }
-        
-        return array;
+        // 直接返回堆的副本，不改变堆的状态
+        return [...heap.getHeap()];
       },
       getWorst: () => {
         if (heap.size() === 0) return null;
-        return heap.peek();
+        // 这里会触发最大堆的初始化（如果尚未初始化）
+        return heap.getWorst();
+      },
+      // 添加intoSortedVec方法，与useCustomedHNSW.js中的createBinaryHeap兼容
+      intoSortedVec: () => {
+        return heap.intoSortedVec();
       }
     };
   }
+
+// 明确导出接口，同时保持与useCustomedHNSW.js的兼容性
 export { createMinHeap, MinHeap };
+export { createMaxHeap as createBinaryHeap };

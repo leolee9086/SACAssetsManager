@@ -78,4 +78,29 @@ HNSW（Hierarchical Navigable Small World）算法是一种高效的近似最近
 1. 实现批量添加节点的并行优化
 2. 进一步优化内存占用
 3. 增加向量量化支持
-4. 实现数据持久化和增量加载 
+4. 实现数据持久化和增量加载
+
+# HNSW实现优化笔记
+
+## 2023-11-01 优化二进制堆实现
+
+### 问题描述
+`useCustomedHNSW.js`文件中的`createBinaryHeap`函数实现了一个最大堆（MaxHeap），但项目中已经存在更完善的堆实现`useMaxHeap.js`。
+
+### 解决方案
+将`createBinaryHeap`函数替换为使用`createMaxHeap`函数，同时保持与原接口的兼容性。
+
+### 具体更改
+1. 修改`createBinaryHeap`函数，使其返回`createMaxHeap`创建的对象
+2. 添加`intoSortedVec`方法，以保持与原接口的兼容性
+3. 使用`toArray`方法替代`getHeap`方法获取堆的副本
+
+### 优势
+1. 代码复用，减少重复实现
+2. 利用`useMaxHeap.js`中更优化的实现
+3. 保持与原有代码的兼容性，不需要修改其他调用代码
+
+### 注意事项
+- 确保`createMaxHeap`返回的对象包含所有必要的方法
+- 特别注意`intoSortedVec`方法，因为这是原实现中特有的方法
+- 使用`toArray`方法获取堆的副本，以便实现`intoSortedVec`方法 
