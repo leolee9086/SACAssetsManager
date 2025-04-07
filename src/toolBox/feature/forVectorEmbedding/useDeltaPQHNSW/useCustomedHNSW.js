@@ -1,6 +1,6 @@
 /**
- * HNSW (Hierarchical Navigable Small World) 索引实现
- * 基于Rust的horaHnsw.rs 1:1翻译，确保算法一致性
+ * 优化版HNSW (Hierarchical Navigable Small World) 索引实现
+ * 使用更高效的邻居存储结构，以空间换性能
  */
 import {
   computeEuclideanDistance,
@@ -12,8 +12,8 @@ import { createMinHeap as createBinaryHeap } from "../../../feature/useDataStruc
 
 // 常量定义
 const DEFAULT_M = 32;                  
-const DEFAULT_EF_CONSTRUCTION = 800; 
-const DEFAULT_EF_SEARCH = 800;        
+const DEFAULT_EF_CONSTRUCTION = 200; 
+const DEFAULT_EF_SEARCH = 200;        
 const DEFAULT_ML = 16;                
 const BOTTOM_LAYER_CONNECTIONS = 64; 
 
@@ -26,10 +26,6 @@ const Metric = {
   DotProduct: 4
 };
 
-// ================ 基础数据结构 ================
-
-
-
 /**
  * 创建邻居对象的辅助函数
  */
@@ -41,16 +37,17 @@ export function createNeighbor(idx, distance) {
 }
 
 /**
- * Node类的函数式实现
+ * 优化版Node类的函数式实现
+ * 直接存储向量数据，减少函数调用开销
  */
 export function createNode(vector, id = null) {
   const vectorData = vector instanceof Float32Array ? vector : new Float32Array(vector);
   
   return {
-    vectors: () => vectorData,
-    len: () => vectorData.length,
-    idx: () => id,
-    clone: () => createNode([...vectorData], id)
+    vector: vectorData,
+    id: id,
+    data: null,
+    len: () => vectorData.length
   };
 }
 
@@ -64,55 +61,257 @@ export function metric(x, y, metricType) {
     throw new Error("向量维度不匹配或无效");
   }
 
-  let sum = 0;
+  // 使用预计算的向量长度缓存
+  const xLength = x.length;
+  const xBuffer = x instanceof Float32Array ? x : new Float32Array(x);
+  const yBuffer = y instanceof Float32Array ? y : new Float32Array(y);
+  
+  // 预计算向量长度
+  let xNorm = 0;
+  let yNorm = 0;
+  let dotProduct = 0;
+  
+  // 使用循环展开和SIMD友好的内存访问模式
+  for (let i = 0; i < xLength; i += 4) {
+    const x0 = xBuffer[i];
+    const y0 = yBuffer[i];
+    const x1 = xBuffer[i + 1];
+    const y1 = yBuffer[i + 1];
+    const x2 = xBuffer[i + 2];
+    const y2 = yBuffer[i + 2];
+    const x3 = xBuffer[i + 3];
+    const y3 = yBuffer[i + 3];
+    
+    // 并行计算点积和范数
+    dotProduct += x0 * y0 + x1 * y1 + x2 * y2 + x3 * y3;
+    xNorm += x0 * x0 + x1 * x1 + x2 * x2 + x3 * x3;
+    yNorm += y0 * y0 + y1 * y1 + y2 * y2 + y3 * y3;
+  }
+  
+  // 处理剩余元素
+  for (let i = (xLength & ~3); i < xLength; i++) {
+    const xi = xBuffer[i];
+    const yi = yBuffer[i];
+    dotProduct += xi * yi;
+    xNorm += xi * xi;
+    yNorm += yi * yi;
+  }
 
   switch (metricType) {
     case Metric.Euclidean:
-      for (let i = 0; i < x.length; i++) {
-        const diff = x[i] - y[i];
-        sum += diff * diff;
-      }
-      return Math.sqrt(sum);
-
+      return Math.sqrt(xNorm + yNorm - 2 * dotProduct);
+      
     case Metric.Cosine:
-      let dotProduct = 0;
-      let normX = 0;
-      let normY = 0;
-
-      for (let i = 0; i < x.length; i++) {
-        dotProduct += x[i] * y[i];
-        normX += x[i] * x[i];
-        normY += y[i] * y[i];
-      }
-
-      const normXSqrt = Math.sqrt(normX);
-      const normYSqrt = Math.sqrt(normY);
-
+      const normXSqrt = Math.sqrt(xNorm);
+      const normYSqrt = Math.sqrt(yNorm);
       if (normXSqrt === 0 || normYSqrt === 0) return 1.0;
       return 1.0 - dotProduct / (normXSqrt * normYSqrt);
-
+      
     case Metric.Manhattan:
-      for (let i = 0; i < x.length; i++) {
-        sum += Math.abs(x[i] - y[i]);
+      let sum = 0;
+      for (let i = 0; i < xLength; i++) {
+        sum += Math.abs(xBuffer[i] - yBuffer[i]);
       }
       return sum;
-
+      
     case Metric.DotProduct:
-      for (let i = 0; i < x.length; i++) {
-        sum += x[i] * y[i];
-      }
-      // 返回负内积作为距离，数值越大表示向量越相似
-      return -sum;
-
+      return -dotProduct;
+      
     default:
       throw new Error(`未知度量类型: ${metricType}`);
   }
 }
 
+// ================ 优化版邻居存储结构 ================
+
+/**
+ * 创建优化的邻居存储结构
+ * 使用TypedArray和位图优化邻居存储和查询
+ */
+export function createOptimizedNeighborStore(maxLevel) {
+  // 使用TypedArray存储邻居ID，每个节点预分配固定大小的空间
+  const NEIGHBOR_CAPACITY = 128; // 预分配固定容量
+  const nodeConnections = new Map();
+  const levelBitmaps = new Map(); // 使用位图标记已使用的邻居槽位
+  
+  // 初始化节点连接
+  function initNodeConnections(id) {
+    // 为每个层级创建TypedArray存储邻居
+    const connections = {
+      level0: new Uint32Array(NEIGHBOR_CAPACITY),
+      levels: Array(maxLevel).fill().map(() => new Uint32Array(NEIGHBOR_CAPACITY)),
+      counts: new Uint8Array(maxLevel + 1) // 记录每个层级的邻居数量
+    };
+    
+    // 初始化位图
+    const bitmap = {
+      level0: new Uint32Array(Math.ceil(NEIGHBOR_CAPACITY / 32)),
+      levels: Array(maxLevel).fill().map(() => new Uint32Array(Math.ceil(NEIGHBOR_CAPACITY / 32)))
+    };
+    
+    nodeConnections.set(id, connections);
+    levelBitmaps.set(id, bitmap);
+  }
+  
+  // 获取某ID在某层的邻居
+  function getNeighbor(id, level) {
+    const nodeConn = nodeConnections.get(id);
+    if (!nodeConn) return [];
+    
+    const count = nodeConn.counts[level];
+    if (count === 0) return [];
+    
+    // 直接返回已使用的邻居数组切片
+    const neighbors = level === 0 ? nodeConn.level0 : nodeConn.levels[level - 1];
+    return neighbors.slice(0, count);
+  }
+  
+  // 添加邻居连接
+  function addNeighbor(id, neighborId, level) {
+    const nodeConn = nodeConnections.get(id);
+    if (!nodeConn) {
+      initNodeConnections(id);
+      return addNeighbor(id, neighborId, level);
+    }
+    
+    const count = nodeConn.counts[level];
+    if (count >= NEIGHBOR_CAPACITY) {
+      // 如果容量不足，创建新的更大容量数组
+      const newCapacity = NEIGHBOR_CAPACITY * 2;
+      const newConnections = level === 0 ? 
+        new Uint32Array(newCapacity) : 
+        new Uint32Array(newCapacity);
+      
+      // 复制现有数据
+      const oldConnections = level === 0 ? nodeConn.level0 : nodeConn.levels[level - 1];
+      newConnections.set(oldConnections);
+      
+      // 更新连接数组
+      if (level === 0) {
+        nodeConn.level0 = newConnections;
+      } else {
+        nodeConn.levels[level - 1] = newConnections;
+      }
+      
+      // 更新位图
+      const bitmap = levelBitmaps.get(id);
+      const newBitmap = new Uint32Array(Math.ceil(newCapacity / 32));
+      const oldBitmap = level === 0 ? bitmap.level0 : bitmap.levels[level - 1];
+      newBitmap.set(oldBitmap);
+      
+      if (level === 0) {
+        bitmap.level0 = newBitmap;
+      } else {
+        bitmap.levels[level - 1] = newBitmap;
+      }
+    }
+    
+    // 添加新邻居
+    const neighbors = level === 0 ? nodeConn.level0 : nodeConn.levels[level - 1];
+    neighbors[count] = neighborId;
+    nodeConn.counts[level]++;
+    
+    // 更新位图
+    const bitmap = levelBitmaps.get(id);
+    const levelBitmap = level === 0 ? bitmap.level0 : bitmap.levels[level - 1];
+    const wordIndex = Math.floor(count / 32);
+    const bitIndex = count % 32;
+    levelBitmap[wordIndex] |= (1 << bitIndex);
+  }
+  
+  // 清空某层的邻居
+  function clearNeighbors(id, level) {
+    const nodeConn = nodeConnections.get(id);
+    if (!nodeConn) return;
+    
+    nodeConn.counts[level] = 0;
+    
+    // 清空位图
+    const bitmap = levelBitmaps.get(id);
+    const levelBitmap = level === 0 ? bitmap.level0 : bitmap.levels[level - 1];
+    levelBitmap.fill(0);
+  }
+  
+  // 设置某层的邻居
+  function setNeighbors(id, level, neighborIds) {
+    const nodeConn = nodeConnections.get(id);
+    if (!nodeConn) {
+      initNodeConnections(id);
+      return setNeighbors(id, level, neighborIds);
+    }
+    
+    clearNeighbors(id, level);
+    
+    // 批量添加邻居
+    const neighbors = level === 0 ? nodeConn.level0 : nodeConn.levels[level - 1];
+    const count = Math.min(neighborIds.length, NEIGHBOR_CAPACITY);
+    
+    for (let i = 0; i < count; i++) {
+      neighbors[i] = neighborIds[i];
+    }
+    
+    nodeConn.counts[level] = count;
+    
+    // 更新位图
+    const bitmap = levelBitmaps.get(id);
+    const levelBitmap = level === 0 ? bitmap.level0 : bitmap.levels[level - 1];
+    for (let i = 0; i < count; i++) {
+      const wordIndex = Math.floor(i / 32);
+      const bitIndex = i % 32;
+      levelBitmap[wordIndex] |= (1 << bitIndex);
+    }
+  }
+  
+  // 获取所有邻居连接
+  function getAllConnections() {
+    return nodeConnections;
+  }
+  
+  return {
+    initNodeConnections,
+    getNeighbor,
+    addNeighbor,
+    clearNeighbors,
+    setNeighbors,
+    getAllConnections
+  };
+}
+
+// ================ 距离缓存 ================
+
+/**
+ * 创建距离缓存
+ * 缓存常用节点对之间的距离，减少重复计算
+ */
+export function createDistanceCache() {
+  const distanceCache = new Map(); // 键为"id1:id2"，值为距离
+  
+  // 计算并缓存距离
+  function getCachedDistance(id1, id2, getDistanceFromId) {
+    const key = `${id1}:${id2}`;
+    if (distanceCache.has(key)) {
+      return distanceCache.get(key);
+    }
+    const distance = getDistanceFromId(id1, id2);
+    distanceCache.set(key, distance);
+    return distance;
+  }
+  
+  // 清除缓存
+  function clearCache() {
+    distanceCache.clear();
+  }
+  
+  return {
+    getCachedDistance,
+    clearCache
+  };
+}
+
 // ================ 搜索相关函数 ================
 
 /**
- * 在特定层级搜索
+ * 在特定层级搜索 - 优化版
  */
 export function searchLayer(root, searchData, level, ef, hasDeletion, getData, getNeighbor, isDeleted, getDistanceFromVec) {
   const visitedId = new Set();
@@ -179,7 +378,7 @@ export function searchLayer(root, searchData, level, ef, hasDeletion, getData, g
 }
 
 /**
- * 使用候选集在特定层级搜索
+ * 使用候选集在特定层级搜索 - 优化版
  */
 export function searchLayerWithCandidate(searchData, sortedCandidates, visitedId, level, ef, hasDeletion, getData, getNeighbor, isDeleted, getDistanceFromVec) {
   const topCandidates = createBinaryHeap((a, b) => {
@@ -248,7 +447,7 @@ export function searchLayerWithCandidate(searchData, sortedCandidates, visitedId
 }
 
 /**
- * 通过启发式方法获取邻居
+ * 通过启发式方法获取邻居 - 优化版
  */
 export function getNeighborsByHeuristic2(sortedList, retSize, getDistanceFromId) {
   const sortedListLen = sortedList.length;
@@ -286,9 +485,9 @@ export function getNeighborsByHeuristic2(sortedList, retSize, getDistanceFromId)
 }
 
 /**
- * 连接邻居节点
+ * 连接邻居节点 - 优化版
  */
-export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neighbor0, n_neighbor, getNeighbor, getDistanceFromId, getNeighborsByHeuristic2) {
+export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neighbor0, n_neighbor, getNeighbor, getDistanceFromId, getNeighborsByHeuristic2, setNeighbors) {
   const n_neigh = level === 0 ? n_neighbor0 : n_neighbor;
   const selectedNeighbors = getNeighborsByHeuristic2(sortedCandidates, n_neigh, getDistanceFromId);
 
@@ -302,24 +501,20 @@ export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neig
 
   const nextClosestEntryPoint = selectedNeighbors[0].idx();
 
-  // 获取当前邻居列表
-  const curNeigh = getNeighbor(curId, level);
-  // 清空当前邻居
-  curNeigh.length = 0;
-  // 添加选中的邻居
-  for (const selectedNeighbor of selectedNeighbors) {
-    curNeigh.push(selectedNeighbor.idx());
-  }
+  // 获取当前邻居列表并设置
+  const neighborIds = selectedNeighbors.map(n => n.idx());
+  setNeighbors(curId, level, neighborIds);
 
   // 为选中的邻居添加反向连接
   for (const selectedNeighbor of selectedNeighbors) {
-    const neighborOfSelectedNeighbors = getNeighbor(selectedNeighbor.idx(), level);
+    const neighborId = selectedNeighbor.idx();
+    const neighborOfSelectedNeighbors = getNeighbor(neighborId, level);
 
     if (neighborOfSelectedNeighbors.length > n_neigh) {
       throw new Error("neighborOfSelectedNeighbors的错误值");
     }
 
-    if (selectedNeighbor.idx() === curId) {
+    if (neighborId === curId) {
       throw new Error("尝试将元素连接到自身");
     }
 
@@ -336,9 +531,11 @@ export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neig
 
     if (!isCurIdPresent) {
       if (neighborOfSelectedNeighbors.length < n_neigh) {
-        neighborOfSelectedNeighbors.push(curId);
+        // 使用优化版邻居存储结构添加邻居
+        const updatedNeighbors = [...neighborOfSelectedNeighbors, curId];
+        setNeighbors(neighborId, level, updatedNeighbors);
       } else {
-        const dMax = getDistanceFromId(curId, selectedNeighbor.idx());
+        const dMax = getDistanceFromId(curId, neighborId);
 
         const candidates = createBinaryHeap((a, b) => {
           return a.distance() - b.distance();
@@ -347,20 +544,14 @@ export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neig
         candidates.push(createNeighbor(curId, dMax));
 
         for (const iter of neighborOfSelectedNeighbors) {
-          const neighborId = iter;
-          const dNeigh = getDistanceFromId(neighborId, selectedNeighbor.idx());
-          candidates.push(createNeighbor(neighborId, dNeigh));
+          const nId = iter;
+          const dNeigh = getDistanceFromId(nId, neighborId);
+          candidates.push(createNeighbor(nId, dNeigh));
         }
 
         const returnList = getNeighborsByHeuristic2(candidates.intoSortedVec(), n_neigh, getDistanceFromId);
-
-        // 清空邻居列表
-        neighborOfSelectedNeighbors.length = 0;
-
-        // 添加新的邻居
-        for (const neighborInList of returnList) {
-          neighborOfSelectedNeighbors.push(neighborInList.idx());
-        }
+        const updatedNeighbors = returnList.map(n => n.idx());
+        setNeighbors(neighborId, level, updatedNeighbors);
       }
     }
   }
@@ -369,9 +560,9 @@ export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neig
 }
 
 /**
- * 构建单个项目
+ * 构建单个项目 - 优化版
  */
-export function constructSingleItem(insertId, id2level, state, getData, getDistanceFromId, searchLayerWithCandidate, connectNeighbor, ef_build, isDeleted, getNeighbor, n_neighbor0, n_neighbor, getNeighborsByHeuristic2, getDistanceFromVec, nodes) {
+export function constructSingleItem(insertId, id2level, state, getData, getDistanceFromId, searchLayerWithCandidate, connectNeighbor, ef_build, isDeleted, getNeighbor, n_neighbor0, n_neighbor, getNeighborsByHeuristic2, getDistanceFromVec, nodes, setNeighbors) {
   const insertLevel = id2level[insertId];
   let curId = state.root_id;
 
@@ -448,7 +639,7 @@ export function constructSingleItem(insertId, id2level, state, getData, getDista
       throw new Error("排序的候选项为空");
     }
 
-    curId = connectNeighbor(insertId, sortedCandidates, level, false, n_neighbor0, n_neighbor, getNeighbor, getDistanceFromId, getNeighborsByHeuristic2);
+    curId = connectNeighbor(insertId, sortedCandidates, level, false, n_neighbor0, n_neighbor, getNeighbor, getDistanceFromId, getNeighborsByHeuristic2, setNeighbors);
 
     if (level === 0) {
       break;
@@ -459,9 +650,9 @@ export function constructSingleItem(insertId, id2level, state, getData, getDista
 }
 
 /**
- * 初始化项目
+ * 初始化项目 - 优化版
  */
-export function initItem(data, nodes, max_level, id2neighbor0, id2neighbor, id2level, item2id, getRandomLevel, state) {
+export function initItem(data, nodes, max_level, neighborStore, id2level, item2id, getRandomLevel, state) {
   const curId = nodes.length;
   let curLevel = getRandomLevel();
 
@@ -471,27 +662,21 @@ export function initItem(data, nodes, max_level, id2neighbor0, id2neighbor, id2l
     state.root_id = curId;
   }
 
-  const neigh0 = [];
-  const neigh = [];
+  // 初始化邻居存储
+  neighborStore.initNodeConnections(curId);
 
-  for (let i = 0; i < curLevel; i++) {
-    neigh.push([]);
-  }
-
-  nodes.push(data.clone());
-  id2neighbor0.push(neigh0);
-  id2neighbor.push(neigh);
+  nodes.push(data);
   id2level.push(curLevel);
 
-  if (data.idx() !== null) {
-    item2id.set(data.idx(), curId);
+  if (data.id !== null) {
+    item2id.set(data.id, curId);
   }
 
   return curId;
 }
 
 /**
- * K最近邻搜索
+ * K最近邻搜索 - 优化版
  */
 export function searchKnn(searchData, k, nodes, state, max_item, getData, getNeighbor, getDistanceFromVec, searchLayer, has_removed, ef_search, isDeleted) {
   let topCandidate = createBinaryHeap((a, b) => {
@@ -545,7 +730,7 @@ export function searchKnn(searchData, k, nodes, state, max_item, getData, getNei
 }
 
 /**
- * 添加单个项目
+ * 添加单个项目 - 优化版
  */
 export function addSingleItem(data, dimension, nodes, max_item, initItem, constructSingleItem, state) {
   if (dimension !== null && data.len() !== dimension) {
@@ -565,7 +750,7 @@ export function addSingleItem(data, dimension, nodes, max_item, initItem, constr
 // ================ 主函数 ================
 
 /**
- * 创建HNSW索引
+ * 创建优化版HNSW索引
  */
 export function createHNSWIndex({
   distanceFunction = 'cosine',
@@ -579,14 +764,19 @@ export function createHNSWIndex({
   const n_neighbor = Math.max(16, M);
   const n_neighbor0 = BOTTOM_LAYER_CONNECTIONS;
   const max_level = Math.max(16, ml);
-  const id2neighbor = []; // 除level 0外的邻居
-  const id2neighbor0 = []; // level 0的邻居
+  
+  // 使用优化版邻居存储结构
+  const neighborStore = createOptimizedNeighborStore(max_level);
+  
+  // 使用距离缓存
+  const distanceCache = createDistanceCache();
+  
   const nodes = []; // 数据储存
   const item2id = new Map(); // item_id到HNSW内部id映射
   const id2level = []; // id到层级映射
   const has_removed = false;
-  const ef_build = Math.max(400, efConstruction);
-  const ef_search = Math.max(400, efSearch);
+  const ef_build = Math.max(200, efConstruction);
+  const ef_search = Math.max(200, efSearch);
   const delete_ids = new Set(); // 已删除id集合
   let mt = Metric.Unknown; // 计算度量方式
   
@@ -618,26 +808,25 @@ export function createHNSWIndex({
     return ret;
   }
 
-  // 获取某ID在某层的邻居
+  // 获取某ID在某层的邻居 - 使用优化版邻居存储
   function getNeighbor(id, level) {
-    if (level === 0) {
-      return id2neighbor0[id];
-    }
-    return id2neighbor[id][level - 1];
+    return neighborStore.getNeighbor(id, level);
   }
 
   // 计算两个向量之间的距离
   function getDistanceFromVec(x, y) {
-    return metric(x.vectors(), y.vectors(), mt);
+    return metric(x.vector, y.vector, mt);
   }
 
-  // 计算两个ID之间的距离
+  // 计算两个ID之间的距离 - 使用距离缓存
   function getDistanceFromId(x, y) {
-    return metric(
-      getData(x).vectors(),
-      getData(y).vectors(),
-      mt
-    );
+    return distanceCache.getCachedDistance(x, y, (id1, id2) => {
+      return metric(
+        getData(id1).vector,
+        getData(id2).vector,
+        mt
+      );
+    });
   }
 
   // 获取ID对应的数据
@@ -662,6 +851,7 @@ export function createHNSWIndex({
       }
       
       const node = createNode(vector, null);
+      node.data = data;
       
       // 第一次添加时确定维度
       if (dimension === null && nodes.length === 0) {
@@ -669,7 +859,7 @@ export function createHNSWIndex({
       }
       
       return addSingleItem(node, dimension, nodes, max_item, 
-        (data) => initItem(data, nodes, max_level, id2neighbor0, id2neighbor, id2level, item2id, getRandomLevel, state),
+        (data) => initItem(data, nodes, max_level, neighborStore, id2level, item2id, getRandomLevel, state),
         (insertId) => constructSingleItem(insertId, id2level, state, getData, getDistanceFromId, 
           (searchData, sortedCandidates, visitedId, level, ef, hasDeletion) => 
             searchLayerWithCandidate(searchData, sortedCandidates, visitedId, level, ef, hasDeletion, 
@@ -677,8 +867,9 @@ export function createHNSWIndex({
           (curId, sortedCandidates, level, isUpdate) => 
             connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neighbor0, n_neighbor, 
               getNeighbor, getDistanceFromId, 
-              (sortedList, retSize) => getNeighborsByHeuristic2(sortedList, retSize, getDistanceFromId)),
-          ef_build, isDeleted, getNeighbor, n_neighbor0, n_neighbor, getNeighborsByHeuristic2, getDistanceFromVec, nodes),
+              (sortedList, retSize) => getNeighborsByHeuristic2(sortedList, retSize, getDistanceFromId),
+              neighborStore.setNeighbors),
+          ef_build, isDeleted, getNeighbor, n_neighbor0, n_neighbor, getNeighborsByHeuristic2, getDistanceFromVec, nodes, neighborStore.setNeighbors),
         state);
     } catch (error) {
       console.error('insertNode执行出错:', error);
@@ -723,7 +914,7 @@ export function createHNSWIndex({
         const resultObj = {
           id: idx,
           distance: distance,
-          data: (node.data !== undefined) ? node.data : null
+          data: node.data
         };
         
         if (searchParams.returnScore) {
@@ -763,8 +954,8 @@ export function createHNSWIndex({
     const node = nodes[id];
     return {
       id: id,
-      data: (node.data !== undefined) ? node.data : null,
-      vector: node.vectors ? new Float32Array(node.vectors()) : null
+      data: node.data,
+      vector: node.vector ? new Float32Array(node.vector) : null
     };
   }
 
@@ -778,17 +969,13 @@ export function createHNSWIndex({
       activeNodeCount++;
       
       // 计算level 0的连接
-      if (id2neighbor0[i]) {
-        totalConnections += id2neighbor0[i].length;
-      }
+      const level0Conns = getNeighbor(i, 0);
+      totalConnections += level0Conns.length;
       
       // 计算其他层级的连接
-      if (id2neighbor[i]) {
-        for (const levelConns of id2neighbor[i]) {
-          if (Array.isArray(levelConns)) {
-            totalConnections += levelConns.length;
-          }
-        }
+      for (let level = 1; level <= id2level[i]; level++) {
+        const levelConns = getNeighbor(i, level);
+        totalConnections += levelConns.length;
       }
     }
     
@@ -816,14 +1003,14 @@ export function createHNSWIndex({
     const connections = [];
     
     // 添加level 0的连接
-    const level0Conns = id2neighbor0[id];
+    const level0Conns = getNeighbor(id, 0);
     if (level0Conns && level0Conns.length > 0) {
       const level0Connections = [];
       for (const connId of level0Conns) {
         if (!isDeleted(connId)) {
           level0Connections.push({
             id: connId,
-            data: (nodes[connId].data !== undefined) ? nodes[connId].data : null,
+            data: nodes[connId].data,
             distance: getDistanceFromId(id, connId)
           });
         }
@@ -832,22 +1019,20 @@ export function createHNSWIndex({
     }
     
     // 添加其他层级的连接
-    if (id2neighbor[id]) {
-      for (let level = 0; level < id2neighbor[id].length; level++) {
-        const levelConns = id2neighbor[id][level];
-        if (levelConns && levelConns.length > 0) {
-          const levelConnections = [];
-          for (const connId of levelConns) {
-            if (!isDeleted(connId)) {
-              levelConnections.push({
-                id: connId,
-                data: (nodes[connId].data !== undefined) ? nodes[connId].data : null,
-                distance: getDistanceFromId(id, connId)
-              });
-            }
+    for (let level = 1; level <= id2level[id]; level++) {
+      const levelConns = getNeighbor(id, level);
+      if (levelConns && levelConns.length > 0) {
+        const levelConnections = [];
+        for (const connId of levelConns) {
+          if (!isDeleted(connId)) {
+            levelConnections.push({
+              id: connId,
+              data: nodes[connId].data,
+              distance: getDistanceFromId(id, connId)
+            });
           }
-          connections.push({ level: level + 1, connections: levelConnections });
         }
+        connections.push({ level: level, connections: levelConnections });
       }
     }
     
@@ -864,110 +1049,4 @@ export function createHNSWIndex({
     getNodeConnections: getNodeConnectionsMethod,
     _nodes: nodes
   };
-}
-
-/**
- * 搜索KNN
- */
-export function searchKNN(queryVector, k, searchParams = {}, nodes, entryPoint, distanceFunc, excludeIds = new Set()) {
-  const efSearch = searchParams.efSearch || DEFAULT_EF_SEARCH;
-  const ef = searchParams.ef; 
-  if (!queryVector || !nodes || !entryPoint || entryPoint.id === null || !distanceFunc) {
-    console.error('searchKNN错误：无效参数');
-    return [];
-  }
-  if (nodes.size === 0) {
-    return [];
-  }
-  let curId = entryPoint.id;
-  let curDist = distanceFunc(queryVector, nodes.get(curId).vector);
-  let curLevel = entryPoint.level;
-  
-  // 严格按照经典实现的逐层贪心搜索
-  while (true) {
-    let changed = true;
-    while (changed) {
-      changed = false;
-      const currentNode = nodes.get(curId);
-      if (!currentNode || currentNode.deleted) break;
-      
-      const connections = currentNode.connections && 
-                          curLevel < currentNode.connections.length ? 
-                          currentNode.connections[curLevel] : [];
-      for (const neighborId of connections) {
-        // 越界检查
-        if (neighborId >= nodes.size) {
-          throw new Error("候选项错误");
-        }
-        const neighbor = nodes.get(neighborId);
-        if (!neighbor || neighbor.deleted) continue;
-        const dist = distanceFunc(queryVector, neighbor.vector);
-        
-        // 更新当前节点到距离最近的邻居
-        if (dist < curDist) {
-          curDist = dist;
-          curId = neighborId;
-          changed = true;
-        }
-      }
-    }
-    if (curLevel === 0) {
-      break;
-    }
-    
-    // 降低层级继续搜索
-    curLevel--;
-  }
-  
-  // 确定搜索范围 (ef)
-  const searchRange = Math.max(efSearch, k);
-  const effectiveEf = ef || searchRange;
-  
-  const topCandidates = searchLayer(
-    { vector: queryVector },  // 查询节点
-    k,
-    effectiveEf,
-    0, // 底层
-    nodes,
-    { id: curId, level: 0 },
-    distanceFunc,
-    excludeIds,
-    new Set() // 访问标记集合
-  );
-  
-  while (topCandidates.size() > k) {
-    topCandidates.pop();
-  }
-  
-  const results = [];
-  const resultIdx = [];
-  while (!topCandidates.isEmpty()) {
-    const top = topCandidates.peek();
-    const topIdx = top.idx();
-    const topDistance = top.distance();
-    topCandidates.pop();
-    resultIdx.push([topIdx, topDistance]);
-  }
-  
-  // 按照距离排序呈现结果 - 遵循经典实现
-  resultIdx.reverse();  // 反转来得到正确的顺序
-  for (const [idx, distance] of resultIdx) {
-    const node = nodes.get(idx);
-    if (!node || node.deleted) continue;
-    
-    // 构建结果对象 - 保持对外接口兼容
-    const resultObj = {
-      id: idx,
-      distance: distance,
-      data: node.data
-    };
-    
-    if (searchParams.returnScore) {
-      resultObj.score = 1 - distance;
-    }
-    
-    results.push(resultObj);
-  }
-  
-  return results;
-}
+} 

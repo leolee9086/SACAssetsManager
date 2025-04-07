@@ -181,3 +181,216 @@ console.log(objectHeap.pop()); // { value: 'B', priority: 3 }
 - 标准异步操作(pushAsync/popAsync)优先选择性能而非完全的事务安全
 - 事务系统在处理简单操作时有一定开销，仅在需要原子性或者需要钩子时使用
 - 深拷贝事务类型对于包含复杂对象的堆会有较大性能开销 
+
+# 异步堆（AsyncHeap）讨论记录
+
+## 异步堆的基本概念
+
+异步堆是一种支持异步比较函数的数据结构，它允许在比较操作中执行异步操作，如远程数据获取、复杂计算等。与传统的堆不同，异步堆可以在比较函数返回Promise时自动切换到异步模式。
+
+## 异步堆的应用场景
+
+1. **复杂数据排序与优先级处理**
+   - 多维度排序：基于多个条件进行排序
+   - 动态优先级队列：任务优先级随时间或外部条件变化
+
+2. **远程数据集成**
+   - 跨服务比较：在微服务架构中调用多个服务进行比较
+   - 分布式数据排序：处理存储在不同节点上的数据
+
+3. **计算密集型应用**
+   - 机器学习模型排序：评估模型性能（计算密集型操作）
+   - 图形渲染优先级：基于复杂计算确定渲染顺序
+
+4. **实时数据处理**
+   - 流数据处理：根据动态变化的条件进行排序
+   - 实时推荐系统：根据用户行为和外部因素动态调整推荐顺序
+
+5. **特定领域应用**
+   - 金融交易系统：基于多个市场因素对交易进行优先级排序
+   - 游戏AI决策：基于多个因素对动作进行优先级排序
+
+## 异步堆的技术优势
+
+1. **自动模式切换**：根据比较函数类型自动选择同步或异步操作
+2. **事务安全**：确保异步操作期间的数据一致性
+3. **性能优化**：通过TypedArray对数值数据进行优化
+4. **批量操作支持**：高效处理大量数据，减少异步开销
+
+## 异步堆作为事件循环的基础
+
+异步堆可以作为事件循环的基础实现，具有以下优势：
+
+1. **优先级调度**：自然支持基于优先级的任务调度
+2. **高效排序**：利用堆的特性，高效维护任务顺序
+3. **异步协调**：协调多个异步操作的执行顺序
+4. **资源管理**：有效管理系统资源，避免阻塞
+5. **可扩展性**：易于扩展支持更复杂的调度策略
+
+## Promise处理策略
+
+### 未解决Promise的默认比较策略
+
+在异步堆中，当比较函数返回未解决的Promise时，需要一种合理的默认处理策略：
+
+- **最小堆**：未解决的Promise应该被视为"最大值"，这样它们会被推到堆的底部
+- **最大堆**：未解决的Promise应该被视为"最小值"，这样它们会被推到堆的底部
+
+### Promise单独列出的实现方案
+
+Promise可以单独列出，在push时不参与排序，只在真正解决时才发生真实的push：
+
+1. **分离Promise和普通元素**
+   - 普通元素堆：存储已解决的值
+   - Promise队列：按添加顺序排列未解决的Promise
+
+2. **Promise解决后的处理**
+   - 从Promise队列中移除
+   - 将解决后的值添加到主堆
+   - 执行相关回调
+
+3. **优势**
+   - 避免未解决Promise影响堆的排序
+   - 减少不必要的堆操作
+   - 更清晰的语义和更高效的实现
+
+## 实现示例
+
+### 基本异步堆实现
+
+```javascript
+// 创建支持Promise分离的堆
+const createPromiseSeparatedHeap = (compareFn = (a, b) => a - b, isMinHeap = true) => {
+  // 普通元素堆
+  const mainHeap = [];
+  
+  // Promise队列（按添加顺序排列）
+  const promiseQueue = [];
+  
+  // Promise解决后的回调
+  const resolvedCallbacks = new Map();
+  
+  // 处理Promise解决
+  const handlePromiseResolved = (promise, value) => {
+    // 从Promise队列中移除
+    const index = promiseQueue.indexOf(promise);
+    if (index !== -1) {
+      promiseQueue.splice(index, 1);
+    }
+    
+    // 将解决后的值添加到主堆
+    addToMainHeap(value);
+    
+    // 执行回调
+    if (resolvedCallbacks.has(promise)) {
+      resolvedCallbacks.get(promise)(value);
+      resolvedCallbacks.delete(promise);
+    }
+  };
+  
+  // 添加到主堆
+  const addToMainHeap = (value) => {
+    mainHeap.push(value);
+    heapifyUp(mainHeap, compareFn, mainHeap.length - 1);
+  };
+  
+  return {
+    // 添加元素
+    push: (value) => {
+      if (value instanceof Promise) {
+        // 添加到Promise队列
+        promiseQueue.push(value);
+        
+        // 监听Promise解决
+        value.then(resolvedValue => {
+          handlePromiseResolved(value, resolvedValue);
+        }).catch(error => {
+          console.error("Promise rejected:", error);
+          // 可以设置一个错误值或特殊标记
+          handlePromiseResolved(value, isMinHeap ? Infinity : -Infinity);
+        });
+        
+        // 返回Promise，以便链式调用
+        return value;
+      } else {
+        // 普通元素直接添加到主堆
+        addToMainHeap(value);
+        return value;
+      }
+    },
+    
+    // 其他方法...
+  };
+};
+```
+
+### 事件循环实现
+
+```javascript
+// 基于异步堆的事件循环
+const createEventLoop = () => {
+  // 任务队列（使用最小堆，按时间戳排序）
+  const taskQueue = createMinHeap(async (taskA, taskB) => {
+    return taskA.scheduledTime - taskB.scheduledTime;
+  });
+  
+  // 微任务队列（使用普通数组，保持FIFO顺序）
+  const microTaskQueue = [];
+  
+  // 处理微任务
+  const processMicroTasks = async () => {
+    while (microTaskQueue.length > 0) {
+      const task = microTaskQueue.shift();
+      await task();
+    }
+  };
+  
+  // 主循环
+  const run = async () => {
+    while (true) {
+      // 处理微任务
+      await processMicroTasks();
+      
+      // 检查是否有可执行的任务
+      if (!taskQueue.isEmpty()) {
+        const now = Date.now();
+        const nextTask = await taskQueue.peekAsync();
+        
+        if (nextTask.scheduledTime <= now) {
+          // 执行任务
+          const task = await taskQueue.popAsync();
+          await task.execute();
+        } else {
+          // 等待下一个任务
+          await new Promise(resolve => setTimeout(resolve, nextTask.scheduledTime - now));
+        }
+      } else {
+        // 没有任务，等待一段时间
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+    }
+  };
+  
+  return {
+    scheduleTask: (task, delay = 0) => {
+      task.scheduledTime = Date.now() + delay;
+      taskQueue.push(task);
+    },
+    scheduleMicroTask: (task) => {
+      microTaskQueue.push(task);
+    },
+    start: () => run()
+  };
+};
+```
+
+## 总结
+
+异步堆通过支持异步比较函数，为复杂数据处理提供了强大的工具。它特别适合：
+
+1. 需要基于远程数据或复杂计算进行排序的场景
+2. 需要非阻塞操作以保持UI响应性的应用
+3. 处理实时数据流和动态优先级队列的系统
+4. 分布式环境中的数据排序和优先级处理
+
+异步堆不仅扩展了传统堆的功能，还为现代应用程序提供了更灵活、更强大的数据处理能力，甚至可以作为事件循环的基础实现。 
