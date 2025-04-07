@@ -91,26 +91,13 @@ function createBinaryHeap(comparator) {
     };
 }
 
-// Neighbor类 - 类似于Rust版本的Neighbor
-class Neighbor {
-    constructor(idx, distance) {
-        this._idx = idx;
-        this._distance = distance;
-    }
-
-    idx() {
-        return this._idx;
-    }
-
-    distance() {
-        return this._distance;
-    }
-
-    static new(idx, distance) {
-        return new Neighbor(idx, distance);
-    }
+// 创建邻居对象的辅助函数
+function createNeighbor(idx, distance) {
+    return {
+        idx: () => idx,
+        distance: () => distance
+    };
 }
-
 
 // 度量方法枚举
 export const Metric = {
@@ -263,7 +250,7 @@ export class HNSWIndex {
             const distance = iter.distance();
 
             if (sortedListLen < retSize) {
-                returnList.push(Neighbor.new(idx, distance));
+                returnList.push(createNeighbor(idx, distance));
                 continue;
             }
 
@@ -278,7 +265,7 @@ export class HNSWIndex {
             }
 
             if (good) {
-                returnList.push(Neighbor.new(idx, distance));
+                returnList.push(createNeighbor(idx, distance));
             }
         }
 
@@ -355,12 +342,12 @@ export class HNSWIndex {
                         return a.distance() - b.distance();
                     });
 
-                    candidates.push(Neighbor.new(curId, dMax));
+                    candidates.push(createNeighbor(curId, dMax));
 
                     for (const iter of neighborOfSelectedNeighbors) {
                         const neighborId = iter;
                         const dNeigh = this.getDistanceFromId(neighborId, selectedNeighbor.idx());
-                        candidates.push(Neighbor.new(neighborId, dNeigh));
+                        candidates.push(createNeighbor(neighborId, dNeigh));
                     }
 
                     const returnList = this.getNeighborsByHeuristic2(candidates.intoSortedVec(), n_neigh);
@@ -433,10 +420,10 @@ export class HNSWIndex {
             const root = neighbor.idx();
             if (!hasDeletion || !this.isDeleted(root)) {
                 const dist = this.getDistanceFromVec(this.getData(root), searchData);
-                topCandidates.push(Neighbor.new(root, dist));
-                candidates.push(Neighbor.new(root, dist));
+                topCandidates.push(createNeighbor(root, dist));
+                candidates.push(createNeighbor(root, dist));
             } else {
-                candidates.push(Neighbor.new(root, Number.MAX_VALUE));
+                candidates.push(createNeighbor(root, Number.MAX_VALUE));
             }
             visitedId.add(root);
         }
@@ -466,10 +453,10 @@ export class HNSWIndex {
                 const dist = this.getDistanceFromVec(this.getData(neigh), searchData);
 
                 if (topCandidates.size() < ef || dist < lowerBound) {
-                    candidates.push(Neighbor.new(neigh, dist));
+                    candidates.push(createNeighbor(neigh, dist));
 
                     if (!this.isDeleted(neigh)) {
-                        topCandidates.push(Neighbor.new(neigh, dist));
+                        topCandidates.push(createNeighbor(neigh, dist));
                     }
 
                     if (topCandidates.size() > ef) {
@@ -500,12 +487,12 @@ export class HNSWIndex {
 
         if (!hasDeletion || !this.isDeleted(root)) {
             const dist = this.getDistanceFromVec(this.getData(root), searchData);
-            topCandidates.push(Neighbor.new(root, dist));
-            candidates.push(Neighbor.new(root, dist));
+            topCandidates.push(createNeighbor(root, dist));
+            candidates.push(createNeighbor(root, dist));
             lowerBound = dist;
         } else {
             lowerBound = Number.MAX_VALUE; // 最大距离
-            candidates.push(Neighbor.new(root, -lowerBound));
+            candidates.push(createNeighbor(root, -lowerBound));
         }
 
         visitedId.add(root);
@@ -531,10 +518,10 @@ export class HNSWIndex {
                 const dist = this.getDistanceFromVec(this.getData(neigh), searchData);
 
                 if (topCandidates.size() < ef || dist < lowerBound) {
-                    candidates.push(Neighbor.new(neigh, dist));
+                    candidates.push(createNeighbor(neigh, dist));
 
                     if (!this.isDeleted(neigh)) {
-                        topCandidates.push(Neighbor.new(neigh, dist));
+                        topCandidates.push(createNeighbor(neigh, dist));
                     }
 
                     if (topCandidates.size() > ef) {
@@ -721,7 +708,7 @@ export class HNSWIndex {
         const insertData = this.getData(insertId);
 
         visitedId.add(insertId);
-        sortedCandidates.push(Neighbor.new(curId, this.getDistanceFromId(curId, insertId)));
+        sortedCandidates.push(createNeighbor(curId, this.getDistanceFromId(curId, insertId)));
 
         while (true) {
             const topCandidates = this.searchLayerWithCandidate(
@@ -735,7 +722,7 @@ export class HNSWIndex {
 
             if (this.isDeleted(curId)) {
                 const curDist = this.getDistanceFromId(curId, insertId);
-                topCandidates.push(Neighbor.new(curId, curDist));
+                topCandidates.push(createNeighbor(curId, curDist));
                 if (topCandidates.size() > this._ef_build) {
                     topCandidates.pop();
                 }
