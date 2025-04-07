@@ -336,6 +336,10 @@ export function searchLayer(root, searchData, level, ef, hasDeletion, getData, g
 
   visitedId.add(root);
 
+  // 预分配一个固定大小的数组来存储当前节点的邻居
+  const curNeighborsBuffer = new Array(64);
+  let curNeighborsCount = 0;
+
   while (!candidates.isEmpty()) {
     const curNeigh = candidates.peek();
     const curDist = curNeigh.distance();
@@ -346,9 +350,16 @@ export function searchLayer(root, searchData, level, ef, hasDeletion, getData, g
       break;
     }
 
-    const curNeighbors = getNeighbor(curId, level);
+    // 获取当前节点的邻居并复制到预分配的缓冲区
+    const neighbors = getNeighbor(curId, level);
+    curNeighborsCount = neighbors.length;
+    for (let i = 0; i < curNeighborsCount; i++) {
+      curNeighborsBuffer[i] = neighbors[i];
+    }
 
-    for (const neigh of curNeighbors) {
+    // 使用预分配的缓冲区进行遍历
+    for (let i = 0; i < curNeighborsCount; i++) {
+      const neigh = curNeighborsBuffer[i];
       if (visitedId.has(neigh)) {
         continue;
       }
