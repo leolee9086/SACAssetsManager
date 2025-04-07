@@ -83,11 +83,26 @@ export function computeNormalizedCosineSimilarity(a, b) {
  * @param {Float32Array|Array} b - 第二个向量
  * @returns {Number} 距离值 [0,2]，值越小表示越相似
  */
-export function computeCosineDistance(a, b) {
+export function computeCosineDistance(x, y) {
   // 余弦距离 = 1 - 余弦相似度
   // 确保返回的是距离度量（越小越相似）
-  const similarity = computeNormalizedCosineSimilarity(a, b);
- 
+  let dotProduct = 0;
+  let normX = 0;
+  let normY = 0;
+
+  for (let i = 0; i < x.length; i++) {
+      dotProduct += x[i] * y[i];
+      normX += x[i] * x[i];
+      normY += y[i] * y[i];
+  }
+
+  const normXSqrt = Math.sqrt(normX);
+  const normYSqrt = Math.sqrt(normY);
+
+  if (normXSqrt === 0 || normYSqrt === 0) return 1.0;
+  return 1.0 - dotProduct / (normXSqrt * normYSqrt);
+
+
   return 1 - similarity;
 }
 

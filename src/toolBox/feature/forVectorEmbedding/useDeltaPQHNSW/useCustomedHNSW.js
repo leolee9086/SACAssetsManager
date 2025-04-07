@@ -112,42 +112,9 @@ function calculateLevelM(level, maxLevel = DEFAULT_ML, bottomLevelM = BOTTOM_LAY
  * @returns {Function} 带缓存的距离计算函数
  */
 function createDistanceCache(distanceFunc, cacheSize = 10000) {
-  // 使用WeakMap存储向量对之间的距离
-  // WeakMap允许向量对象被垃圾回收，避免内存泄漏
-  const cache = new WeakMap();
-  
-  // 用于LRU缓存管理
-  let cacheEntries = 0;
-  
+  //缓存在这里是必要性不大的
   return function cachedDistance(a, b) {
-    // 直接用对象引用作为键
-    let aCache = cache.get(a);
-    
-    // 如果a的缓存不存在，创建它
-    if (!aCache) {
-      aCache = new Map();
-      cache.set(a, aCache);
-    }
-    
-    // 检查是否有b的缓存结果
-    if (aCache.has(b)) {
-      return aCache.get(b);
-    }
-    
-    // 计算距离
     const distance = distanceFunc(a, b);
-    
-    // 保存结果到缓存
-    aCache.set(b, distance);
-    cacheEntries++;
-    
-    // 如果缓存大小超过限制，重置缓存
-    // 在实际应用中，这很少发生，因为WeakMap会自动清理不再使用的对象
-    if (cacheSize > 0 && cacheEntries > cacheSize) {
-      cacheEntries = 0;
-      // WeakMap会自动垃圾回收，不需要手动清理
-    }
-    
     return distance;
   };
 }
@@ -204,7 +171,7 @@ function selectNeighborsHeuristic(candidates, level, nodes, distanceFunc) {
       const selectedNode = selectedNeighbor.node;
       if (!selectedNode || !selectedNode.vector) continue;
       
-      try {
+      
         // 计算候选节点到已选邻居的距离
         const distanceBetween = distanceFunc(candidateNode.vector, selectedNode.vector);
         
@@ -215,9 +182,7 @@ function selectNeighborsHeuristic(candidates, level, nodes, distanceFunc) {
           good = false;
           break;  // 一旦确定无效,立即停止检查
         }
-      } catch (error) {
-        continue;
-      }
+      
     }
     
     // 如果候选邻居有效(提供新的信息路径),添加到结果
@@ -296,16 +261,13 @@ function addConnectionsHnswStyle(nodeId, neighbors, level, nodes, distanceFunc) 
         const existingNode = nodes.get(existingConnId);
         if (!existingNode || existingNode.deleted || !existingNode.vector) continue;
         
-        try {
           const distance = distanceFunc(connNode.vector, existingNode.vector);
           candidates.push({ 
             id: existingConnId, 
             distance, 
             node: existingNode 
           });
-        } catch (error) {
-          continue;
-        }
+       
       }
       
       // 添加当前节点作为候选
@@ -412,130 +374,6 @@ function greedySearchLayer(queryNode, entryPoint, level, nodes, distanceFunc, vi
   };
 }
 
-/**
- * 使用已知候选集在指定层级搜索，避免每次从头开始搜索
- * @param {Object} queryNode - 查询节点
- * @param {Array<{id: number, distance: number}>} initialCandidates - 初始候选集
- * @param {Set} visitedNodes - 已访问节点集合
- * @param {number} level - 搜索层级
- * @param {Map} nodes - 节点存储
- * @param {number} ef - 搜索候选集大小
- * @param {Function} distanceFunc - 距离计算函数
- * @returns {Array<{id: number, distance: number}>} 搜索结果
- */
-function searchLayerWithCandidate(queryNode, initialCandidates, visitedNodes, level, nodes, ef, distanceFunc) {
-  if (!queryNode || !queryNode.vector || !initialCandidates || initialCandidates.length === 0) {
-    return [];
-  }
-  
-  // 确保ef至少为1
-  const effectiveEf = Math.max(ef, 1);
-  
-  // 初始化已访问节点集合
-  const visited = new Set(visitedNodes);
-  
-  // 【优先队列】: 候选队列 - 按距离从小到大排序
-  const candidateQueue = createMinHeap((a, b) => a.distance - b.distance);
-  
-  // 【结果队列】: 按距离从大到小排序(最远的在顶部)
-  const resultQueue = createMinHeap((a, b) => b.distance - a.distance);
-  
-  // 添加初始候选到队列
-  let initialLowerBound = Infinity;
-  for (const candidate of initialCandidates) {
-    if (!candidate || candidate.id === undefined) continue;
-    
-    candidateQueue.push(candidate);
-    resultQueue.push(candidate);
-    
-    // 记录最小距离作为初始下界
-    if (candidate.distance < initialLowerBound) {
-      initialLowerBound = candidate.distance;
-    }
-    
-    // 标记为已访问
-    visited.add(candidate.id);
-  }
-  
-  // 当前下界距离 - 最远结果的距离
-  let lowerBound = initialLowerBound;
-  
-  // 进行搜索
-  while (candidateQueue.size() > 0) {
-    // 取出当前最近的候选节点
-    const currentNearest = candidateQueue.pop();
-    if (!currentNearest) continue;
-    
-    // 终止条件: 当前候选节点距离 > 下界距离时停止搜索
-    if (currentNearest.distance > lowerBound) {
-      break;
-    }
-    
-    // 获取当前节点
-    const currentNode = currentNearest.node || nodes.get(currentNearest.id);
-    if (!currentNode || currentNode.deleted) continue;
-    
-    // 获取当前层的连接列表
-    let connections = [];
-    if (currentNode.connections && level < currentNode.connections.length) {
-      connections = currentNode.connections[level];
-    }
-    
-    // 遍历所有邻居
-    for (const neighborId of connections) {
-      // 跳过已访问的节点
-      if (visited.has(neighborId)) continue;
-      
-      // 标记为已访问
-      visited.add(neighborId);
-      
-      // 获取邻居节点
-      const neighbor = nodes.get(neighborId);
-      if (!neighbor || neighbor.deleted || !neighbor.vector) continue;
-      
-      // 计算到邻居的距离
-      let neighborDistance;
-      try {
-        neighborDistance = distanceFunc(queryNode.vector, neighbor.vector);
-      } catch (error) {
-        continue;
-      }
-      
-      // 如果距离小于下界或结果不足ef个，则加入队列
-      if (neighborDistance < lowerBound || resultQueue.size() < effectiveEf) {
-        candidateQueue.push({ id: neighborId, distance: neighborDistance, node: neighbor });
-        resultQueue.push({ id: neighborId, distance: neighborDistance, node: neighbor });
-        
-        // 如果结果队列超过大小限制,移除最远的节点
-        if (resultQueue.size() > effectiveEf) {
-          resultQueue.pop(); // 移除最远的结果
-          
-          // 更新下界
-          const furthestResult = resultQueue.peek();
-          if (furthestResult) {
-            lowerBound = furthestResult.distance;
-          }
-        }
-      }
-    }
-  }
-  
-  // 将结果队列中的元素按距离从小到大排序
-  const allResults = [];
-  while (resultQueue.size() > 0) {
-    const item = resultQueue.pop();
-    if (item) {
-      allResults.push({
-        id: item.id,
-        distance: item.distance,
-        node: item.node || nodes.get(item.id)
-      });
-    }
-  }
-  
-  // 排序并返回结果
-  return allResults.sort((a, b) => a.distance - b.distance);
-}
 
 /**
  * 向索引中插入新节点,完全匹配hora的实现
@@ -1039,7 +877,7 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
               const nodeLevel = node.connections.length - 1;
               if (nodeLevel < 0) continue;
               
-              try {
+              t
                 // 计算到中心的距离
                 const distanceToCenter = distanceFunc(node.vector, centerVector);
                 
@@ -1051,9 +889,6 @@ function searchWithMultipleEntryPoints(queryVector, nodes, entryPoint, maxLevel,
                   bestEntryPointId = nodeId;
                   bestEntryPointLevel = nodeLevel;
                 }
-              } catch (error) {
-                continue;
-              }
             }
           }
         }
@@ -1350,12 +1185,8 @@ function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, excludeId
   
   // 计算到入口点的距离
   let initialDistance;
-  try {
     initialDistance = distanceFunc(q.vector, ep.vector);
-  } catch (error) {
-    console.error('计算距离失败:', error);
-    return [];
-  }
+
   
   // 【Hora实现】: 候选队列 - 这里使用最小堆管理
   const candidateQueue = createMinHeap((a, b) => a.distance - b.distance);
@@ -1404,11 +1235,8 @@ function searchLayer(q, k, ef, level, nodes, entryPoint, distanceFunc, excludeId
       
       // 计算到邻居的距离
       let neighborDistance;
-      try {
         neighborDistance = distanceFunc(q.vector, neighbor.vector);
-      } catch (error) {
-        continue;
-      }
+   
       
       // 【Hora核心判断】: 距离小于下界或结果不足ef个时添加
       if (neighborDistance < lowerBound || resultQueue.size() < effectiveEf) {
@@ -1559,11 +1387,7 @@ function searchLayerWithCandidateHora(queryNode, initialCandidates, visitedNodes
       
       // 计算到邻居的距离
       let neighborDistance;
-      try {
         neighborDistance = distanceFunc(queryNode.vector, neighbor.vector);
-      } catch (error) {
-        continue;
-      }
       
       // 【Hora核心判断】: 距离小于下界或结果不足ef个时添加
       if (neighborDistance < lowerBound || resultQueue.size() < effectiveEf) {
@@ -1935,11 +1759,8 @@ function optimizeConnection(nodes, nodeId, neighborId, level, distanceFunc) {
   if (!node.connections[level].includes(neighborId)) {
     // 计算距离
     let distance;
-    try {
+    
       distance = distanceFunc(node.vector, neighborNode.vector);
-    } catch (error) {
-      return false;
-    }
     
     // 如果连接数未达到上限，直接添加
     if (node.connections[level].length < maxNeighbors) {
@@ -1955,15 +1776,11 @@ function optimizeConnection(nodes, nodeId, neighborId, level, distanceFunc) {
         const connNode = nodes.get(connId);
         if (!connNode || connNode.deleted || !connNode.vector) continue;
         
-        try {
           const connDistance = distanceFunc(node.vector, connNode.vector);
           if (connDistance > worstDistance) {
             worstDistance = connDistance;
             worstConnectionId = connId;
           }
-        } catch (error) {
-          continue;
-        }
       }
       
       // 如果找到了比新连接更差的连接，替换它
@@ -2026,15 +1843,12 @@ function optimizeGraphConnectivity(nodes, distanceFunc) {
               const secondaryNode = nodes.get(secondaryId);
               if (!secondaryNode || secondaryNode.deleted) continue;
               
-              try {
                 const distance = distanceFunc(node.vector, secondaryNode.vector);
                 candidates.push({
                   id: secondaryId,
                   distance
                 });
-              } catch (error) {
-                continue;
-              }
+             
             }
           }
         }

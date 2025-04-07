@@ -313,8 +313,6 @@ function computeHoraRecallRate(horaResults, exactResults, k = 10, debug = false)
   let matchCount = 0;
   const matchedIds = [];
   
-  // 遍历前k个Hora HNSW结果
-  console.log(horaResults)
   const horaIds = horaResults.slice(0, effectiveK).map(item => extractHoraHnswId(item));
   
   if (debug) {

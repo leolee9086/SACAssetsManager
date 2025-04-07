@@ -327,7 +327,6 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
               const { Node, Metric } = global.HNSWClassic;
               const queryNode = new Node(queryVector);
               const results = classicIndex.nodeSearchK(queryNode, k);
-              console.log('经典HNSW查询结果:', results);
               classicResults = results.map(([node, distance]) => ({
                 id: node.idx(),
                 distance: distance,

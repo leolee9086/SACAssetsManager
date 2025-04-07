@@ -23,11 +23,11 @@ global.HNSWClassic = {
 // 运行测试，使用自定义测试参数
 runTests({
   dimensions: 512,          // 降低维度，加快测试
-  numQueries: 100,          // 减少查询次数，加快测试
+  numQueries: 1000,          // 减少查询次数，加快测试
   k: 10,                    // 查询返回的邻居数量
   minRecallRate: 70,        // 降低最小可接受召回率
-  maxVectorCount: 100,     // 降低最大测试向量数量
-  startVectorCount: 100,   // 起始测试向量数量
+  maxVectorCount: 1000,     // 降低最大测试向量数量
+  startVectorCount: 1000,   // 起始测试向量数量
   hnswParams: {
     M: 12,                  // 每个节点的最大连接数
     efConstruction: 200,    // 构建索引时的ef值
