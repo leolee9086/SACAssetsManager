@@ -45,43 +45,107 @@ function extractHoraHnswId(item) {
 /**
  * 检查自定义HNSW ID是否匹配精确结果ID
  * 自定义HNSW返回纯数字ID，精确结果返回"timestamp_index"格式
- * @param {number} customId - 自定义HNSW的ID
- * @param {string} exactId - 精确结果的ID
+ * @param {number|string} customId - 自定义HNSW的ID
+ * @param {string|number} exactId - 精确结果的ID
  * @returns {boolean} 是否匹配
  */
 function matchCustomToExact(customId, exactId) {
-  // 从"timestamp_index"格式中提取index部分
-  if (exactId.includes('_')) {
-    const indexPart = exactId.split('_')[1];
-    return String(customId) === indexPart||customId===indexPart;
+  // 直接相等
+  if (customId === exactId) {
+    return true;
   }
+  
+  // 字符串表示相等
+  if (String(customId) === String(exactId)) {
+    return true;
+  }
+  
+  // 从"timestamp_index"格式中提取index部分
+  if (typeof exactId === 'string' && exactId.includes('_')) {
+    const indexPart = exactId.split('_')[1];
+    return String(customId) === indexPart || customId === Number(indexPart);
+  }
+  
+  // 尝试反向匹配：如果customId是"timestamp_index"格式
+  if (typeof customId === 'string' && customId.includes('_')) {
+    const indexPart = customId.split('_')[1];
+    return String(exactId) === indexPart || exactId === Number(indexPart);
+  }
+  
   return false;
 }
 
 /**
  * 检查经典HNSW ID是否匹配精确结果ID
  * 经典HNSW和精确结果都使用完整的"timestamp_index"格式
- * @param {string} classicId - 经典HNSW的ID
- * @param {string} exactId - 精确结果的ID
+ * @param {string|number} classicId - 经典HNSW的ID
+ * @param {string|number} exactId - 精确结果的ID
  * @returns {boolean} 是否匹配
  */
 function matchClassicToExact(classicId, exactId) {
-  return classicId === exactId; // 直接完全匹配
+  // 直接相等
+  if (classicId === exactId) {
+    return true;
+  }
+  
+  // 字符串表示相等
+  if (String(classicId) === String(exactId)) {
+    return true;
+  }
+  
+  // 尝试比较数字部分
+  if (typeof classicId === 'string' && typeof exactId === 'string') {
+    if (classicId.includes('_') && exactId.includes('_')) {
+      const classicIndexPart = classicId.split('_')[1];
+      const exactIndexPart = exactId.split('_')[1];
+      return classicIndexPart === exactIndexPart;
+    }
+  }
+  
+  // 如果一个是ID格式，一个是纯数字
+  if (typeof classicId === 'string' && classicId.includes('_')) {
+    const indexPart = classicId.split('_')[1];
+    return String(exactId) === indexPart || exactId === Number(indexPart);
+  }
+  
+  if (typeof exactId === 'string' && exactId.includes('_')) {
+    const indexPart = exactId.split('_')[1];
+    return String(classicId) === indexPart || classicId === Number(indexPart);
+  }
+  
+  return false;
 }
 
 /**
  * 检查Hora HNSW ID是否匹配精确结果ID
  * Hora返回纯数字ID，精确结果返回"timestamp_index"格式
- * @param {number} horaId - Hora HNSW的ID
- * @param {string} exactId - 精确结果的ID
+ * @param {number|string} horaId - Hora HNSW的ID
+ * @param {string|number} exactId - 精确结果的ID
  * @returns {boolean} 是否匹配
  */
 function matchHoraToExact(horaId, exactId) {
-  // 从"timestamp_index"格式中提取index部分
-  if (exactId.includes('_')) {
-    const indexPart = exactId.split('_')[1];
-    return String(horaId) === indexPart;
+  // 直接相等
+  if (horaId === exactId) {
+    return true;
   }
+  
+  // 字符串表示相等
+  if (String(horaId) === String(exactId)) {
+    return true;
+  }
+  
+  // 从"timestamp_index"格式中提取index部分
+  if (typeof exactId === 'string' && exactId.includes('_')) {
+    const indexPart = exactId.split('_')[1];
+    return String(horaId) === indexPart || horaId === Number(indexPart);
+  }
+  
+  // 尝试反向匹配：如果horaId是"timestamp_index"格式
+  if (typeof horaId === 'string' && horaId.includes('_')) {
+    const indexPart = horaId.split('_')[1];
+    return String(exactId) === indexPart || exactId === Number(indexPart);
+  }
+  
   return false;
 }
 
@@ -294,5 +358,8 @@ export {
   computeCustomRecallRate, 
   computeClassicRecallRate, 
   computeHoraRecallRate,
+  matchCustomToExact,
+  matchClassicToExact,
+  matchHoraToExact,
   ENABLE_DEBUG_OUTPUT
 }; 

@@ -6,7 +6,12 @@
 import { computeCosineDistance } from '../../../src/toolBox/base/forMath/forGeometry/forVectors/forDistance.js';
 import { generateRandomVectors } from './generateVectors.mjs';
 import { computePerformanceStats } from './statsUtils.mjs';
-import { computeCustomRecallRate, computeClassicRecallRate, computeHoraRecallRate } from './recallUtils.mjs';
+import { 
+  computeCustomRecallRate, 
+  computeClassicRecallRate, 
+  computeHoraRecallRate,
+  matchCustomToExact
+} from './recallUtils.mjs';
 
 // 导入自定义HNSW实现
 import { createHNSWIndex } from '../../../src/toolBox/feature/forVectorEmbedding/useDeltaPQHNSW/useCustomedHNSW.js';
@@ -32,6 +37,26 @@ async function initTestEnvironment() {
     console.error('Hora初始化失败:', e);
     return false;
   }
+}
+
+// 这里添加支持使用HNSWClassic模块的函数
+function initClassicHNSWIndex(dimensions, params) {
+  if (!global.HNSWClassic) {
+    console.warn('HNSWClassic模块未加载，无法使用经典实现测试');
+    return null;
+  }
+  
+  const { HNSWIndex } = global.HNSWClassic;
+  const index = new HNSWIndex(dimensions, {
+    max_item: 10000,
+    n_neighbor: params.M,
+    n_neighbor0: params.M * 2,
+    max_level: params.ml,
+    ef_build: params.efConstruction,
+    ef_search: params.efSearch
+  });
+  
+  return index;
 }
 
 /**
@@ -60,14 +85,18 @@ async function generateTestData(numVectors, dimensions, numQueries) {
  * @param {number} minRecallRate - 最小可接受召回率
  * @param {Object} options - 其他测试选项
  * @param {boolean} [options.skipClassicImplementation=false] - 是否跳过经典算法的测试
+ * @param {boolean} [options.useClassicFromModule=false] - 是否使用HNSWClassic模块
  * @returns {Object} 测试结果
  */
 async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, hnswParams, minRecallRate, options = {}) {
   console.log(`\n============ 测试向量数量: ${numVectors} ============`);
   const skipClassicImplementation = options.skipClassicImplementation || false;
+  const useClassicFromModule = options.useClassicFromModule || false;
   
   if (skipClassicImplementation) {
     console.log('⚠️ 注意: 经典HNSW实现将被跳过');
+  } else if (useClassicFromModule) {
+    console.log('👉 使用导入的HNSWClassic模块作为经典实现');
   }
 
   try {
@@ -94,12 +123,20 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
 
     // 经典HNSW实现，仅在不跳过的情况下初始化
     let collection = null;
+    let classicIndex = null;
     if (!skipClassicImplementation) {
-      const collectionName = `hnsw测试_${Date.now()}_${numVectors}`;
-      collection = new 数据集(collectionName, 'id', 'debug', {
-        文件保存格式: 'json',
-        文件保存地址: './temp'
-      });
+      if (useClassicFromModule && global.HNSWClassic) {
+        classicIndex = initClassicHNSWIndex(dimensions, hnswParams);
+        if (!classicIndex) {
+          console.warn('初始化经典HNSW索引失败，将跳过经典实现测试');
+        }
+      } else {
+        const collectionName = `hnsw测试_${Date.now()}_${numVectors}`;
+        collection = new 数据集(collectionName, 'id', 'debug', {
+          文件保存格式: 'json',
+          文件保存地址: './temp'
+        });
+      }
     }
 
     // 3. 测量索引构建时间
@@ -131,16 +168,40 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
         }
       }
 
-      // 添加数据到经典实现
-     /* for (const item of testData) {
-        if (!item.meta) {
-          item.meta = { id: item.id, text: `向量_${item.id}` };
-        }
-        await collection.添加数据([item]);
-      }*/
-
       const customBuildEnd = performance.now();
       buildTimes.custom = customBuildEnd - customBuildStart;
+      
+      // 添加数据到经典实现
+      if (!skipClassicImplementation) {
+        console.log(`- 构建经典HNSW索引...`);
+        const classicBuildStart = performance.now();
+        
+        if (useClassicFromModule && classicIndex) {
+          // 使用HNSWClassic模块
+          const { Node, Metric } = global.HNSWClassic;
+          for (const item of testData) {
+            if (!item.vector.test_model) continue;
+            
+            // 创建节点并添加到索引中
+            const node = new Node(item.vector.test_model, item.id);
+            classicIndex.addNode(node);
+          }
+          
+          // 构建索引 - 使用余弦相似度测量方式
+          classicIndex.build(Metric.Cosine);
+        } else if (collection) {
+          // 使用内部集合API
+          for (const item of testData) {
+            if (!item.meta) {
+              item.meta = { id: item.id, text: `向量_${item.id}` };
+            }
+            await collection.添加数据([item]);
+          }
+        }
+        
+        const classicBuildEnd = performance.now();
+        buildTimes.classic = classicBuildEnd - classicBuildStart;
+      }
 
       // Hora WASM HNSW构建
       console.log(`- 构建Hora WASM HNSW索引...`);
@@ -243,29 +304,43 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
         if (i === 0) {
           console.log('- 精确查询结果样本:', JSON.stringify(exactResults.slice(0, 1)));
         }
+        
         // 自定义HNSW查询
         const customStartTime = performance.now();
         let customResults = [];
 
         customResults = customIndex.searchKNN(queryVector, k, {
-          ef: hnswParams.efSearch * 2,
-          multipleSearches: true
+          includeMetadata: true
         });
-
-        // 确保自定义HNSW返回的结果有预期的格式，添加调试信息
-        if (i === 0) {
-          console.log('- 自定义HNSW结果样本:', JSON.stringify(customResults.slice(0, 1)));
-        }
-
+        
         const customEndTime = performance.now();
         customQueryTimes.push(customEndTime - customStartTime);
 
         // 经典HNSW查询
         const classicStartTime = performance.now();
         let classicResults = null;
+        
         if (!skipClassicImplementation) {
-          classicResults = await collection.以向量搜索数据('test_model', queryVector, k);
+          if (useClassicFromModule && classicIndex) {
+            // 使用HNSWClassic模块进行查询
+            try {
+              const { Node, Metric } = global.HNSWClassic;
+              const queryNode = new Node(queryVector);
+              const results = classicIndex.nodeSearchK(queryNode, k);
+              console.log('经典HNSW查询结果:', results);
+              classicResults = results.map(([node, distance]) => ({
+                id: node.idx(),
+                distance: distance,
+                data: { id: node.idx() }
+              }));
+            } catch (error) {
+              console.warn('经典HNSW查询出错:', error.message);
+            }
+          } else if (collection) {
+            classicResults = await collection.以向量搜索数据('test_model', queryVector, k);
+          }
         }
+        
         const classicEndTime = performance.now();
         classicQueryTimes.push(classicEndTime - classicStartTime);
 
@@ -344,10 +419,8 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
 
               for (let k = 0; k < topExactIds.length; k++) {
                 const exactId = topExactIds[k].id;
-                // 尝试使用recallUtils中的matchIds函数
-                const isMatch = computeRecallRate.matchIds ?
-                  computeRecallRate.matchIds(approxId, exactId) :
-                  approxId === exactId || String(approxId) === String(exactId);
+                // 使用导入的matchCustomToExact函数进行ID匹配
+                const isMatch = matchCustomToExact(approxId, exactId);
 
                 if (isMatch) {
                   console.log(`✅ 自定义HNSW结果ID ${approxId} 匹配 精确结果ID ${exactId}`);
@@ -533,6 +606,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
  * @param {number} [options.startVectorCount=100] - 起始测试向量数量
  * @param {Object} [options.hnswParams] - HNSW索引参数
  * @param {boolean} [options.skipClassicImplementation=false] - 是否跳过经典算法的测试
+ * @param {boolean} [options.useClassicFromModule=false] - 是否使用导入的经典模块
  * @returns {Promise<Object>} 测试结果
  */
 async function 指数级扩展测试(options = {}) {
@@ -551,9 +625,12 @@ async function 指数级扩展测试(options = {}) {
     const maxVectorCount = options.maxVectorCount || 8000; // 最大测试向量数量
     const startVectorCount = options.startVectorCount || 1000; // 起始向量数量
     const skipClassicImplementation = options.skipClassicImplementation || false; // 是否跳过经典算法
+    const useClassicFromModule = options.useClassicFromModule || false; // 是否使用导入的经典模块
 
     if (skipClassicImplementation) {
       console.log('📢 经典HNSW实现将被跳过（根据测试配置选项）');
+    } else if (useClassicFromModule) {
+      console.log('📢 将使用导入的HNSWClassic模块作为经典实现');
     }
 
     // HNSW参数
@@ -580,7 +657,7 @@ async function 指数级扩展测试(options = {}) {
           modelName,
           hnswParams,
           minRecallRate,
-          { skipClassicImplementation }
+          { skipClassicImplementation, useClassicFromModule }
         );
 
         testResults.push(result);

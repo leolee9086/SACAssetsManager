@@ -6,7 +6,7 @@
 
 测试套件比较了三种HNSW向量索引实现:
 1. 自定义HNSW - 本项目自行实现的HNSW索引
-2. 经典HNSW - 在数据集类中使用的HNSW索引
+2. 经典HNSW - 在数据集类中使用的HNSW索引或使用hnswClassic.js的实现
 3. Hora WASM HNSW - WebAssembly编译的高性能HNSW索引
 
 ## 测试内容
@@ -62,7 +62,56 @@ import { 安全运行指数级扩展测试 } from './testSuite.mjs';
     ml: 8
   }
 });
+
+// 使用hnswClassic.js作为经典实现运行测试
+安全运行指数级扩展测试({
+  dimensions: 512,
+  numQueries: 10,
+  k: 10,
+  skipClassicImplementation: false,
+  useClassicFromModule: true,  // 使用导入的HNSWClassic模块
+  hnswParams: {
+    M: 16,
+    efConstruction: 200,
+    efSearch: 100,
+    ml: 8
+  }
+});
 ```
+
+## 使用hnswClassic.js测试
+
+从v2.0版本开始，测试套件支持使用hnswClassic.js（基于Rust horaHnsw.rs的1:1翻译）作为经典HNSW实现进行测试。
+
+### 使用方法
+
+1. 在测试入口文件中导入hnswClassic.js中的HNSWIndex和createHNSWParams：
+```javascript
+import { HNSWIndex, createHNSWParams } from '../src/toolBox/feature/forVectorEmbedding/useDeltaPQHNSW/hnswClassic.js';
+
+// 添加到全局环境
+global.HNSWClassic = {
+  HNSWIndex,
+  createHNSWParams
+};
+```
+
+2. 在测试配置中设置useClassicFromModule为true：
+```javascript
+runTests({
+  // ...其他参数...
+  skipClassicImplementation: false, // 不跳过经典实现
+  useClassicFromModule: true,       // 使用导入的模块
+});
+```
+
+### hnswClassic.js与其他实现的区别
+
+1. **API差异**：hnswClassic.js使用不同的API与其他实现交互
+2. **内部实现**：hnswClassic.js是从Rust直接翻译的JavaScript实现
+3. **距离计算**：使用Metric枚举（值为2表示余弦距离）
+4. **内存效率**：纯JavaScript实现可能内存效率不如原生实现
+5. **搜索机制**：使用两阶段分层搜索的经典HNSW算法
 
 ## 测试结果分析
 

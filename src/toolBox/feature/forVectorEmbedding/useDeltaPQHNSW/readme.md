@@ -1,6 +1,92 @@
-# HNSW向量索引
+# HNSW向量索引实现
 
-高性能层次化导航小世界图索引实现，用于高维向量的近似最近邻搜索。本模块还包含DeltaPQ向量压缩功能，支持多种距离度量方法。
+这是一个高性能的JavaScript HNSW (Hierarchical Navigable Small World) 实现，专为向量相似性搜索优化。
+
+## 功能特点
+
+- 支持多种距离度量：欧氏距离、余弦距离、曼哈顿距离和点积
+- 支持高维向量的高效索引和查询
+- 支持动态添加和删除节点
+- 支持序列化和反序列化，方便持久化和加载
+
+## 使用方法
+
+### 基本用法
+
+```javascript
+import { HNSWIndex, Node, Metric, createHNSWParams } from './hnswClassic.js';
+
+// 创建索引 (向量维度为128)
+const dimension = 128;
+const index = HNSWIndex.new(dimension);
+
+// 添加向量
+const vector1 = new Float32Array(dimension).fill(0);
+const vector2 = new Float32Array(dimension).fill(0.5);
+// 可选地为每个向量指定外部ID
+index.addNode(Node.new(vector1, "doc1"));
+index.addNode(Node.new(vector2, "doc2"));
+
+// 批量构建索引 - 选择余弦距离作为度量
+index.build(Metric.Cosine);
+
+// 搜索 - 找到2个最相似的向量
+const queryVector = Node.new(new Float32Array(dimension).fill(0.1));
+const results = index.nodeSearchK(queryVector, 2);
+
+// results格式: [[Node对象, 距离值], ...]
+for (const [node, distance] of results) {
+  console.log(`ID: ${node.idx()}, 距离: ${distance}`);
+}
+```
+
+### 高级配置
+
+```javascript
+// 创建自定义参数
+const params = createHNSWParams({
+  max_item: 1000000,      // 最大项目数
+  n_neighbor: 32,         // 每个节点的邻居数
+  n_neighbor0: 64,        // 底层每个节点的邻居数
+  max_level: 16,          // 最大层级
+  has_deletion: true,     // 支持删除操作
+  ef_build: 400,          // 构建时的ef参数
+  ef_search: 400          // 搜索时的ef参数
+});
+
+// 使用自定义参数创建索引
+const index = HNSWIndex.new(dimension, params);
+```
+
+### 序列化和反序列化
+
+```javascript
+// 序列化索引
+const serializedData = index.serialize();
+
+// 存储序列化数据
+localStorage.setItem('hnsw-index', JSON.stringify(serializedData));
+
+// 加载和反序列化
+const loadedData = JSON.parse(localStorage.getItem('hnsw-index'));
+const loadedIndex = HNSWIndex.deserialize(loadedData);
+```
+
+## 性能调优建议
+
+1. 增大 `ef_search` 可提高搜索精度，但会降低搜索速度
+2. 增大 `n_neighbor` 通常会提高索引质量，但会增加内存使用和构建时间  
+3. 预先构建索引比动态添加更高效
+4. 对于大型数据集，先批量添加再构建比逐个添加和构建效率更高
+
+## 内存使用
+
+HNSW索引的内存使用与以下因素相关：
+- 向量数量
+- 向量维度
+- 每个节点的平均邻居数
+
+对于百万级向量数据，请确保有足够的内存。
 
 ## 主要组件
 
