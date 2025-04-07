@@ -438,7 +438,7 @@ export class HNSWIndex {
             } else {
                 candidates.push(Neighbor.new(root, Number.MAX_VALUE));
             }
-            visitedId.insert(root);
+            visitedId.add(root);
         }
 
         let lowerBound = topCandidates.isEmpty()
@@ -462,7 +462,7 @@ export class HNSWIndex {
                     continue;
                 }
 
-                visitedId.insert(neigh);
+                visitedId.add(neigh);
                 const dist = this.getDistanceFromVec(this.getData(neigh), searchData);
 
                 if (topCandidates.size() < ef || dist < lowerBound) {
@@ -527,7 +527,7 @@ export class HNSWIndex {
                     continue;
                 }
 
-                visitedId.insert(neigh);
+                visitedId.add(neigh);
                 const dist = this.getDistanceFromVec(this.getData(neigh), searchData);
 
                 if (topCandidates.size() < ef || dist < lowerBound) {
