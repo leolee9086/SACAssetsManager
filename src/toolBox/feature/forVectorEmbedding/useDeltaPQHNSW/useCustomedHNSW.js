@@ -336,10 +336,6 @@ export function searchLayer(root, searchData, level, ef, hasDeletion, getData, g
 
   visitedId.add(root);
 
-  // 预分配一个固定大小的数组来存储当前节点的邻居
-  const curNeighborsBuffer = new Array(64);
-  let curNeighborsCount = 0;
-
   while (!candidates.isEmpty()) {
     const curNeigh = candidates.peek();
     const curDist = curNeigh.distance();
@@ -350,16 +346,9 @@ export function searchLayer(root, searchData, level, ef, hasDeletion, getData, g
       break;
     }
 
-    // 获取当前节点的邻居并复制到预分配的缓冲区
-    const neighbors = getNeighbor(curId, level);
-    curNeighborsCount = neighbors.length;
-    for (let i = 0; i < curNeighborsCount; i++) {
-      curNeighborsBuffer[i] = neighbors[i];
-    }
+    const curNeighbors = getNeighbor(curId, level);
 
-    // 使用预分配的缓冲区进行遍历
-    for (let i = 0; i < curNeighborsCount; i++) {
-      const neigh = curNeighborsBuffer[i];
+    for (const neigh of curNeighbors) {
       if (visitedId.has(neigh)) {
         continue;
       }
@@ -400,14 +389,7 @@ export function searchLayerWithCandidate(searchData, sortedCandidates, visitedId
     return a.distance() - b.distance(); // 最大堆 (保留最近的)
   });
 
-  // 预分配缓冲区
-  const curNeighborsBuffer = new Array(64);
-  let curNeighborsCount = 0;
-  
-  // 批量处理初始候选集
-  const candidatesLength = sortedCandidates.length;
-  for (let i = 0; i < candidatesLength; i++) {
-    const neighbor = sortedCandidates[i];
+  for (const neighbor of sortedCandidates) {
     const root = neighbor.idx();
     if (!hasDeletion || !isDeleted(root)) {
       const dist = getDistanceFromVec(getData(root), searchData);
@@ -433,16 +415,9 @@ export function searchLayerWithCandidate(searchData, sortedCandidates, visitedId
       break;
     }
 
-    // 获取当前节点的邻居并复制到预分配的缓冲区
-    const neighbors = getNeighbor(curId, level);
-    curNeighborsCount = neighbors.length;
-    for (let i = 0; i < curNeighborsCount; i++) {
-      curNeighborsBuffer[i] = neighbors[i];
-    }
+    const curNeighbors = getNeighbor(curId, level);
 
-    // 使用预分配的缓冲区进行遍历
-    for (let i = 0; i < curNeighborsCount; i++) {
-      const neigh = curNeighborsBuffer[i];
+    for (const neigh of curNeighbors) {
       if (visitedId.has(neigh)) {
         continue;
       }
@@ -476,56 +451,37 @@ export function searchLayerWithCandidate(searchData, sortedCandidates, visitedId
  */
 export function getNeighborsByHeuristic2(sortedList, retSize, getDistanceFromId) {
   const sortedListLen = sortedList.length;
-  
-  // 预分配返回数组
-  const returnList = new Array(Math.min(retSize, sortedListLen));
-  let returnListLen = 0;
-  
-  // 预分配距离缓存数组
-  const distanceCache = new Float32Array(retSize);
-  let distanceCacheLen = 0;
+  const returnList = [];
 
-  for (let i = 0; i < sortedListLen && returnListLen < retSize; i++) {
-    const iter = sortedList[i];
+  for (const iter of sortedList) {
+    if (returnList.length >= retSize) {
+      break;
+    }
+
     const idx = iter.idx();
     const distance = iter.distance();
 
-    // 如果列表长度小于retSize，直接添加
     if (sortedListLen < retSize) {
-      returnList[returnListLen++] = createNeighbor(idx, distance);
+      returnList.push(createNeighbor(idx, distance));
       continue;
     }
 
-    // 检查是否应该添加当前节点
-    let shouldAdd = true;
-    
-    // 使用缓存的距离进行比较
-    for (let j = 0; j < distanceCacheLen; j++) {
-      const retIdx = returnList[j].idx();
-      const cur2retDis = getDistanceFromId(idx, retIdx);
-      
-      // 缓存距离以供后续使用
-      if (j === distanceCacheLen - 1) {
-        distanceCache[distanceCacheLen++] = cur2retDis;
-      }
-      
+    let good = true;
+
+    for (const retNeighbor of returnList) {
+      const cur2retDis = getDistanceFromId(idx, retNeighbor.idx());
       if (cur2retDis < distance) {
-        shouldAdd = false;
+        good = false;
         break;
       }
     }
 
-    if (shouldAdd) {
-      returnList[returnListLen++] = createNeighbor(idx, distance);
+    if (good) {
+      returnList.push(createNeighbor(idx, distance));
     }
   }
 
-  // 如果返回列表未满，截断数组
-  if (returnListLen < returnList.length) {
-    return returnList.slice(0, returnListLen);
-  }
-  
-  return returnList;
+  return returnList; // 从小到大
 }
 
 /**
@@ -533,58 +489,25 @@ export function getNeighborsByHeuristic2(sortedList, retSize, getDistanceFromId)
  */
 export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neighbor0, n_neighbor, getNeighbor, getDistanceFromId, getNeighborsByHeuristic2, setNeighbors) {
   const n_neigh = level === 0 ? n_neighbor0 : n_neighbor;
-  
-  // 预分配数组存储选中的邻居
-  const selectedNeighbors = new Array(n_neigh);
-  let selectedCount = 0;
-  
-  // 预分配数组存储距离
-  const distances = new Float32Array(sortedCandidates.length);
-  
-  // 批量计算距离并选择邻居
-  for (let i = 0; i < sortedCandidates.length; i++) {
-    const candidate = sortedCandidates[i];
-    const candidateId = candidate.idx();
-    const distance = getDistanceFromId(curId, candidateId);
-    distances[i] = distance;
-    
-    if (selectedCount < n_neigh) {
-      selectedNeighbors[selectedCount++] = createNeighbor(candidateId, distance);
-    } else {
-      // 找到最大距离的邻居
-      let maxDistIdx = 0;
-      let maxDist = distances[0];
-      for (let j = 1; j < selectedCount; j++) {
-        if (distances[j] > maxDist) {
-          maxDist = distances[j];
-          maxDistIdx = j;
-        }
-      }
-      
-      // 如果当前距离更小，替换最大距离的邻居
-      if (distance < maxDist) {
-        selectedNeighbors[maxDistIdx] = createNeighbor(candidateId, distance);
-        distances[maxDistIdx] = distance;
-      }
-    }
+  const selectedNeighbors = getNeighborsByHeuristic2(sortedCandidates, n_neigh, getDistanceFromId);
+
+  if (selectedNeighbors.length > n_neigh) {
+    throw new Error("不应返回超过M_个候选项");
   }
 
-  if (selectedCount === 0) {
+  if (selectedNeighbors.length === 0) {
     throw new Error("顶部候选项为空，不可能！");
   }
 
   const nextClosestEntryPoint = selectedNeighbors[0].idx();
 
   // 获取当前邻居列表并设置
-  const neighborIds = new Array(selectedCount);
-  for (let i = 0; i < selectedCount; i++) {
-    neighborIds[i] = selectedNeighbors[i].idx();
-  }
+  const neighborIds = selectedNeighbors.map(n => n.idx());
   setNeighbors(curId, level, neighborIds);
 
   // 为选中的邻居添加反向连接
-  for (let i = 0; i < selectedCount; i++) {
-    const neighborId = selectedNeighbors[i].idx();
+  for (const selectedNeighbor of selectedNeighbors) {
+    const neighborId = selectedNeighbor.idx();
     const neighborOfSelectedNeighbors = getNeighbor(neighborId, level);
 
     if (neighborOfSelectedNeighbors.length > n_neigh) {
@@ -596,9 +519,10 @@ export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neig
     }
 
     let isCurIdPresent = false;
+
     if (isUpdate) {
-      for (let j = 0; j < neighborOfSelectedNeighbors.length; j++) {
-        if (neighborOfSelectedNeighbors[j] === curId) {
+      for (const iter of neighborOfSelectedNeighbors) {
+        if (iter === curId) {
           isCurIdPresent = true;
           break;
         }
@@ -608,28 +532,25 @@ export function connectNeighbor(curId, sortedCandidates, level, isUpdate, n_neig
     if (!isCurIdPresent) {
       if (neighborOfSelectedNeighbors.length < n_neigh) {
         // 使用优化版邻居存储结构添加邻居
-        const updatedNeighbors = new Array(neighborOfSelectedNeighbors.length + 1);
-        updatedNeighbors[0] = curId;
-        for (let j = 0; j < neighborOfSelectedNeighbors.length; j++) {
-          updatedNeighbors[j + 1] = neighborOfSelectedNeighbors[j];
-        }
+        const updatedNeighbors = [...neighborOfSelectedNeighbors, curId];
         setNeighbors(neighborId, level, updatedNeighbors);
       } else {
         const dMax = getDistanceFromId(curId, neighborId);
-        const candidates = createBinaryHeap((a, b) => a.distance() - b.distance());
+
+        const candidates = createBinaryHeap((a, b) => {
+          return a.distance() - b.distance();
+        });
+
         candidates.push(createNeighbor(curId, dMax));
 
-        for (let j = 0; j < neighborOfSelectedNeighbors.length; j++) {
-          const nId = neighborOfSelectedNeighbors[j];
+        for (const iter of neighborOfSelectedNeighbors) {
+          const nId = iter;
           const dNeigh = getDistanceFromId(nId, neighborId);
           candidates.push(createNeighbor(nId, dNeigh));
         }
 
         const returnList = getNeighborsByHeuristic2(candidates.intoSortedVec(), n_neigh, getDistanceFromId);
-        const updatedNeighbors = new Array(returnList.length);
-        for (let j = 0; j < returnList.length; j++) {
-          updatedNeighbors[j] = returnList[j].idx();
-        }
+        const updatedNeighbors = returnList.map(n => n.idx());
         setNeighbors(neighborId, level, updatedNeighbors);
       }
     }
@@ -1129,4 +1050,3 @@ export function createHNSWIndex({
     _nodes: nodes
   };
 } 
-

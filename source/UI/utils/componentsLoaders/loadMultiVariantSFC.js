@@ -8,45 +8,11 @@ function parseMultiVariantSFC(content) {
     const wrappedContent = `<div>${content}</div>`;
     const parser = new DOMParser();
     const doc = parser.parseFromString(wrappedContent, 'text/html');
-    
-    // 验证和获取setup script
-    const setupScripts = doc.querySelectorAll('script[setup]');
-    if (setupScripts.length === 0) {
-        throw new Error('组件必须包含一个script setup部分');
-    }
-    if (setupScripts.length > 1) {
-        throw new Error('组件只能包含一个script setup部分');
-    }
-    const sharedSetup = setupScripts[0].textContent.trim();
-    
-    // 获取共享样式
-    const sharedStyles = Array.from(doc.querySelectorAll('style:not([variant])')).map(
-        style => style.textContent.trim()
-    ).join('\n\n');
-
-    // 解析变体配置
-    doc.querySelectorAll('template[variant]').forEach(template => {
-        const variantName = template.getAttribute('variant');
-        variants[variantName] = variants[variantName] || {};
-        variants[variantName].template = template.innerHTML.trim();
-    });
-
-    // 解析变体样式
-    doc.querySelectorAll('style[variant]').forEach(style => {
-        const variantName = style.getAttribute('variant');
-        variants[variantName] = variants[variantName] || {};
-        variants[variantName].style = style.textContent.trim();
-    });
-
-    // 解析变体特定的script
-    doc.querySelectorAll('script[variant]').forEach(script => {
-        const variantName = script.getAttribute('variant');
-        if (!variants[variantName]) {
-            throw new Error(`找不到对应的变体模板: ${variantName}`);
-        }
-        variants[variantName].script = script.textContent.trim();
-    });
-
+    const sharedSetup = parseSetupScript(doc);
+    const sharedStyles = parseSharedStyles(doc);
+    parseVariantTemplates(doc, variants);
+    parseVariantStyles(doc, variants);
+    parseVariantScripts(doc, variants);
     return { variants, sharedSetup, sharedStyles };
 }
 

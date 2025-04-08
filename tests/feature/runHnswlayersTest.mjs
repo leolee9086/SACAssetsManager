@@ -23,18 +23,18 @@ global.HNSWClassic = {
 // 运行测试，使用自定义测试参数
 runTests({
   dimensions: 512,          // 降低维度，加快测试
-  numQueries: 1000,          // 减少查询次数，加快测试
+  numQueries: 2000,          // 减少查询次数，加快测试
   k: 10,                    // 查询返回的邻居数量
   minRecallRate: 70,        // 降低最小可接受召回率
-  maxVectorCount: 2000,     // 降低最大测试向量数量
-  startVectorCount: 2000,   // 起始测试向量数量
+  maxVectorCount: 100000,     // 降低最大测试向量数量
+  startVectorCount: 500,   // 起始测试向量数量
   hnswParams: {
-    M: 12,                  // 每个节点的最大连接数
-    efConstruction: 200,    // 构建索引时的ef值
-    efSearch: 100,          // 搜索时的ef值
-    ml: 6                   // 最大层数
+    M: 64,                  // 每个节点的最大连接数
+    efConstruction: 300,    // 构建索引时的ef值
+    efSearch: 300,          // 搜索时的ef值
+    ml: 32                   // 最大层数true
   },
-  skipClassicImplementation: false, // 启用经典算法对比
+  skipClassicImplementation: true, // 启用经典算法对比
   useClassicFromModule: true,     // 使用我们导入的经典实现
   debug: true               // 启用详细调试输出
 }).catch(error => {

@@ -15,6 +15,7 @@ import {
 
 // 导入自定义HNSW实现
 import { createHNSWIndex } from '../../../src/toolBox/feature/forVectorEmbedding/useDeltaPQHNSW/useCustomedHNSW.js';
+import { createDeltaPQIndex } from '../../../src/toolBox/feature/forVectorEmbedding/useDeltaPQHNSW/useCustomedDeltaPQ.js';
 
 import { 数据集 } from '../../../source/data/database/localDataBase/collection.js';
 
@@ -101,7 +102,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
 
   try {
     // 0. 准备测试数据
-    console.log(`[1/4] 准备测试数据 (${numVectors}向量, ${dimensions}维度)...`);
+    console.log(`[1/5] 准备测试数据 (${numVectors}向量, ${dimensions}维度)...`);
     // 创建测试数据
     const { testData, queryVectors } = await generateTestData(numVectors, dimensions, numQueries);
 
@@ -110,7 +111,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
     console.log(`样本ID: ${sampleIds.join(', ')}`);
 
     // 2. 初始化索引
-    console.log(`[2/4] 初始化索引结构...`);
+    console.log(`[2/5] 初始化索引结构...`);
 
     // 自定义HNSW实现
     const customIndex = createHNSWIndex({
@@ -119,6 +120,16 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       efConstruction: hnswParams.efConstruction,
       efSearch: hnswParams.efSearch,
       ml: hnswParams.ml
+    });
+
+    // 创建DeltaPQ索引
+    console.log(`创建DeltaPQ索引 (${numSubvectors}子向量, ${bitsPerCode}位/码)...`);
+    const deltaPQIndex = createDeltaPQIndex({
+      numSubvectors: numSubvectors,
+      bitsPerCode: bitsPerCode,
+      sampleSize: Math.min(1000, numVectors),
+      maxIterations: 25,
+      distanceMetric: 'cosine'  // 显式设置为余弦距离
     });
 
     // 经典HNSW实现，仅在不跳过的情况下初始化
@@ -140,13 +151,14 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
     }
 
     // 3. 测量索引构建时间
-    console.log(`[3/4] 测量索引构建时间...`);
+    console.log(`[3/5] 测量索引构建时间...`);
 
     // 记录构建时间
     const buildTimes = {
       custom: 0,
       classic: skipClassicImplementation ? -1 : 0,
-      hora: 0
+      hora: 0,
+      deltaPQ: 0
     };
 
     // 构建索引并计时
@@ -170,6 +182,24 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
 
       const customBuildEnd = performance.now();
       buildTimes.custom = customBuildEnd - customBuildStart;
+      
+      // 构建DeltaPQ索引
+      console.log(`- 构建DeltaPQ索引...`);
+      const deltaPQBuildStart = performance.now();
+      
+      // 添加数据到DeltaPQ索引
+      for (const item of testData) {
+        if (!item.vector.test_model) continue;
+        deltaPQIndex.addVector(item.vector.test_model, item.id);
+      }
+      
+      // 构建索引
+      console.log(`训练并构建DeltaPQ索引...`);
+      const deltaPQResult = deltaPQIndex.buildIndex();
+      console.log(`DeltaPQ训练完成: ${JSON.stringify(deltaPQResult)}`);
+      
+      const deltaPQBuildEnd = performance.now();
+      buildTimes.deltaPQ = deltaPQBuildEnd - deltaPQBuildStart;
       
       // 添加数据到经典实现
       if (!skipClassicImplementation) {
@@ -278,13 +308,17 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       }
 
       // 4. 测量查询性能
-      console.log(`[4/4] 测量查询性能和召回率...`);
+      console.log(`[4/5] 测量查询性能和召回率...`);
 
       const customQueryTimes = [];
       const classicQueryTimes = [];
       const exactQueryTimes = [];
       const horaQueryTimes = [];
-      const recallRates = { custom: [], classic: [], hora: [] };
+      const deltaPQQueryTimes = [];
+      const recallRates = { custom: [], classic: [], hora: [], deltaPQ: [] };
+
+      // 对于第一个查询，我们输出详细信息以便调试
+      const ENABLE_DETAILED_DEBUG = true;
 
       for (let i = 0; i < numQueries; i++) {
         const queryVector = queryVectors[i].vector.test_model;
@@ -315,6 +349,12 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
         
         const customEndTime = performance.now();
         customQueryTimes.push(customEndTime - customStartTime);
+
+        // DeltaPQ查询
+        const deltaPQStartTime = performance.now();
+        const deltaPQResults = deltaPQIndex.search(queryVector, k);
+        const deltaPQEndTime = performance.now();
+        deltaPQQueryTimes.push(deltaPQEndTime - deltaPQStartTime);
 
         // 经典HNSW查询
         const classicStartTime = performance.now();
@@ -379,6 +419,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
             console.log(`自定义HNSW结果数量: ${customResults.length}`);
             console.log(`经典HNSW结果数量: ${classicResults ? classicResults.length : '未计算'}`);
             console.log(`Hora WASM结果数量: ${horaResultArray.length}`);
+            console.log(`DeltaPQ结果数量: ${deltaPQResults.length}`);
 
             // 检查结果是否为空
             if (customResults.length === 0) {
@@ -406,9 +447,19 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
               };
             });
 
+            // 提取前5个DeltaPQ结果ID
+            const topDeltaPQIds = deltaPQResults.slice(0, 5).map(item => {
+              const id = item.id;
+              return {
+                id, numericId: typeof id === 'string' && id.includes('_') ?
+                  Number(id.split('_')[1]) : Number(id)
+              };
+            });
+
             // 打印ID对比
             console.log('精确结果前5个ID:', JSON.stringify(topExactIds));
             console.log('自定义HNSW前5个ID:', JSON.stringify(topCustomIds));
+            console.log('DeltaPQ前5个ID:', JSON.stringify(topDeltaPQIds));
 
             // ID匹配分析
             console.log('\n逐个ID匹配分析:');
@@ -449,6 +500,45 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
               }
             }
 
+            // DeltaPQ ID匹配分析
+            console.log('\nDeltaPQ ID匹配分析:');
+            for (let j = 0; j < Math.min(5, topDeltaPQIds.length); j++) {
+              const approxId = topDeltaPQIds[j].id;
+              let foundMatch = false;
+
+              for (let k = 0; k < topExactIds.length; k++) {
+                const exactId = topExactIds[k].id;
+                // 使用导入的matchCustomToExact函数进行ID匹配
+                const isMatch = matchCustomToExact(approxId, exactId);
+
+                if (isMatch) {
+                  console.log(`✅ DeltaPQ结果ID ${approxId} 匹配 精确结果ID ${exactId}`);
+                  foundMatch = true;
+                  break;
+                }
+              }
+
+              if (!foundMatch) {
+                console.log(`❌ DeltaPQ结果ID ${approxId} 无匹配`);
+                // 寻找最接近的ID
+                const closestExactId = topExactIds.reduce((closest, exact) => {
+                  if (typeof approxId === 'number' && typeof exact.numericId === 'number') {
+                    const currentDiff = Math.abs(approxId - exact.numericId);
+                    const closestDiff = closest ? Math.abs(approxId - closest.numericId) : Infinity;
+                    return currentDiff < closestDiff ? exact : closest;
+                  }
+                  return closest;
+                }, null);
+
+                if (closestExactId) {
+                  console.log(`  最接近的精确结果ID: ${closestExactId.id} (数字部分差异: ${typeof approxId === 'number' ?
+                      Math.abs(approxId - closestExactId.numericId) :
+                      '未知'
+                    })`);
+                }
+              }
+            }
+
             // 输出ID提取过程
             console.log('\n提取结果ID示例:');
             if (customResults.length > 0) {
@@ -462,11 +552,18 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
               console.log('经典HNSW第一个结果:',
                 typeof sampleClassic === 'object' ? JSON.stringify(sampleClassic) : sampleClassic);
             }
+
+            if (deltaPQResults.length > 0) {
+              const sampleDeltaPQ = deltaPQResults[0];
+              console.log('DeltaPQ第一个结果:',
+                typeof sampleDeltaPQ === 'object' ? JSON.stringify(sampleDeltaPQ) : sampleDeltaPQ);
+            }
           }
 
           const customRecall = computeCustomRecallRate(customResults, exactResults, k, isFirstQuery);
           const classicRecall = skipClassicImplementation ? null : computeClassicRecallRate(classicResults, exactResults, k, isFirstQuery);
           const horaRecall = computeHoraRecallRate(horaResultArray, exactResults, k, isFirstQuery);
+          const deltaPQRecall = computeCustomRecallRate(deltaPQResults, exactResults, k, isFirstQuery);
 
           // 在第一次查询后输出召回率结果
           if (isFirstQuery) {
@@ -474,6 +571,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
             console.log(`自定义HNSW: ${(customRecall * 100).toFixed(2)}%`);
             console.log(`经典HNSW: ${(classicRecall ? (classicRecall * 100).toFixed(2) : '未计算')}%`);
             console.log(`Hora WASM: ${(horaRecall * 100).toFixed(2)}%`);
+            console.log(`DeltaPQ: ${(deltaPQRecall * 100).toFixed(2)}%`);
             console.log('======== 召回率计算调试结束 ========\n');
           }
 
@@ -483,6 +581,37 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
             recallRates.classic.push(classicRecall);
           }
           recallRates.hora.push(horaRecall);
+          recallRates.deltaPQ.push(deltaPQRecall);
+
+          // 在搜索函数内添加调试输出
+          if (ENABLE_DETAILED_DEBUG && isFirstQuery) {
+            // 对比第一个查询向量的结果
+            console.log(`\n======= 第一个查询向量详细分析 =======`);
+            console.log(`查询向量: [${queryVector.slice(0, 5).join(', ')}...]`);
+            
+            // 对精确结果和DeltaPQ结果进行详细比较
+            if (exactResults.length > 0 && deltaPQResults.length > 0) {
+              console.log(`\n精确结果 vs DeltaPQ结果 (Top ${Math.min(5, k)})`);
+              
+              for (let i = 0; i < Math.min(5, k); i++) {
+                // 精确结果详情
+                const exactResult = exactResults[i];
+                const exactId = exactResult.id;
+                const exactDistance = exactResult.distance;
+                
+                // 查找匹配的DeltaPQ结果
+                const deltaPQResult = deltaPQResults[i];
+                const deltaPQId = deltaPQResult.id;
+                const deltaPQDistance = deltaPQResult.distance;
+                
+                console.log(`[${i}] 精确结果: ID=${exactId}, 距离=${exactDistance.toFixed(6)}`);
+                console.log(`[${i}] DeltaPQ结果: ID=${deltaPQId}, 距离=${deltaPQDistance.toFixed(6)}, 差值=${Math.abs(exactDistance - deltaPQDistance).toFixed(6)}`);
+              }
+            }
+            
+            console.log(`\nDeltaPQ召回率: ${(deltaPQRecall * 100).toFixed(2)}%`);
+            console.log(`======= 调试信息结束 =======\n`);
+          }
         } catch (error) {
           horaQueryTimes.push(0);
           recallRates.hora.push(0);
@@ -494,16 +623,19 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       const classicQueryStats = skipClassicImplementation ? null : computePerformanceStats(classicQueryTimes);
       const exactQueryStats = computePerformanceStats(exactQueryTimes);
       const horaQueryStats = computePerformanceStats(horaQueryTimes);
+      const deltaPQQueryStats = computePerformanceStats(deltaPQQueryTimes);
 
       const customRecallStats = computePerformanceStats(recallRates.custom.map(r => r * 100));
       const classicRecallStats = skipClassicImplementation ? null : computePerformanceStats(recallRates.classic.map(r => r * 100));
       const horaRecallStats = computePerformanceStats(recallRates.hora.map(r => r * 100));
+      const deltaPQRecallStats = computePerformanceStats(recallRates.deltaPQ.map(r => r * 100));
 
       // 计算相对速度提升
       const speedups = {
         custom: exactQueryStats.avg / customQueryStats.avg,
         classic: skipClassicImplementation ? null : exactQueryStats.avg / classicQueryStats.avg,
-        hora: horaQueryTimes.some(t => t > 0) ? exactQueryStats.avg / horaQueryStats.avg : 0
+        hora: horaQueryTimes.some(t => t > 0) ? exactQueryStats.avg / horaQueryStats.avg : 0,
+        deltaPQ: exactQueryStats.avg / deltaPQQueryStats.avg
       };
 
       // 格式化输出测试结果，突出重要数据
@@ -517,6 +649,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       console.log(`│ 自定义HNSW     │ ${buildTimes.custom.toFixed(2).padStart(11)} │`);
       console.log(`│ 经典HNSW       │ ${buildTimes.classic === -1 ? '跳过' : buildTimes.classic.toFixed(2).padStart(11)} │`);
       console.log(`│ Hora WASM HNSW │ ${buildTimes.hora.toFixed(2).padStart(11)} │`);
+      console.log(`│ DeltaPQ         │ ${buildTimes.deltaPQ.toFixed(2).padStart(11)} │`);
       console.log('└────────────────┴─────────────┘');
 
       // 查询时间和速度提升表格
@@ -526,6 +659,7 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       console.log(`│ 自定义HNSW     │ ${customQueryStats.avg.toFixed(2).padStart(11)} │ ${speedups.custom.toFixed(2).padStart(11)}x │`);
       console.log(`│ 经典HNSW       │ ${classicQueryStats ? classicQueryStats.avg.toFixed(2).padStart(11) : '未计算'} │ ${speedups.classic === null ? 'N/A' : speedups.classic.toFixed(2).padStart(11)}x │`);
       console.log(`│ Hora WASM HNSW │ ${horaQueryStats.avg.toFixed(2).padStart(11)} │ ${(speedups.hora > 0 ? speedups.hora.toFixed(2) : 'N/A').padStart(11)} │`);
+      console.log(`│ DeltaPQ         │ ${deltaPQQueryStats.avg.toFixed(2).padStart(11)} │ ${speedups.deltaPQ.toFixed(2).padStart(11)}x │`);
       console.log('└────────────────┴─────────────┴─────────────┘');
 
       // 召回率表格
@@ -536,19 +670,22 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
       console.log(`│ 自定义HNSW     │ ${customRecallStats.avg.toFixed(2).padStart(11)} │ ${customRecallStats.min.toFixed(2).padStart(11)} │ ${customRecallStats.max.toFixed(2).padStart(11)} │`);
       console.log(`│ 经典HNSW       │ ${classicRecallStats ? classicRecallStats.avg.toFixed(2).padStart(11) : '未计算'} │ ${classicRecallStats ? classicRecallStats.min.toFixed(2).padStart(11) : '未计算'} │ ${classicRecallStats ? classicRecallStats.max.toFixed(2).padStart(11) : '未计算'} │`);
       console.log(`│ Hora WASM HNSW │ ${horaRecallStats.avg.toFixed(2).padStart(11)} │ ${horaRecallStats.min.toFixed(2).padStart(11)} │ ${horaRecallStats.max.toFixed(2).padStart(11)} │`);
+      console.log(`│ DeltaPQ         │ ${deltaPQRecallStats.avg.toFixed(2).padStart(11)} │ ${deltaPQRecallStats.min.toFixed(2).padStart(11)} │ ${deltaPQRecallStats.max.toFixed(2).padStart(11)} │`);
       console.log('└────────────────┴─────────────┴─────────────┴─────────────┘');
 
       // 检查是否所有实现都满足最低召回率要求
       const recallPassed = {
         custom: customRecallStats.avg >= minRecallRate,
         classic: skipClassicImplementation ? null : classicRecallStats.avg >= minRecallRate,
-        hora: horaRecallStats.avg >= minRecallRate
+        hora: horaRecallStats.avg >= minRecallRate,
+        deltaPQ: deltaPQRecallStats.avg >= minRecallRate
       };
 
       console.log(`\n📋 符合最低召回率要求 (${minRecallRate}%)`);
       console.log(`自定义HNSW: ${recallPassed.custom ? '✅ 通过' : '❌ 未通过'}`);
       console.log(`经典HNSW: ${recallPassed.classic === null ? '未计算' : (recallPassed.classic ? '✅ 通过' : '❌ 未通过')}`);
       console.log(`Hora WASM HNSW: ${recallPassed.hora ? '✅ 通过' : '❌ 未通过'}`);
+      console.log(`DeltaPQ: ${recallPassed.deltaPQ ? '✅ 通过' : '❌ 未通过'}`);
 
       // 返回测试结果
       return {
@@ -558,24 +695,28 @@ async function runSingleTest(numVectors, dimensions, numQueries, k, modelName, h
           exact: exactQueryStats,
           custom: customQueryStats,
           classic: classicQueryStats,
-          hora: horaQueryStats
+          hora: horaQueryStats,
+          deltaPQ: deltaPQQueryStats
         },
         recallStats: {
           custom: customRecallStats,
           classic: classicRecallStats,
-          hora: horaRecallStats
+          hora: horaRecallStats,
+          deltaPQ: deltaPQRecallStats
         },
         speedups,
         failedCriteria: {
           speedup: {
             custom: speedups.custom < 1,
             classic: skipClassicImplementation ? null : speedups.classic < 1,
-            hora: speedups.hora > 0 ? speedups.hora < 1 : (bulkAddResult && horaRecallStats.avg <= 0)
+            hora: speedups.hora > 0 ? speedups.hora < 1 : (bulkAddResult && horaRecallStats.avg <= 0),
+            deltaPQ: speedups.deltaPQ < 1
           },
           recall: {
             custom: customRecallStats.avg < minRecallRate,
             classic: skipClassicImplementation ? null : classicRecallStats.avg < minRecallRate,
-            hora: horaRecallStats.avg > 0 ? horaRecallStats.avg < minRecallRate : (bulkAddResult)
+            hora: horaRecallStats.avg > 0 ? horaRecallStats.avg < minRecallRate : (bulkAddResult),
+            deltaPQ: deltaPQRecallStats.avg < minRecallRate
           }
         }
       };
@@ -665,19 +806,21 @@ async function 指数级扩展测试(options = {}) {
         const failedSpeedup = result.failedCriteria?.speedup;
         const failedRecall = result.failedCriteria?.recall;
 
-        if (failedSpeedup && (failedSpeedup.custom && failedSpeedup.classic === null && failedSpeedup.hora)) {
+        if (failedSpeedup && (failedSpeedup.custom && failedSpeedup.classic === null && failedSpeedup.hora && failedSpeedup.deltaPQ)) {
           console.log('\n⚠️ 性能测试未通过: 自定义HNSW和Hora WASM HNSW的查询速度都慢于暴力搜索');
           console.log('- 自定义HNSW:', failedSpeedup.custom ? '未通过' : '通过');
           console.log('- 经典HNSW:', failedSpeedup.classic === null ? '未计算' : '通过');
           console.log('- Hora WASM HNSW:', failedSpeedup.hora ? '未通过' : '通过');
+          console.log('- DeltaPQ:', failedSpeedup.deltaPQ ? '未通过' : '通过');
           shouldStopTesting = true;
         }
 
-        if (failedRecall && (failedRecall.custom && failedRecall.classic === null && failedRecall.hora)) {
+        if (failedRecall && (failedRecall.custom && failedRecall.classic === null && failedRecall.hora && failedRecall.deltaPQ)) {
           console.log('\n⚠️ 准确性测试未通过: 自定义HNSW和Hora WASM HNSW的召回率都低于阈值', minRecallRate, '%');
           console.log('- 自定义HNSW:', failedRecall.custom ? '未通过' : '通过');
           console.log('- 经典HNSW:', failedRecall.classic === null ? '未计算' : '通过');
           console.log('- Hora WASM HNSW:', failedRecall.hora ? '未通过' : '通过');
+          console.log('- DeltaPQ:', failedRecall.deltaPQ ? '未通过' : '通过');
           shouldStopTesting = true;
         }
 
@@ -713,11 +856,11 @@ async function 指数级扩展测试(options = {}) {
 
       // 输出性能趋势图表数据
       console.log('\n性能趋势数据:');
-      console.log('向量数量,自定义HNSW查询时间(ms),经典HNSW查询时间(ms),Hora WASM查询时间(ms),精确查询时间(ms),自定义HNSW召回率(%),经典HNSW召回率(%),Hora WASM召回率(%)');
+      console.log('向量数量,自定义HNSW查询时间(ms),经典HNSW查询时间(ms),Hora WASM查询时间(ms),精确查询时间(ms),自定义HNSW召回率(%),经典HNSW召回率(%),Hora WASM召回率(%),DeltaPQ查询时间(ms),自定义HNSW召回率(%),经典HNSW召回率(%),DeltaPQ召回率(%)');
 
       testResults.forEach(result => {
         if (!result.error) {
-          console.log(`${result.vectorCount},${result.queryStats.custom.avg.toFixed(2)},${result.queryStats.classic ? result.queryStats.classic.avg.toFixed(2) : '未计算'},${result.queryStats.hora.avg.toFixed(2)},${result.queryStats.exact.avg.toFixed(2)},${result.recallStats.custom.avg.toFixed(2)},${result.recallStats.classic ? result.recallStats.classic.avg.toFixed(2) : '未计算'},${result.recallStats.hora.avg.toFixed(2)}`);
+          console.log(`${result.vectorCount},${result.queryStats.custom.avg.toFixed(2)},${result.queryStats.classic ? result.queryStats.classic.avg.toFixed(2) : '未计算'},${result.queryStats.hora.avg.toFixed(2)},${result.queryStats.exact.avg.toFixed(2)},${result.recallStats.custom.avg.toFixed(2)},${result.recallStats.classic ? result.recallStats.classic.avg.toFixed(2) : '未计算'},${result.recallStats.hora.avg.toFixed(2)},${result.queryStats.deltaPQ.avg.toFixed(2)},${result.recallStats.custom.avg.toFixed(2)},${result.recallStats.classic ? result.recallStats.classic.avg.toFixed(2) : '未计算'},${result.recallStats.deltaPQ.avg.toFixed(2)}`);
         }
       });
 

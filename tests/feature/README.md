@@ -101,3 +101,157 @@ for file in tests/feature/*.js; do node $file; done
 ## 部分结论
 
 hnsw库没必要是使用,准确率和性能相比自行实现都没有优势
+
+# DeltaPQ功能测试
+
+本目录包含DeltaPQ算法的功能测试，用于验证其在不同场景下的性能和正确性。
+
+## 测试文件说明
+
+- `deltaPQ性能测试.js` - 测试DeltaPQ在不同参数配置下的性能表现和准确性，支持欧氏距离和余弦距离
+- `deltaPQ余弦距离归一化测试.js` - 专门测试余弦距离模式下的向量归一化功能
+
+## 运行测试
+
+使用Node.js运行测试文件：
+
+```bash
+# 运行性能测试
+node tests/feature/deltaPQ性能测试.js
+
+# 运行余弦距离归一化测试
+node tests/feature/deltaPQ余弦距离归一化测试.js
+```
+
+## 测试参数说明
+
+### deltaPQ性能测试
+
+性能测试支持以下参数调整：
+
+- 向量维度(`dim`) - 默认为512
+- 数据库大小(`databaseSize`) - 默认为5000
+- 查询数量(`numQueries`) - 默认为100
+- 子向量数量(`numSubvectors`) - 在参数扫描中从8到128变化
+- 每个子向量的编码位数(`bitsPerCode`) - 默认为8
+- 距离度量方式(`distanceMetric`) - 支持欧氏距离和余弦距离
+
+### deltaPQ余弦距离归一化测试
+
+归一化测试验证以下功能：
+
+- 向量归一化检测功能
+- 自动归一化处理功能
+- 量化和反量化过程中的归一化保持性
+- 余弦距离计算的准确性
+
+## 注意事项
+
+- 余弦距离模式下，输入向量必须严格归一化（长度为1），否则会导致计算错误
+- 余弦距离下的量化精度可能低于欧氏距离，主要由于子向量划分影响了归一化特性
+- 在高维空间中，量化误差可能会累积，影响最终的检索质量
+
+# 特性测试模块 (Feature Tests)
+
+本目录包含用于测试与评估系统各项特性的测试脚本，主要聚焦于向量嵌入相关功能的性能测试。
+
+## DeltaPQ 测试脚本
+
+### 召回率测试 (`deltaPQ召回率测试.js`)
+
+该测试脚本用于评估 DeltaPQ 算法在不同参数配置下的召回率表现。测试会考察不同的子向量数量、编码位数和距离度量方式对召回率的影响。
+
+#### 如何运行测试
+
+运行完整测试套件：
+```bash
+node --experimental-specifier-resolution=node tests/feature/deltaPQ召回率测试.js
+```
+
+导入并手动运行指定参数测试：
+```javascript
+import { runManualTest, TEST_CONFIG } from './deltaPQ召回率测试.js';
+
+// 自定义配置
+TEST_CONFIG.showDetailedLogs = true;
+TEST_CONFIG.pauseBetweenTests = true;
+
+// 运行单个测试
+runManualTest({
+  dim: 512,
+  databaseSize: 2000,
+  numQueries: 20,
+  numSubvectors: 32,
+  bitsPerCode: 10,
+  distanceMetric: 'cosine',
+  trainSize: 1000
+});
+```
+
+#### 配置参数说明
+
+测试脚本支持以下配置参数：
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `dims` | 向量维度 | [512] |
+| `databaseSizes` | 数据库大小 | [2000] |
+| `numQueries` | 查询数量 | 20 |
+| `subvectorCounts` | 子向量数量 | [16, 32, 64] |
+| `bitsCodes` | 编码位数 | [8, 10] |
+| `distanceMetrics` | 距离度量类型 | ['euclidean', 'cosine'] |
+| `trainSizes` | 训练集大小 | [1000] |
+| `kValues` | 测试的k值 | [1, 10, 50, 100] |
+| `pauseBetweenTests` | 是否在测试间暂停 | false |
+| `skipExistingResults` | 是否跳过已有结果的测试 | false |
+| `showDetailedLogs` | 是否显示详细日志 | true |
+| `generateTempResults` | 是否生成临时结果 | true |
+
+#### 输出结果解读
+
+测试完成后将显示以下结果：
+
+1. **测试配置摘要** - 显示使用的配置参数
+2. **每个配置的详细结果** - 针对每种参数组合的结果，包括：
+   - 召回率（不同k值）
+   - 量化误差
+   - 速度提升
+   - 压缩比
+3. **结果汇总表格** - 按距离度量和维度分组的结果表格
+4. **最佳配置推荐** - 针对不同召回率阈值的最佳参数推荐
+5. **使用建议** - 针对不同场景的参数配置建议
+
+### 性能测试 (`deltaPQ性能测试.js`)
+
+该测试脚本用于评估 DeltaPQ 算法在不同参数配置下的性能表现，主要测量量化时间和距离计算时间。
+
+#### 如何运行测试
+
+```bash
+node --experimental-specifier-resolution=node tests/feature/deltaPQ性能测试.js
+```
+
+这个脚本会测试不同子向量数量和编码位数组合下的性能指标，包括：
+- 量化时间
+- 距离计算时间
+- 量化误差
+
+## 测试结果解读指南
+
+详细的测试结果解读指南和最佳实践请参考 `AInote.md`。该文档包含：
+
+- 不同参数配置对召回率的影响
+- 如何根据应用场景选择最佳参数
+- 性能与精度的权衡考量
+- 余弦距离和欧几里得距离的特殊考量
+
+## 开发自定义测试
+
+如需开发自定义测试，建议参考现有测试脚本的结构：
+
+1. 定义明确的测试参数配置
+2. 实现数据生成函数
+3. 实现测试循环和结果收集
+4. 提供清晰的结果展示和分析
+
+所有测试脚本应遵循函数式编程风格，避免使用类，并注意函数命名和参数规范。

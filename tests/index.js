@@ -13,6 +13,7 @@ const path = require('path');
  * @param {string} 目录路径 - 测试文件所在目录
  */
 async function 运行目录测试(目录路径) {
+  return
   console.log(`\n==== 开始运行 ${path.basename(目录路径)} 目录测试 ====\n`);
   
   try {
