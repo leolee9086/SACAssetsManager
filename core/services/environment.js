@@ -12,7 +12,6 @@ import {
   initGlobalRouter, 
   get, 
   post, 
-  all,
   groupRoutes
 } from '../../source/utils/feature/forGlobalRouter.js';
 
