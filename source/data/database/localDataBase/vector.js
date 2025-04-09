@@ -1,4 +1,4 @@
-import { 计算余弦相似度,计算归一化向量余弦相似度 } from "../../../utils/vector/similarity.js";
+import { 计算归一化向量余弦相似度 } from "../../../utils/vector/similarity.js";
 export async function 创建简单短哈希(文本,短码长度=8) {
     const 编码器 = new TextEncoder();
     const 编码结果 = 编码器.encode(文本);

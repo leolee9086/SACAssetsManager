@@ -2,6 +2,7 @@
  * @fileoverview 【已废弃】AnyTXT API 入口
  * 此文件为兼容层，请不要直接使用。
  * 请从 src/toolBox/useAge/forAnytext/useAnytextApi.js 导入相应功能
+ * 暂时还没有确认所有内容都已迁移，请勿使用
  */
 
 import {

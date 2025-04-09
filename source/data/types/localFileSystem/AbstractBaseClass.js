@@ -5,7 +5,6 @@ export class AbstractBase {
     static #stateConstraints = Symbol('stateConstraints');
     static #methodChains = Symbol('methodChains');
     static #relationConstraints = Symbol('relationConstraints');
-    static #MAX_HISTORY_LENGTH = 100;
 
     // 私有字段
     #state = {};

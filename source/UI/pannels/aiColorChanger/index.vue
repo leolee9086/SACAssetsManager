@@ -77,8 +77,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { setupAIProcessor } from './setupModels.js';
 import ToolExecutionPanel from './ToolExecutionPanel.vue';
-import ModelSelector from './ModelSelector.vue';
-
 // 状态
 const userInput = ref('');
 const backgroundColor = ref('#f0f0f0');  // 默认背景色
@@ -90,7 +88,6 @@ const recognition = ref(null);
 const isErrorMessage = ref(false);
 const isLoading = ref(false);
 const originalOnError = ref(null);
-
 // AI处理器状态
 const localAIProcessor = ref(null);
 const aiStatus = ref('initializing');

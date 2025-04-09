@@ -94,47 +94,77 @@
     <!-- 查询条件构建器 -->
     <div class="conditions-container">
       <div v-for="(condition, index) in conditions" :key="index" class="condition-row">
-        <FieldSelect
-          v-model="condition.field"
-          :fields="fields"
-          class="field-select"
-        />
+        <template v-if="condition.field === 'subquery'">
+          <div class="subquery-condition">
+            <div class="subquery-header">
+              <FieldSelect
+                v-model="condition.subqueryField"
+                :fields="fields"
+                class="field-select"
+              />
+              <select v-model="condition.operator" class="operator-select">
+                <option value="IN">包含</option>
+                <option value="NOT IN">不包含</option>
+                <option value="EXISTS">存在</option>
+                <option value="NOT EXISTS">不存在</option>
+              </select>
+              <div class="condition-buttons">
+                <button type="button" class="icon-btn remove-btn" @click="removeCondition(index)">
+                  －
+                </button>
+                <button type="button" class="icon-btn add-btn" @click="addCondition">
+                  ＋
+                </button>
+              </div>
+            </div>
+            <div class="subquery-body">
+              <SubQueryBuilder
+                ref="subQueryBuilders"
+                :key="index"
+                v-model="condition.value"
+              />
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <FieldSelect
+            v-model="condition.field"
+            :fields="fields"
+            class="field-select"
+          />
 
-        <select v-model="condition.operator" class="operator-select">
-          <option v-if="condition.field !== 'created' && condition.field !== 'updated' && condition.field !== 'subquery'" value="=">等于</option>
-          <option v-if="condition.field !== 'created' && condition.field !== 'updated' && condition.field !== 'subquery'" value="!=">不等于</option>
-          <optgroup v-if="condition.field !== 'created' && condition.field !== 'updated' && condition.field !== 'subquery'" label="类似">
-            <option value="like_prefix">前缀匹配</option>
-            <option value="like_suffix">后缀匹配</option>
-            <option value="like_contains">任意匹配</option>
-            <option value="like_custom">详细匹配</option>
-          </optgroup>
-          <option v-if="condition.field === 'created' || condition.field === 'updated'" value="=">等于</option>
-          <option v-if="condition.field === 'created' || condition.field === 'updated'" value="<">早于</option>
-          <option v-if="condition.field === 'created' || condition.field === 'updated'" value=">">晚于</option>
-          <option v-if="condition.field === 'created' || condition.field === 'updated'" value="between">介于</option>
-          <option v-if="condition.field === 'created' || condition.field === 'updated'" value="not_between">以外</option>
-          <option v-if="condition.field === 'subquery'" value="IN">包含</option>
-          <option v-if="condition.field === 'subquery'" value="NOT IN">不包含</option>
-          <option v-if="condition.field === 'subquery'" value="EXISTS">存在</option>
-          <option v-if="condition.field === 'subquery'" value="NOT EXISTS">不存在</option>
-        </select>
+          <select v-model="condition.operator" class="operator-select">
+            <option v-if="condition.field !== 'created' && condition.field !== 'updated'" value="=">等于</option>
+            <option v-if="condition.field !== 'created' && condition.field !== 'updated'" value="!=">不等于</option>
+            <optgroup v-if="condition.field !== 'created' && condition.field !== 'updated'" label="类似">
+              <option value="like_prefix">前缀匹配</option>
+              <option value="like_suffix">后缀匹配</option>
+              <option value="like_contains">任意匹配</option>
+              <option value="like_custom">详细匹配</option>
+            </optgroup>
+            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="=">等于</option>
+            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="<">早于</option>
+            <option v-if="condition.field === 'created' || condition.field === 'updated'" value=">">晚于</option>
+            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="between">介于</option>
+            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="not_between">以外</option>
+          </select>
 
-        <FieldInput
-          v-model="condition.value"
-          :field="condition.field"
-          :operator="condition.operator"
-          :table="selectedTable"
-        />
+          <FieldInput
+            v-model="condition.value"
+            :field="condition.field"
+            :operator="condition.operator"
+            :table="selectedTable"
+          />
 
-        <div class="condition-buttons">
-          <button type="button" class="icon-btn remove-btn" @click="removeCondition(index)">
-            －
-          </button>
-          <button type="button" class="icon-btn add-btn" @click="addCondition">
-            ＋
-          </button>
-        </div>
+          <div class="condition-buttons">
+            <button type="button" class="icon-btn remove-btn" @click="removeCondition(index)">
+              －
+            </button>
+            <button type="button" class="icon-btn add-btn" @click="addCondition">
+              ＋
+            </button>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -159,6 +189,7 @@ import { useTables,kernelApi } from './useTables.js'
 import FieldSelect from './FieldSelect.vue'
 import FieldInput from './FieldInput.vue'
 import DataTable from './DataTable.vue'
+import SubQueryBuilder from './SubQueryBuilder.vue'
 
 const { getTableFields, getTableNames } = useTables()
 const selectedTable = ref('blocks')
@@ -172,7 +203,8 @@ const logicOperator = ref('AND')
 const conditions = ref([{
   field: '',
   operator: '=',
-  value: ''
+  value: '',
+  subqueryField: ''
 }])
 const generatedSQL = ref('')
 
@@ -202,7 +234,8 @@ const addCondition = () => {
   conditions.value.push({
     field: '',
     operator: '=',
-    value: ''
+    value: '',
+    subqueryField: ''
   })
 }
 
@@ -255,7 +288,11 @@ const generateQuery = async () => {
           };
 
           if (c.field === 'subquery') {
-            return `(${c.value})`;
+            if (c.operator === 'EXISTS' || c.operator === 'NOT EXISTS') {
+              return `${c.operator} (${c.value})`;
+            } else {
+              return `${c.subqueryField} ${c.operator} (${c.value})`;
+            }
           } else if (c.field === 'created' || c.field === 'updated') {
             switch(c.operator) {
               case '=':
@@ -517,6 +554,7 @@ const queryResult = ref(null)
   gap: 8px;
   margin-bottom: 8px;
   align-items: center;
+  width: 100%;
 }
 
 .field-select,
@@ -709,5 +747,26 @@ th, td {
 /* 确保最后一行底部边框可见 */
 tr:last-child td {
   border-bottom: 1px solid #e9ecef;
+}
+
+.subquery-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.subquery-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.subquery-body {
+  margin-left: 16px;
+  border-left: 2px solid #e9ecef;
+  padding-left: 16px;
 }
 </style>
