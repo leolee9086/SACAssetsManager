@@ -139,6 +139,15 @@ import { useTables } from './useTables.js'
 import FieldSelect from './FieldSelect.vue'
 import FieldInput from './FieldInput.vue'
 
+const props = defineProps({
+  modelValue: {
+    type: String,
+    default: ''
+  }
+})
+
+const emit = defineEmits(['update:modelValue', 'change'])
+
 const { getTableFields, getTableNames } = useTables()
 const selectedTable = ref('blocks')
 const tableNames = getTableNames()
@@ -236,6 +245,13 @@ const vClickOutside = {
   }
 }
 
+// 监听条件变化，自动更新SQL
+watch([conditions, selectedFields, matchType, logicOperator, selectedTable], () => {
+  const sql = generateSubQuery()
+  emit('update:modelValue', sql)
+  emit('change', sql)
+}, { deep: true })
+
 // 生成子查询SQL
 const generateSubQuery = () => {
   const selectedColumns = selectedFields.value
@@ -258,6 +274,8 @@ const generateSubQuery = () => {
     }
     query += conditions.value
       .map(c => {
+        if (!c.field) return null // 跳过空字段
+        
         const field = fields.value.find(f => f.name === c.field);
         const formatValue = (value) => {
           if (field?.formatter) {
@@ -275,15 +293,17 @@ const generateSubQuery = () => {
             case '>':
               return `${c.field} > '${formatValue(c.value)}'`;
             case 'between':
-              if (!Array.isArray(c.value) || c.value.length !== 2) return '';
+              if (!Array.isArray(c.value) || c.value.length !== 2) return null;
               return `${c.field} BETWEEN '${formatValue(c.value[0])}' AND '${formatValue(c.value[1])}'`;
             case 'not_between':
-              if (!Array.isArray(c.value) || c.value.length !== 2) return '';
+              if (!Array.isArray(c.value) || c.value.length !== 2) return null;
               return `(${c.field} < '${formatValue(c.value[0])}' OR ${c.field} > '${formatValue(c.value[1])}')`;
             default:
               return `${c.field} ${c.operator} '${formatValue(c.value)}'`;
           }
         } else {
+          if (!c.value) return null; // 跳过空值
+          
           let value = c.value;
           switch(c.operator) {
             case 'like_prefix':
@@ -299,7 +319,7 @@ const generateSubQuery = () => {
           }
         }
       })
-      .filter(Boolean)
+      .filter(Boolean) // 移除空值
       .join(` ${logicOperator.value} `)
     if (matchType.value === 'IS NOT') {
       query += ')'

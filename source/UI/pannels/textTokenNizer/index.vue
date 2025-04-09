@@ -253,6 +253,13 @@ watch(conditions, (newConditions) => {
     } else if (!['between', 'not_between'].includes(condition.operator) && Array.isArray(condition.value)) {
       condition.value = '';
     }
+    
+    // 当切换到子查询时，初始化子查询相关字段
+    if (condition.field === 'subquery' && !condition.subqueryField) {
+      condition.subqueryField = '';
+      condition.operator = 'IN';
+      condition.value = '';
+    }
   });
 }, { deep: true });
 
@@ -273,63 +280,74 @@ const generateQuery = async () => {
     let query = `SELECT ${columns} FROM ${selectedTable.value}`
     
     if (conditions.value.length > 0) {
-      query += ' WHERE '
-      if (matchType.value === 'IS NOT') {
-        query += 'NOT ('
-      }
-      query += conditions.value
-        .map(c => {
-          const field = fields.value.find(f => f.name === c.field);
-          const formatValue = (value) => {
-            if (field?.formatter) {
-              return field.formatter.toStorage(value);
-            }
-            return value;
-          };
+      const validConditions = conditions.value.filter(c => c.field && (c.field === 'subquery' ? c.subqueryField && c.value : c.value))
+      
+      if (validConditions.length > 0) {
+        query += ' WHERE '
+        if (matchType.value === 'IS NOT') {
+          query += 'NOT ('
+        }
+        query += validConditions
+          .map(c => {
+            const field = fields.value.find(f => f.name === c.field);
+            const formatValue = (value) => {
+              if (field?.formatter) {
+                return field.formatter.toStorage(value);
+              }
+              return value;
+            };
 
-          if (c.field === 'subquery') {
-            if (c.operator === 'EXISTS' || c.operator === 'NOT EXISTS') {
-              return `${c.operator} (${c.value})`;
+            if (c.field === 'subquery') {
+              // 处理子查询
+              if (!c.value) return null;
+              
+              if (c.operator === 'EXISTS' || c.operator === 'NOT EXISTS') {
+                return `${c.operator} (${c.value})`;
+              } else {
+                return `${c.subqueryField} ${c.operator} (${c.value})`;
+              }
+            } else if (c.field === 'created' || c.field === 'updated') {
+              if (!c.value) return null;
+              
+              switch(c.operator) {
+                case '=':
+                  return `${c.field} = '${formatValue(c.value)}'`;
+                case '<':
+                  return `${c.field} < '${formatValue(c.value)}'`;
+                case '>':
+                  return `${c.field} > '${formatValue(c.value)}'`;
+                case 'between':
+                  if (!Array.isArray(c.value) || c.value.length !== 2) return null;
+                  return `${c.field} BETWEEN '${formatValue(c.value[0])}' AND '${formatValue(c.value[1])}'`;
+                case 'not_between':
+                  if (!Array.isArray(c.value) || c.value.length !== 2) return null;
+                  return `(${c.field} < '${formatValue(c.value[0])}' OR ${c.field} > '${formatValue(c.value[1])}')`;
+                default:
+                  return `${c.field} ${c.operator} '${formatValue(c.value)}'`;
+              }
             } else {
-              return `${c.subqueryField} ${c.operator} (${c.value})`;
+              if (!c.value) return null;
+              
+              let value = c.value;
+              switch(c.operator) {
+                case 'like_prefix':
+                  return `${c.field} LIKE '${value}%'`;
+                case 'like_suffix':
+                  return `${c.field} LIKE '%${value}'`;
+                case 'like_contains':
+                  return `${c.field} LIKE '%${value}%'`;
+                case 'like_custom':
+                  return `${c.field} LIKE '${value}'`;
+                default:
+                  return `${c.field} ${c.operator} '${value}'`;
+              }
             }
-          } else if (c.field === 'created' || c.field === 'updated') {
-            switch(c.operator) {
-              case '=':
-                return `${c.field} = '${formatValue(c.value)}'`;
-              case '<':
-                return `${c.field} < '${formatValue(c.value)}'`;
-              case '>':
-                return `${c.field} > '${formatValue(c.value)}'`;
-              case 'between':
-                if (!Array.isArray(c.value) || c.value.length !== 2) return '';
-                return `${c.field} BETWEEN '${formatValue(c.value[0])}' AND '${formatValue(c.value[1])}'`;
-              case 'not_between':
-                if (!Array.isArray(c.value) || c.value.length !== 2) return '';
-                return `(${c.field} < '${formatValue(c.value[0])}' OR ${c.field} > '${formatValue(c.value[1])}')`;
-              default:
-                return `${c.field} ${c.operator} '${formatValue(c.value)}'`;
-            }
-          } else {
-            let value = c.value;
-            switch(c.operator) {
-              case 'like_prefix':
-                return `${c.field} LIKE '${value}%'`;
-              case 'like_suffix':
-                return `${c.field} LIKE '%${value}'`;
-              case 'like_contains':
-                return `${c.field} LIKE '%${value}%'`;
-              case 'like_custom':
-                return `${c.field} LIKE '${value}'`;
-              default:
-                return `${c.field} ${c.operator} '${value}'`;
-            }
-          }
-        })
-        .filter(Boolean) // 移除空字符串
-        .join(` ${logicOperator.value} `)
-      if (matchType.value === 'IS NOT') {
-        query += ')'
+          })
+          .filter(Boolean) // 移除空条件
+          .join(` ${logicOperator.value} `)
+        if (matchType.value === 'IS NOT') {
+          query += ')'
+        }
       }
     }
     
