@@ -1,113 +1,173 @@
 <template>
   <div class="query-builder">
-    <!-- 头部查询结构 -->
-    <div class="query-header">
-      <div class="query-clause">
-        <span class="keyword">SELECT</span>
-        <div 
-          ref="triggerElement"
-          class="field-selector-trigger" 
-          @click.stop="toggleFieldSelector"
-        >
-          <template v-if="selectedFields.filter(f => f.selected).length > 0">
-            <span v-for="(field, index) in selectedFields.filter(f => f.selected)" 
-                  :key="field.name" 
-                  class="selected-field-tag">
-              {{ field.name }}
-              <span v-if="field.alias" class="alias">AS {{ field.alias }}</span>
-              <span v-if="index < selectedFields.filter(f => f.selected).length - 1">, </span>
-            </span>
-          </template>
-          <span v-else class="placeholder">选择字段...</span>
-        </div>
-        
-        <div 
-          v-if="isFieldSelectorOpen" 
-          class="field-selector-dropdown"
-          :style="dropdownPosition"
-          v-click-outside="closeFieldSelector"
-        >
-          <div class="selected-fields">
-            <div v-for="(field, index) in selectedFields" 
-                 :key="index" 
-                 class="field-item">
-              <label>
-                <input 
-                  type="checkbox" 
-                  v-model="field.selected"
-                  class="field-checkbox"
-                >
-                {{ field.name }}
-              </label>
-              <input
-                v-model="field.alias"
-                type="text"
-                placeholder="别名"
-                class="alias-input"
-              >
-              <button 
-                class="remove-field"
-                @click="removeField(index)"
-                title="移除字段"
-              >×</button>
-            </div>
-          </div>
-          <select 
-            v-model="newFieldToAdd" 
-            class="add-field-select"
-            @change="addFieldToSelection"
-          >
-            <option value="">添加新字段...</option>
-            <option 
-              v-for="field in availableFields" 
-              :key="field.name" 
-              :value="field.name"
+    <button class="layout-toggle" @click="toggleLayout" :title="isVerticalLayout ? '切换到左右布局' : '切换到上下布局'">
+      <svg v-if="isVerticalLayout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 3h18v18H3V3zm9 0v18" />
+      </svg>
+      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 3h18v18H3V3zm0 9h18" />
+      </svg>
+      {{ isVerticalLayout ? '左右布局' : '上下布局' }}
+    </button>
+
+    <div class="query-container" :class="isVerticalLayout ? 'vertical' : 'horizontal'">
+      <div class="query-section" :class="{ horizontal: !isVerticalLayout }">
+        <!-- 查询构建部分 -->
+        <div class="query-header">
+          <div class="query-clause">
+            <span class="keyword">SELECT</span>
+            <div 
+              ref="triggerElement"
+              class="field-selector-trigger" 
+              @click.stop="toggleFieldSelector"
             >
-              {{ field.displayName || field.name }}
-            </option>
+              <template v-if="selectedFields.filter(f => f.selected).length > 0">
+                <span v-for="(field, index) in selectedFields.filter(f => f.selected)" 
+                      :key="field.name" 
+                      class="selected-field-tag">
+                  {{ field.name }}
+                  <span v-if="field.alias" class="alias">AS {{ field.alias }}</span>
+                  <span v-if="index < selectedFields.filter(f => f.selected).length - 1">, </span>
+                </span>
+              </template>
+              <span v-else class="placeholder">选择字段...</span>
+            </div>
+            
+            <div 
+              v-if="isFieldSelectorOpen" 
+              class="field-selector-dropdown"
+              :style="dropdownPosition"
+              v-click-outside="closeFieldSelector"
+            >
+              <div class="selected-fields">
+                <div v-for="(field, index) in selectedFields" 
+                     :key="index" 
+                     class="field-item">
+                  <label>
+                    <input 
+                      type="checkbox" 
+                      v-model="field.selected"
+                      class="field-checkbox"
+                    >
+                    {{ field.name }}
+                  </label>
+                  <input
+                    v-model="field.alias"
+                    type="text"
+                    placeholder="别名"
+                    class="alias-input"
+                  >
+                  <button 
+                    class="remove-field"
+                    @click="removeField(index)"
+                    title="移除字段"
+                  >×</button>
+                </div>
+              </div>
+              <select 
+                v-model="newFieldToAdd" 
+                class="add-field-select"
+                @change="addFieldToSelection"
+              >
+                <option value="">添加新字段...</option>
+                <option 
+                  v-for="field in availableFields" 
+                  :key="field.name" 
+                  :value="field.name"
+                >
+                  {{ field.displayName || field.name }}
+                </option>
+              </select>
+            </div>
+
+            <span class="keyword">FROM</span>
+            <select v-model="selectedTable" class="table-select">
+              <option v-for="tableName in tableNames" 
+                      :key="tableName" 
+                      :value="tableName">
+                {{ tableName }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 主条件选择器 -->
+        <div class="main-condition">
+          <select v-model="matchType" class="main-select">
+            <option value="IS">满足</option>
+            <option value="IS NOT">不满足</option>
+          </select>
+          <select v-model="logicOperator" class="main-select">
+            <option value="OR">任意</option>
+            <option value="AND">所有</option>
           </select>
         </div>
 
-        <span class="keyword">FROM</span>
-        <select v-model="selectedTable" class="table-select">
-          <option v-for="tableName in tableNames" 
-                  :key="tableName" 
-                  :value="tableName">
-            {{ tableName }}
-          </option>
-        </select>
-      </div>
-    </div>
-
-    <!-- 主条件选择器 -->
-    <div class="main-condition">
-      <select v-model="matchType" class="main-select">
-        <option value="IS">满足</option>
-        <option value="IS NOT">不满足</option>
-      </select>
-      <select v-model="logicOperator" class="main-select">
-        <option value="OR">任意</option>
-        <option value="AND">所有</option>
-      </select>
-    </div>
-
-    <!-- 查询条件构建器 -->
-    <div class="conditions-container">
-      <div v-for="(condition, index) in conditions" :key="index" class="condition-row">
-        <template v-if="condition.field === 'subquery'">
-          <div class="subquery-condition">
-            <div class="subquery-header">
+        <!-- 查询条件构建器 -->
+        <div class="conditions-container">
+          <div v-for="(condition, index) in conditions" :key="index" class="condition-row">
+            <template v-if="condition.field === 'subquery'">
+              <div class="subquery-condition">
+                <div class="subquery-header">
+                  <FieldSelect
+                    v-model="condition.subqueryField"
+                    :fields="fields"
+                    class="field-select"
+                  />
+                  <select v-model="condition.operator" class="operator-select">
+                    <option value="IN">包含</option>
+                    <option value="NOT IN">不包含</option>
+                    <option value="EXISTS">存在</option>
+                    <option value="NOT EXISTS">不存在</option>
+                  </select>
+                  <div class="condition-buttons">
+                    <button type="button" class="icon-btn remove-btn" @click="removeCondition(index)">
+                      －
+                    </button>
+                    <button type="button" class="icon-btn add-btn" @click="addCondition">
+                      ＋
+                    </button>
+                  </div>
+                </div>
+                <div class="subquery-body">
+                  <SubQueryBuilder
+                    ref="subQueryBuilders"
+                    :key="index"
+                    v-model="condition.value"
+                  />
+                </div>
+              </div>
+            </template>
+            <template v-else>
               <FieldSelect
-                v-model="condition.subqueryField"
+                v-model="condition.field"
                 :fields="fields"
                 class="field-select"
               />
+
               <select v-model="condition.operator" class="operator-select">
-                <option value="IN">包含</option>
-                <option value="NOT IN">不包含</option>
-                <option value="EXISTS">存在</option>
-                <option value="NOT EXISTS">不存在</option>
+                <option v-if="condition.field !== 'created' && condition.field !== 'updated'" value="=">等于</option>
+                <option v-if="condition.field !== 'created' && condition.field !== 'updated'" value="!=">不等于</option>
+                <optgroup v-if="condition.field !== 'created' && condition.field !== 'updated'" label="类似">
+                  <option value="like_prefix">前缀匹配</option>
+                  <option value="like_suffix">后缀匹配</option>
+                  <option value="like_contains">任意匹配</option>
+                  <option value="like_custom">详细匹配</option>
+                </optgroup>
+                <option v-if="condition.field === 'created' || condition.field === 'updated'" value="=">等于</option>
+                <option v-if="condition.field === 'created' || condition.field === 'updated'" value="<">早于</option>
+                <option v-if="condition.field === 'created' || condition.field === 'updated'" value=">">晚于</option>
+                <option v-if="condition.field === 'created' || condition.field === 'updated'" value="between">介于</option>
+                <option v-if="condition.field === 'created' || condition.field === 'updated'" value="not_between">以外</option>
               </select>
+
+              <FieldInput
+                v-model="condition.value"
+                :field="condition.field"
+                :operator="condition.operator"
+                :table="selectedTable"
+              />
+
               <div class="condition-buttons">
                 <button type="button" class="icon-btn remove-btn" @click="removeCondition(index)">
                   －
@@ -116,70 +176,23 @@
                   ＋
                 </button>
               </div>
-            </div>
-            <div class="subquery-body">
-              <SubQueryBuilder
-                ref="subQueryBuilders"
-                :key="index"
-                v-model="condition.value"
-              />
-            </div>
+            </template>
           </div>
-        </template>
-        <template v-else>
-          <FieldSelect
-            v-model="condition.field"
-            :fields="fields"
-            class="field-select"
-          />
+        </div>
+      </div>
 
-          <select v-model="condition.operator" class="operator-select">
-            <option v-if="condition.field !== 'created' && condition.field !== 'updated'" value="=">等于</option>
-            <option v-if="condition.field !== 'created' && condition.field !== 'updated'" value="!=">不等于</option>
-            <optgroup v-if="condition.field !== 'created' && condition.field !== 'updated'" label="类似">
-              <option value="like_prefix">前缀匹配</option>
-              <option value="like_suffix">后缀匹配</option>
-              <option value="like_contains">任意匹配</option>
-              <option value="like_custom">详细匹配</option>
-            </optgroup>
-            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="=">等于</option>
-            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="<">早于</option>
-            <option v-if="condition.field === 'created' || condition.field === 'updated'" value=">">晚于</option>
-            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="between">介于</option>
-            <option v-if="condition.field === 'created' || condition.field === 'updated'" value="not_between">以外</option>
-          </select>
+      <div class="divider" :class="isVerticalLayout ? 'vertical' : 'horizontal'"></div>
 
-          <FieldInput
-            v-model="condition.value"
-            :field="condition.field"
-            :operator="condition.operator"
-            :table="selectedTable"
-          />
+      <div class="query-section" :class="{ horizontal: !isVerticalLayout }">
+        <!-- SQL预览部分 -->
+        <div v-if="generatedSQL" class="sql-preview">
+          <pre>{{ generatedSQL }}</pre>
+        </div>
 
-          <div class="condition-buttons">
-            <button type="button" class="icon-btn remove-btn" @click="removeCondition(index)">
-              －
-            </button>
-            <button type="button" class="icon-btn add-btn" @click="addCondition">
-              ＋
-            </button>
-          </div>
-        </template>
+        <!-- 数据表格部分 -->
+        <DataTable v-if="queryResult" :data="queryResult" />
       </div>
     </div>
-
-    <button type="button" class="generate-btn" @click="generateQuery">生成查询</button>
-
-    <!-- 预览 SQL -->
-    <div v-if="generatedSQL" class="sql-preview">
-      <pre>{{ generatedSQL }}</pre>
-    </div>
-
-    <!-- 替换原有表格为新组件 -->
-    <DataTable
-      v-if="queryResult"
-      :data="queryResult"
-    />
   </div>
 </template>
 
@@ -409,11 +422,41 @@ const vClickOutside = {
 
 // 新增响应式数据
 const queryResult = ref(null)
+
+// 添加防抖函数
+const debounce = (fn, delay) => {
+  let timer = null
+  return function (...args) {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => fn.apply(this, args), delay)
+  }
+}
+
+// 自动查询的防抖处理
+const debouncedQuery = debounce(generateQuery, 500)
+
+// 监听所有可能触发查询的状态变化
+watch([
+  selectedFields,
+  selectedTable,
+  matchType,
+  logicOperator,
+  conditions
+], () => {
+  debouncedQuery()
+}, { deep: true })
+
+// 新增布局状态
+const isVerticalLayout = ref(true)
+
+const toggleLayout = () => {
+  isVerticalLayout.value = !isVerticalLayout.value
+}
 </script>
 
 <style scoped>
 .query-builder {
-  padding: 16px;
+  padding: 8px;
   font-family: system-ui, -apple-system, sans-serif;
   background: #fff;
   border-radius: 4px;
@@ -421,48 +464,80 @@ const queryResult = ref(null)
   display: flex;
   flex-direction: column;
   height: 100%;
+  gap: 8px;
 }
 
-/* 查询构建部分 */
+.layout-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 1;
+}
+
+.layout-toggle:hover {
+  background: #f8f9fa;
+}
+
+.layout-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.query-container {
+  display: flex;
+  gap: 12px;
+  height: 100%;
+  transition: flex-direction 0.3s ease;
+}
+
+.query-container.vertical {
+  flex-direction: column;
+}
+
+.query-container.horizontal {
+  flex-direction: row;
+}
+
 .query-section {
-  flex: 0 0 auto; /* 不会被压缩，保持原有大小 */
-  overflow-y: auto;
-  padding-bottom: 16px;
-}
-
-/* 结果显示部分 */
-.result-container {
-  margin-top: 20px;
-  border: 1px solid #e9ecef;
-  border-radius: 6px;
-  overflow: hidden;
-  flex: 1 1 auto; /* 允许伸缩，占据剩余空间 */
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0; /* 确保flex布局正常工作 */
+  gap: 8px;
 }
 
-.result-header {
-  padding: 12px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
-  font-weight: 500;
-  flex: 0 0 auto;
+.query-section.horizontal {
+  max-width: 50%;
 }
 
-.result-table {
-  overflow: auto;
-  flex: 1 1 auto;
-  min-height: 0;
-  position: relative; /* 为固定表头提供定位上下文 */
-  max-height: 100%;
+.divider {
+  background: #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.divider.vertical {
+  width: 100%;
+  height: 1px;
+}
+
+.divider.horizontal {
+  width: 1px;
+  align-self: stretch;
 }
 
 .query-header {
-  background: #f8f9fa;
+  background: #fff;
   padding: 12px;
   border-radius: 6px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   border: 1px solid #e9ecef;
 }
 
@@ -516,35 +591,6 @@ const queryResult = ref(null)
   font-size: 0.9em;
 }
 
-.field-selector-dropdown {
-  position: fixed; /* 改为fixed定位 */
-  width: auto;
-  min-width: 300px;
-  max-width: 600px;
-  z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  /* 移除之前的定位属性 */
-}
-
-.field-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-}
-
-.remove-field {
-  background: none;
-  border: none;
-  color: #dc3545;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.remove-field:hover {
-  background: #fff5f5;
-}
-
 .table-select {
   padding: 6px 12px;
   border: 1px solid #dee2e6;
@@ -555,51 +601,111 @@ const queryResult = ref(null)
 
 .main-condition {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin: 4px 0;
 }
 
-.main-select {
-  padding: 6px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fff;
-  min-width: 100px;
+.conditions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .condition-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
   align-items: center;
   width: 100%;
 }
 
+.subquery-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.subquery-header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.subquery-body {
+  margin-left: 12px;
+  border-left: 2px solid #e9ecef;
+  padding-left: 12px;
+}
+
 .field-select,
-.operator-select {
-  padding: 6px 12px;
+.operator-select,
+.main-select {
+  padding: 4px 6px;
   border: 1px solid #ddd;
   border-radius: 4px;
   background: #fff;
-  min-width: 120px;
+  min-width: 80px;
+  font-size: 0.9em;
 }
 
-.value-input {
-  flex: 1;
-  padding: 6px 12px;
-  border: 1px solid #ddd;
+.sql-preview {
+  margin-top: 0;
+  padding: 12px;
+  background: #f8f9fa;
   border-radius: 4px;
-  min-width: 200px;
+  font-size: 0.9em;
+  border: 1px solid #e9ecef;
+  flex: 1;
+  overflow: auto;
+  min-height: 100px;
 }
 
-.condition-buttons {
-  display: flex;
-  gap: 4px;
+.sql-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.query-section :deep(.data-table) {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.query-section.horizontal {
+  max-width: 50%;
+  min-width: 400px;
+}
+
+.query-section.horizontal .sql-preview {
+  max-height: 30vh;
+}
+
+.query-section.horizontal :deep(.data-table) {
+  max-height: calc(70vh - 100px);
+}
+
+@media (max-width: 1024px) {
+  .query-container.horizontal {
+    flex-direction: column;
+  }
+
+  .query-section.horizontal {
+    max-width: 100%;
+  }
+
+  .divider.horizontal {
+    width: 100%;
+    height: 1px;
+  }
 }
 
 .icon-btn {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -609,7 +715,7 @@ const queryResult = ref(null)
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 12px;
 }
 
 .remove-btn {
@@ -620,23 +726,6 @@ const queryResult = ref(null)
   color: #52c41a;
 }
 
-.generate-btn {
-  margin-top: 20px;
-  padding: 8px 16px;
-  background: #1890ff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.sql-preview {
-  margin-top: 16px;
-  padding: 12px;
-  background: #f5f5f5;
-  border-radius: 4px;
-}
-
 select:focus,
 input:focus {
   outline: none;
@@ -645,146 +734,5 @@ input:focus {
 
 button:hover {
   opacity: 0.8;
-}
-
-.subquery-container {
-  flex: 1;
-}
-
-.subquery-input {
-  width: 100%;
-  min-height: 100px;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 14px;
-}
-
-.field-selector {
-  margin-bottom: 16px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 12px;
-}
-
-.selected-fields {
-  margin-bottom: 8px;
-}
-
-.field-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.field-checkbox {
-  margin-right: 6px;
-}
-
-.alias-input {
-  flex: 1;
-  max-width: 200px;
-  padding: 4px 8px;
-  border: 1px solid #ddd;
-  border-radius: 3px;
-  font-size: 12px;
-}
-
-.add-field-select {
-  width: 100%;
-  padding: 6px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fff;
-}
-
-.dropdown-footer {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #eee;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.confirm-btn {
-  padding: 6px 12px;
-  background: #1890ff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.cancel-btn {
-  padding: 6px 12px;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-table {
-  width: 100%;
-  border-collapse: separate; /* 改为separate以支持固定表头 */
-  border-spacing: 0;
-  background: white;
-}
-
-thead {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: #f8f9fa;
-}
-
-th {
-  position: sticky;
-  top: 0;
-  background: #f8f9fa;
-  font-weight: 500;
-  z-index: 2;
-  /* 添加边框阴影效果 */
-  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
-}
-
-tbody {
-  position: relative;
-}
-
-th, td {
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid #e9ecef;
-  white-space: normal;
-  word-break: break-word;
-  min-width: 150px;
-}
-
-/* 确保最后一行底部边框可见 */
-tr:last-child td {
-  border-bottom: 1px solid #e9ecef;
-}
-
-.subquery-condition {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 8px;
-  width: 100%;
-}
-
-.subquery-header {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  width: 100%;
-}
-
-.subquery-body {
-  margin-left: 16px;
-  border-left: 2px solid #e9ecef;
-  padding-left: 16px;
 }
 </style>

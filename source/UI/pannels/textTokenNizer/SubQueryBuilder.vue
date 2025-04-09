@@ -336,7 +336,7 @@ defineExpose({
 
 <style scoped>
 .subquery-builder {
-  padding: 12px;
+  padding: 8px;
   background: #f8f9fa;
   border-radius: 4px;
   border: 1px solid #e9ecef;
@@ -345,8 +345,8 @@ defineExpose({
 
 .query-header {
   background: #fff;
-  padding: 8px;
-  border-radius: 4px;
+  padding: 12px;
+  border-radius: 6px;
   margin-bottom: 12px;
   border: 1px solid #e9ecef;
 }
@@ -354,31 +354,28 @@ defineExpose({
 .query-clause {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  font-size: 0.9em;
 }
 
 .keyword {
   font-weight: 600;
   color: #0d6efd;
   white-space: nowrap;
-  font-size: 0.9em;
 }
 
 .field-selector-trigger {
   position: relative;
   flex: 1;
-  min-width: 150px;
+  min-width: 200px;
   border: 1px solid #dee2e6;
   border-radius: 4px;
-  padding: 4px 8px;
+  padding: 6px 12px;
   cursor: pointer;
   background: white;
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  font-size: 0.9em;
 }
 
 .field-selector-trigger:hover {
@@ -392,34 +389,36 @@ defineExpose({
 
 .selected-field-tag {
   background: #e9ecef;
-  padding: 2px 4px;
+  padding: 2px 6px;
   border-radius: 4px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.9em;
 }
 
 .alias {
   color: #0d6efd;
-  font-size: 0.8em;
+  font-size: 0.9em;
 }
 
 .field-selector-dropdown {
   position: fixed;
   width: auto;
-  min-width: 250px;
+  min-width: 300px;
   max-width: 500px;
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 8px;
 }
 
 .field-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 4px 0;
-  font-size: 0.9em;
 }
 
 .remove-field {
@@ -428,7 +427,6 @@ defineExpose({
   color: #dc3545;
   cursor: pointer;
   padding: 0 4px;
-  font-size: 0.9em;
 }
 
 .remove-field:hover {
@@ -436,22 +434,44 @@ defineExpose({
 }
 
 .table-select {
-  padding: 4px 8px;
+  padding: 6px 12px;
   border: 1px solid #dee2e6;
   border-radius: 4px;
   background: white;
-  min-width: 100px;
-  font-size: 0.9em;
+  min-width: 120px;
 }
 
+/* 以下是条件部分的紧凑样式 */
 .main-condition {
   display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 4px;
+  margin: 8px 0;
 }
 
 .main-select {
-  padding: 4px 8px;
+  padding: 3px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  min-width: 60px;
+  font-size: 0.9em;
+}
+
+.conditions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.condition-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.field-select,
+.operator-select {
+  padding: 3px 6px;
   border: 1px solid #ddd;
   border-radius: 4px;
   background: #fff;
@@ -459,41 +479,24 @@ defineExpose({
   font-size: 0.9em;
 }
 
-.condition-row {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-  align-items: center;
-}
-
-.field-select,
-.operator-select {
-  padding: 4px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fff;
-  min-width: 100px;
-  font-size: 0.9em;
-}
-
 .condition-buttons {
   display: flex;
-  gap: 4px;
+  gap: 3px;
 }
 
 .icon-btn {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 3px;
   background: #fff;
   color: #666;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .remove-btn {
@@ -512,5 +515,27 @@ input:focus {
 
 button:hover {
   opacity: 0.8;
+}
+
+.field-checkbox {
+  margin: 0;
+}
+
+.alias-input {
+  flex: 1;
+  max-width: 150px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.add-field-select {
+  width: 100%;
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  margin-top: 8px;
 }
 </style> 
