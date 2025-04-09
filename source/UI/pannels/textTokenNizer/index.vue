@@ -12,6 +12,24 @@
 
     <div class="query-container" :class="isVerticalLayout ? 'vertical' : 'horizontal'">
       <div class="query-section" :class="{ horizontal: !isVerticalLayout }">
+        <!-- SQL输入区域 -->
+        <div class="sql-input-area" v-if="showSqlInput">
+          <div class="sql-input-header">
+            <span>SQL输入</span>
+            <button class="close-btn" @click="toggleSqlInput">×</button>
+          </div>
+          <textarea
+            v-model="sqlInput"
+            class="sql-textarea"
+            placeholder="输入SQL语句..."
+            @keydown.ctrl.enter="parseSql"
+          ></textarea>
+          <div class="sql-input-footer">
+            <button class="parse-btn" @click="parseSql">解析SQL</button>
+            <span class="hint">提示: Ctrl + Enter 快捷解析</span>
+          </div>
+        </div>
+
         <!-- 查询构建部分 -->
         <div class="query-header">
           <div class="query-clause">
@@ -185,6 +203,16 @@
 
       <div class="query-section" :class="{ horizontal: !isVerticalLayout }">
         <!-- SQL预览部分 -->
+        <div class="preview-header">
+          <span>SQL预览</span>
+          <button class="edit-sql-btn" @click="toggleSqlInput">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            编辑SQL
+          </button>
+        </div>
         <div v-if="generatedSQL" class="sql-preview">
           <pre>{{ generatedSQL }}</pre>
         </div>
@@ -198,7 +226,8 @@
 
 <script setup>
 import { ref, reactive, watch, computed, nextTick } from 'vue'
-import { useTables,kernelApi } from './useTables.js'
+import { useTables, kernelApi } from './useTables.js'
+import { computeParseSql, computeValidateSql } from './sqlParser.js'
 import FieldSelect from './FieldSelect.vue'
 import FieldInput from './FieldInput.vue'
 import DataTable from './DataTable.vue'
@@ -451,6 +480,44 @@ const isVerticalLayout = ref(true)
 
 const toggleLayout = () => {
   isVerticalLayout.value = !isVerticalLayout.value
+}
+
+// 新增SQL输入相关状态
+const showSqlInput = ref(false)
+const sqlInput = ref('')
+
+const toggleSqlInput = () => {
+  showSqlInput.value = !showSqlInput.value
+  if (showSqlInput.value) {
+    sqlInput.value = generatedSQL.value
+  }
+}
+
+const parseSql = async () => {
+  try {
+    if (!computeValidateSql(sqlInput.value)) {
+      alert('请输入有效的SELECT语句')
+      return
+    }
+
+    const result = computeParseSql(sqlInput.value)
+    if (!result) {
+      alert('SQL解析失败，请检查语法')
+      return
+    }
+
+    // 更新界面状态
+    selectedFields.value = result.fields
+    selectedTable.value = result.table
+    matchType.value = result.matchType
+    logicOperator.value = result.logicOperator
+    conditions.value = result.conditions
+
+    showSqlInput.value = false
+  } catch (error) {
+    console.error('SQL解析错误:', error)
+    alert('SQL解析出错，请检查语法')
+  }
 }
 </script>
 
@@ -734,5 +801,100 @@ input:focus {
 
 button:hover {
   opacity: 0.8;
+}
+
+.sql-input-area {
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  background: #fff;
+  margin-bottom: 12px;
+}
+
+.sql-input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.sql-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: none;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.sql-textarea:focus {
+  outline: none;
+}
+
+.sql-input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+}
+
+.parse-btn {
+  padding: 4px 12px;
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.parse-btn:hover {
+  background: #0b5ed7;
+}
+
+.hint {
+  color: #6c757d;
+  font-size: 0.9em;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #6c757d;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.close-btn:hover {
+  color: #343a40;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.edit-sql-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #495057;
+  cursor: pointer;
+}
+
+.edit-sql-btn:hover {
+  background: #f8f9fa;
+  border-color: #ced4da;
 }
 </style>
