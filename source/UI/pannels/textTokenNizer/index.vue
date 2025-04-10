@@ -34,29 +34,7 @@
         <div class="query-header">
           <div class="query-clause">
             <span class="keyword">SELECT</span>
-            <div 
-              ref="triggerElement"
-              class="field-selector-trigger" 
-              @click.stop="toggleFieldSelector"
-            >
-              <template v-if="selectedFields.filter(f => f.selected).length > 0">
-                <span v-for="(field, index) in selectedFields.filter(f => f.selected)" 
-                      :key="field.name" 
-                      class="selected-field-tag">
-                  {{ field.name }}
-                  <span v-if="field.alias" class="alias">AS {{ field.alias }}</span>
-                  <span v-if="index < selectedFields.filter(f => f.selected).length - 1">, </span>
-                </span>
-              </template>
-              <span v-else class="placeholder">选择字段...</span>
-            </div>
-            
-            <div 
-              v-if="isFieldSelectorOpen" 
-              class="field-selector-dropdown"
-              :style="dropdownPosition"
-              v-click-outside="closeFieldSelector"
-            >
+            <div class="field-selector">
               <div class="selected-fields">
                 <div v-for="(field, index) in selectedFields" 
                      :key="index" 
@@ -97,7 +75,6 @@
                 </option>
               </select>
             </div>
-
             <span class="keyword">FROM</span>
             <select v-model="selectedTable" class="table-select">
               <option v-for="tableName in tableNames" 
@@ -621,41 +598,76 @@ const parseSql = async () => {
   white-space: nowrap;
 }
 
-.field-selector-trigger {
-  position: relative;
+.field-selector {
   flex: 1;
   min-width: 200px;
   border: 1px solid #dee2e6;
   border-radius: 4px;
-  padding: 6px 12px;
-  cursor: pointer;
   background: white;
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  padding: 8px;
+  margin: 0 8px;
 }
 
-.field-selector-trigger:hover {
+.selected-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.field-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.field-checkbox {
+  margin: 0;
+}
+
+.alias-input {
+  flex: 1;
+  min-width: 80px;
+  padding: 2px 6px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.alias-input:focus {
+  outline: none;
   border-color: #86b7fe;
 }
 
-.placeholder {
-  color: #6c757d;
-  font-style: italic;
+.remove-field {
+  padding: 0 6px;
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  font-size: 1.1em;
+  line-height: 1;
 }
 
-.selected-field-tag {
-  background: #e9ecef;
-  padding: 2px 6px;
+.remove-field:hover {
+  color: #bb2d3b;
+}
+
+.add-field-select {
+  width: 100%;
+  padding: 4px;
+  border: 1px solid #dee2e6;
   border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  background: white;
+  cursor: pointer;
 }
 
-.alias {
-  color: #0d6efd;
-  font-size: 0.9em;
+.add-field-select:focus {
+  outline: none;
+  border-color: #86b7fe;
 }
 
 .table-select {
