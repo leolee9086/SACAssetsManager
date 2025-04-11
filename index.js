@@ -9,6 +9,11 @@ const clientApi = require("siyuan");
 let eventBus
 globalThis[Symbol.for(`siyuanClientApi`)] = globalThis[Symbol.for(`siyuanClientApi`)] || clientApi
 
+// 添加全局符号访问插件实例
+function setupGlobalAccess(pluginObj) {
+  window[Symbol.for('plugin-SACAssetsManager')] = pluginObj;
+}
+
 function 同步获取文件夹列表(路径) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', `/api/file/readDir`, false); // 使用 POST 方法
@@ -66,6 +71,15 @@ const TAB_CONFIGS = {
 
   ...构建TAB配置()
 }
+
+// 定义事件类型常量
+const EVENTS = {
+  OPEN_TAB: 'plugin-tab:open',
+  TAB_OPENED: 'plugin-tab:opened',
+  TAB_CLOSED: 'plugin-tab:closed',
+  SEND_DATA_TO_TAB: 'plugin-tab:send-data'
+};
+
 const DOCK_CONFIGS = {
   AssetsPanel: {
     icon: "iconInfo",
@@ -142,6 +156,7 @@ function createDock(plugin, dockType) {
 
 module.exports = class SACAssetsManager extends Plugin {
   onload() {
+    setupGlobalAccess(this);
     this.初始化插件同步状态()
     this.初始化插件异步状态()
     this.创建web服务()
@@ -233,23 +248,7 @@ module.exports = class SACAssetsManager extends Plugin {
     return {
       打开附件: 'open-asset',
       资源界面项目右键: 'rightclick-galleryitem',
-      打开附件所在路径: 'open-asset-folder'
-    }
-  }
-
-
-  emitEvent(eventName, detail, options) {
-    if (!Object.values(this.events).includes(eventName)) {
-      throw new Error(`事件名不存在: ${eventName}`);
-    } else {
-      if (options && options.stack) {
-        this.eventBus.emit(eventName, {
-          stack: (new Error()).stack,
-          ...detail
-        })
-        return
-      }
-      this.eventBus.emit(eventName, detail)
+      打开附件所在路径: 'open-asset-folder',
     }
   }
 
@@ -510,6 +509,18 @@ module.exports = class SACAssetsManager extends Plugin {
               try {
                 // 使用await等待异步函数完成
                 await module.createVueInterface(this, config.component, config.containerId);
+                
+                // 如果有传递数据，在组件挂载后触发事件
+                if (this.data.tabData) {
+                  // 使用一个小延迟确保Vue组件已完全挂载
+                  setTimeout(() => {
+                    pluginInstance.eventBus.emit(EVENTS.SEND_DATA_TO_TAB, {
+                      tabType,
+                      tabId: this.id,
+                      data: this.data.tabData
+                    });
+                  }, 100);
+                }
               } catch (error) {
                 console.error(`加载Tab组件(${tabType})失败:`, error);
               }
@@ -519,6 +530,12 @@ module.exports = class SACAssetsManager extends Plugin {
         beforeDestroy() {
           this.element.innerHTML = "";
           this.controllers?.forEach(controller => controller.abort());
+          
+          // 发送Tab关闭事件
+          pluginInstance.eventBus.emit(EVENTS.TAB_CLOSED, {
+            tabType,
+            tabId: this.id
+          });
         }
       });
     }

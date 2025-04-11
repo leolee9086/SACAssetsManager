@@ -248,6 +248,22 @@ const 菜单构建 = {
           });
         }
       });
+      
+      // 添加全景预览对话框选项
+      menu.addItem({
+        label: "作为全景图在对话框中打开",
+        click: async () => {
+          const { openPannoViewerDialog } = await import('/plugins/SACAssetsManager/source/UI/siyuanCommon/dialog/panelDialog.js');
+          
+          // 准备要传递的数据
+          const viewerData = {
+            assets: assets,
+            openAsDialog: true
+          };
+          
+          openPannoViewerDialog(viewerData, '全景图预览');
+        }
+      });
     }
   }
 };

@@ -1,6 +1,6 @@
 <template>
   <div class="b3-cards">
-    <div v-for="pannel in pannels" :key="pannel.name" class="b3-card b3-card--wrap" @click="打开面板(pannel.name)">
+    <div v-for="pannel in pannels" :key="pannel.name" class="b3-card b3-card--wrap">
       <div class="b3-card__img">
         <svg class="pannel-icon">
           <use xlink:href="#iconPanel"></use>
@@ -14,12 +14,17 @@
           </div>
         </div>
         <div class="b3-card__actions">
-          <span class="block__icon block__icon--show">
-            <svg><use xlink:href="#iconSettings"></use></svg>
+          <!-- 作为Tab打开 -->
+          <span class="block__icon block__icon--show" @click.stop="打开面板(pannel.name)" title="作为Tab打开">
+            <svg><use xlink:href="#iconTab"></use></svg>
+          </span>
+          <!-- 作为对话框打开 -->
+          <span class="block__icon block__icon--show" @click.stop="openPanelAsDialog(pannel)" title="作为对话框打开">
+            <svg><use xlink:href="#iconHelp"></use></svg>
           </span>
           <div class="fn__flex-1"></div>
           <span class="block__icon block__icon--show">
-            <svg><use xlink:href="#iconEdit"></use></svg>
+            <svg><use xlink:href="#iconInfo"></use></svg>
           </span>
         </div>
       </div>
@@ -48,6 +53,21 @@ const 打开面板 = (pannelName) => {
   })
 }
 
+const openPanelAsDialog = async (panel) => {
+  try {
+    const { openPanelAsDialog } = await import('../../siyuanCommon/dialog/panelDialog.js');
+    openPanelAsDialog(
+      panel.name,
+      {}, // 传递数据
+      panel.name || '面板',
+      '80vw',
+      '90vh'
+    );
+  } catch (error) {
+    console.error('以对话框方式打开面板失败:', error);
+  }
+};
+
 onMounted(async () => {
   try {
     const pannelPath = '/data/plugins/SACAssetsManager/source/UI/pannels'
@@ -62,5 +82,21 @@ onMounted(async () => {
 <style scoped>
 .b3-card {
   cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.b3-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.block__icon {
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.block__icon:hover {
+  background-color: var(--b3-theme-background-light);
 }
 </style>

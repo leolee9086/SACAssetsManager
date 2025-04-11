@@ -216,9 +216,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineProps } from 'vue';
 import { PanoramaVideoGenerator, saveVideoBlob } from '../pannoViewer/panoramaToVideo.js';
 import * as THREE from '../../../../static/three/three.mjs';
+import { clientApi, plugin } from '../../../asyncModules.js'
+
+// 定义props，接收对话框传递的数据
+const props = defineProps({
+  sourceType: String,
+  currentImage: Object,
+  settings: Object
+});
+
+// 事件总线引用
+let eventBus;
 
 // 状态管理
 const selectedFiles = ref([]);
@@ -261,6 +272,130 @@ const totalCount = computed(() => {
   return tasks.value.length;
 });
 
+// 注册事件监听器和数据接收
+const setupEventListeners = () => {
+  // 对话框模式：检查组件的data属性
+  if (props && props.sourceType) {
+    console.log('对话框模式：从props获取数据');
+    handleReceivedData(props);
+    return;
+  }
+  
+  // Tab模式：从Tab属性获取数据
+  if (window.siyuan && window.siyuan.menus) {
+    // 获取当前Tab ID
+    const tabID = plugin.name + 'batchPanoramaExporterTab';
+    
+    // 从当前Tab数据中获取传入的数据
+    const tab = document.querySelector(`[data-id="${tabID}"]`);
+    if (tab) {
+      const tabModel = tab.getAttribute('data-model');
+      if (tabModel) {
+        try {
+          // 尝试解析数据
+          const tabData = JSON.parse(tabModel);
+          if (tabData && tabData.data) {
+            handleReceivedData(tabData.data);
+          }
+        } catch (error) {
+          console.error('解析Tab数据失败:', error);
+        }
+      }
+    }
+  }
+};
+
+// 处理接收到的数据
+const handleReceivedData = async (data) => {
+  if (!data) return;
+  
+  console.log('批量导出器收到数据:', data);
+  
+  // 如果从全景预览器传来了当前图像，添加到文件列表
+  if (data.sourceType === 'panorama' && data.currentImage?.path) {
+    try {
+      // 加载图像并生成缩略图
+      const thumbnail = await generateThumbnailFromPath(data.currentImage.path);
+      
+      // 检查当前文件列表中是否已有此文件
+      const exists = selectedFiles.value.some(file => file.path === data.currentImage.path);
+      
+      if (!exists) {
+        // 添加到选择的文件列表
+        selectedFiles.value.push({
+          name: data.currentImage.name || '全景图',
+          path: data.currentImage.path,
+          thumbnail
+        });
+
+        // 如果传入了默认设置，更新设置
+        if (data.settings?.defaultSettings) {
+          const defaultSettings = data.settings.defaultSettings;
+          if (settingProfiles.value.length > 0) {
+            const profile = settingProfiles.value[0];
+            
+            // 更新设置，仅更新提供的值
+            if (defaultSettings.isLandscape !== undefined) {
+              profile.isLandscape = defaultSettings.isLandscape;
+            }
+            if (defaultSettings.duration !== undefined) {
+              profile.duration = defaultSettings.duration;
+            }
+            if (defaultSettings.fps !== undefined) {
+              profile.fps = defaultSettings.fps;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('处理接收到的图像失败:', error);
+      showWarningMessage(`添加图像失败: ${error.message}`);
+    }
+  }
+};
+
+// 从文件路径生成缩略图
+const generateThumbnailFromPath = async (path) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 160;
+      canvas.height = 90;
+      
+      // 计算裁剪区域以保持比例
+      let sourceWidth = img.width;
+      let sourceHeight = img.height;
+      let sourceX = 0;
+      let sourceY = 0;
+      
+      if (img.width / img.height > 16 / 9) {
+        sourceWidth = img.height * (16 / 9);
+        sourceX = (img.width - sourceWidth) / 2;
+      } else {
+        sourceHeight = img.width * (9 / 16);
+        sourceY = (img.height - sourceHeight) / 2;
+      }
+      
+      ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, 160, 90);
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    
+    img.onerror = () => {
+      reject(new Error('生成缩略图失败'));
+    };
+    
+    img.src = path;
+  });
+};
+
+// 清理事件监听器
+const cleanupEventListeners = () => {
+  // 由于不再使用事件总线，这里可以清空
+};
+
 // 方法
 const refreshFileList = () => {
   // 重新加载已选文件的缩略图和信息
@@ -271,6 +406,14 @@ const refreshFileList = () => {
         const objectUrl = URL.createObjectURL(file.file);
         const thumbnail = await generateThumbnailFromUrl(objectUrl);
         selectedFiles.value[index].thumbnail = thumbnail;
+      } else if (file.path) {
+        // 如果是文件路径，尝试重新加载
+        try {
+          const thumbnail = await generateThumbnailFromPath(file.path);
+          selectedFiles.value[index].thumbnail = thumbnail;
+        } catch (error) {
+          console.error('刷新文件路径缩略图失败:', error);
+        }
       }
     } catch (error) {
       console.error('刷新缩略图失败:', error);
@@ -744,7 +887,15 @@ const getTaskStatusText = (task) => {
 };
 
 onMounted(() => {
-  // 初始化
+  console.log('批量导出器组件已挂载');
+  
+  // 直接调用设置事件监听器
+  setupEventListeners();
+});
+
+onUnmounted(() => {
+  // 清理事件监听器
+  cleanupEventListeners();
 });
 </script>
 

@@ -203,6 +203,18 @@
                 >
                   {{ isGeneratingVideo ? '生成中...' : '生成视频' }}
                 </button>
+
+                <!-- 添加批量导出按钮 -->
+                <div class="batch-export-section">
+                  <button 
+                    class="batch-export-btn"
+                    @click="openBatchExporter"
+                  >
+                    <i class="icon">📦</i>
+                    打开批量视频导出
+                  </button>
+                  <div class="tip">多图片批量导出请使用批量导出工具</div>
+                </div>
               </div>
 
               <div class="section">
@@ -444,6 +456,8 @@ import CCDialog from '../../components/CCDialog.vue';
 import { worldToScreen, createSmoothAnimation, fullscreenUtils } from './utils.js';
 import { mirrorImageData, saveImageData } from './panoramaMirror.js';
 import { PanoramaVideoGenerator, saveVideoBlob } from './panoramaToVideo.js';
+import { clientApi, plugin } from '../../../asyncModules.js'
+import { openBatchPanoramaExporterDialog } from '../../siyuanCommon/dialog/panelDialog.js'
 
 
 
@@ -1317,6 +1331,42 @@ const exportCurrentView = async () => {
   }
 };
 
+// 添加打开批量导出功能
+const openBatchExporter = async () => {
+  console.log('openBatchExporter被调用');
+  
+  // 获取当前场景对象
+  const currentScene = scenes.value.find(s => s.id === currentSceneId.value);
+  console.log('当前场景:', currentScene);
+  
+  // 准备要传递的数据
+  const exportData = {
+    sourceType: 'panorama',
+    currentImage: texture.value ? {
+      path: currentScene?.url || '',
+      name: currentScene?.name || 'current_panorama',
+    } : null,
+    settings: {
+      // 传递当前视频设置作为默认值
+      defaultSettings: {
+        isLandscape: videoSettings.value.isLandscape,
+        duration: videoSettings.value.duration,
+        fps: videoSettings.value.fps || 30
+      }
+    }
+  };
+
+  console.log('准备打开批量导出器，数据:', exportData);
+  
+  try {
+    // 使用对话框方式打开批量导出器
+    const { app, dialog } = await openBatchPanoramaExporterDialog(exportData);
+    console.log('批量导出器对话框已打开');
+  } catch (error) {
+    console.error('打开批量导出对话框失败:', error);
+  }
+};
+
 // 生命周期钩子
 onMounted(() => {
   init();
@@ -2155,6 +2205,39 @@ canvas {
 .export-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 添加批量导出按钮样式 */
+.batch-export-section {
+  margin-top: 16px;
+  border-top: 1px solid var(--cc-border-color);
+  padding-top: 16px;
+}
+
+.batch-export-btn {
+  width: 100%;
+  padding: 8px 16px;
+  background-color: var(--cc-theme-secondary);
+  color: white;
+  border: none;
+  border-radius: var(--cc-border-radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.batch-export-btn:hover {
+  background-color: var(--cc-theme-secondary-hover, #3e8e41);
+}
+
+.tip {
+  font-size: 12px;
+  color: var(--cc-theme-on-surface-variant);
+  margin-top: 8px;
+  text-align: center;
 }
 
 </style>
