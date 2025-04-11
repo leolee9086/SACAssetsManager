@@ -54,63 +54,85 @@
       <div class="section">
         <div class="section-header">
           <h3>导出设置</h3>
+          <div class="header-actions">
+            <button class="action-btn" @click="addSettingProfile">
+              <i class="icon">➕</i>
+              添加配置
+            </button>
+          </div>
         </div>
         
-        <div class="settings-grid">
-          <div class="setting-group">
-            <div class="setting-item">
-              <label>视频分辨率</label>
-              <select v-model="exportSettings.resolution">
-                <option value="1080p">1920×1080 (1080p)</option>
-                <option value="2k">2560×1440 (2K)</option>
-                <option value="4k">3840×2160 (4K)</option>
-              </select>
+        <div class="settings-profiles-container">
+          <div v-for="(profile, profileIndex) in settingProfiles" :key="profileIndex" class="setting-profile">
+            <div class="profile-header">
+              <h4>配置 #{{ profileIndex + 1 }}</h4>
+              <div class="profile-actions">
+                <button 
+                  v-if="settingProfiles.length > 1" 
+                  class="action-btn small" 
+                  @click="removeSettingProfile(profileIndex)">
+                  <i class="icon">❌</i>
+                </button>
+              </div>
             </div>
             
-            <div class="setting-item">
-              <label>视频帧率</label>
-              <select v-model="exportSettings.fps">
-                <option :value="30">30 FPS</option>
-                <option :value="60">60 FPS</option>
-                <option :value="120">120 FPS</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="setting-group">
-            <div class="setting-item">
-              <label>视频方向</label>
-              <select v-model="exportSettings.isLandscape">
-                <option :value="true">横屏</option>
-                <option :value="false">竖屏</option>
-              </select>
-            </div>
-            
-            <div class="setting-item">
-              <label>视频时长</label>
-              <select v-model="exportSettings.duration">
-                <option :value="12">12秒</option>
-                <option :value="24">24秒</option>
-                <option :value="30">30秒</option>
-                <option :value="40">40秒</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="setting-group">
-            <div class="setting-item">
-              <label>旋转圈数</label>
-              <select v-model="exportSettings.rotations">
-                <option :value="1">1圈</option>
-                <option :value="2">2圈</option>
-                <option :value="3">3圈</option>
-              </select>
-            </div>
-            
-            <div class="setting-item">
-              <label>平滑度</label>
-              <input type="range" v-model="exportSettings.smoothness" min="0" max="1" step="0.1" />
-              <div class="range-value">{{ parseFloat(exportSettings.smoothness).toFixed(1) }}</div>
+            <div class="settings-grid">
+              <div class="setting-group">
+                <div class="setting-item">
+                  <label>视频分辨率</label>
+                  <select v-model="profile.resolution">
+                    <option value="1080p">1920×1080 (1080p)</option>
+                    <option value="2k">2560×1440 (2K)</option>
+                    <option value="4k">3840×2160 (4K)</option>
+                  </select>
+                </div>
+                
+                <div class="setting-item">
+                  <label>视频帧率</label>
+                  <select v-model="profile.fps">
+                    <option :value="30">30 FPS</option>
+                    <option :value="60">60 FPS</option>
+                    <option :value="120">120 FPS</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="setting-group">
+                <div class="setting-item">
+                  <label>视频方向</label>
+                  <select v-model="profile.isLandscape">
+                    <option :value="true">横屏</option>
+                    <option :value="false">竖屏</option>
+                  </select>
+                </div>
+                
+                <div class="setting-item">
+                  <label>视频时长</label>
+                  <select v-model="profile.duration">
+                    <option :value="12">12秒</option>
+                    <option :value="24">24秒</option>
+                    <option :value="30">30秒</option>
+                    <option :value="40">40秒</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="setting-group">
+                <div class="setting-item">
+                  <label>旋转圈数</label>
+                  <select v-model="profile.rotations">
+                    <option :value="1">1圈</option>
+                    <option :value="2">2圈</option>
+                    <option :value="3">3圈</option>
+                  </select>
+                </div>
+                
+                <div class="setting-item">
+                  <label>平滑度</label>
+                  <input type="range" v-model="profile.smoothness" min="0" max="1" step="0.1" />
+                  <div class="range-value">{{ parseFloat(profile.smoothness).toFixed(1) }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -118,7 +140,7 @@
         <div class="setting-item">
           <label>输出目录</label>
           <div class="output-path-selector">
-            <input type="text" v-model="exportSettings.outputDir" readonly placeholder="点击选择输出目录" />
+            <input type="text" v-model="outputDir" readonly placeholder="点击选择输出目录" />
             <button class="action-btn" @click="selectOutputDir">
               <i class="icon">📁</i>
               选择
@@ -128,7 +150,7 @@
 
         <div class="setting-item">
           <div class="checkbox-wrapper">
-            <input type="checkbox" id="createSubDirs" v-model="exportSettings.createSubDirs">
+            <input type="checkbox" id="createSubDirs" v-model="createSubDirs">
             <label for="createSubDirs">为每个文件创建子目录</label>
           </div>
         </div>
@@ -155,14 +177,25 @@
           <div v-else class="task-list">
             <div v-for="(task, index) in tasks" :key="index" class="task-item" :class="{'task-completed': task.status === 'completed', 'task-error': task.status === 'error'}">
               <div class="task-info">
-                <div class="task-name">{{ task.fileName }}</div>
+                <div class="task-name">
+                  <span class="file-name">{{ task.fileName }}</span>
+                  <span v-if="task.profileIndex !== undefined" class="profile-badge">配置 #{{ task.profileIndex + 1 }}</span>
+                </div>
                 <div class="task-status">{{ getTaskStatusText(task) }}</div>
               </div>
               <div class="task-progress">
                 <div class="progress-bar">
                   <div class="progress-fill" :style="{width: `${task.progress * 100}%`}"></div>
                 </div>
-                <div class="progress-value">{{ Math.round(task.progress * 100) }}%</div>
+                <div class="progress-details">
+                  <div class="progress-value">{{ Math.round(task.progress * 100) }}%</div>
+                  <div v-if="task.stage" class="stage-info">
+                    {{ task.stage }} 
+                    <span v-if="task.currentFrame && task.totalFrames">
+                      ({{ task.currentFrame }}/{{ task.totalFrames }} 帧)
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -189,16 +222,18 @@ import * as THREE from '../../../../static/three/three.mjs';
 
 // 状态管理
 const selectedFiles = ref([]);
-const exportSettings = ref({
-  resolution: '1080p',
-  fps: 30,
-  duration: 24,
-  isLandscape: true,
-  rotations: 1,
-  smoothness: 0.8,
-  outputDir: '',
-  createSubDirs: true
-});
+const settingProfiles = ref([
+  {
+    resolution: '1080p',
+    fps: 30,
+    duration: 24,
+    isLandscape: true,
+    rotations: 1,
+    smoothness: 0.8
+  }
+]);
+const outputDir = ref('');
+const createSubDirs = ref(true);
 
 const tasks = ref([]);
 const isExporting = ref(false);
@@ -207,7 +242,7 @@ const currentTaskIndex = ref(-1);
 // 计算属性
 const canStartExport = computed(() => {
   return selectedFiles.value.length > 0 && 
-         exportSettings.value.outputDir && 
+         outputDir.value && 
          !isExporting.value;
 });
 
@@ -231,8 +266,12 @@ const refreshFileList = () => {
   // 重新加载已选文件的缩略图和信息
   selectedFiles.value.forEach(async (file, index) => {
     try {
-      const thumbnail = await generateThumbnail(file.path);
-      selectedFiles.value[index].thumbnail = thumbnail;
+      if (file.file) {
+        // 如果是File对象，重新生成缩略图
+        const objectUrl = URL.createObjectURL(file.file);
+        const thumbnail = await generateThumbnailFromUrl(objectUrl);
+        selectedFiles.value[index].thumbnail = thumbnail;
+      }
     } catch (error) {
       console.error('刷新缩略图失败:', error);
     }
@@ -291,10 +330,26 @@ const showFileSelector = async () => {
   }
 };
 
+// 添加配置文件
+const addSettingProfile = () => {
+  // 复制第一个配置作为模板
+  const newProfile = { ...settingProfiles.value[0] };
+  settingProfiles.value.push(newProfile);
+};
+
+// 移除配置文件
+const removeSettingProfile = (index) => {
+  if (settingProfiles.value.length > 1) {
+    settingProfiles.value.splice(index, 1);
+  }
+};
+
 // 从URL生成缩略图
 const generateThumbnailFromUrl = async (url) => {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    
+    // 设置处理函数
     img.onload = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -316,57 +371,48 @@ const generateThumbnailFromUrl = async (url) => {
       }
       
       ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, 160, 90);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+      const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
       
       // 释放对象URL
       URL.revokeObjectURL(url);
+      resolve(thumbnail);
     };
     
     img.onerror = () => {
+      URL.revokeObjectURL(url); // 释放对象URL，即使加载失败
       reject(new Error('生成缩略图失败'));
-      // 释放对象URL，即使加载失败
-      URL.revokeObjectURL(url);
     };
     
+    // 开始加载图像
     img.src = url;
   });
 };
 
-// 保持原有的generateThumbnail方法供其他地方使用
-const generateThumbnail = async (filePath) => {
-  // 生成缩略图
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 160;
-      canvas.height = 90;
-      
-      // 计算裁剪区域以保持比例
-      let sourceWidth = img.width;
-      let sourceHeight = img.height;
-      let sourceX = 0;
-      let sourceY = 0;
-      
-      if (img.width / img.height > 16 / 9) {
-        sourceWidth = img.height * (16 / 9);
-        sourceX = (img.width - sourceWidth) / 2;
-      } else {
-        sourceHeight = img.width * (9 / 16);
-        sourceY = (img.height - sourceHeight) / 2;
-      }
-      
-      ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, 160, 90);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
-    };
-    
-    img.onerror = () => {
-      reject(new Error('生成缩略图失败'));
-    };
-    
-    img.src = filePath;
-  });
+// 添加一个提示信息组件
+const showWarningMessage = (message) => {
+  // 创建提示框
+  const warningBox = document.createElement('div');
+  warningBox.style.position = 'fixed';
+  warningBox.style.top = '20px';
+  warningBox.style.left = '50%';
+  warningBox.style.transform = 'translateX(-50%)';
+  warningBox.style.padding = '15px 20px';
+  warningBox.style.backgroundColor = '#fff3cd';
+  warningBox.style.color = '#856404';
+  warningBox.style.borderRadius = '4px';
+  warningBox.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+  warningBox.style.zIndex = '9999';
+  warningBox.style.maxWidth = '80%';
+  warningBox.style.textAlign = 'center';
+  warningBox.textContent = message;
+  
+  // 添加到文档中
+  document.body.appendChild(warningBox);
+  
+  // 3秒后自动移除
+  setTimeout(() => {
+    document.body.removeChild(warningBox);
+  }, 5000);
 };
 
 const removeFile = (index) => {
@@ -388,15 +434,15 @@ const selectOutputDir = async () => {
       });
       
       if (result && !result.canceled && result.filePaths.length > 0) {
-        exportSettings.value.outputDir = result.filePaths[0];
+        outputDir.value = result.filePaths[0];
       }
     } else if (window.showDirectoryPicker) {
       // 使用File System Access API (仅在支持的浏览器上可用)
       try {
         const directoryHandle = await window.showDirectoryPicker();
-        exportSettings.value.outputDir = directoryHandle.name;
+        outputDir.value = directoryHandle.name;
         // 存储directoryHandle以供后续使用
-        exportSettings.value._directoryHandle = directoryHandle;
+        outputDir._directoryHandle = directoryHandle;
       } catch (e) {
         if (e.name !== 'AbortError') {
           throw e;
@@ -406,7 +452,7 @@ const selectOutputDir = async () => {
       // 回退方案：使用输入框让用户手动输入路径
       const input = document.createElement('input');
       input.type = 'text';
-      input.value = exportSettings.value.outputDir || '全景视频导出';
+      input.value = outputDir.value || '全景视频导出';
       input.style.position = 'fixed';
       input.style.left = '50%';
       input.style.top = '50%';
@@ -465,7 +511,7 @@ const selectOutputDir = async () => {
         button.onclick = () => {
           const value = input.value.trim();
           if (value) {
-            exportSettings.value.outputDir = value;
+            outputDir.value = value;
           }
           document.body.removeChild(container);
           resolve();
@@ -498,33 +544,6 @@ const selectOutputDir = async () => {
   }
 };
 
-// 添加一个提示信息组件
-const showWarningMessage = (message) => {
-  // 创建提示框
-  const warningBox = document.createElement('div');
-  warningBox.style.position = 'fixed';
-  warningBox.style.top = '20px';
-  warningBox.style.left = '50%';
-  warningBox.style.transform = 'translateX(-50%)';
-  warningBox.style.padding = '15px 20px';
-  warningBox.style.backgroundColor = '#fff3cd';
-  warningBox.style.color = '#856404';
-  warningBox.style.borderRadius = '4px';
-  warningBox.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-  warningBox.style.zIndex = '9999';
-  warningBox.style.maxWidth = '80%';
-  warningBox.style.textAlign = 'center';
-  warningBox.textContent = message;
-  
-  // 添加到文档中
-  document.body.appendChild(warningBox);
-  
-  // 3秒后自动移除
-  setTimeout(() => {
-    document.body.removeChild(warningBox);
-  }, 5000);
-};
-
 const startBatchExport = async () => {
   if (!canStartExport.value) return;
   
@@ -540,15 +559,26 @@ const startBatchExport = async () => {
   isExporting.value = true;
   currentTaskIndex.value = -1;
   
-  // 创建任务列表
-  tasks.value = selectedFiles.value.map(file => ({
-    fileName: file.name,
-    filePath: file.path,
-    file: file.file, // 保存文件对象
-    outputPath: '',
-    progress: 0,
-    status: 'pending'
-  }));
+  // 创建任务列表 - 为每个文件和每个配置创建任务
+  tasks.value = [];
+  
+  for (const file of selectedFiles.value) {
+    for (let profileIndex = 0; profileIndex < settingProfiles.value.length; profileIndex++) {
+      tasks.value.push({
+        fileName: file.name,
+        filePath: file.path,
+        file: file.file,
+        profileIndex: profileIndex,
+        profile: settingProfiles.value[profileIndex],
+        outputPath: '',
+        progress: 0,
+        status: 'pending',
+        stage: '',
+        currentFrame: 0,
+        totalFrames: 0
+      });
+    }
+  }
   
   // 开始处理任务
   processNextTask();
@@ -565,31 +595,39 @@ const processNextTask = async () => {
   
   const currentTask = tasks.value[currentTaskIndex.value];
   currentTask.status = 'processing';
+  currentTask.stage = '准备中';
   
   try {
+    // 获取当前任务的配置
+    const profile = currentTask.profile;
+    
     // 获取分辨率
     let width, height;
-    switch(exportSettings.value.resolution) {
+    switch(profile.resolution) {
       case '4k':
-        width = exportSettings.value.isLandscape ? 3840 : 2160;
-        height = exportSettings.value.isLandscape ? 2160 : 3840;
+        width = profile.isLandscape ? 3840 : 2160;
+        height = profile.isLandscape ? 2160 : 3840;
         break;
       case '2k':
-        width = exportSettings.value.isLandscape ? 2560 : 1440;
-        height = exportSettings.value.isLandscape ? 1440 : 2560;
+        width = profile.isLandscape ? 2560 : 1440;
+        height = profile.isLandscape ? 1440 : 2560;
         break;
       default: // 1080p
-        width = exportSettings.value.isLandscape ? 1920 : 1080;
-        height = exportSettings.value.isLandscape ? 1080 : 1920;
+        width = profile.isLandscape ? 1920 : 1080;
+        height = profile.isLandscape ? 1080 : 1920;
     }
     
     // 创建文件名
     const baseName = currentTask.fileName.substring(0, currentTask.fileName.lastIndexOf('.')) || currentTask.fileName;
-    const outputFileName = `${baseName}_${width}x${height}_${exportSettings.value.duration}s.mp4`;
+    // 配置后缀，如果有多个配置则添加配置编号
+    const configSuffix = settingProfiles.value.length > 1 ? `_配置${currentTask.profileIndex + 1}` : '';
+    const outputFileName = `${baseName}${configSuffix}_${width}x${height}_${profile.duration}s.mp4`;
     
     // 确定输出目录和文件名
-    let folderName = exportSettings.value.createSubDirs ? baseName : '';
+    let folderName = createSubDirs.value ? baseName : '';
     currentTask.outputPath = folderName ? `${folderName}/${outputFileName}` : outputFileName;
+    
+    currentTask.stage = '加载图像';
     
     // 从File对象创建纹理
     const texture = await new Promise((resolve, reject) => {
@@ -617,6 +655,8 @@ const processNextTask = async () => {
       img.src = objectUrl;
     });
     
+    currentTask.stage = '设置场景';
+    
     // 创建视频生成器
     const generator = new PanoramaVideoGenerator(width, height);
     await generator.setupScene(texture);
@@ -624,23 +664,30 @@ const processNextTask = async () => {
     // 设置进度回调
     generator.setProgressCallback(({ progress, currentFrame, totalFrames, stage }) => {
       currentTask.progress = progress;
+      currentTask.stage = stage || '渲染中';
+      currentTask.currentFrame = currentFrame;
+      currentTask.totalFrames = totalFrames;
       // 动态更新任务状态
       tasks.value = [...tasks.value];
     });
     
+    currentTask.stage = '开始录制';
+    
     // 开始录制
     const videoBlob = await generator.startRecording({
-      duration: exportSettings.value.duration,
-      fps: exportSettings.value.fps,
+      duration: profile.duration,
+      fps: profile.fps,
       startLon: 0,
-      endLon: 360 * exportSettings.value.rotations,
+      endLon: 360 * profile.rotations,
       startLat: 0,
       endLat: 0,
       width,
       height,
-      smoothness: exportSettings.value.smoothness,
-      rotations: exportSettings.value.rotations
+      smoothness: profile.smoothness,
+      rotations: profile.rotations
     });
+    
+    currentTask.stage = '保存视频';
     
     // 使用浏览器的下载API保存视频
     const url = URL.createObjectURL(videoBlob);
@@ -661,6 +708,7 @@ const processNextTask = async () => {
     // 更新任务状态
     currentTask.status = 'completed';
     currentTask.progress = 1;
+    currentTask.stage = '已完成';
     tasks.value = [...tasks.value];
     
     // 处理下一个任务
@@ -669,6 +717,7 @@ const processNextTask = async () => {
     console.error('处理任务失败:', error);
     currentTask.status = 'error';
     currentTask.error = error.message;
+    currentTask.stage = '出错';
     tasks.value = [...tasks.value];
     
     // 继续处理下一个任务
@@ -681,6 +730,9 @@ const getTaskStatusText = (task) => {
     case 'pending':
       return '等待中';
     case 'processing':
+      if (task.stage) {
+        return `${task.stage}...`;
+      }
       return '处理中...';
     case 'completed':
       return '已完成';
@@ -849,6 +901,39 @@ onMounted(() => {
   word-break: break-all;
 }
 
+.settings-profiles-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.setting-profile {
+  border: 1px solid var(--cc-border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--cc-theme-surface-light);
+  border-bottom: 1px solid var(--cc-border-color);
+}
+
+.profile-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -943,6 +1028,17 @@ onMounted(() => {
 
 .task-name {
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-badge {
+  font-size: 12px;
+  padding: 2px 6px;
+  background-color: var(--cc-theme-secondary);
+  color: white;
+  border-radius: 10px;
 }
 
 .task-status {
@@ -971,9 +1067,18 @@ onMounted(() => {
   gap: 4px;
 }
 
-.progress-value {
+.progress-details {
+  display: flex;
+  justify-content: space-between;
   font-size: 12px;
-  text-align: right;
+}
+
+.progress-value {
+  font-weight: 500;
+}
+
+.stage-info {
+  color: var(--cc-theme-on-surface-variant);
 }
 
 .overall-progress {
