@@ -326,30 +326,78 @@
     <!-- 在生成视频按钮下方添加进度条和时间轴 -->
     <div v-if="isGeneratingVideo" class="video-progress-container">
       <div class="video-progress">
-        <div class="progress-bar" :style="{ width: `${videoProgress.progress * 100}%` }"></div>
-        <div class="progress-info">
-          <div class="progress-text">
-            生成进度: {{ Math.round(videoProgress.progress * 100) }}%
+        <div class="progress-stages">
+          <!-- 渲染阶段 -->
+          <div class="stage-wrapper" :class="{ 'completed': videoProgress.currentStage !== 'rendering' }">
+            <div class="stage-header" @click="toggleStageCollapse('rendering')">
+              <span class="stage-title">渲染阶段</span>
+              <span class="stage-status" v-if="videoProgress.currentStage === 'rendering'">
+                {{ Math.round(videoProgress.stages.rendering.progress * 100) }}%
+              </span>
+              <span class="stage-status completed" v-else>完成</span>
+              <span class="toggle-icon">{{ videoProgress.stages.rendering.collapsed ? '▶' : '▼' }}</span>
+            </div>
+            <div class="stage-content" v-if="!videoProgress.stages.rendering.collapsed || videoProgress.currentStage === 'rendering'">
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: `${videoProgress.stages.rendering.progress * 100}%` }"></div>
+              </div>
+              <div class="frame-info">
+                帧数: {{ videoProgress.stages.rendering.currentFrame }}/{{ videoProgress.totalFrames / 2 }}
+              </div>
+            </div>
           </div>
-          <div class="frame-info">
-            帧数: {{ videoProgress.currentFrame }}/{{ videoProgress.totalFrames }}
+          
+          <!-- 编码阶段 -->
+          <div class="stage-wrapper" :class="{ 'inactive': videoProgress.currentStage === 'rendering' }">
+            <div class="stage-header" @click="toggleStageCollapse('encoding')">
+              <span class="stage-title">编码阶段</span>
+              <span class="stage-status" v-if="videoProgress.currentStage === 'encoding'">
+                {{ Math.round(videoProgress.stages.encoding.progress * 100) }}%
+              </span>
+              <span class="stage-status" v-else-if="videoProgress.currentStage === 'rendering'">等待中</span>
+              <span class="stage-status completed" v-else>完成</span>
+              <span class="toggle-icon">{{ videoProgress.stages.encoding.collapsed ? '▶' : '▼' }}</span>
+            </div>
+            <div class="stage-content" v-if="(!videoProgress.stages.encoding.collapsed || videoProgress.currentStage === 'encoding') && videoProgress.currentStage !== 'rendering'">
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: `${videoProgress.stages.encoding.progress * 100}%` }"></div>
+              </div>
+              <div class="frame-info">
+                帧数: {{ videoProgress.stages.encoding.currentFrame }}/{{ videoProgress.totalFrames / 2 }}
+              </div>
+            </div>
           </div>
-          <div class="stage-info">
-            当前阶段: {{ videoProgress.stage }}
+        </div>
+        
+        <!-- 总体进度 -->
+        <div class="overall-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: `${videoProgress.progress * 100}%` }"></div>
+          </div>
+          <div class="progress-info">
+            <div class="progress-text">
+              总体进度: {{ Math.round(videoProgress.progress * 100) }}%
+            </div>
+            <div class="stage-info">
+              当前阶段: {{ videoProgress.stage }}
+            </div>
           </div>
         </div>
       </div>
 
       <!-- 关键帧时间轴 -->
       <div class="timeline">
-        <div 
-          v-for="(frame, index) in keyFrames" 
-          :key="index" 
-          class="keyframe"
-          :style="{ left: `${(frame.time / (videoSettings?.duration || 12)) * 100}%` }"
-        >
-          <img :src="frame.image" alt="关键帧" class="thumbnail" />
-          <div class="time">{{ frame.time }}s</div>
+        <div class="timeline-header">关键帧</div>
+        <div class="timeline-content">
+          <div 
+            v-for="(frame, index) in keyFrames" 
+            :key="index" 
+            class="keyframe"
+            :style="{ left: `${(frame.time / (videoSettings?.duration || 12)) * 100}%` }"
+          >
+            <img :src="frame.image" alt="关键帧" class="thumbnail" />
+            <div class="time">{{ frame.time }}s</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1019,7 +1067,20 @@ const videoProgress = ref({
   progress: 0, // 总体进度
   currentFrame: 0, // 当前帧
   totalFrames: 0, // 总帧数
-  stage: '准备中...' // 当前阶段
+  stage: '准备中...', // 当前阶段描述
+  currentStage: 'rendering', // 当前处于哪个阶段
+  stages: {
+    rendering: {
+      progress: 0,
+      currentFrame: 0,
+      collapsed: false
+    },
+    encoding: {
+      progress: 0,
+      currentFrame: 0,
+      collapsed: false
+    }
+  }
 });
 
 const isGeneratingVideo = ref(false); // 是否正在生成视频
@@ -1032,6 +1093,13 @@ const videoSettings = ref({
 // 添加关键帧状态
 const keyFrames = ref([]); // 存储关键帧缩略图
 
+// 添加折叠/展开阶段面板的方法
+const toggleStageCollapse = (stage) => {
+  if (videoProgress.value.stages[stage]) {
+    videoProgress.value.stages[stage].collapsed = !videoProgress.value.stages[stage].collapsed;
+  }
+};
+
 // 修改 generateVideo 方法
 const generateVideo = async () => {
   if (!texture.value || isGeneratingVideo.value) return;
@@ -1043,13 +1111,32 @@ const generateVideo = async () => {
       progress: 0,
       currentFrame: 0,
       totalFrames: 0,
-      stage: '初始化中...'
+      stage: '初始化中...',
+      currentStage: 'rendering',
+      stages: {
+        rendering: {
+          progress: 0,
+          currentFrame: 0,
+          collapsed: false
+        },
+        encoding: {
+          progress: 0,
+          currentFrame: 0,
+          collapsed: false
+        }
+      }
     };
     keyFrames.value = []; // 清空关键帧
 
     // 根据方向设置尺寸
     const width = videoSettings.value.isLandscape ? 1920 : 1080;
     const height = videoSettings.value.isLandscape ? 1080 : 1920;
+    
+    // 计算总帧数
+    const totalFrames = videoSettings.value.fps * videoSettings.value.duration;
+    videoProgress.value.totalFrames = totalFrames;
+    
+    console.log(`开始生成视频: ${width}x${height}, ${videoSettings.value.fps}fps, ${videoSettings.value.duration}秒, 总计${totalFrames}帧`);
     
     // 创建视频生成器
     const generator = new PanoramaVideoGenerator(width, height);
@@ -1059,12 +1146,27 @@ const generateVideo = async () => {
     generator.setProgressCallback(({ progress, currentFrame, totalFrames, stage, frameImage }) => {
       console.log(`视频进度: ${Math.round(progress * 100)}%, 帧: ${currentFrame}/${totalFrames}, 阶段: ${stage}`);
       
-      videoProgress.value = {
-        progress,
-        currentFrame,
-        totalFrames,
-        stage
-      };
+      // 更新总体进度
+      videoProgress.value.progress = progress;
+      videoProgress.value.stage = stage;
+      
+      // 根据阶段更新不同的进度信息
+      if (stage.includes('渲染')) {
+        videoProgress.value.currentStage = 'rendering';
+        videoProgress.value.stages.rendering.progress = progress * 2; // 渲染阶段占总进度的一半
+        videoProgress.value.stages.rendering.currentFrame = currentFrame;
+      } else if (stage.includes('编码')) {
+        // 如果从渲染阶段切换到编码阶段，自动折叠渲染阶段
+        if (videoProgress.value.currentStage === 'rendering') {
+          videoProgress.value.stages.rendering.collapsed = true;
+        }
+        
+        videoProgress.value.currentStage = 'encoding';
+        // 编码阶段进度从0-100%映射
+        const encodingProgress = (progress - 0.5) * 2;
+        videoProgress.value.stages.encoding.progress = Math.max(0, encodingProgress);
+        videoProgress.value.stages.encoding.currentFrame = currentFrame - Math.floor(totalFrames / 2);
+      }
 
       // 每10帧保存一个关键帧
       if (currentFrame % 10 === 0 && frameImage) {
@@ -1074,11 +1176,6 @@ const generateVideo = async () => {
         });
       }
     });
-
-    // 计算总帧数
-    const totalFrames = videoSettings.value.fps * videoSettings.value.duration;
-    
-    console.log(`开始生成视频: ${width}x${height}, ${videoSettings.value.fps}fps, ${videoSettings.value.duration}秒, 总计${totalFrames}帧`);
 
     // 开始录制
     const videoBlob = await generator.startRecording({
@@ -1737,56 +1834,166 @@ canvas {
 
 .video-progress-container {
   margin-top: 16px;
-}
-
-.video-progress {
+  padding: 16px;
   background: var(--cc-theme-surface-light);
   border-radius: var(--cc-border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.progress-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stage-wrapper {
+  background: var(--cc-theme-surface);
+  border-radius: var(--cc-border-radius);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid var(--cc-border-color);
+}
+
+.stage-wrapper.completed {
+  border-color: var(--cc-theme-success);
+}
+
+.stage-wrapper.inactive {
+  opacity: 0.7;
+}
+
+.stage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.03);
+  transition: background 0.2s;
+}
+
+.stage-header:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.stage-title {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.stage-status {
+  font-size: 12px;
+  color: var(--cc-theme-on-surface-variant);
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.stage-status.completed {
+  background: var(--cc-theme-success);
+  color: white;
+}
+
+.toggle-icon {
+  font-size: 12px;
+  color: var(--cc-theme-on-surface-variant);
+  margin-left: 8px;
+  transform-origin: center;
+  transition: transform 0.2s;
+}
+
+.stage-content {
+  padding: 16px;
+  background: var(--cc-theme-surface-light);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.progress-bar {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
   overflow: hidden;
   position: relative;
 }
 
-.progress-bar {
-  height: 4px;
+.progress-fill {
+  height: 100%;
   background: var(--cc-theme-primary);
-  transition: width 0.1s linear;
-}
-
-.progress-info {
-  padding: 8px;
-}
-
-.progress-text,
-.frame-info,
-.stage-info {
-  font-size: 12px;
-  color: var(--cc-theme-on-surface);
-  margin: 2px 0;
+  border-radius: 4px;
+  transition: width 0.3s linear;
 }
 
 .frame-info {
+  font-size: 12px;
   color: var(--cc-theme-on-surface-variant);
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.overall-progress {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--cc-border-color);
+}
+
+.progress-info {
+  padding: 8px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.progress-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cc-theme-on-surface);
 }
 
 .stage-info {
   font-style: italic;
   color: var(--cc-theme-on-surface-variant);
+  font-size: 12px;
 }
 
 .timeline {
+  margin-top: 24px;
   position: relative;
-  height: 80px;
-  margin-top: 12px;
-  background: var(--cc-theme-surface-light);
+  height: 120px;
+  background: var(--cc-theme-surface);
   border-radius: var(--cc-border-radius);
+  border: 1px solid var(--cc-border-color);
   overflow: hidden;
+}
+
+.timeline-header {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--cc-border-color);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.timeline-content {
+  padding: 8px;
+  height: calc(100% - 37px);
+  position: relative;
 }
 
 .keyframe {
   position: absolute;
-  bottom: 0;
+  bottom: 8px;
   transform: translateX(-50%);
   text-align: center;
+  transition: transform 0.2s;
+}
+
+.keyframe:hover {
+  transform: translateX(-50%) translateY(-5px);
 }
 
 .thumbnail {
@@ -1796,10 +2003,20 @@ canvas {
   border-radius: 4px;
   border: 2px solid var(--cc-theme-primary);
   margin-bottom: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+}
+
+.keyframe:hover .thumbnail {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .time {
   font-size: 10px;
   color: var(--cc-theme-on-surface);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 2px 4px;
+  border-radius: 2px;
 }
 </style>

@@ -39,14 +39,14 @@ const Constants = {
 };
 
 // 导出这个函数供外部使用
-export async function captureFrame(renderer, scene, camera, width, height) {
+export async function captureFrame(renderer, scene, camera, width, height, flipY = false) {
   // 创建离屏渲染目标
   const renderTarget = new THREE.WebGLRenderTarget(width, height, {
     format: THREE.RGBAFormat,
     type: THREE.UnsignedByteType,
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
-    encoding: THREE.sRGBEncoding
+    colorSpace: THREE.SRGBColorSpace  // 修改为colorSpace，保持与预览界面一致
   });
   
   // 设置渲染目标
@@ -60,11 +60,29 @@ export async function captureFrame(renderer, scene, camera, width, height) {
   renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, buffer);
   
   // 创建ImageData对象
-  const imageData = new ImageData(
-    new Uint8ClampedArray(buffer.buffer),
-    width,
-    height
-  );
+  let imageData;
+  
+  if (flipY) {
+    // 如果需要翻转Y轴
+    const flippedPixels = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) {
+      const srcOffset = y * width * 4;
+      const dstOffset = (height - y - 1) * width * 4;
+      flippedPixels.set(buffer.subarray(srcOffset, srcOffset + width * 4), dstOffset);
+    }
+    imageData = new ImageData(
+      flippedPixels,
+      width,
+      height
+    );
+  } else {
+    // 不翻转Y轴
+    imageData = new ImageData(
+      new Uint8ClampedArray(buffer.buffer),
+      width,
+      height
+    );
+  }
   
   // 创建缩略图
   const canvas = document.createElement('canvas');
@@ -124,29 +142,27 @@ export class PanoramaVideoGenerator {
     this.renderer = new THREE.WebGLRenderer(Constants.RENDERER_CONFIG);
     this.renderer.setSize(this.width, this.height);
     this.renderer.setPixelRatio(1); // 固定像素比
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.5; // 增加曝光值
+    this.renderer.toneMapping = THREE.NoToneMapping; // 修改为NoToneMapping，与预览保持一致
     this.renderer.outputColorSpace = THREE.SRGBColorSpace; // 使用sRGB颜色空间
 
-    // 添加Y轴翻转
-    this.renderer.setScissorTest(true);
-    this.renderer.setScissor(0, 0, this.width, this.height);
-    this.renderer.setViewport(0, 0, this.width, this.height);
-    this.renderer.setScissorTest(false);
+    // 移除Y轴翻转设置
+    // this.renderer.setScissorTest(true);
+    // this.renderer.setScissor(0, 0, this.width, this.height);
+    // this.renderer.setViewport(0, 0, this.width, this.height);
+    // this.renderer.setScissorTest(false);
   }
 
   async setupScene(texture) {
-    // 修复颜色空间设置
+    // 确保颜色空间设置正确
     texture.colorSpace = THREE.SRGBColorSpace;
     const material = new THREE.MeshBasicMaterial({
       map: texture,
       side: THREE.DoubleSide,
-      toneMapped: true, // 启用色调映射
+      toneMapped: false, // 禁用色调映射，与预览保持一致
       transparent: true,  // 添加透明支持
       opacity: 1,        // 确保完全不透明
       depthWrite: true,  // 确保正确的深度写入
-      depthTest: true,   // 确保正确的深度测试
-      precision: 'highp' // 提高材质精度
+      depthTest: true    // 确保正确的深度测试
     });
 
     // 创建球体几何体
@@ -155,7 +171,7 @@ export class PanoramaVideoGenerator {
         Constants.SPHERE_CONFIG.WIDTH_SEGMENTS,
         Constants.SPHERE_CONFIG.HEIGHT_SEGMENTS
     );
-    geometry.scale(-1, 1, 1);
+    geometry.scale(-1, 1, 1); // 确保纹理是内部渲染
 
     const mesh = new THREE.Mesh(geometry, material);
     this.scene.add(mesh);
@@ -218,7 +234,8 @@ export class PanoramaVideoGenerator {
           this.scene,
           this.camera,
           this.width,
-          this.height
+          this.height,
+          true // 修改为true，强制Y轴翻转以修正视频上下颠倒问题
         );
 
         // 渲染阶段的进度只占总进度的50%
