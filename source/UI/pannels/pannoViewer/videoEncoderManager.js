@@ -22,72 +22,6 @@ export function updateProgress({
   });
 }
 
-// 添加自适应队列类
-class AdaptiveFrameQueue {
-  constructor(initialSize = 10, minSize = 5, maxSize = 60) {
-    this.queue = [];
-    this.minSize = minSize;
-    this.maxSize = maxSize;
-    this.currentMaxSize = initialSize;
-    this.lastProcessTime = Date.now();
-    this.processingTimes = [];
-  }
-
-  async enqueue(frameData) {
-    while (this.queue.length >= this.currentMaxSize) {
-      const waitTime = this.calculateWaitTime();
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      this.adjustQueueSize();
-    }
-    this.queue.push(frameData);
-  }
-
-  dequeue() {
-    if (this.queue.length === 0) return null;
-    const startTime = Date.now();
-    const frameData = this.queue.shift();
-    const processTime = Date.now() - startTime;
-    
-    this.processingTimes.push(processTime);
-    if (this.processingTimes.length > 10) {
-      this.processingTimes.shift();
-    }
-    
-    this.lastProcessTime = Date.now();
-    return frameData;
-  }
-
-  calculateWaitTime() {
-    const avgProcessTime = this.getAverageProcessingTime();
-    return Math.max(1, Math.min(avgProcessTime / 2, 100));
-  }
-
-  getAverageProcessingTime() {
-    if (this.processingTimes.length === 0) return 10;
-    return this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length;
-  }
-
-  adjustQueueSize() {
-    const avgProcessTime = this.getAverageProcessingTime();
-    const queueUtilization = this.queue.length / this.currentMaxSize;
-    
-    if (queueUtilization > 0.8 && avgProcessTime < 50) {
-      // 队列接近满且处理速度快，增加容量
-      this.currentMaxSize = Math.min(this.maxSize, this.currentMaxSize + 5);
-    } else if (queueUtilization < 0.3 && avgProcessTime > 100) {
-      // 队列较空且处理速度慢，减少容量
-      this.currentMaxSize = Math.max(this.minSize, this.currentMaxSize - 2);
-    }
-  }
-
-  get length() {
-    return this.queue.length;
-  }
-
-  get capacity() {
-    return this.currentMaxSize;
-  }
-}
 
 export class VideoEncoderManager {
   constructor(options) {
@@ -155,79 +89,99 @@ export class VideoEncoderManager {
     });
   }
 
-  // 完全重写帧处理流程，确保确定性
+  // 完全重写帧处理流程，使用分批处理替代一次性处理所有帧
   async processFrames(totalFrames, frameGenerator) {
     this.totalFrames = totalFrames;
     
-    // 第一步：预渲染所有帧并存储
-    console.log('开始渲染所有帧...');
-    const allFrames = [];
+    console.log(`开始分批处理总共${totalFrames}帧...`);
+    
+    // 每批处理的帧数，根据分辨率动态调整
+    const batchSize = this.width >= 3000 ? 50 : (this.width >= 2000 ? 100 : 200);
+    console.log(`分辨率${this.width}x${this.height}，使用批次大小: ${batchSize}`);
+    
     const frameDuration = 1000000 / this.fps; // 微秒单位
+    let lastThumbnail = null;
     
-    for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
-      // 计算精确时间戳
-      const timestamp = Math.round(frameIndex * frameDuration);
+    // 分批处理所有帧
+    for (let startFrame = 0; startFrame < totalFrames; startFrame += batchSize) {
+      const endFrame = Math.min(startFrame + batchSize, totalFrames);
+      console.log(`处理批次 ${startFrame} 到 ${endFrame-1}，共 ${endFrame - startFrame} 帧`);
       
-      // 渲染当前帧
-      const frameData = await frameGenerator(frameIndex);
+      // 第一步：渲染当前批次的所有帧
+      const batchFrames = [];
       
-      // 存储帧数据和时间戳
-      allFrames.push({
-        frameIndex,
-        timestamp,
-        duration: frameDuration,
-        imageData: frameData.imageData,
-        thumbnailDataURL: frameData.thumbnailDataURL
-      });
-      
-      // 更新进度信息不在这里处理，由frameGenerator负责
-    }
-    
-    console.log('所有帧渲染完成，开始编码...');
-    
-    // 第二步：按顺序编码所有帧
-    for (let i = 0; i < allFrames.length; i++) {
-      const frame = allFrames[i];
-      
-      // 创建 VideoFrame
-      const videoFrame = new VideoFrame(frame.imageData, {
-        timestamp: frame.timestamp,
-        duration: frame.duration
-      });
-      
-      // 确定是否是关键帧
-      const isKeyFrame = i % this.keyFrameInterval === 0;
-      
-      // 等待编码器准备好
-      while (this.videoEncoder.encodeQueueSize > 2) {
-        await new Promise(resolve => setTimeout(resolve, 1));
+      for (let frameIndex = startFrame; frameIndex < endFrame; frameIndex++) {
+        // 计算精确时间戳
+        const timestamp = Math.round(frameIndex * frameDuration);
+        
+        // 渲染当前帧
+        const frameData = await frameGenerator(frameIndex);
+        lastThumbnail = frameData.thumbnailDataURL;
+        
+        // 存储帧数据和时间戳
+        batchFrames.push({
+          frameIndex,
+          timestamp,
+          duration: frameDuration,
+          imageData: frameData.imageData,
+          thumbnailDataURL: frameData.thumbnailDataURL
+        });
       }
       
-      // 编码当前帧
-      this.videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
-      videoFrame.close();
+      // 第二步：立即编码当前批次的所有帧
+      for (let i = 0; i < batchFrames.length; i++) {
+        const frame = batchFrames[i];
+        
+        // 创建 VideoFrame
+        const videoFrame = new VideoFrame(frame.imageData, {
+          timestamp: frame.timestamp,
+          duration: frame.duration
+        });
+        
+        // 确定是否是关键帧
+        const isKeyFrame = frame.frameIndex % this.keyFrameInterval === 0;
+        
+        // 等待编码器准备好
+        while (this.videoEncoder.encodeQueueSize > 2) {
+          await new Promise(resolve => setTimeout(resolve, 1));
+        }
+        
+        // 编码当前帧
+        this.videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+        videoFrame.close();
+        
+        // 释放资源 - 关键步骤：手动释放不再需要的资源
+        if (frame.imageData && typeof frame.imageData.close === 'function') {
+          frame.imageData.close();
+        }
+        
+        // 计算总体进度
+        const progress = frame.frameIndex / totalFrames;
+        updateProgress({
+          frameCounter: frame.frameIndex,
+          totalFrames,
+          thumbnailDataURL: frame.thumbnailDataURL,
+          progressCallback: this._progressCallback,
+          stage: '处理中...'
+        });
+      }
       
-      // 更新进度 - 编码阶段
-      // 编码阶段的进度从50%开始，到100%结束
-      const encodingProgress = 0.5 + (i / allFrames.length) * 0.5;
-      updateProgress({
-        frameCounter: Math.floor(encodingProgress * totalFrames),
-        totalFrames,
-        thumbnailDataURL: frame.thumbnailDataURL,
-        progressCallback: this._progressCallback,
-        stage: '编码中...'
-      });
+      // 清空当前批次的帧数据，帮助垃圾回收
+      batchFrames.length = 0;
+      
+      // 给系统留出时间进行垃圾回收
+      await new Promise(resolve => setTimeout(resolve, 10));
     }
     
     // 确保所有帧都被处理
     await this.videoEncoder.flush();
-    console.log('所有帧编码完成');
+    console.log('所有帧处理完成');
     
     // 最终进度更新
     updateProgress({
       frameCounter: totalFrames,
       totalFrames,
-      thumbnailDataURL: allFrames[allFrames.length - 1]?.thumbnailDataURL,
+      thumbnailDataURL: lastThumbnail,
       progressCallback: this._progressCallback,
       stage: '编码完成'
     });

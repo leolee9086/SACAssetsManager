@@ -19,6 +19,8 @@ import { initVueApp } from './vueComponentLoader.js';
  * @param {string} [width='200px'] 对话框宽度
  * @param {string} [height='auto'] 对话框高度
  * @param {boolean} [transparent=true] 是否透明背景
+ * @param {Function} [onDialogCreated] 对话框创建后的回调函数
+ * @param {Object} [dialogOptions] 对话框选项
  * @returns {Promise<{app: Vue.App, dialog: Dialog}>} 返回Vue应用和对话框实例
  */
 export async function openVueDialog(
@@ -26,8 +28,8 @@ export async function openVueDialog(
     appURL, 
     name, 
     mixinOptions = {}, 
-    directory = null, 
-    data = {}, 
+    onDialogCreated = null,
+    dialogOptions = {},
     title = '', 
     width = '200px', 
     height = 'auto', 
@@ -39,26 +41,22 @@ export async function openVueDialog(
     }
     
     const dialog = new clientApi.Dialog({
-        title: title || '对话框',
+        title: dialogOptions.title || title || '对话框',
         content: `
         <div id="vueDialogPanel" 
             class='fn__flex-column vueDialog'  
             style="pointer-events:auto;z-index:5;max-height:80vh">
         </div>
         `,
-        width: width,
-        height: height,
-        transparent: transparent,
-        disableClose: transparent,
-        disableAnimation: false,
+        width: dialogOptions.width || width,
+        height: dialogOptions.height || height,
+        transparent: dialogOptions.transparent !== undefined ? dialogOptions.transparent : transparent,
+        disableClose: dialogOptions.disableClose !== undefined ? dialogOptions.disableClose : transparent,
+        disableAnimation: dialogOptions.disableAnimation || false,
     });
     
     if (!dialog) {
         throw new Error('创建对话框失败，无法继续执行。');
-    }
-    
-    if (data) {
-        data.$dialog = dialog;
     }
     
     try {
@@ -79,6 +77,9 @@ export async function openVueDialog(
         dialog.element.querySelector(".cc-dialog__close").addEventListener('click', () => {
             dialog.destroy();
         });
+        
+        // 添加close方法作为destroy的别名，确保API兼容性
+        dialog.close = dialog.destroy;
     } catch (error) {
         console.error('对话框DOM操作失败:', error);
         if (dialog.destroy) dialog.destroy();
@@ -86,14 +87,49 @@ export async function openVueDialog(
     }
     
     try {
-        const app = await initVueApp(appURL, name, mixinOptions, directory, data);
+        // 创建Vue应用
+        console.log('调用initVueApp前的mixinOptions:', JSON.stringify(mixinOptions));
+        
+        // 从mixinOptions中提取需要传递给组件的属性
+        const dialogData = {
+            ...mixinOptions,
+            $dialog: dialog
+        };
+        
+        // 使用正确的方式调用initVueApp
+        const app = await initVueApp(
+            appURL,    // 组件URL
+            name,      // 组件名称
+            {},        // 尽量保持mixinOptions简单
+            null,      // 目录参数
+            dialogData // 通过data参数传递属性，这些会通过provide/inject提供给组件
+        );
         
         if (!app || typeof app.mount !== 'function') {
             throw new Error('Vue应用创建失败，无法挂载到对话框');
         }
         
-        app.mount(dialog.element.querySelector(".vueDialog"));
-        return { app, dialog };
+        // 创建简单的事件总线
+        app.config.globalProperties.eventBus = {
+            emit(event, ...args) {
+                console.log('事件总线触发事件:', event, args);
+                // 这里可以添加通用的事件处理逻辑
+            }
+        };
+        
+        // 挂载应用
+        const vueInstance = app.mount(dialog.element.querySelector(".vueDialog"));
+        
+        // 保存Vue实例到dialog对象
+        dialog.vueInstance = vueInstance;
+        dialog.app = app;
+        
+        // 如果提供了回调函数，调用它
+        if (typeof onDialogCreated === 'function') {
+            onDialogCreated(dialog);
+        }
+        
+        return { app, dialog, vueInstance };
     } catch (error) {
         console.error('初始化Vue对话框失败:', error);
         if (dialog.destroy) dialog.destroy();

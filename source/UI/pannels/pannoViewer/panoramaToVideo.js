@@ -7,6 +7,8 @@ import {
 } from './useThree.js';
 import { createMuxer, ENCODER_CONFIG } from './videoMuxer.js';
 import { VideoEncoderManager, updateProgress } from './videoEncoderManager.js';
+import { addTextWatermark, addImageWatermark } from './watermarkUtils.js';
+
 // 在类定义前添加常量配置对象
 const Constants = {
     DEFAULT_VALUES: {
@@ -35,11 +37,30 @@ const Constants = {
         RADIUS: 500,
         WIDTH_SEGMENTS: 120,
         HEIGHT_SEGMENTS: 80
+    },
+    // 添加水印默认配置
+    WATERMARK: {
+        TEXT: {
+            ENABLED: false,
+            TEXT: '全景视频',
+            POSITION: 'bottomRight',
+            FONT: '', // 动态计算
+            COLOR: 'rgba(255, 255, 255, 0.8)',
+            PADDING: 10 // 动态调整
+        },
+        IMAGE: {
+            ENABLED: false,
+            POSITION: 'bottomLeft',
+            WIDTH: 0.15, // 画布宽度的15%
+            HEIGHT: null, // 自动按比例计算
+            OPACITY: 0.8,
+            PADDING: 10 // 动态调整
+        }
     }
 };
 
 // 导出这个函数供外部使用
-export async function captureFrame(renderer, scene, camera, width, height, flipY = false) {
+export async function captureFrame(renderer, scene, camera, width, height, flipY = false, watermarkOptions = null) {
   // 创建离屏渲染目标
   const renderTarget = new THREE.WebGLRenderTarget(width, height, {
     format: THREE.RGBAFormat,
@@ -91,6 +112,32 @@ export async function captureFrame(renderer, scene, camera, width, height, flipY
   canvas.height = height;
   ctx.putImageData(imageData, 0, 0);
   
+  // 添加水印
+  if (watermarkOptions) {
+    // 处理文字水印
+    if (watermarkOptions.text && watermarkOptions.text.enabled) {
+      addTextWatermark(canvas, {
+        text: watermarkOptions.text.text,
+        position: watermarkOptions.text.position,
+        font: watermarkOptions.text.font || `${Math.max(16, width / 50)}px Arial`,
+        color: watermarkOptions.text.color,
+        padding: watermarkOptions.text.padding || Math.max(10, width / 100)
+      });
+    }
+    
+    // 处理图片水印
+    if (watermarkOptions.image && watermarkOptions.image.enabled && watermarkOptions.image.imageObj) {
+      addImageWatermark(canvas, {
+        image: watermarkOptions.image.imageObj,
+        position: watermarkOptions.image.position,
+        width: watermarkOptions.image.width,
+        height: watermarkOptions.image.height,
+        opacity: watermarkOptions.image.opacity,
+        padding: watermarkOptions.image.padding || Math.max(10, width / 100)
+      });
+    }
+  }
+  
   // 生成缩略图数据URL (压缩比例较高以节省内存)
   const thumbnailCanvas = document.createElement('canvas');
   const thumbCtx = thumbnailCanvas.getContext('2d');
@@ -122,6 +169,27 @@ export class PanoramaVideoGenerator {
     this.duration = Constants.DEFAULT_VALUES.DURATION;
     this.videoFormat = Constants.DEFAULT_VALUES.FORMAT;
     this.progressCallback = null; // 新增进度回调函数
+    
+    // 添加水印配置
+    this.watermarkOptions = {
+      text: {
+        enabled: Constants.WATERMARK.TEXT.ENABLED,
+        text: Constants.WATERMARK.TEXT.TEXT,
+        position: Constants.WATERMARK.TEXT.POSITION,
+        font: Constants.WATERMARK.TEXT.FONT || `${Math.max(16, width / 50)}px Arial`,
+        color: Constants.WATERMARK.TEXT.COLOR,
+        padding: Constants.WATERMARK.TEXT.PADDING || Math.max(10, width / 100)
+      },
+      image: {
+        enabled: Constants.WATERMARK.IMAGE.ENABLED,
+        imageObj: null, // 将在setWatermarkImage中设置
+        position: Constants.WATERMARK.IMAGE.POSITION,
+        width: Constants.WATERMARK.IMAGE.WIDTH,
+        height: Constants.WATERMARK.IMAGE.HEIGHT,
+        opacity: Constants.WATERMARK.IMAGE.OPACITY,
+        padding: Constants.WATERMARK.IMAGE.PADDING || Math.max(10, width / 100)
+      }
+    };
 
     this.initRenderer();
 
@@ -136,6 +204,67 @@ export class PanoramaVideoGenerator {
     // 创建MediaRecorder
     this.mediaRecorder = null;
     this.chunks = [];
+  }
+
+  // 设置文字水印
+  setTextWatermark(options) {
+    if (!options) {
+      this.watermarkOptions.text.enabled = false;
+      return;
+    }
+    
+    this.watermarkOptions.text.enabled = true;
+    Object.assign(this.watermarkOptions.text, options);
+    
+    // 动态调整字体大小
+    if (!options.font) {
+      this.watermarkOptions.text.font = `${Math.max(16, this.width / 50)}px Arial`;
+    }
+    
+    // 动态调整内边距
+    if (!options.padding) {
+      this.watermarkOptions.text.padding = Math.max(10, this.width / 100);
+    }
+  }
+  
+  // 设置图片水印
+  async setImageWatermark(options) {
+    if (!options || !options.imageUrl) {
+      this.watermarkOptions.image.enabled = false;
+      this.watermarkOptions.image.imageObj = null;
+      return;
+    }
+    
+    try {
+      // 加载图片
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = options.imageUrl;
+      });
+      
+      this.watermarkOptions.image.enabled = true;
+      this.watermarkOptions.image.imageObj = img;
+      
+      // 更新其他选项
+      if (options.position) this.watermarkOptions.image.position = options.position;
+      if (options.width !== undefined) this.watermarkOptions.image.width = options.width;
+      if (options.height !== undefined) this.watermarkOptions.image.height = options.height;
+      if (options.opacity !== undefined) this.watermarkOptions.image.opacity = options.opacity;
+      if (options.padding !== undefined) {
+        this.watermarkOptions.image.padding = options.padding;
+      } else {
+        this.watermarkOptions.image.padding = Math.max(10, this.width / 100);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('设置图片水印失败:', error);
+      this.watermarkOptions.image.enabled = false;
+      this.watermarkOptions.image.imageObj = null;
+      return false;
+    }
   }
 
   initRenderer() {
@@ -194,8 +323,19 @@ export class PanoramaVideoGenerator {
       smoothness = 0.8,
       width = this.width,
       height = this.height,
-      format = 'mp4'
+      format = 'mp4',
+      watermarkOptions = null
     } = options;
+
+    // 如果有传入水印选项，覆盖现有设置
+    if (watermarkOptions) {
+      if (watermarkOptions.text) {
+        this.setTextWatermark(watermarkOptions.text);
+      }
+      if (watermarkOptions.image) {
+        await this.setImageWatermark(watermarkOptions.image);
+      }
+    }
 
     this.videoFormat = format;
     this.updateCameraAndRenderer(width, height);
@@ -229,13 +369,19 @@ export class PanoramaVideoGenerator {
         const { currentLon, currentLat } = 获取当前帧位置(cameraPositions, frame);
         updateCamera(this.camera, { currentLon, currentLat });
         
+        // 只有在启用水印时才传入水印选项
+        const hasWatermark = 
+          (this.watermarkOptions.text && this.watermarkOptions.text.enabled) || 
+          (this.watermarkOptions.image && this.watermarkOptions.image.enabled && this.watermarkOptions.image.imageObj);
+        
         const frameData = await captureFrame(
           this.renderer,
           this.scene,
           this.camera,
           this.width,
           this.height,
-          true // 修改为true，强制Y轴翻转以修正视频上下颠倒问题
+          true, // 修改为true，强制Y轴翻转以修正视频上下颠倒问题
+          hasWatermark ? this.watermarkOptions : null
         );
 
         // 渲染阶段的进度只占总进度的50%
@@ -272,6 +418,16 @@ export class PanoramaVideoGenerator {
     this.camera.fov = isPortrait ? Constants.CAMERA_CONFIG.PORTRAIT_FOV : Constants.CAMERA_CONFIG.LANDSCAPE_FOV;
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+    
+    // 更新水印设置
+    if (this.watermarkOptions.text.enabled) {
+      this.watermarkOptions.text.font = `${Math.max(16, width / 50)}px Arial`;
+      this.watermarkOptions.text.padding = Math.max(10, width / 100);
+    }
+    
+    if (this.watermarkOptions.image.enabled) {
+      this.watermarkOptions.image.padding = Math.max(10, width / 100);
+    }
   }
 
   dispose() {
