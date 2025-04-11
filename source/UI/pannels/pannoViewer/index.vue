@@ -24,6 +24,10 @@
             <i class="icon">🪞</i>
             <span>镜像</span>
           </div>
+          <div class="tool-item" :class="{ active: currentTool === 'export' }" @click="handleToolClick('export')">
+            <i class="icon">📤</i>
+            <span>导出</span>
+          </div>
         </div>
       </div>
 
@@ -124,29 +128,8 @@
           <template v-if="currentTool === 'settings'">
             <div class="settings-panel">
               <div class="section">
-                <h3>视频设置</h3>
-                <div class="option-item">
-                  <label>视频方向</label>
-                  <select v-model="videoSettings.isLandscape">
-                    <option :value="true">横屏 (1920*1080)</option>
-                    <option :value="false">竖屏 (1080*1920)</option>
-                  </select>
-                </div>
-                <div class="option-item">
-                  <label>视频时长</label>
-                  <select v-model="videoSettings.duration">
-                    <option :value="24">24秒</option>
-                    <option :value="30">30秒</option>
-                    <option :value="40">40秒</option>
-                  </select>
-                </div>
-                <button 
-                  class="generate-btn"
-                  @click="generateVideo"
-                  :disabled="isGeneratingVideo"
-                >
-                  {{ isGeneratingVideo ? '生成中...' : '生成视频' }}
-                </button>
+                <h3>基本设置</h3>
+                <!-- 这里可以添加其他基本设置选项 -->
               </div>
             </div>
           </template>
@@ -188,6 +171,56 @@
                   :disabled="!hasMirroredImage"
                 >
                   保存镜像图片
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- 添加导出面板 -->
+          <template v-if="currentTool === 'export'">
+            <div class="export-panel">
+              <div class="section">
+                <h3>视频导出</h3>
+                <div class="option-item">
+                  <label>视频方向</label>
+                  <select v-model="videoSettings.isLandscape">
+                    <option :value="true">横屏 (1920*1080)</option>
+                    <option :value="false">竖屏 (1080*1920)</option>
+                  </select>
+                </div>
+                <div class="option-item">
+                  <label>视频时长</label>
+                  <select v-model="videoSettings.duration">
+                    <option :value="24">24秒</option>
+                    <option :value="30">30秒</option>
+                    <option :value="40">40秒</option>
+                  </select>
+                </div>
+                <button 
+                  class="generate-btn"
+                  @click="generateVideo"
+                  :disabled="isGeneratingVideo"
+                >
+                  {{ isGeneratingVideo ? '生成中...' : '生成视频' }}
+                </button>
+              </div>
+
+              <div class="section">
+                <h3>图片导出</h3>
+                <div class="option-item">
+                  <label>图片分辨率</label>
+                  <select v-model="imageExportSettings.resolution">
+                    <option value="1080p">1920×1080</option>
+                    <option value="2k">2560×1440</option>
+                    <option value="4k">3840×2160</option>
+                  </select>
+                </div>
+                <button 
+                  class="export-btn"
+                  @click="exportCurrentView"
+                  :disabled="isExporting"
+                >
+                  {{ isExporting ? '导出中...' : '导出当前视角' }}
                 </button>
               </div>
             </div>
@@ -467,7 +500,8 @@ const hotspotForm = ref({
 const getPanelTitle = computed(() => {
   const titles = {
     view: '全景信息',
-    settings: '全景设置'
+    settings: '基本设置',
+    export: '导出选项'
   }
   return titles[currentTool.value] || ''
 })
@@ -1200,6 +1234,86 @@ const generateVideo = async () => {
     console.error('生成视频失败:', error);
   } finally {
     isGeneratingVideo.value = false;
+  }
+};
+
+// 添加导出相关状态
+const imageExportSettings = ref({
+  resolution: '1080p'
+});
+const isExporting = ref(false);
+
+// 添加导出当前视角方法
+const exportCurrentView = async () => {
+  try {
+    isExporting.value = true;
+    
+    // 根据分辨率设置确定宽高
+    let width, height;
+    switch(imageExportSettings.value.resolution) {
+      case '4k':
+        width = 3840;
+        height = 2160;
+        break;
+      case '2k':
+        width = 2560;
+        height = 1440;
+        break;
+      default:
+        width = 1920;
+        height = 1080;
+    }
+    
+    // 创建临时画布
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = width;
+    canvas.height = height;
+    
+    // 获取当前场景
+    const tempRenderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      preserveDrawingBuffer: true 
+    });
+    tempRenderer.setSize(width, height);
+    tempRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    
+    // 设置相机
+    const tempCamera = new THREE.PerspectiveCamera(cameraFov.value, width / height, 1, 1000);
+    
+    // 复制当前场景
+    const tempScene = new THREE.Scene();
+    const mesh = scene.value.children[0].clone();
+    tempScene.add(mesh);
+    
+    // 设置相机位置
+    const phi = THREE.MathUtils.degToRad(90 - lat.value);
+    const theta = THREE.MathUtils.degToRad(lon.value);
+    tempCamera.position.set(0, 0, 0);
+    const x = 500 * Math.sin(phi) * Math.cos(theta);
+    const y = 500 * Math.cos(phi);
+    const z = 500 * Math.sin(phi) * Math.sin(theta);
+    tempCamera.lookAt(x, y, z);
+    
+    // 渲染场景
+    tempRenderer.render(tempScene, tempCamera);
+    
+    // 将渲染结果转换为图片
+    const imgData = tempRenderer.domElement.toDataURL('image/jpeg', 0.95);
+    
+    // 创建下载链接
+    const link = document.createElement('a');
+    link.href = imgData;
+    link.download = `panorama_${new Date().getTime()}.jpg`;
+    link.click();
+    
+    // 清理资源
+    tempRenderer.dispose();
+    
+  } catch (error) {
+    console.error('导出图片失败:', error);
+  } finally {
+    isExporting.value = false;
   }
 };
 
@@ -2019,4 +2133,28 @@ canvas {
   padding: 2px 4px;
   border-radius: 2px;
 }
+
+/* 添加导出面板样式 */
+.export-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.export-btn {
+  width: 100%;
+  padding: 8px 16px;
+  background-color: var(--cc-theme-primary);
+  color: white;
+  border: none;
+  border-radius: var(--cc-border-radius);
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 </style>
