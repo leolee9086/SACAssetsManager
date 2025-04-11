@@ -1,26 +1,25 @@
 import { createMuxer, ENCODER_CONFIG } from './videoMuxer.js';
 
-// 工具函数
+// 统一的进度更新函数
 export function updateProgress({
   frameCounter,
   totalFrames,
   thumbnailDataURL,
-  progressCallback
+  progressCallback,
+  stage = '渲染中...'
 }) {
-  const progress = Math.min(1, frameCounter / totalFrames);
-  let stage = '渲染中...';
-  if (frameCounter === 0) stage = '初始化中...';
-  if (frameCounter >= totalFrames - 1) stage = '编码中...';
-
-  if (progressCallback) {
-    progressCallback({
-      progress,
-      currentFrame: frameCounter,
-      totalFrames,
-      stage,
-      frameImage: thumbnailDataURL
-    });
-  }
+  if (!progressCallback) return;
+  
+  // 确保进度值在0到1之间
+  const progress = Math.min(1, Math.max(0, frameCounter / totalFrames));
+  
+  progressCallback({
+    progress,
+    currentFrame: frameCounter,
+    totalFrames,
+    stage,
+    frameImage: thumbnailDataURL
+  });
 }
 
 // 添加自适应队列类
@@ -177,11 +176,11 @@ export class VideoEncoderManager {
         frameIndex,
         timestamp,
         duration: frameDuration,
-        imageData: frameData.imageData
+        imageData: frameData.imageData,
+        thumbnailDataURL: frameData.thumbnailDataURL
       });
       
-      // 更新进度
-      console.log(`预渲染进度: ${frameIndex + 1}/${totalFrames}`);
+      // 更新进度信息不在这里处理，由frameGenerator负责
     }
     
     console.log('所有帧渲染完成，开始编码...');
@@ -208,15 +207,37 @@ export class VideoEncoderManager {
       this.videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
       videoFrame.close();
       
-      // 更新进度
-      console.log(`编码进度: ${i + 1}/${allFrames.length}`);
+      // 更新进度 - 编码阶段
+      // 编码阶段的进度从50%开始，到100%结束
+      const encodingProgress = 0.5 + (i / allFrames.length) * 0.5;
+      updateProgress({
+        frameCounter: Math.floor(encodingProgress * totalFrames),
+        totalFrames,
+        thumbnailDataURL: frame.thumbnailDataURL,
+        progressCallback: this._progressCallback,
+        stage: '编码中...'
+      });
     }
     
     // 确保所有帧都被处理
     await this.videoEncoder.flush();
     console.log('所有帧编码完成');
     
+    // 最终进度更新
+    updateProgress({
+      frameCounter: totalFrames,
+      totalFrames,
+      thumbnailDataURL: allFrames[allFrames.length - 1]?.thumbnailDataURL,
+      progressCallback: this._progressCallback,
+      stage: '编码完成'
+    });
+    
     return true;
+  }
+
+  // 添加进度回调设置方法
+  setProgressCallback(callback) {
+    this._progressCallback = callback;
   }
 
   async finalize() {

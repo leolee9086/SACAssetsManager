@@ -6,7 +6,7 @@ import {
     //captureFrame  // 新增导入
 } from './useThree.js';
 import { createMuxer, ENCODER_CONFIG } from './videoMuxer.js';
-import { VideoEncoderManager } from './videoEncoderManager.js';
+import { VideoEncoderManager, updateProgress } from './videoEncoderManager.js';
 // 在类定义前添加常量配置对象
 const Constants = {
     DEFAULT_VALUES: {
@@ -37,29 +37,6 @@ const Constants = {
         HEIGHT_SEGMENTS: 80
     }
 };
-
-// 新增工具函数
-function $updateProgress({
-  frameCounter,
-  totalFrames,
-  thumbnailDataURL,
-  progressCallback
-}) {
-  const progress = Math.min(1, frameCounter / totalFrames);
-  let stage = '渲染中...';
-  if (frameCounter === 0) stage = '初始化中...';
-  if (frameCounter >= totalFrames - 1) stage = '编码中...';
-
-  if (progressCallback) {
-    progressCallback({
-      progress,
-      currentFrame: frameCounter,
-      totalFrames,
-      stage,
-      frameImage: thumbnailDataURL
-    });
-  }
-}
 
 // 导出这个函数供外部使用
 export async function captureFrame(renderer, scene, camera, width, height) {
@@ -112,28 +89,6 @@ export async function captureFrame(renderer, scene, camera, width, height) {
     imageData: canvas,
     thumbnailDataURL
   };
-}
-
-// 更新进度回调函数
-export function updateProgress({ frameCounter, totalFrames, thumbnailDataURL, progressCallback }) {
-  if (!progressCallback) return;
-  
-  // 计算当前进度
-  const progress = frameCounter / (totalFrames - 1);
-  
-  // 确定当前阶段
-  let stage = '渲染中...';
-  if (frameCounter === 0) stage = '初始化中...';
-  if (frameCounter >= totalFrames - 1) stage = '编码完成';
-  
-  // 调用进度回调
-  progressCallback({
-    progress,
-    currentFrame: frameCounter + 1,
-    totalFrames,
-    stage,
-    frameImage: thumbnailDataURL
-  });
 }
 
 // 获取当前帧位置的纯函数
@@ -239,6 +194,9 @@ export class PanoramaVideoGenerator {
       fps: this.fps,
       format: this.videoFormat
     });
+    
+    // 传递进度回调
+    encoderManager.setProgressCallback(this.progressCallback);
 
     const cameraPositions = 预计算球面轨迹({
       totalFrames,
@@ -263,11 +221,14 @@ export class PanoramaVideoGenerator {
           this.height
         );
 
+        // 渲染阶段的进度只占总进度的50%
+        const renderProgress = frame / totalFrames * 0.5;
         updateProgress({
-          frameCounter: frame,
+          frameCounter: Math.floor(renderProgress * totalFrames),
           totalFrames,
           thumbnailDataURL: frameData.thumbnailDataURL,
-          progressCallback: this.progressCallback
+          progressCallback: this.progressCallback,
+          stage: '渲染帧...'
         });
 
         return frameData;

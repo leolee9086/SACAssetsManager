@@ -1038,6 +1038,7 @@ const generateVideo = async () => {
   
   try {
     isGeneratingVideo.value = true;
+    // 重置进度状态
     videoProgress.value = {
       progress: 0,
       currentFrame: 0,
@@ -1047,8 +1048,8 @@ const generateVideo = async () => {
     keyFrames.value = []; // 清空关键帧
 
     // 根据方向设置尺寸
-    const width = videoSettings.value.isLandscape ? 2560 : 1440;   // 修改为2K分辨率
-    const height = videoSettings.value.isLandscape ? 1440 : 2560;  // 修改为2K分辨率
+    const width = videoSettings.value.isLandscape ? 1920 : 1080;
+    const height = videoSettings.value.isLandscape ? 1080 : 1920;
     
     // 创建视频生成器
     const generator = new PanoramaVideoGenerator(width, height);
@@ -1056,6 +1057,8 @@ const generateVideo = async () => {
 
     // 设置进度回调
     generator.setProgressCallback(({ progress, currentFrame, totalFrames, stage, frameImage }) => {
+      console.log(`视频进度: ${Math.round(progress * 100)}%, 帧: ${currentFrame}/${totalFrames}, 阶段: ${stage}`);
+      
       videoProgress.value = {
         progress,
         currentFrame,
@@ -1071,6 +1074,11 @@ const generateVideo = async () => {
         });
       }
     });
+
+    // 计算总帧数
+    const totalFrames = videoSettings.value.fps * videoSettings.value.duration;
+    
+    console.log(`开始生成视频: ${width}x${height}, ${videoSettings.value.fps}fps, ${videoSettings.value.duration}秒, 总计${totalFrames}帧`);
 
     // 开始录制
     const videoBlob = await generator.startRecording({
@@ -1088,6 +1096,8 @@ const generateVideo = async () => {
 
     // 保存视频
     saveVideoBlob(videoBlob, 'mp4');
+    
+    console.log('视频生成完成');
     
   } catch (error) {
     console.error('生成视频失败:', error);
