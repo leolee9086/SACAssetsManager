@@ -1,6 +1,6 @@
 import * as THREE from '../../../../static/three/three.mjs';
 import { flipPixelsYAxis } from './utils/pixels.js';
-// 一次性预计算所有帧的相机位置
+// 一次性预计算所有帧的相机位置，使用线性插值确保确定性
 export const 预计算球面轨迹 = ({
     totalFrames,
     startLon,
@@ -11,20 +11,38 @@ export const 预计算球面轨迹 = ({
     smoothness
 }) => {
     const positions = [];
-    const smoothFactor = Math.max(0.1, Math.min(smoothness, 0.9));
+    // 使用简单线性插值替代非线性插值，确保帧的均匀分布
     const totalRotation = (endLon - startLon) * rotations;
     const latDelta = endLat - startLat;
 
     for (let frameCounter = 0; frameCounter < totalFrames; frameCounter++) {
-        const progress = Math.pow(frameCounter / totalFrames, 1 / (2 - smoothFactor));
+        // 使用线性插值确保帧间的确定性
+        const linearProgress = frameCounter / (totalFrames - 1);
+        
+        // 对于需要缓入缓出效果的情况，可以使用确定性的三次插值
+        // 这里使用三次样条插值替代之前的幂函数计算
+        const progress = computeEaseInOutCubic(linearProgress);
+        
         positions.push({
             currentLon: startLon + progress * totalRotation,
             currentLat: startLat + progress * latDelta,
-            progress
+            progress: linearProgress // 保存线性进度，便于调试
         });
     }
+    
+    // 添加调试信息
+    console.log('预计算了', positions.length, '个相机位置');
+    
     return positions; // 返回所有帧的位置数组
 };
+
+// 使用确定性的三次缓动函数替代幂函数
+function computeEaseInOutCubic(t) {
+    // 标准三次缓入缓出函数：t^2 * (3 - 2t)
+    return t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 
 // 更新后的获取单帧位置方法
 export const 获取当前帧位置 = (positions, frameCounter) => {
@@ -36,8 +54,16 @@ export const 获取当前帧位置 = (positions, frameCounter) => {
 export const updateCamera = (camera, { currentLon, currentLat }) => {
     const phi = THREE.MathUtils.degToRad(90 - currentLat);
     const theta = THREE.MathUtils.degToRad(currentLon);
-    camera.position.setFromSphericalCoords(1, phi, theta);
+    
+    // 使用球面坐标定位相机，确保定位的确定性
+    const radius = 1; // 固定相机半径为1
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = radius * Math.cos(phi);
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+    
+    camera.position.set(x, y, z);
     camera.lookAt(0, 0, 0);
+    
     return camera;
 };
 

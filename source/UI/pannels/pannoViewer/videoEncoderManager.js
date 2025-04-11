@@ -92,41 +92,38 @@ class AdaptiveFrameQueue {
 
 export class VideoEncoderManager {
   constructor(options) {
-    const {
-      width,
-      height,
-      fps,
-      format = 'mp4',
-      bitrate = format === 'mp4' ? ENCODER_CONFIG.MP4_BITRATE : ENCODER_CONFIG.WEBM_BITRATE,
-      keyFrameInterval = ENCODER_CONFIG.KEYFRAME_INTERVAL[format](fps),
-      quality = ENCODER_CONFIG.QUALITY
-    } = options;
-
+    const { width, height, fps, format } = options;
+    
     this.width = width;
     this.height = height;
     this.fps = fps;
     this.format = format;
-    this.frameDuration = 1000000 / fps; // 微秒
-    this.frameQueue = new AdaptiveFrameQueue(10, 5, 60);
-    this.isEncoding = false;
-    this.encodingStats = {
-      totalFramesProcessed: 0,
-      startTime: 0,
-      lastProgressUpdate: 0,
-      averageEncodingTime: 0
-    };
     
+    // 计算编码器配置
+    this.bitrate = this.format === 'mp4' 
+      ? ENCODER_CONFIG.MP4_BITRATE 
+      : ENCODER_CONFIG.WEBM_BITRATE;
+    
+    this.keyFrameInterval = ENCODER_CONFIG.KEYFRAME_INTERVAL[this.format](this.fps);
+    this.quality = ENCODER_CONFIG.QUALITY;
+    
+    // 初始化编码器和混流器
     this.initializeMuxer({
-      format,
-      width,
-      height,
-      fps,
-      bitrate,
-      keyFrameInterval,
-      quality
+      format: this.format,
+      width: this.width,
+      height: this.height,
+      fps: this.fps,
+      bitrate: this.bitrate,
+      keyFrameInterval: this.keyFrameInterval,
+      quality: this.quality
     });
     
-    this.initializeEncoder(bitrate, keyFrameInterval, quality);
+    this.initializeEncoder(this.bitrate, this.keyFrameInterval, this.quality);
+    
+    // 替换自适应队列为确定性帧缓冲区
+    this.frameBuffer = [];
+    this.currentFrameIndex = 0;
+    this.totalFrames = 0;
   }
 
   initializeMuxer(config) {
@@ -136,8 +133,15 @@ export class VideoEncoderManager {
   initializeEncoder(bitrate, keyFrameInterval, quality) {
     const codec = this.format === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08';
     
+    // 创建同步处理队列
+    this.encodingQueue = [];
+    this.isProcessingQueue = false;
+    
     this.videoEncoder = new VideoEncoder({
-      output: (chunk, meta) => this.muxer.addVideoChunk(chunk, meta),
+      output: (chunk, meta) => {
+        // 确保按顺序添加到muxer
+        this.muxer.addVideoChunk(chunk, meta);
+      },
       error: (e) => console.error('VideoEncoder error:', e)
     });
 
@@ -152,98 +156,71 @@ export class VideoEncoderManager {
     });
   }
 
-  async addFrame(imageData, thumbnailDataURL, frameIndex) {
-    await this.frameQueue.enqueue({
-      imageData,
-      thumbnailDataURL,
-      frameIndex
-    });
-  }
-
-  async encode(frameData) {
-    const videoFrame = new VideoFrame(frameData.imageData, {
-      timestamp: frameData.frameIndex * this.frameDuration,
-      duration: this.frameDuration
-    });
-
-    try {
-      await this.videoEncoder.encode(videoFrame, {
-        keyFrame: frameData.frameIndex % ENCODER_CONFIG.KEYFRAME_INTERVAL[this.format](this.fps) === 0
-      });
-    } finally {
-      videoFrame.close();
-    }
-  }
-
-  async startEncoding(totalFrames) {
-    if (this.isEncoding) return;
-    this.isEncoding = true;
-    this.encodingStats.startTime = Date.now();
-    
-    try {
-      let encodedFrames = 0;
-      while (encodedFrames < totalFrames || this.frameQueue.length > 0) {
-        const frameData = this.frameQueue.dequeue();
-        if (frameData) {
-          const encodeStartTime = Date.now();
-          await this.encode(frameData);
-          
-          // 更新编码统计
-          const encodingTime = Date.now() - encodeStartTime;
-          this.encodingStats.averageEncodingTime = 
-            (this.encodingStats.averageEncodingTime * encodedFrames + encodingTime) / (encodedFrames + 1);
-          
-          encodedFrames++;
-          this.encodingStats.totalFramesProcessed = encodedFrames;
-          
-          // 定期输出性能统计
-          if (Date.now() - this.encodingStats.lastProgressUpdate > 1000) {
-            this.logEncodingStats(totalFrames);
-            this.encodingStats.lastProgressUpdate = Date.now();
-          }
-        } else {
-          // 动态调整等待时间
-          const waitTime = Math.max(1, this.encodingStats.averageEncodingTime / 4);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-      }
-    } finally {
-      this.isEncoding = false;
-      this.logEncodingStats(totalFrames, true);
-    }
-  }
-
-  logEncodingStats(totalFrames, isFinal = false) {
-    const elapsedTime = (Date.now() - this.encodingStats.startTime) / 1000;
-    const fps = this.encodingStats.totalFramesProcessed / elapsedTime;
-    const queueSize = this.frameQueue.length;
-    const queueCapacity = this.frameQueue.capacity;
-    
-    console.log(`编码统计:
-      进度: ${this.encodingStats.totalFramesProcessed}/${totalFrames} (${((this.encodingStats.totalFramesProcessed/totalFrames)*100).toFixed(1)}%)
-      平均编码时间: ${this.encodingStats.averageEncodingTime.toFixed(1)}ms
-      编码FPS: ${fps.toFixed(1)}
-      队列状态: ${queueSize}/${queueCapacity}
-      ${isFinal ? '总耗时: ' + elapsedTime.toFixed(1) + '秒' : ''}
-    `);
-  }
-
+  // 完全重写帧处理流程，确保确定性
   async processFrames(totalFrames, frameGenerator) {
-    // 并行处理渲染和编码
-    const encodingPromise = this.startEncoding(totalFrames);
-    const renderingPromise = this.renderFrames(totalFrames, frameGenerator);
+    this.totalFrames = totalFrames;
     
-    await Promise.all([encodingPromise, renderingPromise]);
-  }
-
-  async renderFrames(totalFrames, frameGenerator) {
+    // 第一步：预渲染所有帧并存储
+    console.log('开始渲染所有帧...');
+    const allFrames = [];
+    const frameDuration = 1000000 / this.fps; // 微秒单位
+    
     for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
-      const { imageData, thumbnailDataURL } = await frameGenerator(frameIndex);
-      await this.addFrame(imageData, thumbnailDataURL, frameIndex);
+      // 计算精确时间戳
+      const timestamp = Math.round(frameIndex * frameDuration);
+      
+      // 渲染当前帧
+      const frameData = await frameGenerator(frameIndex);
+      
+      // 存储帧数据和时间戳
+      allFrames.push({
+        frameIndex,
+        timestamp,
+        duration: frameDuration,
+        imageData: frameData.imageData
+      });
+      
+      // 更新进度
+      console.log(`预渲染进度: ${frameIndex + 1}/${totalFrames}`);
     }
+    
+    console.log('所有帧渲染完成，开始编码...');
+    
+    // 第二步：按顺序编码所有帧
+    for (let i = 0; i < allFrames.length; i++) {
+      const frame = allFrames[i];
+      
+      // 创建 VideoFrame
+      const videoFrame = new VideoFrame(frame.imageData, {
+        timestamp: frame.timestamp,
+        duration: frame.duration
+      });
+      
+      // 确定是否是关键帧
+      const isKeyFrame = i % this.keyFrameInterval === 0;
+      
+      // 等待编码器准备好
+      while (this.videoEncoder.encodeQueueSize > 2) {
+        await new Promise(resolve => setTimeout(resolve, 1));
+      }
+      
+      // 编码当前帧
+      this.videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+      videoFrame.close();
+      
+      // 更新进度
+      console.log(`编码进度: ${i + 1}/${allFrames.length}`);
+    }
+    
+    // 确保所有帧都被处理
+    await this.videoEncoder.flush();
+    console.log('所有帧编码完成');
+    
+    return true;
   }
 
   async finalize() {
+    // 确保编码器已刷新
     await this.videoEncoder.flush();
     this.muxer.finalize();
     const buffer = this.muxer.target.buffer;

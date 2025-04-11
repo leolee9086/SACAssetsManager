@@ -2,8 +2,8 @@ import * as THREE from '../../../../static/three/three.mjs';
 import { 
     updateCamera,
     预计算球面轨迹,
-    获取当前帧位置,
-    captureFrame  // 新增导入
+   // 获取当前帧位置,
+    //captureFrame  // 新增导入
 } from './useThree.js';
 import { createMuxer, ENCODER_CONFIG } from './videoMuxer.js';
 import { VideoEncoderManager } from './videoEncoderManager.js';
@@ -39,7 +39,7 @@ const Constants = {
 };
 
 // 新增工具函数
-function updateProgress({
+function $updateProgress({
   frameCounter,
   totalFrames,
   thumbnailDataURL,
@@ -60,6 +60,87 @@ function updateProgress({
     });
   }
 }
+
+// 导出这个函数供外部使用
+export async function captureFrame(renderer, scene, camera, width, height) {
+  // 创建离屏渲染目标
+  const renderTarget = new THREE.WebGLRenderTarget(width, height, {
+    format: THREE.RGBAFormat,
+    type: THREE.UnsignedByteType,
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    encoding: THREE.sRGBEncoding
+  });
+  
+  // 设置渲染目标
+  renderer.setRenderTarget(renderTarget);
+  
+  // 执行渲染
+  renderer.render(scene, camera);
+  
+  // 读取像素数据
+  const buffer = new Uint8Array(width * height * 4);
+  renderer.readRenderTargetPixels(renderTarget, 0, 0, width, height, buffer);
+  
+  // 创建ImageData对象
+  const imageData = new ImageData(
+    new Uint8ClampedArray(buffer.buffer),
+    width,
+    height
+  );
+  
+  // 创建缩略图
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = width;
+  canvas.height = height;
+  ctx.putImageData(imageData, 0, 0);
+  
+  // 生成缩略图数据URL (压缩比例较高以节省内存)
+  const thumbnailCanvas = document.createElement('canvas');
+  const thumbCtx = thumbnailCanvas.getContext('2d');
+  thumbnailCanvas.width = 160;
+  thumbnailCanvas.height = 90;
+  thumbCtx.drawImage(canvas, 0, 0, width, height, 0, 0, 160, 90);
+  const thumbnailDataURL = thumbnailCanvas.toDataURL('image/jpeg', 0.6);
+  
+  // 清理资源
+  renderer.setRenderTarget(null);
+  renderTarget.dispose();
+  
+  return {
+    imageData: canvas,
+    thumbnailDataURL
+  };
+}
+
+// 更新进度回调函数
+export function updateProgress({ frameCounter, totalFrames, thumbnailDataURL, progressCallback }) {
+  if (!progressCallback) return;
+  
+  // 计算当前进度
+  const progress = frameCounter / (totalFrames - 1);
+  
+  // 确定当前阶段
+  let stage = '渲染中...';
+  if (frameCounter === 0) stage = '初始化中...';
+  if (frameCounter >= totalFrames - 1) stage = '编码完成';
+  
+  // 调用进度回调
+  progressCallback({
+    progress,
+    currentFrame: frameCounter + 1,
+    totalFrames,
+    stage,
+    frameImage: thumbnailDataURL
+  });
+}
+
+// 获取当前帧位置的纯函数
+export function 获取当前帧位置(cameraPositions, frameIndex) {
+  return cameraPositions[frameIndex] || cameraPositions[cameraPositions.length - 1];
+}
+
 export class PanoramaVideoGenerator {
   constructor(width = Constants.DEFAULT_VALUES.WIDTH, height = Constants.DEFAULT_VALUES.HEIGHT) {
     this.width = width;
