@@ -178,7 +178,9 @@ export class PanoramaVideoGenerator {
         position: Constants.WATERMARK.TEXT.POSITION,
         font: Constants.WATERMARK.TEXT.FONT || `${Math.max(16, width / 50)}px Arial`,
         color: Constants.WATERMARK.TEXT.COLOR,
-        padding: Constants.WATERMARK.TEXT.PADDING || Math.max(10, width / 100)
+        padding: Constants.WATERMARK.TEXT.PADDING || Math.max(10, width / 100),
+        fontWasSetExplicitly: false, // 标记字体是否被明确设置
+        paddingWasSetExplicitly: false // 标记内边距是否被明确设置
       },
       image: {
         enabled: Constants.WATERMARK.IMAGE.ENABLED,
@@ -187,7 +189,8 @@ export class PanoramaVideoGenerator {
         width: Constants.WATERMARK.IMAGE.WIDTH,
         height: Constants.WATERMARK.IMAGE.HEIGHT,
         opacity: Constants.WATERMARK.IMAGE.OPACITY,
-        padding: Constants.WATERMARK.IMAGE.PADDING || Math.max(10, width / 100)
+        padding: Constants.WATERMARK.IMAGE.PADDING || Math.max(10, width / 100),
+        paddingWasSetExplicitly: false // 标记内边距是否被明确设置
       }
     };
 
@@ -214,15 +217,25 @@ export class PanoramaVideoGenerator {
     }
     
     this.watermarkOptions.text.enabled = true;
+    
+    // 记录是否明确设置了字体和内边距
+    const fontWasProvided = !!options.font;
+    const paddingWasProvided = options.padding !== undefined;
+    
+    // 应用所有选项
     Object.assign(this.watermarkOptions.text, options);
     
-    // 动态调整字体大小
-    if (!options.font) {
+    // 设置标志，表示字体是否被明确设置
+    this.watermarkOptions.text.fontWasSetExplicitly = fontWasProvided;
+    this.watermarkOptions.text.paddingWasSetExplicitly = paddingWasProvided;
+    
+    // 动态调整字体大小 - 仅在未提供字体时
+    if (!fontWasProvided) {
       this.watermarkOptions.text.font = `${Math.max(16, this.width / 50)}px Arial`;
     }
     
-    // 动态调整内边距
-    if (!options.padding) {
+    // 动态调整内边距 - 仅在未提供内边距时
+    if (!paddingWasProvided) {
       this.watermarkOptions.text.padding = Math.max(10, this.width / 100);
     }
   }
@@ -247,16 +260,24 @@ export class PanoramaVideoGenerator {
       this.watermarkOptions.image.enabled = true;
       this.watermarkOptions.image.imageObj = img;
       
+      // 记录是否明确设置了内边距
+      const paddingWasProvided = options.padding !== undefined;
+      
       // 更新其他选项
       if (options.position) this.watermarkOptions.image.position = options.position;
       if (options.width !== undefined) this.watermarkOptions.image.width = options.width;
       if (options.height !== undefined) this.watermarkOptions.image.height = options.height;
       if (options.opacity !== undefined) this.watermarkOptions.image.opacity = options.opacity;
-      if (options.padding !== undefined) {
+      
+      // 设置内边距
+      if (paddingWasProvided) {
         this.watermarkOptions.image.padding = options.padding;
       } else {
         this.watermarkOptions.image.padding = Math.max(10, this.width / 100);
       }
+      
+      // 设置标志，表示内边距是否被明确设置
+      this.watermarkOptions.image.paddingWasSetExplicitly = paddingWasProvided;
       
       return true;
     } catch (error) {
@@ -418,16 +439,6 @@ export class PanoramaVideoGenerator {
     this.camera.fov = isPortrait ? Constants.CAMERA_CONFIG.PORTRAIT_FOV : Constants.CAMERA_CONFIG.LANDSCAPE_FOV;
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
-    
-    // 更新水印设置
-    if (this.watermarkOptions.text.enabled) {
-      this.watermarkOptions.text.font = `${Math.max(16, width / 50)}px Arial`;
-      this.watermarkOptions.text.padding = Math.max(10, width / 100);
-    }
-    
-    if (this.watermarkOptions.image.enabled) {
-      this.watermarkOptions.image.padding = Math.max(10, width / 100);
-    }
   }
 
   dispose() {
