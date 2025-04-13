@@ -297,7 +297,7 @@ const checkIsPanoramaImage = (filePath) => {
         const ratio = width / height;
         
         // 严格检查比例，允许极小的误差（0.05 = 5%）
-        const isRatioMatch = Math.abs(ratio - 2) < 0.05;
+        const isRatioMatch = Math.abs(ratio - 2) < 0.001;
         
         // 计算与2:1的接近程度（百分比）
         const ratioAccuracy = (1 - Math.abs(ratio - 2) / 2) * 100;
