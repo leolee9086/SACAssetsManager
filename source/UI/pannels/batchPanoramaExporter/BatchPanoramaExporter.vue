@@ -248,7 +248,7 @@ const processNextTask = async () => {
     tasks.value[currentTaskIndex.value] = updatedTask;
     tasks.value = [...tasks.value]; // 触发响应式更新
   };
-  
+  console.log(currentTask)
   // 处理当前任务
   await processExportTask(currentTask, updateTask);
   

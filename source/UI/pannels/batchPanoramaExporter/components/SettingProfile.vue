@@ -304,17 +304,26 @@
         </div>
       </div>
     </div>
+    
+    <!-- 音频设置 -->
+    <AudioSettings
+      ref="audioComponents"
+      :profile="profile"
+      :profileIndex="profileIndex"
+      @update:profile="updateProfileFromChild"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, defineProps, defineEmits, watch } from 'vue';
+import { ref, computed, defineProps, defineEmits, watch, onMounted, nextTick, onUnmounted } from 'vue';
 import { 
   getFontSizePreview,
   hasWatermarkEnabled as checkWatermarkEnabled,
   updateTextWatermarkColor as updateWatermarkColor
 } from '../utils/watermarkUtils.js';
 import { getPreviewContainerStyle } from '../utils/common.js';
+import AudioSettings from './AudioSettings.vue';
 
 const props = defineProps({
   profile: {
@@ -465,6 +474,40 @@ const selectWatermarkImage = () => {
   // 触发文件选择
   fileInput.click();
 };
+
+// 水印设置组件
+const watermarkComponents = ref([]);
+
+// 音频设置组件引用
+const audioComponents = ref([]);
+
+// 处理从AudioSettings接收的更新
+const updateProfileFromChild = (updatedProfile) => {
+  console.log('SettingProfile: 从AudioSettings收到更新', {
+    adaptMode: updatedProfile.audio?.adaptMode,
+    enabled: updatedProfile.audio?.enabled,
+    rotationsForAudio: updatedProfile.audio?.rotationsForAudio
+  });
+  
+  // 直接更新本地配置
+  Object.assign(props.profile, updatedProfile);
+  
+  // 向上传递更新给父组件
+  emit('update-profile', props.profile);
+};
+
+// 在组件卸载时清理资源
+onUnmounted(() => {
+  // 清理图片对象URL
+  if (props.profile.watermark?.image?.preview) {
+    URL.revokeObjectURL(props.profile.watermark.image.preview);
+  }
+  
+  // 清理音频设置
+  if (audioComponents.value && audioComponents.value[0]) {
+    audioComponents.value[0].cleanup();
+  }
+});
 </script>
 
 <style scoped>

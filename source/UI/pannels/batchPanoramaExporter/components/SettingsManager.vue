@@ -110,7 +110,12 @@ const removeProfile = (index) => {
 
 // 更新特定配置
 const updateProfile = (index, updatedProfile) => {
-  profiles.value[index] = updatedProfile;
+  console.log(`SettingsManager: 收到配置#${index+1}更新`, {
+    duration: updatedProfile.duration,
+    rotations: updatedProfile.rotations,
+    audioEnabled: updatedProfile.audio?.enabled,
+    audioAdaptMode: updatedProfile.audio?.adaptMode
+  });
   emit('update:settingProfiles', [...profiles.value]);
 };
 

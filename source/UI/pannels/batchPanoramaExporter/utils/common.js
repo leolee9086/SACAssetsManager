@@ -94,6 +94,16 @@ export function getDefaultProfile() {
         opacity: 0.8 // 透明度 0-1
       }
     },
+    audio: {
+      enabled: false,         // 是否启用背景音乐
+      file: null,             // 音频文件对象
+      filePath: null,         // 音频文件路径
+      fileName: null,         // 音频文件名
+      preview: null,          // 音频预览URL
+      adaptMode: 'fitVideo',  // 适配模式: 'fitVideo'(适配视频时长) 或 'fitAudio'(适配音频时长)
+      rotationsForAudio: 2,   // 适配音频时长时的旋转圈数
+      volume: 0.8             // 音量 0-1
+    },
     previewImage: null, // 预览图像
     previewError: null // 预览错误信息
   };

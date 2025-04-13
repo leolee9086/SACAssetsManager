@@ -255,6 +255,21 @@
     
     console.log('开始批量导出，输出目录:', outputDir.value);
     
+    // 调试当前配置
+    settingProfiles.value.forEach((profile, index) => {
+      console.log(`配置 #${index + 1} 参数:`, {
+        resolution: profile.resolution,
+        fps: profile.fps,
+        duration: profile.duration,
+        rotations: profile.rotations,
+        audioSettings: profile.audio?.enabled ? {
+          adaptMode: profile.audio.adaptMode,
+          rotationsForAudio: profile.audio.rotationsForAudio,
+          volume: profile.audio.volume
+        } : 'disabled'
+      });
+    });
+    
     // 创建任务列表
     const newTasks = prepareExportTasks(
       selectedFiles.value, 
@@ -262,7 +277,7 @@
       outputDir.value, 
       createSubDirs.value
     );
-    
+    console.log(settingProfiles.value)
     if (newTasks.length === 0) {
       console.warn('没有创建任何任务');
       return;
@@ -431,6 +446,31 @@
           // 不重新生成底图，只更新水印
           updatePreviewDebounced(i, false);
           break;
+        }
+      }
+    },
+    { deep: true }
+  );
+  
+  // 监听配置变化中的音频相关设置
+  watch(
+    () => settingProfiles.value.map(profile => ({
+      audioEnabled: profile.audio?.enabled,
+      adaptMode: profile.audio?.adaptMode,
+      rotationsForAudio: profile.audio?.rotationsForAudio,
+      duration: profile.duration,
+      rotations: profile.rotations
+    })),
+    (newVal, oldVal) => {
+      if (!oldVal) return;
+      
+      // 检查哪个配置发生了变化
+      for (let i = 0; i < newVal.length; i++) {
+        if (JSON.stringify(newVal[i]) !== JSON.stringify(oldVal[i])) {
+          console.log(`检测到配置#${i+1}的音频相关设置变化:`, {
+            旧值: oldVal[i],
+            新值: newVal[i]
+          });
         }
       }
     },
