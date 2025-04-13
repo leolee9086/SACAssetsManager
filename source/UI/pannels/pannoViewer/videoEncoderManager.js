@@ -65,7 +65,7 @@ export class VideoEncoderManager {
 
   initializeEncoder(bitrate, keyFrameInterval, quality) {
     const codec = this.format === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08';
-    
+    console.log('codec',codec);
     // 创建同步处理队列
     this.encodingQueue = [];
     this.isProcessingQueue = false;

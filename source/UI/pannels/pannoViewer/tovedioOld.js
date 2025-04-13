@@ -163,6 +163,7 @@ export class PanoramaVideoGenerator {
 
     // 优化视频编码器配置
     const codec = this.videoFormat === 'mp4' ? 'avc1.640033' : 'vp09.00.10.08';
+    console.log('codec',codec);
     videoEncoder.configure({
       codec: codec,
       width: this.width,

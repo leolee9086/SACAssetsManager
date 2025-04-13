@@ -319,6 +319,178 @@ function writeString(view, offset, string) {
 }
 
 /**
+ * 提取MP4轨道信息
+ * @param {Uint8Array} data - MP4数据
+ * @returns {Promise<Object>} 轨道信息
+ */
+async function extractMP4TrackInfo(data) {
+  // 手动解析MP4头部以提取编解码器信息
+  // MP4格式是基于盒子结构的
+  try {
+    // MP4盒子结构中常见编解码器标识
+    // 查找ftyp盒子来确定文件类型
+    const findBox = (data, type) => {
+      for (let i = 0; i < data.length - 4; i++) {
+        // 盒子结构: 大小(4字节) + 类型(4字节)
+        if (String.fromCharCode(data[i + 4], data[i + 5], data[i + 6], data[i + 7]) === type) {
+          return i;
+        }
+      }
+      return -1;
+    };
+    
+    // 查找ftyp盒子
+    const ftypIndex = findBox(data, 'ftyp');
+    if (ftypIndex < 0) {
+      console.warn('MP4解析: 找不到ftyp盒子');
+      return defaultMP4TrackInfo();
+    }
+    
+    // 查找moov盒子
+    const moovIndex = findBox(data, 'moov');
+    if (moovIndex < 0) {
+      console.warn('MP4解析: 找不到moov盒子');
+      return defaultMP4TrackInfo();
+    }
+    
+    // 检测编解码器，默认使用H.264 High Profile Level 4.0
+    let codec = 'avc1.640033';
+    
+    // 尝试找到avcC盒子来验证编解码器
+    const avcCIndex = findBox(data.slice(moovIndex), 'avcC');
+    if (avcCIndex > 0) {
+      console.log('MP4解析: 找到avcC盒子，确认为H.264编码');
+      // 如果找到了avcC盒子，证实这是H.264编码
+      codec = 'avc1.640033'; // 使用支持大多数视频的编码配置
+    }
+    
+    // 解析分辨率
+    // 这只是默认值，实际上应该从stsd盒子中提取
+    const width = 1920;
+    const height = 1080;
+    
+    // 创建编解码器描述信息
+    // 对于H.264，编解码器特定描述信息是序列参数集(SPS)和图像参数集(PPS)
+    // 这里我们创建一个简单的描述
+    const description = new Uint8Array([
+      0x00, 0x00, 0x00, 0x01, // 起始码
+      0x67, 0x64, 0x00, 0x28, 0xac, 0x2c, 0xa8, 0x0a, // SPS
+      0x00, 0x00, 0x00, 0x01, // 起始码
+      0x68, 0xce, 0x38, 0x80  // PPS
+    ]);
+    
+    return {
+      videoTrack: {
+        codec,
+        width,
+        height,
+        description
+      }
+    };
+  } catch (error) {
+    console.error('解析MP4轨道信息失败:', error);
+    return defaultMP4TrackInfo();
+  }
+}
+
+/**
+ * 默认MP4轨道信息
+ */
+function defaultMP4TrackInfo() {
+  return {
+    videoTrack: {
+      codec: 'avc1.640028', // H.264 High Profile Level 4.0
+      width: 1920,
+      height: 1080,
+      description: new Uint8Array([
+        0x00, 0x00, 0x00, 0x01, // 起始码
+        0x67, 0x64, 0x00, 0x28, // SPS
+        0x00, 0x00, 0x00, 0x01, // 起始码
+        0x68, 0xce, 0x38, 0x80  // PPS
+      ])
+    }
+  };
+}
+
+/**
+ * 提取WebM轨道信息
+ * @param {Uint8Array} data - WebM数据
+ * @returns {Promise<Object>} 轨道信息
+ */
+async function extractWebMTrackInfo(data) {
+  // 手动解析WebM头部
+  try {
+    // 查找EBML元素
+    const findElement = (data, id) => {
+      for (let i = 0; i < data.length - 4; i++) {
+        if (data[i] === id[0] && data[i + 1] === id[1]) {
+          return i;
+        }
+      }
+      return -1;
+    };
+    
+    // WebM使用EBML格式，头部通常包含DocType标记
+    const ebmlHeaderId = [0x1A, 0x45, 0xDF, 0xA3];
+    const ebmlIndex = findElement(data, ebmlHeaderId);
+    
+    if (ebmlIndex < 0) {
+      console.warn('WebM解析: 找不到EBML头');
+      return defaultWebMTrackInfo();
+    }
+    
+    // 尝试确定视频编解码器
+    let codec = 'vp8';
+    
+    // 检查是否包含VP9编码标识
+    const vp9SignatureBytes = [0x83, 0x81, 0x00];
+    let isVP9 = false;
+    
+    for (let i = 0; i < data.length - vp9SignatureBytes.length; i++) {
+      if (data[i] === vp9SignatureBytes[0] && 
+          data[i + 1] === vp9SignatureBytes[1] && 
+          data[i + 2] === vp9SignatureBytes[2]) {
+        isVP9 = true;
+        break;
+      }
+    }
+    
+    if (isVP9) {
+      codec = 'vp9';
+      console.log('WebM解析: 检测到VP9编码');
+    } else {
+      console.log('WebM解析: 假设为VP8编码');
+    }
+    
+    return {
+      videoTrack: {
+        codec,
+        width: 1920,
+        height: 1080,
+        description: new Uint8Array([0x01, 0x02, 0x03]) // 简单的描述符，WebM通常不需要太详细的描述
+      }
+    };
+  } catch (error) {
+    console.error('解析WebM轨道信息失败:', error);
+    return defaultWebMTrackInfo();
+  }
+}
+
+/**
+ * 默认WebM轨道信息
+ */
+function defaultWebMTrackInfo() {
+  return {
+    videoTrack: {
+      codec: 'vp8',
+      width: 1920,
+      height: 1080,
+      description: new Uint8Array([0x01, 0x02, 0x03])
+    }
+  };
+}
+
+/**
  * 合并视频和音频
  * @param {Blob} videoBlob - 视频Blob对象
  * @param {AudioBuffer} audioBuffer - 音频缓冲区
@@ -339,20 +511,18 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
   const format = isMP4 ? 'mp4' : 'webm';
   console.log(`检测到视频格式: ${format}, MIME类型: ${videoMimeType}`);
   
-  // 3. 使用静态导入的muxer库（已在文件顶部导入）
-  
-  // 4. 从视频文件中提取元数据
+  // 3. 创建视频元素获取元数据并准备解码
   const videoElement = document.createElement('video');
   videoElement.muted = true;
+  videoElement.playsInline = true;
   
   // 设置视频源
   const videoUrl = URL.createObjectURL(videoBlob);
   videoElement.src = videoUrl;
   
   // 等待视频元数据加载
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve) => {
     videoElement.onloadedmetadata = resolve;
-    videoElement.onerror = reject;
     videoElement.load();
   });
   
@@ -365,7 +535,7 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
   
   console.log(`视频信息: ${videoInfo.width}x${videoInfo.height}, ${videoInfo.duration}秒, ${videoInfo.fps}fps`);
   
-  // 5. 准备音频数据
+  // 4. 准备音频数据
   console.log('准备音频数据...');
   const audioData = await prepareAudio(audioBuffer, {
     volume: options.volume || 0.8,
@@ -375,89 +545,68 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
     loopAudio: videoInfo.duration > audioBuffer.duration,
     loopCount: Math.ceil(videoInfo.duration / audioBuffer.duration)
   });
-  
-  // 6. 创建目标容器
-  const target = isMP4 ? new MP4ArrayBufferTarget() : new ArrayBufferTarget();
-  
-  // 7. 配置和创建muxer
-  const muxerConfig = {
-    target,
-    video: {
-      codec: isMP4 ? 'avc' : 'vp8',
-      width: videoInfo.width,
-      height: videoInfo.height,
-      framerate: videoInfo.fps,
-      // 添加完整的colorSpace信息
-      colorSpace: {
-        primaries: 'bt709',
-        transfer: 'bt709',
-        matrix: 'bt709',
-        fullRange: true
-      }
-    },
-    audio: {
-      codec: isMP4 ? 'aac' : 'opus',
-      numberOfChannels: audioData.numberOfChannels,
-      sampleRate: audioData.sampleRate,
-      bitrate: 128000
-    }
-  };
-  
-  // 对MP4设置特殊参数
-  if (isMP4) {
-    muxerConfig.fastStart = 'in-memory';
-  }
-  
-  console.log('创建Muxer实例...');
-  const muxer = isMP4 ? new MP4Muxer(muxerConfig) : new Muxer(muxerConfig);
-  
-  // 8. 提取视频和音频帧
+
   try {
-    // 创建Canvas用于提取视频帧
-    const canvas = document.createElement('canvas');
-    canvas.width = videoInfo.width;
-    canvas.height = videoInfo.height;
-    const ctx = canvas.getContext('2d');
+    // 5. 使用编码器API和批处理方式处理视频
+    console.log('开始批处理视频和音频...');
+    
+    // 创建Target
+    const target = isMP4 ? new MP4ArrayBufferTarget() : new ArrayBufferTarget();
+    
+    // 计算编码器参数
+    const bitrate = 8000000; // 8 Mbps
+    const keyFrameInterval = isMP4 ? Math.round(videoInfo.fps * 2) : Math.round(videoInfo.fps); // 2秒或1秒一个关键帧
+    
+    // 配置muxer
+    const muxerConfig = {
+      target,
+      video: {
+        codec: isMP4 ? 'avc' : 'vp8',
+        width: videoInfo.width,
+        height: videoInfo.height,
+        framerate: videoInfo.fps
+      },
+      audio: {
+        codec: isMP4 ? 'aac' : 'opus',
+        numberOfChannels: audioData.numberOfChannels,
+        sampleRate: audioData.sampleRate,
+        bitrate: 192000
+      }
+    };
+    
+    // 为MP4添加特殊配置
+    if (isMP4) {
+      muxerConfig.fastStart = 'in-memory';
+    }
+    
+    // 创建muxer
+    const muxer = isMP4 ? new MP4Muxer(muxerConfig) : new Muxer(muxerConfig);
     
     // 创建视频编码器
     const videoEncoder = new VideoEncoder({
       output: (chunk, meta) => {
-        // 添加视频帧到muxer时附带colorSpace信息
-        const metaInfo = {
-          ...meta,
-          colorSpace: {
-            primaries: 'bt709',
-            transfer: 'bt709',
-            matrix: 'bt709',
-            fullRange: true
-          }
-        };
-        muxer.addVideoChunk(chunk, metaInfo);
+        muxer.addVideoChunk(chunk, meta);
       },
       error: (e) => console.error('视频编码错误:', e)
     });
     
-    // 配置视频编码器
-    const videoEncoderConfig = {
-      codec: isMP4 ? 'avc1.640028' : 'vp8',
+    // 配置视频编码器 - 使用与videoEncoderManager.js相同的配置
+    videoEncoder.configure({
+      codec: isMP4 ? 'avc1.640033' : 'vp09.00.10.08',
       width: videoInfo.width,
       height: videoInfo.height,
-      bitrate: 8000000,
-      framerate: videoInfo.fps
-    };
-    
-    // 为AVC编码添加特定参数
-    if (isMP4) {
-      videoEncoderConfig.avc = {
+      bitrate: bitrate,
+      framerate: videoInfo.fps,
+      latencyMode: 'quality',
+      // AVC特定配置
+      avc: isMP4 ? {
         format: 'annexb',
         profile: 'high',
-        level: '4.0',
+        level: '5.1',
         bitDepth: 8,
         chromaFormat: '420'
-      };
-    }
-    
-    videoEncoder.configure(videoEncoderConfig);
+      } : undefined
+    });
     
     // 创建音频编码器
     const audioEncoder = new AudioEncoder({
@@ -472,100 +621,169 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
       codec: isMP4 ? 'mp4a.40.2' : 'opus',
       numberOfChannels: audioData.numberOfChannels,
       sampleRate: audioData.sampleRate,
-      bitrate: 128000
+      bitrate: 192000
     });
     
-    // 设置视频元素到初始位置
-    videoElement.currentTime = 0;
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // 创建Canvas用于逐帧提取
+    const canvas = document.createElement('canvas');
+    canvas.width = videoInfo.width;
+    canvas.height = videoInfo.height;
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     
-    // 提取视频帧
-    console.log('开始提取和编码视频帧...');
-    const frameTime = 1000 / videoInfo.fps;
+    // 使用更可靠的方法提取视频帧
+    console.log('开始提取视频帧...');
+    
+    // 计算总帧数和其他参数
     const totalFrames = Math.ceil(videoInfo.duration * videoInfo.fps);
+    const frameDuration = 1000000 / videoInfo.fps; // 微秒单位
     
+    // 使用播放方式逐帧提取（更可靠）
+    videoElement.currentTime = 0;
+    await new Promise(resolve => {
+      videoElement.onseeked = resolve;
+    });
+    
+    // 播放视频并捕获帧
+    const capturedFrames = [];
+    let frameCounter = 0;
+    
+    // 预分配内存，使用更简单的结构避免内存问题
+    const frameTimes = [];
     for (let i = 0; i < totalFrames; i++) {
-      videoElement.currentTime = i * frameTime / 1000;
-      await new Promise(resolve => setTimeout(resolve, 10)); // 等待视频更新
-      
-      // 绘制视频帧到Canvas
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      
-      // 创建VideoFrame
-      const frame = new VideoFrame(canvas, {
-        timestamp: i * frameTime * 1000, // 微秒
-        duration: frameTime * 1000 // 微秒
-      });
-      
-      // 编码视频帧
-      videoEncoder.encode(frame, { keyFrame: i % 30 === 0 });
-      frame.close();
+      frameTimes.push(i / videoInfo.fps);
     }
     
-    // 处理音频数据
+    console.log(`准备提取 ${totalFrames} 帧...`);
+    
+    // 递归提取每一帧，确保不会跳帧
+    async function extractFrame(index) {
+      if (index >= totalFrames) {
+        return; // 所有帧都已提取
+      }
+      
+      // 设置精确的时间点
+      const targetTime = frameTimes[index];
+      videoElement.currentTime = targetTime;
+      
+      // 等待视频到达指定时间点
+      await new Promise(resolve => {
+        videoElement.onseeked = resolve;
+      });
+      
+      // 清除Canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制当前帧
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      
+      // 创建并编码VideoFrame
+      const timestamp = Math.round(index * frameDuration);
+      const isKeyFrame = index % keyFrameInterval === 0;
+      
+      const videoFrame = new VideoFrame(canvas, {
+        timestamp: timestamp,
+        duration: frameDuration
+      });
+      
+      // 等待编码器队列不满
+      while (videoEncoder.encodeQueueSize > 2) {
+        await new Promise(r => setTimeout(r, 1));
+      }
+      
+      // 编码当前帧
+      videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+      videoFrame.close();
+      
+      // 更新进度
+      frameCounter++;
+      if (frameCounter % 30 === 0 || frameCounter === totalFrames) {
+        console.log(`视频编码进度: ${frameCounter}/${totalFrames} (${Math.round((frameCounter / totalFrames) * 100)}%)`);
+      }
+      
+      // 处理下一帧
+      await extractFrame(index + 1);
+    }
+    
+    // 开始帧提取过程
+    try {
+      await extractFrame(0);
+    } catch (e) {
+      console.error('帧提取过程中出错:', e);
+      throw e;
+    }
+    
+    // 确保视频编码器已完成
+    await videoEncoder.flush();
+    console.log('视频编码完成');
+    
+    // 处理音频数据 - 也采用分批处理
     console.log('开始处理音频数据...');
     
-    // 创建离线音频上下文用于处理音频
-    const offlineContext = new OfflineAudioContext(
-      audioData.numberOfChannels,
-      audioData.length,
-      audioData.sampleRate
-    );
-    
-    const source = offlineContext.createBufferSource();
-    source.buffer = audioData;
-    source.connect(offlineContext.destination);
-    source.start();
-    
-    // 渲染音频
-    const renderBuffer = await offlineContext.startRendering();
-    
     // 分块处理音频
-    const chunkSize = Math.floor(audioData.sampleRate * 0.1); // 100ms 的数据
+    const audioChunkSize = Math.floor(audioData.sampleRate * 0.1); // 100ms 数据块
+    const totalAudioChunks = Math.ceil(audioData.length / audioChunkSize);
     
-    for (let offset = 0; offset < renderBuffer.length; offset += chunkSize) {
-      const length = Math.min(chunkSize, renderBuffer.length - offset);
+    // 分批处理音频
+    for (let chunkIndex = 0; chunkIndex < totalAudioChunks; chunkIndex++) {
+      const offset = chunkIndex * audioChunkSize;
+      const length = Math.min(audioChunkSize, audioData.length - offset);
+      
       if (length <= 0) break;
       
       // 创建音频数据
-      const audioFrameData = new Float32Array(length * renderBuffer.numberOfChannels);
+      const audioFrameData = new Float32Array(length * audioData.numberOfChannels);
       
       // 填充音频数据（平面格式）
-      for (let channel = 0; channel < renderBuffer.numberOfChannels; channel++) {
-        const channelData = renderBuffer.getChannelData(channel);
+      for (let channel = 0; channel < audioData.numberOfChannels; channel++) {
+        const channelData = audioData.getChannelData(channel);
         for (let i = 0; i < length; i++) {
           audioFrameData[channel * length + i] = channelData[offset + i];
         }
       }
       
-      // 创建AudioData对象
-      const audioFrame = new AudioData({
-        format: 'f32-planar',
-        sampleRate: renderBuffer.sampleRate,
-        numberOfFrames: length,
-        numberOfChannels: renderBuffer.numberOfChannels,
-        timestamp: Math.floor((offset / renderBuffer.sampleRate) * 1000000),
-        data: audioFrameData
-      });
+      // 精确计算时间戳 (微秒)
+      const audioTimestamp = Math.floor((offset / audioData.sampleRate) * 1000000);
       
-      // 编码音频帧
-      audioEncoder.encode(audioFrame);
-      audioFrame.close();
+      try {
+        // 创建AudioData
+        const audioFrame = new AudioData({
+          format: 'f32-planar',
+          sampleRate: audioData.sampleRate,
+          numberOfFrames: length,
+          numberOfChannels: audioData.numberOfChannels,
+          timestamp: audioTimestamp,
+          data: audioFrameData
+        });
+        
+        // 编码音频
+        audioEncoder.encode(audioFrame);
+        audioFrame.close();
+        
+        // 输出进度
+        if (chunkIndex % 10 === 0 || chunkIndex === totalAudioChunks - 1) {
+          console.log(`音频编码进度: ${chunkIndex + 1}/${totalAudioChunks} (${Math.round((chunkIndex + 1) / totalAudioChunks * 100)}%)`);
+        }
+      } catch (e) {
+        console.warn('音频帧处理错误:', e);
+      }
+      
+      // 控制编码队列深度
+      while (audioEncoder.encodeQueueSize > 2) {
+        await new Promise(resolve => setTimeout(resolve, 1));
+      }
     }
     
-    // 完成编码
-    console.log('完成编码，等待刷新编码器...');
-    await videoEncoder.flush();
+    // 完成音频编码
     await audioEncoder.flush();
+    console.log('音频编码完成');
     
     // 完成muxer
-    console.log('完成Muxer...');
+    console.log('完成Muxer处理...');
     muxer.finalize();
     
     // 创建最终Blob
     const buffer = target.buffer;
-    const finalMimeType = isMP4 ? 'video/mp4' : 'video/webm';
-    const finalBlob = new Blob([buffer], { type: finalMimeType });
+    const finalBlob = new Blob([buffer], { type: isMP4 ? 'video/mp4' : 'video/webm' });
     
     // 清理资源
     URL.revokeObjectURL(videoUrl);
@@ -573,10 +791,9 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
     
     console.log(`音视频合成完成! 最终文件大小: ${Math.round(finalBlob.size/1024/1024)}MB`);
     return finalBlob;
+    
   } catch (error) {
     console.error('音视频合成过程中出错:', error);
-    
-    // 清理资源
     URL.revokeObjectURL(videoUrl);
     videoElement.pause();
     throw error;
