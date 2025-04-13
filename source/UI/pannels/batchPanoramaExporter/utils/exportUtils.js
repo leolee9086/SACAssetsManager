@@ -5,7 +5,7 @@ import * as THREE from '../../../../../static/three/three.mjs';
 import { PanoramaVideoGenerator } from '../../pannoViewer/panoramaToVideo.js';
 import { prepareWatermarkOptions } from './watermarkUtils.js';
 import { showWarningMessage, loadImageTexture } from './fileUtils.js';
-import { loadAudio, processAudioForVideo, prepareAudio, mergeAudioWithVideo } from './audioUtils.js';
+import { loadAudio, processAudioForVideo } from './audioUtils.js';
 
 /**
  * 处理导出任务
@@ -103,16 +103,16 @@ export async function processExportTask(task, updateTask) {
       console.log('已设置文字水印:', watermarkOptions.text);
     }
 
-    // 处理音频 - 检查是否有音频设置
+    // 处理音频相关参数和处理
     let audioBuffer = null;
-    let audioOptions = null;
+    let audioConfig = null;
     // 保存原始配置的深拷贝，用于在音频处理失败时恢复
     const originalProfile = JSON.parse(JSON.stringify(profile));
     
-    // 添加音频处理相关变量
+    // 音频处理标志
     let hasAudio = false;
     let adaptedToAudio = false;
-    console.log(profile)
+    
     if (profile.audio && profile.audio.enabled && (profile.audio.file || profile.audio.filePath)) {
       try {
         updateTask({
@@ -129,7 +129,7 @@ export async function processExportTask(task, updateTask) {
           adaptMode: profile.audio.adaptMode,
           rotationsForAudio: profile.audio.rotationsForAudio
         });
-        console.log(profile.audio)
+        
         // 1. 加载音频文件
         const audioFile = profile.audio.file || profile.audio.filePath;
         console.log('正在加载音频文件...', typeof audioFile === 'string' ? audioFile : audioFile.name);
@@ -142,14 +142,18 @@ export async function processExportTask(task, updateTask) {
         
         // 2. 根据适配模式处理音频与视频时长
         console.log('应用音频适配策略:', profile.audio.adaptMode);
-        audioOptions = processAudioForVideo(rawAudioBuffer, profile);
+        const audioOptions = processAudioForVideo(rawAudioBuffer, profile);
         
         if (profile.audio.adaptMode === 'fitAudio') {
           adaptedToAudio = true;
         }
         
-        // 记录音频信息
+        // 保存音频信息用于VideoEncoderManager
         audioBuffer = rawAudioBuffer;
+        audioConfig = {
+          audioBuffer: rawAudioBuffer,
+          volume: profile.audio.volume || 0.8
+        };
         
         // 关闭音频上下文
         audioContext.close();
@@ -198,14 +202,14 @@ export async function processExportTask(task, updateTask) {
         hasAudio = false;
         adaptedToAudio = false;
         audioBuffer = null;
-        audioOptions = null;
+        audioConfig = null;
       }
     }
     
     // 设置进度回调
     generator.setProgressCallback(({ progress, currentFrame, totalFrames, stage }) => {
-      // 将渲染进度映射到总进度的10%-80%范围（预留空间给音频处理）
-      const mappedProgress = 0.1 + progress * (audioBuffer ? 0.7 : 0.8);
+      // 进度范围为10%-95%
+      const mappedProgress = 0.1 + progress * 0.85;
       
       updateTask({
         ...task,
@@ -232,26 +236,24 @@ export async function processExportTask(task, updateTask) {
       height,
       smoothness: profile.smoothness,
       hasAudio: hasAudio,
-      adaptedToAudio: adaptedToAudio,
-      audioLength: audioOptions?.audioLength?.toFixed(2) || null,
-      audioEffectiveMode: audioOptions?.effectiveMode || null,
+      adaptedToAudio: adaptedToAudio
     });
     
     // 音频适配模式下的额外检查
     if (hasAudio && profile.audio.adaptMode === 'fitAudio') {
       console.log('音频适配模式最终检查:');
-      console.log(`- 音频时长: ${audioOptions.audioLength.toFixed(2)}秒`);
+      console.log(`- 音频时长: ${audioBuffer.duration.toFixed(2)}秒`);
       console.log(`- 视频设置时长: ${profile.duration}秒`);
       console.log(`- 旋转圈数: ${profile.rotations}圈`);
       
       // 如果发现不匹配，再次尝试更新
-      if (profile.duration !== Math.ceil(audioOptions.audioLength)) {
+      if (profile.duration !== Math.ceil(audioBuffer.duration)) {
         console.warn('警告: 视频时长在录制前仍不匹配音频时长，再次更新');
-        profile.duration = Math.ceil(audioOptions.audioLength);
+        profile.duration = Math.ceil(audioBuffer.duration);
       }
     }
     
-    // 创建视频生成参数对象
+    // 创建视频生成参数对象，将音频配置直接传入
     const videoGenerationParams = {
       duration: profile.duration,
       fps: profile.fps,
@@ -262,122 +264,27 @@ export async function processExportTask(task, updateTask) {
       width,
       height,
       smoothness: profile.smoothness,
-      rotations: profile.rotations
+      rotations: profile.rotations,
+      // 直接将音频配置传入，由VideoEncoderManager处理
+      audioConfig: hasAudio ? audioConfig : null
     };
-    
-    // 如果有音频相关信息，添加到参数中
-    if (hasAudio) {
-      // 创建一个标记，确保生成器知道有音频处理需求
-      videoGenerationParams.hasAudio = true;
-      videoGenerationParams.adaptedToAudio = adaptedToAudio;
-      
-      if (adaptedToAudio) {
-        // 这些参数告诉生成器视频长度是由音频决定的
-        videoGenerationParams.audioAdapted = true;
-        videoGenerationParams.audioLength = audioOptions.audioLength;
-      }
-    }
     
     console.log('最终生成参数:', JSON.stringify(videoGenerationParams, null, 2));
     
-    // 开始录制
+    // 使用集成了音频处理的startRecording方法
     const videoBlob = await generator.startRecording(videoGenerationParams);
     
     console.log('====== 视频生成完成 ======');
     console.log('生成的视频大小:', Math.round(videoBlob.size/1024/1024), 'MB, 时长:', profile.duration, '秒');
     
-    // 处理音频合成
-    let finalVideoBlob = videoBlob;
-    
-    if (hasAudio && audioBuffer && audioOptions) {
-      updateTask({
-        ...task,
-        stage: '音频合成',
-        progress: 0.85
-      });
-      
-      try {
-        console.log(`====== 开始音频合成 ======`);
-        console.log(`适配模式: ${profile.audio.adaptMode}, 最终视频时长: ${profile.duration}秒`);
-        
-        // 确保videoLength参数是当前有效的视频时长
-        const effectiveVideoLength = profile.duration;
-        
-        // 记录实际使用的音频参数
-        console.log('实际使用的音频合成参数:', {
-          adaptMode: profile.audio.adaptMode,
-          adaptedToAudio: adaptedToAudio,
-          videoLength: effectiveVideoLength,
-          audioLength: audioOptions.audioLength,
-          rotations: profile.rotations,
-          volume: profile.audio.volume || 0.8
-        });
-        
-        // 1. 准备音频（处理循环或截断）
-        const audioParams = {
-          ...audioOptions,
-          videoLength: effectiveVideoLength, // 确保使用最新的视频时长
-          volume: profile.audio.volume || 0.8
-        };
-        
-        console.log('准备音频处理，参数:', {
-          needTrimAudio: audioParams.needTrimAudio,
-          loopAudio: audioParams.loopAudio,
-          videoLength: audioParams.videoLength,
-          audioLength: audioOptions.audioLength
-        });
-        
-        const processedAudio = await prepareAudio(audioBuffer, audioParams);
-        
-        console.log(`音频处理完成，处理后音频长度: ${processedAudio.duration.toFixed(2)}秒，正在开始合成...`);
-        
-        // 2. 合成音频和视频
-        try {
-          finalVideoBlob = await mergeAudioWithVideo(videoBlob, processedAudio, {
-            videoLength: effectiveVideoLength, // 使用最终的视频时长
-            volume: profile.audio.volume || 0.8,
-            fps: profile.fps,
-            adaptedToAudio: adaptedToAudio // 传递适配模式标志
-          });
-          
-          // 验证结果
-          if (finalVideoBlob.size > 0) {
-            console.log(`音频合成成功，最终文件大小: ${Math.round(finalVideoBlob.size/1024/1024)}MB`);
-          } else {
-            throw new Error('合成后的视频文件大小为0，合成失败');
-          }
-        } catch (mergeError) {
-          console.error('音视频合成失败:', mergeError);
-          finalVideoBlob = videoBlob; // 使用原始视频
-          throw mergeError;
-        }
-        
-        console.log(`====== 音频合成完成 ======`);
-      } catch (error) {
-        console.error('音频处理或合成失败:', error);
-        // 失败时使用原始视频
-        finalVideoBlob = videoBlob;
-        
-        // 为用户更新具体的错误信息
-        updateTask({
-          ...task,
-          stage: `音频合成失败: ${error.message.slice(0, 50)}...`,
-          progress: 0.85
-        });
-        
-        // 等待一段时间，让用户能看到错误信息
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }
-    
     updateTask({
       ...task,
       stage: '保存视频',
-      progress: 0.9
+      progress: 0.95
     });
     
     // 使用浏览器的下载API保存视频
-    await saveVideo(finalVideoBlob, task.outputPath);
+    await saveVideo(videoBlob, task.outputPath);
     
     // 更新任务状态
     updateTask({
@@ -396,7 +303,6 @@ export async function processExportTask(task, updateTask) {
       fileName: task.fileName,
       hasAudio: hasAudio || false,
       audioAdapted: adaptedToAudio || false,
-      audioDuration: audioOptions?.audioLength || null,
       videoDuration: profile.duration,
       rotations: profile.rotations,
       error: error.message

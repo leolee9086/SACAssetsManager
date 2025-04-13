@@ -345,7 +345,8 @@ export class PanoramaVideoGenerator {
       width = this.width,
       height = this.height,
       format = 'mp4',
-      watermarkOptions = null
+      watermarkOptions = null,
+      audioConfig = null // 添加音频配置参数
     } = options;
 
     // 如果有传入水印选项，覆盖现有设置
@@ -369,7 +370,8 @@ export class PanoramaVideoGenerator {
       width: this.width,
       height: this.height,
       fps: this.fps,
-      format: this.videoFormat
+      format: this.videoFormat,
+      audioConfig: audioConfig // 传递音频配置给VideoEncoderManager
     });
     
     // 传递进度回调
