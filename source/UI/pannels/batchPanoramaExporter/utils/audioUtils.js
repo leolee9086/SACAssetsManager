@@ -553,15 +553,16 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
     // 创建Target
     const target = isMP4 ? new MP4ArrayBufferTarget() : new ArrayBufferTarget();
     
-    // 计算编码器参数
-    const bitrate = 8000000; // 8 Mbps
+    // 使用与videoEncoderManager一致的编码器配置
+    const bitrate = isMP4 ? 8000000 : 5000000; // MP4: 8 Mbps, WebM: 5 Mbps
     const keyFrameInterval = isMP4 ? Math.round(videoInfo.fps * 2) : Math.round(videoInfo.fps); // 2秒或1秒一个关键帧
+    const quality = 0.95; // 高质量设置
     
     // 配置muxer
     const muxerConfig = {
       target,
       video: {
-        codec: isMP4 ? 'avc' : 'vp8',
+        codec: isMP4 ? 'avc' : 'vp9', // 更新为与videoEncoderManager一致的codec
         width: videoInfo.width,
         height: videoInfo.height,
         framerate: videoInfo.fps
@@ -590,22 +591,15 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
       error: (e) => console.error('视频编码错误:', e)
     });
     
-    // 配置视频编码器 - 使用与videoEncoderManager.js相同的配置
+    // 配置视频编码器 - 使用与videoEncoderManager.js一致的配置
     videoEncoder.configure({
-      codec: isMP4 ? 'avc1.640033' : 'vp09.00.10.08',
+      codec: isMP4 ? 'avc1.640033' : 'vp09.00.10.08', // 标准化编解码器字符串
       width: videoInfo.width,
       height: videoInfo.height,
       bitrate: bitrate,
       framerate: videoInfo.fps,
       latencyMode: 'quality',
-      // AVC特定配置
-      avc: isMP4 ? {
-        format: 'annexb',
-        profile: 'high',
-        level: '5.1',
-        bitDepth: 8,
-        chromaFormat: '420'
-      } : undefined
+      quality: quality
     });
     
     // 创建音频编码器
@@ -630,84 +624,69 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
     canvas.height = videoInfo.height;
     const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     
-    // 使用更可靠的方法提取视频帧
+    // 重构为分批处理模式，不再使用递归
     console.log('开始提取视频帧...');
     
     // 计算总帧数和其他参数
     const totalFrames = Math.ceil(videoInfo.duration * videoInfo.fps);
     const frameDuration = 1000000 / videoInfo.fps; // 微秒单位
     
-    // 使用播放方式逐帧提取（更可靠）
-    videoElement.currentTime = 0;
-    await new Promise(resolve => {
-      videoElement.onseeked = resolve;
-    });
+    // 确定每批处理的帧数，根据分辨率调整
+    const batchSize = videoInfo.width >= 3000 ? 50 : (videoInfo.width >= 2000 ? 100 : 200);
+    console.log(`分辨率${videoInfo.width}x${videoInfo.height}，使用批次大小: ${batchSize}`);
     
-    let frameCounter = 0;
-    
-    // 预分配内存，使用更简单的结构避免内存问题
-    const frameTimes = [];
-    for (let i = 0; i < totalFrames; i++) {
-      frameTimes.push(i / videoInfo.fps);
-    }
-    
-    console.log(`准备提取 ${totalFrames} 帧...`);
-    
-    // 递归提取每一帧，确保不会跳帧
-    async function extractFrame(index) {
-      if (index >= totalFrames) {
-        return; // 所有帧都已提取
+    // 分批处理所有帧
+    for (let startFrame = 0; startFrame < totalFrames; startFrame += batchSize) {
+      const endFrame = Math.min(startFrame + batchSize, totalFrames);
+      console.log(`处理批次 ${startFrame} 到 ${endFrame-1}，共 ${endFrame - startFrame} 帧`);
+      
+      // 处理当前批次的所有帧
+      for (let frameIndex = startFrame; frameIndex < endFrame; frameIndex++) {
+        // 计算精确的帧时间
+        const frameTime = frameIndex / videoInfo.fps;
+        
+        // 设置精确的时间点
+        videoElement.currentTime = frameTime;
+        
+        // 等待视频到达指定时间点
+        await new Promise(resolve => {
+          videoElement.onseeked = resolve;
+        });
+        
+        // 清除Canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 绘制当前帧
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        
+        // 创建VideoFrame
+        const timestamp = Math.round(frameIndex * frameDuration);
+        const isKeyFrame = frameIndex % keyFrameInterval === 0;
+        
+        const videoFrame = new VideoFrame(canvas, {
+          timestamp: timestamp,
+          duration: frameDuration
+        });
+        
+        // 等待编码器队列不满
+        while (videoEncoder.encodeQueueSize > 2) {
+          await new Promise(r => setTimeout(r, 1));
+        }
+        
+        // 编码当前帧
+        videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
+        
+        // 关键改进：及时关闭VideoFrame释放资源
+        videoFrame.close();
+        
+        // 更新进度
+        if (frameIndex % 30 === 0 || frameIndex === totalFrames - 1) {
+          console.log(`视频编码进度: ${frameIndex + 1}/${totalFrames} (${Math.round(((frameIndex + 1) / totalFrames) * 100)}%)`);
+        }
       }
       
-      // 设置精确的时间点
-      const targetTime = frameTimes[index];
-      videoElement.currentTime = targetTime;
-      
-      // 等待视频到达指定时间点
-      await new Promise(resolve => {
-        videoElement.onseeked = resolve;
-      });
-      
-      // 清除Canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // 绘制当前帧
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      
-      // 创建并编码VideoFrame
-      const timestamp = Math.round(index * frameDuration);
-      const isKeyFrame = index % keyFrameInterval === 0;
-      
-      const videoFrame = new VideoFrame(canvas, {
-        timestamp: timestamp,
-        duration: frameDuration
-      });
-      
-      // 等待编码器队列不满
-      while (videoEncoder.encodeQueueSize > 2) {
-        await new Promise(r => setTimeout(r, 1));
-      }
-      
-      // 编码当前帧
-      videoEncoder.encode(videoFrame, { keyFrame: isKeyFrame });
-      videoFrame.close();
-      
-      // 更新进度
-      frameCounter++;
-      if (frameCounter % 30 === 0 || frameCounter === totalFrames) {
-        console.log(`视频编码进度: ${frameCounter}/${totalFrames} (${Math.round((frameCounter / totalFrames) * 100)}%)`);
-      }
-      
-      // 处理下一帧
-      await extractFrame(index + 1);
-    }
-    
-    // 开始帧提取过程
-    try {
-      await extractFrame(0);
-    } catch (e) {
-      console.error('帧提取过程中出错:', e);
-      throw e;
+      // 批次结束后给系统时间进行垃圾回收
+      await new Promise(resolve => setTimeout(resolve, 10));
     }
     
     // 确保视频编码器已完成
@@ -755,6 +734,8 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
         
         // 编码音频
         audioEncoder.encode(audioFrame);
+        
+        // 关闭音频帧以释放资源
         audioFrame.close();
         
         // 输出进度
