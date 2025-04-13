@@ -643,8 +643,6 @@ export async function mergeAudioWithVideo(videoBlob, audioBuffer, options) {
       videoElement.onseeked = resolve;
     });
     
-    // 播放视频并捕获帧
-    const capturedFrames = [];
     let frameCounter = 0;
     
     // 预分配内存，使用更简单的结构避免内存问题
