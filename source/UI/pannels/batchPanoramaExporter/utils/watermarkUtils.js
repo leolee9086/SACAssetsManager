@@ -17,18 +17,10 @@ export function addWatermarkToCanvas(canvas, profile, exportWidth, scaleRatio) {
   const { text, position, fontFamily, fontSize, color } = profile.watermark.text;
   
   // 计算与导出时相同比例的字体大小
-  let fontSizePixels;
-  switch (fontSize) {
-    case 'small':
-      fontSizePixels = Math.max(16 * scaleRatio, exportWidth / 60 * scaleRatio);
-      break;
-    case 'large':
-      fontSizePixels = Math.max(32 * scaleRatio, exportWidth / 30 * scaleRatio);
-      break;
-    case 'medium':
-    default:
-      fontSizePixels = Math.max(24 * scaleRatio, exportWidth / 45 * scaleRatio);
-  }
+  // 基准字体大小 - 中等大小时为24px或宽度的1/45
+  const baseFontSize = Math.max(24 * scaleRatio, exportWidth / 45 * scaleRatio);
+  // 应用用户设置的比例因子
+  const fontSizePixels = baseFontSize * parseFloat(fontSize);
   
   // 设置样式
   ctx.font = `${Math.round(fontSizePixels)}px ${fontFamily}`;
@@ -89,19 +81,10 @@ export function prepareWatermarkOptions(profile, videoWidth) {
   
   // 处理文字水印
   if (profile.watermark.text.enabled) {
-    // 根据选择的字体大小，计算实际像素值
-    let fontSize;
-    switch (profile.watermark.text.fontSize) {
-      case 'small':
-        fontSize = Math.max(16, videoWidth / 60);
-        break;
-      case 'large':
-        fontSize = Math.max(32, videoWidth / 30);
-        break;
-      case 'medium':
-      default:
-        fontSize = Math.max(24, videoWidth / 45);
-    }
+    // 基准字体大小 - 标准大小(1.0)时为24px或宽度的1/45
+    const baseFontSize = Math.max(24, videoWidth / 45);
+    // 应用用户设置的比例因子
+    const fontSize = baseFontSize * parseFloat(profile.watermark.text.fontSize);
     
     // 创建字体字符串，显式包含字体信息
     const fontStr = `${Math.round(fontSize)}px ${profile.watermark.text.fontFamily}`;
@@ -165,16 +148,14 @@ export function updateTextWatermarkColor(profile) {
 
 /**
  * 获取预览用的字体大小
- * @param {string} size - 字体大小名称
+ * @param {number} size - 字体大小比例因子
  * @returns {string} CSS字体大小
  */
 export function getFontSizePreview(size) {
-  switch (size) {
-    case 'small': return '14px';
-    case 'large': return '24px';
-    case 'medium':
-    default: return '18px';
-  }
+  // 基准大小为18px
+  const baseFontSize = 18;
+  // 应用用户设置的比例因子
+  return `${Math.round(baseFontSize * parseFloat(size))}px`;
 }
 
 /**

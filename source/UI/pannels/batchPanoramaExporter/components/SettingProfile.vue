@@ -157,11 +157,16 @@
                 
                 <div class="setting-item">
                   <label>字体大小</label>
-                  <select v-model="profile.watermark.text.fontSize">
-                    <option value="small">小</option>
-                    <option value="medium">中</option>
-                    <option value="large">大</option>
-                  </select>
+                  <div class="range-with-value">
+                    <input 
+                      type="range" 
+                      v-model="profile.watermark.text.fontSize" 
+                      min="0.5" 
+                      max="2.0" 
+                      step="0.1" 
+                    />
+                    <div class="range-value">{{ parseFloat(profile.watermark.text.fontSize).toFixed(1) }}</div>
+                  </div>
                 </div>
                 
                 <div class="setting-item">

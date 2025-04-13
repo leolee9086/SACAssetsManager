@@ -80,7 +80,7 @@ export function getDefaultProfile() {
         text: '全景视频',  // 水印文字
         position: 'bottomRight', // 水印位置: topLeft, topRight, bottomLeft, bottomRight, center
         fontFamily: 'Arial', // 字体
-        fontSize: 'medium', // 大小: small, medium, large
+        fontSize: 1.0, // 大小: 0.5-2.0，1.0为标准大小
         colorHex: '#ffffff', // 颜色十六进制值
         opacity: 0.8, // 透明度 0-1
         color: 'rgba(255, 255, 255, 0.8)' // 最终色值（包含透明度）
