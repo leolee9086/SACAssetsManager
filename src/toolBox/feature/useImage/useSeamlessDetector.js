@@ -325,6 +325,109 @@ function 平铺分析(imageElement, options = {}) {
 }
 
 /**
+ * 分析图案的复杂度和规则性，用于检测可能导致假阳性的规则重复图案
+ * @param {ImageData} imageData - 图像数据
+ * @returns {Object} 图案复杂度分析结果
+ */
+function 分析图案复杂度(imageData) {
+  const { data, width, height } = imageData;
+  const grayScale = 转换为灰度(data);
+  
+  // 计算图像梯度 - 用于判断图案的复杂度
+  let totalGradient = 0;
+  let edgeCount = 0;
+  const edgeThreshold = 20; // 边缘判断阈值
+  
+  // 横向梯度
+  for (let y = 0; y < height; y++) {
+    for (let x = 1; x < width; x++) {
+      const diff = Math.abs(grayScale[y * width + x] - grayScale[y * width + (x - 1)]);
+      totalGradient += diff;
+      if (diff > edgeThreshold) edgeCount++;
+    }
+  }
+  
+  // 纵向梯度
+  for (let x = 0; x < width; x++) {
+    for (let y = 1; y < height; y++) {
+      const diff = Math.abs(grayScale[y * width + x] - grayScale[(y - 1) * width + x]);
+      totalGradient += diff;
+      if (diff > edgeThreshold) edgeCount++;
+    }
+  }
+  
+  // 计算平均梯度和梯度比例
+  const pixelCount = (width - 1) * height + (height - 1) * width;
+  const avgGradient = totalGradient / pixelCount;
+  const edgeRatio = edgeCount / pixelCount;
+  
+  // 分析曲线图案特征 - 通常假阳性结果中会出现大量曲线
+  let curveScore = 0;
+  const templateSize = 3;
+  const halfSize = Math.floor(templateSize / 2);
+  
+  for (let y = halfSize; y < height - halfSize; y++) {
+    for (let x = halfSize; x < width - halfSize; x++) {
+      // 提取局部区域
+      let localGradients = [];
+      let localValues = [];
+      
+      for (let dy = -halfSize; dy <= halfSize; dy++) {
+        for (let dx = -halfSize; dx <= halfSize; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            const centerValue = grayScale[y * width + x];
+            const neighborValue = grayScale[ny * width + nx];
+            localGradients.push(Math.abs(centerValue - neighborValue));
+            localValues.push(neighborValue);
+          }
+        }
+      }
+      
+      // 计算局部方差 - 曲线会有较大的局部梯度方差
+      if (localGradients.length > 0) {
+        const avgLocalGradient = localGradients.reduce((sum, val) => sum + val, 0) / localGradients.length;
+        const gradientVariance = localGradients.reduce((sum, val) => sum + Math.pow(val - avgLocalGradient, 2), 0) / localGradients.length;
+        
+        // 曲线检测 - 方差大说明梯度变化剧烈，可能是曲线
+        if (gradientVariance > 100 && avgLocalGradient > 10) {
+          curveScore++;
+        }
+      }
+    }
+  }
+  
+  // 归一化曲线分数
+  curveScore = Math.min(1, curveScore / (width * height * 0.1));
+  
+  // 分析图案规律性 - 使用傅里叶变换检测规则性
+  // 在这里我们使用简化的方法估计规律性
+  const { maxCorrelation, bestOffset } = 计算自相关性(imageData, Math.min(width, height) / 2);
+  
+  // 规则图案特征：高自相关性但图案简单
+  // 调整复杂度分数，复杂度高且具有良好自相关性的才能被视为真正的无缝贴图
+  const complexityScore = Math.sqrt(avgGradient / 25) * Math.sqrt(edgeRatio * 10);
+  const regularityScore = maxCorrelation;
+  const curvePatternScore = curveScore;
+  
+  // 规则曲线图案的检测器 - 用于识别例如图中的曲线纹理
+  const isRegularCurvePattern = curveScore > 0.1 && regularityScore > 0.8 && complexityScore < 0.6;
+  
+  return {
+    complexityScore,
+    regularityScore,
+    curvePatternScore,
+    isRegularCurvePattern,
+    avgGradient,
+    edgeRatio,
+    bestOffset
+  };
+}
+
+/**
  * 综合分析图像是否为无缝贴图
  * @param {HTMLImageElement|string} imageSource - 图像源（HTMLImageElement或URL）
  * @param {Object} options - 配置选项
@@ -380,6 +483,9 @@ export async function 分析无缝贴图(imageSource, options = {}) {
           // 执行自相关分析
           const correlationResults = 计算自相关性(imageData);
           
+          // 执行图案复杂度分析 - 新增部分
+          const patternResults = 分析图案复杂度(imageData);
+          
           // 计算综合评分
           const weightedScore = 
             (edgeResults.score * config.edgeWeight) +
@@ -397,15 +503,40 @@ export async function 分析无缝贴图(imageSource, options = {}) {
           const variance = scores.reduce((sum, s) => sum + Math.pow(s - avg, 2), 0) / scores.length;
           const consistencyScore = Math.max(0, 1 - Math.sqrt(variance) * 5);
           
+          // 基于图案复杂度调整最终得分 - 避免简单重复图案的假阳性
+          let adjustedScore = weightedScore;
+          let isAdjusted = false;
+          let adjustmentReason = '';
+          
+          // 对于规则曲线图案进行评分调整
+          if (patternResults.isRegularCurvePattern) {
+            // 当分析曲线图案时给出额外的惩罚
+            const penalty = Math.max(0, 0.1 * (1 - patternResults.complexityScore));
+            adjustedScore = Math.max(0, weightedScore - penalty);
+            isAdjusted = true;
+            adjustmentReason = '规则曲线图案';
+          }
+          
+          // 如果复杂度太低但规律性过高，可能是重复图案
+          if (patternResults.complexityScore < 0.4 && patternResults.regularityScore > 0.9) {
+            adjustedScore = Math.max(0, weightedScore - 0.15);
+            isAdjusted = true;
+            adjustmentReason = '低复杂度高规律性图案';
+          }
+          
           // 综合结果
           const result = {
-            isSeamless: weightedScore >= config.qualityThreshold,
-            score: weightedScore,
-            confidence: (consistencyScore * 0.4 + weightedScore * 0.6),
+            isSeamless: adjustedScore >= config.qualityThreshold,
+            score: adjustedScore,
+            rawScore: weightedScore,
+            isAdjusted: isAdjusted,
+            adjustmentReason: isAdjusted ? adjustmentReason : '',
+            confidence: (consistencyScore * 0.4 + adjustedScore * 0.6),
             details: {
               edgeAnalysis: edgeResults,
               tileAnalysis: tileResults,
-              correlationAnalysis: correlationResults
+              correlationAnalysis: correlationResults,
+              patternAnalysis: patternResults
             },
             // 图像基本信息
             imageInfo: {

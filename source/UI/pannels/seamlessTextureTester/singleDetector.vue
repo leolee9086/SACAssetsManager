@@ -70,6 +70,20 @@
             <span>{{ (result.score * 100).toFixed(1) }}%</span>
           </div>
           
+          <div v-if="result.isAdjusted" class="adjustment-info">
+            <div class="adjustment-badge">
+              <span>评分已调整</span>
+              <span class="adjustment-reason">{{ result.adjustmentReason }}</span>
+            </div>
+            <div class="detail-row">
+              <span>原始评分:</span>
+              <div class="progress-bar">
+                <div class="progress" :style="{width: `${result.rawScore * 100}%`, backgroundColor: getScoreColor(result.rawScore)}"></div>
+              </div>
+              <span>{{ (result.rawScore * 100).toFixed(1) }}%</span>
+            </div>
+          </div>
+          
           <div class="detail-row">
             <span>水平边缘匹配:</span>
             <div class="progress-bar">
@@ -100,6 +114,33 @@
               <div class="progress" :style="{width: `${result.details.correlationAnalysis.score * 100}%`, backgroundColor: getScoreColor(result.details.correlationAnalysis.score)}"></div>
             </div>
             <span>{{ (result.details.correlationAnalysis.score * 100).toFixed(1) }}%</span>
+          </div>
+          
+          <div v-if="result.details.patternAnalysis" class="pattern-analysis">
+            <h4>图案分析</h4>
+            <div class="detail-row">
+              <span>图案复杂度:</span>
+              <div class="progress-bar">
+                <div class="progress" :style="{width: `${result.details.patternAnalysis.complexityScore * 100}%`, backgroundColor: getScoreColor(result.details.patternAnalysis.complexityScore)}"></div>
+              </div>
+              <span>{{ (result.details.patternAnalysis.complexityScore * 100).toFixed(1) }}%</span>
+            </div>
+            
+            <div class="detail-row">
+              <span>规律性:</span>
+              <div class="progress-bar">
+                <div class="progress" :style="{width: `${result.details.patternAnalysis.regularityScore * 100}%`, backgroundColor: getScoreColor(1 - result.details.patternAnalysis.regularityScore)}"></div>
+              </div>
+              <span>{{ (result.details.patternAnalysis.regularityScore * 100).toFixed(1) }}%</span>
+            </div>
+            
+            <div class="detail-row">
+              <span>曲线特征:</span>
+              <div class="progress-bar">
+                <div class="progress" :style="{width: `${result.details.patternAnalysis.curvePatternScore * 100}%`, backgroundColor: getScoreColor(1 - result.details.patternAnalysis.curvePatternScore)}"></div>
+              </div>
+              <span>{{ (result.details.patternAnalysis.curvePatternScore * 100).toFixed(1) }}%</span>
+            </div>
           </div>
           
           <div class="detail-row">
@@ -653,5 +694,43 @@ export default {
   justify-content: center;
   height: 200px;
   color: #666;
+}
+
+.adjustment-info {
+  background-color: #fff3e0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  border-left: 3px solid #ff9800;
+}
+
+.adjustment-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.adjustment-badge span:first-child {
+  font-weight: 500;
+  color: #e65100;
+}
+
+.adjustment-reason {
+  color: #666;
+  font-style: italic;
+}
+
+.pattern-analysis {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #ddd;
+}
+
+.pattern-analysis h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #555;
 }
 </style> 
