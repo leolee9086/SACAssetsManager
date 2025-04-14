@@ -498,6 +498,9 @@ async function connectToSiyuan(roomName, config, store) {
     // 更新思源配置
     siyuanManager.updateConfig(config);
     
+    // 先注册存储对象，确保在收到消息时可以正确处理
+    siyuanManager.registerStore(roomName, store);
+    
     // 连接到思源WebSocket
     const socket = await siyuanManager.connect(roomName, config);
     
@@ -518,7 +521,7 @@ async function connectToSiyuan(roomName, config, store) {
           // 查找在文档管理器中注册的同步结果对象
           const syncResult = documentManager.connections.get(roomName);
           if (syncResult && syncResult._eventHandlers) {
-            // 使用同步结果对象上的事件处理器，而不是store
+            // 使用同步结果对象上的事件处理器
             const eventHandlers = syncResult._eventHandlers;
             if (eventHandlers.has('sync')) {
               const syncHandlers = eventHandlers.get('sync');
@@ -560,7 +563,11 @@ async function connectToSiyuan(roomName, config, store) {
     
     // 初始化时发送一次完整数据
     setTimeout(() => {
-      sendDataToSiyuan(socket, roomName, store);
+      try {
+        sendDataToSiyuan(socket, roomName, store);
+      } catch (err) {
+        console.error(`[思源同步] 初始化数据发送失败:`, err);
+      }
     }, 500);
     
     console.log(`[思源同步] 房间 ${roomName} 连接到思源WebSocket成功`);

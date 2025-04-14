@@ -352,9 +352,15 @@ export default {
     });
     
     // 监听数组长度变化
-    watch(() => syncedData.items.length, (newVal, oldVal) => {
+    watch(() => syncedData.items?.length, (newVal, oldVal) => {
       if (newVal !== oldVal) {
-        addLog('watch', `数组长度变化: ${oldVal} -> ${newVal}`);
+        addLog('watch', `数组长度变化: ${oldVal || 0} -> ${newVal || 0}`);
+        
+        // 如果items变为undefined，尝试恢复为空数组
+        if (syncedData.items === undefined) {
+          console.warn('[同步测试] items数组丢失，重新初始化为空数组');
+          syncedData.items = [];
+        }
       }
     });
     

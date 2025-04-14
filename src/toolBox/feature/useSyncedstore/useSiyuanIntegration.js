@@ -469,15 +469,75 @@ function applyStateToStore(newState, roomName, store) {
  * @param {Object} source - 源对象
  */
 function mergeObjects(target, source) {
+  // 目标对象类型检查
+  if (!target || typeof target !== 'object') {
+    console.warn('[思源同步] 合并目标不是对象，无法执行合并操作');
+    return;
+  }
+  
+  // 源对象类型检查
+  if (!source || typeof source !== 'object') {
+    console.warn('[思源同步] 合并源不是对象，无法执行合并操作');
+    return;
+  }
+  
+  // 防止数组被错误处理
+  if (Array.isArray(target) !== Array.isArray(source)) {
+    console.warn('[思源同步] 合并目标与源的类型不匹配(数组/对象)，执行替换');
+    // 如果类型不一致，直接进行替换
+    Object.keys(source).forEach(key => {
+      target[key] = source[key];
+    });
+    return;
+  }
+  
+  // 处理普通对象
   for (const key in source) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
-      if (typeof source[key] === 'object' && source[key] !== null && 
-          typeof target[key] === 'object' && target[key] !== null) {
-        // 递归合并对象
-        mergeObjects(target[key], source[key]);
+      const sourceValue = source[key];
+      
+      // 如果源属性为null，直接赋值
+      if (sourceValue === null) {
+        target[key] = null;
+        continue;
+      }
+      
+      // 处理目标属性不存在的情况
+      if (!(key in target)) {
+        // 如果目标没有此属性，直接赋值
+        if (typeof sourceValue === 'object') {
+          // 对象需要深拷贝，避免引用问题
+          target[key] = Array.isArray(sourceValue) ? [...sourceValue] : {...sourceValue};
+        } else {
+          target[key] = sourceValue;
+        }
+        continue;
+      }
+      
+      // 目标也存在此属性
+      const targetValue = target[key];
+      
+      // 如果两者都是对象，递归合并
+      if (typeof sourceValue === 'object' && sourceValue !== null && 
+          typeof targetValue === 'object' && targetValue !== null) {
+        
+        // 确保数组类型一致，避免将对象合并到数组
+        if (Array.isArray(sourceValue) === Array.isArray(targetValue)) {
+          // 递归合并对象或数组
+          if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+            // 数组直接替换更安全
+            target[key] = [...sourceValue];
+          } else {
+            // 对象正常合并
+            mergeObjects(targetValue, sourceValue);
+          }
+        } else {
+          // 类型不匹配时，直接替换
+          target[key] = Array.isArray(sourceValue) ? [...sourceValue] : {...sourceValue};
+        }
       } else {
         // 替换或添加属性
-        target[key] = source[key];
+        target[key] = sourceValue;
       }
     }
   }
