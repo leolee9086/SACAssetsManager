@@ -95,6 +95,43 @@
       </div>
     </section>
     
+    <!-- 复杂数据测试部分 -->
+    <section class="complex-test">
+      <h4>复杂数据同步测试</h4>
+      
+      <div class="test-buttons">
+        <button @click="testComplexObject" class="action-button">测试复杂嵌套对象</button>
+        <button @click="testComplexArray" class="action-button">测试复杂嵌套数组</button>
+        <button @click="testEdgeCases" class="action-button">测试极限情况</button>
+        <button @click="testTransaction" class="action-button">测试事务操作</button>
+      </div>
+      
+      <div class="complex-data-display">
+        <div class="field-row">
+          <label>复杂数据预览：</label>
+          <div class="json-preview">
+            <pre>{{ complexDataPreview }}</pre>
+          </div>
+        </div>
+      </div>
+      
+      <div class="test-controls">
+        <label>嵌套深度:</label>
+        <select v-model="complexTestDepth">
+          <option :value="2">浅层 (2层)</option>
+          <option :value="4">中等 (4层)</option>
+          <option :value="6">深层 (6层)</option>
+        </select>
+        
+        <label>数组大小:</label>
+        <select v-model="complexTestSize">
+          <option :value="5">小 (5项)</option>
+          <option :value="20">中 (20项)</option>
+          <option :value="100">大 (100项)</option>
+        </select>
+      </div>
+    </section>
+    
     <section class="watch-test">
       <h4>监听器测试</h4>
       <div class="watch-logs">
@@ -125,6 +162,47 @@ import { useSyncedReactive } from '../../../../src/toolBox/useAge/forSync/useSyn
 // 获取思源插件API
 const pluginInstance = window[Symbol.for('plugin-SACAssetsManager')];
 const eventBus = pluginInstance.eventBus;
+
+// 生成指定深度的嵌套对象
+function generateNestedObject(depth, prefix = '') {
+  if (depth <= 0) return { value: `${prefix}值` };
+  
+  return {
+    value: `${prefix}层级${depth}`,
+    nested: generateNestedObject(depth - 1, `${prefix}子`),
+    siblings: [
+      { name: `${prefix}兄弟1`, values: [1, 2] },
+      { name: `${prefix}兄弟2`, values: [3, 4] }
+    ]
+  };
+}
+
+// 生成复杂数组
+function generateComplexArray(size, depth) {
+  const result = [];
+  for (let i = 0; i < size; i++) {
+    if (depth <= 1) {
+      result.push({ id: i, name: `项目${i}` });
+    } else {
+      result.push({
+        id: i,
+        name: `项目${i}`,
+        children: generateComplexArray(Math.max(2, Math.floor(size / 5)), depth - 1)
+      });
+    }
+  }
+  return result;
+}
+
+// 生成长文本
+function generateLongText(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 export default {
   name: 'SyncTest',
@@ -317,6 +395,152 @@ export default {
       }
     });
     
+    // =============== 复杂测试功能 ===============
+    // 复杂测试配置
+    const complexTestDepth = ref(2);
+    const complexTestSize = ref(5);
+    
+    // 用于显示的复杂数据预览
+    const complexDataPreview = computed(() => {
+      if (!syncedData.complexTest) return "未创建复杂测试数据";
+      
+      // 只显示部分数据防止过长
+      const preview = { 
+        type: syncedData.complexTest.type,
+        timestamp: syncedData.complexTest.timestamp
+      };
+      
+      if (syncedData.complexTest.type === 'object') {
+        preview.data = "嵌套对象 (预览已截断)";
+      } else if (syncedData.complexTest.type === 'array') {
+        preview.length = syncedData.complexTest.data?.length || 0;
+        preview.data = "复杂数组 (预览已截断)";
+      } else if (syncedData.complexTest.type === 'edge') {
+        preview.cases = Object.keys(syncedData.complexTest.data || {});
+      } else if (syncedData.complexTest.type === 'transaction') {
+        preview.operations = syncedData.complexTest.operations;
+      }
+      
+      return JSON.stringify(preview, null, 2);
+    });
+    
+    // 复杂嵌套对象测试
+    const testComplexObject = () => {
+      const depth = complexTestDepth.value;
+      addLog('test', `创建复杂嵌套对象测试 (深度: ${depth})`);
+      
+      // 可能会触发同步锁保护，使用临时锁
+      let isLocked = false;
+      
+      try {
+        // 创建复杂对象
+        syncedData.complexTest = {
+          type: 'object',
+          timestamp: Date.now(),
+          data: generateNestedObject(depth)
+        };
+        
+        addLog('test', `复杂对象已创建 (深度: ${depth})`);
+      } catch (err) {
+        addLog('error', `创建复杂对象失败: ${err.message}`);
+      }
+    };
+    
+    // 复杂嵌套数组测试
+    const testComplexArray = () => {
+      const size = complexTestSize.value;
+      const depth = complexTestDepth.value;
+      addLog('test', `创建复杂嵌套数组测试 (大小: ${size}, 深度: ${depth})`);
+      
+      try {
+        // 创建复杂数组
+        syncedData.complexTest = {
+          type: 'array',
+          timestamp: Date.now(),
+          data: generateComplexArray(size, depth)
+        };
+        
+        addLog('test', `复杂数组已创建 (大小: ${size}, 深度: ${depth})`);
+      } catch (err) {
+        addLog('error', `创建复杂数组失败: ${err.message}`);
+      }
+    };
+    
+    // 极限情况测试
+    const testEdgeCases = () => {
+      addLog('test', `创建极限情况测试`);
+      
+      try {
+        // 各种极限情况
+        syncedData.complexTest = {
+          type: 'edge',
+          timestamp: Date.now(),
+          data: {
+            emptyObject: {},
+            emptyArray: [],
+            nullValue: null,
+            undefinedValue: undefined,
+            longString: generateLongText(5000),
+            largeArray: Array(complexTestSize.value).fill().map((_, i) => i),
+            deeplyNested: JSON.parse(JSON.stringify(generateNestedObject(complexTestDepth.value)))
+          }
+        };
+        
+        addLog('test', `极限情况已创建`);
+      } catch (err) {
+        addLog('error', `创建极限情况失败: ${err.message}`);
+      }
+    };
+    
+    // 事务操作测试
+    const testTransaction = () => {
+      addLog('test', `开始事务操作测试`);
+      
+      try {
+        // 创建事务锁
+        const isTransaction = true;
+        
+        // 事务开始
+        syncedData.complexTest = {
+          type: 'transaction',
+          timestamp: Date.now(),
+          operations: [],
+          data: {}
+        };
+        
+        // 执行多项操作
+        for (let i = 0; i < 5; i++) {
+          // 记录操作
+          syncedData.complexTest.operations.push(`操作 ${i+1}`);
+          
+          // 执行一系列操作
+          if (!syncedData.complexTest.data.items) {
+            syncedData.complexTest.data.items = [];
+          }
+          
+          syncedData.complexTest.data.items.push(`事务项 ${i+1}`);
+          syncedData.complexTest.data.lastUpdate = Date.now();
+        }
+        
+        // 添加嵌套对象
+        syncedData.complexTest.data.details = {
+          status: "已完成",
+          completed: true,
+          nestedArray: [1, 2, [3, 4, { deep: true }]]
+        };
+        
+        // 事务结束
+        addLog('test', `事务操作完成 (共${syncedData.complexTest.operations.length}项操作)`);
+        
+        // 触发手动同步
+        setTimeout(() => {
+          syncManual();
+        }, 100);
+      } catch (err) {
+        addLog('error', `事务操作失败: ${err.message}`);
+      }
+    };
+    
     // 组件挂载完成后主动触发同步
     onMounted(() => {
       addLog('lifecycle', '组件已挂载');
@@ -365,6 +589,15 @@ export default {
       // 监听器测试
       watchLogs,
       clearLogs,
+      
+      // 复杂测试
+      complexTestDepth,
+      complexTestSize,
+      complexDataPreview,
+      testComplexObject,
+      testComplexArray,
+      testEdgeCases,
+      testTransaction,
       
       // 同步信息
       roomName,
@@ -526,6 +759,59 @@ export default {
   cursor: not-allowed;
 }
 
+/* 复杂测试样式 */
+.complex-test {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.complex-test h4 {
+  margin: 0 0 16px 0;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.test-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.complex-data-display {
+  margin-bottom: 16px;
+}
+
+.json-preview {
+  background-color: #f8f8f8;
+  border-radius: 4px;
+  padding: 12px;
+  max-height: 200px;
+  overflow: auto;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.test-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.test-controls label {
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.test-controls select {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
 .watch-test {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -576,6 +862,14 @@ export default {
 
 .log-item.status {
   background-color: #e0f7fa;
+}
+
+.log-item.test {
+  background-color: #ede7f6;
+}
+
+.log-item.error {
+  background-color: #ffebee;
 }
 
 .status-section {
