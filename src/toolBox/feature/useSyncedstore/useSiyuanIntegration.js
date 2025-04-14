@@ -529,95 +529,168 @@ export function getAllConnections() {
 }
 
 /**
- * 向思源WebSocket发送数据
- * @param {WebSocket} socket - WebSocket实例
+ * 发送数据到思源笔记
+ * @param {WebSocket} socket - WebSocket连接对象
  * @param {string} roomName - 房间名称
- * @param {Object} store - 数据存储
- * @param {string} [propertyName] - 可选的指定属性名，只同步特定属性
- * @param {Object} [propertyValue] - 可选的指定属性值，与propertyName一起使用
+ * @param {Object} store - 存储对象
+ * @param {string} [specificProp] - 可选，只同步特定属性
+ * @param {any} [propValue] - 可选，特定属性的值
+ * @returns {boolean} 是否成功发送
  */
-function sendDataToSiyuan(socket, roomName, store, propertyName, propertyValue) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  
+function sendDataToSiyuan(socket, roomName, store, specificProp, propValue) {
+  // 检查连接状态
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.warn('[思源同步] 无法发送数据：WebSocket未连接');
+    return false;
+  }
+
   try {
-    let stateToSend;
-    let size = 0;
+    // 准备要发送的数据
+    let dataToSend;
     
-    // 如果指定了属性，只发送特定属性
-    if (propertyName && propertyValue !== undefined) {
-      stateToSend = {
-        [propertyName]: propertyValue
-      };
+    // 如果指定了特定属性和值，只发送这个属性
+    if (specificProp !== undefined && propValue !== undefined) {
+      dataToSend = { [specificProp]: propValue };
+      console.log(`[思源同步] 准备发送单个属性: ${specificProp}`);
+    } else if (store && store.state) {
+      // 发送整个状态
+      dataToSend = filterStateForSync(store.state);
+    } else if (store) {
+      // 直接发送store对象
+      dataToSend = filterStateForSync(store);
     } else {
-      // 否则发送完整状态，但先进行深度过滤
-      stateToSend = filterStateForSync(store.state);
+      console.warn('[思源同步] 没有有效数据可发送');
+      return false;
     }
     
-    // 创建同步消息
-    const data = {
-      type: 'sync',
-      room: roomName,
-      state: stateToSend,
-      timestamp: Date.now(),
-      partial: !!propertyName // 标记是否为部分更新
-    };
+    // 计算数据大小
+    const jsonData = JSON.stringify(dataToSend);
+    const dataSize = new Blob([jsonData]).size;
+    const dataSizeKB = Math.round(dataSize / 1024);
     
-    // 计算消息大小
-    const jsonData = JSON.stringify(data);
-    size = jsonData.length;
+    console.log(`[思源同步] 准备发送数据，大小: ${dataSizeKB}KB`);
     
-    // 如果消息过大，则尝试更进一步压缩
-    if (size > 1024 * 1024) { // 超过1MB
-      console.warn(`[思源同步] 消息过大 (${Math.round(size/1024)}KB)，进行进一步压缩`);
+    // 大型数据处理
+    if (dataSize > 1024 * 1024) {  // 大于1MB
+      console.warn(`[思源同步] 数据过大(${dataSizeKB}KB)，尝试压缩处理`);
       
-      // 进一步压缩大型状态
-      if (!propertyName) {
-        const compressedState = compressLargeState(stateToSend);
-        
-        // 重新计算大小
-        const compressedData = {
-          type: 'sync',
+      // 对大数据进行过滤压缩
+      const compressedData = compressLargeState(dataToSend);
+      const compressedJson = JSON.stringify(compressedData);
+      const compressedSize = new Blob([compressedJson]).size;
+      const compressedSizeKB = Math.round(compressedSize / 1024);
+      
+      console.log(`[思源同步] 压缩后数据大小: ${compressedSizeKB}KB`);
+      
+      // 如果压缩后仍然过大
+      if (compressedSize > 1024 * 1024) {
+        // 发送警告消息而不是完整数据
+        socket.send(JSON.stringify({
+          type: 'sync_warning',
           room: roomName,
-          state: compressedState,
-          timestamp: Date.now(),
-          compressed: true
-        };
-        
-        const compressedJson = JSON.stringify(compressedData);
-        const compressedSize = compressedJson.length;
-        
-        if (compressedSize < size) {
-          // 使用压缩后的数据
-          socket.send(compressedJson);
-          console.log(`[思源同步] 房间 ${roomName} 向思源发送压缩同步数据 (${Math.round(compressedSize/1024)}KB，原始：${Math.round(size/1024)}KB)`);
-          return;
-        }
+          message: `数据过大(${dataSizeKB}KB)无法同步，请考虑减小数据量或分块同步`,
+          timestamp: Date.now()
+        }));
+        console.error(`[思源同步] 数据过大无法同步，已发送警告消息`);
+        return false;
       }
       
-      // 如果压缩效果不佳或是部分同步，则发送同步信息
-      console.warn(`[思源同步] 同步消息过大 (${Math.round(size/1024)}KB)，请使用部分同步`);
-      socket.send(JSON.stringify({
-        type: 'sync_info',
-        room: roomName,
-        message: `数据过大 (${Math.round(size/1024)}KB)，请使用部分同步或优化数据结构`,
-        timestamp: Date.now()
-      }));
-      
-      return; // 不发送完整数据
+      // 使用压缩后的数据
+      dataToSend = compressedData;
     }
     
-    // 发送数据
-    socket.send(jsonData);
-    
-    // 记录同步信息
-    if (size > 50 * 1024) { // 超过50KB才记录
-      console.log(`[思源同步] 房间 ${roomName} 向思源发送同步数据 (${Math.round(size/1024)}KB)`);
-    } else {
-      console.log(`[思源同步] 房间 ${roomName} 向思源发送同步数据成功`);
+    // 根据数据大小决定发送方式
+    if (dataSize > 500 * 1024) {
+      console.log(`[思源同步] 数据大小(${dataSizeKB}KB)超过阈值，使用分块发送`);
+      return sendSplitData(dataToSend, { socket, room: roomName });
     }
-  } catch (error) {
-    console.error(`[思源同步] 发送数据到思源WebSocket出错:`, error);
+    
+    // 普通发送
+    console.log(`[思源同步] 使用普通方式发送数据(${dataSizeKB}KB)`);
+    socket.send(JSON.stringify({
+      type: 'sync',
+      room: roomName,
+      state: dataToSend,
+      timestamp: Date.now()
+    }));
+    
+    return true;
+  } catch (err) {
+    console.error('[思源同步] 发送数据失败:', err);
+    return false;
   }
+}
+
+/**
+ * 压缩大型状态对象，移除冗余数据
+ * @param {Object} state - 原始状态对象
+ * @returns {Object} 压缩后的状态对象
+ */
+function compressLargeState(state) {
+  if (!state || typeof state !== 'object') return state;
+  
+  // 创建压缩后的结果
+  const result = Array.isArray(state) ? [] : {};
+  
+  // 处理数组
+  if (Array.isArray(state)) {
+    // 限制数组长度
+    const MAX_ARRAY_LENGTH = 1000;
+    if (state.length > MAX_ARRAY_LENGTH) {
+      console.warn(`[思源同步] 数组过长 (${state.length}项)，截断到${MAX_ARRAY_LENGTH}项`);
+      for (let i = 0; i < MAX_ARRAY_LENGTH; i++) {
+        result[i] = compressLargeState(state[i]);
+      }
+      return result;
+    }
+    
+    // 正常处理数组
+    for (let i = 0; i < state.length; i++) {
+      result[i] = compressLargeState(state[i]);
+    }
+    return result;
+  }
+  
+  // 处理对象
+  const keys = Object.keys(state);
+  
+  // 限制对象属性数量
+  const MAX_KEYS = 500;
+  if (keys.length > MAX_KEYS) {
+    console.warn(`[思源同步] 对象属性过多 (${keys.length}个)，限制到${MAX_KEYS}个`);
+    // 只保留前MAX_KEYS个属性
+    for (let i = 0; i < MAX_KEYS; i++) {
+      const key = keys[i];
+      result[key] = compressLargeState(state[key]);
+    }
+    return result;
+  }
+  
+  // 正常处理对象
+  for (const key of keys) {
+    // 跳过以$开头的属性和函数
+    if (key.startsWith('$') || typeof state[key] === 'function') {
+      continue;
+    }
+    
+    // 处理值
+    const value = state[key];
+    
+    // 字符串截断
+    if (typeof value === 'string' && value.length > 10000) {
+      result[key] = value.substring(0, 10000) + '...[截断]';
+      continue;
+    }
+    
+    // 递归处理对象和数组
+    if (value !== null && typeof value === 'object') {
+      result[key] = compressLargeState(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  
+  return result;
 }
 
 /**
@@ -703,95 +776,6 @@ function filterStateForSync(state) {
   }
   
   return filter(state, filteredState);
-}
-
-/**
- * 进一步压缩大型状态对象，移除或简化大型数据
- * @param {Object} state - 状态对象
- * @returns {Object} 压缩后的状态对象
- */
-function compressLargeState(state) {
-  if (!state || typeof state !== 'object') return state;
-  
-  const compressedState = Array.isArray(state) ? [] : {};
-  
-  // 记录已处理的对象，防止循环引用
-  const seen = new WeakMap();
-  
-  function compress(obj, target) {
-    // 处理基本类型
-    if (obj === null || typeof obj !== 'object') return obj;
-    
-    // 处理循环引用
-    if (seen.has(obj)) return '[循环引用]';
-    seen.set(obj, true);
-    
-    // 处理数组
-    if (Array.isArray(obj)) {
-      // 对于任何数组，只保留长度信息
-      if (obj.length > 10) {
-        return {
-          __array_info: true,
-          length: obj.length
-        };
-      }
-      
-      // 处理小型数组
-      const result = [];
-      for (let i = 0; i < obj.length; i++) {
-        result[i] = compress(obj[i], result);
-      }
-      return result;
-    }
-    
-    // 处理对象
-    const result = {};
-    
-    // 如果对象已经是占位符，直接返回
-    if (obj.__array_placeholder || obj.__object_placeholder || obj.__array_info) {
-      return obj;
-    }
-    
-    // 处理普通对象
-    for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        const value = obj[key];
-        
-        // 跳过函数和系统属性
-        if (typeof value === 'function' || key.startsWith('__')) continue;
-        
-        // 如果是复杂对象，仅保留基本信息
-        if (value && typeof value === 'object') {
-          if (Array.isArray(value)) {
-            result[key] = {
-              __array_info: true,
-              length: value.length
-            };
-          } else {
-            // 检查对象大小
-            const valueSize = JSON.stringify(value).length;
-            if (valueSize > 1024) { // 大于1KB的对象简化处理
-              result[key] = {
-                __object_info: true,
-                keys: Object.keys(value),
-                size: valueSize
-              };
-            } else {
-              // 小型对象正常处理
-              result[key] = compress(value, {});
-            }
-          }
-        } else {
-          // 基本类型直接赋值
-          result[key] = value;
-        }
-      }
-    }
-    
-    return result;
-  }
-  
-  return compress(state, compressedState);
 }
 
 /**

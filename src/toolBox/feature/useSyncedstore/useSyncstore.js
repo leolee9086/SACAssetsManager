@@ -809,8 +809,8 @@ function sendSplitData(data, connection) {
  * @param {number} depth - 递归深度
  */
 function mergeRemoteState(localState, remoteState, depth = 0) {
-  // 添加深度限制，防止无限递归
-  const MAX_DEPTH = 5;
+  // 增加最大递归深度，原来是5
+  const MAX_DEPTH = 15;
   if (depth > MAX_DEPTH) {
     console.warn('[思源同步] 达到最大递归深度，避免栈溢出');
     return;
@@ -821,7 +821,34 @@ function mergeRemoteState(localState, remoteState, depth = 0) {
     return; // 确保两个参数都是对象
   }
   
+  // 防止循环引用的处理
+  // 使用WeakMap记录已处理过的对象对
+  const processedPairs = new WeakMap();
+  function checkAndMarkProcessed(local, remote) {
+    if (!local || !remote || typeof local !== 'object' || typeof remote !== 'object') {
+      return false;
+    }
+    
+    if (!processedPairs.has(local)) {
+      processedPairs.set(local, new WeakSet());
+    }
+    
+    const remoteSet = processedPairs.get(local);
+    if (remoteSet.has(remote)) {
+      return true; // 已处理过这对对象
+    }
+    
+    remoteSet.add(remote);
+    return false;
+  }
+  
   try {
+    // 检查是否已处理过这对对象，避免循环引用
+    if (checkAndMarkProcessed(localState, remoteState)) {
+      console.warn('[思源同步] 检测到可能的循环引用，跳过处理');
+      return;
+    }
+    
     // 获取所有远程键
     const remoteKeys = Object.keys(remoteState);
     
@@ -973,6 +1000,15 @@ function handleObjectSync(localState, key, remoteObj, depth) {
           return;
         }
       }
+    }
+    
+    // 检查合并对象的大小，避免合并非常大的对象导致性能问题
+    const remoteKeyCount = Object.keys(remoteObj).length;
+    if (remoteKeyCount > 1000) {
+      console.warn(`[思源同步] 远程对象过大 (${key}, ${remoteKeyCount}个键), 执行浅合并`);
+      // 对于非常大的对象，执行浅合并
+      Object.assign(localState[key], remoteObj);
+      return;
     }
     
     // 递归合并子对象 - 传递深度参数，避免无限递归
