@@ -466,24 +466,198 @@ function sendDataToSiyuan(socket, roomName, store) {
  * @param {Object} remoteState - 远程状态
  */
 function mergeRemoteState(localState, remoteState) {
-  if (!localState || !remoteState) return;
+  if (!localState || !remoteState || typeof localState !== 'object' || typeof remoteState !== 'object') {
+    return; // 确保两个参数都是对象
+  }
   
-  // 遍历远程状态的所有键
-  for (const key in remoteState) {
-    // 跳过心跳字段
-    if (key === '_heartbeat_') continue;
+  try {
+    // 遍历远程状态的所有键
+    for (const key in remoteState) {
+      // 跳过心跳字段和内部字段
+      if (key === '_heartbeat_' || key.startsWith('$')) continue;
+      
+      const remoteValue = remoteState[key];
+      
+      // 如果远程值为null，直接同步
+      if (remoteValue === null) {
+        localState[key] = null;
+        continue;
+      }
+      
+      // 处理数组类型 - 使用安全的数组更新方式
+      if (Array.isArray(remoteValue)) {
+        try {
+          // 如果本地不存在此属性或不是数组，创建一个新数组
+          if (!localState[key] || !Array.isArray(localState[key])) {
+            // 创建一个新的空数组
+            localState[key] = [];
+          }
+          
+          // 清空现有数组内容 - 安全方式
+          const arr = localState[key];
+          try {
+            // 尝试使用splice一次性清空数组，这比循环pop更安全
+            arr.splice(0, arr.length);
+          } catch (err) {
+            console.warn(`[思源同步] 使用splice清空数组失败，尝试备用方法:`, err);
+            try {
+              // 备用方法1: 直接设置长度为0
+              arr.length = 0;
+            } catch (err2) {
+              console.warn(`[思源同步] 第二种清空数组方法也失败:`, err2);
+              // 备用方法2: 保持数组原始引用，但一项一项删除
+              while (arr.length > 0) {
+                try {
+                  // 从最后一项开始删除，避免索引变化
+                  arr.splice(arr.length - 1, 1);
+                } catch (e) {
+                  console.error(`[思源同步] 无法清空数组:`, e);
+                  break; // 防止无限循环
+                }
+              }
+            }
+          }
+          
+          // 一个一个添加元素，而不是批量添加
+          for (let i = 0; i < remoteValue.length; i++) {
+            const item = remoteValue[i];
+            
+            // 递归处理数组中的对象
+            if (item !== null && typeof item === 'object') {
+              // 数组中的对象元素需要特殊处理
+              if (Array.isArray(item)) {
+                // 如果是嵌套数组，创建新数组并递归处理
+                const newItem = [];
+                localState[key].push(newItem);
+                
+                // 对于数组元素，进行特殊递归合并
+                for (let j = 0; j < item.length; j++) {
+                  if (item[j] !== null && typeof item[j] === 'object') {
+                    if (Array.isArray(item[j])) {
+                      newItem[j] = [];
+                      mergeArrays(newItem[j], item[j]);
+                    } else {
+                      newItem[j] = {};
+                      mergeRemoteState(newItem[j], item[j]);
+                    }
+                  } else {
+                    newItem[j] = item[j];
+                  }
+                }
+              } else {
+                // 如果是普通对象，创建新对象并递归处理
+                const newObj = {};
+                localState[key].push(newObj);
+                mergeRemoteState(newObj, item);
+              }
+            } else {
+              // 基本类型直接添加
+              localState[key].push(item);
+            }
+          }
+        } catch (err) {
+          console.error(`[思源同步] 处理数组出错 (${key}):`, err);
+          // 失败时尝试替换整个数组（可能会破坏响应式，但总比出错好）
+          if (window.Vue && window.Vue.set) {
+            window.Vue.set(localState, key, [...remoteValue]);
+          } else {
+            try {
+              // 最后的尝试 - 这可能会失败
+              localState[key] = [...remoteValue];
+            } catch (finalErr) {
+              console.error(`[思源同步] 无法更新数组 (${key}):`, finalErr);
+            }
+          }
+        }
+      }
+      // 处理普通对象类型，递归合并
+      else if (typeof remoteValue === 'object' && remoteValue !== null) {
+        try {
+          // 如果本地不存在此属性或不是对象或是数组，创建新对象
+          if (!localState[key] || typeof localState[key] !== 'object' || Array.isArray(localState[key])) {
+            localState[key] = {};
+          }
+          
+          // 递归合并子对象
+          mergeRemoteState(localState[key], remoteValue);
+        } catch (err) {
+          console.error(`[思源同步] 处理对象出错 (${key}):`, err);
+          // 失败时尝试浅拷贝
+          try {
+            if (window.Vue && window.Vue.set) {
+              window.Vue.set(localState, key, {...remoteValue});
+            } else {
+              localState[key] = {...remoteValue};
+            }
+          } catch (finalErr) {
+            console.error(`[思源同步] 无法更新对象 (${key}):`, finalErr);
+          }
+        }
+      } 
+      // 处理基础类型，直接覆盖
+      else {
+        if (localState[key] !== remoteValue) {
+          try {
+            localState[key] = remoteValue;
+          } catch (err) {
+            console.error(`[思源同步] 设置属性出错 (${key}):`, err);
+            // 尝试使用Vue的set方法
+            if (window.Vue && window.Vue.set) {
+              window.Vue.set(localState, key, remoteValue);
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[思源同步] 合并状态时出错:', err);
+  }
+}
+
+/**
+ * 安全地合并两个数组
+ * @param {Array} targetArray - 目标数组
+ * @param {Array} sourceArray - 源数组
+ */
+function mergeArrays(targetArray, sourceArray) {
+  if (!Array.isArray(targetArray) || !Array.isArray(sourceArray)) {
+    return;
+  }
+  
+  // 清空目标数组 - 使用更安全的方法
+  try {
+    // 尝试使用splice一次性清空数组
+    targetArray.splice(0, targetArray.length);
+  } catch (err) {
+    console.warn(`[思源同步] 清空嵌套数组失败，尝试备用方法:`, err);
+    try {
+      // 备用方法：直接设置长度为0
+      targetArray.length = 0;
+    } catch (err2) {
+      console.warn(`[思源同步] 所有嵌套数组清空方法都失败，创建新数组`);
+      // 如果所有方法都失败，可能需要更复杂的处理
+    }
+  }
+  
+  // 依次添加源数组元素
+  for (let i = 0; i < sourceArray.length; i++) {
+    const item = sourceArray[i];
     
-    if (typeof remoteState[key] === 'object' && remoteState[key] !== null) {
-      // 对象类型，递归合并
-      if (!localState[key] || typeof localState[key] !== 'object') {
-        localState[key] = {};
+    if (item !== null && typeof item === 'object') {
+      if (Array.isArray(item)) {
+        // 嵌套数组
+        const newArr = [];
+        targetArray.push(newArr);
+        mergeArrays(newArr, item);
+      } else {
+        // 嵌套对象
+        const newObj = {};
+        targetArray.push(newObj);
+        mergeRemoteState(newObj, item);
       }
-      mergeRemoteState(localState[key], remoteState[key]);
     } else {
-      // 基础类型，直接覆盖
-      if (localState[key] !== remoteState[key]) {
-        localState[key] = remoteState[key];
-      }
+      // 基本类型
+      targetArray.push(item);
     }
   }
 }

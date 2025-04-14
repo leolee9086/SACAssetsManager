@@ -2,7 +2,41 @@
  * 对象增强器 - 为响应式对象添加同步相关的方法和属性
  */
 
-import { watch } from '../../../../../static/vue.esm-browser.js';
+import { watch, reactive } from '../../../../../static/vue.esm-browser.js';
+
+/**
+ * 检查对象是否为纯对象（普通JS对象）
+ * @param {any} obj - 要检查的对象
+ * @returns {boolean} 是否为纯对象
+ */
+const isPlainObject = (obj) => {
+  return obj !== null && typeof obj === 'object' && !Array.isArray(obj) && 
+         Object.getPrototypeOf(obj) === Object.prototype;
+};
+
+/**
+ * 深度响应式复制
+ * @param {any} value - 要复制的值
+ * @returns {any} 复制后的响应式值
+ */
+const deepReactiveClone = (value) => {
+  if (Array.isArray(value)) {
+    // 数组需要先复制再reactive
+    return reactive(value.map(item => 
+      isPlainObject(item) || Array.isArray(item) ? deepReactiveClone(item) : item
+    ));
+  } else if (isPlainObject(value)) {
+    // 对象需要递归处理每个属性
+    const result = {};
+    for (const key in value) {
+      result[key] = isPlainObject(value[key]) || Array.isArray(value[key]) 
+        ? deepReactiveClone(value[key]) 
+        : value[key];
+    }
+    return reactive(result);
+  }
+  return value;
+};
 
 /**
  * 增强响应式对象
@@ -30,6 +64,19 @@ export function enhanceReactiveObject(localState, config) {
   let syncDebounceTimer = null;
   const SYNC_DEBOUNCE = 50; // 50ms防抖
   
+  // 跟踪哪些属性是数组
+  const arrayProps = new Set();
+  
+  // 跟踪是否正在进行远程更新
+  let isRemoteUpdate = false;
+  
+  // 检测初始对象中的数组属性
+  for (const propName in initialState) {
+    if (Array.isArray(initialState[propName])) {
+      arrayProps.add(propName);
+    }
+  }
+  
   // 防抖包装函数
   const debounce = (fn, delay) => {
     return (...args) => {
@@ -47,6 +94,7 @@ export function enhanceReactiveObject(localState, config) {
     
     // 应用同步锁
     syncLock = true;
+    isRemoteUpdate = true;
     
     try {
       // 清除不在远程的属性
@@ -54,6 +102,7 @@ export function enhanceReactiveObject(localState, config) {
         if (k.startsWith('$') || typeof localState[k] === 'function') return; // 跳过内部属性
         if (!(k in remoteState)) {
           delete localState[k];
+          arrayProps.delete(k);
         }
       });
       
@@ -61,19 +110,39 @@ export function enhanceReactiveObject(localState, config) {
       Object.keys(remoteState).forEach(k => {
         if (k.startsWith('$') || typeof remoteState[k] === 'function') return; // 跳过内部属性
         
+        // 检测新添加的数组属性
+        if (Array.isArray(remoteState[k])) {
+          arrayProps.add(k);
+        }
+        
+        const remoteValue = remoteState[k];
+        const localValue = localState[k];
+        
         // 特殊处理数值类型
-        if (typeof remoteState[k] === 'number') {
-          if (localState[k] !== remoteState[k]) {
-            localState[k] = remoteState[k];
+        if (typeof remoteValue === 'number') {
+          if (localValue !== remoteValue) {
+            localState[k] = remoteValue;
           }
-        } else {
-          // 对于对象类型，使用深度比较
-          const currentJson = JSON.stringify(localState[k]);
-          const remoteJson = JSON.stringify(remoteState[k]);
+        }
+        // 处理嵌套对象 - 递归合并而不是替换
+        else if (isPlainObject(remoteValue) && isPlainObject(localValue)) {
+          // 对嵌套对象进行深度合并
+          mergeNestedObjects(localValue, remoteValue);
+        }
+        // 处理数组 - 确保保留响应式
+        else if (Array.isArray(remoteValue)) {
+          // 完全替换数组内容，但保留响应式
+          localState[k].length = 0; // 清空数组
+          remoteValue.forEach(item => localState[k].push(item)); // 添加新元素
           
-          if (currentJson !== remoteJson) {
-            localState[k] = remoteState[k];
+          // 检查是否需要增强数组方法
+          if (!localState[k].$enhanced) {
+            enhanceArrayProperty(k);
           }
+        }
+        // 其他类型直接替换
+        else {
+          localState[k] = remoteValue;
         }
       });
       
@@ -90,11 +159,164 @@ export function enhanceReactiveObject(localState, config) {
       return true;
     } finally {
       syncLock = false;
+      isRemoteUpdate = false;
     }
+  };
+  
+  /**
+   * 递归合并嵌套对象
+   * @param {Object} target - 目标对象
+   * @param {Object} source - 源对象
+   */
+  const mergeNestedObjects = (target, source) => {
+    if (!isPlainObject(target) || !isPlainObject(source)) {
+      return;
+    }
+    
+    // 处理删除的属性
+    Object.keys(target).forEach(key => {
+      if (!(key in source)) {
+        delete target[key];
+      }
+    });
+    
+    // 合并或添加属性
+    Object.keys(source).forEach(key => {
+      const sourceValue = source[key];
+      
+      // 如果目标不存在此属性，直接添加
+      if (!(key in target)) {
+        target[key] = sourceValue;
+        return;
+      }
+      
+      const targetValue = target[key];
+      
+      // 递归处理嵌套对象
+      if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
+        mergeNestedObjects(targetValue, sourceValue);
+      } 
+      // 处理数组
+      else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+        targetValue.length = 0; // 清空数组
+        sourceValue.forEach(item => targetValue.push(item)); // 添加新元素
+      }
+      // 其他类型直接替换
+      else if (targetValue !== sourceValue) {
+        target[key] = sourceValue;
+      }
+    });
   };
   
   // 防抖版本的同步函数
   const debouncedSync = debounce(syncImpl, SYNC_DEBOUNCE);
+  
+  /**
+   * 增强数组方法 - 为特定数组属性添加监听和同步
+   * @param {string} propName - 数组属性名称
+   */
+  const enhanceArrayProperty = (propName) => {
+    if (!localState[propName] || !Array.isArray(localState[propName])) {
+      console.warn(`[SyncedReactive:${key}] 无法增强非数组属性: ${propName}`);
+      return false;
+    }
+    
+    // 已经是增强过的数组，避免重复增强
+    if (localState[propName].$enhanced) {
+      return true;
+    }
+    
+    // 跟踪此属性为数组
+    arrayProps.add(propName);
+    
+    // 简化数组增强方法，不使用代理，避免响应式丢失
+    try {
+      const targetArray = localState[propName];
+      
+      // 标记为已增强，避免重复处理
+      Object.defineProperty(targetArray, '$enhanced', {
+        value: true,
+        enumerable: false,
+        configurable: false,
+        writable: false
+      });
+      
+      // 包装原生数组方法，在操作后触发同步
+      ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'].forEach(methodName => {
+        const originalMethod = Array.prototype[methodName];
+        
+        // 创建方法包装器
+        const methodWrapper = function(...args) {
+          // 如果正在同步中，直接执行原始方法
+          if (isRemoteUpdate || syncLock) {
+            return originalMethod.apply(this, args);
+          }
+          
+          // 执行原始操作
+          const result = originalMethod.apply(this, args);
+          
+          if (options.debug) {
+            console.log(`[SyncedReactive:${key}] 数组操作: ${propName}.${methodName}()`, args);
+          }
+          
+          // 标记需要同步
+          if (syncDebounceTimer) {
+            clearTimeout(syncDebounceTimer);
+          }
+          
+          // 主动同步当前数组
+          setTimeout(() => {
+            if (!syncLock && engine && status.connected) {
+              syncLock = true;
+              try {
+                // 获取完整远程状态
+                const completeState = engine.getState(type, key) || {};
+                
+                // 只更新数组部分
+                const updatedState = {
+                  ...completeState,
+                  [propName]: [...targetArray] // 使用扩展运算符创建数组副本
+                };
+                
+                // 发送更新
+                engine.setState(type, key, updatedState);
+                status.lastSync = Date.now();
+                
+                if (options.debug) {
+                  console.log(`[SyncedReactive:${key}] 同步数组: ${propName}`, targetArray);
+                }
+              } finally {
+                syncLock = false;
+              }
+            }
+          }, 0);
+          
+          return result;
+        };
+        
+        // 保存原始方法的引用
+        const originalProp = Object.getOwnPropertyDescriptor(Array.prototype, methodName);
+        
+        // 定义新方法
+        Object.defineProperty(targetArray, methodName, {
+          value: methodWrapper,
+          writable: false,
+          configurable: true,
+          enumerable: false
+        });
+      });
+      
+      return true;
+    } catch (err) {
+      console.error(`[SyncedReactive:${key}] 增强数组失败:`, propName, err);
+      return false;
+    }
+  };
+  
+  // 为所有初始数组属性增强
+  arrayProps.forEach(propName => {
+    enhanceArrayProperty(propName);
+  });
   
   // 增强对象 - 添加不可枚举的方法和属性
   Object.defineProperties(localState, {
@@ -139,9 +361,22 @@ export function enhanceReactiveObject(localState, config) {
             delete localState[k];
           });
           
-          // 复制初始数据
+          // 清空数组属性记录
+          arrayProps.clear();
+          
+          // 复制初始数据 - 使用深度响应式克隆
           Object.keys(initialStateCopy).forEach(k => {
-            localState[k] = initialStateCopy[k];
+            if (isPlainObject(initialStateCopy[k]) || Array.isArray(initialStateCopy[k])) {
+              localState[k] = deepReactiveClone(initialStateCopy[k]);
+            } else {
+              localState[k] = initialStateCopy[k];
+            }
+            
+            // 检测并记录数组属性
+            if (Array.isArray(localState[k])) {
+              arrayProps.add(k);
+              enhanceArrayProperty(k);
+            }
           });
           
           // 更新远程状态
@@ -159,6 +394,30 @@ export function enhanceReactiveObject(localState, config) {
         } finally {
           syncLock = false;
         }
+      }
+    },
+    
+    // 增强数组方法
+    $enhanceArrayMethods: {
+      enumerable: false,
+      value: (propName) => {
+        return enhanceArrayProperty(propName);
+      }
+    },
+    
+    // 增强所有数组属性
+    $enhanceAllArrays: {
+      enumerable: false,
+      value: () => {
+        let enhanced = 0;
+        Object.keys(localState).forEach(k => {
+          if (Array.isArray(localState[k])) {
+            if (enhanceArrayProperty(k)) {
+              enhanced++;
+            }
+          }
+        });
+        return enhanced;
       }
     },
     
@@ -240,7 +499,8 @@ export function enhanceReactiveObject(localState, config) {
           remote: engine ? engine.getState(type, key) : null,
           status: status,
           engine: engine,
-          key: key
+          key: key,
+          arrayProps: Array.from(arrayProps)
         };
       }
     }

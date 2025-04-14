@@ -241,10 +241,11 @@ export function useSyncedReactive(initialState = {}, options = {}) {
       // 执行初始同步
       if (engine.isConnected() && engine.hasState('states', config.key)) {
         const remoteState = engine.getState('states', config.key);
-        Object.keys(localState).forEach(k => {
-          if (!(k in remoteState)) delete localState[k];
-        });
-        Object.assign(localState, remoteState);
+        
+        // 不再使用简单的Object.assign，改为使用合并函数
+        // 将remoteState合并到localState，保留响应式和嵌套结构
+        mergeStates(localState, remoteState);
+        
         if (config.onSync) config.onSync(localState);
       }
     } catch (err) {
@@ -351,4 +352,68 @@ export function clearAllRooms() {
   engineCache.clear();
   reactiveObjectCache.clear();
   refObjectCache.clear();
+}
+
+/**
+ * 深度合并两个状态对象，保留目标对象的响应式特性
+ * @param {Object} target - 目标响应式对象
+ * @param {Object} source - 源对象
+ */
+function mergeStates(target, source) {
+  if (!target || !source || typeof target !== 'object' || typeof source !== 'object') {
+    return;
+  }
+  
+  // 处理删除的属性 - 先删除目标中存在但源中不存在的属性
+  Object.keys(target).forEach(key => {
+    // 保留所有$开头的内部属性和方法
+    if (key.startsWith('$') || typeof target[key] === 'function') return;
+    if (!(key in source)) {
+      delete target[key];
+    }
+  });
+  
+  // 合并或添加属性
+  Object.keys(source).forEach(key => {
+    const sourceValue = source[key];
+    
+    // 跳过内部属性
+    if (key.startsWith('$') || typeof sourceValue === 'function') return;
+    
+    // 如果目标不存在此属性，直接添加
+    if (!(key in target)) {
+      target[key] = sourceValue;
+      return;
+    }
+    
+    const targetValue = target[key];
+    
+    // 递归处理嵌套对象 - 保留响应式
+    if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
+      mergeStates(targetValue, sourceValue);
+    } 
+    // 处理数组 - 特殊处理以保留响应式
+    else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+      // 清空目标数组
+      targetValue.length = 0;
+      // 将源数组的所有元素添加到目标数组
+      sourceValue.forEach(item => targetValue.push(item));
+    }
+    // 其他值类型直接替换
+    else if (targetValue !== sourceValue) {
+      target[key] = sourceValue;
+    }
+  });
+}
+
+/**
+ * 检查对象是否为普通对象
+ * @param {any} obj - 要检查的对象
+ * @returns {boolean} 是否为普通对象
+ */
+function isPlainObject(obj) {
+  return obj !== null && 
+         typeof obj === 'object' && 
+         !Array.isArray(obj) && 
+         Object.getPrototypeOf(obj) === Object.prototype;
 } 
