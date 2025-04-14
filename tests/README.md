@@ -25,25 +25,93 @@
 
 ## 运行测试
 
-### 运行所有测试
+### 使用 ESM 模块运行所有测试
 
-```bash
-node tests/index.js
+```javascript
+import { 运行所有测试 } from './tests/index.js';
+
+// 运行所有测试，参数 false 表示非自动运行模式
+const 测试结果 = await 运行所有测试(false);
+console.log('测试结果:', 测试结果);
 ```
 
-### 运行特定模块测试
+### 运行特定目录下的测试
 
-```bash
-node tests/base/run.js
-node tests/feature/run.js
-node tests/useAge/run.js
+```javascript
+import { 运行目录测试 } from './tests/index.js';
+import path from 'path';
+
+// 测试配置
+const 测试配置 = {
+  categories: {
+    base: { enabled: true, path: 'base', tests: {} },
+    feature: { enabled: true, path: 'feature', tests: {} },
+    useAge: { enabled: true, path: 'useAge', tests: {} }
+  },
+  options: {
+    stopOnFirstFailure: false,
+    timeout: 10000
+  }
+};
+
+// 运行基础工具测试
+const 基础测试结果 = await 运行目录测试(
+  path.resolve('./tests/base'), 
+  'base', 
+  测试配置
+);
 ```
 
 ### 运行单个测试文件
 
-```bash
-node tests/base/流化器测试.js
+可以直接导入并运行特定的测试文件：
+
+```javascript
+// 运行向量索引测试
+import { 运行测试 } from './tests/feature/向量HNSW索引测试.js';
+await 运行测试();
 ```
+
+### 测试配置说明
+
+测试配置对象包含以下选项：
+
+```javascript
+const 测试配置 = {
+  // 测试分类配置
+  categories: {
+    // 基础工具测试
+    base: {
+      enabled: true,      // 是否启用此分类
+      path: 'base',       // 分类目录
+      tests: {            // 特定测试文件配置
+        '流化器测试.js': true  // true表示启用，false表示禁用
+      }
+    },
+    // 其他分类...
+  },
+  // 测试运行选项
+  options: {
+    autoRunOnStartup: false,      // 是否在启动时自动运行测试
+    stopOnFirstFailure: false,    // 是否在首次失败时停止测试
+    logToConsole: true,           // 是否将结果记录到控制台
+    timeout: 10000                // 每个测试的超时时间(毫秒)
+  }
+};
+```
+
+### 测试结果说明
+
+测试运行后会返回结果对象，包含以下信息：
+
+- `total`: 总测试数量
+- `passed`: 通过测试数量
+- `failed`: 失败测试数量
+- `duration`: 总测试耗时(毫秒)
+- `categories`: 各分类测试结果详情
+- `timestamp`: 测试时间戳
+
+测试结果同时会保存在 `data/plugins/SACAssetsManager/tests/results` 目录下。
 
 ## 测试规范
 

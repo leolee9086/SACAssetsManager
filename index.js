@@ -108,6 +108,14 @@ const DOCK_CONFIGS = {
     component:"/plugins/SACAssetsManager/source/UI/pannels/serviceManager/index.vue",
     title: "服务管理",
     propertyName: "serviceManagerDock"
+  },
+  // 添加AI密钥管理面板
+  KeyManagerPanel: {
+    icon: "iconKey",
+    position: "RightBottom", 
+    component: "/plugins/SACAssetsManager/source/UI/pannels/keyManager/index.vue",
+    title: "AI密钥管理",
+    propertyName: "keyManagerDock"
   }
 }
 let pluginInstance = {}
@@ -163,6 +171,8 @@ module.exports = class SACAssetsManager extends Plugin {
     this.创建资源Tab类型()
     this.添加菜单()
     this.加载i18n工具()
+    // 检查是否需要从SACKeyManager导入数据
+    this.检查并导入AI密钥管理数据()
   }
 
   初始化插件同步状态() {
@@ -543,6 +553,107 @@ module.exports = class SACAssetsManager extends Plugin {
     Object.keys(TAB_CONFIGS).forEach(tabType => {
       this[`${tabType}Define`] = createTab(tabType);
     });
+  }
+
+  // 检查并导入SACKeyManager数据
+  async 检查并导入AI密钥管理数据() {
+    try {
+      // 检查是否已经导入过数据
+      const hasImported = await this.loadData('key-manager-imported');
+      if (hasImported) return;
+      
+      console.log('[SACAssetsManager] 开始尝试导入SACKeyManager数据');
+      
+      // 导入工作空间文件操作模块
+      const fs = await import('./polyfills/fs.js');
+      let dataImported = false;
+      
+      // 从工作空间存储目录导入
+      try {
+        console.log('[SACAssetsManager] 尝试从工作空间存储目录导入SACKeyManager数据');
+        
+        const oldPluginPath = '/data/storage/petal/SACKeyManager';
+        // 检查目录是否存在
+        const dirExists = await fs.exists(oldPluginPath);
+        
+        if (dirExists) {
+          console.log(`[SACAssetsManager] SACKeyManager数据目录存在: ${oldPluginPath}`);
+          
+          // 列出目录内容
+          const files = await fs.readDir(oldPluginPath);
+          console.log('[SACAssetsManager] 找到SACKeyManager的数据文件:', files);
+          
+          // 检查描述文件
+          const describesFile = files.find(f => f.name === 'describes');
+          let describesData = {};
+          
+          if (describesFile) {
+            try {
+              const describesContent = await fs.readFile(`${oldPluginPath}/describes`);
+              describesData = JSON.parse(describesContent);
+              console.log('[SACAssetsManager] 读取到描述文件:', describesData);
+            } catch (descError) {
+              console.warn('[SACAssetsManager] 读取描述文件出错:', descError);
+            }
+          }
+          
+          // 读取每个配置文件（除了describes之外的所有文件）
+          const configFiles = files.filter(f => f.name !== 'describes');
+          let importedConfigs = [];
+          
+          for (const configFile of configFiles) {
+            try {
+              const configPath = `${oldPluginPath}/${configFile.name}`;
+              console.log(`[SACAssetsManager] 读取配置文件: ${configPath}`);
+              const configContent = await fs.readFile(configPath);
+              
+              if (configContent) {
+                const configData = JSON.parse(configContent);
+                
+                // 创建配置对象
+                importedConfigs.push({
+                  name: configFile.name,
+                  value: configData
+                });
+                
+                console.log(`[SACAssetsManager] 成功导入配置 "${configFile.name}"`);
+              }
+            } catch (configError) {
+              console.warn(`[SACAssetsManager] 读取配置文件 "${configFile.name}" 出错:`, configError);
+            }
+          }
+          
+          if (importedConfigs.length > 0) {
+            // 保存导入的配置
+            await this.saveData('ai-configs.json', importedConfigs);
+            await this.saveData('ai-describes.json', describesData);
+            
+            dataImported = true;
+            console.log(`[SACAssetsManager] 从SACKeyManager存储中导入了${importedConfigs.length}个配置`);
+          } else {
+            console.warn('[SACAssetsManager] 未找到有效的配置文件');
+          }
+        } else {
+          console.log('[SACAssetsManager] SACKeyManager数据目录不存在');
+        }
+      } catch (fsError) {
+        console.warn('[SACAssetsManager] 从存储目录导入SACKeyManager数据失败:', fsError);
+      }
+      
+      // 标记为已导入，即使没有成功导入数据也标记
+      await this.saveData('key-manager-imported', { 
+        time: Date.now(),
+        success: dataImported
+      });
+      
+      if (dataImported) {
+        console.log('[SACAssetsManager] 已成功从SACKeyManager导入AI配置数据');
+      } else {
+        console.log('[SACAssetsManager] 没有找到可导入的SACKeyManager数据');
+      }
+    } catch (error) {
+      console.error('[SACAssetsManager] 检查并导入AI密钥管理数据出错:', error);
+    }
   }
 }
 

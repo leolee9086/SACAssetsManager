@@ -1,4 +1,23 @@
+/**
+ * @deprecated 此模块已迁移至 src/toolBox/base/useEcma/performance.js
+ * 请使用新模块中的函数以获得更完整的功能
+ */
+
+// 导入新的实现
+import { withPerformanceLogging, measureExecutionTime, comparePerformance } from '../../../src/toolBox/base/useEcma/performance.js';
+
+// 兼容性导出，保留原有接口
+export { withPerformanceLogging };
+
+// 向后兼容的Map（不鼓励直接使用）
 const functionPerformance = new Map();
+
+// 记录废弃警告
+console.warn('performanceRun.js 已废弃，请使用 src/toolBox/base/useEcma/performance.js');
+
+// 保持原始实现可用
+const originalWithPerformanceLogging = withPerformanceLogging;
+
 export function withPerformanceLogging(fn) {
   return function(...args) {
     const start = performance.now();

@@ -1,0 +1,69 @@
+{
+  "categories": {
+    "base": {
+      "enabled": true,
+      "path": "tests/base"
+    },
+    "feature": {
+      "enabled": true,
+      "path": "tests/feature"
+    },
+    "useAge": {
+      "enabled": true,
+      "path": "tests/useAge"
+    }
+  },
+  "options": {
+    "autoRunOnStartup": false,
+    "stopOnFirstFailure": false,
+    "logToConsole": true,
+    "timeout": 10000
+  },
+  "tests": {
+    "tests\\base\\流化器测试.js": {
+      "enabled": true,
+      "name": "流化器测试",
+      "category": "base"
+    },
+    "tests\\feature\\deltaPQ余弦距离归一化测试.js": {
+      "enabled": true,
+      "name": "deltaPQ余弦距离归一化测试",
+      "category": "feature"
+    },
+    "tests\\feature\\deltaPQ召回率测试.js": {
+      "enabled": true,
+      "name": "deltaPQ召回率测试",
+      "category": "feature"
+    },
+    "tests\\feature\\deltaPQ性能测试.js": {
+      "enabled": true,
+      "name": "deltaPQ性能测试",
+      "category": "feature"
+    },
+    "tests\\feature\\runHnswlayersTest.mjs": {
+      "enabled": true,
+      "name": "runHnswlayersTest",
+      "category": "feature"
+    },
+    "tests\\feature\\向量嵌入测试.js": {
+      "enabled": true,
+      "name": "向量嵌入测试",
+      "category": "feature"
+    },
+    "tests\\feature\\向量索引搜索放大测试.mjs": {
+      "enabled": true,
+      "name": "向量索引搜索放大测试",
+      "category": "feature"
+    },
+    "tests\\feature\\填充向量测试.js": {
+      "enabled": true,
+      "name": "填充向量测试",
+      "category": "feature"
+    },
+    "tests\\useAge\\思源API测试.js": {
+      "enabled": true,
+      "name": "思源API测试",
+      "category": "useAge"
+    }
+  }
+}
