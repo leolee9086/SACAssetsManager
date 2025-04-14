@@ -204,7 +204,7 @@ function handleMessage(message, roomName) {
 
     // 根据消息类型处理
     switch (data.type) {
-      case 'sync':
+    case 'sync':
         // 标准同步消息处理
         if (!data.state) {
           console.warn(`[思源同步] 缺少state数据 (房间: ${roomName})`);
@@ -259,20 +259,20 @@ function handleMessage(message, roomName) {
         // 结束分块同步
         console.log(`[思源同步] 分块同步完成通知 (房间: ${roomName})`);
         finalizeChunkSync(roomName);
-        break;
+      break;
       
       case 'sync_error':
         // 同步错误
         console.error(`[思源同步] 同步错误 (房间: ${roomName}): ${data.message || '未知错误'}`);
         cleanupChunkSync(roomName);
-        break;
+      break;
       
       case 'custom':
         // 自定义消息
         handleCustomMessage(data, roomName);
-        break;
+      break;
       
-      default:
+    default:
         console.warn(`[思源同步] 未知消息类型: ${data.type} (房间: ${roomName})`);
     }
   } catch (err) {
@@ -430,29 +430,50 @@ function applyStateToStore(newState, roomName, store) {
   try {
     console.log(`[思源同步] 开始应用状态 (房间: ${roomName})`);
     
+    // 检查是否是Yjs文档
+    const isYjsDocument = store._yjs || store.ydoc || store.doc || 
+                          (store.state && (store.state._yjs || store.state.ydoc || store.state.doc));
+    
+    // 如果是Yjs文档，我们需要特殊处理
+    if (isYjsDocument) {
+      console.log(`[思源同步] 检测到Yjs文档，使用安全模式应用状态`);
+      applyStateToYjsDocument(newState, store);
+      return;
+    }
+    
+    // 普通对象的处理逻辑
     // 遍历并应用每个顶级键
     for (const key in newState) {
       if (Object.prototype.hasOwnProperty.call(newState, key)) {
-        if (typeof store[key] !== 'undefined') {
-          // 更新现有键
-          const oldValue = store[key];
-          const newValue = newState[key];
-          
-          // 根据不同类型进行更新
-          if (Array.isArray(oldValue) && Array.isArray(newValue)) {
-            // 数组 - 替换整个数组
-            store[key] = [...newValue];
-          } else if (typeof oldValue === 'object' && oldValue !== null && 
-                     typeof newValue === 'object' && newValue !== null) {
-            // 对象 - 深度合并
-            mergeObjects(store[key], newValue);
+        try {
+          if (typeof store[key] !== 'undefined') {
+            // 更新现有键
+            const oldValue = store[key];
+            const newValue = newState[key];
+            
+            // 根据不同类型进行更新
+            if (Array.isArray(oldValue) && Array.isArray(newValue)) {
+              // 数组 - 替换整个数组
+              store[key] = [...newValue];
+            } else if (typeof oldValue === 'object' && oldValue !== null && 
+                      typeof newValue === 'object' && newValue !== null) {
+              // 对象 - 深度合并
+              mergeObjects(store[key], newValue);
+            } else {
+              // 基本类型 - 直接替换
+              store[key] = newValue;
+            }
           } else {
-            // 基本类型 - 直接替换
-            store[key] = newValue;
+            // 添加新键，但需要注意检查是否可以添加
+            if (Object.isExtensible(store)) {
+              store[key] = newState[key];
+            } else {
+              console.warn(`[思源同步] 无法添加新键 "${key}": 目标对象不可扩展`);
+            }
           }
-        } else {
-          // 添加新键
-          store[key] = newState[key];
+        } catch (keyError) {
+          console.warn(`[思源同步] 应用属性 "${key}" 失败: ${keyError.message}`);
+          // 继续处理其他属性
         }
       }
     }
@@ -460,6 +481,47 @@ function applyStateToStore(newState, roomName, store) {
     console.log(`[思源同步] 状态应用完成 (房间: ${roomName})`);
   } catch (err) {
     console.error(`[思源同步] 应用状态失败:`, err);
+  }
+}
+
+/**
+ * 将状态安全地应用到Yjs文档
+ * @param {Object} newState - 新状态
+ * @param {Object} store - Yjs文档存储
+ */
+function applyStateToYjsDocument(newState, store) {
+  try {
+    // 确定实际的状态对象
+    const actualState = store.state || store;
+    
+    // 获取已存在的键
+    const existingKeys = Object.keys(actualState);
+    
+    // 只更新已存在的键，避免在根文档上添加新元素
+    for (const key in newState) {
+      if (Object.prototype.hasOwnProperty.call(newState, key) && existingKeys.includes(key)) {
+        try {
+          const newValue = newState[key];
+          const currentValue = actualState[key];
+          
+          // 如果是简单类型或数组，直接替换
+          if (typeof newValue !== 'object' || Array.isArray(newValue) || 
+              newValue === null || currentValue === null) {
+            actualState[key] = newValue;
+          } 
+          // 对象类型，递归合并
+          else if (typeof currentValue === 'object' && !Array.isArray(currentValue)) {
+            mergeObjects(currentValue, newValue);
+          }
+        } catch (keyError) {
+          console.warn(`[思源同步] 应用Yjs属性 "${key}" 失败: ${keyError.message}`);
+        }
+      }
+    }
+    
+    console.log(`[思源同步] Yjs文档状态应用完成，已同步${existingKeys.length}个属性`);
+  } catch (err) {
+    console.error(`[思源同步] 应用Yjs状态失败:`, err);
   }
 }
 
@@ -612,15 +674,25 @@ function sendDataToSiyuan(socket, roomName, store, specificProp, propValue) {
     if (specificProp !== undefined && propValue !== undefined) {
       dataToSend = { [specificProp]: propValue };
       console.log(`[思源同步] 准备发送单个属性: ${specificProp}`);
-    } else if (store && store.state) {
-      // 发送整个状态
-      dataToSend = filterStateForSync(store.state);
-    } else if (store) {
-      // 直接发送store对象
-      dataToSend = filterStateForSync(store);
     } else {
-      console.warn('[思源同步] 没有有效数据可发送');
-      return false;
+      // 检查是否是Yjs文档
+      const isYjsDocument = store._yjs || store.ydoc || store.doc || 
+                          (store.state && (store.state._yjs || store.state.ydoc || store.state.doc));
+      
+      // 对Yjs文档进行特殊处理
+      if (isYjsDocument) {
+        console.log(`[思源同步] 检测到Yjs文档，执行安全提取`);
+        dataToSend = extractSyncableDataFromYjs(store);
+      } else if (store && store.state) {
+        // 发送整个状态
+        dataToSend = filterStateForSync(store.state);
+      } else if (store) {
+        // 直接发送store对象
+        dataToSend = filterStateForSync(store);
+      } else {
+        console.warn('[思源同步] 没有有效数据可发送');
+        return false;
+      }
     }
     
     // 计算数据大小
@@ -678,6 +750,63 @@ function sendDataToSiyuan(socket, roomName, store, specificProp, propValue) {
   } catch (err) {
     console.error('[思源同步] 发送数据失败:', err);
     return false;
+  }
+}
+
+/**
+ * 从Yjs文档中安全提取可同步的数据
+ * @param {Object} store - Yjs存储对象
+ * @returns {Object} 可安全同步的数据
+ */
+function extractSyncableDataFromYjs(store) {
+  try {
+    // 确定实际状态对象位置
+    const actualState = store.state || store;
+    
+    // 创建新对象保存结果
+    const result = {};
+    
+    // 获取所有可枚举属性
+    const keys = Object.keys(actualState);
+    
+    // 遍历并安全提取数据
+    for (const key of keys) {
+      try {
+        // 跳过内部属性和函数
+        if (key.startsWith('$') || key.startsWith('_') || typeof actualState[key] === 'function') {
+          continue;
+        }
+        
+        // 提取数据
+        const value = actualState[key];
+        
+        // 处理不同类型的数据
+        if (value === null || value === undefined) {
+          result[key] = value;
+        } else if (typeof value !== 'object') {
+          // 基本类型直接复制
+          result[key] = value;
+        } else if (Array.isArray(value)) {
+          // 数组进行浅拷贝
+          result[key] = [...value];
+        } else {
+          // 对象进行浅拷贝，避免循环引用
+          try {
+            result[key] = {...value};
+          } catch (err) {
+            console.warn(`[思源同步] 提取对象属性 "${key}" 失败，跳过此属性`);
+          }
+        }
+      } catch (err) {
+        console.warn(`[思源同步] 提取属性 "${key}" 时出错: ${err.message}`);
+      }
+    }
+    
+    console.log(`[思源同步] 从Yjs文档中提取了${Object.keys(result).length}个可同步属性`);
+    return result;
+  } catch (err) {
+    console.error(`[思源同步] 从Yjs文档提取数据失败:`, err);
+    return {}; // 返回空对象作为降级处理
   }
 }
 
@@ -812,8 +941,8 @@ function filterStateForSync(state) {
           if (objSize > 1024 * 50) { // 超过50KB
             if (Array.isArray(value)) {
               result[key] = {
-                __array_placeholder: true,
-                length: value.length,
+              __array_placeholder: true,
+              length: value.length,
                 sample: value.slice(0, 3)
               };
             } else {
