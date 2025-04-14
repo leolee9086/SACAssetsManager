@@ -492,36 +492,137 @@ function applyStateToStore(newState, roomName, store) {
 function applyStateToYjsDocument(newState, store) {
   try {
     // 确定实际的状态对象
-    const actualState = store.state || store;
+    let actualState = store.state || store;
     
-    // 获取已存在的键
-    const existingKeys = Object.keys(actualState);
+    // Yjs文档的状态映射可能藏在内部属性中
+    if (!actualState && store._prelimState) {
+      actualState = store._prelimState;
+    } else if (!actualState && store._state) {
+      actualState = store._state;
+    }
     
+    if (!actualState) {
+      console.warn('[思源同步] 无法确定Yjs文档的状态对象，跳过应用');
+      return;
+    }
+    
+    // 获取已存在的键，过滤掉内部属性
+    const existingKeys = Object.keys(actualState).filter(key => 
+      !key.startsWith('_') && !key.startsWith('$') && typeof actualState[key] !== 'function'
+    );
+    
+    console.log(`[思源同步] Yjs文档已有属性: ${existingKeys.join(', ')}`);
+    
+    let updatedCount = 0;
     // 只更新已存在的键，避免在根文档上添加新元素
     for (const key in newState) {
-      if (Object.prototype.hasOwnProperty.call(newState, key) && existingKeys.includes(key)) {
-        try {
-          const newValue = newState[key];
-          const currentValue = actualState[key];
-          
-          // 如果是简单类型或数组，直接替换
-          if (typeof newValue !== 'object' || Array.isArray(newValue) || 
-              newValue === null || currentValue === null) {
-            actualState[key] = newValue;
-          } 
-          // 对象类型，递归合并
-          else if (typeof currentValue === 'object' && !Array.isArray(currentValue)) {
-            mergeObjects(currentValue, newValue);
-          }
-        } catch (keyError) {
-          console.warn(`[思源同步] 应用Yjs属性 "${key}" 失败: ${keyError.message}`);
+      if (!Object.prototype.hasOwnProperty.call(newState, key)) continue;
+      
+      // 跳过内部属性和不存在于目标对象的属性
+      if (key.startsWith('_') || key.startsWith('$') || typeof newState[key] === 'function') {
+        continue;
+      }
+      
+      if (!existingKeys.includes(key)) {
+        console.log(`[思源同步] 跳过不存在的属性: ${key}`);
+        continue;
+      }
+      
+      try {
+        const newValue = newState[key];
+        const currentValue = actualState[key];
+        
+        // 只同步类型兼容的值，避免出现错误
+        if (typeof currentValue !== typeof newValue && 
+            !(Array.isArray(currentValue) && Array.isArray(newValue))) {
+          console.warn(`[思源同步] 属性 "${key}" 类型不匹配，跳过 (${typeof currentValue} vs ${typeof newValue})`);
+          continue;
         }
+        
+        // 根据类型分别处理
+        if (typeof newValue !== 'object' || newValue === null) {
+          // 简单类型直接替换
+          actualState[key] = newValue;
+          updatedCount++;
+        } else if (Array.isArray(newValue)) {
+          // 数组类型，安全替换
+          try {
+            if (Array.isArray(currentValue)) {
+              // 清空后追加，而不是直接替换，避免可能的引用问题
+              safeReplaceArray(currentValue, newValue);
+              updatedCount++;
+            } else {
+              console.warn(`[思源同步] 无法将数组值应用到非数组属性: ${key}`);
+            }
+          } catch (err) {
+            console.warn(`[思源同步] 替换数组属性 "${key}" 失败: ${err.message}`);
+          }
+        } else if (typeof currentValue === 'object' && !Array.isArray(currentValue) && currentValue !== null) {
+          // 对象类型，安全合并
+          try {
+            // 使用浅合并避免递归太深
+            Object.assign(currentValue, newValue);
+            updatedCount++;
+          } catch (err) {
+            console.warn(`[思源同步] 合并对象属性 "${key}" 失败: ${err.message}`);
+          }
+        }
+      } catch (keyError) {
+        console.warn(`[思源同步] 应用Yjs属性 "${key}" 失败: ${keyError.message}`);
       }
     }
     
-    console.log(`[思源同步] Yjs文档状态应用完成，已同步${existingKeys.length}个属性`);
+    console.log(`[思源同步] Yjs文档状态应用完成，成功更新${updatedCount}个属性`);
   } catch (err) {
     console.error(`[思源同步] 应用Yjs状态失败:`, err);
+  }
+}
+
+/**
+ * 安全地替换数组内容
+ * @param {Array} target - 目标数组
+ * @param {Array} source - 源数组
+ */
+function safeReplaceArray(target, source) {
+  if (!Array.isArray(target) || !Array.isArray(source)) {
+    throw new Error('目标和源必须都是数组');
+  }
+  
+  try {
+    // 方法1: 使用splice清空并添加
+    target.splice(0, target.length, ...source);
+    return;
+  } catch (err1) {
+    console.warn('[思源同步] 使用splice替换数组失败，尝试备用方法:', err1);
+    
+    try {
+      // 方法2: 清空后逐个添加
+      // 先清空数组
+      while (target.length > 0) {
+        target.pop();
+      }
+      
+      // 再添加新元素
+      for (let i = 0; i < source.length; i++) {
+        target.push(source[i]);
+      }
+      return;
+    } catch (err2) {
+      console.warn('[思源同步] 使用pop/push替换数组也失败，使用最终备用方法:', err2);
+      
+      // 方法3: 使用数组索引直接赋值
+      try {
+        // 先设置长度
+        target.length = source.length;
+        
+        // 再逐个赋值
+        for (let i = 0; i < source.length; i++) {
+          target[i] = source[i];
+        }
+      } catch (err3) {
+        throw new Error(`无法替换数组: ${err3.message}`);
+      }
+    }
   }
 }
 

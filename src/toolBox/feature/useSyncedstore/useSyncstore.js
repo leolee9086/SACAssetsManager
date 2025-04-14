@@ -485,6 +485,32 @@ function mergeWebRtcOptions(userOptions, bestServers) {
 }
 
 /**
+ * 检测一个对象是否是Yjs文档或包含Yjs文档
+ * @param {Object} obj - 要检测的对象
+ * @returns {boolean} 是否是Yjs文档
+ */
+function isYjsDocument(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  
+  // 检查直接属性
+  if (obj._yjs || obj.ydoc || obj.doc || obj._prelimState) return true;
+  
+  // 检查state属性
+  if (obj.state && typeof obj.state === 'object') {
+    if (obj.state._yjs || obj.state.ydoc || obj.state.doc || obj.state._prelimState) {
+      return true;
+    }
+  }
+  
+  // 检查特殊属性
+  if (obj.createRelativePositionFromTypeIndex || obj.transact) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * 连接到思源WebSocket
  * @param {string} roomName - 房间名称
  * @param {Object} config - 思源配置
@@ -497,6 +523,12 @@ async function connectToSiyuan(roomName, config, store) {
     
     // 更新思源配置
     siyuanManager.updateConfig(config);
+    
+    // 先检查是否为Yjs文档
+    const isYjs = isYjsDocument(store);
+    if (isYjs) {
+      console.log(`[思源同步] 检测到房间 ${roomName} 使用Yjs文档，将使用特殊处理`);
+    }
     
     // 先注册存储对象，确保在收到消息时可以正确处理
     siyuanManager.registerStore(roomName, store);
@@ -828,6 +860,12 @@ function mergeRemoteState(localState, remoteState, depth = 0) {
     return; // 确保两个参数都是对象
   }
   
+  // 检查是否为Yjs文档
+  if (isYjsDocument(localState)) {
+    console.log('[思源同步] 检测到Yjs文档，使用特殊合并策略');
+    return; // 交给专门的Yjs处理函数
+  }
+  
   // 防止循环引用的处理
   // 使用WeakMap记录已处理过的对象对
   const processedPairs = new WeakMap();
@@ -876,6 +914,27 @@ function mergeRemoteState(localState, remoteState, depth = 0) {
           continue;
         }
         
+        // 本地不存在此属性，检查是否可以添加
+        if (!(key in localState)) {
+          if (!Object.isExtensible(localState)) {
+            console.warn(`[思源同步] 无法添加新属性 "${key}": 对象不可扩展`);
+            continue;
+          }
+          
+          try {
+            if (Array.isArray(remoteValue)) {
+              localState[key] = [...remoteValue];
+            } else if (typeof remoteValue === 'object') {
+              localState[key] = {...remoteValue};
+            } else {
+              localState[key] = remoteValue;
+            }
+          } catch (err) {
+            console.warn(`[思源同步] 添加新属性 "${key}" 失败: ${err.message}`);
+          }
+          continue;
+        }
+        
         // 处理数组类型
         if (Array.isArray(remoteValue)) {
           // 数组需要安全处理，很多错误发生在这里
@@ -883,8 +942,18 @@ function mergeRemoteState(localState, remoteState, depth = 0) {
         }
         // 处理普通对象类型
         else if (typeof remoteValue === 'object' && remoteValue !== null) {
-          // 对象需要安全处理
-          handleObjectSync(localState, key, remoteValue, depth);
+          // 判断本地对应的值是否也是对象
+          if (typeof localState[key] === 'object' && !Array.isArray(localState[key])) {
+            // 对象需要安全处理
+            handleObjectSync(localState, key, remoteValue, depth);
+          } else {
+            // 类型不匹配，直接替换
+            try {
+              localState[key] = {...remoteValue};
+            } catch (err) {
+              console.warn(`[思源同步] 替换对象属性 "${key}" 失败: ${err.message}`);
+            }
+          }
         } 
         // 处理基础类型
         else {
@@ -1041,25 +1110,29 @@ function handleObjectSync(localState, key, remoteObj, depth) {
  * @param {Array} array - 要清空的数组
  */
 function safeEmptyArray(array) {
+  if (!Array.isArray(array)) {
+    console.warn(`[思源同步] 尝试清空非数组对象`);
+    return;
+  }
+  
   try {
-    // 首选方法：设置长度为0
-    array.length = 0;
+    // 避免使用 length = 0，改用 splice 方法
+    array.splice(0, array.length);
   } catch (err) {
-    console.warn(`[思源同步] 使用length=0清空数组失败，尝试备用方法:`, err);
+    console.warn(`[思源同步] 使用splice清空数组失败，尝试备用方法:`, err);
     try {
-      // 备用方法：使用splice
-      array.splice(0, array.length);
-    } catch (err2) {
-      console.warn(`[思源同步] 使用splice清空数组也失败，尝试逐个移除:`, err2);
-      // 最后尝试：逐个移除元素
+      // 备用方法：逐个移除元素
       while (array.length > 0) {
         try {
           array.pop();
         } catch (e) {
+          // 如果连pop都失败了，只能跳出循环了
           console.error(`[思源同步] 无法清空数组，放弃:`, e);
           break;
         }
       }
+    } catch (finalErr) {
+      console.error(`[思源同步] 所有清空数组的方法都失败:`, finalErr);
     }
   }
 }
