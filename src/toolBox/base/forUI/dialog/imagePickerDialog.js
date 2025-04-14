@@ -110,6 +110,12 @@ export function openImagePickerPromise(clientApi, title, images, tooltip) {
     });
 }
 
-// 英文别名
-export const createImageSelectionDialog = openImagePickerDialog;
-export const createImageSelectionPromise = openImagePickerPromise; 
+// 中文别名
+export const 打开图像选择对话框 = Object.assign(
+    openImagePickerDialog,
+    { promise: openImagePickerPromise }
+);
+export const 打开图像选择对话框Promise = openImagePickerPromise;
+
+// 额外添加输入对话框的promise支持
+export const 打开输入对话框 = { promise: openImagePickerPromise }; 

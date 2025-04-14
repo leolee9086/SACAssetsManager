@@ -8,8 +8,6 @@ import './slash.js'
 import './menus.js'
 import './tabs.js'
 
-console.warn('弃用警告: 直接从 source/UI/siyuanCommon/ 导入已弃用，请使用 src/toolBox 下的相应模块');
-
 /**
  * shell相关事件和shell项定义
  */

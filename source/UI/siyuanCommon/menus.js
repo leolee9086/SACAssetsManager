@@ -4,6 +4,7 @@ import { tabEvents } from './tabs/events.js'
 import { 打开附件面板 } from './tabs/assetsTab.js'
 import { 编辑器点击事件表 } from '../../events/editorEvents/click.js'
 import { registerMenus } from '../../../src/toolBox/base/forUI/menus/menuRegister.js'
+import { BlockHandler } from '../../../src/toolBox/useAge/forSiyuan/forBlock/useBlockHandler.js'
 
 const { eventBus, events, app } = plugin
 
@@ -91,6 +92,41 @@ const menus = {
     ],
 
     'click-blockicon': [
+        {
+            label: "作为提示词刷子",
+            click: async (ctx) => {
+                try {
+                    const blockElement = ctx.detail.blockElements[0];
+                    if (!blockElement) return;
+                    
+                    const blockId = blockElement.getAttribute('data-node-id');
+                    if (!blockId) return;
+                    
+                    // 获取块内容
+                    const blockHandler = new BlockHandler(blockId);
+                    const blockContent = await blockHandler.markdown;
+                    
+                    if (!blockContent) {
+                        plugin.showMessage('块内容为空，无法创建提示词刷子', 'warning');
+                        return;
+                    }
+                    
+                    // 创建临时提示词对象
+                    const blockPrompt = {
+                        name: `块 ${blockId.substring(0, 6)}... 的内容`,
+                        content: blockContent,
+                        source: 'block',
+                        id: blockId
+                    };
+                    
+                    // 全局消息通知组件激活提示词刷子
+                    plugin.eventBus.emit('activate-prompt-brush', blockPrompt);
+                } catch (error) {
+                    console.error('创建块提示词刷子出错:', error);
+                    plugin.showMessage('创建块提示词刷子出错: ' + error.message, 'error');
+                }
+            }
+        },
         {
             filter: (ctx) => {
                 const { blockElements } = ctx.detail

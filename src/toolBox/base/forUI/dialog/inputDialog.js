@@ -153,8 +153,8 @@ export function showConfirmDialogPromise(clientApi, title, message) {
     });
 }
 
-// 英文别名
-export const createInputDialog = showInputDialog;
-export const createInputDialogPromise = showInputDialogPromise;
-export const createConfirmDialog = showConfirmDialog;
-export const createConfirmDialogPromise = showConfirmDialogPromise; 
+// 中文别名
+export const 打开输入对话框 = showInputDialog;
+export const 打开输入对话框Promise = showInputDialogPromise;
+export const 打开确认对话框 = showConfirmDialog;
+export const 打开确认对话框Promise = showConfirmDialogPromise; 

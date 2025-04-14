@@ -605,62 +605,26 @@ export default {
       }
     };
 
-    // 注册块菜单
-    const registerBlockMenu = () => {
-      // 监听块图标点击事件
-      plugin.eventBus.on('click-blockicon', (e) => {
-        // 向块菜单添加"作为提示词刷子"选项
-        e.detail.menu.addItem({
-          label: '作为提示词刷子',
-          click: async () => {
-            try {
-              const blockElement = e.detail.blockElements[0];
-              if (!blockElement) return;
-              
-              const blockId = blockElement.getAttribute('data-node-id');
-              if (!blockId) return;
-              
-              // 获取块内容
-              const blockHandler = new BlockHandler(blockId);
-              const blockContent = await blockHandler.markdown;
-              
-              if (!blockContent) {
-                showMessage('块内容为空，无法创建提示词刷子', 'warning');
-                return;
-              }
-              
-              // 创建临时提示词对象
-              const blockPrompt = {
-                name: `块 ${blockId.substring(0, 6)}... 的内容`,
-                content: blockContent,
-                source: 'block',
-                id: blockId
-              };
-              
-              // 激活刷子模式
-              activateBrushMode(blockPrompt);
-            } catch (error) {
-              console.error('创建块提示词刷子出错:', error);
-              showMessage('创建块提示词刷子出错: ' + error.message, 'error');
-            }
-          }
-        });
-      });
-    };
-
-    // 组件挂载时添加键盘事件监听
+    // 在onMounted钩子中注册全局事件监听
     onMounted(() => {
       fetchPrompts();
       document.addEventListener('keydown', handleKeyDown);
-      registerBlockMenu();
+      
+      // 监听全局的提示词刷子激活事件
+      plugin.eventBus.on('activate-prompt-brush', (blockPrompt) => {
+        activateBrushMode(blockPrompt);
+      });
     });
 
-    // 组件卸载时清理事件监听和刷子模式
+    // 在onUnmounted钩子中移除事件监听
     onUnmounted(() => {
       if (isBrushMode.value && brushHandlers) {
-        brushHandlers.cleanup();
+        brushHandlers.removeBrushListeners();
       }
       document.removeEventListener('keydown', handleKeyDown);
+      
+      // 移除全局事件监听
+      plugin.eventBus.off('activate-prompt-brush');
     });
 
     return {
