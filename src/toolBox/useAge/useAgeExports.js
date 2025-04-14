@@ -34,6 +34,9 @@ export * from './forKramdown/index.js';
 // forNpm NPM相关工具
 export * from './forNpm/index.js';
 
+// forSync 响应式数据同步工具
+export * from './forSync/index.js';
+
 // forSiyuan 思源笔记特定工具
 
 // -- 思源笔记功能组件导出

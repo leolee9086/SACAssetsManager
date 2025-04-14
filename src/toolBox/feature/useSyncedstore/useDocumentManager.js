@@ -173,19 +173,65 @@ const documentManager = {
    * @returns {Object} WebRTC提供者
    */
   createNewConnection(roomName, ydoc, options) {
-    // 创建新连接
-    const provider = new WebrtcProvider(roomName, ydoc, {
-      ...options,
-      connect: false // 确保初始化时不自动连接
-    })
+    console.log(`[连接管理器] 为房间 ${roomName} 创建新连接, 选项:`, {...options, signaling: options.signaling ? '已设置' : '未设置'});
     
-    this.connections.set(roomName, {
-      provider,
-      refCount: 1,
-      status: 'initialized'
-    })
-
-    return provider
+    try {
+      // 确保启用awareness，这对跨窗口通信很重要
+      const finalOptions = {
+        ...options,
+        connect: false, // 确保初始化时不自动连接
+        awareness: options.awareness !== false,
+        maxConns: options.maxConns || 20
+      };
+      
+      // 创建新连接
+      const provider = new WebrtcProvider(roomName, ydoc, finalOptions);
+      
+      // 监听连接事件
+      provider.on('status', (event) => {
+        console.log(`[WebRTC] 房间 ${roomName} 连接状态改变:`, event.status);
+      });
+      
+      provider.on('peers', (event) => {
+        console.log(`[WebRTC] 房间 ${roomName} 对等节点变化, 当前节点数:`, event ? Object.keys(event).length : 0);
+      });
+      
+      // 添加自定义sync方法
+      provider.sync = () => {
+        try {
+          // 触发awareness更新
+          if (provider.awareness) {
+            provider.awareness.setLocalState({
+              ...provider.awareness.getLocalState() || {},
+              lastSync: Date.now()
+            });
+          }
+          
+          // 如果有原生sync方法则调用
+          if (typeof provider._sync === 'function') {
+            provider._sync();
+          }
+          
+          console.log(`[WebRTC] 房间 ${roomName} 手动触发同步`);
+          return true;
+        } catch (err) {
+          console.error(`[WebRTC] 房间 ${roomName} 手动触发同步失败:`, err);
+          return false;
+        }
+      };
+      
+      this.connections.set(roomName, {
+        provider,
+        refCount: 1,
+        status: 'initialized'
+      });
+      
+      console.log(`[连接管理器] 房间 ${roomName} 连接创建成功`);
+      return provider;
+    } catch (err) {
+      console.error(`[连接管理器] 为房间 ${roomName} 创建连接失败:`, err);
+      throw err;
+    }
   },
 
   /**

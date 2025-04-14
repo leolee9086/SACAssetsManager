@@ -141,6 +141,9 @@ export function createSyncManager(options) {
     // 设置文档变更监听
     setupDocumentChangeMonitoring()
     
+    // 立即执行一次同步，不等待定时器
+    setTimeout(executeSync, 100)
+    
     // 返回清理函数
     return stopSync
   }
@@ -173,18 +176,49 @@ export function createSyncManager(options) {
     let synced = false
     const provider = getProvider()
     
+    console.log(`[同步] 触发同步, 房间: ${roomName}, Provider状态:`, provider?.connected ? '已连接' : '未连接')
+    
     // WebRTC同步
     if (provider?.connected) {
-      const syncTimestamp = Date.now()
-      store.state[autoSync.heartbeatField] = syncTimestamp
-      lastSyncTime = syncTimestamp
-      recordDocumentChange()
-      synced = true
+      try {
+        const syncTimestamp = Date.now()
+        
+        // 更新心跳字段触发同步
+        store.state[autoSync.heartbeatField] = syncTimestamp
+        
+        // 调用provider的同步方法（如果存在）
+        if (typeof provider.sync === 'function') {
+          provider.sync()
+          console.log(`[同步] 调用provider.sync()成功, 房间: ${roomName}`)
+        }
+        
+        // 调用awareness同步（如果存在）
+        if (provider.awareness && typeof provider.awareness.update === 'function') {
+          provider.awareness.update({ lastSync: syncTimestamp })
+          console.log(`[同步] 更新awareness状态, 房间: ${roomName}`)
+        }
+        
+        lastSyncTime = syncTimestamp
+        recordDocumentChange()
+        synced = true
+        
+        console.log(`[同步] WebRTC同步完成, 房间: ${roomName}`)
+      } catch (err) {
+        console.error(`[同步] WebRTC同步出错:`, err)
+      }
+    } else {
+      console.warn(`[同步] WebRTC未连接或不可用, 房间: ${roomName}`)
     }
 
     // 思源同步
     if (siyuanSocket) {
-      synced = syncWithSiyuan() || synced
+      try {
+        const success = syncWithSiyuan()
+        synced = success || synced
+        console.log(`[同步] 思源同步${success ? '成功' : '失败'}, 房间: ${roomName}`)
+      } catch (err) {
+        console.error(`[同步] 思源同步出错:`, err)
+      }
     }
 
     return synced
@@ -196,15 +230,43 @@ export function createSyncManager(options) {
    */
   function syncWithSiyuan() {
     try {
-      siyuanSocket.send(JSON.stringify({
+      // 检查思源Socket是否可用
+      if (!siyuanSocket || siyuanSocket.readyState !== WebSocket.OPEN) {
+        console.warn(`[同步] 思源WebSocket未连接，尝试重新连接`);
+        return false;
+      }
+      
+      const syncTimestamp = Date.now();
+      
+      // 构建完整的同步消息
+      const syncMessage = {
         type: 'sync',
         room: roomName,
-        state: store.state
-      }))
-      return true
+        state: store.state,
+        timestamp: syncTimestamp,
+        clientId: siyuanSocket.clientId || 'unknown'
+      };
+      
+      // 如果同步消息太大，考虑分片发送
+      const message = JSON.stringify(syncMessage);
+      const messageSize = new Blob([message]).size;
+      
+      if (messageSize > 1024 * 1024) { // 大于1MB
+        console.warn(`[同步] 同步消息过大(${Math.round(messageSize/1024)}KB)，可能会导致传输问题`);
+      }
+      
+      // 发送同步消息
+      siyuanSocket.send(message);
+      
+      // 更新最后同步时间
+      lastSyncTime = syncTimestamp;
+      recordDocumentChange();
+      
+      console.log(`[同步] 通过思源WebSocket发送同步数据, 大小: ${Math.round(messageSize/1024)}KB`);
+      return true;
     } catch (error) {
-      console.warn('[思源同步] 发送同步消息失败:', error)
-      return false
+      console.error(`[同步] 通过思源WebSocket同步失败:`, error);
+      return false;
     }
   }
 

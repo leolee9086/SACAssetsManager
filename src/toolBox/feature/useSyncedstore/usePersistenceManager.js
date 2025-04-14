@@ -11,7 +11,7 @@
 import { IndexeddbPersistence } from '../../../../static/y-indexeddb.js'
 
 // 常量配置
-const DEFAULT_LOAD_TIMEOUT = 2000
+const DEFAULT_LOAD_TIMEOUT = 5000
 const DB_NAME_PREFIX = 'y-'
 
 /**
@@ -76,7 +76,18 @@ export async function createPersistenceManager(options) {
       
       // 设置超时，避免永久等待
       const timeoutId = setTimeout(() => {
-        console.warn(`[本地优先] 等待本地数据超时，继续初始化`);
+        console.warn(`[本地优先] 等待本地数据超时(${timeout}ms)，继续初始化`);
+        
+        // 尝试检查数据状态
+        if (persistence && persistence.synced) {
+          // 如果此时数据已同步，但我们错过了事件
+          handleSyncSuccess();
+        } else {
+          // 如果确实未能同步，确保我们仍然可以使用初始化数据
+          initializeStateFromDefaults();
+          status.value = '本地加载超时，使用初始数据';
+        }
+        
         resolve();
       }, timeout);
       
@@ -84,6 +95,14 @@ export async function createPersistenceManager(options) {
       persistence.once('synced', () => {
         clearTimeout(timeoutId);
         handleSyncSuccess();
+        resolve();
+      });
+      
+      // 添加错误处理
+      persistence.on('error', (err) => {
+        console.error(`[本地优先] 加载本地数据时出错:`, err);
+        clearTimeout(timeoutId);
+        handleLoadFailure();
         resolve();
       });
     });

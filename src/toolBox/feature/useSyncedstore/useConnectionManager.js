@@ -54,8 +54,38 @@ export function createConnectionManager(options) {
    * @param {Object} provider - WebRTC提供者实例
    */
   function setupProviderEvents(provider) {
-    provider.on('status', event => handleStatusChange(event, provider));
+    console.log(`[连接管理器] 为房间 ${roomName} 设置事件监听`);
+    
+    // 添加状态变更监听
+    provider.on('status', event => {
+      handleStatusChange(event, provider);
+    });
+    
+    // 添加对等点监听
+    provider.on('peers', peers => {
+      const peersCount = peers ? (Array.isArray(peers) ? peers.length : Object.keys(peers).length) : 0;
+      console.log(`[连接管理器] 房间 ${roomName} 当前对等节点: ${peersCount} 个`);
+      
+      // 更新状态
+      if (peersCount > 0 && !isConnected.value) {
+        console.log(`[连接管理器] 房间 ${roomName} 通过对等点检测到连接`);
+        isConnected.value = true;
+        status.value = '已连接';
+      }
+    });
+    
+    // 添加同步事件监听
+    provider.on('sync', isSynced => {
+      console.log(`[连接管理器] 房间 ${roomName} 同步状态: ${isSynced ? '已同步' : '同步中'}`);
+      if (isSynced) {
+        status.value = '已同步';
+      }
+    });
+    
+    // 设置定期状态检查
     setupConnectionStatusCheck(provider);
+    
+    // 设置错误处理
     setupErrorHandlers(provider);
   }
 
@@ -115,24 +145,44 @@ export function createConnectionManager(options) {
     provider.on('connection-error', (error, peer) => {
       console.warn(`房间 ${roomName} 与对等方 ${peer} 连接失败:`, error)
     })
-
-    provider.on('peers', peers => {
-      console.log(`房间 ${roomName} 当前对等节点: ${peers.length} 个`)
-    })
   }
 
   /**
    * 连接到WebRTC网络
    */
   function connect() {
-    if (provider && !provider.connected) {
-      try {
-        provider.connect()
-        console.log(`房间 ${roomName} 开始连接`)
-      } catch (e) {
-        console.error(`房间 ${roomName} 连接失败:`, e)
-        attemptReconnect()
-      }
+    if (!provider) {
+      console.error(`[连接管理器] 房间 ${roomName} provider未初始化，无法连接`);
+      return false;
+    }
+    
+    if (provider.connected) {
+      console.log(`[连接管理器] 房间 ${roomName} 已经连接，无需再次连接`);
+      return true;
+    }
+    
+    try {
+      console.log(`[连接管理器] 房间 ${roomName} 开始连接...`);
+      provider.connect();
+      
+      // 立即检查连接状态
+      setTimeout(() => {
+        const connected = !!provider.connected;
+        console.log(`[连接管理器] 房间 ${roomName} 连接状态检查: ${connected ? '已连接' : '未连接'}`);
+        
+        isConnected.value = connected;
+        status.value = connected ? '已连接' : '连接中';
+        
+        if (!connected) {
+          console.log(`[连接管理器] 房间 ${roomName} 连接延迟，等待状态变更事件...`);
+        }
+      }, 500);
+      
+      return true;
+    } catch (e) {
+      console.error(`[连接管理器] 房间 ${roomName} 连接失败:`, e);
+      attemptReconnect();
+      return false;
     }
   }
 
