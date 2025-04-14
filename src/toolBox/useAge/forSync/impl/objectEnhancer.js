@@ -14,10 +14,13 @@ import { watch } from '../../../../../static/vue.esm-browser.js';
  * @param {Object} config.initialState - 初始状态
  * @param {string} config.type - 数据类型（states 或 refs）
  * @param {Object} config.options - 选项
+ * @param {Object} [config.cache] - 缓存信息
+ * @param {string} [config.cache.key] - 缓存键
+ * @param {Map} [config.cache.store] - 缓存存储
  * @returns {Object} 增强后的响应式对象
  */
 export function enhanceReactiveObject(localState, config) {
-  const { status, engine, key, initialState, type, options } = config;
+  const { status, engine, key, initialState, type, options, cache } = config;
   
   // 初始状态的深拷贝 - 用于重置
   const initialStateCopy = JSON.parse(JSON.stringify(initialState));
@@ -195,6 +198,12 @@ export function enhanceReactiveObject(localState, config) {
             clearTimeout(syncDebounceTimer);
             syncDebounceTimer = null;
           }
+          
+          // 如果存在缓存信息，清除缓存
+          if (cache && cache.store && cache.key) {
+            cache.store.delete(cache.key);
+          }
+          
           return engine.cleanupReactive(key);
         }
         return false;

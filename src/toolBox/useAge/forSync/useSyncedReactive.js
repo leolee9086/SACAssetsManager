@@ -18,6 +18,18 @@ import { enhanceReactiveObject } from './impl/objectEnhancer.js';
 // 全局缓存 - 用于复用同步引擎实例
 const engineCache = new Map();
 
+// 全局缓存 - 用于同一窗口内复用响应式对象
+const reactiveObjectCache = new Map();
+const refObjectCache = new Map();
+
+/**
+ * 获取缓存键
+ * @param {string} roomName - 房间名称
+ * @param {string} key - 数据键
+ * @returns {string} 缓存键
+ */
+const getCacheKey = (roomName, key) => `${roomName}:${key}`;
+
 /**
  * 创建可同步的响应式引用 - 类似ref但支持跨窗口同步
  * @param {any} initialValue - 初始值
@@ -25,17 +37,6 @@ const engineCache = new Map();
  * @returns {Object} 响应式引用对象
  */
 export function useSyncedRef(initialValue, options = {}) {
-  // 创建本地响应式引用
-  const localRef = ref(initialValue);
-  
-  // 创建状态对象
-  const status = reactive({
-    connected: false,
-    peers: 0,
-    lastSync: null,
-    loading: true
-  });
-  
   // 规范化配置选项
   const config = {
     type: 'ref',
@@ -58,6 +59,23 @@ export function useSyncedRef(initialValue, options = {}) {
     disableWebRTC: options.disableWebRTC !== false,
     loadTimeout: options.loadTimeout || 5000
   };
+  
+  // 检查缓存是否存在相同的引用对象
+  const cacheKey = getCacheKey(config.roomName, config.key);
+  if (refObjectCache.has(cacheKey)) {
+    return refObjectCache.get(cacheKey);
+  }
+  
+  // 创建本地响应式引用
+  const localRef = ref(initialValue);
+  
+  // 创建状态对象
+  const status = reactive({
+    connected: false,
+    peers: 0,
+    lastSync: null,
+    loading: true
+  });
   
   // 获取或创建同步引擎
   let engine = engineCache.get(config.roomName);
@@ -120,8 +138,19 @@ export function useSyncedRef(initialValue, options = {}) {
     $connect: () => engine ? engine.connect() : false,
     $disconnect: () => engine ? engine.disconnect() : false,
     get $peers() { return engine ? engine.getPeers() : new Set(); },
-    $destroy: () => engine ? engine.cleanupRef(config.key) : false
+    $destroy: () => {
+      if (engine) {
+        const success = engine.cleanupRef(config.key);
+        // 从缓存中移除
+        refObjectCache.delete(cacheKey);
+        return success;
+      }
+      return false;
+    }
   };
+  
+  // 将结果存入缓存
+  refObjectCache.set(cacheKey, result);
   
   return result;
 }
@@ -133,20 +162,6 @@ export function useSyncedRef(initialValue, options = {}) {
  * @returns {Object} 响应式对象
  */
 export function useSyncedReactive(initialState = {}, options = {}) {
-  // 确保初始状态是可克隆的对象
-  const initialStateCopy = JSON.parse(JSON.stringify(initialState));
-  
-  // 创建本地响应式对象
-  const localState = reactive({...initialStateCopy});
-  
-  // 创建状态对象
-  const status = reactive({
-    connected: false,
-    peers: 0,
-    lastSync: null,
-    loading: true
-  });
-  
   // 规范化配置选项
   const config = {
     type: 'reactive',
@@ -170,6 +185,26 @@ export function useSyncedReactive(initialState = {}, options = {}) {
     // 超时配置
     loadTimeout: options.loadTimeout || 5000
   };
+  
+  // 检查缓存是否存在相同的响应式对象
+  const cacheKey = getCacheKey(config.roomName, config.key);
+  if (reactiveObjectCache.has(cacheKey)) {
+    return reactiveObjectCache.get(cacheKey);
+  }
+  
+  // 确保初始状态是可克隆的对象
+  const initialStateCopy = JSON.parse(JSON.stringify(initialState));
+  
+  // 创建本地响应式对象
+  const localState = reactive({...initialStateCopy});
+  
+  // 创建状态对象
+  const status = reactive({
+    connected: false,
+    peers: 0,
+    lastSync: null,
+    loading: true
+  });
   
   // 获取或创建同步引擎
   let engine = engineCache.get(config.roomName);
@@ -219,15 +254,29 @@ export function useSyncedReactive(initialState = {}, options = {}) {
     }
   });
   
-  // 增强响应式对象
-  return enhanceReactiveObject(localState, {
+  // 扩展配置，添加缓存相关信息
+  const enhancedConfig = {
+    ...config,
     status,
     engine,
     key: config.key,
     initialState: initialStateCopy,
     type: 'states',
-    options: config
-  });
+    options: config,
+    // 添加缓存相关信息
+    cache: {
+      key: cacheKey,
+      store: reactiveObjectCache
+    }
+  };
+  
+  // 增强响应式对象
+  const enhancedObject = enhanceReactiveObject(localState, enhancedConfig);
+  
+  // 将结果存入缓存
+  reactiveObjectCache.set(cacheKey, enhancedObject);
+  
+  return enhancedObject;
 }
 
 /**
@@ -252,6 +301,19 @@ export function useSync(state, options = {}) {
 }
 
 /**
+ * 获取特定房间和键的缓存对象
+ * @param {string} roomName - 房间名称
+ * @param {string} key - 数据键
+ * @param {string} type - 类型 'reactive' 或 'ref'
+ * @returns {Object|null} 缓存的对象或null
+ */
+export function getCachedSyncObject(roomName, key, type = 'reactive') {
+  const cacheKey = getCacheKey(roomName, key);
+  const cache = type === 'ref' ? refObjectCache : reactiveObjectCache;
+  return cache.get(cacheKey) || null;
+}
+
+/**
  * 清除特定房间的资源
  * @param {string} roomName - 房间名称
  * @returns {boolean} 是否成功清除
@@ -259,6 +321,19 @@ export function useSync(state, options = {}) {
 export function clearRoom(roomName) {
   const engine = engineCache.get(roomName);
   if (engine) {
+    // 清除相关的响应式对象缓存
+    for (const [cacheKey, _] of reactiveObjectCache.entries()) {
+      if (cacheKey.startsWith(`${roomName}:`)) {
+        reactiveObjectCache.delete(cacheKey);
+      }
+    }
+    
+    for (const [cacheKey, _] of refObjectCache.entries()) {
+      if (cacheKey.startsWith(`${roomName}:`)) {
+        refObjectCache.delete(cacheKey);
+      }
+    }
+    
     engine.destroy();
     engineCache.delete(roomName);
     return true;
@@ -274,4 +349,6 @@ export function clearAllRooms() {
     engine.destroy();
   }
   engineCache.clear();
+  reactiveObjectCache.clear();
+  refObjectCache.clear();
 } 
