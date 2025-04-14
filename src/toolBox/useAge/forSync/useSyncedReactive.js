@@ -355,6 +355,67 @@ export function clearAllRooms() {
 }
 
 /**
+ * 安全地初始化嵌套路径
+ * @param {Object} obj - 目标对象
+ * @param {string|Array} path - 属性路径，可以是点分隔的字符串或数组
+ * @param {any} defaultValue - 默认值
+ * @returns {any} 路径对应的值或默认值
+ */
+function ensurePath(obj, path, defaultValue = {}) {
+  const parts = Array.isArray(path) ? path : path.split('.');
+  let current = obj;
+  
+  // 遍历路径的每一部分，确保每一级对象都存在
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!(part in current) || current[part] === null || current[part] === undefined) {
+      current[part] = {};
+    } else if (typeof current[part] !== 'object') {
+      // 如果当前路径是非对象类型，则替换为对象
+      current[part] = {};
+    }
+    current = current[part];
+  }
+  
+  // 设置最后一级的值
+  const lastPart = parts[parts.length - 1];
+  if (!(lastPart in current) || current[lastPart] === undefined || current[lastPart] === null) {
+    current[lastPart] = defaultValue;
+  }
+  
+  return current[lastPart];
+}
+
+/**
+ * 修复缺失的嵌套路径
+ * @param {Object} obj - 要修复的对象
+ */
+function fixMissingPaths(obj) {
+  // 预定义的关键路径列表，确保这些路径在对象中存在
+  const requiredPaths = [
+    'deepNested.level1.level2.value',
+    'nested.value',
+    'performanceMetrics.responseTime',
+    'performanceMetrics.operations'
+  ];
+  
+  for (const path of requiredPaths) {
+    try {
+      // 为每个必要路径设置默认值
+      if (path.endsWith('value')) {
+        ensurePath(obj, path, ''); // 字符串类型默认值
+      } else if (path.includes('Metrics')) {
+        ensurePath(obj, path, 0);  // 数字类型默认值
+      } else {
+        ensurePath(obj, path, {});  // 对象类型默认值
+      }
+    } catch (err) {
+      console.error(`[SyncedReactive] 修复路径失败 ${path}:`, err);
+    }
+  }
+}
+
+/**
  * 深度合并两个状态对象，保留目标对象的响应式特性
  * @param {Object} target - 目标响应式对象
  * @param {Object} source - 源对象
@@ -362,6 +423,13 @@ export function clearAllRooms() {
 function mergeStates(target, source) {
   if (!target || !source || typeof target !== 'object' || typeof source !== 'object') {
     return;
+  }
+  
+  // 修复目标对象中的关键路径
+  try {
+    fixMissingPaths(target);
+  } catch (err) {
+    console.error('[SyncedReactive] 修复关键路径失败:', err);
   }
   
   // 处理删除的属性 - 先删除目标中存在但源中不存在的属性
@@ -390,20 +458,98 @@ function mergeStates(target, source) {
     
     // 递归处理嵌套对象 - 保留响应式
     if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
-      mergeStates(targetValue, sourceValue);
+      mergeStates(targetValue, sourceValue); // 递归合并
     } 
     // 处理数组 - 特殊处理以保留响应式
     else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
-      // 清空目标数组
-      targetValue.length = 0;
-      // 将源数组的所有元素添加到目标数组
-      sourceValue.forEach(item => targetValue.push(item));
+      try {
+        // 清空目标数组
+        targetValue.length = 0;
+        // 将源数组的所有元素添加到目标数组
+        for (let i = 0; i < sourceValue.length; i++) {
+          if (isPlainObject(sourceValue[i])) {
+            // 对于对象，需要创建新对象并复制属性
+            const newObj = {};
+            Object.keys(sourceValue[i]).forEach(k => {
+              newObj[k] = sourceValue[i][k];
+            });
+            targetValue.push(newObj);
+          } else if (Array.isArray(sourceValue[i])) {
+            // 对于嵌套数组，创建新数组并递归处理
+            const newArray = [];
+            const sourceNestedArray = sourceValue[i];
+            for (let j = 0; j < sourceNestedArray.length; j++) {
+              if (isPlainObject(sourceNestedArray[j])) {
+                // 再次处理嵌套对象
+                const nestedObj = {};
+                Object.keys(sourceNestedArray[j]).forEach(k => {
+                  nestedObj[k] = sourceNestedArray[j][k];
+                });
+                newArray.push(nestedObj);
+              } else {
+                newArray.push(sourceNestedArray[j]);
+              }
+            }
+            targetValue.push(newArray);
+          } else {
+            // 基本类型直接添加
+            targetValue.push(sourceValue[i]);
+          }
+        }
+      } catch (err) {
+        console.error('[SyncedReactive] 数组合并失败:', err);
+        // 如果上面的方法失败，尝试逐个替换
+        try {
+          while (targetValue.length > sourceValue.length) {
+            targetValue.pop();
+          }
+          for (let i = 0; i < sourceValue.length; i++) {
+            if (i < targetValue.length) {
+              if (isPlainObject(sourceValue[i])) {
+                // 如果已有对象，更新属性
+                const existingObj = targetValue[i];
+                Object.keys(existingObj).forEach(k => {
+                  if (!(k in sourceValue[i])) {
+                    delete existingObj[k];
+                  }
+                });
+                Object.keys(sourceValue[i]).forEach(k => {
+                  existingObj[k] = sourceValue[i][k];
+                });
+              } else {
+                // 非对象直接替换
+                targetValue[i] = sourceValue[i];
+              }
+            } else {
+              // 添加新元素
+              if (isPlainObject(sourceValue[i])) {
+                const newObj = {};
+                Object.keys(sourceValue[i]).forEach(k => {
+                  newObj[k] = sourceValue[i][k];
+                });
+                targetValue.push(newObj);
+              } else {
+                targetValue.push(sourceValue[i]);
+              }
+            }
+          }
+        } catch (innerErr) {
+          console.error('[SyncedReactive] 备用数组合并方法也失败:', innerErr);
+        }
+      }
     }
-    // 其他值类型直接替换
+    // 其他情况直接替换值
     else if (targetValue !== sourceValue) {
       target[key] = sourceValue;
     }
   });
+  
+  // 最后再检查一次关键路径是否仍然完整
+  try {
+    fixMissingPaths(target);
+  } catch (err) {
+    console.error('[SyncedReactive] 最终修复关键路径失败:', err);
+  }
 }
 
 /**

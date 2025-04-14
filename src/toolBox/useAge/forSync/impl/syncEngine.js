@@ -148,28 +148,53 @@ export function createSyncEngine(config) {
     
     /**
      * 设置状态
-     * @param {string} type - 状态类型 ('refs' 或 'states')
-     * @param {string} key - 状态键
-     * @param {any} value - 状态值
+     * @param {string} type - 类型
+     * @param {string} key - 键
+     * @param {any} value - 值
+     * @returns {boolean} 是否成功
      */
     setState: function(type, key, value) {
-      if (!store || !store.store || !store.store.state) return;
+      if (!store || !store.store || !store.store.state) return false;
       
-      // 确保类型存在
-      if (!store.store.state[type]) {
-        store.store.state[type] = {};
-      }
-      
-      // 设置值
-      const serializedValue = typeof value === 'object' && value !== null
-        ? JSON.parse(JSON.stringify(value)) // 确保深拷贝
-        : value;
+      try {
+        // 确保类型存在
+        if (!store.store.state[type]) {
+          store.store.state[type] = {};
+        }
         
-      store.store.state[type][key] = serializedValue;
-      
-      // 如果有主动同步函数，则调用
-      if (store.sync) {
-        setTimeout(() => store.sync(), 0);
+        // 特别处理数组中的对象，确保所有对象都被正确地深拷贝
+        let safeValue;
+        if (Array.isArray(value)) {
+          safeValue = [];
+          for (let i = 0; i < value.length; i++) {
+            const item = value[i];
+            if (item !== null && typeof item === 'object') {
+              // 对对象和数组进行深拷贝
+              safeValue.push(JSON.parse(JSON.stringify(item)));
+            } else {
+              safeValue.push(item);
+            }
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          // 其他对象也进行深拷贝
+          safeValue = JSON.parse(JSON.stringify(value));
+        } else {
+          // 原始类型直接使用
+          safeValue = value;
+        }
+        
+        // 设置值
+        store.store.state[type][key] = safeValue;
+        
+        // 如果有主动同步函数，则调用
+        if (store.sync) {
+          setTimeout(() => store.sync(), 0);
+        }
+        
+        return true;
+      } catch (err) {
+        console.error(`[SyncEngine] 设置状态失败:`, err);
+        return false;
       }
     },
     

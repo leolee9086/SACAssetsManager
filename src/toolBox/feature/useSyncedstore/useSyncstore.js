@@ -249,21 +249,150 @@ export async function createSyncStore(options = {}) {
     return persistenceManager ? await persistenceManager.clearLocalData() : false
   }
 
+  // 使用独立的 Map 存储事件处理器，避免在 store 对象上添加属性
+  const eventHandlers = new Map();
+  
   // 创建结果对象
-  const result = createResultObject(
+  const result = {
+    // 存储和文档
     store,
     ydoc,
+    
+    // 状态
     status,
     isConnected,
     isLocalDataLoaded,
-    connectionManager,
+    
+    // 连接方法
+    connect: connectionManager.connect,
     disconnect,
-    syncManager,
-    persistenceManager,
+    reconnect: connectionManager.reconnect,
+    
+    // 同步方法
+    sync: () => syncManager.triggerSync(),
+    
+    // 持久化方法
     clearLocalData,
+    
+    // 诊断
     getDiagnostics,
-    siyuanSocket
-  )
+    
+    // 获取提供者和连接节点
+    getProvider: connectionManager.getProvider,
+    getPeers: () => {
+      const provider = connectionManager.getProvider();
+      
+      // 思源WebSocket连接
+      if (siyuanSocket) {
+        return new Set(['siyuan-ws']);
+      }
+      
+      // WebRTC连接
+      if (provider && provider.connected) {
+        // 如果provider提供了getPeers方法
+        if (provider.getPeers) {
+          return provider.getPeers();
+        }
+        
+        // 旧版本兼容 - Y-WebRTC提供者
+        if (provider.signalingConns) {
+          return new Set(Object.keys(provider.signalingConns));
+        }
+      }
+      
+      return new Set();
+    },
+    
+    // 部分状态更新 - 只更新状态树的指定属性，避免发送整个状态
+    setPartialState: function(type, key, propName, propValue) {
+      if (!store || !store.store || !store.store.state) return false;
+      
+      try {
+        // 确保类型存在
+        if (!store.store.state[type]) {
+          store.store.state[type] = {};
+        }
+        
+        // 确保key存在
+        if (!store.store.state[type][key]) {
+          store.store.state[type][key] = {};
+        }
+        
+        // 安全克隆属性值
+        let safeValue;
+        if (propValue !== null && typeof propValue === 'object') {
+          try {
+            safeValue = JSON.parse(JSON.stringify(propValue));
+          } catch (err) {
+            console.error(`[SyncStore] 属性序列化失败:`, err);
+            safeValue = propValue; // 降级使用原始值
+          }
+        } else {
+          safeValue = propValue;
+        }
+        
+        // 只更新指定属性 
+        store.store.state[type][key][propName] = safeValue;
+        
+        // 如果有主动同步函数，则调用
+        if (store.sync) {
+          setTimeout(() => store.sync(), 0);
+        }
+        
+        // 发送同步消息大小统计
+        const dataSize = JSON.stringify(safeValue).length;
+        if (dataSize > 1024 * 50) { // 超过50KB
+          console.log(`[SyncStore] 同步数据大小: ${Math.round(dataSize/1024)}KB (${propName})`);
+        }
+        
+        return true;
+      } catch (err) {
+        console.error(`[SyncStore] 部分状态更新失败:`, err);
+        return false;
+      }
+    },
+    
+    // 事件处理器对象
+    _eventHandlers: eventHandlers,
+    
+    // 事件处理 - 使用独立的 Map
+    on(eventName, callback) {
+      if (!eventHandlers.has(eventName)) {
+        eventHandlers.set(eventName, []);
+      }
+      
+      eventHandlers.get(eventName).push(callback);
+      return this;
+    },
+    
+    off(eventName, callback) {
+      if (!eventHandlers.has(eventName)) return this;
+      
+      if (callback) {
+        const handlers = eventHandlers.get(eventName);
+        eventHandlers.set(eventName, handlers.filter(cb => cb !== callback));
+      } else {
+        eventHandlers.set(eventName, []);
+      }
+      
+      return this;
+    },
+    
+    emit(eventName, ...args) {
+      if (!eventHandlers.has(eventName)) return this;
+      
+      const handlers = eventHandlers.get(eventName);
+      for (const callback of handlers) {
+        try {
+          callback(...args);
+        } catch (error) {
+          console.error(`[SyncStore] 事件处理错误: ${eventName}`, error);
+        }
+      }
+      
+      return this;
+    }
+  };
   
   // 将连接存储在缓存中
   documentManager.connections.set(roomName, result)
@@ -386,13 +515,19 @@ async function connectToSiyuan(roomName, config, store) {
           // 合并远程数据到本地状态
           mergeRemoteState(store.state, message.state);
           
-          // 触发自定义同步事件
-          if (store._eventHandlers?.sync) {
-            for (const handler of store._eventHandlers.sync) {
-              try {
-                handler(message.state);
-              } catch (error) {
-                console.error(`[思源同步] 同步事件处理器执行出错:`, error);
+          // 查找在文档管理器中注册的同步结果对象
+          const syncResult = documentManager.connections.get(roomName);
+          if (syncResult && syncResult._eventHandlers) {
+            // 使用同步结果对象上的事件处理器，而不是store
+            const eventHandlers = syncResult._eventHandlers;
+            if (eventHandlers.has('sync')) {
+              const syncHandlers = eventHandlers.get('sync');
+              for (const handler of syncHandlers) {
+                try {
+                  handler(message.state);
+                } catch (error) {
+                  console.error(`[思源同步] 同步事件处理器执行出错:`, error);
+                }
               }
             }
           }
@@ -437,26 +572,233 @@ async function connectToSiyuan(roomName, config, store) {
 }
 
 /**
- * 向思源WebSocket发送数据
- * @param {WebSocket} socket - WebSocket实例
- * @param {string} roomName - 房间名称
- * @param {Object} store - 数据存储
+ * 发送数据到思源笔记
+ * @param {Object} state - 要发送的状态对象
+ * @param {Object} connection - WebSocket连接对象
+ * @param {boolean} [forceSplit=false] - 是否强制使用分块发送
+ * @returns {boolean} 是否成功发送
  */
-function sendDataToSiyuan(socket, roomName, store) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+function sendDataToSiyuan(state, connection, forceSplit = false) {
+  // 检查连接状态
+  if (!connection || !connection.socket || connection.socket.readyState !== WebSocket.OPEN) {
+    console.warn('[思源同步] 无法发送数据：WebSocket未连接');
+    return false;
+  }
+
+  try {
+    // 过滤和准备数据
+    const filteredState = filterStateForSync(state);
+    
+    // 计算数据大小
+    const jsonData = JSON.stringify(filteredState);
+    const dataSize = new Blob([jsonData]).size;
+    const dataSizeKB = Math.round(dataSize / 1024);
+    
+    console.log(`[思源同步] 准备发送数据，大小: ${dataSizeKB}KB`);
+    
+    // 如果数据大于500KB或强制分块，则使用分块发送
+    if (forceSplit || dataSize > 500 * 1024) {
+      console.log(`[思源同步] 数据大小(${dataSizeKB}KB)超过阈值，使用分块发送`);
+      return sendSplitData(filteredState, connection);
+    }
+    
+    // 否则使用普通发送
+    console.log(`[思源同步] 使用普通方式发送数据(${dataSizeKB}KB)`);
+    connection.socket.send(JSON.stringify({
+      type: 'sync',
+      room: connection.room,
+      state: filteredState,
+      timestamp: Date.now()
+    }));
+    
+    return true;
+  } catch (err) {
+    console.error('[思源同步] 发送数据失败:', err);
+    return false;
+  }
+}
+
+/**
+ * 将状态对象过滤和准备用于同步
+ * @param {Object} state - 原始状态对象
+ * @param {Object} [options] - 过滤选项
+ * @param {number} [options.maxDepth=20] - 最大递归深度
+ * @returns {Object} 过滤后的状态对象
+ */
+function filterStateForSync(state, options = {}) {
+  const { maxDepth = 20 } = options;
+  
+  // 用于记录已处理对象，避免循环引用
+  const processedObjects = new WeakMap();
+  
+  // 过滤函数
+  function filter(obj, depth = 0) {
+    // 处理基本类型
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    
+    // 检查深度限制
+    if (depth > maxDepth) {
+      console.warn('[思源同步] 达到最大递归深度，截断对象');
+      return '[过深对象已截断]';
+    }
+    
+    // 处理数组
+    if (Array.isArray(obj)) {
+      // 检查数组长度
+      if (obj.length > 10000) {
+        console.warn('[思源同步] 数组过长，截断到10000项');
+        const truncated = obj.slice(0, 10000);
+        truncated.push('[数组已截断]');
+        return truncated.map(item => filter(item, depth + 1));
+      }
+      return obj.map(item => filter(item, depth + 1));
+    }
+    
+    // 处理循环引用
+    if (processedObjects.has(obj)) {
+      return '[循环引用已移除]';
+    }
+    
+    // 记录当前对象
+    processedObjects.set(obj, true);
+    
+    // 过滤对象属性
+    const result = {};
+    for (const key in obj) {
+      // 跳过私有属性和函数
+      if (key.startsWith('_') || key.startsWith('$') || typeof obj[key] === 'function') {
+        continue;
+      }
+      
+      // 处理长字符串
+      if (typeof obj[key] === 'string' && obj[key].length > 10000) {
+        result[key] = obj[key].substring(0, 10000) + '...[字符串已截断]';
+        continue;
+      }
+      
+      // 递归处理对象属性
+      result[key] = filter(obj[key], depth + 1);
+    }
+    
+    return result;
+  }
+  
+  // 开始过滤
+  return filter(state);
+}
+
+/**
+ * 使用分块方式发送大型数据
+ * @param {Object} data - 要发送的数据对象
+ * @param {Object} connection - WebSocket连接对象
+ * @returns {boolean} 是否成功发送
+ */
+function sendSplitData(data, connection) {
+  if (!connection || !connection.socket || connection.socket.readyState !== WebSocket.OPEN) {
+    console.warn('[思源同步] 无法使用分块发送：WebSocket未连接');
+    return false;
+  }
   
   try {
-    const data = {
-      type: 'sync',
-      room: roomName,
-      state: store.state,
-      timestamp: Date.now()
-    };
+    const keys = Object.keys(data);
+    if (keys.length === 0) {
+      console.warn('[思源同步] 没有数据可发送');
+      return false;
+    }
     
-    socket.send(JSON.stringify(data));
-    console.log(`[思源同步] 房间 ${roomName} 向思源发送同步数据成功`);
-  } catch (error) {
-    console.error(`[思源同步] 发送数据到思源WebSocket出错:`, error);
+    // 发送开始消息
+    connection.socket.send(JSON.stringify({
+      type: 'sync_start',
+      room: connection.room,
+      timestamp: Date.now()
+    }));
+    
+    // 发送索引（键列表）
+    connection.socket.send(JSON.stringify({
+      type: 'sync_index',
+      room: connection.room,
+      keys: keys,
+      timestamp: Date.now()
+    }));
+    
+    // 记录开始时间
+    const startTime = Date.now();
+    
+    // 发送每个键值对作为单独的块
+    let sentCount = 0;
+    let errorCount = 0;
+    
+    for (const key of keys) {
+      try {
+        connection.socket.send(JSON.stringify({
+          type: 'sync_chunk',
+          room: connection.room,
+          key: key,
+          value: data[key],
+          index: sentCount,
+          total: keys.length,
+          timestamp: Date.now()
+        }));
+        
+        sentCount++;
+        
+        // 每5个块记录一次进度
+        if (sentCount % 5 === 0 || sentCount === keys.length) {
+          const progress = Math.round((sentCount / keys.length) * 100);
+          console.log(`[思源同步] 分块发送进度: ${progress}%（${sentCount}/${keys.length}）`);
+        }
+      } catch (chunkErr) {
+        console.error(`[思源同步] 发送数据块 "${key}" 失败:`, chunkErr);
+        errorCount++;
+      }
+    }
+    
+    // 发送结束消息
+    const duration = Date.now() - startTime;
+    
+    if (errorCount > 0) {
+      // 发送错误消息
+      connection.socket.send(JSON.stringify({
+        type: 'sync_error',
+        room: connection.room,
+        message: `部分数据块发送失败(${errorCount}/${keys.length})`,
+        timestamp: Date.now()
+      }));
+      
+      console.warn(`[思源同步] 分块发送部分失败: ${errorCount}/${keys.length} 块出错，用时 ${duration}ms`);
+      return false;
+    }
+    
+    // 发送完成消息
+    connection.socket.send(JSON.stringify({
+      type: 'sync_end',
+      room: connection.room,
+      stats: {
+        chunks: sentCount,
+        duration: duration
+      },
+      timestamp: Date.now()
+    }));
+    
+    console.log(`[思源同步] 分块发送完成: ${sentCount} 块，用时 ${duration}ms`);
+    return true;
+  } catch (err) {
+    console.error('[思源同步] 分块发送过程中出错:', err);
+    
+    try {
+      // 尝试发送错误消息
+      connection.socket.send(JSON.stringify({
+        type: 'sync_error',
+        room: connection.room,
+        message: err.message || '未知错误',
+        timestamp: Date.now()
+      }));
+    } catch (sendErr) {
+      console.error('[思源同步] 无法发送错误消息:', sendErr);
+    }
+    
+    return false;
   }
 }
 
@@ -464,149 +806,76 @@ function sendDataToSiyuan(socket, roomName, store) {
  * 合并远程状态到本地状态
  * @param {Object} localState - 本地状态
  * @param {Object} remoteState - 远程状态
+ * @param {number} depth - 递归深度
  */
-function mergeRemoteState(localState, remoteState) {
+function mergeRemoteState(localState, remoteState, depth = 0) {
+  // 添加深度限制，防止无限递归
+  const MAX_DEPTH = 5;
+  if (depth > MAX_DEPTH) {
+    console.warn('[思源同步] 达到最大递归深度，避免栈溢出');
+    return;
+  }
+  
+  // 基本检查
   if (!localState || !remoteState || typeof localState !== 'object' || typeof remoteState !== 'object') {
     return; // 确保两个参数都是对象
   }
   
   try {
+    // 获取所有远程键
+    const remoteKeys = Object.keys(remoteState);
+    
     // 遍历远程状态的所有键
-    for (const key in remoteState) {
+    for (let i = 0; i < remoteKeys.length; i++) {
+      const key = remoteKeys[i];
+      
       // 跳过心跳字段和内部字段
       if (key === '_heartbeat_' || key.startsWith('$')) continue;
       
-      const remoteValue = remoteState[key];
-      
-      // 如果远程值为null，直接同步
-      if (remoteValue === null) {
-        localState[key] = null;
-        continue;
-      }
-      
-      // 处理数组类型 - 使用安全的数组更新方式
-      if (Array.isArray(remoteValue)) {
-        try {
-          // 如果本地不存在此属性或不是数组，创建一个新数组
-          if (!localState[key] || !Array.isArray(localState[key])) {
-            // 创建一个新的空数组
-            localState[key] = [];
-          }
-          
-          // 清空现有数组内容 - 安全方式
-          const arr = localState[key];
-          try {
-            // 尝试使用splice一次性清空数组，这比循环pop更安全
-            arr.splice(0, arr.length);
-          } catch (err) {
-            console.warn(`[思源同步] 使用splice清空数组失败，尝试备用方法:`, err);
+      try {
+        // 获取远程值
+        const remoteValue = remoteState[key];
+        
+        // 如果远程值为null，直接同步
+        if (remoteValue === null) {
+          localState[key] = null;
+          continue;
+        }
+        
+        // 处理数组类型
+        if (Array.isArray(remoteValue)) {
+          // 数组需要安全处理，很多错误发生在这里
+          handleArraySync(localState, key, remoteValue);
+        }
+        // 处理普通对象类型
+        else if (typeof remoteValue === 'object' && remoteValue !== null) {
+          // 对象需要安全处理
+          handleObjectSync(localState, key, remoteValue, depth);
+        } 
+        // 处理基础类型
+        else {
+          // 只有在值不同时才更新，减少不必要的操作
+          if (localState[key] !== remoteValue) {
             try {
-              // 备用方法1: 直接设置长度为0
-              arr.length = 0;
-            } catch (err2) {
-              console.warn(`[思源同步] 第二种清空数组方法也失败:`, err2);
-              // 备用方法2: 保持数组原始引用，但一项一项删除
-              while (arr.length > 0) {
+              localState[key] = remoteValue;
+            } catch (err) {
+              console.error(`[思源同步] 设置基本属性出错 (${key}):`, err);
+              // 尝试使用Vue的set方法作为备用
+              if (window.Vue && window.Vue.set) {
                 try {
-                  // 从最后一项开始删除，避免索引变化
-                  arr.splice(arr.length - 1, 1);
-                } catch (e) {
-                  console.error(`[思源同步] 无法清空数组:`, e);
-                  break; // 防止无限循环
+                  window.Vue.set(localState, key, remoteValue);
+                } catch (finalErr) {
+                  // 放弃此属性的同步
+                  console.error(`[思源同步] 最终设置失败 (${key}):`, finalErr);
                 }
               }
             }
           }
-          
-          // 一个一个添加元素，而不是批量添加
-          for (let i = 0; i < remoteValue.length; i++) {
-            const item = remoteValue[i];
-            
-            // 递归处理数组中的对象
-            if (item !== null && typeof item === 'object') {
-              // 数组中的对象元素需要特殊处理
-              if (Array.isArray(item)) {
-                // 如果是嵌套数组，创建新数组并递归处理
-                const newItem = [];
-                localState[key].push(newItem);
-                
-                // 对于数组元素，进行特殊递归合并
-                for (let j = 0; j < item.length; j++) {
-                  if (item[j] !== null && typeof item[j] === 'object') {
-                    if (Array.isArray(item[j])) {
-                      newItem[j] = [];
-                      mergeArrays(newItem[j], item[j]);
-                    } else {
-                      newItem[j] = {};
-                      mergeRemoteState(newItem[j], item[j]);
-                    }
-                  } else {
-                    newItem[j] = item[j];
-                  }
-                }
-              } else {
-                // 如果是普通对象，创建新对象并递归处理
-                const newObj = {};
-                localState[key].push(newObj);
-                mergeRemoteState(newObj, item);
-              }
-            } else {
-              // 基本类型直接添加
-              localState[key].push(item);
-            }
-          }
-        } catch (err) {
-          console.error(`[思源同步] 处理数组出错 (${key}):`, err);
-          // 失败时尝试替换整个数组（可能会破坏响应式，但总比出错好）
-          if (window.Vue && window.Vue.set) {
-            window.Vue.set(localState, key, [...remoteValue]);
-          } else {
-            try {
-              // 最后的尝试 - 这可能会失败
-              localState[key] = [...remoteValue];
-            } catch (finalErr) {
-              console.error(`[思源同步] 无法更新数组 (${key}):`, finalErr);
-            }
-          }
         }
-      }
-      // 处理普通对象类型，递归合并
-      else if (typeof remoteValue === 'object' && remoteValue !== null) {
-        try {
-          // 如果本地不存在此属性或不是对象或是数组，创建新对象
-          if (!localState[key] || typeof localState[key] !== 'object' || Array.isArray(localState[key])) {
-            localState[key] = {};
-          }
-          
-          // 递归合并子对象
-          mergeRemoteState(localState[key], remoteValue);
-        } catch (err) {
-          console.error(`[思源同步] 处理对象出错 (${key}):`, err);
-          // 失败时尝试浅拷贝
-          try {
-            if (window.Vue && window.Vue.set) {
-              window.Vue.set(localState, key, {...remoteValue});
-            } else {
-              localState[key] = {...remoteValue};
-            }
-          } catch (finalErr) {
-            console.error(`[思源同步] 无法更新对象 (${key}):`, finalErr);
-          }
-        }
-      } 
-      // 处理基础类型，直接覆盖
-      else {
-        if (localState[key] !== remoteValue) {
-          try {
-            localState[key] = remoteValue;
-          } catch (err) {
-            console.error(`[思源同步] 设置属性出错 (${key}):`, err);
-            // 尝试使用Vue的set方法
-            if (window.Vue && window.Vue.set) {
-              window.Vue.set(localState, key, remoteValue);
-            }
-          }
-        }
+      } catch (keyError) {
+        console.error(`[思源同步] 处理键 ${key} 时出错:`, keyError);
+        // 继续处理下一个键，不要因为一个键的错误而中断整个过程
+        continue;
       }
     }
   } catch (err) {
@@ -615,49 +884,223 @@ function mergeRemoteState(localState, remoteState) {
 }
 
 /**
- * 安全地合并两个数组
- * @param {Array} targetArray - 目标数组
- * @param {Array} sourceArray - 源数组
+ * 安全地处理数组同步
+ * @param {Object} localState - 本地状态对象
+ * @param {string} key - 数组属性键名
+ * @param {Array} remoteArray - 远程数组值
  */
-function mergeArrays(targetArray, sourceArray) {
-  if (!Array.isArray(targetArray) || !Array.isArray(sourceArray)) {
-    return;
-  }
-  
-  // 清空目标数组 - 使用更安全的方法
+function handleArraySync(localState, key, remoteArray) {
   try {
-    // 尝试使用splice一次性清空数组
-    targetArray.splice(0, targetArray.length);
+    // 如果本地不存在此属性或不是数组，创建一个新数组
+    if (!localState[key] || !Array.isArray(localState[key])) {
+      try {
+        // 创建一个新的空数组
+        localState[key] = [];
+      } catch (err) {
+        console.error(`[思源同步] 创建数组失败 (${key}):`, err);
+        // 如果直接赋值失败，尝试使用Vue的set方法
+        if (window.Vue && window.Vue.set) {
+          window.Vue.set(localState, key, []);
+        } else {
+          // 无法处理，跳过
+          return;
+        }
+      }
+    }
+    
+    // 获取本地数组的引用
+    const localArray = localState[key];
+    
+    // 检查是否为空数组，这是一种特殊情况
+    if (remoteArray.length === 0) {
+      safeEmptyArray(localArray);
+      return;
+    }
+    
+    // 检查是否为简单数组
+    const isSimpleArray = remoteArray.every(item => 
+      item === null || 
+      item === undefined || 
+      typeof item !== 'object'
+    );
+    
+    // 使用不同的策略处理简单数组和复杂数组
+    if (isSimpleArray) {
+      // 简单数组可以直接替换
+      safeReplaceSimpleArray(localArray, remoteArray);
+    } else {
+      // 复杂数组需要特殊处理
+      safeReplaceComplexArray(localArray, remoteArray);
+    }
   } catch (err) {
-    console.warn(`[思源同步] 清空嵌套数组失败，尝试备用方法:`, err);
+    console.error(`[思源同步] 处理数组出错 (${key}):`, err);
+    // 在发生错误的情况下，尝试使用Vue的全局方法替换整个数组
+    // 这不会保留原数组的响应式特性，但至少能更新数据
     try {
-      // 备用方法：直接设置长度为0
-      targetArray.length = 0;
-    } catch (err2) {
-      console.warn(`[思源同步] 所有嵌套数组清空方法都失败，创建新数组`);
-      // 如果所有方法都失败，可能需要更复杂的处理
+      if (window.Vue && window.Vue.set) {
+        window.Vue.set(localState, key, [...remoteArray]);
+      } else {
+        // 最后的尝试 - 这可能会破坏响应式
+        localState[key] = [...remoteArray];
+      }
+    } catch (finalErr) {
+      console.error(`[思源同步] 无法更新数组 (${key}), 放弃同步此属性:`, finalErr);
     }
   }
-  
-  // 依次添加源数组元素
-  for (let i = 0; i < sourceArray.length; i++) {
-    const item = sourceArray[i];
-    
-    if (item !== null && typeof item === 'object') {
-      if (Array.isArray(item)) {
-        // 嵌套数组
-        const newArr = [];
-        targetArray.push(newArr);
-        mergeArrays(newArr, item);
-      } else {
-        // 嵌套对象
-        const newObj = {};
-        targetArray.push(newObj);
-        mergeRemoteState(newObj, item);
+}
+
+/**
+ * 安全地处理对象同步
+ * @param {Object} localState - 本地状态对象
+ * @param {string} key - 对象属性键名
+ * @param {Object} remoteObj - 远程对象值
+ * @param {number} depth - 递归深度
+ */
+function handleObjectSync(localState, key, remoteObj, depth) {
+  try {
+    // 如果本地不存在此属性或不是对象或是数组，创建新对象
+    if (!localState[key] || typeof localState[key] !== 'object' || Array.isArray(localState[key])) {
+      try {
+        // 创建一个新的空对象
+        localState[key] = {};
+      } catch (err) {
+        console.error(`[思源同步] 创建对象失败 (${key}):`, err);
+        // 如果直接赋值失败，尝试使用Vue的set方法
+        if (window.Vue && window.Vue.set) {
+          window.Vue.set(localState, key, {});
+        } else {
+          // 无法处理，跳过
+          return;
+        }
       }
-    } else {
-      // 基本类型
-      targetArray.push(item);
+    }
+    
+    // 递归合并子对象 - 传递深度参数，避免无限递归
+    mergeRemoteState(localState[key], remoteObj, depth + 1);
+  } catch (err) {
+    console.error(`[思源同步] 处理对象出错 (${key}):`, err);
+    // 失败时尝试浅拷贝
+    try {
+      if (window.Vue && window.Vue.set) {
+        window.Vue.set(localState, key, {...remoteObj});
+      } else {
+        // 这可能会破坏响应式
+        localState[key] = {...remoteObj};
+      }
+    } catch (finalErr) {
+      console.error(`[思源同步] 无法更新对象 (${key}), 放弃同步此属性:`, finalErr);
+    }
+  }
+}
+
+/**
+ * 安全地清空数组
+ * @param {Array} array - 要清空的数组
+ */
+function safeEmptyArray(array) {
+  try {
+    // 首选方法：设置长度为0
+    array.length = 0;
+  } catch (err) {
+    console.warn(`[思源同步] 使用length=0清空数组失败，尝试备用方法:`, err);
+    try {
+      // 备用方法：使用splice
+      array.splice(0, array.length);
+    } catch (err2) {
+      console.warn(`[思源同步] 使用splice清空数组也失败，尝试逐个移除:`, err2);
+      // 最后尝试：逐个移除元素
+      while (array.length > 0) {
+        try {
+          array.pop();
+        } catch (e) {
+          console.error(`[思源同步] 无法清空数组，放弃:`, e);
+          break;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 安全地替换简单数组内容
+ * @param {Array} localArray - 本地数组
+ * @param {Array} remoteArray - 远程数组
+ */
+function safeReplaceSimpleArray(localArray, remoteArray) {
+  // 先清空本地数组
+  safeEmptyArray(localArray);
+  
+  // 逐个添加元素
+  for (let i = 0; i < remoteArray.length; i++) {
+    try {
+      localArray.push(remoteArray[i]);
+    } catch (err) {
+      console.warn(`[思源同步] 添加数组元素失败，索引 ${i}:`, err);
+    }
+  }
+}
+
+/**
+ * 安全地替换复杂数组内容
+ * @param {Array} localArray - 本地数组
+ * @param {Array} remoteArray - 远程数组
+ */
+function safeReplaceComplexArray(localArray, remoteArray) {
+  // 先清空本地数组
+  safeEmptyArray(localArray);
+  
+  // 逐个处理元素
+  for (let i = 0; i < remoteArray.length; i++) {
+    try {
+      const item = remoteArray[i];
+      
+      // null和undefined直接添加
+      if (item === null || item === undefined) {
+        localArray.push(item);
+        continue;
+      }
+      
+      // 基本类型直接添加
+      if (typeof item !== 'object') {
+        localArray.push(item);
+        continue;
+      }
+      
+      // 数组类型 - 浅拷贝
+      if (Array.isArray(item)) {
+        const newArray = item.map(elem => elem); // 简单浅拷贝
+        localArray.push(newArray);
+        continue;
+      }
+      
+      // 对象类型 - 浅拷贝
+      const newObj = {};
+      const itemKeys = Object.keys(item);
+      
+      // 复制所有直接属性，不递归处理嵌套对象
+      for (let j = 0; j < itemKeys.length; j++) {
+        const propKey = itemKeys[j];
+        // 跳过内部属性
+        if (propKey.startsWith('$') || propKey.startsWith('_') || typeof item[propKey] === 'function') {
+          continue;
+        }
+        
+        try {
+          newObj[propKey] = item[propKey];
+        } catch (err) {
+          console.warn(`[思源同步] 复制对象属性失败 (${propKey}):`, err);
+        }
+      }
+      
+      localArray.push(newObj);
+    } catch (err) {
+      console.warn(`[思源同步] 处理复杂数组元素失败，索引 ${i}:`, err);
+      // 尝试添加一个空对象作为占位符
+      try {
+        localArray.push({});
+      } catch (e) {
+        console.error(`[思源同步] 无法添加占位符:`, e);
+      }
     }
   }
 }
@@ -784,129 +1227,6 @@ function createDiagnosticsFunction(
       message: generateDiagnosticMessage(diagResult, !!persistenceManager, peersCount)
     }
   }
-}
-
-/**
- * 创建结果对象
- * @param {Object} store - 存储对象
- * @param {Object} ydoc - Y.Doc实例
- * @param {Object} status - 状态引用
- * @param {Object} isConnected - 连接状态引用
- * @param {Object} isLocalDataLoaded - 本地数据加载状态引用
- * @param {Object} connectionManager - 连接管理器实例
- * @param {Function} disconnect - 断开连接函数
- * @param {Object} syncManager - 同步管理器实例
- * @param {Object} persistenceManager - 持久化管理器实例
- * @param {Function} clearLocalData - 清除本地数据函数
- * @param {Function} getDiagnostics - 诊断函数
- * @param {Object} siyuanSocket - 思源WebSocket连接
- * @returns {Object} 结果对象
- */
-function createResultObject(
-  store,
-  ydoc,
-  status,
-  isConnected,
-  isLocalDataLoaded,
-  connectionManager,
-  disconnect,
-  syncManager,
-  persistenceManager,
-  clearLocalData,
-  getDiagnostics,
-  siyuanSocket
-) {
-  // 使用独立的 Map 存储事件处理器，避免在 store 对象上添加属性
-  const eventHandlers = new Map();
-  
-  return {
-    // 存储和文档
-    store,
-    ydoc,
-    
-    // 状态
-    status,
-    isConnected,
-    isLocalDataLoaded,
-    
-    // 连接方法
-    connect: connectionManager.connect,
-    disconnect,
-    reconnect: connectionManager.reconnect,
-    
-    // 同步方法
-    sync: () => syncManager.triggerSync(),
-    
-    // 持久化方法
-    clearLocalData,
-    
-    // 诊断
-    getDiagnostics,
-    
-    // 获取提供者和连接节点
-    getProvider: connectionManager.getProvider,
-    getPeers: () => {
-      const provider = connectionManager.getProvider();
-      
-      // 思源WebSocket连接
-      if (siyuanSocket) {
-        return new Set(['siyuan-ws']);
-      }
-      
-      // WebRTC连接
-      if (provider && provider.connected) {
-        // 如果provider提供了getPeers方法
-        if (provider.getPeers) {
-          return provider.getPeers();
-        }
-        
-        // 旧版本兼容 - Y-WebRTC提供者
-        if (provider.signalingConns) {
-          return new Set(Object.keys(provider.signalingConns));
-        }
-      }
-      
-      return new Set();
-    },
-    
-    // 事件处理 - 使用独立的 Map
-    on(eventName, callback) {
-      if (!eventHandlers.has(eventName)) {
-        eventHandlers.set(eventName, []);
-      }
-      
-      eventHandlers.get(eventName).push(callback);
-      return this;
-    },
-    
-    off(eventName, callback) {
-      if (!eventHandlers.has(eventName)) return this;
-      
-      if (callback) {
-        const handlers = eventHandlers.get(eventName);
-        eventHandlers.set(eventName, handlers.filter(cb => cb !== callback));
-      } else {
-        eventHandlers.set(eventName, []);
-      }
-      
-      return this;
-    },
-    
-    emit(eventName, ...args) {
-      if (!eventHandlers.has(eventName)) return this;
-      
-      const handlers = eventHandlers.get(eventName);
-      for (const callback of handlers) {
-        try {
-          callback(...args);
-        } catch (error) {
-          console.error(`[SyncStore] 事件处理错误: ${eventName}`, error);
-        }
-      }
-      
-      return this;
-    }
-  };
 }
 
 /**

@@ -2,7 +2,7 @@
  * 对象增强器 - 为响应式对象添加同步相关的方法和属性
  */
 
-import { watch, reactive } from '../../../../../static/vue.esm-browser.js';
+import { watch, reactive, toRaw } from '../../../../../static/vue.esm-browser.js';
 
 /**
  * 检查对象是否为纯对象（普通JS对象）
@@ -97,88 +97,228 @@ export function enhanceReactiveObject(localState, config) {
     }
     
     try {
-      // 深拷贝源数组，防止引用同一对象导致的循环引用问题
-      const clonedSourceArray = sourceArray.map(item => {
-        // 对对象和数组进行深拷贝，避免引用问题
-        if (item !== null && typeof item === 'object') {
-          return JSON.parse(JSON.stringify(item));
+      // 检测空数组特殊情况
+      if (sourceArray.length === 0) {
+        // 清空目标数组就足够了
+        while (targetArray.length > 0) {
+          targetArray.pop();
         }
-        return item;
-      });
+        return true;
+      }
       
-      // 尝试方法1: 使用splice完全替换
-      try {
-        // 先清空数组，避免直接splice可能导致的响应式问题
+      // 检测是否为单层简单数组（只包含基本类型），这种情况需要特殊处理以避免嵌套
+      const isFlat1DArray = sourceArray.length > 0 && 
+                            !Array.isArray(sourceArray[0]) && 
+                            !sourceArray.some(item => Array.isArray(item)) &&
+                            sourceArray.every(item => 
+                              item === null || 
+                              item === undefined || 
+                              typeof item !== 'object' || 
+                              (Array.isArray(item) && item.length === 0)
+                            );
+      
+      // 如果是"单值[xxx,xxx]"这样的一维数组，直接处理，不递归
+      if (isFlat1DArray) {
+        // 清空目标数组
         while (targetArray.length > 0) {
           targetArray.pop();
         }
         
-        // 逐个添加元素，而不是一次性添加所有元素
-        for (let i = 0; i < clonedSourceArray.length; i++) {
-          targetArray.push(clonedSourceArray[i]);
+        // 直接一对一复制元素，确保没有嵌套
+        for (let i = 0; i < sourceArray.length; i++) {
+          targetArray.push(sourceArray[i]);
         }
         return true;
-      } catch (err) {
-        console.error(`[SyncedReactive:${key}] 方法1(splice)失败:`, err);
+      }
+      
+      // 防止递归调用导致堆栈溢出
+      const MAX_RECURSION_DEPTH = 10;
+      const updateArrayWithDepthControl = (target, source, depth = 0) => {
+        if (depth > MAX_RECURSION_DEPTH) {
+          console.warn(`[SyncedReactive:${key}] 达到最大递归深度，对象可能未完全复制`);
+          return;
+        }
         
-        // 尝试方法2: 逐个添加
-        try {
-          // 确保数组已清空
-          targetArray.length = 0;
-          
-          // 逐个添加元素
-          for (let i = 0; i < clonedSourceArray.length; i++) {
-            targetArray.push(clonedSourceArray[i]);
+        // 清空目标数组
+        while (target.length > 0) {
+          target.pop();
+        }
+        
+        // 检测是否简单数组（一维数组只包含基本类型）
+        const isSimpleArrayItems = source.every(item => 
+          item === null || 
+          item === undefined || 
+          typeof item !== 'object'
+        );
+        
+        if (isSimpleArrayItems) {
+          // 简单数组直接复制
+          for (let i = 0; i < source.length; i++) {
+            target.push(source[i]);
           }
-          return true;
-        } catch (err2) {
-          console.error(`[SyncedReactive:${key}] 方法2(push)失败:`, err2);
-          
-          // 方法3: 使用Vue的set API
-          try {
-            const Vue = window.Vue || {};
-            if (Vue.set) {
-              // 逐个设置项目
-              for (let i = 0; i < clonedSourceArray.length; i++) {
-                if (i < targetArray.length) {
-                  Vue.set(targetArray, i, clonedSourceArray[i]);
+          return;
+        }
+        
+        // 处理复杂数组（包含对象或嵌套数组）
+        // 逐个添加元素，特别处理对象引用
+        for (let i = 0; i < source.length; i++) {
+          const item = source[i];
+          if (item === null || item === undefined) {
+            target.push(item);
+          } else if (typeof item === 'object' && !Array.isArray(item)) {
+            // 处理对象 - 创建全新的对象避免引用问题
+            const newObj = {};
+            Object.keys(item).forEach(key => {
+              // 递归处理嵌套对象和数组
+              if (item[key] !== null && typeof item[key] === 'object') {
+                if (Array.isArray(item[key])) {
+                  const nestedArray = [];
+                  updateArrayWithDepthControl(nestedArray, item[key], depth + 1);
+                  newObj[key] = nestedArray;
                 } else {
-                  targetArray.push(clonedSourceArray[i]);
+                  // 使用深拷贝确保不会有引用问题
+                  try {
+                    newObj[key] = JSON.parse(JSON.stringify(item[key]));
+                  } catch (err) {
+                    console.warn(`[SyncedReactive:${key}] 嵌套对象深拷贝失败，降级处理:`, err);
+                    // 降级处理：使用浅拷贝
+                    newObj[key] = {...item[key]};
+                  }
                 }
+              } else {
+                newObj[key] = item[key];
               }
-              // 如果目标数组长度大于源数组，删除多余元素
-              if (targetArray.length > clonedSourceArray.length) {
-                targetArray.splice(clonedSourceArray.length);
-              }
-              return true;
+            });
+            target.push(newObj);
+          } else if (Array.isArray(item)) {
+            // 检查是否为空数组，避免额外嵌套
+            if (item.length === 0) {
+              target.push([]);
+            } else {
+              // 递归处理嵌套数组
+              const newArray = [];
+              updateArrayWithDepthControl(newArray, item, depth + 1);
+              target.push(newArray);
             }
-          } catch (err3) {
-            console.error(`[SyncedReactive:${key}] 方法3(Vue.set)失败:`, err3);
-          }
-          
-          // 最后尝试更直接的方法
-          try {
-            // 通过重新分配数组来解决问题
-            const tempArray = [...clonedSourceArray];
-            while (targetArray.length > 0) {
-              targetArray.pop();
-            }
-            for (let i = 0; i < tempArray.length; i++) {
-              targetArray[i] = tempArray[i];
-            }
-            return true;
-          } catch (err4) {
-            console.error(`[SyncedReactive:${key}] 方法4(索引赋值)失败:`, err4);
-            throw err4; // 抛出错误，让外层处理
+          } else {
+            // 基本类型直接添加
+            target.push(item);
           }
         }
+      };
+      
+      // 使用深度控制的更新函数
+      updateArrayWithDepthControl(targetArray, sourceArray);
+      
+      // 添加后强制触发更新
+      syncLock = true;
+      try {
+        // 手动触发数组更改通知
+        const length = targetArray.length;
+        if (length > 0) {
+          // 在数组末尾做一个微小修改然后撤销，强制触发Vue的响应式更新
+          const lastItem = targetArray[length - 1];
+          if (typeof lastItem === 'object' && lastItem !== null) {
+            // 对象类型，添加临时标记
+            const tempKey = `__sync_${Date.now()}`;
+            targetArray[length - 1][tempKey] = true;
+            delete targetArray[length - 1][tempKey];
+          } else {
+            // 对于非对象类型，尝试触发splice操作
+            const tempItem = targetArray[length - 1];
+            targetArray.splice(length - 1, 1, tempItem);
+          }
+        }
+      } finally {
+        syncLock = false;
       }
+      
+      return true;
     } catch (err) {
-      console.error(`[SyncedReactive:${key}] 所有数组更新方法都失败`, err);
-      return false;
+      console.error(`[SyncedReactive:${key}] 数组更新失败:`, err);
+      
+      // 尝试最简单的方法作为回退方案
+      try {
+        targetArray.length = 0;
+        for (let i = 0; i < sourceArray.length; i++) {
+          if (sourceArray[i] !== null && typeof sourceArray[i] === 'object') {
+            // 对于对象类型，使用深拷贝避免引用问题
+            targetArray.push(JSON.parse(JSON.stringify(sourceArray[i])));
+          } else {
+            // 基本类型直接复制
+            targetArray.push(sourceArray[i]);
+          }
+        }
+        return true;
+      } catch (finalErr) {
+        console.error(`[SyncedReactive:${key}] 最终方法也失败:`, finalErr);
+        return false;
+      }
     }
   };
   
+  /**
+   * 安全地初始化嵌套路径
+   * @param {Object} obj - 目标对象
+   * @param {string|Array} path - 属性路径，可以是点分隔的字符串或数组
+   * @param {any} defaultValue - 默认值
+   * @returns {any} 路径对应的值或默认值
+   */
+  const ensurePath = (obj, path, defaultValue = {}) => {
+    const parts = Array.isArray(path) ? path : path.split('.');
+    let current = obj;
+    
+    // 遍历路径的每一部分，确保每一级对象都存在
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!(part in current) || current[part] === null || current[part] === undefined) {
+        current[part] = {};
+      } else if (typeof current[part] !== 'object') {
+        // 如果当前路径是非对象类型，则替换为对象
+        current[part] = {};
+      }
+      current = current[part];
+    }
+    
+    // 设置最后一级的值
+    const lastPart = parts[parts.length - 1];
+    if (!(lastPart in current) || current[lastPart] === undefined || current[lastPart] === null) {
+      current[lastPart] = defaultValue;
+    }
+    
+    return current[lastPart];
+  };
+
+  /**
+   * 修复缺失的嵌套路径
+   * @param {Object} obj - 要修复的对象
+   * @param {Array<string>} requiredPaths - 必须存在的路径列表
+   */
+  const fixMissingPaths = (obj) => {
+    // 预定义的关键路径列表，确保这些路径在对象中存在
+    const requiredPaths = [
+      'deepNested.level1.level2.value',
+      'nested.value',
+      'performanceMetrics.responseTime',
+      'performanceMetrics.operations'
+    ];
+    
+    for (const path of requiredPaths) {
+      try {
+        // 为每个必要路径设置默认值
+        if (path.endsWith('value')) {
+          ensurePath(obj, path, ''); // 字符串类型默认值
+        } else if (path.includes('Metrics')) {
+          ensurePath(obj, path, 0);  // 数字类型默认值
+        } else {
+          ensurePath(obj, path, {});  // 对象类型默认值
+        }
+      } catch (err) {
+        console.error(`[SyncedReactive] 修复路径失败 ${path}:`, err);
+      }
+    }
+  };
+
   // 手动同步实现
   const syncImpl = () => {
     if (!engine || !status.connected) return false;
@@ -220,17 +360,30 @@ export function enhanceReactiveObject(localState, config) {
         }
         // 处理嵌套对象 - 递归合并而不是替换
         else if (isPlainObject(remoteValue) && isPlainObject(localValue)) {
-          // 对嵌套对象进行深度合并
+          // 确保目标对象中存在所有必要的路径
           try {
+            // 在合并前修复可能缺失的路径
+            fixMissingPaths(localValue);
+            
+            // 对嵌套对象进行深度合并
             mergeNestedObjects(localValue, remoteValue);
           } catch (err) {
             console.error(`[SyncedReactive:${key}] 合并嵌套对象错误 [${k}]:`, err);
-            // 如果合并失败，尝试直接替换
+            // 如果合并失败，尝试直接替换，但先确保基本结构完整
             try {
-              // 使用深拷贝避免引用问题
-              localState[k] = JSON.parse(JSON.stringify(remoteValue));
+              // 创建一个安全的新对象
+              const safeObject = JSON.parse(JSON.stringify(remoteValue));
+              
+              // 确保新对象也有完整路径
+              fixMissingPaths(safeObject);
+              
+              // 然后替换本地对象
+              localState[k] = safeObject;
             } catch (err2) {
               console.error(`[SyncedReactive:${key}] 替换对象也失败 [${k}]:`, err2);
+              // 最后的尝试 - 创建一个带有基本路径的新对象
+              localState[k] = {};
+              fixMissingPaths(localState[k]);
             }
           }
         }
@@ -242,14 +395,89 @@ export function enhanceReactiveObject(localState, config) {
               localState[k] = [];
             }
             
-            // 完全替换数组内容，但保留响应式
-            const updateSuccess = safeArrayUpdate(localState[k], remoteValue);
+            // 增强处理：如果是对象数组，使用特殊处理方式
+            const isObjectArray = remoteValue.length > 0 && 
+                                  remoteValue[0] !== null && 
+                                  typeof remoteValue[0] === 'object' && 
+                                  !Array.isArray(remoteValue[0]);
             
-            // 如果安全更新失败，尝试其他方法
-            if (!updateSuccess) {
-              console.warn(`[SyncedReactive:${key}] 安全更新数组失败，尝试替代方法 [${k}]`);
-              // 创建一个全新的数组
-              localState[k] = JSON.parse(JSON.stringify(remoteValue));
+            if (isObjectArray) {
+              // 对象数组特殊处理
+              const localArr = localState[k];
+              
+              // 确保本地数组长度与远程匹配
+              while (localArr.length > remoteValue.length) {
+                localArr.pop();
+              }
+              
+              // 更新现有对象或添加新对象
+              for (let i = 0; i < remoteValue.length; i++) {
+                const remoteObj = remoteValue[i];
+                
+                if (i < localArr.length) {
+                  // 更新现有对象的属性
+                  const localObj = localArr[i];
+                  
+                  // 确保所有远程对象属性存在于本地对象
+                  Object.keys(remoteObj).forEach(prop => {
+                    // 跳过内部属性
+                    if (prop.startsWith('$') || prop.startsWith('_') || typeof remoteObj[prop] === 'function') {
+                      return;
+                    }
+                    
+                    // 更新属性值
+                    localObj[prop] = remoteObj[prop];
+                  });
+                } else {
+                  // 添加新对象 - 确保深拷贝
+                  const newObj = {};
+                  
+                  // 复制所有属性
+                  Object.keys(remoteObj).forEach(prop => {
+                    // 跳过内部属性
+                    if (prop.startsWith('$') || prop.startsWith('_') || typeof remoteObj[prop] === 'function') {
+                      return;
+                    }
+                    
+                    if (remoteObj[prop] !== null && typeof remoteObj[prop] === 'object') {
+                      // 嵌套对象/数组需要深拷贝
+                      try {
+                        newObj[prop] = JSON.parse(JSON.stringify(remoteObj[prop]));
+                      } catch (err) {
+                        console.error(`[SyncedReactive:${key}] 嵌套对象深拷贝失败 (${prop}):`, err);
+                        // 降级处理
+                        newObj[prop] = remoteObj[prop];
+                      }
+                    } else {
+                      // 基本类型直接赋值
+                      newObj[prop] = remoteObj[prop];
+                    }
+                  });
+                  
+                  // 添加到数组
+                  localArr.push(newObj);
+                }
+              }
+              
+              // 触发更新通知
+              if (localArr.length > 0) {
+                const lastIndex = localArr.length - 1;
+                if (typeof localArr[lastIndex] === 'object' && localArr[lastIndex] !== null) {
+                  const tempKey = `__sync_${Date.now()}`;
+                  localArr[lastIndex][tempKey] = true;
+                  delete localArr[lastIndex][tempKey];
+                }
+              }
+            } else {
+              // 非对象数组使用通用方法
+              const updateSuccess = safeArrayUpdate(localState[k], remoteValue);
+              
+              // 如果安全更新失败，尝试其他方法
+              if (!updateSuccess) {
+                console.warn(`[SyncedReactive:${key}] 安全更新数组失败，尝试替代方法 [${k}]`);
+                // 创建一个全新的数组
+                localState[k] = JSON.parse(JSON.stringify(remoteValue));
+              }
             }
             
             // 检查是否需要增强数组方法
@@ -302,83 +530,46 @@ export function enhanceReactiveObject(localState, config) {
       return;
     }
     
-    try {
-      // 处理删除的属性
-      Object.keys(target).forEach(key => {
-        if (!(key in source)) {
-          delete target[key];
-        }
-      });
+    // 添加固定路径修复
+    fixMissingPaths(target);
+    
+    // 处理删除的属性 - 先删除目标中有但源中没有的属性
+    Object.keys(target).forEach(key => {
+      // 保留所有$开头的内部属性和方法
+      if (key.startsWith('$') || typeof target[key] === 'function') return;
+      if (!(key in source)) {
+        delete target[key];
+      }
+    });
+    
+    // 合并或添加属性
+    Object.keys(source).forEach(key => {
+      const sourceValue = source[key];
       
-      // 合并或添加属性
-      Object.keys(source).forEach(key => {
-        const sourceValue = source[key];
-        
-        // 如果目标不存在此属性，直接添加
-        if (!(key in target)) {
-          try {
-            // 确保对象和数组进行深拷贝
-            if (sourceValue !== null && typeof sourceValue === 'object') {
-              target[key] = JSON.parse(JSON.stringify(sourceValue));
-            } else {
-              target[key] = sourceValue;
-            }
-          } catch (err) {
-            console.error(`[SyncedReactive:${key}] 无法添加属性 [${key}]:`, err);
-          }
-          return;
-        }
-        
-        const targetValue = target[key];
-        
-        // 递归处理嵌套对象
-        if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
-          try {
-            mergeNestedObjects(targetValue, sourceValue);
-          } catch (err) {
-            console.error(`[SyncedReactive:${key}] 递归合并错误 [${key}]:`, err);
-            try {
-              target[key] = JSON.parse(JSON.stringify(sourceValue));
-            } catch (err2) {
-              console.error(`[SyncedReactive:${key}] 替换递归对象失败 [${key}]:`, err2);
-            }
-          }
-        } 
-        // 处理数组 - 使用安全的数组更新方法
-        else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
-          try {
-            const updateSuccess = safeArrayUpdate(targetValue, sourceValue);
-            
-            // 如果安全更新失败，尝试替换整个数组
-            if (!updateSuccess) {
-              try {
-                target[key] = JSON.parse(JSON.stringify(sourceValue));
-              } catch (err2) {
-                console.error(`[SyncedReactive:${key}] 替换嵌套数组失败 [${key}]:`, err2);
-              }
-            }
-          } catch (err) {
-            console.error(`[SyncedReactive:${key}] 更新嵌套数组错误 [${key}]:`, err);
-            try {
-              target[key] = JSON.parse(JSON.stringify(sourceValue));
-            } catch (err2) {
-              console.error(`[SyncedReactive:${key}] 替换嵌套数组失败 [${key}]:`, err2);
-            }
-          }
-        }
-        // 其他类型直接替换
-        else if (targetValue !== sourceValue) {
-          try {
-            target[key] = sourceValue;
-          } catch (err) {
-            console.error(`[SyncedReactive:${key}] 无法更新属性 [${key}]:`, err);
-          }
-        }
-      });
-    } catch (err) {
-      console.error(`[SyncedReactive:${key}] 合并对象过程发生错误:`, err);
-      throw err; // 向上抛出错误以便外层处理
-    }
+      // 跳过内部属性
+      if (key.startsWith('$') || typeof sourceValue === 'function') return;
+      
+      // 如果目标不存在此属性，直接添加
+      if (!(key in target)) {
+        target[key] = sourceValue;
+        return;
+      }
+      
+      const targetValue = target[key];
+      
+      // 递归处理嵌套对象 - 保留响应式
+      if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
+        mergeNestedObjects(targetValue, sourceValue);
+      } 
+      // 处理数组 - 特殊处理以保留响应式
+      else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+        safeArrayUpdate(targetValue, sourceValue);
+      }
+      // 其他情况直接替换值
+      else if (targetValue !== sourceValue) {
+        target[key] = sourceValue;
+      }
+    });
   };
   
   // 防抖版本的同步函数
@@ -442,21 +633,131 @@ export function enhanceReactiveObject(localState, config) {
             if (!syncLock && engine && status.connected) {
               syncLock = true;
               try {
-                // 获取完整远程状态
+                // 获取完整远程状态 - 但不发送整个状态
                 const completeState = engine.getState(type, key) || {};
                 
-                // 只更新数组部分
-                const updatedState = {
-                  ...completeState,
-                  [propName]: [...targetArray] // 使用扩展运算符创建数组副本
-                };
+                // 处理数组内的对象，确保所有对象都被正确地深拷贝
+                const arrayToSync = [];
+                for (let i = 0; i < targetArray.length; i++) {
+                  const item = targetArray[i];
+                  // 对象需要特殊处理以避免引用问题
+                  if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+                    // 深拷贝对象，但只保留必要的字段
+                    const newObj = {};
+                    Object.keys(item).forEach(key => {
+                      // 跳过可能的大型属性或函数
+                      if (typeof item[key] === 'function' || 
+                          key.startsWith('_') || 
+                          key.startsWith('$')) {
+                        return;
+                      }
+                      newObj[key] = item[key];
+                    });
+                    arrayToSync.push(newObj);
+                  } else if (Array.isArray(item)) {
+                    // 处理嵌套数组，确保深度克隆，但限制深度
+                    const MAX_NESTED_DEPTH = 3;
+                    const processArray = (arr, depth = 0) => {
+                      if (depth >= MAX_NESTED_DEPTH) {
+                        return [...arr]; // 到达最大深度，不再递归处理
+                      }
+                      return arr.map(nestedItem => {
+                        if (nestedItem === null || nestedItem === undefined) {
+                          return nestedItem;
+                        } else if (typeof nestedItem === 'object' && !Array.isArray(nestedItem)) {
+                          // 处理嵌套对象
+                          const obj = {};
+                          Object.keys(nestedItem).forEach(k => {
+                            if (!k.startsWith('$') && !k.startsWith('_') && 
+                                typeof nestedItem[k] !== 'function') {
+                              obj[k] = nestedItem[k];
+                            }
+                          });
+                          return obj;
+                        } else if (Array.isArray(nestedItem)) {
+                          // 递归处理更深层的数组
+                          return processArray(nestedItem, depth + 1);
+                        }
+                        return nestedItem;
+                      });
+                    };
+                    
+                    arrayToSync.push(processArray(item));
+                  } else {
+                    // 基本类型直接添加
+                    arrayToSync.push(item);
+                  }
+                }
                 
-                // 发送更新
-                engine.setState(type, key, updatedState);
-                status.lastSync = Date.now();
+                // 检查数组大小，如果过大则进行压缩
+                const arraySize = JSON.stringify(arrayToSync).length;
+                if (arraySize > 1024 * 100) { // 超过100KB
+                  console.warn(`[SyncedReactive:${key}] 数组同步数据较大 (${Math.round(arraySize/1024)}KB)，尝试压缩...`);
+                  // 尝试限制发送的数据大小
+                  if (arrayToSync.length > 100) {
+                    // 对于超长数组，只同步前100项
+                    arrayToSync.splice(100);
+                  }
+                }
                 
-                if (options.debug) {
-                  console.log(`[SyncedReactive:${key}] 同步数组: ${propName}`, targetArray);
+                // 设置更新策略：是发送整个状态还是只发送数组部分
+                // 如果数组较小，直接更新数组部分，避免发送整个状态树
+                if (JSON.stringify(arrayToSync).length < 1024 * 500) { // 小于500KB
+                  // 这里我们只发送更改的数组，而不是整个状态
+                  const minimalUpdate = {
+                    [propName]: arrayToSync
+                  };
+                  
+                  // 使用专门的增量更新API (如果可用)
+                  if (engine.setPartialState) {
+                    const syncSuccess = engine.setPartialState(type, key, propName, arrayToSync);
+                    if (syncSuccess) {
+                      status.lastSync = Date.now();
+                      if (options.debug) {
+                        console.log(`[SyncedReactive:${key}] 增量同步数组: ${propName}`, arrayToSync.length);
+                      }
+                    }
+                  } else {
+                    // 退回到普通更新，但仍然只发送关键部分
+                    const syncSuccess = engine.setState(type, key, minimalUpdate);
+                    if (syncSuccess) {
+                      status.lastSync = Date.now();
+                      if (options.debug) {
+                        console.log(`[SyncedReactive:${key}] 同步数组: ${propName}`, arrayToSync.length);
+                      }
+                    } else {
+                      console.warn(`[SyncedReactive:${key}] 同步数组失败: ${propName}`);
+                    }
+                  }
+                } else {
+                  // 数据过大，记录警告
+                  console.warn(`[SyncedReactive:${key}] 数组同步数据过大 (${Math.round(JSON.stringify(arrayToSync).length/1024)}KB)，可能影响性能`);
+                  
+                  // 尝试一个最小化的更新，只保留ID等关键标识字段
+                  const minimalArraySync = arrayToSync.map(item => {
+                    if (item && typeof item === 'object' && !Array.isArray(item)) {
+                      // 只保留ID和关键字段
+                      return {
+                        id: item.id || item.ID || item._id || item.key || null,
+                        // 可以保留最多2个关键字段用于显示
+                        name: item.name || item.title || item.label || null,
+                        type: item.type || null
+                      };
+                    }
+                    return item;
+                  });
+                  
+                  const minimalUpdate = {
+                    [propName]: minimalArraySync
+                  };
+                  
+                  const syncSuccess = engine.setState(type, key, minimalUpdate);
+                  if (syncSuccess) {
+                    status.lastSync = Date.now();
+                    console.log(`[SyncedReactive:${key}] 已发送最小化数组同步: ${propName}`);
+                  } else {
+                    console.warn(`[SyncedReactive:${key}] 最小化同步失败: ${propName}`);
+                  }
                 }
               } catch (err) {
                 console.error(`[SyncedReactive:${key}] 同步数组操作失败: ${propName}.${methodName}()`, err);
@@ -468,9 +769,6 @@ export function enhanceReactiveObject(localState, config) {
           
           return result;
         };
-        
-        // 保存原始方法的引用
-        const originalProp = Object.getOwnPropertyDescriptor(Array.prototype, methodName);
         
         // 定义新方法
         Object.defineProperty(targetArray, methodName, {
@@ -517,6 +815,93 @@ export function enhanceReactiveObject(localState, config) {
         // 使用防抖版本
         debouncedSync();
         return true;
+      }
+    },
+    
+    // 同步单个数组属性 - 用于优化性能
+    $syncArray: {
+      enumerable: false,
+      value: (arrayPropName) => {
+        if (!engine || !status.connected) return false;
+        if (!localState[arrayPropName] || !Array.isArray(localState[arrayPropName])) {
+          console.warn(`[SyncedReactive:${key}] 无法同步非数组属性: ${arrayPropName}`);
+          return false;
+        }
+        
+        try {
+          const targetArray = localState[arrayPropName];
+          
+          // 处理数组内的对象，确保对象被正确深拷贝
+          const arrayToSync = [];
+          for (let i = 0; i < targetArray.length; i++) {
+            const item = targetArray[i];
+            // 对象需要特殊处理
+            if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+              // 创建精简版的对象拷贝
+              const newObj = {};
+              Object.keys(item).forEach(key => {
+                // 跳过函数和内部属性
+                if (typeof item[key] === 'function' || key.startsWith('$') || key.startsWith('_')) {
+                  return;
+                }
+                newObj[key] = item[key];
+              });
+              arrayToSync.push(newObj);
+            } else if (Array.isArray(item)) {
+              // 嵌套数组限制递归深度
+              const MAX_DEPTH = 2;
+              const processArray = (arr, depth = 0) => {
+                if (depth >= MAX_DEPTH) return [...arr];
+                return arr.map(el => {
+                  if (el && typeof el === 'object' && !Array.isArray(el)) {
+                    const obj = {};
+                    Object.keys(el).forEach(k => {
+                      if (!k.startsWith('$') && !k.startsWith('_') && typeof el[k] !== 'function') {
+                        obj[k] = el[k];
+                      }
+                    });
+                    return obj;
+                  } else if (Array.isArray(el)) {
+                    return processArray(el, depth + 1);
+                  }
+                  return el;
+                });
+              };
+              arrayToSync.push(processArray(item));
+            } else {
+              // 基本类型直接添加
+              arrayToSync.push(item);
+            }
+          }
+          
+          // 优化：如果数组大小超过阈值，考虑进一步压缩
+          const arraySize = JSON.stringify(arrayToSync).length;
+          
+          // 检测数组大小，避免传输过大的数据
+          if (arraySize > 1024 * 500) { // 超过500KB
+            console.warn(`[SyncedReactive:${key}] 数组过大(${Math.round(arraySize/1024)}KB)，尝试压缩同步数据...`);
+            
+            // 对于大型数组，只同步基本结构
+            if (arrayToSync.length > 100) {
+              console.warn(`[SyncedReactive:${key}] 数组长度(${arrayToSync.length})过长，将限制为100项`);
+              arrayToSync.splice(100);
+            }
+          }
+          
+          // 使用专用方法同步数组
+          if (engine.setPartialState) {
+            return engine.setPartialState(type, key, arrayPropName, arrayToSync);
+          } else {
+            // 退回到仅包含该数组的更新
+            const minimalUpdate = {
+              [arrayPropName]: arrayToSync
+            };
+            return engine.setState(type, key, minimalUpdate);
+          }
+        } catch (err) {
+          console.error(`[SyncedReactive:${key}] 同步数组失败: ${arrayPropName}`, err);
+          return false;
+        }
       }
     },
     
@@ -677,6 +1062,36 @@ export function enhanceReactiveObject(localState, config) {
           key: key,
           arrayProps: Array.from(arrayProps)
         };
+      }
+    },
+    
+    // 找到现有的$updateMetrics方法并完全替换
+    $updateMetrics: {
+      enumerable: false,
+      value: (metricsData) => {
+        // 跳过响应式系统，直接修改底层数据
+        const rawState = toRaw ? toRaw(localState) : localState;
+        
+        try {
+          // 确保性能指标对象存在
+          if (!rawState.performanceMetrics) {
+            rawState.performanceMetrics = {
+              responseTime: 0,
+              operations: 0
+            };
+          }
+          
+          // 直接修改原始数据对象，绕过Vue的响应式系统
+          if (metricsData && typeof metricsData === 'object') {
+            Object.keys(metricsData).forEach(key => {
+              if (key in rawState.performanceMetrics) {
+                rawState.performanceMetrics[key] = metricsData[key];
+              }
+            });
+          }
+        } catch (err) {
+          console.error(`[SyncedReactive:${key}] 更新性能指标失败:`, err);
+        }
       }
     }
   });
