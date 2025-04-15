@@ -359,56 +359,97 @@ export function clearAllRooms() {
  * @param {Object} obj - 目标对象
  * @param {string|Array} path - 属性路径，可以是点分隔的字符串或数组
  * @param {any} defaultValue - 默认值
+ * @param {number} maxDepth - 最大递归深度，防止无限递归
  * @returns {any} 路径对应的值或默认值
  */
-function ensurePath(obj, path, defaultValue = {}) {
+function ensurePath(obj, path, defaultValue = {}, maxDepth = 10) {
+  if (!obj || typeof obj !== 'object') return defaultValue;
+  if (maxDepth <= 0) {
+    console.warn('[SyncedReactive] 达到最大路径深度限制，放弃继续处理');
+    return defaultValue;
+  }
+  
   const parts = Array.isArray(path) ? path : path.split('.');
+  if (parts.length === 0) return obj;
+  
   let current = obj;
   
   // 遍历路径的每一部分，确保每一级对象都存在
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
+    if (!part) continue;
+    
     if (!(part in current) || current[part] === null || current[part] === undefined) {
-      current[part] = {};
-    } else if (typeof current[part] !== 'object') {
-      // 如果当前路径是非对象类型，则替换为对象
-      current[part] = {};
+      // 创建新对象
+      try {
+        current[part] = {};
+      } catch (err) {
+        console.error(`[SyncedReactive] 无法在 ${parts.slice(0, i).join('.')} 创建属性 ${part}:`, err);
+        return defaultValue;
+      }
+    } else if (typeof current[part] !== 'object' || Array.isArray(current[part])) {
+      // 如果是非对象类型或数组，替换为对象
+      try {
+        current[part] = {};
+      } catch (err) {
+        console.error(`[SyncedReactive] 无法替换 ${parts.slice(0, i).join('.')}.${part} 的非对象值:`, err);
+        return defaultValue;
+      }
     }
+    
+    // 移动到下一级
     current = current[part];
+    
+    // 安全检查
+    if (!current || typeof current !== 'object') {
+      console.error(`[SyncedReactive] 路径处理中断，${parts.slice(0, i+1).join('.')} 不是对象`);
+      return defaultValue;
+    }
   }
   
   // 设置最后一级的值
   const lastPart = parts[parts.length - 1];
+  if (!lastPart) return current;
+  
   if (!(lastPart in current) || current[lastPart] === undefined || current[lastPart] === null) {
-    current[lastPart] = defaultValue;
+    try {
+      current[lastPart] = defaultValue;
+    } catch (err) {
+      console.error(`[SyncedReactive] 无法设置 ${parts.slice(0, -1).join('.')}.${lastPart} 的值:`, err);
+    }
   }
   
   return current[lastPart];
 }
 
 /**
- * 修复缺失的嵌套路径
+ * 修复缺失的嵌套路径 - 优化版，避免无限递归
  * @param {Object} obj - 要修复的对象
+ * @param {boolean} isRetry - 是否为重试操作
  */
-function fixMissingPaths(obj) {
+function fixMissingPaths(obj, isRetry = false) {
+  if (!obj || typeof obj !== 'object') return;
+  
   // 预定义的关键路径列表，确保这些路径在对象中存在
   const requiredPaths = [
-    'deepNested.level1.level2.value',
-    'nested.value',
-    'performanceMetrics.responseTime',
-    'performanceMetrics.operations'
+    { path: 'deepNested.level1.level2.value', defaultValue: '' },
+    { path: 'nested.value', defaultValue: '' },
+    { path: 'performanceMetrics.responseTime', defaultValue: 0 },
+    { path: 'performanceMetrics.operations', defaultValue: 0 }
   ];
   
-  for (const path of requiredPaths) {
+  // 防止同一数据多次尝试
+  const processedPaths = new Set();
+  
+  for (const { path, defaultValue } of requiredPaths) {
+    // 如果已经处理过该路径且是重试，则跳过
+    const pathKey = `${path}:${JSON.stringify(defaultValue)}`;
+    if (isRetry && processedPaths.has(pathKey)) continue;
+    
     try {
-      // 为每个必要路径设置默认值
-      if (path.endsWith('value')) {
-        ensurePath(obj, path, ''); // 字符串类型默认值
-      } else if (path.includes('Metrics')) {
-        ensurePath(obj, path, 0);  // 数字类型默认值
-      } else {
-        ensurePath(obj, path, {});  // 对象类型默认值
-      }
+      // 为每个必要路径设置默认值，简化调用
+      ensurePath(obj, path, defaultValue);
+      processedPaths.add(pathKey);
     } catch (err) {
       console.error(`[SyncedReactive] 修复路径失败 ${path}:`, err);
     }
@@ -419,17 +460,28 @@ function fixMissingPaths(obj) {
  * 深度合并两个状态对象，保留目标对象的响应式特性
  * @param {Object} target - 目标响应式对象
  * @param {Object} source - 源对象
+ * @param {number} depth - 当前递归深度
  */
-function mergeStates(target, source) {
+function mergeStates(target, source, depth = 0) {
   if (!target || !source || typeof target !== 'object' || typeof source !== 'object') {
     return;
   }
   
-  // 修复目标对象中的关键路径
-  try {
-    fixMissingPaths(target);
-  } catch (err) {
-    console.error('[SyncedReactive] 修复关键路径失败:', err);
+  // 限制最大递归深度，防止栈溢出
+  const MAX_DEPTH = 10;
+  if (depth > MAX_DEPTH) {
+    console.warn(`[SyncedReactive] mergeStates 达到最大递归深度 ${MAX_DEPTH}，执行浅合并`);
+    Object.assign(target, source);
+    return;
+  }
+  
+  // 修复目标对象中的关键路径 - 只在最外层调用时执行一次
+  if (depth === 0) {
+    try {
+      fixMissingPaths(target, false);
+    } catch (err) {
+      console.error('[SyncedReactive] 修复关键路径失败:', err);
+    }
   }
   
   // 处理删除的属性 - 先删除目标中存在但源中不存在的属性
@@ -458,7 +510,7 @@ function mergeStates(target, source) {
     
     // 递归处理嵌套对象 - 保留响应式
     if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
-      mergeStates(targetValue, sourceValue); // 递归合并
+      mergeStates(targetValue, sourceValue, depth + 1); // 递归合并
     } 
     // 处理数组 - 特殊处理以保留响应式
     else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
@@ -544,11 +596,14 @@ function mergeStates(target, source) {
     }
   });
   
-  // 最后再检查一次关键路径是否仍然完整
-  try {
-    fixMissingPaths(target);
-  } catch (err) {
-    console.error('[SyncedReactive] 最终修复关键路径失败:', err);
+  // 只在最外层完成后检查一次关键路径
+  if (depth === 0) {
+    try {
+      fixMissingPaths(target, true);
+    } catch (err) {
+      // 这里不再抛出错误，只记录日志
+      console.warn('[SyncedReactive] 最终检查关键路径出现警告:', err);
+    }
   }
 }
 

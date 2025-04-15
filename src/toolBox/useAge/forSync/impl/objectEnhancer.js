@@ -764,11 +764,11 @@ export function enhanceReactiveObject(localState, config) {
                 // 如果数组较小，直接更新数组部分，避免发送整个状态树
                 if (JSON.stringify(arrayToSync).length < 1024 * 500) { // 小于500KB
                   // 这里我们只发送更改的数组，而不是整个状态
-                  const minimalUpdate = {
-                    [propName]: arrayToSync
-                  };
                   
-                  // 使用专门的增量更新API (如果可用)
+                  // 记录数组修改时间戳，用于断线重连时的智能合并
+                  localState[`__array_${propName}_lastModified`] = Date.now();
+                  
+                  // 优先使用专门的增量更新API
                   if (engine.setPartialState) {
                     const syncSuccess = engine.setPartialState(type, key, propName, arrayToSync);
                     if (syncSuccess) {
@@ -779,6 +779,11 @@ export function enhanceReactiveObject(localState, config) {
                     }
                   } else {
                     // 退回到普通更新，但仍然只发送关键部分
+                    const minimalUpdate = {
+                      [propName]: arrayToSync,
+                      [`__array_${propName}_lastModified`]: Date.now() // 添加时间戳
+                    };
+                    
                     const syncSuccess = engine.setState(type, key, minimalUpdate);
                     if (syncSuccess) {
                       status.lastSync = Date.now();
@@ -792,6 +797,9 @@ export function enhanceReactiveObject(localState, config) {
                 } else {
                   // 数据过大，记录警告
                   console.warn(`[SyncedReactive:${key}] 数组同步数据过大 (${Math.round(JSON.stringify(arrayToSync).length/1024)}KB)，可能影响性能`);
+                  
+                  // 记录数组修改时间戳
+                  localState[`__array_${propName}_lastModified`] = Date.now();
                   
                   // 尝试一个最小化的更新，只保留ID等关键标识字段
                   const minimalArraySync = arrayToSync.map(item => {
@@ -807,16 +815,29 @@ export function enhanceReactiveObject(localState, config) {
                     return item;
                   });
                   
-                  const minimalUpdate = {
-                    [propName]: minimalArraySync
-                  };
-                  
-                  const syncSuccess = engine.setState(type, key, minimalUpdate);
-                  if (syncSuccess) {
-                    status.lastSync = Date.now();
-                    console.log(`[SyncedReactive:${key}] 已发送最小化数组同步: ${propName}`);
+                  // 使用专用增量更新API优先处理
+                  if (engine.setPartialState) {
+                    const syncSuccess = engine.setPartialState(type, key, propName, minimalArraySync);
+                    if (syncSuccess) {
+                      status.lastSync = Date.now();
+                      console.log(`[SyncedReactive:${key}] 已发送压缩的增量数组同步: ${propName}`);
+                    } else {
+                      console.warn(`[SyncedReactive:${key}] 压缩的增量同步失败: ${propName}`);
+                    }
                   } else {
-                    console.warn(`[SyncedReactive:${key}] 最小化同步失败: ${propName}`);
+                    // 退回到普通更新
+                    const minimalUpdate = {
+                      [propName]: minimalArraySync,
+                      [`__array_${propName}_lastModified`]: Date.now() // 添加时间戳
+                    };
+                    
+                    const syncSuccess = engine.setState(type, key, minimalUpdate);
+                    if (syncSuccess) {
+                      status.lastSync = Date.now();
+                      console.log(`[SyncedReactive:${key}] 已发送最小化数组同步: ${propName}`);
+                    } else {
+                      console.warn(`[SyncedReactive:${key}] 最小化同步失败: ${propName}`);
+                    }
                   }
                 }
               } catch (err) {
@@ -948,15 +969,35 @@ export function enhanceReactiveObject(localState, config) {
             }
           }
           
+          // 记录数组最后修改时间
+          localState[`__array_${arrayPropName}_lastModified`] = Date.now();
+          
           // 使用专用方法同步数组
           if (engine.setPartialState) {
-            return engine.setPartialState(type, key, arrayPropName, arrayToSync);
+            const success = engine.setPartialState(type, key, arrayPropName, arrayToSync);
+            if (success) {
+              status.lastSync = Date.now();
+              if (options.debug) {
+                console.log(`[SyncedReactive:${key}] 手动同步数组成功: ${arrayPropName}`, arrayToSync.length);
+              }
+              return true;
+            }
+            return false;
           } else {
             // 退回到仅包含该数组的更新
             const minimalUpdate = {
-              [arrayPropName]: arrayToSync
+              [arrayPropName]: arrayToSync,
+              [`__array_${arrayPropName}_lastModified`]: Date.now() // 添加时间戳
             };
-            return engine.setState(type, key, minimalUpdate);
+            const success = engine.setState(type, key, minimalUpdate);
+            if (success) {
+              status.lastSync = Date.now();
+              if (options.debug) {
+                console.log(`[SyncedReactive:${key}] 手动同步数组成功: ${arrayPropName}`, arrayToSync.length);
+              }
+              return true;
+            }
+            return false;
           }
         } catch (err) {
           console.error(`[SyncedReactive:${key}] 同步数组失败: ${arrayPropName}`, err);
