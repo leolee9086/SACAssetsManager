@@ -83,29 +83,94 @@ export function setupWatchers(params) {
         if (type === 'ref') {
           localState.value = remoteState;
         } else {
-          // 对于reactive类型，需要更新所有属性
-          const remoteKeys = Object.keys(remoteState);
-          const localKeys = Object.keys(localState);
-          
-          // 更新或添加远程状态中的属性
-          for (const k of remoteKeys) {
-            const remoteValue = remoteState[k];
-            // 如果是数值类型且不同，或者其他类型且值不同，进行更新
-            const needsUpdate = (
-              typeof remoteValue === 'number' && localState[k] !== remoteValue
-            ) || JSON.stringify(localState[k]) !== JSON.stringify(remoteValue);
+          // 对于reactive类型，使用安全合并而不是直接替换
+          const mergeStates = (target, source) => {
+            if (!target || !source || typeof target !== 'object' || typeof source !== 'object') {
+              return;
+            }
             
-            if (needsUpdate) {
-              localState[k] = remoteValue;
-            }
-          }
+            // 处理删除的属性
+            Object.keys(target).forEach(k => {
+              if (k.startsWith('$') || typeof target[k] === 'function') return;
+              if (!(k in source)) {
+                delete target[k];
+              }
+            });
+            
+            // 合并或添加属性
+            Object.keys(source).forEach(k => {
+              if (k.startsWith('$') || typeof source[k] === 'function') return;
+              
+              const sourceValue = source[k];
+              
+              // 目标不存在此属性，需要创建
+              if (!(k in target)) {
+                if (Array.isArray(sourceValue)) {
+                  // 数组需要逐项复制
+                  target[k] = [];
+                  sourceValue.forEach(item => {
+                    if (item !== null && typeof item === 'object') {
+                      const newObj = Array.isArray(item) ? [] : {};
+                      Object.keys(item).forEach(subKey => {
+                        if (!subKey.startsWith('$') && typeof item[subKey] !== 'function') {
+                          newObj[subKey] = item[subKey];
+                        }
+                      });
+                      target[k].push(newObj);
+                    } else {
+                      target[k].push(item);
+                    }
+                  });
+                } else if (sourceValue !== null && typeof sourceValue === 'object') {
+                  // 对象需要递归合并
+                  target[k] = {};
+                  mergeStates(target[k], sourceValue);
+                } else {
+                  // 基本类型直接赋值
+                  target[k] = sourceValue;
+                }
+                return;
+              }
+              
+              const targetValue = target[k];
+              
+              // 递归处理嵌套对象
+              if (sourceValue !== null && typeof sourceValue === 'object' && 
+                  targetValue !== null && typeof targetValue === 'object') {
+                if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+                  // 清空数组但保留引用
+                  targetValue.length = 0;
+                  // 填充新内容
+                  sourceValue.forEach(item => {
+                    if (item !== null && typeof item === 'object') {
+                      const newObj = Array.isArray(item) ? [] : {};
+                      Object.keys(item).forEach(subKey => {
+                        if (!subKey.startsWith('$') && typeof item[subKey] !== 'function') {
+                          newObj[subKey] = item[subKey];
+                        }
+                      });
+                      targetValue.push(newObj);
+                    } else {
+                      targetValue.push(item);
+                    }
+                  });
+                } else if (!Array.isArray(sourceValue) && !Array.isArray(targetValue)) {
+                  // 对象递归合并
+                  mergeStates(targetValue, sourceValue);
+                } else {
+                  // 类型不匹配，直接替换
+                  target[k] = Array.isArray(sourceValue) ? [] : {};
+                  mergeStates(target[k], sourceValue);
+                }
+              } else if (targetValue !== sourceValue) {
+                // 简单类型直接替换
+                target[k] = sourceValue;
+              }
+            });
+          };
           
-          // 删除不存在于远程的属性
-          for (const k of localKeys) {
-            if (!remoteKeys.includes(k)) {
-              delete localState[k];
-            }
-          }
+          // 使用安全合并函数
+          mergeStates(localState, remoteState);
         }
         
         // 更新同步时间
@@ -148,9 +213,34 @@ export function setupWatchers(params) {
       syncLock = true;
       
       try {
-        // 对数据进行深拷贝，确保数值类型变更也被同步
+        // 创建一个安全的深拷贝，确保数据类型保持一致
+        const safeDeepClone = (value) => {
+          if (value === null || value === undefined) {
+            return value;
+          }
+          
+          if (typeof value !== 'object') {
+            return value;
+          }
+          
+          if (Array.isArray(value)) {
+            return value.map(item => safeDeepClone(item));
+          }
+          
+          const result = {};
+          for (const key in value) {
+            // 跳过内部属性和方法
+            if (key.startsWith('$') || typeof value[key] === 'function') {
+              continue;
+            }
+            result[key] = safeDeepClone(value[key]);
+          }
+          return result;
+        };
+        
+        // 对数据进行安全深拷贝
         const rawState = toRaw(newState);
-        const stateToSync = deepClone(rawState);
+        const stateToSync = safeDeepClone(rawState);
         
         // 更新到同步引擎
         engine.setState(storeType, key, stateToSync);

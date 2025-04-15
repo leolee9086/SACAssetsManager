@@ -258,64 +258,116 @@ export function enhanceReactiveObject(localState, config) {
   };
   
   /**
-   * 安全地初始化嵌套路径
+   * 安全地确保对象路径存在
    * @param {Object} obj - 目标对象
-   * @param {string|Array} path - 属性路径，可以是点分隔的字符串或数组
-   * @param {any} defaultValue - 默认值
-   * @returns {any} 路径对应的值或默认值
+   * @param {string} path - 路径，例如'a.b.c'
+   * @param {any} defaultValue - 如果路径不存在，设置的默认值
+   * @returns {Object} 路径上的最后一个对象
    */
   const ensurePath = (obj, path, defaultValue = {}) => {
-    const parts = Array.isArray(path) ? path : path.split('.');
+    if (!obj || typeof obj !== 'object') {
+      console.warn(`[SyncedReactive:${key}] 无法确保路径 ${path}，目标不是对象`);
+      return obj;
+    }
+    
+    // 处理单层属性
+    if (!path.includes('.')) {
+      if (!(path in obj)) {
+        try {
+          obj[path] = defaultValue;
+        } catch (err) {
+          console.warn(`[SyncedReactive:${key}] 无法设置属性 ${path}:`, err);
+        }
+      }
+      return obj;
+    }
+    
+    // 处理多层路径
+    const parts = path.split('.');
     let current = obj;
     
-    // 遍历路径的每一部分，确保每一级对象都存在
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (!(part in current) || current[part] === null || current[part] === undefined) {
-        current[part] = {};
-      } else if (typeof current[part] !== 'object') {
-        // 如果当前路径是非对象类型，则替换为对象
-        current[part] = {};
+      
+      // 检查当前对象是否存在
+      if (current === null || current === undefined) {
+        console.warn(`[SyncedReactive:${key}] 路径 ${parts.slice(0, i+1).join('.')} 不存在`);
+        return obj;
       }
+      
+      // 检查当前部分是否存在，不存在则创建
+      if (!(part in current) || current[part] === null || typeof current[part] !== 'object') {
+        try {
+          current[part] = {};
+        } catch (err) {
+          console.warn(`[SyncedReactive:${key}] 无法创建路径 ${parts.slice(0, i+1).join('.')}:`, err);
+          return obj;
+        }
+      }
+      
       current = current[part];
     }
     
-    // 设置最后一级的值
+    // 设置最后一部分
     const lastPart = parts[parts.length - 1];
-    if (!(lastPart in current) || current[lastPart] === undefined || current[lastPart] === null) {
-      current[lastPart] = defaultValue;
+    if (current !== null && typeof current === 'object' && !(lastPart in current)) {
+      try {
+        current[lastPart] = defaultValue;
+      } catch (err) {
+        console.warn(`[SyncedReactive:${key}] 无法设置最终属性 ${path}:`, err);
+      }
     }
     
-    return current[lastPart];
+    return obj;
   };
 
   /**
-   * 修复缺失的嵌套路径
-   * @param {Object} obj - 要修复的对象
-   * @param {Array<string>} requiredPaths - 必须存在的路径列表
+   * 修复可能缺失的关键路径
+   * @param {Object} obj - 目标对象
    */
   const fixMissingPaths = (obj) => {
-    // 预定义的关键路径列表，确保这些路径在对象中存在
-    const requiredPaths = [
-      'deepNested.level1.level2.value',
-      'nested.value',
-      'performanceMetrics.responseTime',
-      'performanceMetrics.operations'
-    ];
+    if (!obj || typeof obj !== 'object') {
+      return; // 不是对象，无需修复
+    }
     
-    for (const path of requiredPaths) {
-      try {
-        // 为每个必要路径设置默认值
-        if (path.endsWith('value')) {
-          ensurePath(obj, path, ''); // 字符串类型默认值
-        } else if (path.includes('Metrics')) {
-          ensurePath(obj, path, 0);  // 数字类型默认值
-        } else {
-          ensurePath(obj, path, {});  // 对象类型默认值
-        }
-      } catch (err) {
-        console.error(`[SyncedReactive] 修复路径失败 ${path}:`, err);
+    try {
+      // 确保性能指标对象存在
+      if (!obj.performanceMetrics) {
+        obj.performanceMetrics = {
+          responseTime: 0,
+          operations: 0,
+          lastUpdate: Date.now()
+        };
+      } else if (typeof obj.performanceMetrics === 'object') {
+        // 确保性能指标子字段存在
+        if (!('responseTime' in obj.performanceMetrics)) obj.performanceMetrics.responseTime = 0;
+        if (!('operations' in obj.performanceMetrics)) obj.performanceMetrics.operations = 0;
+        if (!('lastUpdate' in obj.performanceMetrics)) obj.performanceMetrics.lastUpdate = Date.now();
       }
+      
+      // 确保嵌套对象存在
+      if (!obj.nested) {
+        obj.nested = { value: '' };
+      } else if (typeof obj.nested === 'object' && !('value' in obj.nested)) {
+        obj.nested.value = '';
+      }
+      
+      // 确保deepNested结构完整
+      if (!obj.deepNested) {
+        obj.deepNested = { level1: { level2: { value: '' } } };
+      } else if (typeof obj.deepNested === 'object') {
+        if (!obj.deepNested.level1) {
+          obj.deepNested.level1 = { level2: { value: '' } };
+        } else if (typeof obj.deepNested.level1 === 'object') {
+          if (!obj.deepNested.level1.level2) {
+            obj.deepNested.level1.level2 = { value: '' };
+          } else if (typeof obj.deepNested.level1.level2 === 'object' && !('value' in obj.deepNested.level1.level2)) {
+            obj.deepNested.level1.level2.value = '';
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[SyncedReactive:${key}] 修复路径失败:`, err);
     }
   };
 
@@ -521,55 +573,125 @@ export function enhanceReactiveObject(localState, config) {
   };
   
   /**
-   * 递归合并嵌套对象
+   * 递归合并嵌套对象 - 保留响应式
    * @param {Object} target - 目标对象
    * @param {Object} source - 源对象
    */
   const mergeNestedObjects = (target, source) => {
-    if (!isPlainObject(target) || !isPlainObject(source)) {
+    if (!target || !source || typeof target !== 'object' || typeof source !== 'object') {
       return;
     }
     
-    // 添加固定路径修复
-    fixMissingPaths(target);
+    try {
+      // 修复可能缺失的关键路径，但避免递归死循环
+      try {
+        fixMissingPaths(target);
+      } catch (err) {
+        console.warn(`[SyncedReactive:${key}] 修复目标对象路径失败:`, err);
+      }
     
-    // 处理删除的属性 - 先删除目标中有但源中没有的属性
-    Object.keys(target).forEach(key => {
-      // 保留所有$开头的内部属性和方法
-      if (key.startsWith('$') || typeof target[key] === 'function') return;
-      if (!(key in source)) {
-        delete target[key];
-      }
-    });
-    
-    // 合并或添加属性
-    Object.keys(source).forEach(key => {
-      const sourceValue = source[key];
+      // 删除目标中存在但源中不存在的属性
+      Object.keys(target).forEach(key => {
+        if (key.startsWith('$') || typeof target[key] === 'function') return;
+        if (!(key in source)) {
+          delete target[key];
+        }
+      });
       
-      // 跳过内部属性
-      if (key.startsWith('$') || typeof sourceValue === 'function') return;
-      
-      // 如果目标不存在此属性，直接添加
-      if (!(key in target)) {
-        target[key] = sourceValue;
-        return;
-      }
-      
-      const targetValue = target[key];
-      
-      // 递归处理嵌套对象 - 保留响应式
-      if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
-        mergeNestedObjects(targetValue, sourceValue);
-      } 
-      // 处理数组 - 特殊处理以保留响应式
-      else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
-        safeArrayUpdate(targetValue, sourceValue);
-      }
-      // 其他情况直接替换值
-      else if (targetValue !== sourceValue) {
-        target[key] = sourceValue;
-      }
-    });
+      // 添加源中存在但目标中不存在的属性，并更新已存在的属性
+      Object.keys(source).forEach(key => {
+        if (key.startsWith('$') || typeof source[key] === 'function') return;
+        
+        const sourceValue = source[key];
+        
+        // 如果目标不存在此属性，需要创建
+        if (!(key in target)) {
+          // 对于对象和数组，需要特殊处理以保持响应式
+          if (Array.isArray(sourceValue)) {
+            // 创建新数组
+            target[key] = [];
+            // 填充内容
+            sourceValue.forEach(item => {
+              if (item !== null && typeof item === 'object') {
+                // 对象需要深拷贝
+                const newObj = {};
+                Object.keys(item).forEach(k => {
+                  if (!k.startsWith('$') && typeof item[k] !== 'function') {
+                    newObj[k] = item[k];
+                  }
+                });
+                target[key].push(newObj);
+              } else {
+                target[key].push(item);
+              }
+            });
+          } else if (isPlainObject(sourceValue)) {
+            // 创建新对象
+            target[key] = {};
+            // 递归合并
+            mergeNestedObjects(target[key], sourceValue);
+          } else {
+            // 基本类型直接赋值
+            target[key] = sourceValue;
+          }
+          return;
+        }
+        
+        const targetValue = target[key];
+        
+        // 处理目标和源都是对象的情况
+        if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
+          // 递归合并
+          mergeNestedObjects(targetValue, sourceValue);
+        } 
+        // 处理目标和源都是数组的情况
+        else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+          // 清空原数组但保留引用
+          targetValue.length = 0;
+          // 将源数组的所有元素添加到目标数组
+          sourceValue.forEach(item => {
+            if (item !== null && typeof item === 'object') {
+              if (Array.isArray(item)) {
+                // 嵌套数组
+                const newArray = [];
+                item.forEach(nestedItem => {
+                  if (nestedItem !== null && typeof nestedItem === 'object' && !Array.isArray(nestedItem)) {
+                    const nestedObj = {};
+                    Object.keys(nestedItem).forEach(k => {
+                      if (!k.startsWith('$') && typeof nestedItem[k] !== 'function') {
+                        nestedObj[k] = nestedItem[k];
+                      }
+                    });
+                    newArray.push(nestedObj);
+                  } else {
+                    newArray.push(nestedItem);
+                  }
+                });
+                targetValue.push(newArray);
+              } else {
+                // 对象
+                const newObj = {};
+                Object.keys(item).forEach(k => {
+                  if (!k.startsWith('$') && typeof item[k] !== 'function') {
+                    newObj[k] = item[k];
+                  }
+                });
+                targetValue.push(newObj);
+              }
+            } else {
+              // 基本类型
+              targetValue.push(item);
+            }
+          });
+        }
+        // 其他情况直接替换
+        else if (targetValue !== sourceValue) {
+          target[key] = sourceValue;
+        }
+      });
+    } catch (err) {
+      console.error(`[SyncedReactive:${key}] 合并嵌套对象失败:`, err);
+    }
   };
   
   // 防抖版本的同步函数
