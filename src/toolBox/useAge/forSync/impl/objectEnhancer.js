@@ -257,69 +257,7 @@ export function enhanceReactiveObject(localState, config) {
     }
   };
   
-  /**
-   * 安全地确保对象路径存在
-   * @param {Object} obj - 目标对象
-   * @param {string} path - 路径，例如'a.b.c'
-   * @param {any} defaultValue - 如果路径不存在，设置的默认值
-   * @returns {Object} 路径上的最后一个对象
-   */
-  const ensurePath = (obj, path, defaultValue = {}) => {
-    if (!obj || typeof obj !== 'object') {
-      console.warn(`[SyncedReactive:${key}] 无法确保路径 ${path}，目标不是对象`);
-      return obj;
-    }
-    
-    // 处理单层属性
-    if (!path.includes('.')) {
-      if (!(path in obj)) {
-        try {
-          obj[path] = defaultValue;
-        } catch (err) {
-          console.warn(`[SyncedReactive:${key}] 无法设置属性 ${path}:`, err);
-        }
-      }
-      return obj;
-    }
-    
-    // 处理多层路径
-    const parts = path.split('.');
-    let current = obj;
-    
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      
-      // 检查当前对象是否存在
-      if (current === null || current === undefined) {
-        console.warn(`[SyncedReactive:${key}] 路径 ${parts.slice(0, i+1).join('.')} 不存在`);
-        return obj;
-      }
-      
-      // 检查当前部分是否存在，不存在则创建
-      if (!(part in current) || current[part] === null || typeof current[part] !== 'object') {
-        try {
-          current[part] = {};
-        } catch (err) {
-          console.warn(`[SyncedReactive:${key}] 无法创建路径 ${parts.slice(0, i+1).join('.')}:`, err);
-          return obj;
-        }
-      }
-      
-      current = current[part];
-    }
-    
-    // 设置最后一部分
-    const lastPart = parts[parts.length - 1];
-    if (current !== null && typeof current === 'object' && !(lastPart in current)) {
-      try {
-        current[lastPart] = defaultValue;
-      } catch (err) {
-        console.warn(`[SyncedReactive:${key}] 无法设置最终属性 ${path}:`, err);
-      }
-    }
-    
-    return obj;
-  };
+ 
 
   /**
    * 修复可能缺失的关键路径
