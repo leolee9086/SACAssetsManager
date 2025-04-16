@@ -191,6 +191,14 @@ module.exports = class SACAssetsManager extends Plugin {
     });
   }
   初始化插件异步状态() {
+    // 初始化Yjs单一实例，避免多实例问题
+    import(`${this.插件自身伺服地址}/src/toolBox/feature/useSyncedstore/initYjs.js`).then(module => {
+      module.initYjs();
+      console.log('[SAC资源管理器] Yjs单一实例初始化完成');
+    }).catch(err => {
+      console.error('[SAC资源管理器] Yjs初始化失败:', err);
+    });
+    
     import(`${this.插件自身伺服地址}/source/index.js`)
   }
 

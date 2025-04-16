@@ -120,35 +120,17 @@ export async function createSyncStore(options = {}) {
     ? await setupPersistence(roomName, ydoc, initialState, store, status, isLocalDataLoaded, { loadTimeout })
     : handleNoPersistence(initialState, store, isLocalDataLoaded);
 
-  // 连接思源
-  let siyuanSocket = null;
-  
-  // 判断是否应该启用思源WebSocket连接
-  // 当明确启用思源连接或者禁用WebRTC时优先使用思源连接
+  // 判断是否要使用思源同步
   const shouldUseSiyuan = siyuan.enabled || disableWebRTC;
   
+  // 记录是否要使用思源同步
   if (shouldUseSiyuan) {
-    try {
-      console.log(`[同步存储] 房间 ${roomName} 启用思源WebSocket连接`);
-      siyuanSocket = await connectToSiyuan(roomName, {
-        ...siyuan,
-        enabled: true  // 确保启用思源连接
-      }, store);
-      
-      if (siyuanSocket) {
-        isConnected.value = true;
-        status.value = '已连接(思源)';
-        console.log(`[同步存储] 房间 ${roomName} 思源WebSocket连接成功`);
-      } else {
-        console.warn(`[同步存储] 房间 ${roomName} 思源WebSocket连接失败`);
-      }
-    } catch (err) {
-      console.error(`[同步存储] 房间 ${roomName} 思源WebSocket连接出错:`, err);
-    }
+    console.log(`[同步存储] 房间 ${roomName} 将使用思源WebSocket同步`);
+    // 思源连接将在后面通过SiyuanProvider创建
   }
 
-  // 判断是否使用WebRTC - 只有在未禁用WebRTC且非强制使用思源时才使用WebRTC
-  const useWebRTC = !disableWebRTC && !(siyuanSocket && shouldUseSiyuan);
+  // 判断是否使用WebRTC - 只有在未禁用WebRTC时才使用WebRTC
+  const useWebRTC = !disableWebRTC && !shouldUseSiyuan;
   
   // 只有在需要使用WebRTC时才选择服务器和创建连接
   let provider = null;
@@ -162,46 +144,148 @@ export async function createSyncStore(options = {}) {
     // 合并WebRTC选项
     const mergedWebRtcOptions = mergeWebRtcOptions(webrtcOptions, bestServers)
 
-    // 获取或创建连接
-    provider = await documentManager.getConnection(
-      roomName, 
-      ydoc, 
-      mergedWebRtcOptions
-    )
+    try {
+      // 获取或创建连接 - 注意这是一个异步操作
+      provider = await documentManager.getConnection(
+        roomName, 
+        ydoc, 
+        mergedWebRtcOptions
+      )
 
-    // 创建连接管理器
-    connectionManager = createConnectionManager({
-      provider,
-      roomName,
-      retryStrategy,
-      documentManager,
-      ydoc,
-      webrtcOptions: mergedWebRtcOptions,
-      status,
-      isConnected
-    })
+      // 创建连接管理器
+      connectionManager = createConnectionManager({
+        provider,
+        roomName,
+        retryStrategy,
+        documentManager,
+        ydoc,
+        webrtcOptions: mergedWebRtcOptions,
+        status,
+        isConnected
+      })
 
-    // 如果设置了自动连接，则立即连接
-    if (autoConnect) {
-      setTimeout(() => connectionManager.connect(), CONNECT_DELAY)
+      // 如果设置了自动连接，则立即连接
+      if (autoConnect) {
+        setTimeout(() => connectionManager.connect(), CONNECT_DELAY)
+      }
+    } catch (err) {
+      console.error(`[同步存储] 房间 ${roomName} 连接创建失败:`, err)
+      status.value = '连接创建失败'
+      
+      // 创建一个空的连接管理器作为后备
+      connectionManager = {
+        connect: () => false,
+        disconnect: () => false,
+        reconnect: () => false,
+        getProvider: () => null,
+        isConnected: () => false
+      }
     }
   } else {
-    // 使用思源WebSocket时，使用空的连接管理器
+    // 使用思源WebSocket作为Provider而不是简单连接
     status.value = shouldUseSiyuan ? '使用思源WebSocket同步' : '未启用同步'
     console.log(`[同步存储] 房间 ${roomName} ${shouldUseSiyuan ? '使用思源WebSocket同步' : '未启用同步'}`);
     
-    // 为避免空值错误，创建一个空的连接管理器
-    connectionManager = {
-      connect: () => false,
-      disconnect: () => false,
-      reconnect: () => false,
-      getProvider: () => null,
-      isConnected: () => shouldUseSiyuan && siyuanSocket !== null
-    }
-    
-    // 如果思源WebSocket连接成功，设置连接状态
-    if (shouldUseSiyuan && siyuanSocket !== null) {
-      isConnected.value = true;
+    if (shouldUseSiyuan) {
+      try {
+        // 创建思源Provider连接选项
+        const siyuanProviderOptions = {
+          useSiyuan: true,
+          forceSiyuan: true, // 强制使用思源Provider
+          port: siyuan.port || 6806,
+          host: siyuan.host || '127.0.0.1',
+          token: siyuan.token || '6806',
+          channel: siyuan.channel || 'sync',
+          autoReconnect: siyuan.autoReconnect !== false,
+          reconnectInterval: siyuan.reconnectInterval || 1000,
+          maxReconnectAttempts: siyuan.maxReconnectAttempts || 10,
+          // 确保传递Y实例以避免多实例问题 - 改用yjsInstance
+          Y: null // 让documentManager使用统一实例
+        };
+        
+        console.log(`[同步存储] 房间 ${roomName} 尝试创建思源Provider`);
+        
+        // 通过documentManager获取provider - 这是异步操作
+        provider = await documentManager.getConnection(
+          roomName,
+          ydoc,
+          siyuanProviderOptions
+        );
+        
+        if (provider) {
+          console.log(`[同步存储] 房间 ${roomName} 思源Provider创建成功`);
+          isConnected.value = true;
+          status.value = '已连接(思源)';
+          
+          // 创建一个与WebRTC provider兼容的连接管理器
+          connectionManager = {
+            connect: () => {
+              if (provider && typeof provider.connect === 'function') {
+                provider.connect();
+                return true;
+              }
+              return false;
+            },
+            disconnect: () => {
+              if (provider && typeof provider.disconnect === 'function') {
+                provider.disconnect();
+                return true;
+              }
+              return false;
+            },
+            reconnect: () => {
+              if (provider) {
+                if (typeof provider.disconnect === 'function') {
+                  provider.disconnect();
+                }
+                if (typeof provider.connect === 'function') {
+                  setTimeout(() => provider.connect(), 100);
+                  return true;
+                }
+              }
+              return false;
+            },
+            getProvider: () => provider,
+            isConnected: () => provider && provider.wsconnected
+          };
+          
+          // 如果设置了自动连接，则立即连接
+          if (autoConnect) {
+            setTimeout(() => connectionManager.connect(), CONNECT_DELAY);
+          }
+        } else {
+          console.warn(`[同步存储] 房间 ${roomName} 思源Provider创建失败`);
+          
+          // 创建一个空的连接管理器作为后备
+          connectionManager = {
+            connect: () => false,
+            disconnect: () => false,
+            reconnect: () => false,
+            getProvider: () => null,
+            isConnected: () => false
+          };
+        }
+      } catch (err) {
+        console.error(`[同步存储] 房间 ${roomName} 创建思源Provider出错:`, err);
+        
+        // 创建一个空的连接管理器作为后备
+        connectionManager = {
+          connect: () => false,
+          disconnect: () => false,
+          reconnect: () => false,
+          getProvider: () => null,
+          isConnected: () => false
+        };
+      }
+    } else {
+      // 创建一个空的连接管理器
+      connectionManager = {
+        connect: () => false,
+        disconnect: () => false,
+        reconnect: () => false,
+        getProvider: () => null,
+        isConnected: () => false
+      };
     }
   }
 
@@ -211,12 +295,11 @@ export async function createSyncStore(options = {}) {
     store,
     roomName,
     autoSync,
-    getProvider: connectionManager.getProvider,
-    siyuanSocket
+    getProvider: connectionManager.getProvider
   })
 
-  // 只有在使用WebRTC时才获取provider和设置事件监听
-  if (useWebRTC) {
+  // 只有在使用WebRTC且成功创建provider时才设置事件监听
+  if (useWebRTC && provider) {
     // 获取连接管理器中的provider
     provider = connectionManager.getProvider()
     
@@ -231,8 +314,7 @@ export async function createSyncStore(options = {}) {
     persistenceManager, 
     documentManager, 
     roomName, 
-    siyuanManager, 
-    siyuanSocket
+    siyuanManager
   )
   
   // 添加诊断功能
@@ -282,13 +364,18 @@ export async function createSyncStore(options = {}) {
     getPeers: () => {
       const provider = connectionManager.getProvider();
       
-      // 思源WebSocket连接
-      if (siyuanSocket) {
-        return new Set(['siyuan-ws']);
+      // 没有provider的情况
+      if (!provider) {
+        return new Set();
+      }
+      
+      // 思源WebSocket连接 - 检查provider类型
+      if (provider.constructor && provider.constructor.name === 'SiyuanProvider') {
+        return provider.getPeers ? provider.getPeers() : new Set(['siyuan-ws']);
       }
       
       // WebRTC连接
-      if (provider && provider.connected) {
+      if (provider.connected) {
         // 如果provider提供了getPeers方法
         if (provider.getPeers) {
           return provider.getPeers();
@@ -490,355 +577,77 @@ function mergeWebRtcOptions(userOptions, bestServers) {
  * @returns {boolean} 是否是Yjs文档
  */
 function isYjsDocument(obj) {
+  // 检查基本类型
   if (!obj || typeof obj !== 'object') return false;
   
-  // 检查直接属性
-  if (obj._yjs || obj.ydoc || obj.doc || obj._prelimState) return true;
-  
-  // 检查state属性
-  if (obj.state && typeof obj.state === 'object') {
-    if (obj.state._yjs || obj.state.ydoc || obj.state.doc || obj.state._prelimState) {
-      return true;
+  try {
+    // 安全地检查属性
+    const safeHasProperty = (obj, prop) => {
+      try {
+        return prop in obj;
+      } catch (e) {
+        return false;
+      }
+    };
+    
+    const safeCheckMethod = (obj, methodName) => {
+      try {
+        return typeof obj[methodName] === 'function';
+      } catch (e) {
+        return false;
+      }
+    };
+    
+    // 检查常见的Yjs方法
+    if (safeCheckMethod(obj, 'transact')) return true;
+    if (safeCheckMethod(obj, 'getArray')) return true;
+    if (safeCheckMethod(obj, 'getMap')) return true;
+    if (safeCheckMethod(obj, 'getText')) return true;
+    if (safeCheckMethod(obj, 'getXmlFragment')) return true;
+    
+    // 检查直接属性（不输出错误）
+    if (safeHasProperty(obj, '_yjs') && obj._yjs) return true;
+    if (safeHasProperty(obj, 'ydoc') && obj.ydoc) return true;
+    if (safeHasProperty(obj, 'doc') && obj.doc) return true;
+    if (safeHasProperty(obj, '_prelimState') && obj._prelimState) return true;
+    
+    // 检查state属性
+    if (safeHasProperty(obj, 'state') && obj.state && typeof obj.state === 'object') {
+      // 检查state的属性
+      if (safeHasProperty(obj.state, '_yjs') && obj.state._yjs) return true;
+      if (safeHasProperty(obj.state, 'ydoc') && obj.state.ydoc) return true;
+      if (safeHasProperty(obj.state, 'doc') && obj.state.doc) return true;
+      if (safeHasProperty(obj.state, '_prelimState') && obj.state._prelimState) return true;
     }
-  }
-  
-  // 检查特殊属性
-  if (obj.createRelativePositionFromTypeIndex || obj.transact) {
-    return true;
+    
+    // 检查store属性
+    if (safeHasProperty(obj, 'store') && obj.store && typeof obj.store === 'object') {
+      // 递归检查store（但避免无限递归）
+      if (obj.store !== obj) {
+        try {
+          // 使用简单检查避免深度递归
+          if (safeHasProperty(obj.store, '_yjs') && obj.store._yjs) return true;
+          if (safeHasProperty(obj.store, 'ydoc') && obj.store.ydoc) return true;
+          if (safeHasProperty(obj.store, 'doc') && obj.store.doc) return true;
+        } catch (e) {
+          // 忽略内部检查错误
+        }
+      }
+    }
+    
+    // 检查其他特殊属性
+    if (safeCheckMethod(obj, 'createRelativePositionFromTypeIndex')) return true;
+    
+    // 检查内部结构（但不输出错误）
+    if (safeHasProperty(obj, '_item') && safeHasProperty(obj, '_parent') && obj._item && obj._parent) return true;
+    if (safeHasProperty(obj, '_map') && safeHasProperty(obj, '_transaction') && obj._map && obj._transaction) return true;
+    
+  } catch (e) {
+    // 捕获任何未预期的错误，但不输出
+    return false;
   }
   
   return false;
-}
-
-/**
- * 连接到思源WebSocket
- * @param {string} roomName - 房间名称
- * @param {Object} config - 思源配置
- * @param {Object} store - 数据存储
- * @returns {Promise<WebSocket|null>} WebSocket实例或null
- */
-async function connectToSiyuan(roomName, config, store) {
-  try {
-    console.log(`[思源同步] 房间 ${roomName} 开始连接到思源WebSocket`);
-    
-    // 更新思源配置
-    siyuanManager.updateConfig(config);
-    
-    // 先检查是否为Yjs文档
-    const isYjs = isYjsDocument(store);
-    if (isYjs) {
-      console.log(`[思源同步] 检测到房间 ${roomName} 使用Yjs文档，将使用特殊处理`);
-    }
-    
-    // 先注册存储对象，确保在收到消息时可以正确处理
-    siyuanManager.registerStore(roomName, store);
-    
-    // 连接到思源WebSocket
-    const socket = await siyuanManager.connect(roomName, config);
-    
-    if (!socket) {
-      console.error(`[思源同步] 房间 ${roomName} 连接到思源WebSocket失败`);
-      return null;
-    }
-    
-    // 添加消息处理程序
-    siyuanManager.addMessageHandler(roomName, (message) => {
-      try {
-        if (message.type === 'sync' && message.state) {
-          console.log(`[思源同步] 房间 ${roomName} 收到同步数据，正在合并...`);
-          
-          // 合并远程数据到本地状态
-          mergeRemoteState(store.state, message.state);
-          
-          // 查找在文档管理器中注册的同步结果对象
-          const syncResult = documentManager.connections.get(roomName);
-          if (syncResult && syncResult._eventHandlers) {
-            // 使用同步结果对象上的事件处理器
-            const eventHandlers = syncResult._eventHandlers;
-            if (eventHandlers.has('sync')) {
-              const syncHandlers = eventHandlers.get('sync');
-              for (const handler of syncHandlers) {
-                try {
-                  handler(message.state);
-                } catch (error) {
-                  console.error(`[思源同步] 同步事件处理器执行出错:`, error);
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error(`[思源同步] 处理消息出错:`, error);
-      }
-    });
-    
-    // 每10秒发送一次心跳保持连接
-    const heartbeatInterval = setInterval(() => {
-      if (socket.readyState === WebSocket.OPEN) {
-        try {
-          socket.send(JSON.stringify({
-            type: 'heartbeat',
-            room: roomName,
-            timestamp: Date.now()
-          }));
-        } catch (e) {
-          console.warn(`[思源同步] 发送心跳包失败:`, e);
-        }
-      }
-    }, 10000);
-    
-    // 保存心跳定时器，以便在断开连接时清理
-    const connState = siyuanManager.getConnectionStatus(roomName);
-    if (connState) {
-      connState.heartbeatInterval = heartbeatInterval;
-    }
-    
-    // 初始化时发送一次完整数据
-    setTimeout(() => {
-      try {
-        sendDataToSiyuan(socket, roomName, store);
-      } catch (err) {
-        console.error(`[思源同步] 初始化数据发送失败:`, err);
-      }
-    }, 500);
-    
-    console.log(`[思源同步] 房间 ${roomName} 连接到思源WebSocket成功`);
-    return socket;
-  } catch (error) {
-    console.error(`[思源同步] 连接到思源WebSocket出错:`, error);
-    return null;
-  }
-}
-
-/**
- * 发送数据到思源笔记
- * @param {Object} state - 要发送的状态对象
- * @param {Object} connection - WebSocket连接对象
- * @param {boolean} [forceSplit=false] - 是否强制使用分块发送
- * @returns {boolean} 是否成功发送
- */
-function sendDataToSiyuan(state, connection, forceSplit = false) {
-  // 检查连接状态
-  if (!connection || !connection.socket || connection.socket.readyState !== WebSocket.OPEN) {
-    console.warn('[思源同步] 无法发送数据：WebSocket未连接');
-    return false;
-  }
-
-  try {
-    // 过滤和准备数据
-    const filteredState = filterStateForSync(state);
-    
-    // 计算数据大小
-    const jsonData = JSON.stringify(filteredState);
-    const dataSize = new Blob([jsonData]).size;
-    const dataSizeKB = Math.round(dataSize / 1024);
-    
-    console.log(`[思源同步] 准备发送数据，大小: ${dataSizeKB}KB`);
-    
-    // 如果数据大于500KB或强制分块，则使用分块发送
-    if (forceSplit || dataSize > 500 * 1024) {
-      console.log(`[思源同步] 数据大小(${dataSizeKB}KB)超过阈值，使用分块发送`);
-      return sendSplitData(filteredState, connection);
-    }
-    
-    // 否则使用普通发送
-    console.log(`[思源同步] 使用普通方式发送数据(${dataSizeKB}KB)`);
-    connection.socket.send(JSON.stringify({
-      type: 'sync',
-      room: connection.room,
-      state: filteredState,
-      timestamp: Date.now()
-    }));
-    
-    return true;
-  } catch (err) {
-    console.error('[思源同步] 发送数据失败:', err);
-    return false;
-  }
-}
-
-/**
- * 将状态对象过滤和准备用于同步
- * @param {Object} state - 原始状态对象
- * @param {Object} [options] - 过滤选项
- * @param {number} [options.maxDepth=20] - 最大递归深度
- * @returns {Object} 过滤后的状态对象
- */
-function filterStateForSync(state, options = {}) {
-  const { maxDepth = 20 } = options;
-  
-  // 用于记录已处理对象，避免循环引用
-  const processedObjects = new WeakMap();
-  
-  // 过滤函数
-  function filter(obj, depth = 0) {
-    // 处理基本类型
-    if (obj === null || obj === undefined) return obj;
-    if (typeof obj !== 'object') return obj;
-    
-    // 检查深度限制
-    if (depth > maxDepth) {
-      console.warn('[思源同步] 达到最大递归深度，截断对象');
-      return '[过深对象已截断]';
-    }
-    
-    // 处理数组
-    if (Array.isArray(obj)) {
-      // 检查数组长度
-      if (obj.length > 10000) {
-        console.warn('[思源同步] 数组过长，截断到10000项');
-        const truncated = obj.slice(0, 10000);
-        truncated.push('[数组已截断]');
-        return truncated.map(item => filter(item, depth + 1));
-      }
-      return obj.map(item => filter(item, depth + 1));
-    }
-    
-    // 处理循环引用
-    if (processedObjects.has(obj)) {
-      return '[循环引用已移除]';
-    }
-    
-    // 记录当前对象
-    processedObjects.set(obj, true);
-    
-    // 过滤对象属性
-    const result = {};
-    for (const key in obj) {
-      // 跳过私有属性和函数
-      if (key.startsWith('_') || key.startsWith('$') || typeof obj[key] === 'function') {
-        continue;
-      }
-      
-      // 处理长字符串
-      if (typeof obj[key] === 'string' && obj[key].length > 10000) {
-        result[key] = obj[key].substring(0, 10000) + '...[字符串已截断]';
-        continue;
-      }
-      
-      // 递归处理对象属性
-      result[key] = filter(obj[key], depth + 1);
-    }
-    
-    return result;
-  }
-  
-  // 开始过滤
-  return filter(state);
-}
-
-/**
- * 使用分块方式发送大型数据
- * @param {Object} data - 要发送的数据对象
- * @param {Object} connection - WebSocket连接对象
- * @returns {boolean} 是否成功发送
- */
-function sendSplitData(data, connection) {
-  if (!connection || !connection.socket || connection.socket.readyState !== WebSocket.OPEN) {
-    console.warn('[思源同步] 无法使用分块发送：WebSocket未连接');
-    return false;
-  }
-  
-  try {
-    const keys = Object.keys(data);
-    if (keys.length === 0) {
-      console.warn('[思源同步] 没有数据可发送');
-      return false;
-    }
-    
-    // 发送开始消息
-    connection.socket.send(JSON.stringify({
-      type: 'sync_start',
-      room: connection.room,
-      timestamp: Date.now()
-    }));
-    
-    // 发送索引（键列表）
-    connection.socket.send(JSON.stringify({
-      type: 'sync_index',
-      room: connection.room,
-      keys: keys,
-      timestamp: Date.now()
-    }));
-    
-    // 记录开始时间
-    const startTime = Date.now();
-    
-    // 发送每个键值对作为单独的块
-    let sentCount = 0;
-    let errorCount = 0;
-    
-    for (const key of keys) {
-      try {
-        connection.socket.send(JSON.stringify({
-          type: 'sync_chunk',
-          room: connection.room,
-          key: key,
-          value: data[key],
-          index: sentCount,
-          total: keys.length,
-          timestamp: Date.now()
-        }));
-        
-        sentCount++;
-        
-        // 每5个块记录一次进度
-        if (sentCount % 5 === 0 || sentCount === keys.length) {
-          const progress = Math.round((sentCount / keys.length) * 100);
-          console.log(`[思源同步] 分块发送进度: ${progress}%（${sentCount}/${keys.length}）`);
-        }
-      } catch (chunkErr) {
-        console.error(`[思源同步] 发送数据块 "${key}" 失败:`, chunkErr);
-        errorCount++;
-      }
-    }
-    
-    // 发送结束消息
-    const duration = Date.now() - startTime;
-    
-    if (errorCount > 0) {
-      // 发送错误消息
-      connection.socket.send(JSON.stringify({
-        type: 'sync_error',
-        room: connection.room,
-        message: `部分数据块发送失败(${errorCount}/${keys.length})`,
-        timestamp: Date.now()
-      }));
-      
-      console.warn(`[思源同步] 分块发送部分失败: ${errorCount}/${keys.length} 块出错，用时 ${duration}ms`);
-      return false;
-    }
-    
-    // 发送完成消息
-    connection.socket.send(JSON.stringify({
-      type: 'sync_end',
-      room: connection.room,
-      stats: {
-        chunks: sentCount,
-        duration: duration
-      },
-      timestamp: Date.now()
-    }));
-    
-    console.log(`[思源同步] 分块发送完成: ${sentCount} 块，用时 ${duration}ms`);
-    return true;
-  } catch (err) {
-    console.error('[思源同步] 分块发送过程中出错:', err);
-    
-    try {
-      // 尝试发送错误消息
-      connection.socket.send(JSON.stringify({
-        type: 'sync_error',
-        room: connection.room,
-        message: err.message || '未知错误',
-        timestamp: Date.now()
-      }));
-    } catch (sendErr) {
-      console.error('[思源同步] 无法发送错误消息:', sendErr);
-    }
-    
-    return false;
-  }
 }
 
 /**
@@ -863,7 +672,16 @@ function mergeRemoteState(localState, remoteState, depth = 0) {
   // 检查是否为Yjs文档
   if (isYjsDocument(localState)) {
     console.log('[思源同步] 检测到Yjs文档，使用特殊合并策略');
-    return; // 交给专门的Yjs处理函数
+    try {
+      // 直接使用常规合并方式，不调用特殊函数
+      console.log('[思源同步] 检测到Yjs文档，但使用常规合并策略以避免错误');
+      // 不再调用特殊处理函数
+      // applyRemoteStateToYjsDocument(localState, remoteState);
+      // 继续执行常规合并逻辑，不返回
+    } catch (yjsErr) {
+      console.error('[思源同步] 应用数据到Yjs文档失败:', yjsErr);
+      // 发生错误时继续尝试常规合并
+    }
   }
   
   // 防止循环引用的处理
@@ -1256,7 +1074,6 @@ function setupEventListeners(provider, isConnected, syncManager) {
  * @param {Object} documentManager - 文档管理器实例
  * @param {string} roomName - 房间名称
  * @param {Object} siyuanManager - 思源管理器实例
- * @param {Object} siyuanSocket - 思源WebSocket连接
  * @returns {Function} 断开连接函数
  */
 function createDisconnectFunction(
@@ -1265,8 +1082,7 @@ function createDisconnectFunction(
   persistenceManager, 
   documentManager, 
   roomName, 
-  siyuanManager, 
-  siyuanSocket
+  siyuanManager
 ) {
   return async () => {
     try {
@@ -1275,11 +1091,6 @@ function createDisconnectFunction(
       
       // 断开WebRTC连接
       connectionManager.disconnect()
-      
-      // 断开思源WebSocket连接
-      if (siyuanSocket) {
-        siyuanManager.disconnect(roomName)
-      }
       
       // 清理文档和连接
       await documentManager.cleanupRoom(roomName)
@@ -1390,7 +1201,6 @@ export function updateSiyuanConfig(config = {}) {
 // 为向后兼容保留原函数名
 export const useSyncStore = createSyncStore
 
-
 // 为向后兼容保留原函数名
 export const setRoomAutoSync = setSyncConfig
 
@@ -1399,4 +1209,3 @@ export const getRoomAutoSyncStatus = getSyncStatus
 
 // 重新导出resetRoomConnection函数，防止修改前后的接口变化
 export { resetRoomConnection }
-

@@ -1,110 +1,79 @@
-# useSyncedstore 模块
+# SyncedStore 模块
 
-## 简介
+基于Yjs的同步数据存储实现，提供实时协作编辑功能。
 
-`useSyncedstore` 是一个用于多客户端状态同步的工具集合，支持通过 WebRTC 和思源笔记 WebSocket 进行数据同步。它提供了一个可靠的方式来在不同客户端之间保持状态一致性。
+## 功能特点
 
-## 核心功能
-
-- **多端同步**：支持通过 WebRTC 或思源笔记 WebSocket 进行实时数据同步
-- **自动重连**：网络断开后自动尝试重新连接
-- **本地持久化**：支持将数据持久化到本地存储
-- **深度合并**：智能合并对象和数组
-- **事件处理**：提供事件监听和触发机制
+- 自动数据同步与冲突解决
+- 支持离线操作与重连后自动合并
+- 高性能数据编码与解码
+- 低网络带宽占用
 
 ## 使用方法
 
-```javascript
-import { createSyncStore } from './useSyncstore.js';
+### 基本使用
 
-// 创建同步存储
-const syncStore = await createSyncStore({
-  // 房间名称，用于标识同步组
-  roomName: 'my-sync-room',
-  
-  // 初始状态
-  initialState: {
-    counter: 0,
-    items: [],
-    settings: {}
-  },
-  
-  // 是否启用本地持久化
-  persist: true,
-  
-  // 思源笔记集成配置
-  siyuan: {
-    enabled: true  // 启用思源WebSocket
-  }
+```js
+import { useSyncedStore } from '@/toolBox/feature/useSyncedstore';
+
+// 创建一个同步存储
+const { store, connect, disconnect } = useSyncedStore({
+  initialValue: { text: '初始文本', counter: 0 },
+  roomName: 'my-collaboration-room'
 });
 
-// 监听连接状态变化
-syncStore.on('connect', () => {
-  console.log('已连接到同步服务');
+// 连接到同步服务器
+connect();
+
+// 读取数据
+console.log(store.text); // "初始文本"
+
+// 修改数据 (所有客户端都会自动同步)
+store.text = '新的文本内容';
+store.counter++;
+
+// 断开连接
+disconnect();
+```
+
+### 高级功能
+
+#### 监听更改
+
+```js
+import { useSyncedStore, observeDeep } from '@/toolBox/feature/useSyncedstore';
+
+const { store } = useSyncedStore({ initialValue: { text: '' } });
+
+// 监听所有深层变化
+const unsubscribe = observeDeep(store, (changes, origin) => {
+  console.log('数据变更:', changes);
+  console.log('变更来源:', origin);
 });
 
-// 监听数据同步事件
-syncStore.on('sync', (data) => {
-  console.log('收到同步数据', data);
-});
+// 停止监听
+unsubscribe();
+```
 
-// 手动触发同步
-syncStore.sync();
+#### 获取更新和状态向量
+
+```js
+import { getUpdate, getStateVector } from '@/toolBox/feature/useSyncedstore/impl/decoding';
+import { Y } from '@/toolBox/feature/useSyncedstore';
+
+// 获取文档状态向量
+const stateVector = getStateVector(ydoc);
+
+// 获取更新数据
+const update = getUpdate(ydoc);
 ```
 
 ## 注意事项
 
-1. **数据结构限制**：避免过深的对象嵌套（超过5层）以防止性能问题
-2. **大型数据**：对于大型数组（超过100项）和对象，系统会自动压缩处理
-3. **WebRTC/思源选择**：可以通过 `disableWebRTC` 选项强制使用思源笔记同步
-4. **事件处理**：事件处理器存储在同步结果对象上，而不是内部store对象上
+- 所有数据修改都应通过 store 对象进行，不要直接修改底层 Yjs 文档
+- 大型数据结构可能需要考虑性能优化
+- 离线时的修改会在重新连接后自动同步
 
-## 最近修复
+## 错误处理
 
-- 修复了 "cannot set new elements on root doc" 错误，该错误由于尝试在不可变的 Yjs 文档上添加属性导致
-- 改进了事件处理机制，现在使用同步结果对象上的事件处理器映射，而不是尝试修改内部store对象
-
-## 高级选项
-
-```javascript
-const advancedSyncStore = await createSyncStore({
-  roomName: 'advanced-room',
-  initialState: { /* 初始状态 */ },
-  
-  // 持久化选项
-  persist: true,
-  persistOptions: {
-    storage: 'indexeddb',  // 使用 IndexedDB 存储
-    throttle: 2000         // 保存频率限制
-  },
-  
-  // WebRTC 选项
-  webrtcOptions: {
-    signaling: ['wss://signaling.example.com'],
-    maxPeers: 10,
-    peerOpts: { /* RTCPeerConnection 选项 */ }
-  },
-  
-  // 自动同步配置
-  autoSync: {
-    enabled: true,
-    interval: 5000,        // 每5秒同步一次
-    throttle: 1000         // 同步请求节流
-  },
-  
-  // 思源配置
-  siyuan: {
-    enabled: true,
-    port: 6806,
-    channel: 'sync',
-    autoReconnect: true
-  },
-  
-  // 是否禁用 WebRTC
-  disableWebRTC: false
-});
-```
-
-## 故障排除
-
-如果遇到 "cannot set new elements on root doc" 错误，说明代码尝试修改 Yjs 文档对象，这是不允许的。这个问题在最新版本中已修复。 
+所有API都包含完善的错误处理机制，异常情况会通过控制台输出详细信息。 

@@ -42,6 +42,86 @@ const connections = new Map() // roomName -> { socket, status, reconnectAttempts
 const chunkSyncStates = new Map();
 
 /**
+ * 安全地检测对象是否为Yjs类型
+ * 使用特征检测而非instanceof检查，避免多实例问题
+ * @param {Object} obj - 待检测对象
+ * @returns {boolean} 是否为Yjs类型
+ */
+function isYjsLikeObject(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  
+  // 检查是否有Yjs文档的特征属性和方法
+  const hasYjsFeatures = (
+    // 常见的Yjs文档属性
+    (obj._item && obj._start !== undefined) ||
+    (obj.gc !== undefined && obj.store !== undefined) ||
+    (typeof obj.toJSON === 'function' && obj._map) ||
+    (obj.share !== undefined && typeof obj.getArray === 'function') ||
+    (obj.doc && typeof obj.doc.transact === 'function')
+  );
+  
+  return hasYjsFeatures;
+}
+
+/**
+ * 安全地处理数据用于同步，避免循环引用问题
+ * @param {Object} data - 要处理的数据对象
+ * @param {number} maxDepth - 最大递归深度
+ * @returns {Object} 处理后的安全数据对象
+ */
+function safeProcessDataForSync(data, maxDepth = 20) {
+  // 使用简单的JSON序列化和反序列化来克隆并移除循环引用
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch (error) {
+    console.warn("[思源同步] 数据包含循环引用，使用安全处理模式");
+    
+    // 记录已处理对象
+    const seen = new WeakMap();
+    
+    // 处理函数 - 处理循环引用和深度限制
+    function process(obj, depth = 0) {
+      if (obj === null || obj === undefined) return obj;
+      if (typeof obj !== 'object') return obj;
+      if (depth >= maxDepth) return "[深度限制]";
+      
+      // 检查循环引用
+      if (seen.has(obj)) return "[循环引用]";
+      seen.set(obj, true);
+      
+      // 检查是否为Yjs类对象，如果是则直接返回标记
+      if (isYjsLikeObject(obj)) {
+        return "[Yjs对象]";
+      }
+      
+      // 处理数组
+      if (Array.isArray(obj)) {
+        return obj.map(item => process(item, depth + 1));
+      }
+      
+      // 处理对象
+      const result = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          // 跳过函数和特殊字段
+          if (typeof obj[key] === 'function' || key.startsWith('$') || key.startsWith('_')) continue;
+          
+          try {
+            result[key] = process(obj[key], depth + 1);
+          } catch (e) {
+            result[key] = `[错误: ${e.message}]`;
+          }
+        }
+      }
+      
+      return result;
+    }
+    
+    return process(data);
+  }
+}
+
+/**
  * 连接到思源 WebSocket
  * @param {string} roomName - 房间名称
  * @param {Object} options - 连接选项
@@ -98,11 +178,13 @@ export async function connect(roomName, options = {}) {
         
         // 发送一条初始连接消息
         try {
-          socket.send(JSON.stringify({
+          const safeMessage = safeProcessDataForSync({
             type: 'connect',
             room: roomName,
             clientId: Date.now().toString(36) + Math.random().toString(36).substr(2)
-          }));
+          });
+          
+          socket.send(JSON.stringify(safeMessage));
         } catch (e) {
           console.warn(`[思源同步] 发送初始连接消息失败:`, e);
         }
@@ -155,28 +237,61 @@ export async function connect(roomName, options = {}) {
  */
 function setupMessageHandler(socket, roomName) {
   const connState = connections.get(roomName);
-  if (!connState) return;
+  if (!connState) {
+    console.warn(`[思源同步] 未找到房间 ${roomName} 的连接状态信息`);
+    return;
+  }
   
+  // 设置消息处理函数
   socket.onmessage = (event) => {
     try {
-      const message = JSON.parse(event.data);
+      // 检查event.data是否有效
+      if (!event || !event.data) {
+        console.warn(`[思源同步] 房间 ${roomName} 收到无效消息数据`);
+        return;
+      }
+      
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch (parseError) {
+        console.warn(`[思源同步] 房间 ${roomName} 解析消息失败:`, parseError);
+        // 尝试输出部分原始数据以便调试
+        console.warn('原始数据开头:', typeof event.data === 'string' ? event.data.substring(0, 50) : '非字符串数据');
+        return;
+      }
+      
+      // 检查消息是否有效
+      if (!message) {
+        console.warn(`[思源同步] 房间 ${roomName} 收到空消息`);
+        return;
+      }
+      
       console.log(`[思源同步] 房间 ${roomName} 收到消息:`, message.type || '未知类型');
       
       // 处理消息
-      handleMessage(message, roomName);
+      try {
+        handleMessage(message, roomName);
+      } catch (handleError) {
+        console.error(`[思源同步] 房间 ${roomName} 处理消息时出错:`, handleError);
+      }
       
       // 调用注册的消息处理器
-      if (connState.messageHandlers.size > 0) {
+      if (connState.messageHandlers && connState.messageHandlers.size > 0) {
         for (const handler of connState.messageHandlers) {
+          if (typeof handler !== 'function') {
+            continue; // 跳过非函数处理器
+          }
+          
           try {
             handler(message);
-          } catch (err) {
-            console.error(`[思源同步] 消息处理器执行错误:`, err);
+          } catch (handlerError) {
+            console.error(`[思源同步] 消息处理器执行错误:`, handlerError);
           }
         }
       }
     } catch (error) {
-      console.warn(`[思源同步] 解析消息失败:`, error);
+      console.warn(`[思源同步] 处理WebSocket消息总体失败:`, error);
     }
   };
 }
@@ -204,7 +319,18 @@ function handleMessage(message, roomName) {
 
     // 根据消息类型处理
     switch (data.type) {
-    case 'sync':
+      case 'y-sync':
+        // 处理Yjs二进制同步消息，直接透传给Provider
+        // 这部分由Provider中的_onMessage方法直接处理
+        // 这里只是记录日志，不做额外处理
+        if (data.binaryData) {
+          console.log(`[思源同步] 收到Yjs二进制消息 (房间: ${roomName}, 大小: ${data.size || '未知'}字节)`);
+        } else {
+          console.warn(`[思源同步] 收到Yjs消息但没有二进制数据 (房间: ${roomName})`);
+        }
+        break;
+        
+      case 'sync':
         // 标准同步消息处理
         if (!data.state) {
           console.warn(`[思源同步] 缺少state数据 (房间: ${roomName})`);
@@ -430,9 +556,15 @@ function applyStateToStore(newState, roomName, store) {
   try {
     console.log(`[思源同步] 开始应用状态 (房间: ${roomName})`);
     
-    // 检查是否是Yjs文档
-    const isYjsDocument = store._yjs || store.ydoc || store.doc || 
-                          (store.state && (store.state._yjs || store.state.ydoc || store.state.doc));
+    // 检查是否是Yjs文档 - 使用新的安全检测方法
+    const isYjsDocument = (
+      // 尝试检测store本身
+      isYjsLikeObject(store) || 
+      // 检查常见的Yjs文档属性位置
+      isYjsLikeObject(store.doc) || 
+      isYjsLikeObject(store.ydoc) || 
+      (store.state && isYjsLikeObject(store.state))
+    );
     
     // 如果是Yjs文档，我们需要特殊处理
     if (isYjsDocument) {
@@ -450,6 +582,12 @@ function applyStateToStore(newState, roomName, store) {
             // 更新现有键
             const oldValue = store[key];
             const newValue = newState[key];
+            
+            // 特殊情况：如果目标属性是Yjs对象，跳过更新
+            if (isYjsLikeObject(oldValue)) {
+              console.log(`[思源同步] 跳过Yjs类型属性: ${key}`);
+              continue;
+            }
             
             // 根据不同类型进行更新
             if (Array.isArray(oldValue) && Array.isArray(newValue)) {
@@ -491,27 +629,38 @@ function applyStateToStore(newState, roomName, store) {
  */
 function applyStateToYjsDocument(newState, store) {
   try {
-    // 确定实际的状态对象
-    let actualState = store.state || store;
+    // 确定实际的状态对象，避免直接操作Yjs内部结构
+    let actualState = null;
     
-    // Yjs文档的状态映射可能藏在内部属性中
-    if (!actualState && store._prelimState) {
+    // 尝试不同路径找到合适的状态对象
+    if (store.state && typeof store.state === 'object' && !isYjsLikeObject(store.state)) {
+      actualState = store.state;
+    } else if (store._prelimState && typeof store._prelimState === 'object') {
       actualState = store._prelimState;
-    } else if (!actualState && store._state) {
+    } else if (store._state && typeof store._state === 'object') {
       actualState = store._state;
+    } else if (!isYjsLikeObject(store)) {
+      // 如果store本身不是Yjs对象，可以直接使用
+      actualState = store;
     }
     
     if (!actualState) {
-      console.warn('[思源同步] 无法确定Yjs文档的状态对象，跳过应用');
+      console.warn('[思源同步] 无法安全确定Yjs状态对象，跳过应用');
       return;
     }
     
-    // 获取已存在的键，过滤掉内部属性
-    const existingKeys = Object.keys(actualState).filter(key => 
-      !key.startsWith('_') && !key.startsWith('$') && typeof actualState[key] !== 'function'
-    );
+    // 获取已存在的键，过滤掉内部属性和Yjs对象
+    const existingKeys = Object.keys(actualState).filter(key => {
+      const value = actualState[key];
+      return (
+        !key.startsWith('_') && 
+        !key.startsWith('$') && 
+        typeof value !== 'function' &&
+        !isYjsLikeObject(value)
+      );
+    });
     
-    console.log(`[思源同步] Yjs文档已有属性: ${existingKeys.join(', ')}`);
+    console.log(`[思源同步] Yjs文档可更新属性: ${existingKeys.join(', ')}`);
     
     let updatedCount = 0;
     // 只更新已存在的键，避免在根文档上添加新元素
@@ -531,6 +680,12 @@ function applyStateToYjsDocument(newState, store) {
       try {
         const newValue = newState[key];
         const currentValue = actualState[key];
+        
+        // 跳过Yjs类型的值
+        if (isYjsLikeObject(currentValue)) {
+          console.log(`[思源同步] 跳过Yjs类型的属性: ${key}`);
+          continue;
+        }
         
         // 只同步类型兼容的值，避免出现错误
         if (typeof currentValue !== typeof newValue && 
@@ -862,7 +1017,24 @@ function sendDataToSiyuan(socket, roomName, store, specificProp, propValue) {
 function extractSyncableDataFromYjs(store) {
   try {
     // 确定实际状态对象位置
-    const actualState = store.state || store;
+    let actualState = null;
+    
+    // 尝试不同路径找到合适的状态对象
+    if (store.state && typeof store.state === 'object' && !isYjsLikeObject(store.state)) {
+      actualState = store.state;
+    } else if (store._prelimState && typeof store._prelimState === 'object') {
+      actualState = store._prelimState;
+    } else if (store._state && typeof store._state === 'object') {
+      actualState = store._state;
+    } else if (!isYjsLikeObject(store)) {
+      // 如果store本身不是Yjs对象，可以直接使用
+      actualState = store;
+    }
+    
+    if (!actualState) {
+      console.warn('[思源同步] 无法确定可同步的状态对象，返回空对象');
+      return {};
+    }
     
     // 创建新对象保存结果
     const result = {};
@@ -880,6 +1052,11 @@ function extractSyncableDataFromYjs(store) {
         
         // 提取数据
         const value = actualState[key];
+        
+        // 跳过Yjs类型的对象
+        if (isYjsLikeObject(value)) {
+          continue;
+        }
         
         // 处理不同类型的数据
         if (value === null || value === undefined) {

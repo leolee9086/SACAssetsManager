@@ -348,9 +348,6 @@ export default {
     const syncDelay = ref(1000);
     const clientId = ref(generateId());
     
-    // 冲突测试参数
-    const newPropertyName = ref('');
-    const newPropertyValue = ref('');
     
     // 同步配置
     const config = props.syncConfig || {};
@@ -368,19 +365,19 @@ export default {
         persist: true,
         debug: true,
         onSync: (data) => {
-          console.log(`[同步] 数据接收: ${JSON.stringify(data).substring(0, 50)}...`);
+          console.log(`[同步] 数据接收: ${JSON.stringify(data)}...`);
           addLog('sync', '收到远程数据同步');
         },
         // 思源配置 - 启用思源WebSocket同步
         siyuan: {
-          enabled: true,
+          enabled: false,
           ...(config.siyuanConfig || {})
         },
         // 禁用WebRTC - 强制使用思源WebSocket
-        disableWebRTC: true
+        disableWebRTC: false
       }
     );
-    
+    console.log(syncedData)
     // 添加日志
     const addLog = (type, message) => {
       const time = new Date().toLocaleTimeString();
@@ -423,7 +420,7 @@ export default {
       if (!syncedData.largeDataset || syncedData.largeDataset.length === 0) {
         return [];
       }
-      
+      console.log(syncedData,syncedData.largeDataset)
       return syncedData.largeDataset.slice(0, 5);
     });
     
@@ -840,18 +837,42 @@ export default {
     
     // 添加数组项
     const addNestedItem = () => {
+      console.log('当前items数组:', syncedData.reactiveLossTest.items);
       const newId = syncedData.reactiveLossTest.items.length > 0 
         ? Math.max(...syncedData.reactiveLossTest.items.map(item => item.id)) + 1 
         : 1;
         
-      syncedData.reactiveLossTest.items.push({
+      // 创建新项
+      const newItem = {
         id: newId,
         name: `动态添加项${newId}`,
-        timestamp: Date.now()
-      });
+        timestamp: Date.now(),
+        // 添加更复杂的嵌套结构来测试
+        details: {
+          description: `嵌套对象测试 ${newId}`,
+          created: new Date().toLocaleTimeString()
+        }
+      };
       
+      // 添加到数组
+      syncedData.reactiveLossTest.items.push(newItem);
+      
+      // 更新时间戳
       syncedData.reactiveLossTest.lastUpdate = Date.now();
-      addReactiveLog('action', `添加数组项: 项${newId}`);
+      
+      // 测试响应式 - 更新添加的项
+      setTimeout(() => {
+        if (syncedData.reactiveLossTest.items.length > 0) {
+          const lastItem = syncedData.reactiveLossTest.items[syncedData.reactiveLossTest.items.length - 1];
+          if (lastItem && lastItem.details) {
+            // 尝试更新嵌套属性以测试响应式
+            lastItem.details.updated = new Date().toLocaleTimeString();
+            addReactiveLog('action', `测试嵌套响应式: 更新了项${lastItem.id}的details.updated为${lastItem.details.updated}`);
+          }
+        }
+      }, 500);
+      
+      addReactiveLog('action', `添加数组项: 项${newId} 带嵌套对象`);
     };
     
     // 手动触发同步测试
@@ -890,19 +911,6 @@ export default {
       }
     };
     
-    // 设置响应式监听 - 观察reactiveLossTest变化
-    watch(() => syncedData.reactiveLossTest.counter, (newVal, oldVal) => {
-      addReactiveLog('watch', `计数器变化: ${oldVal} -> ${newVal}`);
-    });
-    
-    watch(() => syncedData.reactiveLossTest.nested.value, (newVal, oldVal) => {
-      addReactiveLog('watch', `嵌套值变化: ${oldVal} -> ${newVal}`);
-    });
-    
-    watch(() => syncedData.reactiveLossTest.items.length, (newVal, oldVal) => {
-      addReactiveLog('watch', `数组长度变化: ${oldVal} -> ${newVal}`);
-    });
-    
     // 组件挂载时
     onMounted(() => {
       addLog('lifecycle', '组件已挂载');
@@ -910,10 +918,45 @@ export default {
       // 添加/更新客户端信息
       updateClientActivity();
       
-      // 增强所有数组属性 - 这对大型数组特别重要
-      if (syncedData.$enhanceAllArrays) {
-        const count = syncedData.$enhanceAllArrays();
-        addLog('action', `增强了${count}个数组属性`);
+      // 检查reactiveLossTest结构
+      console.log('检查reactiveLossTest结构:', syncedData.reactiveLossTest);
+      if (syncedData.reactiveLossTest) {
+        console.log('reactiveLossTest对象键:', Object.keys(syncedData.reactiveLossTest));
+        console.log('nested存在性:', syncedData.reactiveLossTest.nested !== undefined);
+        console.log('items存在性:', syncedData.reactiveLossTest.items !== undefined);
+        
+        // 尝试直接创建和赋值
+        if (!syncedData.reactiveLossTest.nested) {
+          console.log('nested不存在，尝试创建');
+          syncedData.reactiveLossTest.nested = { 
+            value: '手动创建的嵌套值',
+            modified: Date.now()
+          };
+        }
+        
+        if (!syncedData.reactiveLossTest.items) {
+          console.log('items不存在，尝试创建');
+          syncedData.reactiveLossTest.items = [
+            { id: 1, name: '手动创建项1' },
+            { id: 2, name: '手动创建项2' }
+          ];
+        }
+        
+        // 再次检查
+        console.log('创建后nested存在性:', syncedData.reactiveLossTest.nested !== undefined);
+        console.log('创建后items存在性:', syncedData.reactiveLossTest.items !== undefined);
+        
+        addLog('action', `已检查和修复嵌套对象结构`);
+      } else {
+        console.error('reactiveLossTest对象不存在!');
+      }
+      
+      // 直接确保关键嵌套对象是响应式的
+      if (syncedData.reactiveLossTest) {
+        // 通过重新赋值来确保Vue创建完整的响应式结构
+        syncedData.reactiveLossTest.nested = { ...syncedData.reactiveLossTest.nested };
+        syncedData.reactiveLossTest.items = [...syncedData.reactiveLossTest.items];
+        addLog('action', `已重新创建关键嵌套对象的响应式`);
       }
       
       // 延迟同步确保连接
