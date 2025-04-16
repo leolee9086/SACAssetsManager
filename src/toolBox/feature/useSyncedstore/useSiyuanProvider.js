@@ -21,14 +21,20 @@ import * as encoding from './impl/encoding.js'
 import * as decoding from './impl/decoding.js'
 import { Observable } from './impl/observable.js'
 
+// 导入辅助工具
+import { toUint8Array, decodeBase64, isValidDecoder, processMessageData } from './utils/binaryUtils.js'
+import * as messageHandlers from './utils/messageHandlers.js'
+
 // 初始化同步函数
 syncProtocol.initSyncFunctions(Y);
 
-// 消息类型常量
-const MESSAGE_SYNC = 0
-const MESSAGE_AWARENESS = 1
-const MESSAGE_AUTH = 2
-const MESSAGE_QUERY_AWARENESS = 3
+// 从消息处理器中导入消息类型常量
+const {
+  MESSAGE_SYNC,
+  MESSAGE_AWARENESS,
+  MESSAGE_AUTH,
+  MESSAGE_QUERY_AWARENESS
+} = messageHandlers;
 
 // 常量定义
 const RECONNECTION_DELAY = 5000; // 重连延迟时间（毫秒）
@@ -158,6 +164,14 @@ export class SiyuanProvider extends BasicObservable {
    * @param {number} [options.resyncInterval=10000] - 重新同步间隔（毫秒）
    * @param {boolean} [options.disableBc=true] - 是否禁用广播通道
    * @param {number} [options.maxBackoffTime=10000] - 最大重连延迟（毫秒）
+   * @param {Object} [options.siyuanConfig] - 思源笔记配置
+   * @param {string} [options.siyuanConfig.host='127.0.0.1'] - 思源笔记主机名
+   * @param {number} [options.siyuanConfig.port=6806] - 思源笔记端口
+   * @param {string} [options.siyuanConfig.token='6806'] - 思源笔记令牌，用于API鉴权，公网环境下应当使用强密码
+   * @param {string} [options.siyuanConfig.channel='sync'] - 信道前缀，最终信道名为 {channel前缀}-{房间名}
+   * @param {boolean} [options.siyuanConfig.autoReconnect=true] - 是否自动重连
+   * @param {number} [options.siyuanConfig.reconnectInterval=1000] - 重连间隔（毫秒）
+   * @param {number} [options.siyuanConfig.maxReconnectAttempts=10] - 最大重连尝试次数
    */
   constructor(roomName, doc, {
     connect = true,
@@ -210,12 +224,26 @@ export class SiyuanProvider extends BasicObservable {
       port: 6806,
       host: '127.0.0.1',
       token: '6806',
-      channel: 'sync',
+      channel: 'sync', // 信道前缀，最终信道名为 {channel}-{roomName}
       autoReconnect: true,
       reconnectInterval: 1000,
       maxReconnectAttempts: 10,
       ...siyuanConfig
     };
+    
+    // 安全检查：在非本地环境中使用默认token进行警告
+    if (this.siyuanConfig.host !== '127.0.0.1' && this.siyuanConfig.host !== 'localhost') {
+      if (this.siyuanConfig.token === '6806' || !this.siyuanConfig.token) {
+        console.warn(`[思源Provider] 安全警告: 在非本地环境 (${this.siyuanConfig.host}) 使用默认token。公网环境下应使用强密码作为token。`);
+      } else if (this.siyuanConfig.token && this.siyuanConfig.token.length < 12) {
+        console.warn(`[思源Provider] 安全警告: 在非本地环境中使用的token过短。建议使用至少12位的随机字符作为token。`);
+      }
+      
+      // 检查是否使用HTTPS
+      if (location.protocol !== 'https:') {
+        console.warn('[思源Provider] 安全警告: 在非本地环境中未使用HTTPS连接。Token将以明文形式传输，存在安全风险。');
+      }
+    }
     
     // 连接状态
     this.wsconnected = false;
@@ -360,6 +388,8 @@ export class SiyuanProvider extends BasicObservable {
     }
 
     try {
+      // 思源广播API直接接收原始消息
+      // 思源WebSocket广播通道直接发送内容，不需要额外处理
       this.ws.send(data);
       return true;
     } catch (err) {
@@ -373,211 +403,110 @@ export class SiyuanProvider extends BasicObservable {
    * @private
    */
   _onMessage(event) {
-    this.wsLastMessageReceived = Date.now()
+    this.wsLastMessageReceived = Date.now();
     
     try {
-      // 解析消息
-      const message = JSON.parse(event.data)
+      // 使用智能处理函数处理各种类型的消息数据
+      const { type, content } = processMessageData(event.data);
       
-      // 处理思源心跳消息
-      if (message.type === 'heartbeat') {
-        return
-      }
-      
-      // 处理普通消息
-      if (message.type === 'message' || message.type === 'custom') {
-        this.emit('message', [message])
-        return
-      }
-      
-      // 处理Yjs同步消息
-      if (message.type === 'y-sync' && message.binaryData) {
-        try {
-          // 确保binaryData存在且有效
-          if (!message.binaryData || typeof message.binaryData !== 'string') {
-            console.warn('[思源Provider] binaryData不是有效的字符串:', message.binaryData)
-            return
+      switch (type) {
+        case 'binary':
+          // 直接处理二进制数据
+          if (content && content.length > 0) {
+            this._processYjsBinaryMessage(content);
+          } else {
+            console.log('[思源Provider] 收到空的二进制数据，跳过处理');
           }
+          break;
           
-          // 将Base64转回二进制
-          let binaryString;
-          try {
-            binaryString = atob(message.binaryData);
-          } catch (base64Error) {
-            console.error('[思源Provider] Base64解码失败:', base64Error);
-            return;
-          }
-          
-          if (!binaryString || binaryString.length === 0) {
-            console.warn('[思源Provider] 解码Base64后得到空字符串')
-            return
-          }
-          
-          const bytes = new Uint8Array(binaryString.length)
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i)
-          }
-          
-          // 使用解码器解析二进制消息
-          const decoder = decoding.createDecoder(bytes);
-          
-          // 安全检查
-          if (!decoder) {
-            console.error('[思源Provider] 无法创建解码器')
-            return
-          }
-          
-          // 安全地读取消息类型
-          let messageType;
-          try {
-            messageType = decoding.readVarUint(decoder);
-          } catch (typeError) {
-            console.error('[思源Provider] 读取消息类型失败:', typeError);
-            return;
-          }
-          
-          // 处理不同类型的消息
-          if (messageType === MESSAGE_SYNC) {
-            // 确保文档实例有效
-            if (!this.doc) {
-              console.error('[思源Provider] 文档实例不可用')
-              return
-            }
-            
-            // 创建响应编码器
-            const encoder = encoding.createEncoder();
-            encoding.writeVarUint(encoder, MESSAGE_SYNC);
-            
-            // 应用同步消息 - 使用try-catch包装所有关键步骤
+        case 'json':
+          // 处理JSON数据
+          if (content && content.type === 'y-sync' && content.data) {
+            // 处理封装的二进制数据
             try {
-              // 确保文档具有必要的方法
-              if (typeof this.doc.encodeStateVector !== 'function') {
-                console.warn('[思源Provider] 文档缺少encodeStateVector方法，将使用静态方法');
-                // 不阻止继续执行，让syncProtocol处理异常情况
-              }
-              
-              // 读取同步消息
-              const syncMessageType = syncProtocol.readSyncMessage(
-                decoder, 
-                encoder, 
-                this.doc, 
-                this
-              );
-              
-              // 发送响应（如果有需要）
-              if (encoding.length(encoder) > 1) {
-                try {
-                  this._send(encoding.toUint8Array(encoder));
-                } catch (sendError) {
-                  console.error('[思源Provider] 发送同步响应失败:', sendError);
-                }
-              }
-              
-              // 如果是第二步同步消息并且未同步状态，则设置同步状态
-              if (syncMessageType === syncProtocol.messageYjsSyncStep2 && !this.synced) {
-                this.synced = true;
-              }
-            } catch (syncError) {
-              console.error('[思源Provider] 应用同步消息失败:', syncError);
-              
-              // 为避免卡死，强制触发同步重试，但使用更简单的重试策略
-              setTimeout(() => {
-                try {
-                  // 使用简化的同步请求方式
-                  const retryEncoder = encoding.createEncoder();
-                  encoding.writeVarUint(retryEncoder, MESSAGE_SYNC);
-                  encoding.writeVarUint(retryEncoder, messageSync.STEP1);
-                  // 发送空状态向量
-                  encoding.writeVarUint(retryEncoder, 0);
-                  this._send(encoding.toUint8Array(retryEncoder));
+              const binaryData = typeof content.data === 'string' 
+                ? decodeBase64(content.data) 
+                : Array.isArray(content.data) 
+                  ? new Uint8Array(content.data) 
+                  : null;
                   
-                  console.log('[思源Provider] 使用简化方式自动触发同步重试');
-                } catch (retryErr) {
-                  console.warn('[思源Provider] 同步重试失败:', retryErr);
-                }
-              }, 1000);
-            }
-          } else if (messageType === MESSAGE_AWARENESS) {
-            try {
-              // 读取感知状态更新数据
-              const update = decoding.readVarUint8Array(decoder);
-              
-              if (update && update.length > 0 && this.awareness) {
-                // 安全地应用感知状态更新
-                try {
-                  awarenessProtocol.applyAwarenessUpdate(this.awareness, update, this);
-                } catch (applyError) {
-                  console.error('[思源Provider] 应用感知状态更新出错:', applyError);
-                }
+              if (binaryData && binaryData.length > 0) {
+                this._processYjsBinaryMessage(binaryData);
               } else {
-                console.warn('[思源Provider] 无法应用感知状态更新');
+                console.log('[思源Provider] 从JSON中提取的二进制数据为空，跳过处理');
               }
-            } catch (awareError) {
-              console.error('[思源Provider] 解析感知状态更新失败:', awareError);
-            }
-          } else if (messageType === MESSAGE_AUTH) {
-            // 处理认证消息（如需要）
-            this.emit('auth', [message]);
-          } else if (messageType === MESSAGE_QUERY_AWARENESS) {
-            // 处理查询感知状态消息 - 发送当前客户端的感知状态
-            try {
-              if (this.awareness && awarenessProtocol && encoding) {
-                const encoder = encoding.createEncoder();
-                encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
-                encoding.writeVarUint8Array(
-                  encoder,
-                  awarenessProtocol.encodeAwarenessUpdate(
-                    this.awareness,
-                    [this.doc.clientID]
-                  )
-                );
-                this._send(encoding.toUint8Array(encoder));
-              }
-            } catch (queryError) {
-              console.error('[思源Provider] 处理查询感知状态消息失败:', queryError);
+            } catch (extractErr) {
+              console.warn('[思源Provider] 从JSON提取二进制数据失败:', extractErr);
             }
           } else {
-            console.warn(`[思源Provider] 未知的消息类型: ${messageType}`);
+            // 普通JSON消息
+            this.emit('message', [content]);
           }
-        } catch (err) {
-          console.error('[思源Provider] 解析二进制消息失败:', err);
-        }
-        return
-      }
-      
-      // 处理新客户端加入
-      if (message.type === 'join') {
-        this.emit('peers', [{
-          action: 'add',
-          clientId: message.clientId
-        }])
-        
-        // 发送查询感知状态消息
-        try {
-          this._sendQueryAwareness();
-        } catch (queryError) {
-          console.error('[思源Provider] 发送查询感知状态消息失败:', queryError);
-        }
-        return
-      }
-      
-      // 处理客户端离开
-      if (message.type === 'leave') {
-        this.emit('peers', [{
-          action: 'remove',
-          clientId: message.clientId
-        }])
-        return
-      }
-      
-      // 处理错误消息
-      if (message.type === 'error') {
-        this.emit('error', [message])
-        console.error('[思源Provider] 服务器错误:', message.message || '未知错误')
-        return
+          break;
+          
+        case 'text':
+          // 文本消息
+          this.emit('message', [{ type: 'text', content }]);
+          break;
+          
+        default:
+          console.log('[思源Provider] 收到未知类型的消息:', type);
       }
     } catch (err) {
-      console.error('[思源Provider] 处理消息失败:', err, event.data ? event.data.substring(0, 100) + '...' : '无数据')
+      // 仅记录警告，而非错误，以避免过多错误日志
+      console.warn('[思源Provider] 处理消息时出现问题:', err);
+      
+      // 尝试使用原始数据（作为后备）
+      try {
+        const rawData = event.data;
+        if (rawData instanceof ArrayBuffer || rawData instanceof Uint8Array) {
+          // 直接以二进制方式处理
+          const bytes = rawData instanceof ArrayBuffer ? new Uint8Array(rawData) : rawData;
+          if (bytes && bytes.length > 0) {
+            this._processYjsBinaryMessage(bytes);
+          }
+        }
+      } catch (fallbackErr) {
+        // 后备处理也失败，记录但不再尝试
+        console.log('[思源Provider] 后备处理也失败，消息将被丢弃');
+      }
+    }
+  }
+  
+  /**
+   * 处理Yjs二进制消息
+   * @param {Uint8Array} data - 二进制数据
+   * @private
+   */
+  _processYjsBinaryMessage(data) {
+    try {
+      // 检查数据有效性
+      if (!data || data.length === 0) {
+        console.log('[思源Provider] 收到空的二进制消息，跳过处理');
+        return;
+      }
+      
+      // 创建解码器
+      const decoder = decoding.createDecoder(data);
+      
+      // 空数据检查
+      if (!decoder || !decoder.arr || decoder.arr.length === 0) {
+        console.log('[思源Provider] 创建解码器失败或数据为空');
+        return;
+      }
+      
+      // 读取消息类型
+      try {
+        const messageType = decoding.readVarUint(decoder);
+        this._handleYjsMessage(messageType, decoder);
+      } catch (decodeErr) {
+        // 如果读取消息类型失败，可能是数据格式不正确或已损坏
+        // 这种情况下静默失败，否则会显示太多错误消息
+        console.log('[思源Provider] 读取消息类型时出错，可能是无效数据');
+      }
+    } catch (err) {
+      // 降级错误级别为warning，避免误报过多error
+      console.warn('[思源Provider] 处理Yjs二进制消息时出现问题:', err);
     }
   }
   
@@ -586,38 +515,12 @@ export class SiyuanProvider extends BasicObservable {
    * @private
    */
   _sendSyncStep1() {
-    try {
-      if (!this.doc) {
-        console.error('[思源Provider] 文档实例不可用');
-        return;
-      }
-      
-      // 检查文档对象是否有必要的方法
-      if (typeof this.doc.encodeStateVector !== 'function') {
-        console.warn('[思源Provider] 文档对象缺少 encodeStateVector 方法，将使用Y模块方法');
-        
-        // 使用Y模块提供的静态方法或从encoding模块获取帮助
-        // 创建encoder
-        const encoder = encoding.createEncoder();
-        encoding.writeVarUint(encoder, MESSAGE_SYNC);
-        
-        // 如果doc对象没有encodeStateVector方法，使用空的状态向量
-        const emptyStateVector = new Uint8Array(0);
-        encoding.writeVarUint8Array(encoder, emptyStateVector);
-        
-        // 发送消息
-        this._send(encoding.toUint8Array(encoder));
-        return;
-      }
-      
-      // 使用标准方法
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, MESSAGE_SYNC);
-      syncProtocol.writeSyncStep1(encoder, this.doc);
-      this._send(encoding.toUint8Array(encoder));
-    } catch (err) {
-      console.error('[思源Provider] 发送同步步骤1消息失败:', err);
+    if (!this.doc) {
+      console.error('[思源Provider] 文档实例不可用');
+      return;
     }
+    
+    messageHandlers.sendSyncStep1(this.doc, (data) => this._send(data));
   }
   
   /**
@@ -625,23 +528,7 @@ export class SiyuanProvider extends BasicObservable {
    * @private
    */
   _sendQueryAwareness() {
-    try {
-      if (!encoding) {
-        console.error('[思源Provider] 编码模块不可用');
-        return;
-      }
-      
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, MESSAGE_QUERY_AWARENESS);
-      
-      try {
-        this._send(encoding.toUint8Array(encoder));
-      } catch (sendError) {
-        console.error('[思源Provider] 发送查询感知状态消息失败:', sendError);
-      }
-    } catch (err) {
-      console.error('[思源Provider] 创建查询感知状态消息失败:', err);
-    }
+    messageHandlers.sendQueryAwareness((data) => this._send(data));
   }
   
   /**
@@ -677,13 +564,30 @@ export class SiyuanProvider extends BasicObservable {
   _buildWebSocketUrl() {
     const { host, port, token, channel } = this.siyuanConfig;
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const queryParams = new URLSearchParams({
-      channel: channel || 'sync',
-      token: token || '',
-      room: this.roomName
-    }).toString();
     
-    return `${protocol}//${host}:${port}/ws?${queryParams}`;
+    // 按照思源广播API的格式构建URL
+    // 思源广播API: /ws/broadcast?channel={channel}&token={token}
+    
+    // 使用配置的channel作为前缀，加上房间名称构造完整的信道名
+    // 格式为: {channel前缀}-{房间名}
+    const channelPrefix = channel || 'sync';
+    const channelName = `${channelPrefix}-${this.roomName}`;
+    
+    // 通过查询参数进行鉴权
+    // 公网环境下，确保使用HTTPS连接以加密传输token
+    // 使用encodeURIComponent确保token被正确编码
+    const queryParams = new URLSearchParams();
+    queryParams.set('channel', channelName);
+    
+    // 只有当token存在时才添加到URL中
+    if (token) {
+      queryParams.set('token', encodeURIComponent(token));
+    }
+    
+    // 不在日志中显示token信息，避免泄露
+    console.log(`[思源Provider] 房间 "${this.roomName}" 正在连接到信道: ${channelName}`);
+    
+    return `${protocol}//${host}:${port}/ws/broadcast?${queryParams.toString()}`;
   }
   
   /**
@@ -728,58 +632,118 @@ export class SiyuanProvider extends BasicObservable {
 
     try {
       const url = this._buildWebSocketUrl();
-      console.log(`[思源Provider] 正在连接到: ${url}`);
+      console.log(`[思源Provider] 房间 "${this.roomName}" 正在连接到: ${url}`);
       
       this.wsconnecting = true;
       this.ws = new WebSocket(url);
       this.ws.binaryType = 'arraybuffer';
       
-      this.ws.onopen = () => {
-        this.failedConnections = 0;
-        this.wsconnected = true;
-        this.wsconnecting = false;
-        console.log('[思源Provider] WebSocket连接已建立');
-        this.emit('status', [{ status: 'connected' }]);
-        
-        // 初始连接成功后发送同步请求
-        this._sendSyncStep1();
-        this._sendQueryAwareness();
-      };
-      
-      this.ws.onclose = (event) => {
-        const closeError = new Error(`WebSocket连接已关闭: ${event.code} ${event.reason}`);
-        this._closeWebsocketConnection(closeError);
-        
-        console.warn(`[思源Provider] WebSocket连接已关闭: ${event.code} ${event.reason}`);
-        this.emit('status', [{ 
-          status: 'disconnected', 
-          code: event.code, 
-          reason: event.reason 
-        }]);
-        
-        // 如果应该保持连接，尝试重新连接
-        if (this.shouldConnect && !this.reconnecting) {
-          this.failedConnections++;
-          if (this.failedConnections < MAX_RECONNECTION_ATTEMPTS) {
-            console.log(`[思源Provider] 将在 ${RECONNECTION_DELAY}ms 后尝试重新连接 (${this.failedConnections}/${MAX_RECONNECTION_ATTEMPTS})`);
+      // 设置连接超时
+      const connectionTimeout = setTimeout(() => {
+        if (this.wsconnecting && !this.wsconnected) {
+          console.error(`[思源Provider] 房间 "${this.roomName}" 连接超时`);
+          this._closeWebsocketConnection(new Error('连接超时'));
+          
+          // 如果应该重连，尝试重连
+          if (this.shouldConnect && !this.reconnecting) {
             this.reconnecting = true;
             setTimeout(() => {
               this.reconnecting = false;
               this._setupWebsocketConnection();
-            }, RECONNECTION_DELAY);
-          } else {
-            console.error('[思源Provider] 重连次数已达上限，停止尝试');
-            this.emit('status', [{ status: 'failed' }]);
+            }, this.siyuanConfig.reconnectInterval || RECONNECTION_DELAY);
+          }
+        }
+      }, 10000); // 10秒连接超时
+      
+      this.ws.onopen = () => {
+        clearTimeout(connectionTimeout);
+        this.failedConnections = 0;
+        this.wsconnected = true;
+        this.wsconnecting = false;
+        console.log(`[思源Provider] 房间 "${this.roomName}" WebSocket连接已建立`);
+        this.emit('status', [{ status: 'connected', room: this.roomName }]);
+        
+        // 发送身份验证消息
+        const authSuccess = this._sendAuthMessage();
+        if (authSuccess) {
+          // 初始连接成功后发送同步请求
+          this._sendSyncStep1();
+          this._sendQueryAwareness();
+        }
+      };
+      
+      this.ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
+        
+        // 检查关闭码，处理鉴权失败的情况
+        if (event.code === 1000 || event.code === 1001) {
+          // 正常关闭或前往其他页面，不显示警告
+          this._closeWebsocketConnection();
+        } else if (event.code === 1008) {
+          // 1008 是策略违规，可能是鉴权失败
+          const authError = new Error(`WebSocket鉴权失败: ${event.reason}`);
+          this._closeWebsocketConnection(authError);
+          console.error(`[思源Provider] 房间 "${this.roomName}" 鉴权失败: ${event.reason}`);
+          this.emit('status', [{ 
+            status: 'auth_failed', 
+            code: event.code, 
+            reason: event.reason,
+            room: this.roomName
+          }]);
+          
+          // 鉴权失败情况下，增加重连延迟，避免频繁重试
+          if (this.shouldConnect && !this.reconnecting) {
+            this.failedConnections++;
+            if (this.failedConnections < MAX_RECONNECTION_ATTEMPTS) {
+              const delay = Math.min(30000, RECONNECTION_DELAY * Math.pow(2, this.failedConnections));
+              console.log(`[思源Provider] 房间 "${this.roomName}" 鉴权失败，将在 ${delay}ms 后尝试重新连接 (${this.failedConnections}/${MAX_RECONNECTION_ATTEMPTS})`);
+              this.reconnecting = true;
+              setTimeout(() => {
+                this.reconnecting = false;
+                this._setupWebsocketConnection();
+              }, delay);
+            } else {
+              console.error(`[思源Provider] 房间 "${this.roomName}" 鉴权失败次数已达上限，停止尝试`);
+              this.emit('status', [{ status: 'auth_failed_max', room: this.roomName }]);
+            }
+          }
+        } else {
+          // 其他关闭情况
+          const closeError = new Error(`WebSocket连接已关闭: ${event.code} ${event.reason}`);
+          this._closeWebsocketConnection(closeError);
+          
+          console.warn(`[思源Provider] 房间 "${this.roomName}" WebSocket连接已关闭: ${event.code} ${event.reason}`);
+          this.emit('status', [{ 
+            status: 'disconnected', 
+            code: event.code, 
+            reason: event.reason,
+            room: this.roomName
+          }]);
+          
+          // 如果应该保持连接，尝试重新连接
+          if (this.shouldConnect && !this.reconnecting) {
+            this.failedConnections++;
+            if (this.failedConnections < MAX_RECONNECTION_ATTEMPTS) {
+              console.log(`[思源Provider] 房间 "${this.roomName}" 将在 ${RECONNECTION_DELAY}ms 后尝试重新连接 (${this.failedConnections}/${MAX_RECONNECTION_ATTEMPTS})`);
+              this.reconnecting = true;
+              setTimeout(() => {
+                this.reconnecting = false;
+                this._setupWebsocketConnection();
+              }, RECONNECTION_DELAY);
+            } else {
+              console.error(`[思源Provider] 房间 "${this.roomName}" 重连次数已达上限，停止尝试`);
+              this.emit('status', [{ status: 'failed', room: this.roomName }]);
+            }
           }
         }
       };
       
       this.ws.onerror = (event) => {
-        const error = new Error('WebSocket连接错误');
+        const error = new Error(`房间 "${this.roomName}" WebSocket连接错误`);
         this._closeWebsocketConnection(error);
         
-        console.error('[思源Provider] WebSocket错误:', event);
-        this.emit('status', [{ status: 'error', event }]);
+        console.error(`[思源Provider] 房间 "${this.roomName}" WebSocket错误:`, event);
+        this.emit('status', [{ status: 'error', event, room: this.roomName }]);
       };
       
       this.ws.onmessage = (event) => {
@@ -789,20 +753,20 @@ export class SiyuanProvider extends BasicObservable {
     } catch (err) {
       this._closeWebsocketConnection(err);
       this.failedConnections++;
-      console.error('[思源Provider] 创建WebSocket连接失败:', err);
-      this.emit('status', [{ status: 'error', error: err }]);
+      console.error(`[思源Provider] 房间 "${this.roomName}" 创建WebSocket连接失败:`, err);
+      this.emit('status', [{ status: 'error', error: err, room: this.roomName }]);
       
       // 尝试重新连接
       if (this.shouldConnect && this.failedConnections < MAX_RECONNECTION_ATTEMPTS) {
-        console.log(`[思源Provider] 将在 ${RECONNECTION_DELAY}ms 后尝试重新连接 (${this.failedConnections}/${MAX_RECONNECTION_ATTEMPTS})`);
+        console.log(`[思源Provider] 房间 "${this.roomName}" 将在 ${RECONNECTION_DELAY}ms 后尝试重新连接 (${this.failedConnections}/${MAX_RECONNECTION_ATTEMPTS})`);
         this.reconnecting = true;
         setTimeout(() => {
           this.reconnecting = false;
           this._setupWebsocketConnection();
         }, RECONNECTION_DELAY);
       } else if (this.failedConnections >= MAX_RECONNECTION_ATTEMPTS) {
-        console.error('[思源Provider] 重连次数已达上限，停止尝试');
-        this.emit('status', [{ status: 'failed' }]);
+        console.error(`[思源Provider] 房间 "${this.roomName}" 重连次数已达上限，停止尝试`);
+        this.emit('status', [{ status: 'failed', room: this.roomName }]);
       }
     }
   }
@@ -925,13 +889,134 @@ export class SiyuanProvider extends BasicObservable {
     this.wsconnecting = false;
     this.synced = false;
   }
+
+  /**
+   * 处理Yjs二进制消息
+   * @param {number} messageType - 消息类型
+   * @param {Object} decoder - 解码器
+   * @private
+   */
+  _handleYjsMessage(messageType, decoder) {
+    // 基本检查
+    if (!decoder || !decoder.arr) {
+      console.log('[思源Provider] 无效的解码器，跳过消息处理');
+      return;
+    }
+
+    // 数据已读完的处理
+    if (decoder.pos >= decoder.arr.length) {
+      // 这可能是正常的情况 - 如果已经读取了所有必要的数据
+      console.log(`[思源Provider] 解码器位置已到达数据末尾，消息类型: ${messageType}`);
+      // 某些消息类型可能不需要额外数据，如认证消息
+      if (messageType === MESSAGE_AUTH) {
+        this.emit('auth', [{type: 'auth'}]);
+      }
+      return;
+    }
+
+    try {
+      switch (messageType) {
+        case MESSAGE_SYNC:
+          // 处理同步消息
+          if (!this.doc) {
+            console.log('[思源Provider] 文档实例不可用，跳过同步消息处理');
+            return;
+          }
+          
+          const syncSuccess = messageHandlers.handleSyncMessage(decoder, this.doc, this);
+          if (syncSuccess && !this.synced) {
+            this.synced = true;
+          }
+          break;
+          
+        case MESSAGE_AWARENESS:
+          // 处理感知状态消息
+          if (!this.awareness) {
+            console.log('[思源Provider] 感知状态实例不可用，跳过感知状态消息处理');
+            return;
+          }
+          
+          messageHandlers.handleAwarenessMessage(decoder, this.awareness, this);
+          break;
+          
+        case MESSAGE_AUTH:
+          // 处理认证消息 - 简单发射事件
+          this.emit('auth', [{type: 'auth'}]);
+          break;
+          
+        case MESSAGE_QUERY_AWARENESS:
+          // 处理查询感知状态消息
+          if (!this.awareness) {
+            console.log('[思源Provider] 感知状态实例不可用，跳过查询感知状态消息处理');
+            return;
+          }
+          
+          const clientID = this.doc ? this.doc.clientID : null;
+          messageHandlers.handleQueryAwarenessMessage(
+            this.awareness,
+            clientID,
+            (data) => this._send(data)
+          );
+          break;
+          
+        default:
+          console.log(`[思源Provider] 未知的消息类型: ${messageType}，跳过处理`);
+      }
+    } catch (err) {
+      // 降级为警告级别，避免过多错误消息
+      console.warn(`[思源Provider] 处理Yjs消息(类型${messageType})时出现问题:`, err);
+      
+      // 仅当真正发生错误且是同步消息时才尝试重新同步
+      if (messageType === MESSAGE_SYNC) {
+        setTimeout(() => {
+          try {
+            this._sendSyncStep1();
+          } catch (retryErr) {
+            console.log('[思源Provider] 重新同步尝试失败，将在下次消息时重试');
+          }
+        }, 2000);
+      }
+    }
+  }
+
+  /**
+   * 发送身份验证消息
+   * @private
+   */
+  _sendAuthMessage() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('[思源Provider] 无法发送身份验证消息：WebSocket未连接');
+      return false;
+    }
+    
+    try {
+      // 为了向后兼容，保持原有的鉴权方式
+      // 在URL中已经传递了token参数
+      // 此方法在将来可以用于增强型的鉴权（如JWT令牌刷新等）
+      return true;
+    } catch (err) {
+      console.error('[思源Provider] 发送身份验证消息失败:', err);
+      return false;
+    }
+  }
 }
 
 /**
  * 使用思源WebSocket Provider创建Yjs文档连接
- * @param {string} roomName - 房间名称
+ * @param {string} roomName - 房间名称，用于标识同步群组
  * @param {Y.Doc} doc - Yjs文档实例
  * @param {Object} options - 配置选项
+ * @param {boolean} [options.connect=true] - 是否自动连接
+ * @param {Object} [options.awareness] - 感知状态对象，用于用户在线状态等
+ * @param {Object} [options.params={}] - 连接参数
+ * @param {number} [options.resyncInterval=10000] - 重新同步间隔（毫秒）
+ * @param {boolean} [options.disableBc=true] - 是否禁用广播通道
+ * @param {number} [options.maxBackoffTime=10000] - 最大重连延迟（毫秒）
+ * @param {Object} [options.siyuanConfig] - 思源笔记配置
+ * @param {string} [options.siyuanConfig.host='127.0.0.1'] - 思源笔记主机名
+ * @param {number} [options.siyuanConfig.port=6806] - 思源笔记端口
+ * @param {string} [options.siyuanConfig.token='6806'] - 思源笔记令牌，用于API鉴权，公网环境下应当使用强密码
+ * @param {string} [options.siyuanConfig.channel='sync'] - 信道前缀，最终信道名为 {channel前缀}-{房间名}
  * @returns {SiyuanProvider} 思源Provider实例
  */
 export function createSiyuanProvider(roomName, doc, options = {}) {

@@ -27,6 +27,147 @@
         </div>
       </div>
       
+      <!-- 详细的连接配置选项 -->
+      <div class="connection-config">
+        <h4>连接配置</h4>
+        
+        <div class="config-tabs">
+          <div 
+            :class="['config-tab', { active: activeConfigTab === 'basic' }]"
+            @click="activeConfigTab = 'basic'"
+          >
+            基本配置
+          </div>
+          <div 
+            :class="['config-tab', { active: activeConfigTab === 'webrtc' }]"
+            @click="activeConfigTab = 'webrtc'"
+          >
+            WebRTC配置
+          </div>
+          <div 
+            :class="['config-tab', { active: activeConfigTab === 'siyuan' }]"
+            @click="activeConfigTab = 'siyuan'"
+          >
+            思源配置
+          </div>
+        </div>
+        
+        <!-- 基本配置 -->
+        <div v-if="activeConfigTab === 'basic'" class="config-panel">
+          <div class="form-group">
+            <label>连接方式：</label>
+            <div class="radio-group">
+              <label>
+                <input type="radio" v-model="connectionType" value="auto" />
+                自动选择
+              </label>
+              <label>
+                <input type="radio" v-model="connectionType" value="webrtc-only" />
+                仅WebRTC
+              </label>
+              <label>
+                <input type="radio" v-model="connectionType" value="siyuan-only" />
+                仅思源
+              </label>
+              <label>
+                <input type="radio" v-model="connectionType" value="webrtc-siyuan" />
+                WebRTC优先+思源备用
+              </label>
+              <label>
+                <input type="radio" v-model="connectionType" value="siyuan-webrtc" />
+                思源优先+WebRTC备用
+              </label>
+            </div>
+          </div>
+          
+          <div class="checkbox-group">
+            <input id="auto-connect" type="checkbox" v-model="autoConnect" />
+            <label for="auto-connect">自动连接</label>
+          </div>
+          
+          <div class="form-group">
+            <label for="load-timeout">加载超时(ms)：</label>
+            <input id="load-timeout" v-model.number="loadTimeout" type="number" min="1000" step="1000" />
+          </div>
+        </div>
+        
+        <!-- WebRTC配置 -->
+        <div v-if="activeConfigTab === 'webrtc'" class="config-panel">
+          <div class="form-group">
+            <label for="ice-servers">ICE服务器：</label>
+            <textarea 
+              id="ice-servers" 
+              v-model="webrtcConfig.iceServers" 
+              rows="3" 
+              placeholder="每行一个服务器URL"
+            ></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="ping-interval">Ping间隔(ms)：</label>
+            <input id="ping-interval" v-model.number="webrtcConfig.pingInterval" type="number" min="500" step="500" />
+          </div>
+          
+          <div class="form-group">
+            <label for="max-conns">最大连接数：</label>
+            <input id="max-conns" v-model.number="webrtcConfig.maxConns" type="number" min="1" max="50" />
+          </div>
+          
+          <div class="form-group">
+            <label for="max-retries">最大重试次数：</label>
+            <input id="max-retries" v-model.number="webrtcConfig.maxRetries" type="number" min="1" max="20" />
+          </div>
+          
+          <div class="checkbox-group">
+            <input id="trickle" type="checkbox" v-model="webrtcConfig.trickle" />
+            <label for="trickle">启用Trickle ICE</label>
+          </div>
+          
+          <div class="checkbox-group">
+            <input id="filter-bc-conns" type="checkbox" v-model="webrtcConfig.filterBcConns" />
+            <label for="filter-bc-conns">过滤广播连接</label>
+          </div>
+        </div>
+        
+        <!-- 思源配置 -->
+        <div v-if="activeConfigTab === 'siyuan'" class="config-panel">
+          <div class="form-group">
+            <label for="siyuan-host">主机地址：</label>
+            <input id="siyuan-host" v-model="siyuanConfig.host" type="text" placeholder="例如：127.0.0.1" />
+          </div>
+          
+          <div class="form-group">
+            <label for="siyuan-port">端口号：</label>
+            <input id="siyuan-port" v-model.number="siyuanConfig.port" type="number" min="1" max="65535" />
+          </div>
+          
+          <div class="form-group">
+            <label for="siyuan-token">访问令牌：</label>
+            <input id="siyuan-token" v-model="siyuanConfig.token" type="text" placeholder="思源API访问令牌" />
+          </div>
+          
+          <div class="form-group">
+            <label for="siyuan-channel">通道名称：</label>
+            <input id="siyuan-channel" v-model="siyuanConfig.channel" type="text" placeholder="WebSocket通道名称" />
+          </div>
+          
+          <div class="form-group">
+            <label for="reconnect-interval">重连间隔(ms)：</label>
+            <input id="reconnect-interval" v-model.number="siyuanConfig.reconnectInterval" type="number" min="500" step="500" />
+          </div>
+          
+          <div class="form-group">
+            <label for="max-reconnect">最大重连次数：</label>
+            <input id="max-reconnect" v-model.number="siyuanConfig.maxReconnectAttempts" type="number" min="1" max="20" />
+          </div>
+          
+          <div class="checkbox-group">
+            <input id="siyuan-auto-reconnect" type="checkbox" v-model="siyuanConfig.autoReconnect" />
+            <label for="siyuan-auto-reconnect">自动重连</label>
+          </div>
+        </div>
+      </div>
+      
       <div class="button-group">
         <button 
           @click="connectRoom" 
@@ -278,6 +419,35 @@ export default {
     const currentTab = ref('basic')
     const newItem = ref('')
     
+    // 连接配置面板
+    const activeConfigTab = ref('basic')
+    
+    // 基本连接配置
+    const connectionType = ref('auto')  // auto, webrtc-only, siyuan-only, webrtc-siyuan, siyuan-webrtc
+    const autoConnect = ref(true)
+    const loadTimeout = ref(5000)
+    
+    // WebRTC配置
+    const webrtcConfig = reactive({
+      iceServers: 'stun:stun.l.google.com:19302\nstun:stun1.l.google.com:19302',
+      pingInterval: 3000,
+      maxConns: 20,
+      maxRetries: 10,
+      trickle: true,
+      filterBcConns: true
+    })
+    
+    // 思源配置
+    const siyuanConfig = reactive({
+      host: '127.0.0.1',
+      port: 6806,
+      token: 'token',
+      channel: 'sync',
+      reconnectInterval: 1000,
+      maxReconnectAttempts: 10,
+      autoReconnect: true
+    })
+    
     // 初始数据模板
     const initialData = {
       title: '同步测试',
@@ -325,6 +495,15 @@ export default {
     let networkDisruptionTimer = null
     let countdownTimer = null
     
+    // 监听连接类型变化并更新useSiyuan
+    watch(connectionType, (newType) => {
+      if (newType === 'siyuan-only' || newType === 'siyuan-webrtc') {
+        useSiyuan.value = true
+      } else if (newType === 'webrtc-only') {
+        useSiyuan.value = false
+      }
+    })
+    
     // 连接到同步房间
     async function connectRoom() {
       if (isConnected.value) return
@@ -333,38 +512,81 @@ export default {
       isConnecting.value = true
       
       try {
+        // 准备连接配置
+        const baseConfig = {
+          roomName: roomName.value,
+          persist: persist.value,
+          autoConnect: autoConnect.value,
+          loadTimeout: loadTimeout.value,
+          autoSync: {
+            enabled: true,
+            interval: 1000
+          }
+        }
+        
+        // 根据连接类型设置WebRTC和思源选项
+        switch (connectionType.value) {
+          case 'webrtc-only':
+            baseConfig.disableWebRTC = false
+            baseConfig.siyuan = { enabled: false }
+            break
+          case 'siyuan-only':
+            baseConfig.disableWebRTC = true
+            baseConfig.siyuan = { 
+              enabled: true,
+              ...siyuanConfig
+            }
+            break
+          case 'webrtc-siyuan':
+            baseConfig.disableWebRTC = false
+            baseConfig.siyuan = { 
+              enabled: true, 
+              ...siyuanConfig
+            }
+            break
+          case 'siyuan-webrtc':
+            baseConfig.disableWebRTC = false
+            baseConfig.forceSiyuan = true
+            baseConfig.siyuan = { 
+              enabled: true,
+              ...siyuanConfig
+            }
+            break
+          default: // 'auto'
+            baseConfig.disableWebRTC = useSiyuan.value
+            baseConfig.siyuan = { 
+              enabled: useSiyuan.value,
+              ...siyuanConfig
+            }
+        }
+        
+        // 添加WebRTC配置
+        baseConfig.webrtcOptions = {
+          peerOpts: {
+            config: {
+              iceServers: parseIceServers(webrtcConfig.iceServers),
+              iceCandidatePoolSize: 10,
+              bundlePolicy: 'max-bundle',
+              rtcpMuxPolicy: 'require',
+              sdpSemantics: 'unified-plan'
+            },
+            trickle: webrtcConfig.trickle
+          },
+          pingInterval: webrtcConfig.pingInterval,
+          maxConns: webrtcConfig.maxConns,
+          connect: false,
+          filterBcConns: webrtcConfig.filterBcConns,
+          maxRetries: webrtcConfig.maxRetries
+        }
+        
         // 根据选择使用不同的API创建同步存储
         if (useSyncedStore.value) {
           // 使用useSyncedStore API
-          syncStore.value = await createSyncedStore(initialData, {
-            roomName: roomName.value,
-            persist: persist.value,
-            disableWebRTC: useSiyuan.value,
-            siyuan: {
-              enabled: useSiyuan.value
-            },
-            autoConnect: true,
-            autoSync: {
-              enabled: true,
-              interval: 1000
-            }
-          })
+          syncStore.value = await createSyncedStore(initialData, baseConfig)
         } else {
           // 使用createSyncStore API
-          syncStore.value = await createSyncStore({
-            roomName: roomName.value,
-            initialState: initialData,
-            persist: persist.value,
-            disableWebRTC: useSiyuan.value,
-            siyuan: {
-              enabled: useSiyuan.value
-            },
-            autoConnect: true,
-            autoSync: {
-              enabled: true,
-              interval: 1000
-            }
-          })
+          baseConfig.initialState = initialData
+          syncStore.value = await createSyncStore(baseConfig)
         }
         
         // 监听状态变化
@@ -775,6 +997,32 @@ export default {
       }
     }
     
+    // 解析ICE服务器字符串为数组
+    function parseIceServers(iceServersString) {
+      if (!iceServersString) return []
+      
+      // 分割行并过滤空行
+      const servers = iceServersString.split('\n')
+        .map(line => line.trim())
+        .filter(line => line)
+        .map(url => {
+          // 判断是否是完整的URL对象格式
+          if (url.startsWith('{') && url.endsWith('}')) {
+            try {
+              return JSON.parse(url)
+            } catch (e) {
+              console.warn('解析ICE服务器JSON格式失败:', e)
+              return { urls: url }
+            }
+          }
+          
+          // 简单URL格式转换为对象
+          return { urls: url }
+        })
+      
+      return servers
+    }
+    
     // 模拟网络中断
     function testNetworkDisruption() {
       if (!syncStore.value || !isConnected.value || networkDisruptionActive.value) return
@@ -860,6 +1108,14 @@ export default {
       getStatusClass,
       peersCount,
       syncStore,
+      
+      // 连接配置
+      activeConfigTab,
+      connectionType,
+      autoConnect,
+      loadTimeout,
+      webrtcConfig,
+      siyuanConfig,
       
       // 网络中断测试
       networkDisruptionActive,
@@ -1269,5 +1525,65 @@ h5 {
 
 .cancel-button:hover:not(:disabled) {
   background: #fb8c00;
+}
+
+/* 连接配置样式 */
+.connection-config {
+  margin-top: 15px;
+  background: #f0f0f0;
+  border-radius: 6px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.connection-config h4 {
+  margin-top: 0;
+  padding: 10px 15px;
+  background: #e0e0e0;
+  font-size: 16px;
+}
+
+.config-tabs {
+  display: flex;
+  background: #e0e0e0;
+}
+
+.config-tab {
+  padding: 8px 15px;
+  cursor: pointer;
+  border-right: 1px solid #ccc;
+  transition: background 0.2s;
+}
+
+.config-tab:hover {
+  background: #d0d0d0;
+}
+
+.config-tab.active {
+  background: #f9f9f9;
+  font-weight: bold;
+  border-bottom: 3px solid #4CAF50;
+}
+
+.config-panel {
+  padding: 15px;
+  background: #f9f9f9;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  font-weight: normal;
+}
+
+.radio-group input {
+  margin-right: 8px;
 }
 </style> 
