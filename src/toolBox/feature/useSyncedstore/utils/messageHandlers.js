@@ -8,7 +8,6 @@ import * as awarenessProtocol from '../impl/awareness.js';
 import * as syncProtocol from '../impl/sync.js';
 import * as encoding from '../impl/encoding.js';
 import * as decoding from '../impl/decoding.js';
-import { toUint8Array, isValidDecoder, hasEnoughData } from './binaryUtils.js';
 
 // 消息类型常量
 export const MESSAGE_SYNC = 0;

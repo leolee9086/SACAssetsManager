@@ -26,155 +26,11 @@ import {
 } from './useNetworkDiagnostics.js'
 
 // 导入管理器模块
-import siyuanManager from './useSiyuanIntegration.js'
 import documentManager, { resetRoomConnection } from './useDocumentManager.js'
 import { createConnectionManager } from './useConnectionManager.js'
 import { createPersistenceManager } from './usePersistenceManager.js'
 import { createSyncManager } from './useSyncManager.js'
 
-// 思源Provider补丁函数
-const siyuanProviderPatch = {
-  /**
-   * 断开WebSocket连接
-   */
-  disconnect() {
-    this.shouldConnect = false;
-    
-    // 添加延迟以确保资源有时间被正确处理
-    return new Promise((resolve) => {
-      try {
-        // 先更新状态
-        this.synced = false;
-        
-        // 清除定时器
-        if (this._checkInterval) {
-          clearInterval(this._checkInterval);
-          this._checkInterval = null;
-        }
-        
-        if (this._resyncInterval) {
-          clearInterval(this._resyncInterval);
-          this._resyncInterval = null;
-        }
-        
-        // 最多等待1秒后返回，避免永久阻塞
-        const safetyTimeout = setTimeout(() => {
-          resolve(true);
-        }, 1000);
-        
-        // 关闭WebSocket连接
-        this._closeWebsocketConnection()
-          .then(() => {
-            clearTimeout(safetyTimeout);
-            resolve(true);
-          })
-          .catch((err) => {
-            console.error('关闭WebSocket时出错:', err);
-            clearTimeout(safetyTimeout);
-            resolve(false);
-          });
-      } catch (err) {
-        console.error('断开连接时发生错误:', err);
-        resolve(false);
-      }
-    });
-  },
-
-  /**
-   * 关闭WebSocket连接
-   * @private
-   * @param {Error} [error=null] 可选的错误对象
-   * @returns {Promise<boolean>} 关闭状态
-   */
-  _closeWebsocketConnection(error = null) {
-    return new Promise((resolve) => {
-      // 如果存在错误，触发连接错误事件
-      if (error) {
-        this.emit('connection-error', [error]);
-      }
-      
-      const safetyTimeout = setTimeout(() => {
-        this.wsconnected = false;
-        this.wsconnecting = false;
-        this.synced = false;
-        
-        // 确保WebSocket资源被清理
-        this._clearWebsocketConnection();
-        resolve(true);
-      }, 500);
-      
-      try {
-        if (this.ws) {
-          // 先移除所有事件处理，防止事件回调执行导致的死锁
-          this.ws.onopen = null;
-          this.ws.onclose = () => {
-            clearTimeout(safetyTimeout);
-            this.wsconnected = false;
-            this.wsconnecting = false;
-            this.synced = false;
-            resolve(true);
-          };
-          this.ws.onerror = null;
-          this.ws.onmessage = null;
-          
-          // 检查WebSocket状态
-          if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
-            this.ws.close();
-          } else {
-            // WebSocket已经关闭
-            clearTimeout(safetyTimeout);
-            this.ws = null;
-            this.wsconnected = false;
-            this.wsconnecting = false;
-            this.synced = false;
-            resolve(true);
-          }
-        } else {
-          // 没有WebSocket连接
-          clearTimeout(safetyTimeout);
-          this.wsconnected = false;
-          this.wsconnecting = false;
-          this.synced = false;
-          resolve(true);
-        }
-      } catch (err) {
-        console.error(`[思源Provider] 关闭WebSocket连接时出错:`, err);
-        clearTimeout(safetyTimeout);
-        
-        // 确保状态一致
-        this.ws = null;
-        this.wsconnected = false;
-        this.wsconnecting = false;
-        this.synced = false;
-        
-        resolve(false);
-      }
-    });
-  }
-};
-
-/**
- * 应用补丁到SiyuanProvider类
- * @param {Class} SiyuanProvider - SiyuanProvider类
- */
-function applySiyuanProviderPatch(SiyuanProvider) {
-  if (!SiyuanProvider || typeof SiyuanProvider !== 'function') {
-    console.error('[同步存储] 无法应用补丁: SiyuanProvider类不可用');
-    return false;
-  }
-  
-  try {
-    // 应用修复的方法
-    SiyuanProvider.prototype.disconnect = siyuanProviderPatch.disconnect;
-    SiyuanProvider.prototype._closeWebsocketConnection = siyuanProviderPatch._closeWebsocketConnection;
-    
-    console.log('[同步存储] 已成功应用思源Provider补丁');
-    return true;
-  } catch (err) {
-    console.error('[同步存储] 应用思源Provider补丁失败:', err);
-    return false;
-  }
-}
 
 // 配置常量
 const DEFAULT_ROOM_NAME = 'default-room'
@@ -236,7 +92,7 @@ export async function createSyncStore(options = {}) {
     // 思源相关配置
     siyuan = {
       enabled: false,
-      ...siyuanManager.config,
+      ...(documentManager.getSiyuanConfig ? documentManager.getSiyuanConfig() : {}),
       ...options.siyuan
     },
     // 新增：是否禁用WebRTC选项
@@ -516,7 +372,6 @@ export async function createSyncStore(options = {}) {
     persistenceManager, 
     documentManager, 
     roomName, 
-    siyuanManager,
     { 
       rtcInstanceId: webrtcInstanceId,
       siyuanInstanceId: siyuanInstanceId
@@ -1279,7 +1134,6 @@ function setupEventListeners(provider, isConnected, syncManager) {
  * @param {Object} persistenceManager - 持久化管理器 
  * @param {Object} documentManager - 文档管理器
  * @param {string} roomName - 房间名称
- * @param {Object} siyuanManager - 思源管理器
  * @param {Object} options - 选项
  * @returns {Function} 断开连接函数
  */
@@ -1289,7 +1143,6 @@ function createDisconnectFunction(
   persistenceManager, 
   documentManager, 
   roomName, 
-  siyuanManager,
   options = {}
 ) {
   return async () => {
@@ -1352,6 +1205,13 @@ function createDisconnectFunction(
         // 清理所有相关连接
         try {
           await documentManager.cleanupRoom(roomName);
+          
+          // 使用documentManager断开思源房间连接（如果方法存在）
+          if (documentManager.disconnectSiyuanRoom) {
+            await documentManager.disconnectSiyuanRoom(roomName, {
+              siyuanInstanceId: siyuanInstanceId
+            });
+          }
         } catch (err) {
           console.warn(`[同步存储] 清理房间 ${roomName} 连接时出错:`, err);
         }
@@ -1410,7 +1270,7 @@ function createDiagnosticsFunction(
       roomName,
       connection: {
         type: provider ? 'webrtc' : 'siyuan',
-        connected: provider ? provider.connected : !!siyuanManager.getConnectionStatus(roomName),
+        connected: provider ? provider.connected : !!documentManager.getConnectionStatus(roomName),
         peers: peersCount,
         ...diagResult
       },
@@ -1465,7 +1325,12 @@ export function getSyncStatus(roomName) {
  * @returns {Object} 更新后的配置
  */
 export function updateSiyuanConfig(config = {}) {
-  return siyuanManager.updateConfig(config)
+  // 通过documentManager更新配置
+  if (documentManager.updateSiyuanConfig) {
+    return documentManager.updateSiyuanConfig(config);
+  }
+  console.warn('[同步存储] documentManager未实现updateSiyuanConfig方法');
+  return config;
 }
 
 // 为向后兼容保留原函数名

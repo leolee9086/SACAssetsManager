@@ -13,6 +13,7 @@
 // 使用统一的Yjs实例入口
 import Y from './yjsInstance.js'
 import { WebrtcProvider } from '../../../../static/y-webrtc.js'
+import { SiyuanProvider } from './useSiyuanProvider.js'
 import { syncedStore } from '../../../../static/@syncedstore/core.js'
 
 // 常量配置
@@ -211,11 +212,7 @@ const documentManager = {
     console.log(`[连接管理器] 为房间 ${roomName} 创建新的${connectionType}连接 (实例ID: ${options.instanceId})`);
     
     // 根据连接类型创建对应提供者
-    if (options.useSiyuan || options.forceSiyuan) {
-      return this.createSiyuanConnection(roomName, ydoc, options);
-    } else {
-      return this.createNewConnection(roomName, ydoc, options);
-    }
+    return this.createConnectionProvider(roomName, ydoc, connectionType, options);
   },
   
   /**
@@ -264,172 +261,118 @@ const documentManager = {
   },
 
   /**
-   * 创建思源WebSocket连接
+   * 创建连接提供者
    * @param {string} roomName - 房间名称
    * @param {Object} ydoc - Y.Doc实例
+   * @param {string} providerType - 提供者类型 'webrtc' 或 'siyuan'
    * @param {Object} options - 配置选项
-   * @returns {Object} 思源WebSocket提供者
+   * @returns {Promise<Object>} 连接提供者
    */
-  async createSiyuanConnection(roomName, ydoc, options) {
-    console.log(`[连接管理器] 为房间 ${roomName} 创建思源WebSocket连接 (实例ID: ${options.instanceId})`);
+  async createConnectionProvider(roomName, ydoc, providerType, options) {
+    console.log(`[连接管理器] 为房间 ${roomName} 创建${providerType}连接 (实例ID: ${options.instanceId})`);
     
     try {
-      // 动态导入思源Provider
-      const { SiyuanProvider } = await import('./useSiyuanProvider.js');
+      let provider = null;
       
-      // 配置思源提供者
-      const siyuanOptions = {
-        connect: false, // 确保初始化时不自动连接
-        // 传入Y引用以避免多实例问题
-        Y: Y, // 使用统一的Yjs实例
-        siyuanConfig: {
-          port: options.port || 6806,
-          host: options.host || '127.0.0.1',
-          token: options.token || '6806',
-          channel: options.channel || 'sync',
-          autoReconnect: options.autoReconnect !== false,
-          reconnectInterval: options.reconnectInterval || 1000,
-          maxReconnectAttempts: options.maxReconnectAttempts || 10
+      if (providerType === 'siyuan') {
+        // 配置思源提供者选项
+        const siyuanOptions = {
+          ...options,
+          connect: false, // 确保初始化时不自动连接
+          Y: Y // 使用统一的Yjs实例
+        };
+        
+        // 创建思源Provider实例
+        provider = new SiyuanProvider(roomName, ydoc, siyuanOptions);
+      } else {
+        // 确保有WebrtcProvider类
+        if (typeof WebrtcProvider !== 'function') {
+          throw new Error('WebrtcProvider 未定义，请确保正确导入');
         }
-      };
-      
-      console.log(`[连接管理器] 房间 ${roomName} 尝试创建思源Provider`);
-      
-      // 创建思源Provider实例 - 直接传递ydoc，不再需要适配
-      const provider = new SiyuanProvider(roomName, ydoc, siyuanOptions);
-      
-      // 生成连接键并存储连接
-      const connectionKey = this.generateConnectionKey(roomName, options, options.instanceId);
-      this.connections.set(connectionKey, {
-        provider,
-        refCount: 1,
-        status: 'initialized',
-        type: 'siyuan',
-        options: {...options},
-        instanceId: options.instanceId
-      });
-      
-      console.log(`[连接管理器] 房间 ${roomName} 思源Provider创建成功`);
-      return provider;
-    } catch (err) {
-      console.error(`[连接管理器] 为房间 ${roomName} 创建思源Provider失败:`, err);
-      return null;
-    }
-  },
-
-  /**
-   * 创建新连接
-   * @param {string} roomName - 房间名称
-   * @param {Object} ydoc - Y.Doc实例
-   * @param {Object} options - 配置选项
-   * @returns {Object} WebRTC提供者
-   */
-  async createNewConnection(roomName, ydoc, options) {
-    console.log(`[连接管理器] 为房间 ${roomName} 创建WebRTC连接 (实例ID: ${options.instanceId}), 选项:`, 
-      {...options, signaling: options.signaling ? '已设置' : '未设置'});
-    
-    try {
-      // 先检查是否有WebrtcProvider类
-      if (typeof WebrtcProvider !== 'function') {
-        throw new Error('WebrtcProvider 未定义，请确保正确导入');
-      }
-      
-      // 全局检查是否已存在此房间的连接 - WebRTC连接可能存在于全局变量中
-      if (typeof window !== 'undefined' && window._webrtcProviders) {
-        const existingGlobalProvider = window._webrtcProviders[roomName];
-        if (existingGlobalProvider) {
-          console.log(`[连接管理器] 发现全局已存在房间 ${roomName} 的WebRTC连接，将复用`);
-          
-          // 存储连接并返回现有的
-          const connectionKey = this.generateConnectionKey(roomName, options, options.instanceId);
-          this.connections.set(connectionKey, {
-            provider: existingGlobalProvider,
-            refCount: 1,
-            status: existingGlobalProvider.connected ? 'connected' : 'initialized',
-            type: 'webrtc',
-            options: {...options},
-            instanceId: options.instanceId
-          });
-          
-          return existingGlobalProvider;
-        }
-      }
-      
-      // 确保启用awareness，这对跨窗口通信很重要
-      const finalOptions = {
-        ...options,
-        connect: false, // 确保初始化时不自动连接
-        maxConns: options.maxConns || 20
-      };
-      
-      // 如果options.awareness不存在，则需要创建一个awareness实例
-      if (!finalOptions.awareness) {
-        try {
-          // 尝试导入awareness
-          const { Awareness } = await import('./impl/awareness.js');
-          // 创建awareness实例
-          finalOptions.awareness = new Awareness(ydoc);
-          console.log(`[WebRTC] 房间 ${roomName} 创建了新的awareness实例`);
-        } catch (err) {
-          console.error(`[WebRTC] 房间 ${roomName} 无法创建awareness实例:`, err);
-          // 使用y-webrtc的原生实现来创建新的awareness
-          if (typeof WebrtcProvider.awareness === 'function') {
-            finalOptions.awareness = new WebrtcProvider.awareness(ydoc);
-            console.log(`[WebRTC] 房间 ${roomName} 使用原生awareness实例`);
-          } else {
-            console.warn(`[WebRTC] 房间 ${roomName} 无法创建awareness实例，将依赖WebrtcProvider自动创建`);
+        
+        // 全局检查是否已存在此房间的连接
+        if (typeof window !== 'undefined' && window._webrtcProviders) {
+          const existingGlobalProvider = window._webrtcProviders[roomName];
+          if (existingGlobalProvider) {
+            console.log(`[连接管理器] 发现全局已存在房间 ${roomName} 的WebRTC连接，将复用`);
+            provider = existingGlobalProvider;
           }
         }
-      }
-      
-      // 创建新连接
-      const provider = new WebrtcProvider(roomName, ydoc);
-      
-      // 存储到全局以便复用
-      if (typeof window !== 'undefined') {
-        if (!window._webrtcProviders) {
-          window._webrtcProviders = {};
+        
+        // 如果没有找到全局连接，创建新的
+        if (!provider) {
+          // 确保启用awareness
+          const finalOptions = {
+            ...options,
+            connect: false, // 确保初始化时不自动连接
+            maxConns: options.maxConns || 20
+          };
+          
+          // 创建awareness实例
+          try {
+            // 尝试导入awareness
+            const { Awareness } = await import('./impl/awareness.js');
+            // 创建awareness实例
+            finalOptions.awareness = new Awareness(ydoc);
+          } catch (err) {
+            console.error(`[WebRTC] 房间 ${roomName} 无法创建awareness实例:`, err);
+            // 使用y-webrtc的原生实现
+            if (typeof WebrtcProvider.awareness === 'function') {
+              finalOptions.awareness = new WebrtcProvider.awareness(ydoc);
+            }
+          }
+          
+          // 创建WebRTC连接
+          provider = new WebrtcProvider(roomName, ydoc);
+          
+          // 存储到全局以便复用
+          if (typeof window !== 'undefined') {
+            if (!window._webrtcProviders) {
+              window._webrtcProviders = {};
+            }
+            window._webrtcProviders[roomName] = provider;
+          }
         }
-        window._webrtcProviders[roomName] = provider;
-      }
-      
-      // 确保awareness已设置并可用
-      if (!provider.awareness) {
-        throw new Error('Provider缺少awareness属性');
+        
+        // 为WebRTC provider添加自定义sync方法
+        if (provider && !provider.sync) {
+          provider.sync = () => {
+            try {
+              // 触发awareness更新
+              if (provider.awareness) {
+                provider.awareness.setLocalState({
+                  ...provider.awareness.getLocalState() || {},
+                  lastSync: Date.now()
+                });
+              }
+              
+              // 如果有原生sync方法则调用
+              if (typeof provider._sync === 'function') {
+                provider._sync();
+              }
+              
+              console.log(`[WebRTC] 房间 ${roomName} 手动触发同步`);
+              return true;
+            } catch (err) {
+              console.error(`[WebRTC] 房间 ${roomName} 手动触发同步失败:`, err);
+              return false;
+            }
+          };
+        }
       }
       
       // 监听连接事件
-      provider.on('status', (event) => {
-        console.log(`[WebRTC] 房间 ${roomName} 连接状态改变:`, event);
-      });
-      
-      provider.on('peers', (event) => {
-        console.log(`[WebRTC] 房间 ${roomName} 对等节点变化, 当前节点数:`, event ? Object.keys(event).length : 0);
-      });
-      
-      // 添加自定义sync方法
-      provider.sync = () => {
-        try {
-          // 触发awareness更新
-          if (provider.awareness) {
-            provider.awareness.setLocalState({
-              ...provider.awareness.getLocalState() || {},
-              lastSync: Date.now()
-            });
-          }
-          
-          // 如果有原生sync方法则调用
-          if (typeof provider._sync === 'function') {
-            provider._sync();
-          }
-          
-          console.log(`[WebRTC] 房间 ${roomName} 手动触发同步`);
-          return true;
-        } catch (err) {
-          console.error(`[WebRTC] 房间 ${roomName} 手动触发同步失败:`, err);
-          return false;
+      if (provider.on) {
+        provider.on('status', (event) => {
+          console.log(`[${providerType}] 房间 ${roomName} 连接状态改变:`, event);
+        });
+        
+        if (providerType === 'webrtc') {
+          provider.on('peers', (event) => {
+            console.log(`[WebRTC] 房间 ${roomName} 对等节点变化, 当前节点数:`, event ? Object.keys(event).length : 0);
+          });
         }
-      };
+      }
       
       // 生成连接键并存储连接
       const connectionKey = this.generateConnectionKey(roomName, options, options.instanceId);
@@ -437,15 +380,15 @@ const documentManager = {
         provider,
         refCount: 1,
         status: 'initialized',
-        type: 'webrtc',
+        type: providerType,
         options: {...options},
         instanceId: options.instanceId
       });
       
-      console.log(`[连接管理器] 房间 ${roomName} WebRTC连接创建成功`);
+      console.log(`[连接管理器] 房间 ${roomName} ${providerType}连接创建成功`);
       return provider;
     } catch (err) {
-      console.error(`[连接管理器] 为房间 ${roomName} 创建WebRTC连接失败:`, err);
+      console.error(`[连接管理器] 为房间 ${roomName} 创建${providerType}连接失败:`, err);
       throw err;
     }
   },
@@ -538,7 +481,7 @@ const documentManager = {
           delete provider.statusInterval
         }
         
-        // 断开WebRTC连接
+        // 断开连接
         if (typeof provider.disconnect === 'function') {
           provider.disconnect()
         }
@@ -622,56 +565,6 @@ const documentManager = {
       documentCount: this.docs.size,
       connectionCount: this.connections.size,
       roomMappingCount: this.roomToDoc.size
-    }
-  },
-
-  /**
-   * 连接到思源WebSocket服务器
-   * @param {string} roomName - 房间名称
-   * @returns {Promise<boolean>} 连接是否成功
-   */
-  async connectSiyuan(roomName) {
-    console.log(`[连接管理器] 尝试连接思源WebSocket, 房间: ${roomName}`);
-    
-    const connectionInfo = this.connections.get(this.generateConnectionKey(roomName, { useSiyuan: true }));
-    if (!connectionInfo) {
-      console.error(`[连接管理器] 找不到房间 ${roomName} 的连接信息`);
-      return false;
-    }
-    
-    if (connectionInfo.status === 'connected') {
-      console.log(`[连接管理器] 房间 ${roomName} 已连接`);
-      return true;
-    }
-
-    try {
-      const provider = connectionInfo.provider;
-      
-      // 确保Provider已完成初始化
-      if (provider._initializing) {
-        try {
-          await provider._initializing;
-        } catch (err) {
-          console.error(`[连接管理器] 房间 ${roomName} Provider初始化失败:`, err);
-          return false;
-        }
-      }
-      
-      // 尝试连接
-      const connected = await provider.connect();
-      
-      if (connected) {
-        connectionInfo.status = 'connected';
-        console.log(`[连接管理器] 房间 ${roomName} 成功连接到思源WebSocket`);
-        return true;
-      } else {
-        connectionInfo.status = 'disconnected';
-        console.error(`[连接管理器] 房间 ${roomName} 连接思源WebSocket失败`);
-        return false;
-      }
-    } catch (err) {
-      console.error(`[连接管理器] 连接思源WebSocket失败, 房间: ${roomName}`, err);
-      return false;
     }
   },
 }

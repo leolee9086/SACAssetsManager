@@ -1356,29 +1356,6 @@ export function removeMessageHandler(roomName, handler) {
   return conn.messageHandlers.delete(handler);
 }
 
-/**
- * 安全深度拷贝对象，处理循环引用
- * @param {any} obj - 需要复制的对象
- * @returns {any} 复制后的对象
- */
-function safeDeepCopy(obj) {
-  if (obj === null || typeof obj !== 'object') {
-    return obj;
-  }
-  
-  try {
-    return JSON.parse(JSON.stringify(obj));
-  } catch (err) {
-    console.warn('[思源同步] 深度拷贝对象失败，尝试浅拷贝');
-    
-    // 回退到安全的浅拷贝
-    if (Array.isArray(obj)) {
-      return [...obj];
-    } else {
-      return {...obj};
-    }
-  }
-}
 
 /**
  * 关联存储对象与房间

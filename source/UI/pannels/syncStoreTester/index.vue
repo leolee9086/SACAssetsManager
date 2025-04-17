@@ -425,6 +425,13 @@ export default {
     const connectionStatus = ref('未连接')
     const peersCount = ref(0)
     
+    // 定时器和侦听器引用
+    let updateTimer = null
+    let stopStatusWatch = null
+    let stopConnectedWatch = null
+    let stopLoadedWatch = null
+    let stopWatchSharedData = null
+    
     // 诊断信息
     const showDiagnostics = ref(false)
     const diagnosticsResult = ref(null)
@@ -542,6 +549,9 @@ export default {
     async function connectRoom() {
       if (isConnected.value) return
       
+      // 确保清理之前可能存在的资源
+      cleanupResources()
+      
       connectionStatus.value = '正在连接...'
       isConnecting.value = true
       
@@ -631,11 +641,6 @@ export default {
           syncStore.value = await createSyncStore(baseConfig)
         }
         
-        // 声明监听器取消函数
-        let stopStatusWatch = null
-        let stopConnectedWatch = null
-        let stopLoadedWatch = null
-        
         // 监听状态变化 - 增加空值检查
         stopStatusWatch = watch(() => syncStore.value?.status, (val) => {
           if (val !== undefined) {
@@ -662,7 +667,7 @@ export default {
           Object.assign(sharedData, syncStore.value.store.state)
           
           // 设置定时器来更新数据 - 使用单向数据流而不是双向
-          const updateTimer = setInterval(() => {
+          updateTimer = setInterval(() => {
             if (syncStore.value && syncStore.value.store && syncStore.value.store.state) {
               // 从存储同步到本地 - 这是安全的操作
               updateLocalFromStore(sharedData, syncStore.value.store.state)
@@ -673,21 +678,12 @@ export default {
           }, 500)
           
           // 监听本地数据变化，更新到存储
-          const stopWatchSharedData = watch(() => JSON.stringify(sharedData), () => {
+          stopWatchSharedData = watch(() => JSON.stringify(sharedData), () => {
             if (syncStore.value && syncStore.value.store && syncStore.value.store.state) {
               // 使用安全的方式更新存储
               updateStoreFromLocal(syncStore.value.store.state, sharedData)
             }
           }, { deep: true })
-          
-          // 组件销毁时清除定时器和监听器
-          onBeforeUnmount(() => {
-            clearInterval(updateTimer)
-            stopWatchSharedData()
-            if (stopStatusWatch) stopStatusWatch()
-            if (stopConnectedWatch) stopConnectedWatch()
-            if (stopLoadedWatch) stopLoadedWatch()
-          })
         }
         
         isConnected.value = true
@@ -696,6 +692,38 @@ export default {
         console.error('连接同步房间出错:', err)
         connectionStatus.value = '连接失败'
         isConnecting.value = false
+        // 出错时确保清理资源
+        cleanupResources()
+      }
+    }
+    
+    // 清理所有资源的函数
+    function cleanupResources() {
+      // 清理定时器
+      if (updateTimer) {
+        clearInterval(updateTimer)
+        updateTimer = null
+      }
+      
+      // 清理监听器
+      if (stopWatchSharedData) {
+        stopWatchSharedData()
+        stopWatchSharedData = null
+      }
+      
+      if (stopStatusWatch) {
+        stopStatusWatch()
+        stopStatusWatch = null
+      }
+      
+      if (stopConnectedWatch) {
+        stopConnectedWatch()
+        stopConnectedWatch = null
+      }
+      
+      if (stopLoadedWatch) {
+        stopLoadedWatch()
+        stopLoadedWatch = null
       }
     }
     
@@ -753,12 +781,18 @@ export default {
         // 重置数据为初始状态
         Object.assign(sharedData, initialData)
         
+        // 清理所有监听器和定时器
+        cleanupResources()
+        
         // 最后再清除引用，避免断开后依然访问到状态
         syncStore.value = null
       } catch (err) {
         console.error('断开连接处理出错:', err)
         connectionStatus.value = '断开出错'
         isConnected.value = false
+        
+        // 发生错误时也要清理资源
+        cleanupResources()
         syncStore.value = null
       } finally {
         // 确保无论如何都重置断开状态
@@ -1201,6 +1235,9 @@ export default {
       if (disconnectTimeout.value) {
         clearTimeout(disconnectTimeout.value)
       }
+      
+      // 确保所有资源被清理
+      cleanupResources()
       
       // 确保在组件卸载时断开连接
       if (syncStore.value) {

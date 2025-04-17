@@ -239,34 +239,51 @@ export function createSyncManager(options) {
       
       const syncTimestamp = Date.now();
       
-      // 调用思源Provider的sync方法
-      if (typeof provider.sync === 'function') {
+      // 调用sync方法 - 添加重试机制
+      let success = false;
+      try {
         provider.sync();
-      } else {
-        // 退化到手动发送同步请求
-        provider.trySend({
-          type: 'sync',
-          roomName: roomName,
-          timestamp: syncTimestamp
-        });
+        success = true;
+      } catch (syncError) {
+        console.warn(`[同步] 思源同步首次尝试失败，准备重试:`, syncError);
+        
+        // 重试思源同步
+        setTimeout(() => {
+          try {
+            provider.sync();
+            console.log(`[同步] 思源同步重试成功, 房间: ${roomName}`);
+          } catch (retryError) {
+            console.error(`[同步] 思源同步重试失败:`, retryError);
+          }
+        }, 500);
       }
       
       // 更新最后同步时间
       lastSyncTime = syncTimestamp;
       recordDocumentChange();
       
-      return true;
+      // 添加确认同步机制 - 再次同步以确保数据一致性
+      if (success) {
+        setTimeout(() => {
+          try {
+            if (provider && provider.wsconnected) {
+              provider.sync();
+              console.log(`[同步] 思源数据确认同步完成, 房间: ${roomName}`);
+            }
+          } catch (confirmError) {
+            console.warn(`[同步] 思源数据确认同步失败:`, confirmError);
+          }
+        }, 1000); // 1秒后进行确认同步
+      }
+      
+      return success;
     } catch (error) {
       console.error(`[同步] 通过思源Provider同步失败:`, error);
       return false;
     }
   }
 
-  // 兼容旧版本的同步方法
-  function syncWithSiyuan() {
-    console.warn('[同步] 调用了过时的syncWithSiyuan方法');
-    return false;
-  }
+
 
   /**
    * 更新自动同步配置
@@ -315,28 +332,6 @@ export function createSyncManager(options) {
     }
   }
 
-  /**
-   * 更新网络检查信息
-   * @param {Object} networkInfo - 网络信息
-   */
-  function updateNetworkInfo(networkInfo) {
-    lastNetworkCheck = {
-      ...lastNetworkCheck,
-      ...networkInfo,
-      time: Date.now()
-    }
-    
-    // 网络状态变化时重新计算同步间隔
-    if (autoSync.enabled && autoSyncTimer) {
-      adaptiveInterval = calculateOptimalSyncIntervalWithOptions({
-        autoSync,
-        lastNetworkCheck,
-        lastSyncTime,
-        changeFrequency,
-        adaptiveInterval
-      })
-    }
-  }
 
   /**
    * 同步完成时的回调函数
