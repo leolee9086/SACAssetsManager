@@ -864,29 +864,84 @@ function mergeObjects(target, source) {
 /**
  * 断开指定房间的思源 WebSocket 连接
  * @param {string} roomName - 房间名称
+ * @returns {Promise<boolean>} 是否成功断开连接
  */
 export function disconnect(roomName) {
-  const conn = connections.get(roomName);
-  if (!conn) return;
-  
-  // 清除重连定时器
-  if (conn.reconnectTimer) {
-    clearTimeout(conn.reconnectTimer);
-    conn.reconnectTimer = null;
-  }
-  
-  // 关闭WebSocket连接
-  if (conn.socket) {
-    try {
-      conn.socket.close();
-    } catch (err) {
-      console.warn(`[思源同步] 关闭房间 ${roomName} WebSocket连接时出错:`, err);
+  return new Promise((resolve) => {
+    const conn = connections.get(roomName);
+    if (!conn) {
+      console.log(`[思源同步] 房间 ${roomName} 没有活跃连接，无需断开`);
+      resolve(true);
+      return;
     }
-    conn.socket = null;
-  }
-  
-  // 更新状态
-  conn.status = 'disconnected';
+    
+    // 清除重连定时器
+    if (conn.reconnectTimer) {
+      clearTimeout(conn.reconnectTimer);
+      conn.reconnectTimer = null;
+    }
+    
+    // 更新状态为正在断开连接
+    conn.status = 'disconnecting';
+    
+    // 关闭WebSocket连接
+    if (conn.socket) {
+      try {
+        // 临时保存连接处理函数，以便清理
+        const originalHandlers = {
+          onmessage: conn.socket.onmessage,
+          onclose: conn.socket.onclose,
+          onerror: conn.socket.onerror,
+          onopen: conn.socket.onopen
+        };
+        
+        // 先移除所有事件处理程序
+        conn.socket.onmessage = null;
+        conn.socket.onclose = null;
+        conn.socket.onerror = null;
+        conn.socket.onopen = null;
+        
+        // 设置一个新的onclose，仅用于跟踪关闭是否成功
+        conn.socket.onclose = () => {
+          console.log(`[思源同步] 房间 ${roomName} WebSocket连接已正常关闭`);
+          conn.socket = null;
+          conn.status = 'disconnected';
+          resolve(true);
+        };
+        
+        // 添加超时保护，避免长时间等待
+        const closeTimeout = setTimeout(() => {
+          console.warn(`[思源同步] 房间 ${roomName} WebSocket关闭超时，强制断开`);
+          conn.socket = null;
+          conn.status = 'disconnected';
+          resolve(true);
+        }, 2000); // 2秒超时
+        
+        // 尝试正常关闭连接
+        if (conn.socket.readyState === WebSocket.OPEN || conn.socket.readyState === WebSocket.CONNECTING) {
+          conn.socket.close();
+        } else {
+          // 连接已经不在开启状态，直接清理
+          clearTimeout(closeTimeout);
+          conn.socket = null;
+          conn.status = 'disconnected';
+          resolve(true);
+        }
+      } catch (err) {
+        console.warn(`[思源同步] 关闭房间 ${roomName} WebSocket连接时出错:`, err);
+        conn.socket = null;
+        conn.status = 'disconnected';
+        resolve(false);
+      }
+    } else {
+      // 无活跃连接
+      conn.status = 'disconnected';
+      resolve(true);
+    }
+    
+    // 清理分块同步状态
+    cleanupChunkSync(roomName);
+  });
 }
 
 /**

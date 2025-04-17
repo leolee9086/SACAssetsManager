@@ -19,6 +19,16 @@ export class Awareness extends Observable {
   constructor(doc) {
     super();
     
+    if (!doc) {
+      throw new Error('Awareness构造函数需要有效的doc参数');
+    }
+    
+    // 确保doc有clientID
+    if (!doc.clientID) {
+      doc.clientID = Math.floor(Math.random() * 1000000);
+      console.warn('[Awareness] 文档缺少clientID，已自动生成随机ID:', doc.clientID);
+    }
+    
     this.doc = doc;
     this.clientID = doc.clientID;
     this.states = new Map();

@@ -1,141 +1,174 @@
-# 响应式同步工具
+# 数据同步(Synced)模块
 
-本模块提供基于 Yjs 和 思源WebSocket 的跨窗口/跨组件响应式数据同步工具。
+此模块提供了基于 Vue 响应式系统的跨窗口/跨组件数据同步功能，支持与思源笔记的WebSocket集成。
 
-## 设计目标
+## 核心功能
 
-1. 兼容 Vue 响应式 API 的使用体验 
-2. 提供自动化的跨窗口/跨组件数据同步
-3. 支持本地存储持久化
-4. 自动断线重连和错误处理
+- **响应式数据同步** - 在多窗口间自动同步响应式状态
+- **思源笔记集成** - 通过WebSocket与思源笔记后端通信
+- **持久化存储** - 支持本地数据持久化
+- **自动重连** - 断线自动重连和错误处理
 
-## 主要API函数
+## 使用方式
 
-### useSyncedReactive 
+### 基本使用
 
-创建可同步的响应式对象，类似 Vue 的 `reactive`，但支持跨窗口同步。
+```javascript
+import { useSyncedReactive } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
 
-```js
-import { useSyncedReactive } from '../../toolBox/useAge/forSync/useSyncedReactive.js';
-
-// 创建同步响应式对象
-const syncedData = useSyncedReactive(
-  { // 初始状态
-    count: 0,
-    items: ['item1', 'item2'],
-    nested: {
-      value: 'test'
-    }
-  }, 
-  { // 配置选项
-    roomName: 'my-app',  // 房间名称
-    key: 'counter-data', // 数据键
-    persist: true,       // 是否持久化
-    debug: true,         // 是否输出调试信息
-    // 思源配置
-    siyuan: {
-      enabled: true      // 是否启用思源同步
-    }
+// 创建可同步的响应式对象
+const state = useSyncedReactive({
+  count: 0,
+  todos: [],
+  settings: {
+    darkMode: false
   }
-);
+}, {
+  roomName: 'my-app',   // 同步房间名
+  key: 'main-state'     // 数据标识符
+});
 
-// 像使用普通响应式对象一样使用
-syncedData.count++; // 自动跨窗口同步
+// 使用方式与Vue的reactive类似
+state.count++;
+state.todos.push({ id: Date.now(), text: '新任务', done: false });
+state.settings.darkMode = true;
 
-// 获取状态
-console.log(syncedData.$status.connected); // 是否已连接
-console.log(syncedData.$status.peers);     // 连接的节点数
-console.log(syncedData.$status.lastSync);  // 上次同步时间
-
-// 手动同步
-syncedData.$sync();
-
-// 修复数组方法 (可能出现的slice方法丢失问题)
-syncedData.$enhanceAllArrays();
+// 特殊API
+state.$status;       // 获取同步状态
+state.$sync();       // 手动触发同步
+state.$connect();    // 手动连接
+state.$disconnect(); // 手动断开连接
+state.$destroy();    // 销毁并清理资源
 ```
 
-### useSyncedRef
+### 简单值的同步
 
-创建可同步的响应式引用，类似 Vue 的 `ref`，但支持跨窗口同步。适合同步简单值。
+```javascript
+import { useSyncedRef } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
 
-```js
-import { useSyncedRef } from '../../toolBox/useAge/forSync/useSyncedReactive.js';
-
-// 创建同步响应式引用
+// 创建可同步的响应式引用
 const counter = useSyncedRef(0, {
   roomName: 'my-app',
   key: 'counter'
 });
 
-// 像使用普通ref一样使用
-counter.value++; // 自动跨窗口同步
+// 使用方式与Vue的ref类似
+counter.value++;
 
-// 获取状态
-console.log(counter.$status.connected);
+// 同样拥有特殊API
+counter.$status;
+counter.$sync();
+// ...
 ```
 
-## 内部模块
+## 从旧版迁移
 
-本模块由以下部分组成：
+### 主要变化
 
-1. **useSyncedReactive.js**: 主模块，提供API接口
-2. **reactiveCore/**: 核心功能实现
-   - **constants.js**: 常量和工具函数
-   - **internal.js**: 内部转换函数 
-   - **boxed.js**: 原始值包装
-   - **map.js**: 映射实现
-   - **array.js**: 数组实现
-   - **index.js**: 导出接口
+此版本使用了官方的`@syncedstore/core`库替代自定义实现，主要改进包括：
 
-## 已知问题与解决方案
+1. 更稳定的响应式系统集成
+2. 更好的嵌套对象和数组处理
+3. 减少了代码复杂度和潜在bug
 
-### 数组方法丢失
+### 迁移步骤
 
-**症状**: `Uncaught TypeError: syncedData.items.slice is not a function`
+1. **更新导入路径**：
+   ```javascript
+   // 旧版
+   import { useSyncedReactive } from '../toolBox/useAge/forSync/useSyncedReactive.js';
+   
+   // 新版
+   import { useSyncedReactive } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
+   ```
 
-**解决方案**: 调用 `syncedData.$enhanceAllArrays()` 方法恢复所有数组方法
+2. **特殊场景处理**：
 
-### 大型数据集同步慢
+   - **深层嵌套对象**：新版能更好地处理深层嵌套对象，不需要特殊处理
+   
+   - **数组操作**：新版自动跟踪数组操作，无需手动监听数组变化
+   
+   - **与思源笔记集成**：新版保持了与思源笔记的集成，使用相同的配置方式
 
-**症状**: 同步大量数据时性能下降
+3. **测试**：
+   使用`syncedReactiveTest.js`进行功能测试，确保所有功能正常工作
 
-**解决方案**: 
-1. 拆分数据为多个小型同步对象
-2. 减少嵌套层级
-3. 使用 `persist: false` 减少持久化成本
+## 配置选项
 
-## 高级用法
-
-### 自定义同步逻辑
-
-```js
-const syncedData = useSyncedReactive(initialState, {
-  onSync: (data) => {
-    console.log('数据同步事件', data);
-    // 执行自定义逻辑
-  },
-  onUpdate: (newValue) => {
-    console.log('数据更新事件', newValue);
+```javascript
+useSyncedReactive(initialState, {
+  // 基本配置
+  key: 'default',           // 数据标识符
+  roomName: 'default-room', // 同步房间名称
+  persist: true,            // 是否持久化到本地存储
+  debug: false,             // 是否启用调试日志
+  autoConnect: true,        // 是否自动连接
+  
+  // 回调函数
+  onSync: (data) => {},     // 同步完成时的回调
+  onUpdate: (data) => {},   // 数据更新时的回调
+  
+  // 思源笔记配置
+  siyuan: {
+    enabled: true,          // 是否启用思源集成
+    host: '127.0.0.1',      // 思源笔记主机名
+    port: 6806,             // 思源笔记端口
+    token: '6806',          // 思源笔记令牌
+    channel: 'sync'         // 信道前缀
   }
 });
 ```
 
-### 多窗口同步测试
+## 高级用法
 
-通过设置相同的 `roomName` 和 `key`，不同窗口的数据会自动同步：
+### 跨组件/跨窗口状态共享
 
-```js
-// 窗口1
-const data1 = useSyncedReactive({count: 0}, {
-  roomName: 'test-room',
-  key: 'test-data'
+```javascript
+// 组件A
+import { useSyncedReactive } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
+
+const state = useSyncedReactive({ 
+  shared: 'Hello from A'
+}, {
+  roomName: 'shared-room',
+  key: 'shared-state'
 });
 
-// 窗口2
-const data2 = useSyncedReactive({count: 0}, {
-  roomName: 'test-room',
-  key: 'test-data'
+// 组件B (可以在不同窗口)
+import { useSyncedReactive } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
+
+// 使用相同的roomName和key获取共享状态
+const state = useSyncedReactive({}, {
+  roomName: 'shared-room',
+  key: 'shared-state'
 });
 
-// 在窗口1中更新data1.count，窗口2中的data2.count会自动同步
+// state.shared 会自动同步组件A的修改
+```
+
+### 获取已存在的同步对象
+
+```javascript
+import { getCachedSyncObject } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
+
+// 获取已创建的同步对象
+const existingState = getCachedSyncObject('room-name', 'state-key');
+
+if (existingState) {
+  // 使用已有的同步对象
+} else {
+  // 创建新的同步对象
+}
+```
+
+### 清理资源
+
+```javascript
+import { clearRoom, clearAllRooms } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
+
+// 清理指定房间的所有同步对象
+clearRoom('room-name');
+
+// 清理所有房间和同步对象
+clearAllRooms();
 ``` 

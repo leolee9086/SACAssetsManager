@@ -197,6 +197,11 @@ export class SiyuanProvider extends BasicObservable {
     // 如果awareness未提供，创建awareness实例
     if (!awareness && awarenessProtocol && awarenessProtocol.Awareness) {
       try {
+        // 确保文档有clientID，如果没有则生成一个
+        if (!doc.clientID) {
+          doc.clientID = Math.floor(Math.random() * 1000000);
+          console.warn('[思源Provider] 文档缺少clientID，已自动生成随机ID:', doc.clientID);
+        }
         this.awareness = new awarenessProtocol.Awareness(doc);
         console.log('[思源Provider] 成功创建Awareness实例');
       } catch (err) {
@@ -536,23 +541,38 @@ export class SiyuanProvider extends BasicObservable {
    * @private
    */
   _clearWebsocketConnection() {
-    if (this.ws) {
-      try {
+    try {
+      // 清理WebSocket链接
+      if (this.ws) {
+        // 先移除所有事件监听器，防止回调执行
         this.ws.onopen = null;
         this.ws.onclose = null;
         this.ws.onerror = null;
         this.ws.onmessage = null;
         
-        if (this.ws.readyState === WebSocket.OPEN || 
-            this.ws.readyState === WebSocket.CONNECTING) {
-          this.ws.close();
+        // 尝试关闭（如果还未关闭）
+        try {
+          if (this.ws.readyState === WebSocket.OPEN || 
+              this.ws.readyState === WebSocket.CONNECTING) {
+            this.ws.close();
+          }
+        } catch (e) {
+          console.warn('[思源Provider] 关闭WebSocket时出错 (忽略):', e);
         }
         
+        // 置空引用
         this.ws = null;
-        console.log('[思源Provider] 已清理旧的WebSocket连接');
-      } catch (err) {
-        console.error('[思源Provider] 清理WebSocket连接出错:', err);
       }
+      
+      // 重置状态
+      this.wsconnected = false;
+      this.wsconnecting = false;
+      this.synced = false;
+      
+      // 触发状态更新事件
+      this.emit('status', [{ status: 'disconnected' }]);
+    } catch (err) {
+      console.error('[思源Provider] 清理WebSocket资源时出错:', err);
     }
   }
   
@@ -625,9 +645,42 @@ export class SiyuanProvider extends BasicObservable {
       return;
     }
 
+    // 修复：如果正在连接中，防止重复调用
+    if (this.wsconnecting) {
+      console.warn('[思源Provider] 已经在连接过程中，跳过重复连接');
+      return;
+    }
+
+    // 修复：检查连接状态更明确，避免重连引起问题
     if (this.ws) {
-      // 如果已经有活跃连接，先清理
-      this._closeWebsocketConnection();
+      // 如果已经有活跃连接，先清理WebSocket但不要递归调用_closeWebsocketConnection
+      console.log('[思源Provider] 清理现有连接...');
+      
+      // 直接清理WebSocket资源
+      // 先移除所有事件处理
+      if (this.ws) {
+        this.ws.onopen = null;
+        this.ws.onclose = null;
+        this.ws.onerror = null;
+        this.ws.onmessage = null;
+        
+        // 尝试关闭连接
+        try {
+          if (this.ws.readyState === WebSocket.OPEN || 
+              this.ws.readyState === WebSocket.CONNECTING) {
+            this.ws.close();
+          }
+        } catch (err) {
+          console.warn('[思源Provider] 关闭现有WebSocket连接时出错:', err);
+        }
+        
+        // 重置WebSocket引用
+        this.ws = null;
+      }
+      
+      // 重置状态
+      this.wsconnected = false;
+      this.wsconnecting = false;
     }
 
     try {
@@ -661,7 +714,27 @@ export class SiyuanProvider extends BasicObservable {
         this.wsconnected = true;
         this.wsconnecting = false;
         console.log(`[思源Provider] 房间 "${this.roomName}" WebSocket连接已建立`);
+        
+        // 立即通知状态变化
         this.emit('status', [{ status: 'connected', room: this.roomName }]);
+        
+        // 延迟通知状态，确保其他组件已准备好接收
+        // 发送多次状态事件，确保响应式系统能够捕捉
+        const sendStatusEvent = () => {
+          if (this.wsconnected) {
+            console.log(`[思源Provider] 房间 "${this.roomName}" 发送定时状态事件确认已连接`);
+            this.emit('status', [{ status: 'connected', room: this.roomName }]);
+          }
+        };
+        
+        // 500ms后再次发送
+        setTimeout(sendStatusEvent, 500);
+        
+        // 1000ms后再次发送
+        setTimeout(sendStatusEvent, 1000);
+        
+        // 2000ms后再次发送
+        setTimeout(sendStatusEvent, 2000);
         
         // 发送身份验证消息
         const authSuccess = this._sendAuthMessage();
@@ -678,12 +751,21 @@ export class SiyuanProvider extends BasicObservable {
         // 检查关闭码，处理鉴权失败的情况
         if (event.code === 1000 || event.code === 1001) {
           // 正常关闭或前往其他页面，不显示警告
-          this._closeWebsocketConnection();
+          this.wsconnected = false;
+          this.wsconnecting = false;
+          this.synced = false;
+          this.ws = null;
+          console.log(`[思源Provider] 房间 "${this.roomName}" 正常断开连接`);
         } else if (event.code === 1008) {
           // 1008 是策略违规，可能是鉴权失败
           const authError = new Error(`WebSocket鉴权失败: ${event.reason}`);
-          this._closeWebsocketConnection(authError);
+          // 移除递归调用，直接更新状态
+          this.wsconnected = false;
+          this.wsconnecting = false;
+          this.synced = false;
+          this.ws = null;
           console.error(`[思源Provider] 房间 "${this.roomName}" 鉴权失败: ${event.reason}`);
+          this.emit('connection-error', [authError]);
           this.emit('status', [{ 
             status: 'auth_failed', 
             code: event.code, 
@@ -709,8 +791,11 @@ export class SiyuanProvider extends BasicObservable {
           }
         } else {
           // 其他关闭情况
-          const closeError = new Error(`WebSocket连接已关闭: ${event.code} ${event.reason}`);
-          this._closeWebsocketConnection(closeError);
+          // 移除递归调用，直接更新状态
+          this.wsconnected = false;
+          this.wsconnecting = false;
+          this.synced = false;
+          this.ws = null;
           
           console.warn(`[思源Provider] 房间 "${this.roomName}" WebSocket连接已关闭: ${event.code} ${event.reason}`);
           this.emit('status', [{ 
@@ -739,10 +824,34 @@ export class SiyuanProvider extends BasicObservable {
       };
       
       this.ws.onerror = (event) => {
-        const error = new Error(`房间 "${this.roomName}" WebSocket连接错误`);
-        this._closeWebsocketConnection(error);
+        // 移除递归调用，直接更新状态
+        this.wsconnected = false;
+        this.wsconnecting = false;
+        this.synced = false;
         
+        const error = new Error(`房间 "${this.roomName}" WebSocket连接错误`);
         console.error(`[思源Provider] 房间 "${this.roomName}" WebSocket错误:`, event);
+        
+        // 如果WebSocket实例还存在，清理它
+        if (this.ws) {
+          this.ws.onopen = null;
+          this.ws.onclose = null;
+          this.ws.onerror = null;
+          this.ws.onmessage = null;
+          
+          try {
+            if (this.ws.readyState === WebSocket.OPEN || 
+                this.ws.readyState === WebSocket.CONNECTING) {
+              this.ws.close();
+            }
+          } catch (closeErr) {
+            console.warn('[思源Provider] 在错误处理中关闭WebSocket时出错:', closeErr);
+          }
+          
+          this.ws = null;
+        }
+        
+        this.emit('connection-error', [error]);
         this.emit('status', [{ status: 'error', event, room: this.roomName }]);
       };
       
@@ -776,21 +885,194 @@ export class SiyuanProvider extends BasicObservable {
    * @returns {Promise<boolean>} 是否连接成功
    */
   connect() {
-    this.shouldConnect = true;
-    
-    if (!this.wsconnected && !this.wsconnecting) {
-      this._setupWebsocketConnection();
+    // 如果已连接，直接返回成功
+    if (this.wsconnected) {
+      console.log(`[思源Provider] 房间 "${this.roomName}" 已连接，无需重复连接`);
+      return Promise.resolve(true);
     }
     
-    return Promise.resolve(true);
+    // 如果正在连接中，返回Promise稍后解析
+    if (this.wsconnecting) {
+      console.log(`[思源Provider] 房间 "${this.roomName}" 正在连接中，等待连接完成`);
+      return new Promise((resolve) => {
+        // 设置一个临时监听器，连接成功时解析
+        const tempListener = (statusEvent) => {
+          if (statusEvent[0]?.status === 'connected') {
+            this.off('status', tempListener);
+            resolve(true);
+          }
+        };
+        
+        // 设置超时，避免永久等待
+        const timeout = setTimeout(() => {
+          this.off('status', tempListener);
+          resolve(this.wsconnected); // 返回当前连接状态
+        }, 10000);
+        
+        // 监听状态变更
+        this.on('status', tempListener);
+      });
+    }
+    
+    this.shouldConnect = true;
+    this._setupWebsocketConnection();
+    
+    return new Promise((resolve) => {
+      // 设置一个临时监听器，连接成功时解析
+      const tempListener = (statusEvent) => {
+        if (statusEvent[0]?.status === 'connected') {
+          this.off('status', tempListener);
+          clearTimeout(timeout);
+          resolve(true);
+        }
+      };
+      
+      // 设置超时，避免永久等待
+      const timeout = setTimeout(() => {
+        this.off('status', tempListener);
+        resolve(this.wsconnected); // 返回当前连接状态
+      }, 10000);
+      
+      // 监听状态变更
+      this.on('status', tempListener);
+    });
   }
   
   /**
    * 断开WebSocket连接
+   * @returns {Promise<boolean>} 操作是否成功
    */
   disconnect() {
-    this.shouldConnect = false
-    this._closeWebsocketConnection()
+    // 如果已经断开连接，直接返回
+    if (!this.wsconnected && !this.wsconnecting) {
+      console.log(`[思源Provider] 房间 "${this.roomName}" 已断开连接，无需重复断开`);
+      return Promise.resolve(true);
+    }
+    
+    // 设置不应该连接标志
+    this.shouldConnect = false;
+    
+    // 添加安全超时，确保即使出现问题也能在合理时间内返回
+    return new Promise((resolve) => {
+      try {
+        // 先更新状态
+        this.emit('status', [{ status: 'disconnecting', room: this.roomName }]);
+        
+        // 重置同步状态
+        this.synced = false;
+        
+        // 清除定时器
+        if (this._checkInterval) {
+          clearInterval(this._checkInterval);
+          this._checkInterval = null;
+        }
+        
+        if (this._resyncInterval) {
+          clearInterval(this._resyncInterval);
+          this._resyncInterval = null;
+        }
+        
+        // 最多等待1秒后返回，避免永久阻塞
+        const safetyTimeout = setTimeout(() => {
+          console.warn('[思源Provider] 断开连接操作超时，强制完成');
+          
+          // 直接清理WebSocket而不调用_closeWebsocketConnection
+          if (this.ws) {
+            this.ws.onopen = null;
+            this.ws.onclose = null;
+            this.ws.onerror = null;
+            this.ws.onmessage = null;
+            
+            try {
+              if (this.ws.readyState === WebSocket.OPEN || 
+                  this.ws.readyState === WebSocket.CONNECTING) {
+                this.ws.close();
+              }
+            } catch (e) {
+              console.warn('[思源Provider] 强制关闭WebSocket时出错:', e);
+            }
+            
+            this.ws = null;
+          }
+          
+          this.wsconnected = false;
+          this.wsconnecting = false;
+          this.synced = false;
+          
+          // 确保发送断开连接状态
+          this.emit('status', [{ status: 'disconnected', room: this.roomName }]);
+          resolve(true);
+        }, 1000);
+        
+        // 如果没有活跃连接，无需执行关闭操作
+        if (!this.ws) {
+          clearTimeout(safetyTimeout);
+          this.wsconnected = false;
+          this.wsconnecting = false;
+          resolve(true);
+          return;
+        }
+        
+        // 直接关闭WebSocket而不调用_closeWebsocketConnection
+        const close = () => {
+          if (this.ws) {
+            // 移除所有事件处理
+            const originalOnClose = this.ws.onclose;
+            this.ws.onopen = null;
+            this.ws.onerror = null;
+            this.ws.onmessage = null;
+            
+            // 设置一个一次性onclose处理器
+            this.ws.onclose = (e) => {
+              clearTimeout(safetyTimeout);
+              this.wsconnected = false;
+              this.wsconnecting = false;
+              this.synced = false;
+              this.ws = null;
+              
+              // 通知状态更新
+              this.emit('status', [{ status: 'disconnected', room: this.roomName }]);
+              resolve(true);
+            };
+            
+            // 关闭连接
+            if (this.ws.readyState === WebSocket.OPEN || 
+                this.ws.readyState === WebSocket.CONNECTING) {
+              this.ws.close();
+            } else {
+              // 连接不处于可关闭状态
+              clearTimeout(safetyTimeout);
+              this.ws = null;
+              this.wsconnected = false;
+              this.wsconnecting = false;
+              this.emit('status', [{ status: 'disconnected', room: this.roomName }]);
+              resolve(true);
+            }
+          } else {
+            // 没有WebSocket连接
+            clearTimeout(safetyTimeout);
+            this.wsconnected = false;
+            this.wsconnecting = false;
+            this.emit('status', [{ status: 'disconnected', room: this.roomName }]);
+            resolve(true);
+          }
+        };
+        
+        // 立即执行关闭
+        close();
+      } catch (err) {
+        console.error('[思源Provider] 断开连接时发生错误:', err);
+        
+        // 强制更新状态确保一致性
+        this.wsconnected = false;
+        this.wsconnecting = false;
+        this.synced = false;
+        this.ws = null;
+        
+        this.emit('status', [{ status: 'disconnected', error: err, room: this.roomName }]);
+        resolve(false);
+      }
+    });
   }
   
   /**
@@ -877,17 +1159,84 @@ export class SiyuanProvider extends BasicObservable {
    * 关闭WebSocket连接
    * @private
    * @param {Error} [error=null] 可选的错误对象
+   * @returns {Promise<boolean>} 关闭状态
    */
   _closeWebsocketConnection(error = null) {
-    if (error) {
-      this.emit('connection-error', [error]);
-    }
-    
-    this._clearWebsocketConnection();
-    
-    this.wsconnected = false;
-    this.wsconnecting = false;
-    this.synced = false;
+    return new Promise((resolve) => {
+      // 如果存在错误，触发连接错误事件
+      if (error) {
+        this.emit('connection-error', [error]);
+      }
+      
+      // 安全超时，确保即使出现问题也能返回
+      const safetyTimeout = setTimeout(() => {
+        console.warn('[思源Provider] 关闭WebSocket操作超时，强制完成');
+        this.wsconnected = false;
+        this.wsconnecting = false;
+        this.synced = false;
+        
+        // 确保WebSocket资源被清理
+        this._clearWebsocketConnection();
+        resolve(true);
+      }, 500);
+      
+      try {
+        if (this.ws) {
+          // 先移除所有事件处理，防止事件回调执行导致的死锁
+          const originalOnClose = this.ws.onclose;
+          
+          // 移除所有可能导致问题的事件处理器
+          this.ws.onopen = null;
+          this.ws.onerror = null;
+          this.ws.onmessage = null;
+          
+          // 设置一个安全的onclose处理器
+          this.ws.onclose = () => {
+            clearTimeout(safetyTimeout);
+            this.wsconnected = false;
+            this.wsconnecting = false;
+            this.synced = false;
+            this.ws = null;
+            
+            // 触发状态更新
+            this.emit('status', [{ status: 'disconnected' }]);
+            resolve(true);
+          };
+          
+          // 检查WebSocket状态
+          if (this.ws.readyState === WebSocket.OPEN || 
+              this.ws.readyState === WebSocket.CONNECTING) {
+            this.ws.close();
+          } else {
+            // WebSocket已经关闭
+            clearTimeout(safetyTimeout);
+            this.ws = null;
+            this.wsconnected = false;
+            this.wsconnecting = false;
+            this.synced = false;
+            resolve(true);
+          }
+        } else {
+          // 没有WebSocket连接
+          clearTimeout(safetyTimeout);
+          this.wsconnected = false;
+          this.wsconnecting = false;
+          this.synced = false;
+          resolve(true);
+        }
+      } catch (err) {
+        console.error(`[思源Provider] 关闭WebSocket连接时出错:`, err);
+        clearTimeout(safetyTimeout);
+        
+        // 确保状态一致
+        this.ws = null;
+        this.wsconnected = false;
+        this.wsconnecting = false;
+        this.synced = false;
+        
+        resolve(false);
+      }
+    });
   }
 
   /**

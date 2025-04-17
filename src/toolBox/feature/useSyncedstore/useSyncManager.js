@@ -32,7 +32,7 @@ const INTERVAL_CHANGE_THRESHOLD = 0.2
  * @param {Object} options.roomName - 房间名称
  * @param {Object} options.autoSync - 自动同步配置
  * @param {function} options.getProvider - 获取提供者函数
- * @param {Object} options.siyuanSocket - 思源WebSocket（可选）
+ * @param {Object} options.siyuanProvider - 思源WebSocket提供者（可选）
  * @returns {Object} 同步管理器实例
  */
 export function createSyncManager(options) {
@@ -42,7 +42,7 @@ export function createSyncManager(options) {
     roomName,
     autoSync = createDefaultAutoSyncConfig(),
     getProvider,
-    siyuanSocket
+    siyuanProvider = null
   } = options
 
   // 同步状态变量
@@ -210,10 +210,10 @@ export function createSyncManager(options) {
       console.warn(`[同步] WebRTC未连接或不可用, 房间: ${roomName}`)
     }
 
-    // 思源同步
-    if (siyuanSocket) {
+    // 思源同步 - 使用传入的siyuanProvider而不是socket
+    if (siyuanProvider && siyuanProvider.wsconnected) {
       try {
-        const success = syncWithSiyuan()
+        const success = syncWithSiyuanProvider(siyuanProvider)
         synced = success || synced
         console.log(`[同步] 思源同步${success ? '成功' : '失败'}, 房间: ${roomName}`)
       } catch (err) {
@@ -225,49 +225,47 @@ export function createSyncManager(options) {
   }
 
   /**
-   * 通过思源同步数据
+   * 通过思源Provider同步数据
+   * @param {Object} provider - 思源Provider实例
    * @returns {boolean} 是否成功同步
    */
-  function syncWithSiyuan() {
+  function syncWithSiyuanProvider(provider) {
     try {
-      // 检查思源Socket是否可用
-      if (!siyuanSocket || siyuanSocket.readyState !== WebSocket.OPEN) {
-        console.warn(`[同步] 思源WebSocket未连接，尝试重新连接`);
+      // 检查思源Provider是否可用
+      if (!provider || !provider.wsconnected) {
+        console.warn(`[同步] 思源Provider未连接，尝试重新连接`);
         return false;
       }
       
       const syncTimestamp = Date.now();
       
-      // 构建完整的同步消息
-      const syncMessage = {
-        type: 'sync',
-        room: roomName,
-        state: store.state,
-        timestamp: syncTimestamp,
-        clientId: siyuanSocket.clientId || 'unknown'
-      };
-      
-      // 如果同步消息太大，考虑分片发送
-      const message = JSON.stringify(syncMessage);
-      const messageSize = new Blob([message]).size;
-      
-      if (messageSize > 1024 * 1024) { // 大于1MB
-        console.warn(`[同步] 同步消息过大(${Math.round(messageSize/1024)}KB)，可能会导致传输问题`);
+      // 调用思源Provider的sync方法
+      if (typeof provider.sync === 'function') {
+        provider.sync();
+      } else {
+        // 退化到手动发送同步请求
+        provider.trySend({
+          type: 'sync',
+          roomName: roomName,
+          timestamp: syncTimestamp
+        });
       }
-      
-      // 发送同步消息
-      siyuanSocket.send(message);
       
       // 更新最后同步时间
       lastSyncTime = syncTimestamp;
       recordDocumentChange();
       
-      console.log(`[同步] 通过思源WebSocket发送同步数据, 大小: ${Math.round(messageSize/1024)}KB`);
       return true;
     } catch (error) {
-      console.error(`[同步] 通过思源WebSocket同步失败:`, error);
+      console.error(`[同步] 通过思源Provider同步失败:`, error);
       return false;
     }
+  }
+
+  // 兼容旧版本的同步方法
+  function syncWithSiyuan() {
+    console.warn('[同步] 调用了过时的syncWithSiyuan方法');
+    return false;
   }
 
   /**
@@ -276,9 +274,18 @@ export function createSyncManager(options) {
    * @returns {Object} 更新后的配置
    */
   function setConfig(config) {
-    Object.assign(autoSync, updateAutoSyncConfig(autoSync, config))
-    setupAutoSync()
-    return { ...autoSync }
+    // 更新配置
+    Object.assign(autoSync, updateAutoSyncConfig(autoSync, config));
+    
+    // 如果启用了自动同步，重新启动
+    if (autoSync.enabled) {
+      startAutoSync();
+    } else {
+      stopAutoSync();
+    }
+    
+    console.log(`[同步管理器] 房间 ${roomName} 更新配置:`, {...autoSync});
+    return { ...autoSync };
   }
 
   /**
@@ -331,16 +338,62 @@ export function createSyncManager(options) {
     }
   }
 
+  /**
+   * 同步完成时的回调函数
+   */
+  function onSynced() {
+    console.log(`[同步] 房间 ${roomName} 同步完成`);
+    lastSyncTime = Date.now();
+    recordDocumentChange();
+    
+    // 如果启用了自适应间隔，重新计算同步间隔
+    if (autoSync.adaptive && autoSync.enabled && autoSyncTimer) {
+      recalculateAndApplyInterval();
+    }
+  }
+
+  /**
+   * 启动自动同步
+   * @returns {boolean} 是否成功启动
+   */
+  function startAutoSync() {
+    // 清理现有设置
+    stopAutoSync();
+    
+    // 重新初始化
+    setupAutoSync();
+    
+    console.log(`[同步管理器] 房间 ${roomName} 启动自动同步，间隔: ${adaptiveInterval}ms`);
+    return true;
+  }
+
+  /**
+   * 停止自动同步
+   */
+  function stopAutoSync() {
+    clearCurrentTimer();
+    
+    if (cleanupFunction) {
+      cleanupFunction();
+      cleanupFunction = null;
+    }
+    
+    console.log(`[同步管理器] 房间 ${roomName} 停止自动同步`);
+  }
+
   // 初始化
-  setupAutoSync()
+  if (autoSync.enabled) {
+    startAutoSync();
+  }
 
   return {
-    setupAutoSync,
     triggerSync,
+    onSynced,
+    startAutoSync,
+    stopAutoSync,
     setConfig,
     getStatus,
-    stopSync,
-    updateNetworkInfo,
+    getSiyuanProvider: () => siyuanProvider,
     // 内部状态导出（用于调试和诊断）
     getInternalState: () => ({
       autoSync: { ...autoSync },

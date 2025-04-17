@@ -129,3 +129,53 @@
 2. **减少重复计算** - 通过缓存引用避免重新创建
 3. **更好的垃圾回收** - 减少内存泄漏风险
 4. **更精确的数组操作** - 优化大型数组的同步效率 
+
+## 改进说明
+
+### 使用SyncedStore官方库替代自定义实现
+
+原先的`useSyncedReactive.js`实现了一套从底层开始的响应式数据同步机制，这种方式有几个问题：
+
+1. 代码量大、复杂度高：自行处理各种嵌套数据结构同步和更新
+2. 不稳定性：手动创建代理和更新监听有可能导致响应式丢失
+3. 维护成本高：需要自行跟踪并解决各种边缘情况
+
+现在我们使用了官方的`@syncedstore/core`库，主要改进包括：
+
+1. 使用`enableVueBindings(Vue)`让SyncedStore内部直接与Vue响应式系统集成
+2. 使用`syncedStore`函数创建完全响应式的同步存储
+3. 保持原有API设计，确保向后兼容
+4. 精简了代码量，提高可维护性
+
+### 文件说明
+
+- `useSyncedReactiveNew.js`: 基于`@syncedstore/core`的新实现，更简洁高效
+- `useSyncedReactive.js`: 原有的手动实现，作为兼容性保留
+ 
+### 使用方法
+
+新的实现接口与旧实现保持一致，可以直接替换导入路径：
+
+```javascript
+// 旧版使用方式
+import { useSyncedReactive } from '../toolBox/useAge/forSync/useSyncedReactive.js';
+
+// 新版使用方式
+import { useSyncedReactive } from '../toolBox/useAge/forSync/useSyncedReactiveNew.js';
+```
+
+### 后续改进方向
+
+1. 在确认新版实现稳定后，完全替代旧实现
+2. 为特殊使用场景（如深层嵌套对象）编写迁移指南
+3. 进一步优化与思源笔记WebSocket的集成，提高同步性能
+
+## 技术细节
+
+### SyncedStore 与 Vue 的集成原理
+
+SyncedStore 通过拦截 Yjs 数据结构的变更，将其映射到 Vue 的响应式系统：
+
+1. `enableVueBindings(Vue)` 使 SyncedStore 内部使用 Vue 的 reactive 和 ref
+2. 当 Yjs 文档更新时，相应的 Vue 响应式对象自动更新
+3. 当修改 Vue 响应式对象时，自动应用到 Yjs 文档并广播 

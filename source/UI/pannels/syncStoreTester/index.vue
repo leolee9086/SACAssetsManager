@@ -77,6 +77,10 @@
                 <input type="radio" v-model="connectionType" value="siyuan-webrtc" />
                 思源优先+WebRTC备用
               </label>
+              <label>
+                <input type="radio" v-model="connectionType" value="both" />
+                同时使用WebRTC和思源
+              </label>
             </div>
           </div>
           
@@ -171,19 +175,22 @@
       <div class="button-group">
         <button 
           @click="connectRoom" 
-          :disabled="isConnected || isConnecting"
-          :class="{'primary-button': !isConnected && !isConnecting}"
+          :disabled="isConnected || isConnecting || isDisconnecting"
+          :class="{'primary-button': !isConnected && !isConnecting && !isDisconnecting}"
         >
           连接房间
         </button>
         <button 
           @click="disconnectRoom" 
-          :disabled="!isConnected && !isConnecting"
-          :class="{'danger-button': isConnected || isConnecting}"
+          :disabled="(!isConnected && !isConnecting) || isDisconnecting"
+          :class="{
+            'danger-button': (isConnected || isConnecting) && !isDisconnecting,
+            'warning-button': isDisconnecting
+          }"
         >
-          断开连接
+          {{ isDisconnecting ? '正在断开...' : '断开连接' }}
         </button>
-        <button @click="clearLocalData" :disabled="isConnected">清除本地数据</button>
+        <button @click="clearLocalData" :disabled="isConnected || isConnecting || isDisconnecting">清除本地数据</button>
       </div>
     </div>
     
@@ -196,8 +203,12 @@
           <span :class="['status-value', getStatusClass]">{{ connectionStatusText }}</span>
         </div>
         <div class="status-item">
+          <span class="status-label">连接类型：</span>
+          <span class="status-value">{{ connectionTypeText }}</span>
+        </div>
+        <div class="status-item">
           <span class="status-label">同步状态：</span>
-          <span class="status-value">{{ syncStore?.$status?.value || '未连接' }}</span>
+          <span class="status-value">{{ syncStore && syncStore.$status ? syncStore.$status.value || '未连接' : '未连接' }}</span>
         </div>
         <div class="status-item">
           <span class="status-label">在线节点：</span>
@@ -212,9 +223,9 @@
       </div>
       
       <div class="action-buttons">
-        <button @click="triggerSync" :disabled="!isConnected">手动同步</button>
-        <button @click="getDiagnostics" :disabled="!isConnected">诊断网络</button>
-        <button @click="testNetworkDisruption" :disabled="!isConnected || networkDisruptionActive">模拟断网</button>
+        <button @click="triggerSync" :disabled="!isConnected || isDisconnecting">手动同步</button>
+        <button @click="getDiagnostics" :disabled="!isConnected || isDisconnecting">诊断网络</button>
+        <button @click="testNetworkDisruption" :disabled="!isConnected || isDisconnecting || networkDisruptionActive">模拟断网</button>
       </div>
       
       <!-- 网络中断测试控制面板 -->
@@ -233,7 +244,7 @@
     <!-- 数据编辑 -->
     <div class="data-section">
       <h3>同步数据</h3>
-      <div v-if="isConnected" class="data-editor">
+      <div v-if="isConnected && !isDisconnecting" class="data-editor">
         <div class="data-tabs">
           <div 
             v-for="tab in dataTabs" 
@@ -321,6 +332,9 @@
           <h4>JSON格式数据</h4>
           <pre class="json-view">{{ JSON.stringify(sharedData, null, 2) }}</pre>
         </div>
+      </div>
+      <div v-else-if="isDisconnecting" class="disconnecting-message">
+        正在断开连接，请稍候...
       </div>
       <div v-else class="not-connected-message">
         请先连接到同步房间
@@ -423,7 +437,7 @@ export default {
     const activeConfigTab = ref('basic')
     
     // 基本连接配置
-    const connectionType = ref('auto')  // auto, webrtc-only, siyuan-only, webrtc-siyuan, siyuan-webrtc
+    const connectionType = ref('auto')  // auto, webrtc-only, siyuan-only, webrtc-siyuan, siyuan-webrtc, both
     const autoConnect = ref(true)
     const loadTimeout = ref(5000)
     
@@ -478,14 +492,30 @@ export default {
     
     // 计算连接状态文本
     const connectionStatusText = computed(() => {
+      if (isDisconnecting.value) return '正在断开连接...'
       if (isConnecting.value) return '正在连接...'
       return isConnected.value ? '已连接' : '未连接'
     })
     
     // 状态样式计算
     const getStatusClass = computed(() => {
+      if (isDisconnecting.value) return 'status-disconnecting'
       if (isConnecting.value) return 'status-connecting'
       return isConnected.value ? 'status-success' : 'status-error'
+    })
+    
+    // 计算连接类型文本
+    const connectionTypeText = computed(() => {
+      if (!isConnected.value) return '未连接';
+      
+      switch(connectionType.value) {
+        case 'webrtc-only': return 'WebRTC';
+        case 'siyuan-only': return '思源';
+        case 'webrtc-siyuan': return 'WebRTC优先';
+        case 'siyuan-webrtc': return '思源优先';
+        case 'both': return 'WebRTC + 思源';
+        default: return '自动';
+      }
     })
     
     // 网络中断测试
@@ -494,6 +524,10 @@ export default {
     const networkDisruptionDuration = 10 // 默认10秒
     let networkDisruptionTimer = null
     let countdownTimer = null
+    
+    // 添加断开连接状态
+    const isDisconnecting = ref(false)
+    const disconnectTimeout = ref(null)
     
     // 监听连接类型变化并更新useSiyuan
     watch(connectionType, (newType) => {
@@ -552,6 +586,14 @@ export default {
               ...siyuanConfig
             }
             break
+          case 'both':
+            baseConfig.disableWebRTC = false
+            // 不设置forceSiyuan，同时启用两种连接方式
+            baseConfig.siyuan = { 
+              enabled: true,
+              ...siyuanConfig
+            }
+            break
           default: // 'auto'
             baseConfig.disableWebRTC = useSiyuan.value
             baseConfig.siyuan = { 
@@ -589,17 +631,28 @@ export default {
           syncStore.value = await createSyncStore(baseConfig)
         }
         
-        // 监听状态变化
-        watch(() => syncStore.value.status, (val) => {
-          connectionStatus.value = val
+        // 声明监听器取消函数
+        let stopStatusWatch = null
+        let stopConnectedWatch = null
+        let stopLoadedWatch = null
+        
+        // 监听状态变化 - 增加空值检查
+        stopStatusWatch = watch(() => syncStore.value?.status, (val) => {
+          if (val !== undefined) {
+            connectionStatus.value = val
+          }
         }, { immediate: true })
         
-        watch(() => syncStore.value.isConnected, (val) => {
-          isConnected.value = val
+        stopConnectedWatch = watch(() => syncStore.value?.isConnected, (val) => {
+          if (val !== undefined) {
+            isConnected.value = val
+          }
         }, { immediate: true })
         
-        watch(() => syncStore.value.isLocalDataLoaded, (val) => {
-          isLocalDataLoaded.value = val
+        stopLoadedWatch = watch(() => syncStore.value?.isLocalDataLoaded, (val) => {
+          if (val !== undefined) {
+            isLocalDataLoaded.value = val
+          }
         }, { immediate: true })
         
         // 将同步状态关联到本地状态
@@ -631,6 +684,9 @@ export default {
           onBeforeUnmount(() => {
             clearInterval(updateTimer)
             stopWatchSharedData()
+            if (stopStatusWatch) stopStatusWatch()
+            if (stopConnectedWatch) stopConnectedWatch()
+            if (stopLoadedWatch) stopLoadedWatch()
           })
         }
         
@@ -648,15 +704,65 @@ export default {
       if (!syncStore.value) return
       
       try {
-        await syncStore.value.disconnect()
-        syncStore.value = null
+        // 设置断开状态
+        isDisconnecting.value = true
+        connectionStatus.value = '正在断开连接...'
+        
+        // 保存对syncStore的引用，用于停止监听
+        const currentStore = syncStore.value
+        
+        // 添加断开操作超时保护
+        const timeoutPromise = new Promise(resolve => {
+          disconnectTimeout.value = setTimeout(() => {
+            console.warn('断开连接操作超时，强制完成')
+            resolve({ success: false, timeout: true })
+          }, 3000) // 3秒超时
+        })
+        
+        // 开始断开连接
+        const disconnectPromise = currentStore.disconnect().then(() => {
+          return { success: true, timeout: false }
+        }).catch(err => {
+          console.error('断开连接出错:', err)
+          return { success: false, timeout: false, error: err }
+        })
+        
+        // 等待断开操作完成或超时
+        const result = await Promise.race([disconnectPromise, timeoutPromise])
+        
+        // 清除超时定时器
+        if (disconnectTimeout.value) {
+          clearTimeout(disconnectTimeout.value)
+          disconnectTimeout.value = null
+        }
+        
+        // 处理断开结果
+        if (result.timeout) {
+          console.warn('断开连接超时，可能需要刷新页面')
+          connectionStatus.value = '断开连接超时'
+        } else if (!result.success) {
+          console.error('断开连接失败:', result.error)
+          connectionStatus.value = '断开连接失败'
+        } else {
+          connectionStatus.value = '已断开'
+        }
+        
+        // 无论结果如何，先修改状态
         isConnected.value = false
-        connectionStatus.value = '已断开'
         
         // 重置数据为初始状态
         Object.assign(sharedData, initialData)
+        
+        // 最后再清除引用，避免断开后依然访问到状态
+        syncStore.value = null
       } catch (err) {
-        console.error('断开连接出错:', err)
+        console.error('断开连接处理出错:', err)
+        connectionStatus.value = '断开出错'
+        isConnected.value = false
+        syncStore.value = null
+      } finally {
+        // 确保无论如何都重置断开状态
+        isDisconnecting.value = false
       }
     }
     
@@ -1091,7 +1197,21 @@ export default {
         clearInterval(countdownTimer)
       }
       
-      // 其他清理...
+      // 清除断开连接的超时定时器
+      if (disconnectTimeout.value) {
+        clearTimeout(disconnectTimeout.value)
+      }
+      
+      // 确保在组件卸载时断开连接
+      if (syncStore.value) {
+        try {
+          syncStore.value.disconnect().catch(err => {
+            console.warn('组件卸载时断开连接出错:', err)
+          })
+        } catch (e) {
+          console.warn('组件卸载时处理断开连接出错:', e)
+        }
+      }
     })
     
     return {
@@ -1102,6 +1222,7 @@ export default {
       useSyncedStore,
       isConnecting,
       isConnected,
+      isDisconnecting,
       isLocalDataLoaded,
       connectionStatus,
       connectionStatusText,
@@ -1145,7 +1266,10 @@ export default {
       incrementCounter,
       decrementCounter,
       addItem,
-      removeItem
+      removeItem,
+      
+      // 计算
+      connectionTypeText
     }
   }
 }
@@ -1262,6 +1386,16 @@ button:disabled {
   background: #E53935;
 }
 
+.warning-button {
+  background: #ff9800;
+  color: white;
+  border-color: #fb8c00;
+}
+
+.warning-button:hover:not(:disabled) {
+  background: #f57c00;
+}
+
 .status-card {
   background: white;
   border-radius: 6px;
@@ -1294,6 +1428,17 @@ button:disabled {
 
 .status-connecting {
   color: #FFC107;
+}
+
+.status-disconnecting {
+  color: #ff9800;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }
 
 .action-buttons {
@@ -1585,5 +1730,15 @@ h5 {
 
 .radio-group input {
   margin-right: 8px;
+}
+
+/* 添加断开连接消息的样式 */
+.disconnecting-message {
+  padding: 40px 20px;
+  text-align: center;
+  color: #ff9800;
+  background: #fff8e1;
+  border-radius: 6px;
+  border: 1px dashed #ffb74d;
 }
 </style> 

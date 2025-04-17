@@ -4,9 +4,10 @@
       <h3>高级响应式测试</h3>
       <div class="header-actions">
         <button @click="openNewTab" class="action-button">打开新Tab</button>
-        <div class="connection-status" :class="{ connected: syncedData.$status?.connected }">
-          {{ syncedData.$status?.connected ? '已连接' : '未连接' }}
+        <div class="connection-status" :class="{ connected: syncedData && syncedData.$status && syncedData.$status.connected }">
+          {{ syncedData && syncedData.$status && syncedData.$status.connected ? '已连接' : '未连接' }}
         </div>
+        <button @click="manualConnect" class="action-button" :disabled="syncedData && syncedData.$status && syncedData.$status.connected">重新连接</button>
       </div>
     </header>
     
@@ -47,9 +48,9 @@
           <div class="field-row">
             <label>性能指标:</label>
             <div class="metrics-display">
-              <div>生成耗时: {{ syncedData.largeDataMetrics.generateTime }}ms</div>
-              <div>同步耗时: {{ syncedData.largeDataMetrics.syncTime }}ms</div>
-              <div>数据项数量: {{ syncedData.largeDataset?.length || 0 }}</div>
+              <div>生成耗时: {{ syncedData.largeDataMetrics.generateTime || 0 }}ms</div>
+              <div>同步耗时: {{ syncedData.largeDataMetrics.syncTime || 0 }}ms</div>
+              <div>数据项数量: {{ syncedData.largeDataset.length || 0 }}</div>
             </div>
           </div>
           
@@ -59,7 +60,7 @@
               <div v-for="(item, index) in datasetPreview" :key="index" class="preview-item">
                 ID: {{ item.id }}, 名称: {{ item.name }}, 大小: {{ formatBytes(item.dataSize) }}
               </div>
-              <div v-if="syncedData.largeDataset?.length > 5" class="preview-more">
+              <div v-if="syncedData.largeDataset.length > 5" class="preview-more">
                 ...还有 {{ syncedData.largeDataset.length - 5 }} 项
               </div>
             </div>
@@ -110,7 +111,7 @@
               </div>
               <div class="metrics-display">
                 <div>最近发送: {{ syncedData.concurrentData.lastDelaySend ? new Date(syncedData.concurrentData.lastDelaySend).toLocaleTimeString() : '无' }}</div>
-                <div>发送耗时: {{ syncedData.concurrentData.delaySendTime }}ms</div>
+                <div>发送耗时: {{ syncedData.concurrentData.delaySendTime || 0 }}ms</div>
               </div>
             </div>
           </div>
@@ -138,12 +139,12 @@
         <div class="field-row">
           <label>共享计数器最终一致性:</label>
           <div class="conflict-counter">
-            <div class="value-display">当前值: {{ syncedData.conflictData.sharedCounter }}</div>
+            <div class="value-display">当前值: {{ syncedData.conflictData.sharedCounter || 0 }}</div>
             <div class="button-group">
-              <button @click="forceSetCounter(syncedData.conflictData.sharedCounter + 5)" class="action-button">
+              <button @click="forceSetCounter((syncedData.conflictData.sharedCounter || 0) + 5)" class="action-button">
                 强制设为+5
               </button>
-              <button @click="forceSetCounter(syncedData.conflictData.sharedCounter - 3)" class="action-button">
+              <button @click="forceSetCounter((syncedData.conflictData.sharedCounter || 0) - 3)" class="action-button">
                 强制设为-3
               </button>
               <button @click="simulateOfflineChange" class="action-button">模拟离线修改</button>
@@ -178,9 +179,9 @@
           <label>嵌套响应式对象测试:</label>
           <div class="nested-reactive">
             <div class="value-display">
-              <div>顶层计数：{{ syncedData.reactiveLossTest.counter }}</div>
-              <div>嵌套对象值：{{ syncedData.reactiveLossTest.nested.value }}</div>
-              <div>嵌套数组长度：{{ syncedData.reactiveLossTest.items.length }}</div>
+              <div>顶层计数：{{ syncedData.reactiveLossTest?.counter || 0 }}</div>
+              <div>嵌套对象值：{{ syncedData.reactiveLossTest?.nested?.value || '未设置' }}</div>
+              <div>嵌套数组长度：{{ syncedData.reactiveLossTest?.items?.length || 0 }}</div>
             </div>
             <div class="button-group">
               <button @click="incrementNestedCounter" class="action-button">增加计数</button>
@@ -222,7 +223,23 @@
         <div>连接节点: {{ syncedData.$status.peers ? syncedData.$status.peers.size : 0 }}</div>
         <div>上次同步: {{ syncedData.$status.lastSync ? new Date(syncedData.$status.lastSync).toLocaleTimeString() : '未同步' }}</div>
         <div>Tab ID: <code>{{ tabId || '主面板' }}</code></div>
-        <div>性能指标: <code>操作响应时间 {{ syncedData.performanceMetrics.responseTime }}ms</code></div>
+        <div>性能指标: <code>操作响应时间 {{ syncedData.performanceMetrics?.responseTime || 0 }}ms</code></div>
+      </div>
+      
+      <!-- 详细连接状态 -->
+      <div class="debug-section" v-if="syncedData">
+        <h5>详细连接状态</h5>
+        <div class="debug-info">
+          <div><strong>连接状态:</strong> {{ syncedData.$status?.connected ? '已连接' : '未连接' }}</div>
+          <div><strong>Provider状态:</strong> {{ syncedData.$provider?.wsconnected ? 'Socket已连接' : 'Socket未连接' }}</div>
+          <div><strong>WebSocket状态:</strong> {{ getWsStatus() }}</div>
+          <div><strong>Room名称:</strong> {{ roomName }}</div>
+          <div><strong>上次同步:</strong> {{ syncedData.$status?.lastSync ? new Date(syncedData.$status?.lastSync).toLocaleTimeString() : '未同步' }}</div>
+          <div class="button-group">
+            <button @click="checkConnectionStatus" class="action-button">检查连接状态</button>
+            <button @click="forceStatusSync" class="action-button">强制同步状态</button>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -230,7 +247,7 @@
 
 <script>
 import { computed, watch, onMounted, onBeforeUnmount, ref, reactive } from '../../../../static/vue.esm-browser.js';
-import { useSyncedReactive } from '../../../../src/toolBox/useAge/forSync/useSyncedReactive.js';
+import { useSyncedReactive } from '../../../../src/toolBox/useAge/forSync/useSyncedReactiveNew.js';
 
 // 获取思源插件API
 const pluginInstance = window[Symbol.for('plugin-SACAssetsManager')];
@@ -370,11 +387,14 @@ export default {
         },
         // 思源配置 - 启用思源WebSocket同步
         siyuan: {
-          enabled: false,
-          ...(config.siyuanConfig || {})
+          enabled: true,
+          host: '127.0.0.1',
+          port: 6806,
+          token: '6806', // 默认token
+          channel: 'sync'
         },
         // 禁用WebRTC - 强制使用思源WebSocket
-        disableWebRTC: false
+        disableWebRTC: true
       }
     );
     console.log(syncedData)
@@ -422,6 +442,14 @@ export default {
       }
       console.log(syncedData,syncedData.largeDataset)
       return syncedData.largeDataset.slice(0, 5);
+    });
+    
+    // 监听连接状态变化
+    watch(() => syncedData.$status?.connected, (newValue, oldValue) => {
+      if (newValue !== oldValue) {
+        addLog('sync', newValue ? '连接建立成功' : '连接已断开');
+        console.log('[连接状态]', newValue ? '已连接' : '未连接');
+      }
     });
     
     // =================
@@ -591,10 +619,6 @@ export default {
     
     // 更新客户端活跃状态
     const updateClientActivity = () => {
-      if (!syncedData.clients) {
-        syncedData.clients = {};
-      }
-      
       syncedData.clients[clientId.value] = {
         name: `客户端-${clientId.value.substring(0, 4)}`,
         lastActive: Date.now(),
@@ -607,7 +631,7 @@ export default {
       // 记录开始时间
       const startTime = performance.now();
       
-      syncedData.concurrentData.counter += amount;
+      syncedData.concurrentData.counter = (syncedData.concurrentData.counter || 0) + amount;
       
       // 更新性能指标
       syncedData.performanceMetrics.responseTime = Math.round(performance.now() - startTime);
@@ -702,7 +726,27 @@ export default {
     
     // 强制设置计数器值
     const forceSetCounter = (value) => {
+      if (!syncedData.conflictData) {
+        syncedData.conflictData = {
+          sharedCounter: 0,
+          sharedObject: {
+            name: '共享对象',
+            description: '用于测试并发修改的对象',
+            value: 100,
+            lastModified: Date.now()
+          },
+          offlineChanges: []
+        };
+      }
       syncedData.conflictData.sharedCounter = value;
+      if (!syncedData.conflictData.sharedObject) {
+        syncedData.conflictData.sharedObject = {
+          name: '共享对象',
+          description: '用于测试并发修改的对象',
+          value: 100,
+          lastModified: Date.now()
+        };
+      }
       syncedData.conflictData.sharedObject.lastModified = Date.now();
       
       // 更新客户端活跃状态
@@ -713,8 +757,21 @@ export default {
     
     // 模拟离线修改
     const simulateOfflineChange = () => {
+      if (!syncedData.conflictData) {
+        syncedData.conflictData = {
+          sharedCounter: 0,
+          sharedObject: {
+            name: '共享对象',
+            description: '用于测试并发修改的对象',
+            value: 100,
+            lastModified: Date.now()
+          },
+          offlineChanges: []
+        };
+      }
+
       // 记录当前值
-      const currentValue = syncedData.conflictData.sharedCounter;
+      const currentValue = syncedData.conflictData.sharedCounter || 0;
       
       // 生成一个随机偏移量
       const offset = Math.floor(Math.random() * 20) - 10;
@@ -742,6 +799,29 @@ export default {
     
     // 添加属性
     const addProperty = () => {
+      if (!syncedData.conflictData) {
+        syncedData.conflictData = {
+          sharedCounter: 0,
+          sharedObject: {
+            name: '共享对象',
+            description: '用于测试并发修改的对象',
+            value: 100,
+            lastModified: Date.now()
+          },
+          offlineChanges: []
+        };
+      }
+      
+      // 确保sharedObject存在
+      if (!syncedData.conflictData.sharedObject) {
+        syncedData.conflictData.sharedObject = {
+          name: '共享对象',
+          description: '用于测试并发修改的对象',
+          value: 100,
+          lastModified: Date.now()
+        };
+      }
+
       // 生成一个随机属性名
       const propName = `prop_${Math.floor(Math.random() * 1000)}`;
       
@@ -763,6 +843,11 @@ export default {
       // 不删除基本属性
       if (['name', 'description', 'value', 'lastModified'].includes(key)) {
         addLog('error', '无法删除基本属性');
+        return;
+      }
+      
+      if (!syncedData.conflictData || !syncedData.conflictData.sharedObject) {
+        addLog('error', '共享对象不存在');
         return;
       }
       
@@ -823,6 +908,14 @@ export default {
     
     // 增加嵌套计数器
     const incrementNestedCounter = () => {
+      if (!syncedData.reactiveLossTest) {
+        syncedData.reactiveLossTest = {
+          counter: 0,
+          nested: { value: '嵌套响应式值', modified: Date.now() },
+          items: [],
+          lastUpdate: Date.now()
+        };
+      }
       syncedData.reactiveLossTest.counter++;
       syncedData.reactiveLossTest.lastUpdate = Date.now();
       addReactiveLog('action', `增加顶层计数器: ${syncedData.reactiveLossTest.counter}`);
@@ -830,6 +923,17 @@ export default {
     
     // 更新嵌套值
     const updateNestedValue = () => {
+      if (!syncedData.reactiveLossTest) {
+        syncedData.reactiveLossTest = {
+          counter: 0,
+          nested: { value: '嵌套响应式值', modified: Date.now() },
+          items: [],
+          lastUpdate: Date.now()
+        };
+      }
+      if (!syncedData.reactiveLossTest.nested) {
+        syncedData.reactiveLossTest.nested = { value: '嵌套响应式值', modified: Date.now() };
+      }
       syncedData.reactiveLossTest.nested.value = `嵌套值_${Date.now()}`;
       syncedData.reactiveLossTest.nested.modified = Date.now();
       addReactiveLog('action', `更新嵌套值: ${syncedData.reactiveLossTest.nested.value}`);
@@ -837,6 +941,17 @@ export default {
     
     // 添加数组项
     const addNestedItem = () => {
+      if (!syncedData.reactiveLossTest) {
+        syncedData.reactiveLossTest = {
+          counter: 0,
+          nested: { value: '嵌套响应式值', modified: Date.now() },
+          items: [],
+          lastUpdate: Date.now()
+        };
+      }
+      if (!syncedData.reactiveLossTest.items) {
+        syncedData.reactiveLossTest.items = [];
+      }
       console.log('当前items数组:', syncedData.reactiveLossTest.items);
       const newId = syncedData.reactiveLossTest.items.length > 0 
         ? Math.max(...syncedData.reactiveLossTest.items.map(item => item.id)) + 1 
@@ -862,7 +977,7 @@ export default {
       
       // 测试响应式 - 更新添加的项
       setTimeout(() => {
-        if (syncedData.reactiveLossTest.items.length > 0) {
+        if (syncedData.reactiveLossTest?.items?.length > 0) {
           const lastItem = syncedData.reactiveLossTest.items[syncedData.reactiveLossTest.items.length - 1];
           if (lastItem && lastItem.details) {
             // 尝试更新嵌套属性以测试响应式
@@ -879,15 +994,30 @@ export default {
     const triggerManualSync = () => {
       addReactiveLog('sync', '手动触发同步开始');
       
+      // 检查和初始化reactiveLossTest对象
+      if (!syncedData.reactiveLossTest) {
+        syncedData.reactiveLossTest = {
+          counter: 0,
+          nested: { value: '嵌套响应式值', modified: Date.now() },
+          items: [],
+          lastUpdate: Date.now()
+        };
+      }
+      
       // 记录数据状态，用于检测同步后的变化
       const beforeState = {
-        counter: syncedData.reactiveLossTest.counter,
-        nestedValue: syncedData.reactiveLossTest.nested.value,
-        items: syncedData.reactiveLossTest.items.length
+        counter: syncedData.reactiveLossTest.counter || 0,
+        nestedValue: syncedData.reactiveLossTest.nested?.value || '未设置',
+        items: syncedData.reactiveLossTest.items?.length || 0
       };
       
       // 先修改一些值
-      syncedData.reactiveLossTest.counter += 5;
+      syncedData.reactiveLossTest.counter = (syncedData.reactiveLossTest.counter || 0) + 5;
+      
+      // 确保nested对象存在
+      if (!syncedData.reactiveLossTest.nested) {
+        syncedData.reactiveLossTest.nested = { value: '', modified: Date.now() };
+      }
       syncedData.reactiveLossTest.nested.value = `手动同步测试_${Date.now()}`;
       
       // 执行手动同步 - 这会触发实际的网络同步
@@ -904,10 +1034,69 @@ export default {
           
           // 对比前后状态
           addReactiveLog('result', `同步前状态: 计数=${beforeState.counter}, 嵌套值=${beforeState.nestedValue}, 数组长度=${beforeState.items}`);
-          addReactiveLog('result', `同步后状态: 计数=${syncedData.reactiveLossTest.counter}, 嵌套值=${syncedData.reactiveLossTest.nested.value}, 数组长度=${syncedData.reactiveLossTest.items.length}`);
+          addReactiveLog('result', `同步后状态: 计数=${syncedData.reactiveLossTest.counter}, 嵌套值=${syncedData.reactiveLossTest.nested?.value}, 数组长度=${syncedData.reactiveLossTest.items?.length || 0}`);
         }, 500);
       } else {
         addReactiveLog('error', '同步方法不可用');
+      }
+    };
+    
+    // 手动连接
+    const manualConnect = () => {
+      if (syncedData.$connect) {
+        syncedData.$connect();
+        addLog('action', '手动触发连接');
+      }
+      
+      // 延迟执行同步
+      setTimeout(() => {
+        if (syncedData.$sync) {
+          syncedData.$sync();
+          addLog('sync', '手动连接后触发同步');
+        }
+      }, 1000);
+    };
+    
+    // 检查连接状态
+    const checkConnectionStatus = () => {
+      // 打印当前连接状态
+      console.log('[连接状态检查]', {
+        status: syncedData.$status,
+        provider: syncedData.$provider,
+        peers: syncedData.$peers
+      });
+      
+      // 获取内部WebSocket状态
+      const wsState = getWsStatus();
+      
+      // 使用新方法同步状态
+      if (syncedData.$syncStatus) {
+        syncedData.$syncStatus();
+      }
+      
+      addLog('action', `连接状态检查 - WebSocket: ${wsState}, 连接状态: ${syncedData.$status?.connected ? '已连接' : '未连接'}`);
+      
+      // 不再需要手动修复，使用$syncStatus即可实现
+      return syncedData.$status?.connected;
+    };
+    
+    // 获取WebSocket状态
+    const getWsStatus = () => {
+      if (!syncedData.$provider?.ws) return '无WebSocket';
+      return ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][syncedData.$provider.ws.readyState] || '未知';
+    };
+    
+    // 强制同步状态
+    const forceStatusSync = () => {
+      if (syncedData.$syncStatus) {
+        const changed = syncedData.$syncStatus();
+        addLog('action', `强制同步状态：${changed ? '状态已更新' : '无状态变化'}`);
+      }
+      
+      // 也发送同步请求
+      if (syncedData.$sync) {
+        syncedData.$sync();
+        addLog('sync', '强制触发数据同步');
       }
     };
     
@@ -918,46 +1107,14 @@ export default {
       // 添加/更新客户端信息
       updateClientActivity();
       
-      // 检查reactiveLossTest结构
-      console.log('检查reactiveLossTest结构:', syncedData.reactiveLossTest);
-      if (syncedData.reactiveLossTest) {
-        console.log('reactiveLossTest对象键:', Object.keys(syncedData.reactiveLossTest));
-        console.log('nested存在性:', syncedData.reactiveLossTest.nested !== undefined);
-        console.log('items存在性:', syncedData.reactiveLossTest.items !== undefined);
-        
-        // 尝试直接创建和赋值
-        if (!syncedData.reactiveLossTest.nested) {
-          console.log('nested不存在，尝试创建');
-          syncedData.reactiveLossTest.nested = { 
-            value: '手动创建的嵌套值',
-            modified: Date.now()
-          };
-        }
-        
-        if (!syncedData.reactiveLossTest.items) {
-          console.log('items不存在，尝试创建');
-          syncedData.reactiveLossTest.items = [
-            { id: 1, name: '手动创建项1' },
-            { id: 2, name: '手动创建项2' }
-          ];
-        }
-        
-        // 再次检查
-        console.log('创建后nested存在性:', syncedData.reactiveLossTest.nested !== undefined);
-        console.log('创建后items存在性:', syncedData.reactiveLossTest.items !== undefined);
-        
-        addLog('action', `已检查和修复嵌套对象结构`);
-      } else {
-        console.error('reactiveLossTest对象不存在!');
+      // 确保立即连接
+      if (syncedData.$connect) {
+        syncedData.$connect();
+        addLog('sync', '主动建立连接');
       }
       
-      // 直接确保关键嵌套对象是响应式的
-      if (syncedData.reactiveLossTest) {
-        // 通过重新赋值来确保Vue创建完整的响应式结构
-        syncedData.reactiveLossTest.nested = { ...syncedData.reactiveLossTest.nested };
-        syncedData.reactiveLossTest.items = [...syncedData.reactiveLossTest.items];
-        addLog('action', `已重新创建关键嵌套对象的响应式`);
-      }
+      // 立即检查状态
+      checkConnectionStatus();
       
       // 延迟同步确保连接
       setTimeout(() => {
@@ -965,7 +1122,30 @@ export default {
           syncedData.$sync();
           addLog('sync', '组件挂载后主动同步');
         }
+        
+        // 额外的状态检查
+        checkConnectionStatus();
       }, 500);
+      
+      // 再次延迟检查，确保连接状态更新
+      setTimeout(() => {
+        // 使用新方法同步状态
+        if (syncedData.$syncStatus) {
+          syncedData.$syncStatus();
+          addLog('sync', '500ms后同步状态');
+        }
+        
+        checkConnectionStatus();
+      }, 1000);
+      
+      // 3秒后再检查一次
+      setTimeout(() => {
+        if (syncedData.$syncStatus) {
+          syncedData.$syncStatus();
+          addLog('sync', '3秒后同步状态');
+        }
+        checkConnectionStatus();
+      }, 3000);
       
       // 定期更新客户端活跃状态
       const activityInterval = setInterval(() => {
@@ -983,6 +1163,17 @@ export default {
         }
       }, 5000); // 每5秒自动同步一次
       
+      // 定期检查连接状态，修复状态不一致问题
+      const statusCheckInterval = setInterval(() => {
+        // 使用新方法同步状态
+        if (syncedData.$syncStatus) {
+          const statusChanged = syncedData.$syncStatus();
+          if (statusChanged) {
+            addLog('sync', '定期检查同步了状态');
+          }
+        }
+      }, 5000); // 每5秒检查一次
+      
       // 组件卸载时清理
       onBeforeUnmount(() => {
         // 清理所有计时器
@@ -992,6 +1183,7 @@ export default {
         
         clearInterval(activityInterval);
         clearInterval(autoSyncInterval); // 清除自动同步定时器
+        clearInterval(statusCheckInterval); // 清除状态检查定时器
         
         addLog('lifecycle', '组件将卸载');
       });
@@ -1041,6 +1233,12 @@ export default {
       
       // 新方法
       openNewTab,
+      
+      // 连接方法
+      manualConnect,
+      checkConnectionStatus,
+      getWsStatus,
+      forceStatusSync,
       
       // 响应式丢失测试日志
       reactiveLossLogs,
@@ -1513,5 +1711,47 @@ textarea {
 .log-item.result {
   background-color: #e8f5e9;
   border-left-color: #4caf50;
+}
+
+/* 详细连接状态 */
+.debug-section {
+  background-color: #f8f9fa;
+  padding: 12px;
+  border-radius: 4px;
+  margin-top: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.debug-section h5 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: #1976d2;
+}
+
+.debug-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.debug-info div {
+  font-size: 13px;
+  color: #333;
+}
+
+.debug-info button {
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+  background-color: #1976d2;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.debug-info button:hover {
+  background-color: #1565c0;
 }
 </style> 

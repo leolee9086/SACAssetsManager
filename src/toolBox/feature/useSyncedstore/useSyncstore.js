@@ -32,6 +32,150 @@ import { createConnectionManager } from './useConnectionManager.js'
 import { createPersistenceManager } from './usePersistenceManager.js'
 import { createSyncManager } from './useSyncManager.js'
 
+// 思源Provider补丁函数
+const siyuanProviderPatch = {
+  /**
+   * 断开WebSocket连接
+   */
+  disconnect() {
+    this.shouldConnect = false;
+    
+    // 添加延迟以确保资源有时间被正确处理
+    return new Promise((resolve) => {
+      try {
+        // 先更新状态
+        this.synced = false;
+        
+        // 清除定时器
+        if (this._checkInterval) {
+          clearInterval(this._checkInterval);
+          this._checkInterval = null;
+        }
+        
+        if (this._resyncInterval) {
+          clearInterval(this._resyncInterval);
+          this._resyncInterval = null;
+        }
+        
+        // 最多等待1秒后返回，避免永久阻塞
+        const safetyTimeout = setTimeout(() => {
+          resolve(true);
+        }, 1000);
+        
+        // 关闭WebSocket连接
+        this._closeWebsocketConnection()
+          .then(() => {
+            clearTimeout(safetyTimeout);
+            resolve(true);
+          })
+          .catch((err) => {
+            console.error('关闭WebSocket时出错:', err);
+            clearTimeout(safetyTimeout);
+            resolve(false);
+          });
+      } catch (err) {
+        console.error('断开连接时发生错误:', err);
+        resolve(false);
+      }
+    });
+  },
+
+  /**
+   * 关闭WebSocket连接
+   * @private
+   * @param {Error} [error=null] 可选的错误对象
+   * @returns {Promise<boolean>} 关闭状态
+   */
+  _closeWebsocketConnection(error = null) {
+    return new Promise((resolve) => {
+      // 如果存在错误，触发连接错误事件
+      if (error) {
+        this.emit('connection-error', [error]);
+      }
+      
+      const safetyTimeout = setTimeout(() => {
+        this.wsconnected = false;
+        this.wsconnecting = false;
+        this.synced = false;
+        
+        // 确保WebSocket资源被清理
+        this._clearWebsocketConnection();
+        resolve(true);
+      }, 500);
+      
+      try {
+        if (this.ws) {
+          // 先移除所有事件处理，防止事件回调执行导致的死锁
+          this.ws.onopen = null;
+          this.ws.onclose = () => {
+            clearTimeout(safetyTimeout);
+            this.wsconnected = false;
+            this.wsconnecting = false;
+            this.synced = false;
+            resolve(true);
+          };
+          this.ws.onerror = null;
+          this.ws.onmessage = null;
+          
+          // 检查WebSocket状态
+          if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+            this.ws.close();
+          } else {
+            // WebSocket已经关闭
+            clearTimeout(safetyTimeout);
+            this.ws = null;
+            this.wsconnected = false;
+            this.wsconnecting = false;
+            this.synced = false;
+            resolve(true);
+          }
+        } else {
+          // 没有WebSocket连接
+          clearTimeout(safetyTimeout);
+          this.wsconnected = false;
+          this.wsconnecting = false;
+          this.synced = false;
+          resolve(true);
+        }
+      } catch (err) {
+        console.error(`[思源Provider] 关闭WebSocket连接时出错:`, err);
+        clearTimeout(safetyTimeout);
+        
+        // 确保状态一致
+        this.ws = null;
+        this.wsconnected = false;
+        this.wsconnecting = false;
+        this.synced = false;
+        
+        resolve(false);
+      }
+    });
+  }
+};
+
+/**
+ * 应用补丁到SiyuanProvider类
+ * @param {Class} SiyuanProvider - SiyuanProvider类
+ */
+function applySiyuanProviderPatch(SiyuanProvider) {
+  if (!SiyuanProvider || typeof SiyuanProvider !== 'function') {
+    console.error('[同步存储] 无法应用补丁: SiyuanProvider类不可用');
+    return false;
+  }
+  
+  try {
+    // 应用修复的方法
+    SiyuanProvider.prototype.disconnect = siyuanProviderPatch.disconnect;
+    SiyuanProvider.prototype._closeWebsocketConnection = siyuanProviderPatch._closeWebsocketConnection;
+    
+    console.log('[同步存储] 已成功应用思源Provider补丁');
+    return true;
+  } catch (err) {
+    console.error('[同步存储] 应用思源Provider补丁失败:', err);
+    return false;
+  }
+}
+
 // 配置常量
 const DEFAULT_ROOM_NAME = 'default-room'
 const CONNECT_DELAY = 100
@@ -121,21 +265,30 @@ export async function createSyncStore(options = {}) {
     : handleNoPersistence(initialState, store, isLocalDataLoaded);
 
   // 判断是否要使用思源同步
-  const shouldUseSiyuan = siyuan.enabled || disableWebRTC;
+  const shouldUseSiyuan = siyuan.enabled;
+  
+  // 判断是否使用WebRTC - 仅当明确禁用时才不使用
+  const useWebRTC = !disableWebRTC;
   
   // 记录是否要使用思源同步
   if (shouldUseSiyuan) {
     console.log(`[同步存储] 房间 ${roomName} 将使用思源WebSocket同步`);
-    // 思源连接将在后面通过SiyuanProvider创建
   }
-
-  // 判断是否使用WebRTC - 只有在未禁用WebRTC时才使用WebRTC
-  const useWebRTC = !disableWebRTC && !shouldUseSiyuan;
   
-  // 只有在需要使用WebRTC时才选择服务器和创建连接
-  let provider = null;
+  if (useWebRTC) {
+    console.log(`[同步存储] 房间 ${roomName} 将使用WebRTC同步`);
+  }
+  
+  // 存储provider和siyuanProvider，以支持双重连接
+  let webrtcProvider = null;
+  let siyuanProvider = null;
   let connectionManager = null;
   
+  // 存储连接实例ID，用于后续操作
+  let webrtcInstanceId;
+  let siyuanInstanceId;
+
+  // 如果启用WebRTC，设置WebRTC连接
   if (useWebRTC) {
     // 选择最佳服务器
     status.value = '正在选择最佳服务器...'
@@ -143,18 +296,43 @@ export async function createSyncStore(options = {}) {
     
     // 合并WebRTC选项
     const mergedWebRtcOptions = mergeWebRtcOptions(webrtcOptions, bestServers)
+    
+    // 生成唯一实例ID
+    webrtcInstanceId = `webrtc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    // 添加实例ID到WebRTC选项
+    mergedWebRtcOptions.instanceId = webrtcInstanceId;
 
     try {
       // 获取或创建连接 - 注意这是一个异步操作
-      provider = await documentManager.getConnection(
+      webrtcProvider = await documentManager.getConnection(
         roomName, 
         ydoc, 
         mergedWebRtcOptions
       )
 
-      // 创建连接管理器
+      // 检查provider是否已连接，如果已连接则直接更新状态
+      if (webrtcProvider && webrtcProvider.connected) {
+        isConnected.value = true;
+        status.value = '已连接';
+        console.log(`[同步存储] 房间 ${roomName} 使用已连接的WebRTC提供者`);
+        
+        // 立即触发一次同步 - 对于已有连接场景是很重要的
+        setTimeout(() => {
+          try {
+            if (typeof webrtcProvider.sync === 'function') {
+              webrtcProvider.sync();
+              console.log(`[同步存储] 房间 ${roomName} 触发现有WebRTC连接的同步`);
+            }
+          } catch (e) {
+            console.warn(`[同步存储] 房间 ${roomName} 触发同步失败:`, e);
+          }
+        }, 100);
+      }
+
+      // 创建连接管理器 - 先基于WebRTC
       connectionManager = createConnectionManager({
-        provider,
+        provider: webrtcProvider,
         roomName,
         retryStrategy,
         documentManager,
@@ -169,84 +347,90 @@ export async function createSyncStore(options = {}) {
         setTimeout(() => connectionManager.connect(), CONNECT_DELAY)
       }
     } catch (err) {
-      console.error(`[同步存储] 房间 ${roomName} 连接创建失败:`, err)
-      status.value = '连接创建失败'
+      console.error(`[同步存储] 房间 ${roomName} WebRTC连接创建失败:`, err)
+      webrtcProvider = null;
       
-      // 创建一个空的连接管理器作为后备
-      connectionManager = {
-        connect: () => false,
-        disconnect: () => false,
-        reconnect: () => false,
-        getProvider: () => null,
-        isConnected: () => false
+      if (!shouldUseSiyuan) {
+        status.value = 'WebRTC连接创建失败'
+        
+        // 创建一个空的连接管理器作为后备
+        connectionManager = {
+          connect: () => false,
+          disconnect: () => false,
+          reconnect: () => false,
+          getProvider: () => null,
+          isConnected: () => false
+        }
       }
     }
-  } else {
-    // 使用思源WebSocket作为Provider而不是简单连接
-    status.value = shouldUseSiyuan ? '使用思源WebSocket同步' : '未启用同步'
-    console.log(`[同步存储] 房间 ${roomName} ${shouldUseSiyuan ? '使用思源WebSocket同步' : '未启用同步'}`);
-    
-    if (shouldUseSiyuan) {
-      try {
-        // 创建思源Provider连接选项
-        const siyuanProviderOptions = {
-          useSiyuan: true,
-          forceSiyuan: true, // 强制使用思源Provider
-          port: siyuan.port || 6806,
-          host: siyuan.host || '127.0.0.1',
-          token: siyuan.token || '6806',
-          channel: siyuan.channel || 'sync',
-          autoReconnect: siyuan.autoReconnect !== false,
-          reconnectInterval: siyuan.reconnectInterval || 1000,
-          maxReconnectAttempts: siyuan.maxReconnectAttempts || 10,
-          // 确保传递Y实例以避免多实例问题 - 改用yjsInstance
-          Y: null // 让documentManager使用统一实例
-        };
-        
-        console.log(`[同步存储] 房间 ${roomName} 尝试创建思源Provider`);
-        
-        // 通过documentManager获取provider - 这是异步操作
-        provider = await documentManager.getConnection(
-          roomName,
-          ydoc,
-          siyuanProviderOptions
-        );
-        
-        if (provider) {
-          console.log(`[同步存储] 房间 ${roomName} 思源Provider创建成功`);
+  }
+
+  // 如果启用思源同步，设置思源连接
+  if (shouldUseSiyuan) {
+    try {
+      // 创建思源Provider连接选项
+      siyuanInstanceId = `siyuan_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const siyuanProviderOptions = {
+        useSiyuan: true,
+        port: siyuan.port || 6806,
+        host: siyuan.host || '127.0.0.1',
+        token: siyuan.token || '6806',
+        channel: siyuan.channel || 'sync',
+        autoReconnect: siyuan.autoReconnect !== false,
+        reconnectInterval: siyuan.reconnectInterval || 1000,
+        maxReconnectAttempts: siyuan.maxReconnectAttempts || 10,
+        // 确保传递Y实例以避免多实例问题
+        Y: null, // 让documentManager使用统一实例
+        // 为每个实例生成唯一ID，确保连接独立
+        instanceId: siyuanInstanceId
+      };
+      
+      console.log(`[同步存储] 房间 ${roomName} 尝试创建思源Provider`);
+      
+      // 通过documentManager获取provider - 这是异步操作
+      siyuanProvider = await documentManager.getConnection(
+        roomName,
+        ydoc,
+        siyuanProviderOptions
+      );
+      
+      // 如果没有WebRTC连接管理器或者强制使用思源，则基于思源创建连接管理器
+      if (!connectionManager || siyuan.forceSiyuan) {
+        if (siyuanProvider) {
+          console.log(`[同步存储] 房间 ${roomName} 思源Provider创建成功，将作为主连接`);
           isConnected.value = true;
           status.value = '已连接(思源)';
           
           // 创建一个与WebRTC provider兼容的连接管理器
           connectionManager = {
             connect: () => {
-              if (provider && typeof provider.connect === 'function') {
-                provider.connect();
+              if (siyuanProvider && typeof siyuanProvider.connect === 'function') {
+                siyuanProvider.connect();
                 return true;
               }
               return false;
             },
             disconnect: () => {
-              if (provider && typeof provider.disconnect === 'function') {
-                provider.disconnect();
+              if (siyuanProvider && typeof siyuanProvider.disconnect === 'function') {
+                siyuanProvider.disconnect();
                 return true;
               }
               return false;
             },
             reconnect: () => {
-              if (provider) {
-                if (typeof provider.disconnect === 'function') {
-                  provider.disconnect();
+              if (siyuanProvider) {
+                if (typeof siyuanProvider.disconnect === 'function') {
+                  siyuanProvider.disconnect();
                 }
-                if (typeof provider.connect === 'function') {
-                  setTimeout(() => provider.connect(), 100);
+                if (typeof siyuanProvider.connect === 'function') {
+                  setTimeout(() => siyuanProvider.connect(), 100);
                   return true;
                 }
               }
               return false;
             },
-            getProvider: () => provider,
-            isConnected: () => provider && provider.wsconnected
+            getProvider: () => siyuanProvider,
+            isConnected: () => siyuanProvider && siyuanProvider.wsconnected
           };
           
           // 如果设置了自动连接，则立即连接
@@ -256,19 +440,34 @@ export async function createSyncStore(options = {}) {
         } else {
           console.warn(`[同步存储] 房间 ${roomName} 思源Provider创建失败`);
           
-          // 创建一个空的连接管理器作为后备
-          connectionManager = {
-            connect: () => false,
-            disconnect: () => false,
-            reconnect: () => false,
-            getProvider: () => null,
-            isConnected: () => false
-          };
+          // 如果没有WebRTC连接，才创建空的连接管理器
+          if (!connectionManager) {
+            connectionManager = {
+              connect: () => false,
+              disconnect: () => false,
+              reconnect: () => false,
+              getProvider: () => null,
+              isConnected: () => false
+            };
+          }
         }
-      } catch (err) {
-        console.error(`[同步存储] 房间 ${roomName} 创建思源Provider出错:`, err);
-        
-        // 创建一个空的连接管理器作为后备
+      } else if (siyuanProvider) {
+        // WebRTC已经创建了连接管理器，但我们仍然连接思源作为辅助
+        console.log(`[同步存储] 房间 ${roomName} 思源Provider创建成功，将作为辅助连接`);
+        if (autoConnect) {
+          setTimeout(() => {
+            if (siyuanProvider && typeof siyuanProvider.connect === 'function') {
+              siyuanProvider.connect();
+            }
+          }, CONNECT_DELAY);
+        }
+      }
+    } catch (err) {
+      console.error(`[同步存储] 房间 ${roomName} 创建思源Provider出错:`, err);
+      siyuanProvider = null;
+      
+      // 如果没有WebRTC连接，才创建空的连接管理器
+      if (!connectionManager) {
         connectionManager = {
           connect: () => false,
           disconnect: () => false,
@@ -277,34 +476,37 @@ export async function createSyncStore(options = {}) {
           isConnected: () => false
         };
       }
-    } else {
-      // 创建一个空的连接管理器
-      connectionManager = {
-        connect: () => false,
-        disconnect: () => false,
-        reconnect: () => false,
-        getProvider: () => null,
-        isConnected: () => false
-      };
     }
+  } else if (!useWebRTC) {
+    // 既不使用WebRTC也不使用思源的情况
+    console.log(`[同步存储] 房间 ${roomName} 未启用任何同步方式`);
+    connectionManager = {
+      connect: () => false,
+      disconnect: () => false,
+      reconnect: () => false,
+      getProvider: () => null,
+      isConnected: () => false
+    };
   }
 
-  // 创建同步管理器
+  // 创建同步管理器，同时传递WebRTC和思源Provider
   const syncManager = createSyncManager({
     ydoc,
     store,
     roomName,
     autoSync,
-    getProvider: connectionManager.getProvider
+    getProvider: connectionManager.getProvider,
+    // 如果有思源Provider，传入作为辅助同步
+    siyuanProvider: siyuanProvider
   })
 
   // 只有在使用WebRTC且成功创建provider时才设置事件监听
-  if (useWebRTC && provider) {
+  if (useWebRTC && webrtcProvider) {
     // 获取连接管理器中的provider
-    provider = connectionManager.getProvider()
+    webrtcProvider = connectionManager.getProvider()
     
     // 设置连接和同步事件监听
-    setupEventListeners(provider, isConnected, syncManager)
+    setupEventListeners(webrtcProvider, isConnected, syncManager)
   }
   
   // 创建断开连接函数
@@ -314,7 +516,11 @@ export async function createSyncStore(options = {}) {
     persistenceManager, 
     documentManager, 
     roomName, 
-    siyuanManager
+    siyuanManager,
+    { 
+      rtcInstanceId: webrtcInstanceId,
+      siyuanInstanceId: siyuanInstanceId
+    }
   )
   
   // 添加诊断功能
@@ -1068,12 +1274,13 @@ function setupEventListeners(provider, isConnected, syncManager) {
 
 /**
  * 创建断开连接函数
- * @param {Object} connectionManager - 连接管理器实例
- * @param {Object} syncManager - 同步管理器实例
- * @param {Object} persistenceManager - 持久化管理器实例
- * @param {Object} documentManager - 文档管理器实例
+ * @param {Object} connectionManager - 连接管理器
+ * @param {Object} syncManager - 同步管理器
+ * @param {Object} persistenceManager - 持久化管理器 
+ * @param {Object} documentManager - 文档管理器
  * @param {string} roomName - 房间名称
- * @param {Object} siyuanManager - 思源管理器实例
+ * @param {Object} siyuanManager - 思源管理器
+ * @param {Object} options - 选项
  * @returns {Function} 断开连接函数
  */
 function createDisconnectFunction(
@@ -1082,28 +1289,91 @@ function createDisconnectFunction(
   persistenceManager, 
   documentManager, 
   roomName, 
-  siyuanManager
+  siyuanManager,
+  options = {}
 ) {
   return async () => {
     try {
-      // 停止同步
-      syncManager.stopSync()
+      console.log(`[同步存储] 断开房间 ${roomName} 的连接`)
       
-      // 断开WebRTC连接
-      connectionManager.disconnect()
+      // 停止同步
+      if (syncManager && syncManager.stopAutoSync) {
+        syncManager.stopAutoSync()
+      }
+      
+      // 获取主连接提供者
+      const mainProvider = connectionManager ? connectionManager.getProvider() : null;
+      
+      // 获取思源提供者（如果不同于主连接）
+      const siyuanProvider = syncManager && syncManager.getSiyuanProvider ? 
+        syncManager.getSiyuanProvider() : null;
+      
+      // 标记正在断开连接，用于防止在断开过程中进行其他操作
+      const disconnectingKey = `disconnecting_${roomName}`;
+      window[disconnectingKey] = true;
+      
+      // 添加超时保护
+      const disconnectTimeout = setTimeout(() => {
+        window[disconnectingKey] = false;
+      }, 5000); // 5秒后自动解除标记
+      
+      // 断开主连接
+      if (connectionManager && connectionManager.disconnect) {
+        await Promise.resolve(connectionManager.disconnect());
+      }
+      
+      // 如果有独立的思源Provider，也断开它
+      if (siyuanProvider && siyuanProvider !== mainProvider && 
+          typeof siyuanProvider.disconnect === 'function') {
+        try {
+          // 使用Promise包装思源断开操作，并添加超时
+          await Promise.race([
+            new Promise(resolve => {
+              siyuanProvider.disconnect();
+              setTimeout(resolve, 100); // 给操作100ms完成
+            }),
+            new Promise(resolve => setTimeout(resolve, 1000)) // 最多等待1秒
+          ]);
+          console.log(`[同步存储] 已断开思源Provider连接`);
+        } catch (err) {
+          console.error(`[同步存储] 断开思源Provider连接失败:`, err);
+        }
+      }
+      
+      // 等待一小段时间，让资源有时间释放
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // 清理文档和连接
-      await documentManager.cleanupRoom(roomName)
+      if (documentManager) {
+        // 获取实例信息
+        const rtcInstanceId = options.rtcInstanceId;
+        const siyuanInstanceId = options.siyuanInstanceId;
+        
+        // 清理所有相关连接
+        try {
+          await documentManager.cleanupRoom(roomName);
+        } catch (err) {
+          console.warn(`[同步存储] 清理房间 ${roomName} 连接时出错:`, err);
+        }
+      }
       
       // 清理持久化资源
       if (persistenceManager) {
-        await persistenceManager.destroy()
+        await persistenceManager.destroy();
       }
       
-      return true
+      // 清除断开连接标记
+      clearTimeout(disconnectTimeout);
+      window[disconnectingKey] = false;
+      
+      return true;
     } catch (error) {
-      console.error(`[同步状态] 断开连接时出错:`, error)
-      return false
+      console.error(`[同步状态] 断开连接时出错:`, error);
+      
+      // 确保清除断开连接标记
+      window[`disconnecting_${roomName}`] = false;
+      
+      return false;
     }
   }
 }

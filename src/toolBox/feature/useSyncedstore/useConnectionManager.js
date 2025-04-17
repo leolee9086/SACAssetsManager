@@ -148,6 +148,18 @@ export function createConnectionManager(options) {
   }
 
   /**
+   * 更新连接状态
+   * @param {boolean} connected - 是否已连接
+   */
+  function updateConnectionStatus(connected) {
+    if (isConnected.value !== connected) {
+      isConnected.value = connected;
+      status.value = connected ? '已连接' : '连接断开';
+      console.log(`[连接管理器] 房间 ${roomName} 连接状态更新为: ${connected ? '已连接' : '未连接'}`);
+    }
+  }
+
+  /**
    * 连接到WebRTC网络
    */
   function connect() {
@@ -156,8 +168,26 @@ export function createConnectionManager(options) {
       return false;
     }
     
-    if (provider.connected) {
+    // 检查provider是否已连接
+    const isAlreadyConnected = !!provider.connected;
+    
+    if (isAlreadyConnected) {
       console.log(`[连接管理器] 房间 ${roomName} 已经连接，无需再次连接`);
+      // 确保状态更新为已连接
+      updateConnectionStatus(true);
+      
+      // 如果已连接，检查是否有其他节点
+      setTimeout(() => {
+        try {
+          if (provider.awareness) {
+            const peers = provider.awareness.getStates().size;
+            console.log(`[连接管理器] 房间 ${roomName} 已连接，当前有 ${peers} 个节点`);
+          }
+        } catch (e) {
+          console.warn(`[连接管理器] 房间 ${roomName} 获取节点数量失败:`, e);
+        }
+      }, 100);
+      
       return true;
     }
     
@@ -170,8 +200,7 @@ export function createConnectionManager(options) {
         const connected = !!provider.connected;
         console.log(`[连接管理器] 房间 ${roomName} 连接状态检查: ${connected ? '已连接' : '未连接'}`);
         
-        isConnected.value = connected;
-        status.value = connected ? '已连接' : '连接中';
+        updateConnectionStatus(connected);
         
         if (!connected) {
           console.log(`[连接管理器] 房间 ${roomName} 连接延迟，等待状态变更事件...`);
