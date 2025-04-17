@@ -4,10 +4,10 @@
       <h3>高级响应式测试</h3>
       <div class="header-actions">
         <button @click="openNewTab" class="action-button">打开新Tab</button>
-        <div class="connection-status" :class="{ connected: syncedData && syncedData.$status && syncedData.$status.connected }">
-          {{ syncedData && syncedData.$status && syncedData.$status.connected ? '已连接' : '未连接' }}
+        <div class="connection-status" :class="{ connected: syncedData && syncedData.$status && syncedData.$status.connected && syncedData.$provider && syncedData.$provider.wsconnected }">
+          {{ (syncedData && syncedData.$status && syncedData.$status.connected && syncedData.$provider && syncedData.$provider.wsconnected) ? '已连接' : '未连接' }}
         </div>
-        <button @click="manualConnect" class="action-button" :disabled="syncedData && syncedData.$status && syncedData.$status.connected">重新连接</button>
+        <button @click="manualConnect" class="action-button" :disabled="syncedData && syncedData.$status && syncedData.$status.connected && syncedData.$provider && syncedData.$provider.wsconnected">重新连接</button>
       </div>
     </header>
     
@@ -230,7 +230,7 @@
       <div class="debug-section" v-if="syncedData">
         <h5>详细连接状态</h5>
         <div class="debug-info">
-          <div><strong>连接状态:</strong> {{ syncedData.$status?.connected ? '已连接' : '未连接' }}</div>
+          <div><strong>连接状态:</strong> {{ (syncedData.$status?.connected && syncedData.$provider?.wsconnected) ? '已连接' : '未连接' }}</div>
           <div><strong>Provider状态:</strong> {{ syncedData.$provider?.wsconnected ? 'Socket已连接' : 'Socket未连接' }}</div>
           <div><strong>WebSocket状态:</strong> {{ getWsStatus() }}</div>
           <div><strong>Room名称:</strong> {{ roomName }}</div>
@@ -247,7 +247,7 @@
 
 <script>
 import { computed, watch, onMounted, onBeforeUnmount, ref, reactive } from '../../../../static/vue.esm-browser.js';
-import { useSyncedReactive } from '../../../../src/toolBox/useAge/forSync/useSyncedReactiveNew.js';
+import { useSyncedReactive } from '../../../../src/toolBox/useAge/forSync/useSyncedReactive.js';
 
 // 获取思源插件API
 const pluginInstance = window[Symbol.for('plugin-SACAssetsManager')];
@@ -1074,10 +1074,13 @@ export default {
         syncedData.$syncStatus();
       }
       
-      addLog('action', `连接状态检查 - WebSocket: ${wsState}, 连接状态: ${syncedData.$status?.connected ? '已连接' : '未连接'}`);
+      // 同时检查status.connected和provider.wsconnected
+      const reallyConnected = syncedData.$status?.connected && syncedData.$provider?.wsconnected;
+      
+      addLog('action', `连接状态检查 - WebSocket: ${wsState}, 连接状态: ${reallyConnected ? '已连接' : '未连接'}`);
       
       // 不再需要手动修复，使用$syncStatus即可实现
-      return syncedData.$status?.connected;
+      return reallyConnected;
     };
     
     // 获取WebSocket状态
@@ -1154,7 +1157,8 @@ export default {
       
       // 定期自动同步 - 解决无法自动同步的问题
       const autoSyncInterval = setInterval(() => {
-        if (syncedData.$status?.connected && syncedData.$syncAuto) {
+        // 同时检查status.connected和provider.wsconnected确保真正连接成功
+        if (syncedData.$status?.connected && syncedData.$provider?.wsconnected && syncedData.$syncAuto) {
           syncedData.$syncAuto();
           if (syncedData.$status.lastSync) {
             const lastSyncTime = new Date(syncedData.$status.lastSync).toLocaleTimeString();
