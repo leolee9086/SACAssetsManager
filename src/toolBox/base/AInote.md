@@ -32,7 +32,11 @@
    - for前缀用于领域功能工具
    - use前缀用于技术栈或平台工具
 
-3. **依赖管理**：
+3. **依赖管理 (重要调整)**：
+   - **基础层 (`base`) 内部依赖规则:**
+     - 功能性目录 (如 `useEcma`, `forMath`, `forNetwork`) **禁止** 相互引用。
+     - 功能性目录 **允许且仅允许** 从 `base/useDeps` 目录引入外部依赖的封装接口。
+     - `base/useDeps` 目录是**唯一**允许直接引入外部依赖的地方。
    - 基础层尽量减少外部依赖
    - 必要的外部依赖通过useDeps管理
    - 避免循环依赖
@@ -41,6 +45,18 @@
    - 保持向后兼容性
    - 为旧版本API提供兼容层
    - 逐步替换旧引用
+
+## 外部依赖管理原则 (`useDeps`)
+
+**核心原则:** 本 `base` 目录下的 [`./useDeps`](./useDeps) 子目录是项目中**唯一**允许直接引入外部依赖（来自 `node_modules` 或 `static`）的地方。所有外部依赖**必须**在此处进行封装。
+
+**目标:**
+*   集中管理依赖版本。
+*   提供稳定的内部接口，隔离外部变化。
+*   简化依赖追踪和维护。
+
+**实现方式:**
+*   其他所有模块（`base` 内其他目录, `feature`, `useAge`）都应通过从 `./useDeps` 导出的接口来使用外部功能，**禁止**直接 `import` 外部库。
 
 ## 重构进度
 
@@ -130,3 +146,35 @@ const myLibrary = await iframeLoader(
 - 无副作用：尽量避免修改全局状态
 - 函数式风格：优先使用纯函数，避免类和继承
 - 高复用性：工具应易于在不同场景中重用 
+
+## 结构分析与调整计划 (由 AI 助手 织 记录 @ 2024-07-28)
+
+**目标:** 明确 `base` 目录范围，确保只包含基础、通用、与应用解耦的工具。
+
+**`base` 目录定位:**
+*   封装底层 API (ECMAScript, Node, Browser, Electron)。
+*   提供通用计算、处理逻辑 (数学, 事件, 网络, MIME, 路径)。
+*   环境信息、兼容性处理、依赖管理辅助。
+
+**当前 `base` 内容评估:**
+*   ✅ **符合:** `useEcma`, `useBrowser`, `forNetwork` (原 `forNetWork`), `usePath`, `forEvent`, `useDeps`, `forMath`, `useNode`, `useElectron`, `useEnv`, `usePolyfills`, `forMime`, `forChain` (函数式/流程控制工具)。
+*   ❌ **不符合 (已处理/逻辑废弃):**
+    *   `useVue`: (已更新 `feature/useVue` 导入，空目录待手动删除)。
+    *   `useMime`: (确认为空，空目录待手动删除)。
+    *   `forNetWork`: (内容已移至 `forNetwork`，空目录待手动删除)。
+*   ❓ **待查:**
+    *   `useUtils`: 内容模糊，需检查后决定拆分或移动。
+    *   `useNative`: 内容模糊，需明确范围，避免与 `useBrowser`/`useNode`/`useElectron` 重叠。
+
+**潜在可移入 `base` 的:**
+*   来自 `feature`: `useDataStruct`, `forColors`, `useStateMachine`, `useSvg` (基础操作部分)。
+*   来自 `useAge`: `forSync`, `forSafe`, `forText` (通用部分)。
+
+**待办事项:**
+1.  **立即执行:**
+    *   将 `base/useVue` 移动/合并到 `feature/useVue`。
+    *   检查 `base/forMime` 和 `base/useMime` 内容，合并功能到 `forMime`，删除 `useMime`。
+    *   将 `base/forNetWork` 重命名为 `base/forNetwork`。
+2.  **后续探查:**
+    *   `useUtils`, `useNative`, `useModules`, `forUI` 的具体内容和代码，明确其归属。
+    *   评估上面列出的"潜在可移入 `base`"的模块，确认是否适合移入。 

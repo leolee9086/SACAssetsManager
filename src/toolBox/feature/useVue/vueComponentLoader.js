@@ -6,7 +6,7 @@
  */
 
 // 导入Vue和SFC Loader
-import * as Vue from '../../../../static/vue.esm-browser.js';
+import { Vue } from '../../base/useDeps/fromVue.js';
 import * as SfcLoader from '../../../../static/vue3-sfc-loader.esm.js';
 import { plugin } from '../../../../source/asyncModules.js';
 

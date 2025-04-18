@@ -50,3 +50,37 @@ export const addScript = (path, id) => {
         };
     });
 };
+
+/**
+ * 异步加载并应用CSS样式表
+ * @param {string} path - 样式表文件的路径
+ * @param {string} id - 要赋予link元素的ID
+ * @returns {Promise<boolean>} 返回Promise，解析为是否成功加载样式表(如果已存在相同ID的样式表则解析为false)
+ */
+export const addStylesheet = (path, id) => {
+    return new Promise((resolve) => {
+        if (document.getElementById(id)) {
+            // 样式表加载后再次调用直接返回
+            resolve(false);
+            return; // return false 在 Promise 构造函数中没有意义
+        }
+        const linkElement = document.createElement("link");
+        linkElement.rel = "stylesheet";
+        linkElement.type = "text/css";
+        linkElement.href = path;
+        linkElement.id = id; // 设置 ID 以便检查重复
+        linkElement.onload = () => {
+            // 确保 ID 已设置，即使是重复加载（虽然上面的检查应该阻止这种情况）
+            if (!document.getElementById(id)) {
+               linkElement.id = id;
+            }
+            resolve(true);
+        };
+        linkElement.onerror = () => {
+             console.error(`Failed to load stylesheet: ${path}`);
+             linkElement.remove(); // 加载失败时移除元素
+             resolve(false); // 解析为 false 表示加载失败
+        }
+        document.head.appendChild(linkElement);
+    });
+};

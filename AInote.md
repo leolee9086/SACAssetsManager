@@ -403,4 +403,33 @@ export default class SACAssetsManager extends Plugin {
 
 1. 统一字段名称：逐步标准化为只使用`model`或`apiModel`
 2. 添加类型检查：使用JSDoc或TypeScript定义配置类型
-3. 配置验证：实现配置验证函数，确保必要字段存在并有效 
+3. 配置验证：实现配置验证函数，确保必要字段存在并有效
+
+# 这个区段由开发者编写,未经允许禁止AI修改
+请AI根据以下分析和建议进行代码重构和改进：
+
+## 插件功能分析 (基于 index.js)
+
+1.  **核心**: `SACAssetsManager` 类，插件入口。
+2.  **初始化 (`onload`)**: 设置状态、加载 i18n、创建 Dock/Tab、添加菜单、启动 Web 服务、导入旧 Key。
+3.  **Dock 管理**: 定义配置 (`DOCK_CONFIGS`)，使用 `createDock` 创建多个面板，Vue 渲染 UI。
+4.  **Tab 管理**: 定义配置 (`TAB_CONFIGS`)，包含动态扫描目录 (`构建TAB配置`) 生成 Tab，使用 `createTab` 注册，Vue 渲染 UI。
+5.  **Web 服务**: 获取端口，管理服务状态 (`servicesStatus`, 心跳 `pingServer`/`pingStaticServer`)，加载 `source/server/main.js`。
+6.  **i18n**: 实现 `翻译` 函数，支持可选 AI 翻译，结果写入 JSON。
+7.  **事件总线**: 使用 `eventBus` 进行内部通信。
+8.  **旧数据导入**: 从 `SACKeyManager` 路径导入 AI 密钥。
+9.  **全局访问**: 暴露插件实例和 API 到 `window`。
+
+## 改进计划
+
+1.  **拆分 `index.js`**: 按功能拆分到 `src/managers/` (dock, tab, server, i18n), `src/state/`, `src/utils/` (keyImporter, constants, domUtils) 等目录。`index.js` 只做入口和协调。
+2.  **优化函数**:
+    *   将 `同步获取文件夹列表` 和 `构建TAB配置` 改为异步 (使用 `fetch`) 并重命名。
+    *   将 `插入UI面板容器` 移至 UI 工具文件。
+3.  **消除硬编码**: 将路径、事件名、ID、CSS 类名等定义为常量，放入 `src/utils/constants.js`。
+4.  **测试代码分离**: 移除 `index.js` 末尾的 `tests/index.js` 导入，只在开发/测试环境加载。
+5.  **遵循规范**: 确保所有新代码和重构后的代码遵循自定义指令中的函数命名、导出、文件组织等规范。
+6.  **创建 `AInote.md` / `readme.md`**: 在各主要目录下创建说明文件。
+
+---
+*以上内容由 AI (织) 根据初步分析生成，待哥哥确认和细化。* 

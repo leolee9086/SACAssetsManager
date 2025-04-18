@@ -313,12 +313,31 @@ export class SiyuanProvider extends Observable {
     this._checkInterval = setInterval(() => {
       if (
         this.wsconnected &&
+        this.ws &&
         messageReconnectTimeout < Date.now() - this.wsLastMessageReceived
       ) {
-        // 长时间未收到消息，关闭连接并重连
-        this._closeWebsocketConnection();
+        // 不自动断开连接，而是触发事件通知应用层
+        this.emit('connection-status', [{
+          status: 'timeout',
+          lastMessageReceived: this.wsLastMessageReceived,
+          timeoutThreshold: messageReconnectTimeout,
+          timeSinceLastMessage: Date.now() - this.wsLastMessageReceived
+        }]);
+        
+        // 尝试发送ping消息来验证连接是否真的断开
+        try {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(new Uint8Array([0])); // 发送一个空的ping消息
+            // 更新时间戳以避免重复触发
+            this.wsLastMessageReceived = Date.now();
+          }
+        } catch (err) {
+          // 只有在发送失败时才真正断开连接
+          console.error('[思源Provider] 连接验证失败，可能已断开:', err);
+          this._closeWebsocketConnection();
+        }
       }
-    }, messageReconnectTimeout / 10);
+    }, Math.max(30000, messageReconnectTimeout)); // 检查间隔更长，减少不必要的检查
     
     // 自动连接
     if (connect) {
@@ -524,6 +543,8 @@ export class SiyuanProvider extends Observable {
 
     try {
       this.ws.send(data);
+      // 发送消息后也更新最后活动时间
+      this.wsLastMessageReceived = Date.now();
       return true;
     } catch (err) {
       console.error('[思源Provider] 发送消息失败:', err);
@@ -536,6 +557,7 @@ export class SiyuanProvider extends Observable {
    * @private
    */
   _onMessage(event) {
+    // 更新最后接收消息的时间戳
     this.wsLastMessageReceived = Date.now();
     
     try {
@@ -642,10 +664,16 @@ export class SiyuanProvider extends Observable {
       this.ws = new WebSocket(this.url);
       this.ws.binaryType = 'arraybuffer';
       
+      // 重要：确保在连接一开始就设置时间戳
+      this.wsLastMessageReceived = Date.now();
+      
       this.ws.onopen = () => {
         this.wsconnecting = false;
         this.wsconnected = true;
         this.wsUnsuccessfulReconnects = 0;
+        
+        // 重新设置时间戳
+        this.wsLastMessageReceived = Date.now();
         
         // 触发状态事件
         this.emit('status', [{ status: 'connected', room: this.roomName }]);

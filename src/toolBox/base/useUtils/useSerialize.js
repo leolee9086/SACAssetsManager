@@ -3,7 +3,7 @@
  * 提供高级对象序列化功能
  */
 
-import serialize from '../../../../static/serialize-javascript.js';
+import { serialize } from '../useDeps/fromSerialize.js';
 
 /**
  * 安全序列化对象
