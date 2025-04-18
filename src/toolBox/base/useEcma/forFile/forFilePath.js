@@ -144,6 +144,44 @@ export function 标准化路径(文件路径) {
   return 结果;
 }
 
+/**
+ * 校验文件路径是否有效（Windows 或 Unix/Linux 格式）
+ * 如果有效，则正规化路径（使用 / 分隔符并可选添加结尾 /）
+ * @param {string} filePath - 要校验的文件路径
+ * @param {boolean} [ensureTrailingSlash=false] - 是否确保返回的有效路径以 / 结尾
+ * @returns {string | null} 如果路径有效，返回正规化后的路径；否则返回 null
+ */
+export function isValidFilePath(filePath, ensureTrailingSlash = false) {
+    if (!filePath) return null;
+
+    // 去除两侧可能存在的引号
+    if (filePath.length > 1 && filePath.startsWith('\"') && filePath.endsWith('\"')) {
+        filePath = filePath.slice(1, -1);
+    }
+
+    // Windows 文件路径正则表达式 (允许 UNC 路径)
+    const windowsPattern = /^(?:[a-zA-Z]:\\|[a-zA-Z]:\/|\\\\\\\\[^\\\\\/?%*:|\"<>\\r\\n]+\\[^\\\\\/?%*:|\"<>\\r\\n]+|[a-zA-Z]:)(?:[^\\\\\/?%*:|\"<>\\r\\n]+\\?)*[^\\\\\/?%*:|\"<>\\r\\n]*$/;
+    // Unix/Linux 文件路径正则表达式 (允许相对路径和处理空路径)
+    const unixPattern = /^(?:[^\/\\0]+(?:\/[^\/\\0]+)*\/?|\/[^\/\\0]+(?:[^\/\\0]+\/)*[^\/\\0]*|\/)$/;
+
+    if (windowsPattern.test(filePath) || unixPattern.test(filePath)) {
+        // 正规化路径分隔符
+        let normalized = filePath.replace(/\\\\/g, '/');
+
+        // 根据需要确保结尾有斜杠
+        if (ensureTrailingSlash && !normalized.endsWith('/')) {
+            normalized += '/';
+        } else if (!ensureTrailingSlash && normalized.endsWith('/') && normalized.length > 1) {
+             // 如果不需要结尾斜杠，且路径不是根目录 "/"，则移除它
+             // normalized = normalized.slice(0, -1);
+             // 考虑到目录和文件的区别，默认行为保留原始是否有斜杠，除非显式要求
+        }
+        return normalized;
+    }
+
+    return null; // 如果路径无效，返回 null
+}
+
 // 添加英文别名以提高兼容性
 export const getFileName = 获取文件名;
 export const getFileExtension = 获取文件扩展名;
@@ -153,6 +191,7 @@ export const getFileFormats = 获取文件格式描述;
 export const generateFileListLabel = 生成文件列表描述;
 export const joinPath = 组合路径;
 export const normalizePath = 标准化路径;
+export const validateFilePath = isValidFilePath;
 
 // 默认导出
 export default {
@@ -164,6 +203,7 @@ export default {
   生成文件列表描述,
   组合路径,
   标准化路径,
+  isValidFilePath,
   getFileName,
   getFileExtension,
   getBaseName,
@@ -171,5 +211,6 @@ export default {
   getFileFormats,
   generateFileListLabel,
   joinPath,
-  normalizePath
+  normalizePath,
+  validateFilePath
 }; 

@@ -1,5 +1,9 @@
 //转接导出
-export { measureRegexComplexity } from "../../../../../src/utils/strings/regexs/index.js";
+// import { measureRegexComplexity } from "../../../../../src/utils/strings/regexs/index.js";
+import { measureRegexComplexity } from "../../../../../src/toolBox/base/useEcma/forString/forRegexComplexity.js";
+
+export { measureRegexComplexity };
+
 // 匹配所有路径中包含.library/images或者.library\\\\images的文件,这些文件是eagle的库文件
 export const eagleImageRegex = /.*\.library\/images/
 export const eagleLibraryRegex = /.*\.library/

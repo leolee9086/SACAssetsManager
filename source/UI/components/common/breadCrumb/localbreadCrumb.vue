@@ -38,7 +38,7 @@
 <script setup>
 import { defineProps, defineEmits, ref, onMounted, watch } from 'vue'
 import breadCrumbItem from './breadCrumbItem.vue'
-import { 构建搜索模式 } from '../../../../../src/utils/globBuilder.js';
+import { 构建搜索模式 } from '../../../../../src/toolBox/base/useEcma/forFile/globTools.js';
 import { plugin } from 'runtime'
 import { commonIcon } from '../icons.js'
 import { 打开文件夹图标菜单 } from '../../../siyuanCommon/menus/folderItem.js';

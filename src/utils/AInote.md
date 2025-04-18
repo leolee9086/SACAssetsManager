@@ -38,20 +38,32 @@
 
 | 目录/文件 | 目标位置 | 状态 | 负责人 | 备注 |
 |----------|---------|------|-------|------|
-| base/ | src/toolBox/base | 进行中 | AI助手 | 基础工具正在迁移 |
+| base/ | src/toolBox/base | ✅ 完成 | AI助手 | 目录已移除 |
 | events/ | src/toolBox/base/forEvent | 待处理 | - | 事件处理工具 |
 | fs/ | src/toolBox/feature/forFileSystem | 待处理 | - | 文件系统工具 |
 | functions/ | src/toolBox/base/useEcma/forFunctions | 待处理 | - | 函数式工具 |
 | math/ | src/toolBox/base/useEcma/forMath | 待处理 | - | 数学计算工具 |
-| netWork/ | src/toolBox/base/forNetWork | 进行中 | AI助手 | 网络请求工具 |
+| netWork/ | src/toolBox/base/forNetWork | ✅ 完成 | AI助手 | 目录已移除 |
 | object/ | src/toolBox/base/useEcma/forObjectManagement | 待处理 | - | 对象操作工具 |
-| strings/ | src/toolBox/base/useEcma/forString | 进行中 | AI助手 | 字符串处理工具 |
+| strings/ | src/toolBox/base/useEcma/forString | 进行中 | AI助手 | 字符串处理工具 (regexs/ 已完成迁移) |
 | time/ | src/toolBox/base/useEcma/forTime | 待处理 | - | 时间处理工具 |
-| objectTools.js | src/toolBox/base/useEcma/forObjectManagement | 待处理 | - | 对象工具集 |
+| objectTools.js | src/toolBox/base/useEcma/forObjectManagement | ✅ 完成 | AI助手 | 兼容层已移除 |
 | functionTools.js | src/toolBox/base/useEcma/forFunctions | 待处理 | - | 函数工具集 |
-| Math.js | src/toolBox/base/useEcma/forMath | 待处理 | - | 数学工具集 |
-| globBuilder.js | src/toolBox/base/useEcma/forFile | 待处理 | - | Glob匹配工具 |
+| Math.js | src/toolBox/base/useEcma/forMath | ✅ 完成 | AI助手 | 兼容层已移除 |
+| globBuilder.js | src/toolBox/base/useEcma/forFile | ✅ 完成 | AI助手 | 兼容层已移除 |
 | port.js | src/toolBox/base/forNetWork/forPort | 完成 | AI助手 | 端口管理工具 |
+
+### `strings/regexs/index.js` 处理说明
+
+- **分析**: 该文件包含 `measureRegexComplexity` 和 `isValidFilePath` 函数。
+  - `measureRegexComplexity` 被 `source/server/processors/thumbnail/` 下的代码引用。
+  - `isValidFilePath` 未被引用。
+  - `src/toolBox` 中无直接替代函数。
+- **计划**:
+  1. 将 `measureRegexComplexity` 迁移至 `src/toolBox/base/useEcma/forString/forRegexComplexity.js`。
+  2. 将 `isValidFilePath` 迁移至 `src/toolBox/base/useEcma/forFile/forFilePath.js`。
+  3. 更新 `source/server/processors/thumbnail/utils/regexs.js` 的导入路径。
+  4. 删除 `src/utils/strings/regexs/index.js` 及空目录。
 
 ## 优先级设定
 
