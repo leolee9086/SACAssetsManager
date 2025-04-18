@@ -1,4 +1,4 @@
-import { IEventEmitterSimple } from "../events/emitter.js";
+import { IEventEmitterSimple } from "../../toolBox/base/forEvent/useCompatibleEmitter.js";
 import { MinHeap } from "../useEcma/useArray/minHeap.js";
 
 // 纯函数 - 比较任务优先级

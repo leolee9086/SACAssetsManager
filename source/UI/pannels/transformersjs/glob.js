@@ -1,8 +1,10 @@
 import { kernelApi } from "../../../asyncModules.js";
 import { runPipeline } from './pipelineManager.js';
 import { AutoTokenizer, CLIPTextModelWithProjection,AutoModel, AutoProcessor, RawImage, matmul,env  } from '../../../../static/@huggingface/transformers/index.js';
-import { IEventEmitterSimple } from "../../../../src/utils/events/emitter.js";
+import { IEventEmitterSimple } from "../../../../src/toolBox/base/forEvent/useCompatibleEmitter.js";
 import { splitText } from './textSplitter.js';
+import { ref, onMounted, watch } from "vue";
+import { logger } from "../utils/logger.js";
 console.log(env)
 const sql = `select hash,id from blocks where length limit 10240000`
 

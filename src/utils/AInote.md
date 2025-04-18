@@ -45,7 +45,7 @@
 | math/ | src/toolBox/base/useEcma/forMath | 待处理 | - | 数学计算工具 |
 | netWork/ | src/toolBox/base/forNetWork | ✅ 完成 | AI助手 | 目录已移除 |
 | object/ | src/toolBox/base/useEcma/forObjectManagement | 待处理 | - | 对象操作工具 |
-| strings/ | src/toolBox/base/useEcma/forString | 进行中 | AI助手 | 字符串处理工具 (regexs/ 已完成迁移) |
+| strings/ | src/toolBox/base/useEcma/forString | ✅ 完成 | AI助手 | 子目录 (regexs, scripts, imageSrc) 已完成迁移并移除 |
 | time/ | src/toolBox/base/useEcma/forTime | 待处理 | - | 时间处理工具 |
 | objectTools.js | src/toolBox/base/useEcma/forObjectManagement | ✅ 完成 | AI助手 | 兼容层已移除 |
 | functionTools.js | src/toolBox/base/useEcma/forFunctions | 待处理 | - | 函数工具集 |
@@ -64,6 +64,27 @@
   2. 将 `isValidFilePath` 迁移至 `src/toolBox/base/useEcma/forFile/forFilePath.js`。
   3. 更新 `source/server/processors/thumbnail/utils/regexs.js` 的导入路径。
   4. 删除 `src/utils/strings/regexs/index.js` 及空目录。
+
+### `strings/imageSrc/index.js` 处理说明
+
+- **分析**: 该文件包含 `isValidImageSrc` 和 `sanitizeUrl` 函数。
+  - 这两个函数被 `source/data/attributies/attributeParsers.js` 引用。
+  - `src/toolBox` 中无直接替代函数。
+- **计划**:
+  1. 将这两个函数迁移至 `src/toolBox/base/forNetWork/forURIValidation.js`。
+  2. 更新 `source/data/attributies/attributeParsers.js` 的导入路径。
+  3. 删除 `src/utils/strings/imageSrc/index.js` 及空目录。
+
+### `events/emitter.js` 处理说明
+
+- **分析**: 该文件定义了 `IEventEmitterSimple` 类，作为 `useEventBus` 的兼容适配层，主要为了兼容旧 API 和 `eventListeners` 属性。
+  - 该类被 `source/UI/...` 和 `src/utils/queue/task.js` (包括继承) 等多处引用。
+- **计划**:
+  1. 将 `IEventEmitterSimple` 类迁移至 `src/toolBox/base/forEvent/useCompatibleEmitter.js`。
+  2. 更新所有引用处的导入路径。
+  3. 删除 `src/utils/events/emitter.js`。
+  4. (未来可考虑逐步替换 `IEventEmitterSimple` 为 `createEventBus`)
+- **状态**: ✅ 完成 (类已迁移至 `toolBox`, 旧文件已删除)
 
 ## 优先级设定
 

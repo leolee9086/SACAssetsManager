@@ -1,5 +1,6 @@
 import { thumbnail } from '../../server/endPoints.js'
-import { isValidImageSrc,sanitizeUrl } from '../../../src/utils/strings/imageSrc/index.js';
+// import { isValidImageSrc, sanitizeUrl } from '../../../src/utils/strings/imageSrc/index.js';
+import { isValidImageSrc, sanitizeUrl } from '../../../src/toolBox/base/forNetWork/forURIValidation.js';
 import { findTagsByFilePath,findTagsByNoteID } from '../tags.js';
 
 // 检查常用的缩略图或图标属性
